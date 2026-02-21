@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import shutil
 import socket
 import sqlite3
 import threading
@@ -38,6 +39,7 @@ DEFAULT_HISTORY_EVENT_RETENTION_DAYS = 30
 DEFAULT_HISTORY_ROLLUP_RETENTION_DAYS = 365
 DEFAULT_NODE_HISTORY_HOURS = 72
 DEFAULT_NODE_HISTORY_MAX_POINTS = 1440
+DEFAULT_CHAT_MAX_BYTES = 220
 MIN_REAL_LINK_COUNT = 2
 
 SENSITIVE_FIELD_NAMES = {
@@ -113,6 +115,56 @@ def _guess_lan_ipv4() -> Optional[str]:
         pass
 
     return None
+
+
+def _get_local_node_num(iface: Any) -> Optional[int]:
+    my_info = _to_jsonable(getattr(iface, "myInfo", None))
+    if isinstance(my_info, dict):
+        for key in ("my_node_num", "myNodeNum", "node_num", "nodeNum", "num"):
+            value = _to_int(my_info.get(key))
+            if value is not None:
+                return value
+
+    local = getattr(iface, "localNode", None)
+    if local is not None:
+        for key in ("nodeNum", "node_num", "num"):
+            value = _to_int(getattr(local, key, None))
+            if value is not None:
+                return value
+    return None
+
+
+def _get_local_node_id(iface: Any) -> str:
+    node_num = _get_local_node_num(iface)
+    if node_num is None:
+        return "local"
+    node_id = _get_node_id_from_num(iface, node_num)
+    if node_id:
+        return node_id
+    return f"!{node_num:08x}"
+
+
+def _disk_space_info(path: Optional[str]) -> Dict[str, Any]:
+    probe = os.path.abspath(os.path.expanduser(path or "."))
+    if os.path.isfile(probe):
+        probe = os.path.dirname(probe) or "."
+    try:
+        usage = shutil.disk_usage(probe)
+        total = int(usage.total)
+        free = int(usage.free)
+        used = int(usage.used)
+        free_pct = round((free / total) * 100.0, 1) if total > 0 else None
+        used_pct = round((used / total) * 100.0, 1) if total > 0 else None
+        return {
+            "path": probe,
+            "total_bytes": total,
+            "used_bytes": used,
+            "free_bytes": free,
+            "free_pct": free_pct,
+            "used_pct": used_pct,
+        }
+    except Exception as exc:
+        return {"path": probe, "error": str(exc)}
 
 
 def _apply_default_gateway(args: argparse.Namespace) -> None:
@@ -621,6 +673,31 @@ class HistoryStore:
                 "rssi_max": rssi_max_all,
             },
         }
+
+    def load_node_saved_counts(self) -> Dict[str, Dict[str, Any]]:
+        out: Dict[str, Dict[str, Any]] = {}
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT node_id,
+                       SUM(packet_count) AS saved_packets,
+                       COUNT(*) AS saved_points,
+                       MAX(last_seen_unix) AS saved_last_seen_unix
+                FROM node_metrics_1m
+                GROUP BY node_id
+                """
+            ).fetchall()
+
+        for node_id, saved_packets, saved_points, saved_last_seen_unix in rows:
+            clean_node_id = str(node_id or "").strip()
+            if not clean_node_id:
+                continue
+            out[clean_node_id] = {
+                "saved_packets": int(saved_packets or 0),
+                "saved_points": int(saved_points or 0),
+                "saved_last_seen": _format_epoch(saved_last_seen_unix),
+            }
+        return out
 
     def save_connection_event(
         self,
@@ -1132,6 +1209,35 @@ class DashboardTracker:
         with self._lock:
             return bool(self.recent_packets)
 
+    def load_node_saved_counts(self) -> Dict[str, Dict[str, Any]]:
+        if self._history_store is None:
+            return {}
+        return self._history_store.load_node_saved_counts()
+
+    def record_local_chat(
+        self,
+        text: str,
+        from_id: str = "local",
+        to_id: str = "^all",
+        channel_index: int = 0,
+    ) -> None:
+        clean_text = str(text or "").strip()
+        if not clean_text:
+            return
+        entry = {
+            "captured_at": _utc_now(),
+            "from": str(from_id or "local"),
+            "to": str(to_id or "^all"),
+            "portnum": "TEXT_MESSAGE_APP",
+            "channel": int(channel_index) if isinstance(channel_index, int) else 0,
+            "rx_time": _utc_now(),
+            "text": clean_text,
+        }
+        with self._lock:
+            self.recent_chat.append(entry)
+            if self._history_store is not None:
+                self._history_store.save_chat(entry)
+
     def seed_packet(self, packet: Dict[str, Any], interface: Any) -> None:
         with self._lock:
             self._record_packet_unlocked(packet, interface, include_live_count=False)
@@ -1458,9 +1564,16 @@ def _build_state(
     started_at: float,
     target: str,
     show_secrets: bool,
+    storage_probe_path: Optional[str],
 ) -> Dict[str, Any]:
     nodes = _collect_nodes(iface)
     tracker_data = tracker.snapshot(nodes["by_id"])
+    node_saved_counts = tracker.load_node_saved_counts()
+    for row in nodes["rows"]:
+        stats = node_saved_counts.get(str(row.get("id") or ""), {})
+        row["saved_packets"] = int(stats.get("saved_packets") or 0)
+        row["saved_points"] = int(stats.get("saved_points") or 0)
+        row["saved_last_seen"] = stats.get("saved_last_seen")
 
     my_info = _to_jsonable(getattr(iface, "myInfo", None))
     metadata = _to_jsonable(getattr(iface, "metadata", None))
@@ -1495,6 +1608,7 @@ def _build_state(
             "real_edge_count": tracker_data["real_edge_count"],
             "recent_packet_buffer": len(tracker_data["recent_packets"]),
             "modem_preset": modem_preset,
+            "disk": _disk_space_info(storage_probe_path),
         },
         "my_info": my_info,
         "metadata": metadata,
@@ -1578,7 +1692,18 @@ def _render_html(
       z-index: 100;
     }}
     .topbar h1 {{ margin: 0; font-size: 16px; letter-spacing: 0.1px; }}
-    .topbar .sub {{ margin-top: 2px; font-size: 11px; opacity: 0.95; }}
+    .topbar .sub {{
+      margin-top: 2px;
+      font-size: 11px;
+      opacity: 0.95;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }}
+    .topbar .sub .sub-text {{
+      margin-right: 2px;
+    }}
     .layout {{
       --split-left-pct: 64%;
       --splitter-size: 8px;
@@ -1749,6 +1874,9 @@ def _render_html(
       text-align: center;
       padding: 10px;
       background: rgba(250, 255, 251, 0.9);
+    }}
+    .signal-empty[hidden] {{
+      display: none !important;
     }}
     .signal-legend {{
       margin-top: 6px;
@@ -1929,24 +2057,77 @@ def _render_html(
       background: #d8efe1;
     }}
     .mono {{ font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace; }}
-    #nodes-table th:nth-child(1), #nodes-table td:nth-child(1) {{ width: 16%; }}
-    #nodes-table th:nth-child(2), #nodes-table td:nth-child(2) {{ width: 16%; }}
-    #nodes-table th:nth-child(3), #nodes-table td:nth-child(3) {{ width: 20%; }}
-    #nodes-table th:nth-child(4), #nodes-table td:nth-child(4) {{ width: 19%; }}
-    #nodes-table th:nth-child(5), #nodes-table td:nth-child(5) {{ width: 7%; }}
+    #nodes-table th:nth-child(1), #nodes-table td:nth-child(1) {{ width: 14%; }}
+    #nodes-table th:nth-child(2), #nodes-table td:nth-child(2) {{ width: 13%; }}
+    #nodes-table th:nth-child(3), #nodes-table td:nth-child(3) {{ width: 18%; }}
+    #nodes-table th:nth-child(4), #nodes-table td:nth-child(4) {{ width: 16%; }}
+    #nodes-table th:nth-child(5), #nodes-table td:nth-child(5) {{ width: 6%; }}
     #nodes-table th:nth-child(6), #nodes-table td:nth-child(6) {{ width: 6%; }}
-    #nodes-table th:nth-child(7), #nodes-table td:nth-child(7) {{ width: 8%; }}
-    #nodes-table th:nth-child(8), #nodes-table td:nth-child(8) {{ width: 8%; }}
+    #nodes-table th:nth-child(7), #nodes-table td:nth-child(7) {{ width: 7%; }}
+    #nodes-table th:nth-child(8), #nodes-table td:nth-child(8) {{ width: 10%; }}
+    #nodes-table th:nth-child(9), #nodes-table td:nth-child(9) {{ width: 10%; }}
     .chat .body {{
       display: flex;
       flex-direction: column;
       flex: 1;
       min-height: 0;
+      gap: 7px;
     }}
     .chat .scroll {{
       flex: 1;
       max-height: none;
       min-height: 0;
+    }}
+    .chat-composer {{
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      border-top: 1px solid #d8e7d3;
+      padding-top: 6px;
+      min-height: 0;
+    }}
+    #chat-input {{
+      flex: 1;
+      min-width: 0;
+      border: 1px solid #c2d8c7;
+      border-radius: 7px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: #183223;
+      background: #f9fdf9;
+    }}
+    #chat-input:focus {{
+      outline: 2px solid #9ac5aa;
+      outline-offset: 0;
+      background: #ffffff;
+    }}
+    #chat-send-btn {{
+      border: 1px solid #9cc9ad;
+      background: #e3f4ea;
+      color: #184a32;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    #chat-send-btn:hover {{
+      background: #d7ecdf;
+    }}
+    #chat-send-btn:disabled {{
+      opacity: 0.6;
+      cursor: default;
+    }}
+    .chat-send-status {{
+      min-height: 14px;
+      font-size: 10px;
+      color: #446551;
+      line-height: 1.25;
+    }}
+    .chat-send-status.error {{
+      color: #b43b3b;
+      font-weight: 600;
     }}
     #chat-table {{
       table-layout: auto;
@@ -1963,6 +2144,26 @@ def _render_html(
       line-height: 1.25;
     }}
     #chat-table td {{ vertical-align: top; }}
+    .chat-endpoint {{
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+      max-width: 100%;
+      min-width: 0;
+    }}
+    .chat-name {{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }}
+    .chat-id-bg {{
+      font-size: 9px;
+      color: #6c8578;
+      opacity: 0.5;
+      letter-spacing: 0.12px;
+      white-space: nowrap;
+    }}
     .scroll {{
       max-height: 300px;
       overflow: auto;
@@ -2005,6 +2206,41 @@ def _render_html(
     .selection-btn:disabled {{
       opacity: 0.55;
       cursor: default;
+    }}
+    .disk-meter {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 2px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(226, 248, 233, 0.35);
+      background: rgba(8, 30, 18, 0.2);
+    }}
+    .disk-label {{
+      font-size: 10px;
+      color: #e7fff0;
+      white-space: nowrap;
+    }}
+    .disk-track {{
+      width: 118px;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(231, 255, 240, 0.28);
+    }}
+    .disk-fill {{
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: #66dc8a;
+      transition: width 220ms ease, background-color 220ms ease;
+    }}
+    .disk-fill.warn {{
+      background: #f4c652;
+    }}
+    .disk-fill.danger {{
+      background: #ff7676;
     }}
     .warn {{ color: var(--danger); font-weight: 600; }}
     .console .body {{
@@ -2081,13 +2317,17 @@ def _render_html(
   <div class="topbar">
     <h1>Meshtastic Deep Dashboard</h1>
     <div class="sub">
-      Live node, traffic, config, and packet views.
+      <span class="sub-text">Live node, traffic, config, and packet views.</span>
       <span class="pill">{safety_label}</span>
       <span class="pill">Packet buffer: {packet_limit}</span>
       <span class="pill">{history_label}</span>
       <span class="pill">Refresh: {refresh_ms} ms</span>
       <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
       <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
+      <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
+        <span id="disk-label" class="disk-label">Disk free: n/a</span>
+        <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+      </span>
     </div>
   </div>
 
@@ -2127,6 +2367,17 @@ def _render_html(
             <tbody></tbody>
           </table>
         </div>
+        <div class="chat-composer">
+          <input
+            id="chat-input"
+            type="text"
+            maxlength="280"
+            placeholder="Message the room (^all)..."
+            autocomplete="off"
+          />
+          <button id="chat-send-btn" type="button">Send</button>
+        </div>
+        <div id="chat-send-status" class="chat-send-status"></div>
       </div>
     </section>
 
@@ -2147,11 +2398,11 @@ def _render_html(
       <h2>Nodes</h2>
       <div class="body scroll">
         <table id="nodes-table">
-          <thead>
-            <tr>
-              <th>Last Heard</th><th>ID</th><th>Name</th><th>HW</th><th>SNR</th><th>Hops</th><th>Battery</th><th>Pos</th>
-            </tr>
-          </thead>
+            <thead>
+              <tr>
+              <th>Last Heard</th><th>ID</th><th>Name</th><th>HW</th><th>SNR</th><th>Hops</th><th>Battery</th><th>Saved</th><th>Pos</th>
+              </tr>
+            </thead>
           <tbody></tbody>
         </table>
       </div>
@@ -2272,11 +2523,13 @@ def _render_html(
     const edgeLayer = L.layerGroup().addTo(map);
     const nodeMarkers = new Map();
     const selectionStorageKey = "meshDashboardSelectedNodeId";
+    const nodeNameCacheStorageKey = "meshDashboardNodeNameCacheV1";
     const splitStorageKey = "meshDashboardLayoutSplitState";
+    const chatBottomStickThresholdPx = 28;
     const consoleMaxLines = 1200;
     const tableSortState = {{
       "nodes-table": {{ index: 0, dir: "desc" }},
-      "chat-table": {{ index: 0, dir: "desc" }},
+      "chat-table": {{ index: 0, dir: "asc" }},
       "links-table": {{ index: 2, dir: "desc" }},
       "ports-table": {{ index: 1, dir: "desc" }},
       "packets-table": {{ index: 0, dir: "desc" }},
@@ -2304,7 +2557,10 @@ def _render_html(
     let mapWheelZoomActive = false;
     let mapWheelJustArmed = false;
     let mapWheelLease = null;
+    let chatSendInFlight = false;
+    let chatStickToBottom = true;
     const nodeHistoryCache = new Map();
+    const nodeNameCache = new Map();
 
     function requestMapResize() {{
       if (mapResizeRaf !== null) {{
@@ -2559,8 +2815,124 @@ def _render_html(
       el.textContent = value == null ? "n/a" : String(value);
     }}
 
+    function getChatScroller() {{
+      const table = document.getElementById("chat-table");
+      if (!(table instanceof HTMLTableElement)) return null;
+      const scroller = table.closest(".scroll");
+      return scroller instanceof HTMLElement ? scroller : null;
+    }}
+
+    function isNearBottom(scroller, thresholdPx = chatBottomStickThresholdPx) {{
+      if (!(scroller instanceof HTMLElement)) return false;
+      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      return remaining <= thresholdPx;
+    }}
+
+    function bindChatAutoScroll() {{
+      const scroller = getChatScroller();
+      if (!(scroller instanceof HTMLElement) || scroller.dataset.chatScrollBound === "1") return;
+      scroller.dataset.chatScrollBound = "1";
+      chatStickToBottom = true;
+      scroller.addEventListener("scroll", () => {{
+        chatStickToBottom = isNearBottom(scroller);
+      }});
+    }}
+
+    function bytesToGiB(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num) || num < 0) return null;
+      return num / (1024 ** 3);
+    }}
+
+    function setChatSendStatus(message, isError = false) {{
+      const el = document.getElementById("chat-send-status");
+      if (!(el instanceof HTMLElement)) return;
+      el.textContent = message ? String(message) : "";
+      el.classList.toggle("error", !!isError);
+    }}
+
+    function setChatSendBusy(isBusy) {{
+      chatSendInFlight = !!isBusy;
+      const btn = document.getElementById("chat-send-btn");
+      const input = document.getElementById("chat-input");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.disabled = chatSendInFlight;
+        btn.textContent = chatSendInFlight ? "Sending..." : "Send";
+      }}
+      if (input instanceof HTMLInputElement) {{
+        input.disabled = chatSendInFlight;
+      }}
+    }}
+
+    async function sendChatMessage() {{
+      if (chatSendInFlight) return;
+      const input = document.getElementById("chat-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      const text = input.value.trim();
+      if (!text) {{
+        setChatSendStatus("Enter a message before sending.", true);
+        return;
+      }}
+
+      setChatSendBusy(true);
+      setChatSendStatus("Sending...");
+      try {{
+        const resp = await fetch("/api/chat/send", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            text,
+            destination: "^all",
+            channel_index: 0,
+          }}),
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || !payload.ok) {{
+          const msg = payload && payload.error ? payload.error : `send failed (${{resp.status}})`;
+          throw new Error(msg);
+        }}
+        input.value = "";
+        setChatSendStatus(`Sent to room at ${{payload.sent_at || "now"}}`);
+        await poll();
+      }} catch (err) {{
+        setChatSendStatus(`Send error: ${{err.message || err}}`, true);
+      }} finally {{
+        setChatSendBusy(false);
+      }}
+    }}
+
+    function bindChatComposer() {{
+      const btn = document.getElementById("chat-send-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {{
+          sendChatMessage();
+        }});
+      }}
+
+      const input = document.getElementById("chat-input");
+      if (input instanceof HTMLInputElement && input.dataset.bound !== "1") {{
+        input.dataset.bound = "1";
+        input.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Enter" && !ev.shiftKey) {{
+            ev.preventDefault();
+            sendChatMessage();
+          }}
+        }});
+      }}
+    }}
+
     function nodeLabel(node) {{
       return node.long_name || node.short_name || node.id || "unknown";
+    }}
+
+    function preferredNodeName(node) {{
+      if (!node || typeof node !== "object") return "";
+      const longName = String(node.long_name || "").trim();
+      if (longName) return longName;
+      const shortName = String(node.short_name || "").trim();
+      if (shortName) return shortName;
+      return "";
     }}
 
     function markerStyle(isSelected) {{
@@ -2584,24 +2956,84 @@ def _render_html(
       }};
     }}
 
+    function normalizeNodeId(nodeId) {{
+      const raw = String(nodeId == null ? "" : nodeId).trim();
+      if (!raw) return "";
+      const lower = raw.toLowerCase();
+      if (lower === "^all" || lower === "all" || lower === "broadcast") return "^all";
+      if (lower === "unknown") return "Unknown";
+      if (lower === "n/a" || lower === "na") return "n/a";
+      if (lower === "local") return "local";
+
+      const hex = raw.startsWith("!") ? raw.slice(1) : raw;
+      if (/^[0-9a-f]{8}$/i.test(hex)) {{
+        return `!${{hex.toLowerCase()}}`;
+      }}
+      return raw;
+    }}
+
     function isSelectableNodeId(nodeId) {{
-      return !!nodeId && nodeId !== "^all" && nodeId !== "Unknown" && nodeId !== "n/a";
+      const normalized = normalizeNodeId(nodeId);
+      return !!normalized && normalized !== "^all" && normalized !== "Unknown" && normalized !== "n/a";
     }}
 
     function loadStoredSelection() {{
       try {{
         const stored = window.localStorage.getItem(selectionStorageKey);
-        if (isSelectableNodeId(stored)) {{
-          selectedNodeId = String(stored);
+        const normalized = normalizeNodeId(stored);
+        if (isSelectableNodeId(normalized)) {{
+          selectedNodeId = normalized;
         }}
       }} catch (_err) {{
+      }}
+    }}
+
+    function loadNodeNameCache() {{
+      try {{
+        const raw = window.localStorage.getItem(nodeNameCacheStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          if (!Array.isArray(entry) || entry.length < 2) continue;
+          const nodeId = normalizeNodeId(entry[0]);
+          const name = String(entry[1] || "").trim();
+          if (!isSelectableNodeId(nodeId) || !name) continue;
+          nodeNameCache.set(nodeId, name);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistNodeNameCache() {{
+      try {{
+        const entries = Array.from(nodeNameCache.entries()).slice(-2000);
+        window.localStorage.setItem(nodeNameCacheStorageKey, JSON.stringify(entries));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function updateNodeNameCache(nodes) {{
+      let changed = false;
+      for (const node of (nodes || [])) {{
+        const nodeId = normalizeNodeId(node.id || "");
+        if (!isSelectableNodeId(nodeId)) continue;
+        const name = preferredNodeName(node);
+        if (!name) continue;
+        if (nodeNameCache.get(nodeId) !== name) {{
+          nodeNameCache.set(nodeId, name);
+          changed = true;
+        }}
+      }}
+      if (changed) {{
+        persistNodeNameCache();
       }}
     }}
 
     function persistSelection() {{
       try {{
         if (isSelectableNodeId(selectedNodeId)) {{
-          window.localStorage.setItem(selectionStorageKey, String(selectedNodeId));
+          window.localStorage.setItem(selectionStorageKey, normalizeNodeId(selectedNodeId));
         }} else {{
           window.localStorage.removeItem(selectionStorageKey);
         }}
@@ -2927,11 +3359,11 @@ def _render_html(
 
     function highlightNodeSelection() {{
       for (const row of document.querySelectorAll("#nodes-table tbody tr")) {{
-        const nodeId = row.dataset.nodeId || "";
+        const nodeId = normalizeNodeId(row.dataset.nodeId || "");
         row.classList.toggle("selected-node", !!selectedNodeId && nodeId === selectedNodeId);
       }}
       for (const row of document.querySelectorAll("#chat-table tbody tr")) {{
-        const nodeId = row.dataset.nodeId || "";
+        const nodeId = normalizeNodeId(row.dataset.nodeId || "");
         row.classList.toggle("selected-node", !!selectedNodeId && nodeId === selectedNodeId);
       }}
     }}
@@ -2946,7 +3378,7 @@ def _render_html(
       for (const tableId of ["nodes-table", "chat-table"]) {{
         let targetRow = null;
         for (const row of document.querySelectorAll(`#${{tableId}} tbody tr`)) {{
-          if ((row.dataset.nodeId || "") === selectedNodeId) {{
+          if (normalizeNodeId(row.dataset.nodeId || "") === selectedNodeId) {{
             targetRow = row;
             break;
           }}
@@ -2994,7 +3426,7 @@ def _render_html(
     function selectedNodeFrom(nodes) {{
       if (!selectedNodeId) return null;
       for (const node of (nodes || [])) {{
-        if (String(node.id || "") === selectedNodeId) {{
+        if (normalizeNodeId(node.id || "") === selectedNodeId) {{
           return node;
         }}
       }}
@@ -3056,8 +3488,9 @@ def _render_html(
     }}
 
     function selectNode(nodeId, shouldFocus = true) {{
-      if (!isSelectableNodeId(nodeId)) return;
-      selectedNodeId = String(nodeId);
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) return;
+      selectedNodeId = normalized;
       pendingSelectionScroll = true;
       persistSelection();
       renderSelectionStatus();
@@ -3133,10 +3566,51 @@ def _render_html(
       if (err) {{
         err.textContent = state.local_state_error ? `  Local state error: ${{state.local_state_error}}` : "";
       }}
+
+      const disk = s.disk || {{}};
+      const diskLabel = document.getElementById("disk-label");
+      const diskFill = document.getElementById("disk-fill");
+      const diskMeter = document.getElementById("disk-meter");
+      const freePctRaw = Number(disk.free_pct);
+      if (!Number.isFinite(freePctRaw)) {{
+        if (diskLabel) {{
+          diskLabel.textContent = "Disk free: n/a";
+        }}
+        if (diskFill) {{
+          diskFill.style.width = "0%";
+          diskFill.classList.remove("warn", "danger");
+        }}
+        if (diskMeter) {{
+          const detail = disk.error ? ` (${{disk.error}})` : "";
+          diskMeter.title = `Disk free on dashboard host${{detail}}`;
+        }}
+        return;
+      }}
+
+      const freePct = Math.max(0, Math.min(100, freePctRaw));
+      if (diskLabel) {{
+        diskLabel.textContent = `Disk free: ${{freePct.toFixed(1)}}%`;
+      }}
+      if (diskFill) {{
+        diskFill.style.width = `${{freePct.toFixed(1)}}%`;
+        diskFill.classList.remove("warn", "danger");
+        if (freePct < 15) {{
+          diskFill.classList.add("danger");
+        }} else if (freePct < 30) {{
+          diskFill.classList.add("warn");
+        }}
+      }}
+      if (diskMeter) {{
+        const freeGiB = bytesToGiB(disk.free_bytes);
+        const totalGiB = bytesToGiB(disk.total_bytes);
+        const freeText = freeGiB == null ? "n/a" : freeGiB.toFixed(1);
+        const totalText = totalGiB == null ? "n/a" : totalGiB.toFixed(1);
+        diskMeter.title = `Disk free on dashboard host (${{freeText}} GiB / ${{totalText}} GiB, path: ${{disk.path || "n/a"}})`;
+      }}
     }}
 
     function buildMapSignature(nodes, edges) {{
-      const selection = isSelectableNodeId(selectedNodeId) ? String(selectedNodeId) : "";
+      const selection = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
       if (selection) {{
         const selectedNode = selectedNodeFrom(nodes);
         if (
@@ -3150,10 +3624,10 @@ def _render_html(
       }}
       const nodeSig = (nodes || [])
         .filter((node) => typeof node.lat === "number" && typeof node.lon === "number")
-        .map((node) => `${{node.id}}:${{node.lat.toFixed(5)}},${{node.lon.toFixed(5)}}`)
+        .map((node) => `${{normalizeNodeId(node.id)}}:${{node.lat.toFixed(5)}},${{node.lon.toFixed(5)}}`)
         .join("|");
       const edgeSig = (edges || [])
-        .map((edge) => `${{edge.from}}>${{edge.to}}:${{edge.lifetime_count ?? edge.count ?? 0}}:${{edge.last_rx_time || ""}}:${{edge.last_hops ?? ""}}`)
+        .map((edge) => `${{normalizeNodeId(edge.from)}}>${{normalizeNodeId(edge.to)}}:${{edge.lifetime_count ?? edge.count ?? 0}}:${{edge.last_rx_time || ""}}:${{edge.last_hops ?? ""}}`)
         .join("|");
       return `all#${{nodeSig}}#${{edgeSig}}`;
     }}
@@ -3170,7 +3644,7 @@ def _render_html(
       edgeLayer.clearLayers();
       nodeMarkers.clear();
       const features = [];
-      const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+      const byId = Object.fromEntries(nodes.map((n) => [normalizeNodeId(n.id), n]));
       const selectionMode = isSelectableNodeId(selectedNodeId);
       const mapTitle = document.getElementById("map-card-title");
       if (mapTitle) {{
@@ -3190,16 +3664,16 @@ def _render_html(
           );
           marker.bindPopup(`
             <b>${{nodeLabel(selectedNode)}}</b><br/>
-            ${{selectedNode.id}}<br/>
+            ${{normalizeNodeId(selectedNode.id) || selectedNode.id}}<br/>
             Num: ${{selectedNode.num ?? "n/a"}}<br/>
             SNR: ${{selectedNode.snr ?? "n/a"}}<br/>
             Last: ${{selectedNode.last_heard || "n/a"}}
           `);
           marker.on("click", () => {{
-            selectNode(String(selectedNode.id || ""), false);
+            selectNode(normalizeNodeId(selectedNode.id || ""), false);
           }});
           marker.addTo(nodeLayer);
-          nodeMarkers.set(String(selectedNode.id || ""), marker);
+          nodeMarkers.set(normalizeNodeId(selectedNode.id || ""), marker);
           features.push(marker);
           map.setView([selectedNode.lat, selectedNode.lon], Math.max(map.getZoom(), 11), {{ animate: false }});
           marker.openPopup();
@@ -3212,26 +3686,27 @@ def _render_html(
 
       for (const node of nodes) {{
         if (typeof node.lat !== "number" || typeof node.lon !== "number") continue;
-        const isSelected = !!selectedNodeId && node.id === selectedNodeId;
+        const normalizedId = normalizeNodeId(node.id || "");
+        const isSelected = !!selectedNodeId && normalizedId === selectedNodeId;
         const marker = L.circleMarker([node.lat, node.lon], markerStyle(isSelected));
         marker.bindPopup(`
           <b>${{nodeLabel(node)}}</b><br/>
-          ${{node.id}}<br/>
+          ${{normalizedId || node.id}}<br/>
           Num: ${{node.num ?? "n/a"}}<br/>
           SNR: ${{node.snr ?? "n/a"}}<br/>
           Last: ${{node.last_heard || "n/a"}}
         `);
         marker.on("click", () => {{
-          selectNode(String(node.id || ""), false);
+          selectNode(normalizedId, false);
         }});
         marker.addTo(nodeLayer);
-        nodeMarkers.set(String(node.id || ""), marker);
+        nodeMarkers.set(normalizedId, marker);
         features.push(marker);
       }}
 
       for (const edge of edges) {{
-        const src = byId[edge.from];
-        const dst = byId[edge.to];
+        const src = byId[normalizeNodeId(edge.from)];
+        const dst = byId[normalizeNodeId(edge.to)];
         if (!src || !dst) continue;
         if (typeof src.lat !== "number" || typeof src.lon !== "number") continue;
         if (typeof dst.lat !== "number" || typeof dst.lon !== "number") continue;
@@ -3288,20 +3763,30 @@ def _render_html(
 
     function renderNodes(nodes) {{
         const rows = nodes.map((node) => {{
-          const nodeId = String(node.id || "");
+          const nodeId = normalizeNodeId(node.id || "");
           const selectable = isSelectableNodeId(nodeId);
           const pos = (typeof node.lat === "number" && typeof node.lon === "number")
             ? `${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}`
             : "n/a";
           const name = nodeLabel(node);
+          const savedPackets = Number.isFinite(Number(node.saved_packets))
+            ? Number(node.saved_packets)
+            : 0;
+          const savedPoints = Number.isFinite(Number(node.saved_points))
+            ? Number(node.saved_points)
+            : 0;
+          const savedTitle = savedPoints > 0
+            ? `${{savedPackets}} packets across ${{savedPoints}} minute buckets`
+            : "No saved history yet";
           return `<tr data-node-id="${{escAttr(nodeId)}}" class="${{selectable ? "node-selectable" : ""}}">
           <td data-sort="${{escAttr(node.last_heard ?? "")}}">${{node.last_heard ?? "n/a"}}</td>
-          <td class="mono" data-sort="${{escAttr(nodeId)}}">${{nodeId}}</td>
+          <td class="mono" data-sort="${{escAttr(nodeId)}}" title="${{escAttr(String(node.id || nodeId || ""))}}">${{nodeId || "n/a"}}</td>
           <td data-sort="${{escAttr(name)}}">${{name}}</td>
           <td data-sort="${{escAttr(node.hardware_model ?? "")}}">${{node.hardware_model ?? "n/a"}}</td>
           <td data-sort="${{escAttr(node.snr ?? "")}}">${{node.snr ?? "n/a"}}</td>
           <td data-sort="${{escAttr(node.hops_away ?? "")}}">${{node.hops_away ?? "n/a"}}</td>
           <td data-sort="${{escAttr(node.battery_level ?? "")}}">${{node.battery_level ?? "n/a"}}</td>
+          <td data-sort="${{escAttr(savedPackets)}}" title="${{escAttr(savedTitle)}}">${{savedPackets}}</td>
           <td data-sort="${{escAttr(pos)}}">${{pos}}</td>
         </tr>`;
       }});
@@ -3402,10 +3887,11 @@ def _render_html(
       const summary = history.summary || {{}};
       const target = document.getElementById("node-history-overview");
       if (!target) return;
-      const label = node ? nodeLabel(node) : (history.node_id || selectedNodeId || "node");
+      const historyNodeId = normalizeNodeId(history.node_id || "");
+      const label = node ? nodeLabel(node) : (historyNodeId || selectedNodeId || "node");
       const items = [
         ["Node", `${{label}}`],
-        ["Node ID", `${{history.node_id || selectedNodeId || "n/a"}}`],
+        ["Node ID", `${{historyNodeId || selectedNodeId || "n/a"}}`],
         ["Points", `${{summary.points ?? (history.points || []).length ?? 0}}`],
         ["Packets", `${{summary.total_packets ?? 0}}`],
         ["Window", `${{history.window_hours ?? nodeHistoryHours}}h`],
@@ -3421,14 +3907,15 @@ def _render_html(
     function renderNodeHistory(history, nodes) {{
       setMapDataMode("node");
       const node = selectedNodeFrom(nodes);
+      const historyNodeId = normalizeNodeId(history.node_id || "");
       const caption = document.getElementById("node-history-caption");
       if (caption) {{
-        const name = node ? nodeLabel(node) : (history.node_id || selectedNodeId || "node");
+        const name = node ? nodeLabel(node) : (historyNodeId || selectedNodeId || "node");
         const span = history.summary || {{}};
         const loc = (node && typeof node.lat === "number" && typeof node.lon === "number")
           ? `Current location: ${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}.`
           : "No current location available from live node state.";
-        caption.textContent = `${{name}} (${{history.node_id || selectedNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}.`;
+        caption.textContent = `${{name}} (${{historyNodeId || selectedNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}.`;
       }}
       renderSignalChart(history.points || []);
       renderNodeHistoryOverview(history, node);
@@ -3452,7 +3939,7 @@ def _render_html(
 
     function renderTraffic(traffic, nodes, nodeHistory) {{
       if (isSelectableNodeId(selectedNodeId)) {{
-        if (nodeHistory && nodeHistory.node_id === selectedNodeId) {{
+        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === selectedNodeId) {{
           renderNodeHistory(nodeHistory, nodes);
         }} else {{
           renderNodeHistoryLoading(selectedNodeId);
@@ -3482,23 +3969,72 @@ def _render_html(
     function renderChat(state) {{
       const traffic = state.traffic || {{}};
       const s = state.summary || {{}};
+      const chatScroller = getChatScroller();
+      const shouldStickBottom = !!(chatScroller && (chatStickToBottom || isNearBottom(chatScroller)));
+      // Keep chat behaving like chat, not a generic sortable table.
+      tableSortState["chat-table"] = {{ index: 0, dir: "asc" }};
+      updateNodeNameCache(state.nodes || []);
+      const nodesById = new Map(
+        (state.nodes || []).map((node) => [normalizeNodeId(node.id || ""), node])
+      );
+
+      const chatEndpointParts = (nodeId) => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!clean) {{
+          return {{ label: "n/a", idTag: "", title: "n/a" }};
+        }}
+        if (clean === "^all") {{
+          return {{ label: "All", idTag: "", title: "^all" }};
+        }}
+        if (clean === "local") {{
+          return {{ label: "Local", idTag: "", title: "local" }};
+        }}
+        const node = nodesById.get(clean);
+        const name = preferredNodeName(node) || nodeNameCache.get(clean) || "Unknown node";
+        return {{
+          label: name,
+          idTag: clean,
+          title: `${{name}} (${{clean}})`,
+        }};
+      }};
+
       const rows = (traffic.recent_chat || []).slice().reverse().slice(0, 120).map((msg) => {{
-        const sourceNode = isSelectableNodeId(msg.from) ? String(msg.from) : "";
-        const fallbackNode = isSelectableNodeId(msg.to) ? String(msg.to) : "";
-        const nodeId = sourceNode || fallbackNode;
+        const sourceNode = normalizeNodeId(msg.from);
+        const fallbackNode = normalizeNodeId(msg.to);
+        const primarySelectable = isSelectableNodeId(sourceNode) ? sourceNode : "";
+        const fallbackSelectable = isSelectableNodeId(fallbackNode) ? fallbackNode : "";
+        const nodeId = primarySelectable || fallbackSelectable;
         const selectableClass = nodeId ? "chat-selectable" : "";
+        const fromMeta = chatEndpointParts(sourceNode);
+        const toMeta = chatEndpointParts(fallbackNode);
         return `<tr data-node-id="${{escAttr(nodeId)}}" class="${{selectableClass}}">
           <td data-sort="${{escAttr(msg.rx_time || msg.captured_at || "")}}">${{msg.rx_time || msg.captured_at || "n/a"}}</td>
-          <td data-sort="${{escAttr(msg.from || "")}}">${{msg.from || "n/a"}}</td>
-          <td data-sort="${{escAttr(msg.to || "")}}">${{msg.to || "n/a"}}</td>
+          <td data-sort="${{escAttr(fromMeta.label)}}" title="${{escAttr(fromMeta.title)}}">
+            <span class="chat-endpoint">
+              <span class="chat-name">${{escAttr(fromMeta.label)}}</span>
+              ${{fromMeta.idTag ? `<span class="chat-id-bg">${{escAttr(fromMeta.idTag)}}</span>` : ""}}
+            </span>
+          </td>
+          <td data-sort="${{escAttr(toMeta.label)}}" title="${{escAttr(toMeta.title)}}">
+            <span class="chat-endpoint">
+              <span class="chat-name">${{escAttr(toMeta.label)}}</span>
+              ${{toMeta.idTag ? `<span class="chat-id-bg">${{escAttr(toMeta.idTag)}}</span>` : ""}}
+            </span>
+          </td>
           <td data-sort="${{escAttr(msg.text || "")}}">${{msg.text || ""}}</td>
         </tr>`;
       }});
       fillTable("chat-table", rows);
+      bindChatAutoScroll();
       bindChatRowClicks();
       highlightNodeSelection();
       if (pendingSelectionScroll) {{
         scrollSelectionIntoView();
+      }} else if (chatScroller instanceof HTMLElement && shouldStickBottom) {{
+        requestAnimationFrame(() => {{
+          chatScroller.scrollTop = chatScroller.scrollHeight;
+          chatStickToBottom = true;
+        }});
       }}
 
       const caption = document.getElementById("chat-caption");
@@ -3574,10 +4110,13 @@ def _render_html(
     }}
 
     loadStoredSelection();
+    loadNodeNameCache();
     loadSplitState();
     bindSplitters();
     bindSelectionControls();
     bindConsoleControls();
+    bindChatComposer();
+    bindChatAutoScroll();
     bindHistoryTabs();
     bindWheelPassthrough();
     renderSelectionStatus();
@@ -3596,7 +4135,7 @@ def _render_html(
 """
 
 
-def _make_http_handler(html_text: str, state_fn, node_history_fn=None):
+def _make_http_handler(html_text: str, state_fn, node_history_fn=None, send_chat_fn=None):
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             try:
@@ -3647,6 +4186,91 @@ def _make_http_handler(html_text: str, state_fn, node_history_fn=None):
             except (BrokenPipeError, ConnectionResetError):
                 return
 
+        def do_POST(self) -> None:
+            try:
+                parsed = urlparse(self.path)
+                path = parsed.path
+                if path != "/api/chat/send":
+                    self.send_response(404)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b'{"ok":false,"error":"Not Found"}')
+                    return
+
+                if send_chat_fn is None:
+                    payload = json.dumps(
+                        {"ok": False, "error": "Chat send is not enabled on this dashboard instance"},
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                content_length = _to_int(self.headers.get("Content-Length")) or 0
+                if content_length <= 0 or content_length > 8192:
+                    payload = json.dumps(
+                        {"ok": False, "error": "Invalid request size"},
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                raw = self.rfile.read(content_length)
+                try:
+                    body = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    body = {}
+
+                text = body.get("text") if isinstance(body, dict) else None
+                destination = body.get("destination") if isinstance(body, dict) else None
+                channel_index = _to_int(body.get("channel_index")) if isinstance(body, dict) else None
+
+                try:
+                    response_obj = send_chat_fn(
+                        text=text,
+                        destination=destination,
+                        channel_index=channel_index,
+                    )
+                except ValueError as exc:
+                    payload = json.dumps(
+                        {"ok": False, "error": str(exc)},
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+                except Exception as exc:
+                    payload = json.dumps(
+                        {"ok": False, "error": f"Send failed: {exc}"},
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                payload = json.dumps(response_obj, separators=(",", ":")).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
         def log_message(self, format: str, *args: Any) -> None:
             return
 
@@ -3675,6 +4299,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
             history_store = None
 
     tracker = DashboardTracker(packet_limit=args.packet_limit, history_store=history_store)
+    send_lock = threading.Lock()
     pub.subscribe(tracker.on_receive, "meshtastic.receive")
     if not tracker.has_recent_packets():
         _seed_tracker_from_node_db(tracker, iface)
@@ -3687,6 +4312,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
             started_at=started_at,
             target=target,
             show_secrets=args.show_secrets,
+            storage_probe_path=history_db_path,
         )
 
     def node_history_fn(
@@ -3709,6 +4335,47 @@ def run_dashboard(args: argparse.Namespace) -> None:
             max_points=points,
         )
 
+    def send_chat_fn(
+        text: Any,
+        destination: Any = None,
+        channel_index: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        clean_text = str(text or "").strip()
+        if not clean_text:
+            raise ValueError("Message cannot be empty")
+
+        payload_bytes = clean_text.encode("utf-8")
+        if len(payload_bytes) > DEFAULT_CHAT_MAX_BYTES:
+            raise ValueError(
+                f"Message is too long ({len(payload_bytes)} bytes). Limit is {DEFAULT_CHAT_MAX_BYTES} bytes."
+            )
+
+        dest = str(destination or "^all").strip() or "^all"
+        if dest.lower() in ("all", "broadcast"):
+            dest = "^all"
+        if not (dest == "^all" or dest.startswith("!")):
+            raise ValueError("Destination must be '^all' or a node id like !abcdef12")
+
+        chan = channel_index if isinstance(channel_index, int) and channel_index >= 0 else 0
+        with send_lock:
+            iface.sendText(clean_text, destinationId=dest, channelIndex=chan)
+
+        local_id = _get_local_node_id(iface)
+        tracker.record_local_chat(
+            text=clean_text,
+            from_id=local_id,
+            to_id=dest,
+            channel_index=chan,
+        )
+        return {
+            "ok": True,
+            "sent_at": _utc_now(),
+            "from": local_id,
+            "to": dest,
+            "channel_index": chan,
+            "text": clean_text,
+        }
+
     html = _render_html(
         refresh_ms=args.refresh_ms,
         packet_limit=args.packet_limit,
@@ -3719,7 +4386,12 @@ def run_dashboard(args: argparse.Namespace) -> None:
         node_history_hours=args.node_history_hours,
         node_history_max_points=args.node_history_max_points,
     )
-    handler_cls = _make_http_handler(html, state_fn, node_history_fn=node_history_fn)
+    handler_cls = _make_http_handler(
+        html,
+        state_fn,
+        node_history_fn=node_history_fn,
+        send_chat_fn=send_chat_fn,
+    )
     server = ThreadingHTTPServer((args.http_host, args.http_port), handler_cls)
     bound_host, bound_port = server.server_address[:2]
 
