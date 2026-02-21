@@ -1,12 +1,28 @@
-import meshtastic.serial_interface
+import argparse
 
-# If you have only one radio plugged in, this can be blank and it will auto-detect.
-# If you have multiple, set devPath explicitly (e.g. "/dev/ttyUSB1").
-iface = meshtastic.serial_interface.SerialInterface(devPath="/dev/ttyUSB1")
+from mesh_connection import add_mesh_connection_args, mesh_target_label, open_mesh_interface
 
-iface.sendText("hello mesh from python")
 
-local = iface.getNode("^local")
-print("Local config:", local.localConfig)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Send one broadcast Meshtastic message.")
+    add_mesh_connection_args(parser)
+    parser.add_argument(
+        "--text",
+        default="hello mesh from python",
+        help="Text payload to send.",
+    )
+    args = parser.parse_args()
 
-iface.close()
+    print(f"Connecting to {mesh_target_label(args)} ...")
+    iface = open_mesh_interface(args)
+    try:
+        iface.sendText(args.text)
+
+        local = iface.getNode("^local")
+        print("Local config:", local.localConfig)
+    finally:
+        iface.close()
+
+
+if __name__ == "__main__":
+    main()

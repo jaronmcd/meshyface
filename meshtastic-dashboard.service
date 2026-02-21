@@ -1,0 +1,19 @@
+[Unit]
+Description=Meshtastic Dashboard Web Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=j
+Group=dialout
+WorkingDirectory=/home/j/mesh
+EnvironmentFile=/home/j/mesh/config/dashboard.env
+ExecStart=/home/j/mesh/.venv/bin/python /home/j/mesh/app/mesh_dashboard.py --mesh-host ${MESH_HOST} --mesh-tcp-port ${MESH_PORT} --http-host ${DASH_HOST} --http-port ${DASH_PORT} --refresh-ms ${REFRESH_MS}
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

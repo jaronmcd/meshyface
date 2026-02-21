@@ -1,0 +1,18 @@
+[Unit]
+Description=Meshtastic USB to TCP Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=dialout
+WorkingDirectory=/opt/meshtastic-gateway
+ExecStart=/usr/bin/python3 /opt/meshtastic-gateway/meshtastic_usb_gateway.py --serial /dev/serial/by-id/REPLACE_ME --listen-host 0.0.0.0 --listen-port 4403
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

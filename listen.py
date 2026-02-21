@@ -1,6 +1,9 @@
+import argparse
 import time
+
+from mesh_connection import add_mesh_connection_args, mesh_target_label, open_mesh_interface
 from pubsub import pub
-import meshtastic.serial_interface
+
 
 def on_receive(packet, interface):
     # packet is a dict; print it raw to learn the structure for your use-case
@@ -22,12 +25,22 @@ pub.subscribe(on_receive, "meshtastic.receive")
 pub.subscribe(on_text, "meshtastic.receive.text")
 pub.subscribe(on_connection, "meshtastic.connection.established")
 
-iface = meshtastic.serial_interface.SerialInterface(devPath="/dev/ttyUSB1")
 
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    pass
-finally:
-    iface.close()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Listen for Meshtastic packets and print them.")
+    add_mesh_connection_args(parser)
+    args = parser.parse_args()
+
+    print(f"Connecting to {mesh_target_label(args)} ...")
+    iface = open_mesh_interface(args)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        iface.close()
+
+
+if __name__ == "__main__":
+    main()

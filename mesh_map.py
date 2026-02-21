@@ -1,5 +1,6 @@
 import argparse
 import json
+import socket
 import threading
 import time
 from datetime import datetime, timezone
@@ -8,12 +9,12 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import meshtastic
-import meshtastic.serial_interface
+from mesh_connection import add_mesh_connection_args, mesh_target_label, open_mesh_interface
 from pubsub import pub
 
 
-DEFAULT_MESH_PORT = "/dev/ttyUSB1"
-DEFAULT_HTTP_HOST = "127.0.0.1"
+DEFAULT_MESH_PORT = "/dev/ttyACM0"
+DEFAULT_HTTP_HOST = "0.0.0.0"
 DEFAULT_HTTP_PORT = 8765
 DEFAULT_REFRESH_MS = 2000
 
@@ -25,6 +26,28 @@ def _to_int(value: Any) -> Optional[int]:
         return None
 
 
+def _guess_lan_ipv4() -> Optional[str]:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            ip = sock.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except OSError:
+        pass
+
+    try:
+        addr_info = socket.getaddrinfo(socket.gethostname(), None, family=socket.AF_INET)
+        for _family, _type, _proto, _canonname, sockaddr in addr_info:
+            ip = sockaddr[0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except socket.gaierror:
+        pass
+
+    return None
+
+
 def _format_epoch(epoch_value: Any) -> Optional[str]:
     epoch = _to_int(epoch_value)
     if epoch is None or epoch <= 0:
@@ -32,7 +55,7 @@ def _format_epoch(epoch_value: Any) -> Optional[str]:
     return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
 
 
-def _get_node_id_from_num(iface: meshtastic.serial_interface.SerialInterface, node_num: Any) -> Optional[str]:
+def _get_node_id_from_num(iface: Any, node_num: Any) -> Optional[str]:
     numeric = _to_int(node_num)
     if numeric is None:
         return None
@@ -77,17 +100,17 @@ class CommunicationTracker:
         self.packet_count = 0
         self.edges: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
-    def on_receive(self, packet: Dict[str, Any], interface: meshtastic.serial_interface.SerialInterface) -> None:
+    def on_receive(self, packet: Dict[str, Any], interface: Any) -> None:
         with self._lock:
             self.packet_count += 1
             self._record_packet_unlocked(packet, interface)
 
-    def record_packet(self, packet: Dict[str, Any], interface: meshtastic.serial_interface.SerialInterface) -> None:
+    def record_packet(self, packet: Dict[str, Any], interface: Any) -> None:
         with self._lock:
             self._record_packet_unlocked(packet, interface)
 
     def _record_packet_unlocked(
-        self, packet: Dict[str, Any], interface: meshtastic.serial_interface.SerialInterface
+        self, packet: Dict[str, Any], interface: Any
     ) -> None:
         from_id = packet.get("fromId") or _get_node_id_from_num(interface, packet.get("from"))
         to_id = packet.get("toId") or _get_node_id_from_num(interface, packet.get("to"))
@@ -140,7 +163,7 @@ class CommunicationTracker:
         return rows
 
 
-def _snapshot_nodes(iface: meshtastic.serial_interface.SerialInterface) -> Dict[str, Dict[str, Any]]:
+def _snapshot_nodes(iface: Any) -> Dict[str, Dict[str, Any]]:
     nodes_with_position: Dict[str, Dict[str, Any]] = {}
     for node_num, info in list((iface.nodesByNum or {}).items()):
         if not isinstance(info, dict):
@@ -172,7 +195,7 @@ def _snapshot_nodes(iface: meshtastic.serial_interface.SerialInterface) -> Dict[
 
 
 def _seed_edges_from_node_db(
-    tracker: CommunicationTracker, iface: meshtastic.serial_interface.SerialInterface
+    tracker: CommunicationTracker, iface: Any
 ) -> None:
     for node in list((iface.nodesByNum or {}).values()):
         if not isinstance(node, dict):
@@ -182,7 +205,7 @@ def _seed_edges_from_node_db(
             tracker.record_packet(last_packet, iface)
 
 
-def _build_state(iface: meshtastic.serial_interface.SerialInterface, tracker: CommunicationTracker) -> Dict[str, Any]:
+def _build_state(iface: Any, tracker: CommunicationTracker) -> Dict[str, Any]:
     nodes = _snapshot_nodes(iface)
     edges = tracker.as_rows(nodes)
     return {
@@ -363,32 +386,36 @@ def _render_realtime_html(refresh_ms: int) -> str:
 def _make_http_handler(html_text: str, state_fn):
     class MapHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            parsed = urlparse(self.path)
-            path = parsed.path
+            try:
+                parsed = urlparse(self.path)
+                path = parsed.path
 
-            if path in ("/", "/index.html"):
-                body = html_text.encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
+                if path in ("/", "/index.html"):
+                    body = html_text.encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+
+                if path == "/api/state":
+                    payload = json.dumps(state_fn(), separators=(",", ":")).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                self.send_response(404)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(body)
+                self.wfile.write(b"Not Found")
+            except (BrokenPipeError, ConnectionResetError):
+                # Browser/client closed the socket before the response finished.
                 return
-
-            if path == "/api/state":
-                payload = json.dumps(state_fn(), separators=(",", ":")).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-                return
-
-            self.send_response(404)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(b"Not Found")
 
         def log_message(self, format: str, *args: Any) -> None:
             return
@@ -533,8 +560,8 @@ def _render_snapshot_html(nodes: Dict[str, Dict[str, Any]], edges: list[Dict[str
 
 
 def run_snapshot_mode(args: argparse.Namespace) -> None:
-    print(f"Connecting to {args.mesh_port} ...")
-    iface = meshtastic.serial_interface.SerialInterface(devPath=args.mesh_port)
+    print(f"Connecting to {mesh_target_label(args)} ...")
+    iface = open_mesh_interface(args)
 
     tracker = CommunicationTracker()
     pub.subscribe(tracker.on_receive, "meshtastic.receive")
@@ -566,8 +593,8 @@ def run_snapshot_mode(args: argparse.Namespace) -> None:
 
 
 def run_realtime_mode(args: argparse.Namespace) -> None:
-    print(f"Connecting to {args.mesh_port} ...")
-    iface = meshtastic.serial_interface.SerialInterface(devPath=args.mesh_port)
+    print(f"Connecting to {mesh_target_label(args)} ...")
+    iface = open_mesh_interface(args)
 
     tracker = CommunicationTracker()
     pub.subscribe(tracker.on_receive, "meshtastic.receive")
@@ -579,13 +606,19 @@ def run_realtime_mode(args: argparse.Namespace) -> None:
     html_text = _render_realtime_html(args.refresh_ms)
     handler_cls = _make_http_handler(html_text, state_fn)
     server = ThreadingHTTPServer((args.http_host, args.http_port), handler_cls)
-
-    open_host = args.http_host
-    if open_host in ("0.0.0.0", "::"):
-        open_host = "127.0.0.1"
+    bound_host, bound_port = server.server_address[:2]
 
     print("Realtime map server running.")
-    print(f"Open: http://{open_host}:{args.http_port}")
+    print(f"Bound to: {bound_host}:{bound_port}")
+    if args.http_host in ("0.0.0.0", "::"):
+        print(f"Open from this computer: http://127.0.0.1:{bound_port}")
+        lan_ip = _guess_lan_ipv4()
+        if lan_ip:
+            print(f"Open from Wi-Fi devices: http://{lan_ip}:{bound_port}")
+        else:
+            print(f"Open from Wi-Fi devices: http://<this-computer-ip>:{bound_port}")
+    else:
+        print(f"Open: http://{args.http_host}:{bound_port}")
     print("Press Ctrl+C to stop.")
 
     try:
@@ -601,11 +634,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Meshtastic map view with realtime or one-shot mode."
     )
-    parser.add_argument(
-        "--mesh-port",
-        default=DEFAULT_MESH_PORT,
-        help=f"Serial port for your radio (default: {DEFAULT_MESH_PORT})",
-    )
+    add_mesh_connection_args(parser, default_mesh_port=DEFAULT_MESH_PORT)
     parser.add_argument(
         "--snapshot",
         action="store_true",
