@@ -3837,63 +3837,65 @@ def _render_html(
     [data-theme="dark"] a {{
       color: #86ffd2;
     }}
-    /* Retro Ops mode: readable CRT-era styling for dark theme */
+    /* Readability-first dark theme override */
     [data-theme="dark"] {{
-      --retro-bg: #020502;
-      --retro-bg-deep: #050c07;
-      --retro-bg-raised: #09140d;
-      --retro-panel: #0d1911;
-      --retro-border: #6fb486;
-      --retro-border-soft: #3f7154;
-      --retro-text: #c3ffd3;
-      --retro-text-soft: #87c59d;
-      --retro-accent: #6dff98;
-      --retro-accent-strong: #3cdd76;
-      --retro-shadow: 0 0 0 1px rgba(92, 205, 131, 0.2), 0 14px 34px rgba(0, 0, 0, 0.65);
-      --retro-glow: 0 0 18px rgba(109, 255, 152, 0.26);
+      --ui-bg: #0d1117;
+      --ui-bg-elev: #111827;
+      --ui-panel: #161b22;
+      --ui-panel-alt: #1b2430;
+      --ui-border: #2f3b4b;
+      --ui-text: #e6edf3;
+      --ui-text-soft: #9fb0c3;
+      --ui-accent: #3fb950;
+      --ui-accent-soft: #2ea043;
+      --ui-link: #79c0ff;
+      --ui-shadow: 0 10px 24px rgba(1, 4, 9, 0.36);
     }}
     [data-theme="dark"] body {{
-      background:
-        radial-gradient(110% 88% at 10% -8%, rgba(72, 148, 97, 0.24) 0%, transparent 52%),
-        radial-gradient(90% 72% at 92% 0%, rgba(49, 116, 77, 0.22) 0%, transparent 45%),
-        repeating-linear-gradient(180deg, rgba(173, 255, 201, 0.03) 0px, rgba(173, 255, 201, 0.03) 1px, transparent 1px, transparent 3px),
-        var(--retro-bg);
-      color: var(--retro-text);
-      text-shadow: 0 0 0.2px rgba(173, 255, 201, 0.3);
-      font-family: "IBM Plex Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+      background: linear-gradient(180deg, #0a1016 0%, #0d1117 42%, #0f141b 100%);
+      color: var(--ui-text);
+      text-shadow: none;
     }}
     [data-theme="dark"] .topbar {{
-      background: linear-gradient(180deg, #08130c 0%, #050a06 100%) !important;
-      border-bottom: 1px solid var(--retro-border);
-      box-shadow: inset 0 -1px 0 rgba(185, 255, 209, 0.18), 0 8px 18px rgba(0, 0, 0, 0.45);
+      background: linear-gradient(180deg, #121a25 0%, #0f1721 100%) !important;
+      border-bottom: 1px solid var(--ui-border);
+      box-shadow: var(--ui-shadow);
     }}
-    [data-theme="dark"] .topbar h1 {{
-      color: #ddffe8;
-      text-transform: uppercase;
-      letter-spacing: 0.35px;
+    [data-theme="dark"] .topbar h1,
+    [data-theme="dark"] .topbar .sub {{
+      color: var(--ui-text);
     }}
-    [data-theme="dark"] .topbar .sub,
     [data-theme="dark"] .topbar .sub .sub-text,
     [data-theme="dark"] .topbar .sub .revision-text,
     [data-theme="dark"] #chat-caption,
     [data-theme="dark"] #updated-at,
     [data-theme="dark"] #local-state-error,
     [data-theme="dark"] .signal-legend .legend-chip {{
-      color: var(--retro-text-soft) !important;
+      color: var(--ui-text-soft) !important;
     }}
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card,
     [data-theme="dark"] details,
     [data-theme="dark"] #live-console,
-    [data-theme="dark"] pre,
-    [data-theme="dark"] th,
-    [data-theme="dark"] td,
+    [data-theme="dark"] pre {{
+      background: var(--ui-panel);
+      border-color: var(--ui-border) !important;
+      color: var(--ui-text);
+      box-shadow: none;
+    }}
+    [data-theme="dark"] th {{
+      background: #1d2733;
+      color: #dce8f5;
+      border-color: var(--ui-border) !important;
+    }}
+    [data-theme="dark"] td {{
+      background: var(--ui-panel);
+      border-color: var(--ui-border) !important;
+      color: var(--ui-text);
+    }}
     [data-theme="dark"] tr:nth-child(even) td {{
-      background: linear-gradient(180deg, var(--retro-bg-raised) 0%, var(--retro-bg-deep) 100%);
-      border-color: var(--retro-border-soft) !important;
-      color: var(--retro-text);
-      box-shadow: inset 0 1px 0 rgba(205, 255, 223, 0.04);
+      background: #18202a;
     }}
     [data-theme="dark"] .pill,
     [data-theme="dark"] .selection-btn,
@@ -3922,11 +3924,12 @@ def _render_html(
     [data-theme="dark"] .chat-emoji-panel,
     [data-theme="dark"] .chat-emoji-item,
     [data-theme="dark"] .console-controls button {{
-      background: linear-gradient(180deg, #102016 0%, #0a150f 100%);
-      border-color: var(--retro-border-soft) !important;
-      color: var(--retro-text);
-      box-shadow: inset 0 1px 0 rgba(204, 255, 223, 0.06);
+      background: var(--ui-panel-alt);
+      border-color: var(--ui-border) !important;
+      color: var(--ui-text);
+      box-shadow: none;
     }}
+    [data-theme="dark"] .history-caption,
     [data-theme="dark"] .teams-rail-title,
     [data-theme="dark"] .chat-left-title,
     [data-theme="dark"] .chat-left-label,
@@ -3942,19 +3945,46 @@ def _render_html(
     [data-theme="dark"] .chat-member-id,
     [data-theme="dark"] .chat-channel-meta,
     [data-theme="dark"] .chat-send-status,
+    [data-theme="dark"] .overview-item .k,
     [data-theme="dark"] .console-controls {{
-      color: var(--retro-text-soft) !important;
+      color: var(--ui-text-soft) !important;
     }}
     [data-theme="dark"] .chat-feed-text,
     [data-theme="dark"] .chat-endpoint .chat-name,
     [data-theme="dark"] .chat-reply-inline .chat-reply-inline-label,
     [data-theme="dark"] .chat-member-name,
-    [data-theme="dark"] .chat-channel-name {{
-      color: var(--retro-text) !important;
+    [data-theme="dark"] .chat-channel-name,
+    [data-theme="dark"] .overview-item .v {{
+      color: var(--ui-text) !important;
     }}
     [data-theme="dark"] #chat-input::placeholder {{
-      color: var(--retro-text-soft) !important;
-      opacity: 0.92;
+      color: var(--ui-text-soft) !important;
+      opacity: 0.9;
+    }}
+    [data-theme="dark"] .history-tabs {{
+      border-bottom-color: var(--ui-border);
+    }}
+    [data-theme="dark"] .history-tab-btn {{
+      background: var(--ui-panel-alt);
+      border-color: var(--ui-border);
+      color: var(--ui-text-soft);
+    }}
+    [data-theme="dark"] .history-tab-btn.active {{
+      background: #223447;
+      border-color: #3d5973;
+      color: #ebf3ff;
+    }}
+    [data-theme="dark"] #signal-chart-wrap {{
+      background: linear-gradient(180deg, #141c27 0%, #111823 100%);
+      border-color: var(--ui-border);
+    }}
+    [data-theme="dark"] .signal-empty {{
+      color: var(--ui-text-soft);
+      background: rgba(13, 17, 23, 0.9);
+    }}
+    [data-theme="dark"] .overview-item {{
+      border-color: var(--ui-border);
+      background: var(--ui-panel-alt);
     }}
     [data-theme="dark"] .theme-btn:hover,
     [data-theme="dark"] .selection-btn:hover,
@@ -3971,22 +4001,22 @@ def _render_html(
     [data-theme="dark"] #chat-emoji-btn:hover,
     [data-theme="dark"] .chat-emoji-item:hover,
     [data-theme="dark"] .console-controls button:hover {{
-      background: linear-gradient(180deg, #142a1d 0%, #0d1f15 100%);
-      border-color: var(--retro-border) !important;
-      color: #e9fff1 !important;
-      transform: translateY(-1px);
-      box-shadow: var(--retro-glow);
+      background: #253140;
+      border-color: #43556b !important;
+      color: var(--ui-text) !important;
+      transform: none;
+      box-shadow: none;
     }}
     [data-theme="dark"] .rail-btn.active {{
-      background: linear-gradient(180deg, #195030 0%, #133e26 100%);
-      border-color: var(--retro-border) !important;
-      color: #effff4 !important;
-      box-shadow: var(--retro-glow), inset 0 0 0 1px rgba(219, 255, 232, 0.12);
+      background: #1e3342;
+      border-color: #3f5b73 !important;
+      color: #eef6ff !important;
+      box-shadow: inset 0 0 0 1px rgba(121, 192, 255, 0.15);
     }}
     [data-theme="dark"] .chat-feed-item.selected-node {{
-      background: linear-gradient(180deg, #153f27 0%, #102e1d 100%);
-      border-color: var(--retro-border) !important;
-      box-shadow: inset 2px 0 0 var(--retro-accent), 0 0 0 1px rgba(109, 255, 152, 0.12);
+      background: #1b313f;
+      border-color: #446381 !important;
+      box-shadow: inset 2px 0 0 var(--ui-accent);
     }}
     [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-channel-item,
@@ -3994,29 +4024,34 @@ def _render_html(
     [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .metric,
     [data-theme="dark"] .card {{
-      transition: border-color 140ms ease, background 140ms ease, box-shadow 150ms ease, transform 120ms ease;
+      transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
     }}
     [data-theme="dark"] #chat-input:focus {{
-      outline-color: var(--retro-accent);
-      box-shadow: 0 0 0 2px rgba(109, 255, 152, 0.2);
+      outline-color: var(--ui-accent);
+      box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.2);
     }}
     [data-theme="dark"] .chat-reaction-popover {{
-      box-shadow: var(--retro-shadow);
+      box-shadow: var(--ui-shadow);
     }}
     [data-theme="dark"] .disk-track {{
-      background: rgba(153, 255, 191, 0.15);
+      background: rgba(121, 192, 255, 0.16);
     }}
     [data-theme="dark"] .disk-fill {{
-      background: var(--retro-accent-strong);
+      background: var(--ui-accent-soft);
     }}
     [data-theme="dark"] .leaflet-container {{
-      background: #020803;
+      background: #0f141a;
     }}
     [data-theme="dark"] .leaflet-tile {{
-      filter: brightness(0.38) invert(0.94) hue-rotate(154deg) saturate(0.95) contrast(1.25);
+      filter: brightness(0.55) invert(0.9) hue-rotate(172deg) saturate(0.6) contrast(1.08);
+    }}
+    [data-theme="dark"] .leaflet-popup-content-wrapper,
+    [data-theme="dark"] .leaflet-popup-tip {{
+      background: #1b2430;
+      color: var(--ui-text);
     }}
     [data-theme="dark"] a {{
-      color: #9be9ff;
+      color: var(--ui-link);
     }}
     @media (max-width: 1100px) {{
       .workspace-shell {{
@@ -4693,6 +4728,12 @@ def _render_html(
       document.documentElement.setAttribute("data-theme", resolvedTheme);
       document.documentElement.setAttribute("data-theme-pref", normalized);
       updateThemeToggleLabel(resolvedTheme);
+      if (isSelectableNodeId(selectedNodeId)) {{
+        const cached = nodeHistoryCache.get(selectedNodeId);
+        if (cached && cached.data && Array.isArray(cached.data.points)) {{
+          renderSignalChart(cached.data.points);
+        }}
+      }}
 
       if (!persist) return;
       try {{
@@ -6575,19 +6616,35 @@ def _render_html(
       const snrPath = buildPath("avg_snr", snrMin, snrMax);
       const rssiPath = buildPath("avg_rssi", rssiMin, rssiMax);
       const midY = padTop + (plotH / 2);
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const chartPalette = darkTheme
+        ? {{
+            grid: "#324152",
+            snr: "#58c878",
+            rssi: "#79c0ff",
+            snrLabel: "#88e8a5",
+            rssiLabel: "#a4d0ff",
+          }}
+        : {{
+            grid: "#dce8df",
+            snr: "#1f6f53",
+            rssi: "#265d7b",
+            snrLabel: "#1f6f53",
+            rssiLabel: "#265d7b",
+          }};
 
       svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
       svg.innerHTML = `
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
-        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="#dce8df" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="#dce8df" stroke-width="1"></line>
-        <line x1="${{width - padRight}}" y1="${{padTop}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="#dce8df" stroke-width="1"></line>
-        ${{snrPath ? `<path d="${{snrPath}}" fill="none" stroke="#1f6f53" stroke-width="2"></path>` : ""}}
-        ${{rssiPath ? `<path d="${{rssiPath}}" fill="none" stroke="#265d7b" stroke-width="2"></path>` : ""}}
-        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="#1f6f53">${{formatMetricValue(snrMax, 1)}}</text>
-        <text x="${{padLeft - 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="end" fill="#1f6f53">${{formatMetricValue(snrMin, 1)}}</text>
-        <text x="${{width - padRight + 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="start" fill="#265d7b">${{formatMetricValue(rssiMax, 0)}}</text>
-        <text x="${{width - padRight + 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="start" fill="#265d7b">${{formatMetricValue(rssiMin, 0)}}</text>
+        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{width - padRight}}" y1="${{padTop}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{snrPath ? `<path d="${{snrPath}}" fill="none" stroke="${{chartPalette.snr}}" stroke-width="2"></path>` : ""}}
+        ${{rssiPath ? `<path d="${{rssiPath}}" fill="none" stroke="${{chartPalette.rssi}}" stroke-width="2"></path>` : ""}}
+        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{chartPalette.snrLabel}}">${{formatMetricValue(snrMax, 1)}}</text>
+        <text x="${{padLeft - 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="end" fill="${{chartPalette.snrLabel}}">${{formatMetricValue(snrMin, 1)}}</text>
+        <text x="${{width - padRight + 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMax, 0)}}</text>
+        <text x="${{width - padRight + 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMin, 0)}}</text>
       `;
     }}
 
