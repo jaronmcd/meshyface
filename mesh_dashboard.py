@@ -85,10 +85,6 @@ SENSITIVE_FIELD_NAMES = {
 }
 
 
-def _sanitize_revision_token(raw: Any, fallback: str) -> str:
-    return _sanitize_revision_token_helper(raw, fallback)
-
-
 def _detect_git_commit() -> Optional[str]:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     cwd = os.getcwd()
@@ -98,7 +94,7 @@ def _detect_git_commit() -> Optional[str]:
         script_dir=script_dir,
         cwd=cwd,
         unknown_git_commit=UNKNOWN_GIT_COMMIT,
-        sanitize_token=_sanitize_revision_token,
+        sanitize_token=_sanitize_revision_token_helper,
     )
 
 
@@ -109,7 +105,7 @@ def _revision_info() -> Dict[str, str]:
         default_version=DEFAULT_APP_VERSION,
         unknown_git_commit=UNKNOWN_GIT_COMMIT,
         detect_commit=_detect_git_commit,
-        sanitize_token=_sanitize_revision_token,
+        sanitize_token=_sanitize_revision_token_helper,
     )
 
 
