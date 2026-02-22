@@ -3633,6 +3633,210 @@ def _render_html(
     [data-theme="dark"] a {{
       color: #8fc9ff;
     }}
+    /* High-contrast blackout theme pass */
+    [data-theme="dark"] {{
+      --bg: #000000;
+      --ink: #b9ffcf;
+      --panel: #040704;
+      --line: #1f6a41;
+      --muted: #95efb8;
+      --accent: #33ff8f;
+      --accent-2: #25c979;
+      --shadow: 0 0 0 1px rgba(41, 155, 98, 0.38), 0 16px 36px rgba(0, 0, 0, 0.62);
+    }}
+    [data-theme="dark"] body {{
+      background: #000000 !important;
+      color: var(--ink);
+    }}
+    [data-theme="dark"] .topbar {{
+      background: #000000 !important;
+      border-bottom: 1px solid #1f6a41;
+      box-shadow: none;
+    }}
+    [data-theme="dark"] .topbar h1,
+    [data-theme="dark"] .topbar .sub,
+    [data-theme="dark"] .topbar .sub .sub-text,
+    [data-theme="dark"] .topbar .sub .revision-text {{
+      color: #c8ffd9;
+    }}
+    [data-theme="dark"] .theme-btn,
+    [data-theme="dark"] .pill,
+    [data-theme="dark"] .selection-btn {{
+      background: #07120b;
+      border-color: #2d8f5d;
+      color: #c4ffd8;
+    }}
+    [data-theme="dark"] .theme-btn:hover,
+    [data-theme="dark"] .selection-btn:hover {{
+      background: #0b1f14;
+      border-color: #39af72;
+    }}
+    [data-theme="dark"] .disk-meter {{
+      background: #030a06;
+      border-color: #246f47;
+      color: #bfffd4;
+    }}
+    [data-theme="dark"] .disk-track {{
+      background: rgba(121, 255, 182, 0.16);
+    }}
+    [data-theme="dark"] .teams-rail,
+    [data-theme="dark"] .chat-left-panel,
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .rail-btn,
+    [data-theme="dark"] .chat-channel-item,
+    [data-theme="dark"] .chat-member-item,
+    [data-theme="dark"] .metric,
+    [data-theme="dark"] .chat-feed-item,
+    [data-theme="dark"] .chat-composer,
+    [data-theme="dark"] .chat-reply-context,
+    [data-theme="dark"] .chat-emoji-panel,
+    [data-theme="dark"] .chat-emoji-item,
+    [data-theme="dark"] details {{
+      background: #050905;
+      border-color: #246f47;
+      color: #c1ffd6;
+    }}
+    [data-theme="dark"] .chat-left-head,
+    [data-theme="dark"] .chat-left-section,
+    [data-theme="dark"] th,
+    [data-theme="dark"] td,
+    [data-theme="dark"] tr:nth-child(even) td {{
+      background: #070d07;
+      border-color: #236744;
+      color: #c1ffd5;
+    }}
+    [data-theme="dark"] .rail-btn:hover,
+    [data-theme="dark"] .chat-channel-item:hover,
+    [data-theme="dark"] .chat-member-item:hover,
+    [data-theme="dark"] .metric:hover,
+    [data-theme="dark"] .chat-feed-item.chat-selectable:hover,
+    [data-theme="dark"] .chat-reaction-chip:hover,
+    [data-theme="dark"] .chat-reply-btn:hover,
+    [data-theme="dark"] .chat-react-btn:hover,
+    [data-theme="dark"] .chat-retry-btn:hover,
+    [data-theme="dark"] #chat-send-btn:hover,
+    [data-theme="dark"] #chat-emoji-btn:hover,
+    [data-theme="dark"] .chat-emoji-item:hover {{
+      background: #0d1d13;
+      border-color: #38af72;
+    }}
+    [data-theme="dark"] .rail-btn.active {{
+      background: #12844e;
+      border-color: #24b469;
+      color: #ecfff4;
+    }}
+    [data-theme="dark"] .chat-feed-item.selected-node {{
+      background: #0f2518;
+      border-color: #38af72;
+    }}
+    [data-theme="dark"] .teams-rail-title,
+    [data-theme="dark"] .chat-left-title,
+    [data-theme="dark"] .chat-left-label,
+    [data-theme="dark"] .chat-left-sub,
+    [data-theme="dark"] .card h2,
+    [data-theme="dark"] .metric .label,
+    [data-theme="dark"] .chat-feed-meta,
+    [data-theme="dark"] .chat-feed-time,
+    [data-theme="dark"] .chat-feed-arrow,
+    [data-theme="dark"] .chat-reply-inline,
+    [data-theme="dark"] .chat-reply-inline .chat-reply-inline-text,
+    [data-theme="dark"] .chat-reaction-count,
+    [data-theme="dark"] .chat-member-id,
+    [data-theme="dark"] .chat-channel-meta,
+    [data-theme="dark"] .chat-send-status,
+    [data-theme="dark"] .console-controls {{
+      color: #96efb9;
+    }}
+    [data-theme="dark"] .chat-feed-text,
+    [data-theme="dark"] .chat-endpoint .chat-name,
+    [data-theme="dark"] .chat-reply-inline .chat-reply-inline-label,
+    [data-theme="dark"] .chat-member-name,
+    [data-theme="dark"] .chat-channel-name {{
+      color: #c6ffdb;
+    }}
+    [data-theme="dark"] .chat-endpoint .chat-id-bg,
+    [data-theme="dark"] .chat-feed-hops,
+    [data-theme="dark"] .chat-reaction-chip,
+    [data-theme="dark"] .chat-reply-btn,
+    [data-theme="dark"] .chat-react-btn,
+    [data-theme="dark"] .chat-retry-btn,
+    [data-theme="dark"] #chat-send-btn,
+    [data-theme="dark"] #chat-emoji-btn,
+    [data-theme="dark"] #chat-input {{
+      background: #07140d;
+      border-color: #2b8a59;
+      color: #c6ffdb;
+    }}
+    [data-theme="dark"] #chat-input::placeholder {{
+      color: #90d9ac;
+    }}
+    [data-theme="dark"] #chat-input:focus {{
+      outline-color: #39af72;
+      background: #0b1e13;
+    }}
+    [data-theme="dark"] .chat-reaction-popover {{
+      background: #060d08;
+      border-color: #2d8f5d;
+      color: #c6ffda;
+      box-shadow: 0 0 0 1px rgba(57, 175, 114, 0.34), 0 18px 34px rgba(0, 0, 0, 0.64);
+    }}
+    [data-theme="dark"] .chat-reaction-popover-head,
+    [data-theme="dark"] .chat-reaction-popover-more {{
+      border-color: #246f47;
+    }}
+    [data-theme="dark"] .chat-reaction-popover-avatar {{
+      background: #0b2115;
+      border-color: #2d8f5d;
+      color: #b7ffd0;
+    }}
+    [data-theme="dark"] .chat-delivery-pill.state-pending {{
+      background: #342f0a;
+      border-color: #8f7a17;
+      color: #ffe59b;
+    }}
+    [data-theme="dark"] .chat-delivery-pill.state-acked {{
+      background: #0b2b19;
+      border-color: #34a56a;
+      color: #c2ffd8;
+    }}
+    [data-theme="dark"] .chat-delivery-pill.state-nak,
+    [data-theme="dark"] .chat-delivery-pill.state-timeout,
+    [data-theme="dark"] .chat-delivery-pill.state-error {{
+      background: #3d1515;
+      border-color: #944343;
+      color: #ffbcbc;
+    }}
+    [data-theme="dark"] #live-console,
+    [data-theme="dark"] pre {{
+      background: #010503;
+      color: #bfffd4;
+    }}
+    [data-theme="dark"] .console-controls button {{
+      background: #07140d;
+      border-color: #2d8f5d;
+      color: #c6ffda;
+    }}
+    [data-theme="dark"] .console-controls button:hover {{
+      background: #0d1d13;
+      border-color: #39af72;
+    }}
+    [data-theme="dark"] #chat-caption,
+    [data-theme="dark"] #updated-at,
+    [data-theme="dark"] #local-state-error {{
+      color: #9df4be !important;
+    }}
+    [data-theme="dark"] .signal-legend .legend-chip {{
+      color: #9df4be !important;
+    }}
+    [data-theme="dark"] .leaflet-container {{
+      background: #010503;
+    }}
+    [data-theme="dark"] .leaflet-tile {{
+      filter: brightness(0.45) invert(0.92) hue-rotate(165deg) saturate(0.75) contrast(1.18);
+    }}
+    [data-theme="dark"] a {{
+      color: #86ffd2;
+    }}
     @media (max-width: 1100px) {{
       .workspace-shell {{
         grid-template-columns: 1fr;
@@ -3694,7 +3898,7 @@ def _render_html(
       <span class="pill">Packet buffer: {packet_limit}</span>
       <span class="pill">{history_label}</span>
       <span class="pill">Refresh: {refresh_ms} ms</span>
-      <button id="theme-toggle-btn" class="theme-btn" type="button" title="Theme mode: Auto (system), Dark, or Light">Theme: Auto</button>
+      <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
       <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
       <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
       <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
@@ -3933,7 +4137,7 @@ def _render_html(
     const layoutViewStorageKey = "meshDashboardLayoutView";
     const chatChannelStorageKey = "meshDashboardChatChannel";
     const themeStorageKey = "meshDashboardThemePreference";
-    const themeModes = ["auto", "dark", "light"];
+    const themeAcceptedModes = new Set(["auto", "dark", "light"]);
     const chatBottomStickThresholdPx = 28;
     const chatWarnWindowSeconds = 10 * 60;
     const chatStaleWindowSeconds = 30 * 60;
@@ -4278,7 +4482,7 @@ def _render_html(
 
     function normalizeThemeMode(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
-      return themeModes.includes(clean) ? clean : "auto";
+      return themeAcceptedModes.has(clean) ? clean : "auto";
     }}
 
     function systemPreferredTheme() {{
@@ -4291,10 +4495,13 @@ def _render_html(
     function updateThemeToggleLabel(resolvedTheme) {{
       const btn = document.getElementById("theme-toggle-btn");
       if (!(btn instanceof HTMLButtonElement)) return;
-      const prefText = themePreference === "auto" ? "Auto" : (themePreference === "dark" ? "Dark" : "Light");
       const resolvedText = resolvedTheme === "dark" ? "Dark" : "Light";
-      btn.textContent = `Theme: ${{prefText}}`;
-      btn.title = `Theme mode: ${{prefText}} (currently ${{resolvedText}}). Click to cycle Auto/Dark/Light.`;
+      btn.textContent = `Theme: ${{resolvedText}}`;
+      if (themePreference === "auto") {{
+        btn.title = `Theme follows system (${{resolvedText}}). Click to lock Light/Dark toggle.`;
+      }} else {{
+        btn.title = `Theme locked to ${{resolvedText}}. Click to toggle Light/Dark.`;
+      }}
       btn.setAttribute("aria-label", btn.title);
     }}
 
@@ -4318,8 +4525,8 @@ def _render_html(
       if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
         btn.dataset.bound = "1";
         btn.addEventListener("click", () => {{
-          const idx = themeModes.indexOf(themePreference);
-          const next = themeModes[(idx + 1) % themeModes.length];
+          const resolved = themePreference === "auto" ? systemPreferredTheme() : themePreference;
+          const next = resolved === "dark" ? "light" : "dark";
           applyThemePreference(next, true);
         }});
       }}

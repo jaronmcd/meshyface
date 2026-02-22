@@ -28,7 +28,7 @@ Planning docs:
 - Click-to-select node from map, node list, or chat.
 - Node history panel with signal plots (SNR/RSSI) and rollup stats.
 - Name-first chat room view with send box at the bottom.
-- Theme mode toggle (`Auto`, `Dark`, `Light`) with `Auto` following browser/system preference.
+- Theme toggle (`Light`/`Dark`) that defaults to browser/system preference until user sets an explicit mode.
 - Recent packets, map stats, raw config views.
 - Persisted SQLite history for chat, packets, links, and node rollups.
 - Top-bar host disk free indicator with green/yellow/red progress color.
