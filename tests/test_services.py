@@ -3,6 +3,7 @@ from meshdash.services import (
     build_online_activity_loader,
     empty_node_history,
     empty_online_activity,
+    send_chat_message,
 )
 
 
@@ -72,3 +73,131 @@ def test_build_online_activity_loader_without_store():
     payload = loader(None)
     assert payload["window_hours"] == 72
     assert len(payload["hourly_profile"]) == 24
+
+
+class _FakePacket:
+    def __init__(self, packet_id):
+        self.id = packet_id
+
+
+class _FakeIface:
+    def __init__(self):
+        self.sent = []
+
+    def sendText(self, text, destinationId, wantAck, channelIndex, replyId):
+        self.sent.append(
+            {
+                "text": text,
+                "destinationId": destinationId,
+                "wantAck": wantAck,
+                "channelIndex": channelIndex,
+                "replyId": replyId,
+            }
+        )
+        return _FakePacket(123)
+
+
+class _NoopLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+
+def test_send_chat_message_text_path():
+    iface = _FakeIface()
+    reactions = []
+    records = []
+
+    response = send_chat_message(
+        text="hello",
+        destination="!abcd1234",
+        channel_index=2,
+        reply_id=None,
+        retry_of=111,
+        emoji=None,
+        iface=iface,
+        send_lock=_NoopLock(),
+        send_reaction_packet_fn=lambda **kwargs: reactions.append(kwargs),
+        local_node_id_fn=lambda: "!me000001",
+        record_local_chat_fn=lambda **kwargs: records.append(kwargs),
+        chat_max_bytes=220,
+        normalize_single_emoji_fn=lambda value: (None, None),
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        now_text_fn=lambda: "2026-02-22T12:00:00Z",
+    )
+
+    assert response["ok"] is True
+    assert response["text"] == "hello"
+    assert response["message_id"] == 123
+    assert response["ack_requested"] is True
+    assert response["delivery_state"] == "pending"
+    assert response["retry_of"] == 111
+    assert iface.sent[0]["destinationId"] == "!abcd1234"
+    assert iface.sent[0]["wantAck"] is True
+    assert records[0]["text"] == "hello"
+    assert records[0]["is_reaction"] is False
+    assert reactions == []
+
+
+def test_send_chat_message_reaction_path():
+    iface = _FakeIface()
+    reaction_calls = []
+    records = []
+
+    def _send_reaction(**kwargs):
+        reaction_calls.append(kwargs)
+        return _FakePacket(777)
+
+    response = send_chat_message(
+        text="",
+        destination="!abcd1234",
+        channel_index=1,
+        reply_id=555,
+        retry_of=None,
+        emoji="😀",
+        iface=iface,
+        send_lock=_NoopLock(),
+        send_reaction_packet_fn=_send_reaction,
+        local_node_id_fn=lambda: "!me000001",
+        record_local_chat_fn=lambda **kwargs: records.append(kwargs),
+        chat_max_bytes=220,
+        normalize_single_emoji_fn=lambda value: ("😀", ord("😀")),
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        now_text_fn=lambda: "2026-02-22T12:00:00Z",
+    )
+
+    assert response["ok"] is True
+    assert response["text"] == ""
+    assert response["reaction"] == "😀"
+    assert response["reaction_codepoint"] == ord("😀")
+    assert response["ack_requested"] is False
+    assert iface.sent == []
+    assert reaction_calls[0]["reply_id"] == 555
+    assert records[0]["is_reaction"] is True
+
+
+def test_send_chat_message_validates_reaction_requires_reply_id():
+    iface = _FakeIface()
+    try:
+        send_chat_message(
+            text="",
+            destination="!abcd1234",
+            channel_index=1,
+            reply_id=None,
+            retry_of=None,
+            emoji="😀",
+            iface=iface,
+            send_lock=_NoopLock(),
+            send_reaction_packet_fn=lambda **kwargs: _FakePacket(1),
+            local_node_id_fn=lambda: "!me000001",
+            record_local_chat_fn=lambda **kwargs: None,
+            chat_max_bytes=220,
+            normalize_single_emoji_fn=lambda value: ("😀", ord("😀")),
+            to_int_fn=lambda value: int(value) if value is not None else None,
+            now_text_fn=lambda: "2026-02-22T12:00:00Z",
+        )
+        raise AssertionError("Expected ValueError")
+    except ValueError as exc:
+        assert "valid reply_id" in str(exc)

@@ -69,6 +69,7 @@ from meshdash.state import (
 from meshdash.services import (
     build_node_history_loader as _build_node_history_loader,
     build_online_activity_loader as _build_online_activity_loader,
+    send_chat_message as _send_chat_message_helper,
 )
 from meshdash.html import render_html as _render_html_helper
 from meshdash.http_api import make_http_handler as _make_http_handler_helper
@@ -2125,100 +2126,23 @@ def run_dashboard(args: argparse.Namespace) -> None:
         retry_of: Optional[int] = None,
         emoji: Any = None,
     ) -> Dict[str, Any]:
-        clean_text = str(text or "").strip()
-        clean_reply_id = _to_int(reply_id)
-        clean_retry_of = _to_int(retry_of)
-        clean_emoji, clean_emoji_codepoint = _normalize_single_emoji(emoji)
-
-        has_reaction = bool(
-            clean_reply_id is not None and clean_reply_id > 0 and clean_emoji and clean_emoji_codepoint
+        return _send_chat_message_helper(
+            text=text,
+            destination=destination,
+            channel_index=channel_index,
+            reply_id=reply_id,
+            retry_of=retry_of,
+            emoji=emoji,
+            iface=iface,
+            send_lock=send_lock,
+            send_reaction_packet_fn=_send_emoji_reaction_packet,
+            local_node_id_fn=lambda: _get_local_node_id(iface),
+            record_local_chat_fn=tracker.record_local_chat,
+            chat_max_bytes=DEFAULT_CHAT_MAX_BYTES,
+            normalize_single_emoji_fn=_normalize_single_emoji,
+            to_int_fn=_to_int,
+            now_text_fn=_utc_now,
         )
-        if clean_emoji and not has_reaction:
-            raise ValueError("Emoji reactions require a valid reply_id")
-        if clean_reply_id is not None and clean_reply_id <= 0:
-            raise ValueError("reply_id must be a positive packet id")
-        if has_reaction and clean_text:
-            raise ValueError("Emoji reactions must not include text")
-        if not clean_text and not has_reaction:
-            raise ValueError("Message cannot be empty")
-
-        if clean_text:
-            payload_bytes = clean_text.encode("utf-8")
-            if len(payload_bytes) > DEFAULT_CHAT_MAX_BYTES:
-                raise ValueError(
-                    f"Message is too long ({len(payload_bytes)} bytes). Limit is {DEFAULT_CHAT_MAX_BYTES} bytes."
-                )
-
-        dest = str(destination or "^all").strip() or "^all"
-        if dest.lower() in ("all", "broadcast"):
-            dest = "^all"
-        if not (dest == "^all" or dest.startswith("!")):
-            raise ValueError("Destination must be '^all' or a node id like !abcdef12")
-
-        chan = channel_index if isinstance(channel_index, int) and channel_index >= 0 else 0
-        should_request_ack = bool(dest != "^all" and not has_reaction)
-        sent_packet: Any
-        with send_lock:
-            if has_reaction:
-                sent_packet = _send_emoji_reaction_packet(
-                    iface=iface,
-                    destination_id=dest,
-                    channel_index=chan,
-                    reply_id=clean_reply_id,
-                    emoji_codepoint=clean_emoji_codepoint,
-                    emoji_text=clean_emoji,
-                    want_ack=False,
-                )
-            else:
-                sent_packet = iface.sendText(
-                    clean_text,
-                    destinationId=dest,
-                    wantAck=should_request_ack,
-                    channelIndex=chan,
-                    replyId=clean_reply_id if clean_reply_id and clean_reply_id > 0 else None,
-                )
-
-        local_id = _get_local_node_id(iface)
-        sent_packet_id = _to_int(getattr(sent_packet, "id", None))
-        delivery_state = "sent"
-        if should_request_ack:
-            if sent_packet_id is not None and sent_packet_id > 0:
-                delivery_state = "pending"
-            else:
-                delivery_state = "error"
-        tracker.record_local_chat(
-            text=clean_text if clean_text else "",
-            from_id=local_id,
-            to_id=dest,
-            channel_index=chan,
-            message_id=sent_packet_id,
-            reply_id=clean_reply_id,
-            emoji=clean_emoji,
-            emoji_codepoint=clean_emoji_codepoint,
-            is_reaction=has_reaction,
-            ack_requested=should_request_ack,
-            retry_of=clean_retry_of,
-        )
-        response = {
-            "ok": True,
-            "sent_at": _utc_now(),
-            "from": local_id,
-            "to": dest,
-            "channel_index": chan,
-            "message_id": sent_packet_id,
-            "reply_id": clean_reply_id,
-            "ack_requested": should_request_ack,
-            "delivery_state": delivery_state,
-        }
-        if clean_retry_of is not None and clean_retry_of > 0:
-            response["retry_of"] = clean_retry_of
-        if has_reaction:
-            response["reaction"] = clean_emoji
-            response["reaction_codepoint"] = clean_emoji_codepoint
-            response["text"] = ""
-        else:
-            response["text"] = clean_text
-        return response
 
     html = _render_html(
         refresh_ms=args.refresh_ms,
