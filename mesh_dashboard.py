@@ -1807,7 +1807,7 @@ def _render_html(
       --rail-width: 72px;
       --chat-panel-width: 250px;
       display: grid;
-      grid-template-columns: var(--rail-width) 0 minmax(0, 1fr);
+      grid-template-columns: var(--rail-width) minmax(0, 1fr);
       gap: 8px;
       padding: 8px;
       align-items: start;
@@ -1817,6 +1817,7 @@ def _render_html(
     }}
     .workspace-main {{
       min-width: 0;
+      width: 100%;
     }}
     .teams-rail {{
       position: sticky;
@@ -1984,6 +1985,7 @@ def _render_html(
         var(--splitter-size)
         auto;
       align-items: stretch;
+      width: 100%;
     }}
     .card {{
       background: var(--panel);
@@ -2264,11 +2266,16 @@ def _render_html(
       user-select: none !important;
     }}
     .layout.view-chat {{
+      height: calc(100vh - 130px);
+      min-height: 520px;
       grid-template-rows:
         auto
-        minmax(280px, var(--split-top-px));
+        minmax(0, 1fr);
     }}
-    .layout.view-chat .chat {{ grid-row: 2; }}
+    .layout.view-chat .chat {{
+      grid-row: 2;
+      min-height: 0;
+    }}
     .layout.view-chat .map,
     .layout.view-chat .map-data,
     .layout.view-chat .nodes,
@@ -2285,23 +2292,36 @@ def _render_html(
         auto
         minmax(220px, var(--split-top-px))
         var(--splitter-size)
-        minmax(220px, var(--split-mid-px))
-        var(--splitter-size)
-        minmax(220px, var(--split-low-px));
+        minmax(220px, var(--split-mid-px));
     }}
-    .layout.view-network .nodes {{ grid-row: 2; }}
-    .layout.view-network .map {{ grid-row: 4; }}
-    .layout.view-network .map-data {{ grid-row: 6; }}
+    .layout.view-network .nodes {{
+      grid-column: 1;
+      grid-row: 2;
+    }}
+    .layout.view-network .map-data {{
+      grid-column: 3;
+      grid-row: 2;
+    }}
+    .layout.view-network .map {{
+      grid-column: 1 / span 3;
+      grid-row: 4;
+    }}
     .layout.view-network .chat,
     .layout.view-network .packets,
     .layout.view-network .raw,
     .layout.view-network .console,
-    .layout.view-network .splitter,
+    .layout.view-network .hsplitter[data-target="mid"],
     .layout.view-network .hsplitter[data-target="low"] {{
       display: none !important;
     }}
-    .layout.view-network .hsplitter[data-target="top"] {{ grid-row: 3; }}
-    .layout.view-network .hsplitter[data-target="mid"] {{ grid-row: 5; }}
+    .layout.view-network .splitter {{
+      display: block;
+      grid-row: 2;
+    }}
+    .layout.view-network .hsplitter[data-target="top"] {{
+      display: block;
+      grid-row: 3;
+    }}
 
     .layout.view-packets {{
       grid-template-rows:
@@ -3429,6 +3449,24 @@ def _render_html(
     }}
 
     function bindWheelPassthrough() {{
+      const isWheelPassthroughEnabled = () => activeLayoutView !== "chat";
+
+      const refreshWheelPaneHints = () => {{
+        const enabled = isWheelPassthroughEnabled();
+        for (const el of document.querySelectorAll(wheelPaneSelector)) {{
+          if (!(el instanceof HTMLElement)) continue;
+          if (enabled) {{
+            if (!el.getAttribute("title")) {{
+              el.setAttribute("title", "Click panel to wheel-scroll inside it. Auto-releases after a brief pause.");
+              el.dataset.wheelHintOwned = "1";
+            }}
+          }} else if (el.dataset.wheelHintOwned === "1") {{
+            el.removeAttribute("title");
+            delete el.dataset.wheelHintOwned;
+          }}
+        }}
+      }};
+
       const clearWheelPaneLease = () => {{
         if (activeWheelPaneLease !== null) {{
           clearTimeout(activeWheelPaneLease);
@@ -3498,18 +3536,24 @@ def _render_html(
         if (!el.hasAttribute("tabindex")) {{
           el.tabIndex = 0;
         }}
-        if (!el.getAttribute("title")) {{
-          el.setAttribute("title", "Click panel to wheel-scroll inside it. Auto-releases after a brief pause.");
-        }}
         el.addEventListener("pointerdown", () => {{
+          if (!isWheelPassthroughEnabled()) {{
+            return;
+          }}
           setActiveWheelPane(el);
         }});
         el.addEventListener("focusin", () => {{
+          if (!isWheelPassthroughEnabled()) {{
+            return;
+          }}
           setActiveWheelPane(el);
         }});
         el.addEventListener(
           "wheel",
           (ev) => {{
+            if (!isWheelPassthroughEnabled()) {{
+              return;
+            }}
             if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey) {{
               return;
             }}
@@ -3537,6 +3581,7 @@ def _render_html(
           {{ passive: false }}
         );
       }}
+      refreshWheelPaneHints();
 
       if (document.body.dataset.wheelPassDocBound !== "1") {{
         document.body.dataset.wheelPassDocBound = "1";
@@ -3555,6 +3600,9 @@ def _render_html(
           }}
         }});
       }}
+
+      // Expose a tiny hook so view changes can toggle wheel hints/behavior.
+      window.meshRefreshWheelHints = refreshWheelPaneHints;
     }}
 
     map.whenReady(() => {{
@@ -4166,6 +4214,19 @@ def _render_html(
       }}
       if (chatLeftPanel instanceof HTMLElement) {{
         chatLeftPanel.hidden = !chatPanelOpen;
+      }}
+      if (chatPanelOpen) {{
+        if (activeWheelPane instanceof HTMLElement) {{
+          activeWheelPane.classList.remove("wheel-scroll-active");
+        }}
+        activeWheelPane = null;
+        if (activeWheelPaneLease !== null) {{
+          clearTimeout(activeWheelPaneLease);
+          activeWheelPaneLease = null;
+        }}
+      }}
+      if (typeof window.meshRefreshWheelHints === "function") {{
+        window.meshRefreshWheelHints();
       }}
 
       for (const btn of document.querySelectorAll(".teams-rail .rail-btn")) {{
