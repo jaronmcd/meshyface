@@ -3837,22 +3837,64 @@ def _render_html(
     [data-theme="dark"] a {{
       color: #86ffd2;
     }}
-    /* Fallout mode: white borders + green text */
+    /* Retro Ops mode: readable CRT-era styling for dark theme */
     [data-theme="dark"] {{
-      --fallout-text: #a4ffbf;
-      --fallout-text-soft: #7ae89f;
-      --fallout-border: #ffffff;
+      --retro-bg: #020502;
+      --retro-bg-deep: #050c07;
+      --retro-bg-raised: #09140d;
+      --retro-panel: #0d1911;
+      --retro-border: #6fb486;
+      --retro-border-soft: #3f7154;
+      --retro-text: #c3ffd3;
+      --retro-text-soft: #87c59d;
+      --retro-accent: #6dff98;
+      --retro-accent-strong: #3cdd76;
+      --retro-shadow: 0 0 0 1px rgba(92, 205, 131, 0.2), 0 14px 34px rgba(0, 0, 0, 0.65);
+      --retro-glow: 0 0 18px rgba(109, 255, 152, 0.26);
     }}
-    [data-theme="dark"] body,
-    [data-theme="dark"] .workspace-shell,
-    [data-theme="dark"] .workspace-main,
-    [data-theme="dark"] .workspace-shell * {{
-      color: var(--fallout-text);
+    [data-theme="dark"] body {{
+      background:
+        radial-gradient(110% 88% at 10% -8%, rgba(72, 148, 97, 0.24) 0%, transparent 52%),
+        radial-gradient(90% 72% at 92% 0%, rgba(49, 116, 77, 0.22) 0%, transparent 45%),
+        repeating-linear-gradient(180deg, rgba(173, 255, 201, 0.03) 0px, rgba(173, 255, 201, 0.03) 1px, transparent 1px, transparent 3px),
+        var(--retro-bg);
+      color: var(--retro-text);
+      text-shadow: 0 0 0.2px rgba(173, 255, 201, 0.3);
+      font-family: "IBM Plex Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
     }}
-    [data-theme="dark"] .topbar,
+    [data-theme="dark"] .topbar {{
+      background: linear-gradient(180deg, #08130c 0%, #050a06 100%) !important;
+      border-bottom: 1px solid var(--retro-border);
+      box-shadow: inset 0 -1px 0 rgba(185, 255, 209, 0.18), 0 8px 18px rgba(0, 0, 0, 0.45);
+    }}
+    [data-theme="dark"] .topbar h1 {{
+      color: #ddffe8;
+      text-transform: uppercase;
+      letter-spacing: 0.35px;
+    }}
+    [data-theme="dark"] .topbar .sub,
+    [data-theme="dark"] .topbar .sub .sub-text,
+    [data-theme="dark"] .topbar .sub .revision-text,
+    [data-theme="dark"] #chat-caption,
+    [data-theme="dark"] #updated-at,
+    [data-theme="dark"] #local-state-error,
+    [data-theme="dark"] .signal-legend .legend-chip {{
+      color: var(--retro-text-soft) !important;
+    }}
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card,
+    [data-theme="dark"] details,
+    [data-theme="dark"] #live-console,
+    [data-theme="dark"] pre,
+    [data-theme="dark"] th,
+    [data-theme="dark"] td,
+    [data-theme="dark"] tr:nth-child(even) td {{
+      background: linear-gradient(180deg, var(--retro-bg-raised) 0%, var(--retro-bg-deep) 100%);
+      border-color: var(--retro-border-soft) !important;
+      color: var(--retro-text);
+      box-shadow: inset 0 1px 0 rgba(205, 255, 223, 0.04);
+    }}
     [data-theme="dark"] .pill,
     [data-theme="dark"] .selection-btn,
     [data-theme="dark"] .theme-btn,
@@ -3868,7 +3910,6 @@ def _render_html(
     [data-theme="dark"] .chat-reply-btn,
     [data-theme="dark"] .chat-react-btn,
     [data-theme="dark"] .chat-retry-btn,
-    [data-theme="dark"] .chat-delivery-pill,
     [data-theme="dark"] .chat-reaction-popover,
     [data-theme="dark"] .chat-reaction-popover-head,
     [data-theme="dark"] .chat-reaction-popover-more,
@@ -3880,15 +3921,18 @@ def _render_html(
     [data-theme="dark"] #chat-emoji-btn,
     [data-theme="dark"] .chat-emoji-panel,
     [data-theme="dark"] .chat-emoji-item,
-    [data-theme="dark"] table,
-    [data-theme="dark"] th,
-    [data-theme="dark"] td,
-    [data-theme="dark"] details,
-    [data-theme="dark"] #live-console,
-    [data-theme="dark"] pre,
     [data-theme="dark"] .console-controls button {{
-      border-color: var(--fallout-border) !important;
+      background: linear-gradient(180deg, #102016 0%, #0a150f 100%);
+      border-color: var(--retro-border-soft) !important;
+      color: var(--retro-text);
+      box-shadow: inset 0 1px 0 rgba(204, 255, 223, 0.06);
     }}
+    [data-theme="dark"] .teams-rail-title,
+    [data-theme="dark"] .chat-left-title,
+    [data-theme="dark"] .chat-left-label,
+    [data-theme="dark"] .chat-left-sub,
+    [data-theme="dark"] .card h2,
+    [data-theme="dark"] .metric .label,
     [data-theme="dark"] .chat-feed-meta,
     [data-theme="dark"] .chat-feed-time,
     [data-theme="dark"] .chat-feed-arrow,
@@ -3898,27 +3942,81 @@ def _render_html(
     [data-theme="dark"] .chat-member-id,
     [data-theme="dark"] .chat-channel-meta,
     [data-theme="dark"] .chat-send-status,
-    [data-theme="dark"] .metric .label,
-    [data-theme="dark"] .chat-left-label,
-    [data-theme="dark"] .chat-left-sub,
-    [data-theme="dark"] .teams-rail-title {{
-      color: var(--fallout-text-soft) !important;
+    [data-theme="dark"] .console-controls {{
+      color: var(--retro-text-soft) !important;
+    }}
+    [data-theme="dark"] .chat-feed-text,
+    [data-theme="dark"] .chat-endpoint .chat-name,
+    [data-theme="dark"] .chat-reply-inline .chat-reply-inline-label,
+    [data-theme="dark"] .chat-member-name,
+    [data-theme="dark"] .chat-channel-name {{
+      color: var(--retro-text) !important;
     }}
     [data-theme="dark"] #chat-input::placeholder {{
-      color: var(--fallout-text-soft) !important;
-      opacity: 0.95;
+      color: var(--retro-text-soft) !important;
+      opacity: 0.92;
+    }}
+    [data-theme="dark"] .theme-btn:hover,
+    [data-theme="dark"] .selection-btn:hover,
+    [data-theme="dark"] .rail-btn:hover,
+    [data-theme="dark"] .chat-channel-item:hover,
+    [data-theme="dark"] .chat-member-item:hover,
+    [data-theme="dark"] .metric:hover,
+    [data-theme="dark"] .chat-feed-item.chat-selectable:hover,
+    [data-theme="dark"] .chat-reaction-chip:hover,
+    [data-theme="dark"] .chat-reply-btn:hover,
+    [data-theme="dark"] .chat-react-btn:hover,
+    [data-theme="dark"] .chat-retry-btn:hover,
+    [data-theme="dark"] #chat-send-btn:hover,
+    [data-theme="dark"] #chat-emoji-btn:hover,
+    [data-theme="dark"] .chat-emoji-item:hover,
+    [data-theme="dark"] .console-controls button:hover {{
+      background: linear-gradient(180deg, #142a1d 0%, #0d1f15 100%);
+      border-color: var(--retro-border) !important;
+      color: #e9fff1 !important;
+      transform: translateY(-1px);
+      box-shadow: var(--retro-glow);
     }}
     [data-theme="dark"] .rail-btn.active {{
-      background: #0f3b22;
-      border-color: var(--fallout-border) !important;
-      color: #e9fff0 !important;
+      background: linear-gradient(180deg, #195030 0%, #133e26 100%);
+      border-color: var(--retro-border) !important;
+      color: #effff4 !important;
+      box-shadow: var(--retro-glow), inset 0 0 0 1px rgba(219, 255, 232, 0.12);
     }}
     [data-theme="dark"] .chat-feed-item.selected-node {{
-      background: #123520;
-      border-color: var(--fallout-border) !important;
+      background: linear-gradient(180deg, #153f27 0%, #102e1d 100%);
+      border-color: var(--retro-border) !important;
+      box-shadow: inset 2px 0 0 var(--retro-accent), 0 0 0 1px rgba(109, 255, 152, 0.12);
+    }}
+    [data-theme="dark"] .chat-feed-item,
+    [data-theme="dark"] .chat-channel-item,
+    [data-theme="dark"] .chat-member-item,
+    [data-theme="dark"] .rail-btn,
+    [data-theme="dark"] .metric,
+    [data-theme="dark"] .card {{
+      transition: border-color 140ms ease, background 140ms ease, box-shadow 150ms ease, transform 120ms ease;
+    }}
+    [data-theme="dark"] #chat-input:focus {{
+      outline-color: var(--retro-accent);
+      box-shadow: 0 0 0 2px rgba(109, 255, 152, 0.2);
+    }}
+    [data-theme="dark"] .chat-reaction-popover {{
+      box-shadow: var(--retro-shadow);
+    }}
+    [data-theme="dark"] .disk-track {{
+      background: rgba(153, 255, 191, 0.15);
+    }}
+    [data-theme="dark"] .disk-fill {{
+      background: var(--retro-accent-strong);
+    }}
+    [data-theme="dark"] .leaflet-container {{
+      background: #020803;
     }}
     [data-theme="dark"] .leaflet-tile {{
-      filter: brightness(0.35) invert(0.95) hue-rotate(150deg) saturate(1.05) contrast(1.22);
+      filter: brightness(0.38) invert(0.94) hue-rotate(154deg) saturate(0.95) contrast(1.25);
+    }}
+    [data-theme="dark"] a {{
+      color: #9be9ff;
     }}
     @media (max-width: 1100px) {{
       .workspace-shell {{
