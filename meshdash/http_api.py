@@ -1,8 +1,14 @@
 import json
 from http.server import BaseHTTPRequestHandler
 from typing import Any, Callable, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
+from .api_inputs import (
+    parse_chat_send_body,
+    parse_node_history_query,
+    parse_online_activity_query,
+    validate_content_length,
+)
 from .helpers import to_int
 from .services import empty_node_history, empty_online_activity
 
@@ -42,10 +48,10 @@ def make_http_handler(
                     return
 
                 if path == "/api/history/node":
-                    query = parse_qs(parsed.query)
-                    node_id = (query.get("node_id", [""])[0] or "").strip()
-                    hours_override = to_int_fn(query.get("hours", [""])[0])
-                    points_override = to_int_fn(query.get("points", [""])[0])
+                    node_id, hours_override, points_override = parse_node_history_query(
+                        parsed.query,
+                        to_int_fn=to_int_fn,
+                    )
                     if node_history_fn is None:
                         response_obj = empty_node_history(node_id)
                     else:
@@ -60,8 +66,10 @@ def make_http_handler(
                     return
 
                 if path == "/api/history/online":
-                    query = parse_qs(parsed.query)
-                    hours_override = to_int_fn(query.get("hours", [""])[0])
+                    hours_override = parse_online_activity_query(
+                        parsed.query,
+                        to_int_fn=to_int_fn,
+                    )
                     if online_activity_fn is None:
                         clean_hours = (
                             hours_override
@@ -110,8 +118,12 @@ def make_http_handler(
                     self.wfile.write(payload)
                     return
 
-                content_length = to_int_fn(self.headers.get("Content-Length")) or 0
-                if content_length <= 0 or content_length > 8192:
+                try:
+                    content_length = validate_content_length(
+                        self.headers,
+                        to_int_fn=to_int_fn,
+                    )
+                except ValueError:
                     payload = json.dumps(
                         {"ok": False, "error": "Invalid request size"},
                         separators=(",", ":"),
@@ -124,26 +136,16 @@ def make_http_handler(
                     return
 
                 raw = self.rfile.read(content_length)
-                try:
-                    body = json.loads(raw.decode("utf-8"))
-                except Exception:
-                    body = {}
-
-                text = body.get("text") if isinstance(body, dict) else None
-                destination = body.get("destination") if isinstance(body, dict) else None
-                channel_index = to_int_fn(body.get("channel_index")) if isinstance(body, dict) else None
-                reply_id = to_int_fn(body.get("reply_id")) if isinstance(body, dict) else None
-                retry_of = to_int_fn(body.get("retry_of")) if isinstance(body, dict) else None
-                emoji = body.get("emoji") if isinstance(body, dict) else None
+                chat_request = parse_chat_send_body(raw, to_int_fn=to_int_fn)
 
                 try:
                     response_obj = send_chat_fn(
-                        text=text,
-                        destination=destination,
-                        channel_index=channel_index,
-                        reply_id=reply_id,
-                        retry_of=retry_of,
-                        emoji=emoji,
+                        text=chat_request["text"],
+                        destination=chat_request["destination"],
+                        channel_index=chat_request["channel_index"],
+                        reply_id=chat_request["reply_id"],
+                        retry_of=chat_request["retry_of"],
+                        emoji=chat_request["emoji"],
                     )
                 except ValueError as exc:
                     payload = json.dumps(

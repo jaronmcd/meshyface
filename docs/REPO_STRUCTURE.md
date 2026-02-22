@@ -7,6 +7,7 @@
 - `meshdash/chat.py`: chat-entry and delivery-state transition helpers.
 - `meshdash/config.py`: centralized dashboard defaults/constants and sensitive-key policy.
 - `meshdash/app_meta.py`: environment/version/commit metadata assembly helpers.
+- `meshdash/api_inputs.py`: shared API query/body parsing and request-size validation helpers.
 - `meshdash/cli.py`: CLI parser/bootstrap argument definitions and env default resolution.
 - `meshdash/dashboard_runtime.py`: dashboard runtime orchestration and server lifecycle.
 - `meshdash/html.py`: extracted dashboard HTML renderer and frontend template.
