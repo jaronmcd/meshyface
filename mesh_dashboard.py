@@ -1804,11 +1804,16 @@ def _render_html(
       margin-right: 2px;
     }}
     .workspace-shell {{
+      --rail-width: 72px;
+      --chat-panel-width: 250px;
       display: grid;
-      grid-template-columns: 72px minmax(0, 1fr);
+      grid-template-columns: var(--rail-width) 0 minmax(0, 1fr);
       gap: 8px;
       padding: 8px;
       align-items: start;
+    }}
+    .workspace-shell.chat-panel-open {{
+      grid-template-columns: var(--rail-width) minmax(190px, var(--chat-panel-width)) minmax(0, 1fr);
     }}
     .workspace-main {{
       min-width: 0;
@@ -1856,6 +1861,106 @@ def _render_html(
       border-color: #256f4a;
       color: #effff4;
       font-weight: 700;
+    }}
+    .chat-left-panel {{
+      position: sticky;
+      top: 84px;
+      height: calc(100vh - 96px);
+      min-height: 420px;
+      border: 1px solid #c6d6c0;
+      border-radius: 10px;
+      background: #f6fbf5;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }}
+    .chat-left-panel[hidden] {{
+      display: none !important;
+    }}
+    .chat-left-head {{
+      border-bottom: 1px solid #d2e1d0;
+      background: #edf6ec;
+      padding: 8px 10px 7px 10px;
+    }}
+    .chat-left-title {{
+      font-size: 11px;
+      font-weight: 700;
+      color: #274935;
+      letter-spacing: 0.15px;
+      text-transform: uppercase;
+    }}
+    .chat-left-sub {{
+      font-size: 10px;
+      color: #4a6958;
+      margin-top: 3px;
+    }}
+    .chat-left-section {{
+      border-bottom: 1px solid #d9e7d6;
+      padding: 7px 6px 6px 6px;
+      background: #f7fcf7;
+    }}
+    .chat-left-section:last-child {{
+      border-bottom: none;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }}
+    .chat-left-label {{
+      font-size: 10px;
+      color: #466656;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      margin: 0 0 5px 2px;
+      font-weight: 700;
+    }}
+    .chat-channel-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }}
+    .chat-channel-item {{
+      border: 1px solid #c7dac5;
+      background: #eef8ef;
+      color: #214434;
+      border-radius: 7px;
+      padding: 6px 7px;
+      font-size: 10px;
+      line-height: 1.15;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+      text-align: left;
+    }}
+    .chat-channel-item:hover {{
+      background: #e4f2e7;
+    }}
+    .chat-channel-item.active {{
+      background: #d8efe1;
+      border-color: #99c5aa;
+      color: #173e2b;
+      font-weight: 700;
+    }}
+    .chat-channel-name {{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .chat-channel-meta {{
+      font-size: 9px;
+      color: #5f7b6c;
+      opacity: 0.92;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }}
+    .chat-left-panel .chat-member-list {{
+      padding: 6px;
+      flex: 1 1 auto;
     }}
     .layout {{
       --split-left-pct: 64%;
@@ -2326,10 +2431,7 @@ def _render_html(
       gap: 7px;
     }}
     .chat-shell {{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(145px, 190px);
-      grid-template-areas: "log members";
-      gap: 8px;
+      display: block;
       flex: 1 1 auto;
       min-height: 0;
       height: 100%;
@@ -2443,8 +2545,6 @@ def _render_html(
       max-width: 100%;
     }}
     .chat-main-pane {{
-      grid-area: log;
-      grid-column: 1;
       display: grid;
       grid-template-rows: minmax(0, 1fr) auto auto;
       row-gap: 6px;
@@ -2884,6 +2984,7 @@ def _render_html(
     @media (max-width: 1100px) {{
       .workspace-shell {{
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
         gap: 6px;
         padding: 6px;
       }}
@@ -2903,6 +3004,15 @@ def _render_html(
       .rail-btn {{
         min-width: 74px;
       }}
+      .workspace-shell.chat-panel-open {{
+        grid-template-columns: 1fr;
+      }}
+      .chat-left-panel {{
+        position: static;
+        height: auto;
+        min-height: 0;
+        max-height: 220px;
+      }}
       .layout {{
         grid-template-columns: 1fr;
         grid-template-rows: auto;
@@ -2913,14 +3023,8 @@ def _render_html(
       .nodes .scroll {{ max-height: 360px; }}
     }}
     @media (max-width: 760px) {{
-      .chat-shell {{
-        grid-template-columns: 1fr;
-        grid-template-areas:
-          "log"
-          "members";
-      }}
-      .chat-member-pane {{
-        max-height: 140px;
+      .chat-left-panel {{
+        max-height: 180px;
       }}
       .rail-btn {{
         min-width: 68px;
@@ -2956,6 +3060,20 @@ def _render_html(
       <button class="rail-btn" data-view="data" type="button" title="Raw node/config views">Data</button>
       <button class="rail-btn" data-view="all" type="button" title="Show every panel">All</button>
     </aside>
+    <aside id="chat-left-panel" class="chat-left-panel" hidden aria-label="Chat roster">
+      <div class="chat-left-head">
+        <div class="chat-left-title">Chat Navigator</div>
+        <div id="chat-left-sub" class="chat-left-sub">Loading…</div>
+      </div>
+      <div class="chat-left-section">
+        <div class="chat-left-label">Channels</div>
+        <div id="chat-channel-list" class="chat-channel-list"></div>
+      </div>
+      <div class="chat-left-section">
+        <div id="chat-users-title" class="chat-left-label">Users</div>
+        <div id="chat-room-list" class="chat-member-list"></div>
+      </div>
+    </aside>
     <main class="workspace-main">
   <div id="dashboard-layout" class="layout view-chat">
     <section class="card summary">
@@ -2984,9 +3102,6 @@ def _render_html(
           Showing decoded text messages from recent packets.
         </div>
         <div class="chat-shell">
-          <div class="chat-member-pane">
-            <div id="chat-room-list" class="chat-member-list"></div>
-          </div>
           <div class="chat-main-pane">
             <div class="scroll chat-log-scroll">
               <div id="chat-feed" class="chat-feed"></div>
@@ -3154,6 +3269,7 @@ def _render_html(
     const nodeNameCacheStorageKey = "meshDashboardNodeNameCacheV1";
     const splitStorageKey = "meshDashboardLayoutSplitState";
     const layoutViewStorageKey = "meshDashboardLayoutView";
+    const chatChannelStorageKey = "meshDashboardChatChannel";
     const chatBottomStickThresholdPx = 28;
     const chatWarnWindowSeconds = 10 * 60;
     const chatStaleWindowSeconds = 30 * 60;
@@ -3172,6 +3288,7 @@ def _render_html(
     }};
     const wheelActivationLeaseMs = 1400;
     const knownLayoutViews = new Set(["chat", "network", "packets", "data", "all"]);
+    const knownChatChannels = new Set(["all", "direct"]);
     const sortableTables = new Set(Object.keys(tableSortState));
     const consoleLines = [];
     const consoleKeyQueue = [];
@@ -3198,6 +3315,7 @@ def _render_html(
     let chatSendInFlight = false;
     let chatStickToBottom = true;
     let activeLayoutView = "chat";
+    let activeChatChannel = "all";
     let chatEmojiMode = "compose";
     let chatReactionTargetId = null;
     const nodeHistoryCache = new Map();
@@ -3525,6 +3643,60 @@ def _render_html(
       return statusRank(nextStatus) < statusRank(currentStatus) ? nextStatus : currentStatus;
     }}
 
+    function normalizeChatChannel(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      return knownChatChannels.has(clean) ? clean : "all";
+    }}
+
+    function channelLabel(key) {{
+      return key === "direct" ? "Peer-to-peer" : "Everyone";
+    }}
+
+    function applyChatChannel(channelKey, persist = true) {{
+      activeChatChannel = normalizeChatChannel(channelKey);
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatChannelStorageKey, activeChatChannel);
+        }} catch (_err) {{
+        }}
+      }}
+      const usersTitle = document.getElementById("chat-users-title");
+      if (usersTitle) {{
+        usersTitle.textContent = activeChatChannel === "direct" ? "Users (Peer-to-peer)" : "Users (Everyone)";
+      }}
+      const input = document.getElementById("chat-input");
+      if (input instanceof HTMLInputElement) {{
+        if (activeChatChannel === "direct") {{
+          input.placeholder = isSelectableNodeId(selectedNodeId)
+            ? `Direct message to ${{selectedNodeId}}...`
+            : "Select a user to direct message...";
+        }} else {{
+          input.placeholder = "Message the room (^all)...";
+        }}
+      }}
+      if (latestState) {{
+        renderChat(latestState);
+      }}
+    }}
+
+    function loadChatChannel() {{
+      let preferred = "all";
+      try {{
+        preferred = normalizeChatChannel(window.localStorage.getItem(chatChannelStorageKey) || "all");
+      }} catch (_err) {{
+      }}
+      applyChatChannel(preferred, false);
+    }}
+
+    function classifyMessageChannel(msg) {{
+      if (!msg || typeof msg !== "object") return "all";
+      const toId = normalizeNodeId(msg.to || msg.destination || "");
+      if (!toId || toId === "^all" || toId === "all" || toId === "broadcast") {{
+        return "all";
+      }}
+      return "direct";
+    }}
+
     function setChatSendStatus(message, isError = false) {{
       const el = document.getElementById("chat-send-status");
       if (!(el instanceof HTMLElement)) return;
@@ -3586,17 +3758,29 @@ def _render_html(
         setChatSendStatus("Enter a message before sending.", true);
         return;
       }}
+      let destination = "^all";
+      if (activeChatChannel === "direct") {{
+        if (!isSelectableNodeId(selectedNodeId)) {{
+          setChatSendStatus("Select a user before sending a peer-to-peer message.", true);
+          return;
+        }}
+        destination = selectedNodeId;
+      }}
       const payload = await sendChatPayload(
         {{
           text,
-          destination: "^all",
+          destination,
           channel_index: 0,
         }},
         null
       );
       if (payload && payload.ok) {{
         input.value = "";
-        setChatSendStatus(`Sent to room at ${{payload.sent_at || "now"}}`);
+        if (destination === "^all") {{
+          setChatSendStatus(`Sent to Everyone at ${{payload.sent_at || "now"}}`);
+        }} else {{
+          setChatSendStatus(`Sent direct to ${{destination}} at ${{payload.sent_at || "now"}}`);
+        }}
       }}
     }}
 
@@ -3611,9 +3795,13 @@ def _render_html(
         setChatSendStatus("Choose an emoji reaction.", true);
         return;
       }}
+      let destination = "^all";
+      if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)) {{
+        destination = selectedNodeId;
+      }}
       const payload = await sendChatPayload(
         {{
-          destination: "^all",
+          destination,
           channel_index: 0,
           reply_id: replyNum,
           emoji: cleanEmoji,
@@ -3967,12 +4155,21 @@ def _render_html(
     function applyLayoutView(viewName, persist = true) {{
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
+      const shell = document.querySelector(".workspace-shell");
+      const chatLeftPanel = document.getElementById("chat-left-panel");
       const next = normalizeLayoutView(viewName);
       activeLayoutView = next;
       for (const name of knownLayoutViews) {{
         layout.classList.remove(`view-${{name}}`);
       }}
       layout.classList.add(`view-${{next}}`);
+      const chatPanelOpen = next === "chat";
+      if (shell instanceof HTMLElement) {{
+        shell.classList.toggle("chat-panel-open", chatPanelOpen);
+      }}
+      if (chatLeftPanel instanceof HTMLElement) {{
+        chatLeftPanel.hidden = !chatPanelOpen;
+      }}
 
       for (const btn of document.querySelectorAll(".teams-rail .rail-btn")) {{
         if (!(btn instanceof HTMLButtonElement)) continue;
@@ -4402,6 +4599,7 @@ def _render_html(
       if (latestState) {{
         renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || []);
       }}
+      applyChatChannel(activeChatChannel, false);
     }}
 
     function clearNodeSelection() {{
@@ -4417,6 +4615,7 @@ def _render_html(
         renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || []);
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
       }}
+      applyChatChannel(activeChatChannel, false);
     }}
 
     function bindNodeRowClicks() {{
@@ -4951,6 +5150,7 @@ def _render_html(
       }};
 
       const participants = new Map();
+      const channelCounts = {{ all: 0, direct: 0 }};
       const touchParticipant = (meta, msgTimeUnix) => {{
         if (!meta || !meta.idTag || !isSelectableNodeId(meta.idTag)) return;
         const existing = participants.get(meta.idTag);
@@ -4972,28 +5172,32 @@ def _render_html(
         }}
       }};
 
-      for (const node of (state.nodes || [])) {{
-        const nodeId = normalizeNodeId(node.id || "");
-        if (!isSelectableNodeId(nodeId)) continue;
-        const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+      const touchNodeById = (nodeId, msgTimeUnix = null) => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!isSelectableNodeId(clean)) return;
+        const node = nodesById.get(clean);
+        const name = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
         const lastHeard = nodeLastHeardUnix(node);
         const status = freshnessStatus(lastHeard, nowUnix);
-        const existing = participants.get(nodeId);
+        const existing = participants.get(clean);
         if (!existing) {{
-          participants.set(nodeId, {{
-            id: nodeId,
+          participants.set(clean, {{
+            id: clean,
             name,
             status,
-            lastMessageUnix: lastHeard || null,
+            lastMessageUnix: msgTimeUnix || lastHeard || null,
           }});
-        }} else {{
-          existing.name = existing.name || name;
-          existing.status = pickFresherStatus(existing.status, status);
-          if (lastHeard && (!existing.lastMessageUnix || lastHeard > existing.lastMessageUnix)) {{
-            existing.lastMessageUnix = lastHeard;
-          }}
+          return;
         }}
-      }}
+        if (name && name !== "Unknown node") {{
+          existing.name = name;
+        }}
+        existing.status = pickFresherStatus(existing.status, status);
+        const recent = msgTimeUnix || lastHeard || null;
+        if (recent && (!existing.lastMessageUnix || recent > existing.lastMessageUnix)) {{
+          existing.lastMessageUnix = recent;
+        }}
+      }};
 
       const escapeChatText = (value) => {{
         const clean = String(value == null ? "" : value);
@@ -5082,7 +5286,36 @@ def _render_html(
         }}
       }}
 
-      const messages = rawMessages.filter((msg) => !isReactionMessage(msg));
+      const baseMessages = rawMessages.filter((msg) => !isReactionMessage(msg));
+      for (const msg of baseMessages) {{
+        const key = classifyMessageChannel(msg);
+        if (key === "direct") {{
+          channelCounts.direct += 1;
+        }} else {{
+          channelCounts.all += 1;
+        }}
+      }}
+
+      const channelList = document.getElementById("chat-channel-list");
+      if (channelList) {{
+        channelList.innerHTML = [
+          {{ key: "all", label: "Everyone", count: channelCounts.all }},
+          {{ key: "direct", label: "Peer-to-peer", count: channelCounts.direct }},
+        ].map((entry) => (
+          `<button type="button" class="chat-channel-item${{activeChatChannel === entry.key ? " active" : ""}}" data-channel="${{entry.key}}">
+            <span class="chat-channel-name">${{entry.label}}</span>
+            <span class="chat-channel-meta">${{entry.count}}</span>
+          </button>`
+        )).join("");
+        for (const btn of channelList.querySelectorAll(".chat-channel-item")) {{
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.addEventListener("click", () => {{
+            applyChatChannel(btn.dataset.channel || "all", true);
+          }});
+        }}
+      }}
+
+      const messages = baseMessages.filter((msg) => classifyMessageChannel(msg) === activeChatChannel);
       const feedItems = messages.map((msg) => {{
         const sourceNode = normalizeNodeId(msg.from);
         const fallbackNode = normalizeNodeId(msg.to);
@@ -5094,7 +5327,11 @@ def _render_html(
         const toMeta = chatEndpointParts(fallbackNode);
         const msgTimeUnix = parseDashboardTimeToUnix(msg.rx_time || msg.captured_at || "");
         touchParticipant(fromMeta, msgTimeUnix);
-        touchParticipant(toMeta, msgTimeUnix);
+        if (activeChatChannel === "direct") {{
+          touchParticipant(toMeta, msgTimeUnix);
+          touchNodeById(sourceNode, msgTimeUnix);
+          touchNodeById(fallbackNode, msgTimeUnix);
+        }}
         const timeText = msg.rx_time || msg.captured_at || "n/a";
         const textHtml = escapeChatText(msg.text || "");
         const hopNum = Number(msg.hops);
@@ -5150,11 +5387,20 @@ def _render_html(
           ${{reactionRow}}
         </div>`;
       }});
+      if (activeChatChannel === "all" && participants.size === 0) {{
+        for (const msg of baseMessages) {{
+          if (classifyMessageChannel(msg) !== "all") continue;
+          touchNodeById(msg.from, parseDashboardTimeToUnix(msg.rx_time || msg.captured_at || ""));
+        }}
+      }}
+      if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)) {{
+        touchNodeById(selectedNodeId);
+      }}
       const feed = document.getElementById("chat-feed");
       if (feed) {{
         feed.innerHTML = feedItems.length > 0
           ? feedItems.join("")
-          : '<div class="chat-feed-empty">No chat messages yet.</div>';
+          : `<div class="chat-feed-empty">No ${{channelLabel(activeChatChannel).toLowerCase()}} messages yet.</div>`;
       }}
 
       const roomList = document.getElementById("chat-room-list");
@@ -5187,6 +5433,10 @@ def _render_html(
           }});
         }}
       }}
+      const leftSub = document.getElementById("chat-left-sub");
+      if (leftSub) {{
+        leftSub.textContent = `${{channelLabel(activeChatChannel)}}: ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale`;
+      }}
 
       bindChatAutoScroll();
       bindChatFeedClicks();
@@ -5204,7 +5454,7 @@ def _render_html(
       const caption = document.getElementById("chat-caption");
       if (caption) {{
         const preset = s.modem_preset || "unknown";
-        caption.textContent = `LoRa preset: ${{preset}}. Room: ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale. Click a name to inspect node history.`;
+        caption.textContent = `LoRa preset: ${{preset}}. Channel: ${{channelLabel(activeChatChannel)}}. ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale.`;
       }}
     }}
 
@@ -5277,6 +5527,7 @@ def _render_html(
     loadNodeNameCache();
     loadSplitState();
     loadLayoutView();
+    loadChatChannel();
     bindLayoutNav();
     bindSplitters();
     bindSelectionControls();

@@ -13,6 +13,15 @@ Planning docs:
 - `docs/PROJECT_PLAN.md`
 - `docs/REPO_STRUCTURE.md`
 
+## Milestones (UI Direction)
+
+- [x] Add Teams-style left navigation rail with view modes (`Chat`, `Network`, `Packets`, `Data`, `All`).
+- [x] Add Chat-mode left expansion panel for roster-based node selection.
+- [x] Add chat scopes in sidebar (`Everyone`, direct peer-to-peer).
+- [ ] Add future named channels/groups beyond `Everyone` and peer-to-peer.
+- [ ] Unify right-side contextual pane behavior (map + node history + packet context) across all views.
+- [ ] Add saved view presets/layout profiles for desktop vs field testing workflows.
+
 ## What This Website Does
 
 - Live network map with node markers and link lines.
