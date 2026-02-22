@@ -3330,6 +3330,7 @@ def _render_html(
     }}
     .layout.view-chat .map,
     .layout.view-chat .map-data,
+    .layout.view-chat .summary,
     .layout.view-chat .nodes,
     .layout.view-chat .packets,
     .layout.view-chat .raw,
@@ -3344,16 +3345,21 @@ def _render_html(
       height: calc(100dvh - 96px);
       min-height: 560px;
       grid-template-columns: minmax(350px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+    }}
+    .layout.view-network .summary {{
+      display: block;
+      grid-column: 1 / span 3;
+      grid-row: 1;
     }}
     .layout.view-network .nodes {{
       grid-column: 1;
-      grid-row: 1;
+      grid-row: 2;
       min-height: 0;
     }}
     .layout.view-network .map {{
       grid-column: 3;
-      grid-row: 1;
+      grid-row: 2;
       min-height: 0;
     }}
     .layout.view-network .nodes .body {{
@@ -3389,7 +3395,6 @@ def _render_html(
     .layout.view-network .map-frame {{
       min-height: 0;
     }}
-    .layout.view-network .summary,
     .layout.view-network .map-data,
     .layout.view-network .chat,
     .layout.view-network .packets,
@@ -3402,7 +3407,7 @@ def _render_html(
     }}
     .layout.view-network .splitter {{
       display: block;
-      grid-row: 1;
+      grid-row: 2;
     }}
 
     .layout.view-packets {{
