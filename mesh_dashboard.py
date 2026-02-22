@@ -2453,7 +2453,8 @@ def _render_html(
     }}
 
     .layout.view-network {{
-      height: calc(100vh - 130px);
+      height: calc(100vh - 96px);
+      height: calc(100dvh - 96px);
       min-height: 560px;
       grid-template-rows:
         auto
