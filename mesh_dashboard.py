@@ -2640,6 +2640,13 @@ def _render_html(
     #nodes-table tbody tr.selected-node {{
       background: #d8efe1;
     }}
+    #nodes-table tbody tr.selected-node td {{
+      background: #d8efe1;
+      color: #123222;
+    }}
+    #nodes-table tbody tr.selected-node td:first-child {{
+      box-shadow: inset 3px 0 0 #2f855a;
+    }}
     .mono {{ font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace; }}
     #nodes-table th:nth-child(1), #nodes-table td:nth-child(1) {{ width: 14%; }}
     #nodes-table th:nth-child(2), #nodes-table td:nth-child(2) {{ width: 13%; }}
@@ -4077,6 +4084,24 @@ def _render_html(
       background: #1b313f;
       border-color: #446381 !important;
       box-shadow: inset 2px 0 0 var(--ui-accent);
+    }}
+    [data-theme="dark"] .chat-member-item.selected-node {{
+      background: #1f3342 !important;
+      border-color: #4a6b87 !important;
+      color: #eef6ff !important;
+      box-shadow: inset 2px 0 0 #79c0ff;
+    }}
+    [data-theme="dark"] .chat-member-item.selected-node .chat-member-id {{
+      color: #bed3e8 !important;
+      opacity: 0.9;
+    }}
+    [data-theme="dark"] #nodes-table tbody tr.selected-node td {{
+      background: #243646 !important;
+      border-color: #4a617a !important;
+      color: #ecf5ff !important;
+    }}
+    [data-theme="dark"] #nodes-table tbody tr.selected-node td:first-child {{
+      box-shadow: inset 3px 0 0 #79c0ff;
     }}
     [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-channel-item,
@@ -6311,9 +6336,13 @@ def _render_html(
       }}
     }}
 
-    function selectNode(nodeId, shouldFocus = true) {{
+    function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{
       const normalized = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(normalized)) return;
+      if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{
+        clearNodeSelection();
+        return;
+      }}
       selectedNodeId = normalized;
       pendingSelectionScroll = true;
       persistSelection();
@@ -6364,7 +6393,7 @@ def _render_html(
             const replyName = item.dataset.replyName || "Unknown node";
             const replyText = item.dataset.replyText || "";
             if (activeChatChannel === "direct" && item.classList.contains("chat-selectable")) {{
-              selectNode(item.dataset.nodeId || "", false);
+              selectNode(item.dataset.nodeId || "", false, false);
             }}
             setChatReplyTarget(replyId, replyName, replyText);
             return;
