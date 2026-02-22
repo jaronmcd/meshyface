@@ -2720,12 +2720,39 @@ def _render_html(
       min-height: 0;
     }}
     .nodes .body {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       flex: 1 1 auto;
       min-height: 0;
+      overflow: hidden;
     }}
-    .nodes .scroll {{
+    .nodes-table-scroll {{
+      flex: 1 1 auto;
       max-height: none;
       min-height: 0;
+    }}
+    .network-node-history-host {{
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      padding-top: 8px;
+      border-top: 1px solid #d7e5d2;
+    }}
+    .network-node-history-host:not([hidden]) {{
+      display: flex;
+    }}
+    .network-node-history-host.empty::before {{
+      content: "Select a node to view signal history and rollups.";
+      display: block;
+      border: 1px dashed #c3d8c8;
+      border-radius: 8px;
+      background: #f7fcf8;
+      color: #466656;
+      font-size: 11px;
+      line-height: 1.3;
+      padding: 8px 10px;
     }}
     .packets {{ grid-column: 1; grid-row: 8; }}
     .raw {{ grid-column: 3; grid-row: 8; }}
@@ -2818,24 +2845,45 @@ def _render_html(
       height: calc(100vh - 96px);
       height: calc(100dvh - 96px);
       min-height: 560px;
-      grid-template-rows:
-        auto
-        minmax(220px, var(--split-top-px))
-        var(--splitter-size)
-        minmax(0, 1fr);
+      grid-template-columns: minmax(350px, 40%) var(--splitter-size) minmax(320px, 1fr);
+      grid-template-rows: minmax(0, 1fr);
     }}
     .layout.view-network .nodes {{
       grid-column: 1;
-      grid-row: 2;
-    }}
-    .layout.view-network .map-data {{
-      grid-column: 3;
-      grid-row: 2;
+      grid-row: 1;
+      min-height: 0;
     }}
     .layout.view-network .map {{
-      grid-column: 1 / span 3;
-      grid-row: 4;
+      grid-column: 3;
+      grid-row: 1;
       min-height: 0;
+    }}
+    .layout.view-network .nodes .body {{
+      min-height: 0;
+      overflow: hidden;
+    }}
+    .layout.view-network .nodes-table-scroll {{
+      flex: 1 1 52%;
+      min-height: 180px;
+    }}
+    .layout.view-network .network-node-history-host {{
+      flex: 1 1 48%;
+      min-height: 240px;
+    }}
+    .layout.view-network .network-node-history-host #map-data-node {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 8px;
+    }}
+    .layout.view-network .network-node-history-host #tab-panel-signal,
+    .layout.view-network .network-node-history-host #tab-panel-overview {{
+      flex: 1 1 auto;
+      min-height: 0;
+    }}
+    .layout.view-network .network-node-history-host #signal-chart-wrap {{
+      height: 190px;
+      min-height: 190px;
     }}
     .layout.view-network .map .body {{
       min-height: 0;
@@ -2843,21 +2891,20 @@ def _render_html(
     .layout.view-network .map-frame {{
       min-height: 0;
     }}
+    .layout.view-network .summary,
+    .layout.view-network .map-data,
     .layout.view-network .chat,
     .layout.view-network .packets,
     .layout.view-network .raw,
     .layout.view-network .console,
+    .layout.view-network .hsplitter[data-target="top"],
     .layout.view-network .hsplitter[data-target="mid"],
     .layout.view-network .hsplitter[data-target="low"] {{
       display: none !important;
     }}
     .layout.view-network .splitter {{
       display: block;
-      grid-row: 2;
-    }}
-    .layout.view-network .hsplitter[data-target="top"] {{
-      display: block;
-      grid-row: 3;
+      grid-row: 1;
     }}
 
     .layout.view-packets {{
@@ -4411,6 +4458,14 @@ def _render_html(
       border-color: var(--ui-border);
       background: var(--ui-panel-alt);
     }}
+    [data-theme="dark"] .network-node-history-host {{
+      border-top-color: var(--ui-border);
+    }}
+    [data-theme="dark"] .network-node-history-host.empty::before {{
+      border-color: var(--ui-border);
+      background: var(--ui-panel-alt);
+      color: var(--ui-text-soft);
+    }}
     [data-theme="dark"] .metric-action.active {{
       background: #223447;
       border-color: #4f6d8a;
@@ -4677,22 +4732,25 @@ def _render_html(
     <div class="hsplitter" data-target="top" title="Drag to resize top and middle panels"></div>
 
     <section class="card nodes">
-      <h2>Nodes</h2>
-      <div class="body scroll">
-        <table id="nodes-table">
-            <thead>
-              <tr>
-              <th>Last Heard</th><th>ID</th><th>Name</th><th>HW</th><th>SNR</th><th>Hops</th><th>Battery</th><th>Saved</th><th>Pos</th>
-              </tr>
-            </thead>
-          <tbody></tbody>
-        </table>
+      <h2 id="nodes-card-title">Nodes</h2>
+      <div class="body nodes-body">
+        <div class="scroll nodes-table-scroll">
+          <table id="nodes-table">
+              <thead>
+                <tr>
+                <th>Last Heard</th><th>ID</th><th>Name</th><th>HW</th><th>SNR</th><th>Hops</th><th>Battery</th><th>Saved</th><th>Pos</th>
+                </tr>
+              </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="network-node-history-host" class="network-node-history-host" hidden></div>
       </div>
     </section>
 
     <section class="card map-data">
       <h2 id="map-data-title">Map Data</h2>
-      <div class="body">
+      <div id="map-data-body" class="body">
         <div id="map-data-live" class="map-data-live">
           <h3 style="margin:0 0 2px 0;font-size:13px;">Top Ports</h3>
           <div class="scroll" style="max-height:150px;">
@@ -6279,6 +6337,28 @@ def _render_html(
       return knownLayoutViews.has(clean) ? clean : "chat";
     }}
 
+    function syncNodeHistoryDock() {{
+      const nodeHistoryPanel = document.getElementById("map-data-node");
+      const mapDataBody = document.getElementById("map-data-body");
+      const networkHost = document.getElementById("network-node-history-host");
+      const nodesTitle = document.getElementById("nodes-card-title");
+      if (!(nodeHistoryPanel instanceof HTMLElement)) return;
+      if (!(mapDataBody instanceof HTMLElement)) return;
+      if (!(networkHost instanceof HTMLElement)) return;
+
+      const dockInNodes = activeLayoutView === "network";
+      const target = dockInNodes ? networkHost : mapDataBody;
+      if (nodeHistoryPanel.parentElement !== target) {{
+        target.appendChild(nodeHistoryPanel);
+      }}
+
+      networkHost.hidden = !dockInNodes;
+      networkHost.classList.toggle("empty", dockInNodes && nodeHistoryPanel.hidden);
+      if (nodesTitle instanceof HTMLElement) {{
+        nodesTitle.textContent = dockInNodes ? "Node Explorer" : "Nodes";
+      }}
+    }}
+
     function applyLayoutView(viewName, persist = true) {{
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
@@ -6327,6 +6407,10 @@ def _render_html(
         }}
       }}
 
+      if (next === "network" && mapDataFocus === "activity") {{
+        mapDataFocus = "auto";
+      }}
+      syncNodeHistoryDock();
       if (latestState) {{
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null, null);
       }}
@@ -6688,9 +6772,13 @@ def _render_html(
       const node = document.getElementById("map-data-node");
       const activity = document.getElementById("map-data-activity");
       const title = document.getElementById("map-data-title");
+      const networkHost = document.getElementById("network-node-history-host");
       if (live) live.hidden = normalized !== "live";
       if (node) node.hidden = normalized !== "node";
       if (activity) activity.hidden = normalized !== "activity";
+      if (networkHost instanceof HTMLElement) {{
+        networkHost.classList.toggle("empty", normalized !== "node");
+      }}
       if (title) {{
         title.textContent = normalized === "node"
           ? "Node History"
