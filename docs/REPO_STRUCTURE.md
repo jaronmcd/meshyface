@@ -44,6 +44,7 @@
 - `meshdash/state_summary.py`: summary/local-state enrichment helpers for `/api/state`.
 - `meshdash/tracker.py`: extracted packet/chat tracking, edge synthesis, snapshots, and seed-from-node-db helper.
 - `meshdash/theme.py`: centralized light/dark theme tokens and CSS builder.
+- `meshdash/tracker_snapshot.py`: edge snapshot row builder shared by tracker state rendering.
 - `meshdash/wiring.py`: dependency checks and runtime wiring assembly for dashboard startup.
 - `meshtastic-dashboard.service`: systemd unit template for VM deployment.
 - `README.md`: setup, deploy loop, and operations.
