@@ -45,6 +45,7 @@
 - `meshdash/tracker.py`: extracted packet/chat tracking, edge synthesis, snapshots, and seed-from-node-db helper.
 - `meshdash/theme.py`: centralized light/dark theme tokens and CSS builder.
 - `meshdash/tracker_edges.py`: direct-link edge observation and edge-state update helpers for tracker ingestion.
+- `meshdash/tracker_entries.py`: packet summary/chat row builders used by tracker packet ingestion.
 - `meshdash/tracker_history_edges.py`: historical connection-row normalization for tracker bootstrap state.
 - `meshdash/tracker_snapshot.py`: edge snapshot row builder shared by tracker state rendering.
 - `meshdash/wiring.py`: dependency checks and runtime wiring assembly for dashboard startup.

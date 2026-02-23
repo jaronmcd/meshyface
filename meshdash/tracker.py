@@ -43,6 +43,10 @@ from .tracker_edges import (
 from .tracker_history_edges import (
     build_historical_edges as _build_historical_edges_helper,
 )
+from .tracker_entries import (
+    build_chat_entry_from_packet as _build_chat_entry_from_packet_helper,
+    build_packet_summary as _build_packet_summary_helper,
+)
 
 
 DEFAULT_CHAT_DELIVERY_TIMEOUT_SECONDS = 90
@@ -221,35 +225,25 @@ class DashboardTracker:
                 hops=hops,
             )
 
-        packet_summary = {
-            "captured_at": _utc_now(),
-            "live": include_live_count,
-            "packet_id": packet_id,
-            "from": from_id,
-            "to": to_id,
-            "from_num": _to_int(packet.get("from")),
-            "to_num": _to_int(packet.get("to")),
-            "portnum": str(portnum) if portnum is not None else None,
-            "rx_time": _format_epoch(packet.get("rxTime")),
-            "rx_time_unix": rx_time,
-            "rx_rssi": packet.get("rxRssi"),
-            "rx_snr": packet.get("rxSnr"),
-            "hop_start": packet.get("hopStart"),
-            "hop_limit": packet.get("hopLimit"),
-            "hops": hops,
-            "want_ack": packet.get("wantAck"),
-            "priority": packet.get("priority"),
-            "channel": packet.get("channel"),
-            "decoded_text": decoded.get("text") if isinstance(decoded, dict) else None,
-            "reply_id": reply_id,
-            "emoji": emoji_glyph,
-            "emoji_codepoint": emoji_codepoint,
-            "is_reaction": is_reaction,
-        }
-        if packet_position is not None:
-            packet_summary["position"] = packet_position
-        if packet_battery is not None:
-            packet_summary["battery_level"] = packet_battery
+        packet_summary = _build_packet_summary_helper(
+            packet=packet,
+            decoded=decoded,
+            from_id=from_id,
+            to_id=to_id,
+            packet_id=packet_id,
+            rx_time=rx_time,
+            hops=hops,
+            reply_id=reply_id,
+            emoji_glyph=emoji_glyph,
+            emoji_codepoint=emoji_codepoint,
+            is_reaction=is_reaction,
+            packet_position=packet_position,
+            packet_battery=packet_battery,
+            utc_now_fn=_utc_now,
+            format_epoch_fn=_format_epoch,
+            to_int_fn=_to_int,
+        )
+        packet_summary["live"] = include_live_count
 
         packet_entry = {
             "summary": packet_summary,
@@ -259,31 +253,21 @@ class DashboardTracker:
         if self._history_store is not None and include_live_count:
             self._history_store.save_packet(packet_entry)
 
-        decoded_text = decoded.get("text") if isinstance(decoded, dict) else None
-        has_text = isinstance(decoded_text, str) and decoded_text.strip()
-        if has_text or is_reaction:
-            chat_entry = {
-                "captured_at": _utc_now(),
-                "from": from_id,
-                "to": to_id,
-                "portnum": str(portnum) if portnum is not None else None,
-                "channel": packet.get("channel"),
-                "rx_time": _format_epoch(packet.get("rxTime")),
-                "text": decoded_text if isinstance(decoded_text, str) else "",
-                "hops": hops,
-                "hop_start": packet.get("hopStart"),
-                "hop_limit": packet.get("hopLimit"),
-            }
-            if packet_id is not None and packet_id > 0:
-                chat_entry["message_id"] = packet_id
-            if reply_id is not None and reply_id > 0:
-                chat_entry["reply_id"] = reply_id
-            if emoji_glyph:
-                chat_entry["emoji"] = emoji_glyph
-            if emoji_codepoint is not None and emoji_codepoint > 0:
-                chat_entry["emoji_codepoint"] = emoji_codepoint
-            if is_reaction:
-                chat_entry["is_reaction"] = True
+        chat_entry = _build_chat_entry_from_packet_helper(
+            packet=packet,
+            decoded=decoded,
+            from_id=from_id,
+            to_id=to_id,
+            packet_id=packet_id,
+            hops=hops,
+            reply_id=reply_id,
+            emoji_glyph=emoji_glyph,
+            emoji_codepoint=emoji_codepoint,
+            is_reaction=is_reaction,
+            utc_now_fn=_utc_now,
+            format_epoch_fn=_format_epoch,
+        )
+        if chat_entry is not None:
             self.recent_chat.append(chat_entry)
             if self._history_store is not None and include_live_count:
                 self._history_store.save_chat(chat_entry)
