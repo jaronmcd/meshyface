@@ -27,6 +27,7 @@
 - `meshdash/history_metric_rows.py`: shared metric-rollup insert/merge builders for node/link history tables.
 - `meshdash/history_packet_events.py`: packet-event summary normalization and DB insert-value builders.
 - `meshdash/history_positions.py`: node position insert/de-dupe helpers for history capture.
+- `meshdash/history_queries.py`: shared SQL row fetchers for history read/aggregation surfaces.
 - `meshdash/history_writes.py`: packet-event rollup orchestration and history upsert write helpers.
 - `meshdash/history_views.py`: node history/online activity empty payload and loader builders.
 - `meshdash/http_api.py`: extracted HTTP handler factory for dashboard API routes.

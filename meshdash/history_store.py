@@ -12,6 +12,15 @@ from .history_readers import (
     decode_recent_chat_rows as _decode_recent_chat_rows_helper,
     decode_recent_packets_rows as _decode_recent_packets_rows_helper,
 )
+from .history_queries import (
+    fetch_connection_rows as _fetch_connection_rows_helper,
+    fetch_node_capability_rows as _fetch_node_capability_rows_helper,
+    fetch_node_history_rows as _fetch_node_history_rows_helper,
+    fetch_node_saved_count_rows as _fetch_node_saved_count_rows_helper,
+    fetch_online_activity_rows as _fetch_online_activity_rows_helper,
+    fetch_recent_chat_rows as _fetch_recent_chat_rows_helper,
+    fetch_recent_packet_rows as _fetch_recent_packet_rows_helper,
+)
 from .history_analytics import (
     build_node_history_payload as _build_node_history_payload_helper,
     build_online_activity_payload as _build_online_activity_payload_helper,
@@ -95,30 +104,17 @@ class HistoryStore:
 
     def load_recent_packets(self, limit: int) -> list[Dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT summary_json, packet_json FROM packets ORDER BY id DESC LIMIT ?",
-                (max(1, int(limit)),),
-            ).fetchall()
+            rows = _fetch_recent_packet_rows_helper(self._conn, limit=limit)
         return _decode_recent_packets_rows_helper(rows)
 
     def load_recent_chat(self, limit: int) -> list[Dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT message_json FROM chat ORDER BY id DESC LIMIT ?",
-                (max(1, int(limit)),),
-            ).fetchall()
+            rows = _fetch_recent_chat_rows_helper(self._conn, limit=limit)
         return _decode_recent_chat_rows_helper(rows)
 
     def load_connections(self) -> list[Dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT from_id, to_id, first_seen_unix, last_seen_unix, seen_count,
-                       portnums_json, last_hops, hops_sum, hops_count
-                FROM connections
-                ORDER BY last_seen_unix DESC
-                """
-            ).fetchall()
+            rows = _fetch_connection_rows_helper(self._conn)
         return _decode_connections_rows_helper(rows)
 
     def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> Dict[str, Any]:
@@ -135,30 +131,12 @@ class HistoryStore:
         cutoff = int(time.time()) - (hours * 3600)
 
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT bucket_unix, packet_count,
-                       snr_sum, snr_count, snr_min, snr_max,
-                       rssi_sum, rssi_count, rssi_min, rssi_max,
-                       hops_sum, hops_count, hops_min, hops_max,
-                       last_seen_unix
-                FROM node_metrics_1m
-                WHERE node_id = ? AND bucket_unix >= ?
-                ORDER BY bucket_unix DESC
-                LIMIT ?
-                """,
-                (clean_node_id, cutoff, limit),
-            ).fetchall()
-            position_rows = self._conn.execute(
-                """
-                SELECT created_unix, lat, lon, altitude, sats_in_view
-                FROM node_positions
-                WHERE node_id = ? AND created_unix >= ?
-                ORDER BY created_unix DESC
-                LIMIT ?
-                """,
-                (clean_node_id, cutoff, limit),
-            ).fetchall()
+            rows, position_rows = _fetch_node_history_rows_helper(
+                self._conn,
+                node_id=clean_node_id,
+                cutoff=cutoff,
+                limit=limit,
+            )
 
         return _build_node_history_payload_helper(
             node_id=clean_node_id,
@@ -172,53 +150,26 @@ class HistoryStore:
         cutoff = int(time.time()) - (hours * 3600)
 
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT bucket_unix - (bucket_unix % 3600) AS hour_bucket,
-                       COUNT(DISTINCT node_id) AS online_nodes
-                FROM node_metrics_1m
-                WHERE bucket_unix >= ?
-                GROUP BY hour_bucket
-                ORDER BY hour_bucket ASC
-                """,
-                (cutoff,),
-            ).fetchall()
-            distinct_row = self._conn.execute(
-                "SELECT COUNT(DISTINCT node_id) FROM node_metrics_1m WHERE bucket_unix >= ?",
-                (cutoff,),
-            ).fetchone()
+            rows, distinct_nodes = _fetch_online_activity_rows_helper(
+                self._conn,
+                cutoff=cutoff,
+            )
 
         return _build_online_activity_payload_helper(
             window_hours=hours,
             hour_rows=rows,
-            distinct_nodes=int((distinct_row[0] if distinct_row else 0) or 0),
+            distinct_nodes=distinct_nodes,
             timezone_label=datetime.now().astimezone().tzname() or "local",
         )
 
     def load_node_saved_counts(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT node_id,
-                       SUM(packet_count) AS saved_packets,
-                       COUNT(*) AS saved_points,
-                       MAX(last_seen_unix) AS saved_last_seen_unix
-                FROM node_metrics_1m
-                GROUP BY node_id
-                """
-            ).fetchall()
+            rows = _fetch_node_saved_count_rows_helper(self._conn)
         return _decode_node_saved_counts_rows_helper(rows)
 
     def load_node_capabilities(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT node_id, last_seen_unix, has_position, last_position_unix,
-                       last_hops, battery_level, battery_updated_unix
-                FROM node_capabilities
-                ORDER BY last_seen_unix DESC
-                """
-            ).fetchall()
+            rows = _fetch_node_capability_rows_helper(self._conn)
         return _decode_node_capabilities_rows_helper(rows)
 
     def save_connection_event(
