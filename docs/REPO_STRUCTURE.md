@@ -14,6 +14,7 @@
 - `meshdash/html.py`: extracted dashboard HTML renderer and frontend template.
 - `meshdash/helpers.py`: extracted pure utility helpers used by runtime and tests.
 - `meshdash/history_store.py`: extracted SQLite history persistence/rollup store.
+- `meshdash/history_views.py`: node history/online activity empty payload and loader builders.
 - `meshdash/http_api.py`: extracted HTTP handler factory for dashboard API routes.
 - `meshdash/http_responses.py`: shared HTTP response emitters for JSON/HTML/text.
 - `meshdash/mesh_ops.py`: Meshtastic/protobuf-specific packet send and local node-id helpers.
