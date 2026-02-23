@@ -18,6 +18,11 @@ from .history_rollups import (
     clean_node_id as _clean_node_id_helper,
     merge_metric as _merge_metric_helper,
 )
+from .history_readers import (
+    decode_connections_rows as _decode_connections_rows_helper,
+    decode_recent_chat_rows as _decode_recent_chat_rows_helper,
+    decode_recent_packets_rows as _decode_recent_packets_rows_helper,
+)
 
 
 class HistoryStore:
@@ -364,37 +369,22 @@ class HistoryStore:
         self._prune_unlocked()
 
     def load_recent_packets(self, limit: int) -> list[Dict[str, Any]]:
-        out: list[Dict[str, Any]] = []
         with self._lock:
             rows = self._conn.execute(
                 "SELECT summary_json, packet_json FROM packets ORDER BY id DESC LIMIT ?",
                 (max(1, int(limit)),),
             ).fetchall()
-
-        for summary_json, packet_json in reversed(rows):
-            summary = _safe_json_loads(summary_json, {})
-            if not isinstance(summary, dict):
-                continue
-            packet = _safe_json_loads(packet_json, {})
-            out.append({"summary": summary, "packet": packet})
-        return out
+        return _decode_recent_packets_rows_helper(rows)
 
     def load_recent_chat(self, limit: int) -> list[Dict[str, Any]]:
-        out: list[Dict[str, Any]] = []
         with self._lock:
             rows = self._conn.execute(
                 "SELECT message_json FROM chat ORDER BY id DESC LIMIT ?",
                 (max(1, int(limit)),),
             ).fetchall()
-
-        for (message_json,) in reversed(rows):
-            entry = _safe_json_loads(message_json, {})
-            if isinstance(entry, dict):
-                out.append(entry)
-        return out
+        return _decode_recent_chat_rows_helper(rows)
 
     def load_connections(self) -> list[Dict[str, Any]]:
-        out: list[Dict[str, Any]] = []
         with self._lock:
             rows = self._conn.execute(
                 """
@@ -404,26 +394,7 @@ class HistoryStore:
                 ORDER BY last_seen_unix DESC
                 """
             ).fetchall()
-
-        for row in rows:
-            from_id, to_id, first_seen_unix, last_seen_unix, seen_count, portnums_json, last_hops, hops_sum, hops_count = row
-            portnums = _safe_json_loads(portnums_json, [])
-            if not isinstance(portnums, list):
-                portnums = []
-            out.append(
-                {
-                    "from": str(from_id),
-                    "to": str(to_id),
-                    "count": int(seen_count),
-                    "first_rx_time": _to_int(first_seen_unix),
-                    "last_rx_time": _to_int(last_seen_unix),
-                    "portnums": [str(p) for p in portnums if p is not None],
-                    "last_hops": _to_int(last_hops),
-                    "hops_sum": _to_int(hops_sum) or 0,
-                    "hops_count": _to_int(hops_count) or 0,
-                }
-            )
-        return out
+        return _decode_connections_rows_helper(rows)
 
     def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> Dict[str, Any]:
         clean_node_id = str(node_id or "").strip()
