@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 # Single source of truth for dashboard theme tokens.
 # Keep palette changes here so CSS values stay centralized.
@@ -37,11 +37,17 @@ def _render_vars(selector: str, vars_map: Dict[str, str], indent: str) -> str:
     return "\n".join(lines)
 
 
-def build_theme_css(indent: str = "    ") -> str:
+def build_theme_css(
+    indent: str = "    ",
+    *,
+    light_vars: Optional[Dict[str, str]] = None,
+    dark_vars: Optional[Dict[str, str]] = None,
+) -> str:
+    light_tokens = light_vars if isinstance(light_vars, dict) else LIGHT_THEME_VARS
+    dark_tokens = dark_vars if isinstance(dark_vars, dict) else DARK_THEME_VARS
     parts = [
-        _render_vars(":root", LIGHT_THEME_VARS, indent),
+        _render_vars(":root", light_tokens, indent),
         f"{indent}/* Readability-first dark theme override */",
-        _render_vars('[data-theme="dark"]', DARK_THEME_VARS, indent),
+        _render_vars('[data-theme="dark"]', dark_tokens, indent),
     ]
     return "\n".join(parts)
-

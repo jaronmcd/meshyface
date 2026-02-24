@@ -161,6 +161,15 @@ Route handlers by domain.
 
 Allow operator theme presets without editing code.
 
+### Delivered
+
+- Added `meshdash/theme_presets.py`:
+  - default preset builder from current light/dark token maps
+  - JSON preset loader with schema validation and safe fallback
+  - preset selector with default fallback
+- Extended `build_theme_css()` in `meshdash/theme.py` to accept optional token-map overrides.
+- Added `tests/test_theme_presets.py`.
+
 ### Steps
 
 1. JSON theme schema (light/dark token maps).

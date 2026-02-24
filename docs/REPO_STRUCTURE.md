@@ -128,6 +128,7 @@
 - `meshdash/tracker_runtime_state.py`: runtime helpers for node saved/capability reads and snapshot assembly.
 - `meshdash/tracker_node_resolver.py`: tracker node-id resolver wrapper that binds Meshtastic broadcast behavior.
 - `meshdash/theme.py`: centralized light/dark theme tokens and CSS builder.
+- `meshdash/theme_presets.py`: theme preset defaults + JSON loader/validator + preset selection helpers.
 - `meshdash/tracker_edges.py`: direct-link edge observation and edge-state update helpers for tracker ingestion.
 - `meshdash/tracker_bootstrap.py`: history-backed bootstrap loader for tracker recent buffers and edge baseline.
 - `meshdash/tracker_callbacks.py`: bound delivery callback builders for tracker state and receive flow.
