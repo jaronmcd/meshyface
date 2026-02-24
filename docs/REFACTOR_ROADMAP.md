@@ -36,14 +36,30 @@
 
 Split `_render_html()` into composable builders while keeping server behavior unchanged.
 
+### Delivered
+
+- Added HTML composable pipeline:
+  - `meshdash/html_context.py`
+  - `meshdash/html_css.py`
+  - `meshdash/html_js.py`
+  - `meshdash/html_sections.py`
+  - `meshdash/html_template.py` (orchestrator)
+- Extracted large template bodies into asset templates:
+  - `meshdash/assets/dashboard.css.tmpl`
+  - `meshdash/assets/dashboard.js.tmpl`
+  - `meshdash/assets/dashboard.html.tmpl`
+- Added cached asset loader:
+  - `meshdash/html_assets.py`
+- Added/updated HTML renderer coverage:
+  - `tests/test_html.py`
+  - `tests/test_html_assets.py`
+  - `tests/test_html_sections.py`
+
 ### Steps
 
-1. Create `meshdash/ui/templates.py`:
-   - `build_head_css()`
-   - `build_shell_html(...)`
-2. Create `meshdash/ui/scripts.py`:
-   - `build_client_js(...)`
-3. Keep `_render_html()` as an orchestrator only.
+1. Keep Python-side builders thin and move future UI edits to `meshdash/assets/*`.
+2. Add optional lint/minify checks for template assets in CI.
+3. Track frontend behavior slices (chat/network/saved) with focused render assertions.
 
 ### Exit criteria
 
@@ -123,4 +139,3 @@ Allow operator theme presets without editing code.
 
 - Users can switch palette presets at runtime.
 - Default theme remains the stable baseline.
-

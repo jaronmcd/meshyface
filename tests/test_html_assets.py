@@ -7,6 +7,9 @@ def test_build_dashboard_css_includes_theme_tokens_and_core_selectors():
     assert ":root { --test-color: #123456; }" in css
     assert ".topbar" in css
     assert ".workspace-shell" in css
+    assert "* { box-sizing: border-box; }" in css
+    assert "{{" not in css
+    assert "}}" not in css
 
 
 def test_build_dashboard_js_injects_runtime_values():
@@ -19,3 +22,7 @@ def test_build_dashboard_js_injects_runtime_values():
     assert "const nodeHistoryHours = 72;" in js
     assert "const nodeHistoryMaxPoints = 1440;" in js
     assert "setInterval(poll, refreshMs);" in js
+    assert "/^[0-9a-f]{8}$/i.test(hex)" in js
+    assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in js
+    assert "{{" not in js
+    assert "}}" not in js

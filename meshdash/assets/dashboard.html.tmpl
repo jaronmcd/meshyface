@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meshtastic Dashboard</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+{style_css}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Meshtastic Deep Dashboard</h1>
+    <div class="sub">
+      <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
+      <span class="pill">{safety_label}</span>
+      <span class="pill">Packet buffer: {packet_limit}</span>
+      <span class="pill">{history_label}</span>
+      <span class="pill">Refresh: {refresh_ms} ms</span>
+      <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
+      <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
+      <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
+      <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
+        <span id="disk-label" class="disk-label">Disk free: n/a</span>
+        <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+      </span>
+    </div>
+  </div>
+
+  <div class="workspace-shell">
+    <aside class="teams-rail" aria-label="Dashboard views">
+      <div class="teams-rail-title">Views</div>
+      <button class="rail-btn active" data-view="chat" type="button" title="Teams-style chat workspace">Chat</button>
+      <button class="rail-btn" data-view="network" type="button" title="Topology, nodes, and links">Network</button>
+      <button class="rail-btn" data-view="saved" type="button" title="Saved favorite nodes">Saved</button>
+      <button class="rail-btn" data-view="packets" type="button" title="Recent packet stream">Packets</button>
+      <button class="rail-btn" data-view="data" type="button" title="Raw node/config views">Data</button>
+      <button class="rail-btn" data-view="all" type="button" title="Show every panel">All</button>
+    </aside>
+    <aside id="chat-left-panel" class="chat-left-panel" hidden aria-label="Chat roster">
+      <div class="chat-left-head">
+        <div class="chat-left-title">Chat Navigator</div>
+        <div id="chat-left-sub" class="chat-left-sub">Loading…</div>
+      </div>
+      <div class="chat-left-section">
+        <div class="chat-left-label">Channels</div>
+        <div id="chat-channel-list" class="chat-channel-list"></div>
+      </div>
+      <div class="chat-left-section chat-users-section">
+        <div id="chat-users-title" class="chat-left-label">Users</div>
+        <div id="chat-room-list" class="chat-member-list"></div>
+        <div class="chat-left-bottom-bar">
+          <div class="chat-user-search-wrap">
+            <input id="chat-user-search-input" class="list-search-input" type="search" placeholder="Search by ID or name" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+    </aside>
+    <main class="workspace-main">
+  <div id="dashboard-layout" class="layout view-chat">
+    <section class="card summary">
+      <h2>Summary</h2>
+      <div class="body">
+        <div class="metrics">
+          <div class="metric"><div class="label">Target</div><div class="value" id="m-target">n/a</div></div>
+          <div class="metric metric-action" id="metric-known-nodes" role="button" tabindex="0" aria-pressed="false" title="Show online node activity by hour"><div class="label">Known Nodes</div><div class="value" id="m-nodes">0</div></div>
+          <div class="metric"><div class="label">Nodes With Position</div><div class="value" id="m-pos-nodes">0</div></div>
+          <div class="metric"><div class="label">Live Packets</div><div class="value" id="m-live-packets">0</div></div>
+          <div class="metric"><div class="label">Directed Links</div><div class="value" id="m-links">0</div></div>
+          <div class="metric"><div class="label">LoRa Preset</div><div class="value" id="m-modem-preset">n/a</div></div>
+          <div class="metric"><div class="label">Uptime (s)</div><div class="value" id="m-uptime">0</div></div>
+        </div>
+        <div style="margin-top:10px; font-size:12px; color:#3e5a46;">
+          Updated: <span id="updated-at">n/a</span>
+          <span id="local-state-error" class="warn"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card chat">
+      <div class="chat-card-head">
+        <h2>MediumFast Chat</h2>
+        <div id="chat-caption">
+          Showing decoded text messages from recent packets.
+        </div>
+      </div>
+      <div class="body">
+        <div class="chat-shell">
+          <div class="chat-main-pane">
+            <div class="scroll chat-log-scroll">
+              <div id="chat-feed" class="chat-feed"></div>
+            </div>
+            <div class="chat-compose-shell">
+              <div class="chat-composer">
+                <div class="chat-composer-top">
+                  <div id="chat-reply-context" class="chat-reply-context" hidden>
+                    <span id="chat-reply-label" class="chat-reply-label"></span>
+                    <button id="chat-reply-clear-btn" class="chat-reply-clear-btn" type="button" title="Cancel reply" aria-label="Cancel reply">&times;</button>
+                  </div>
+                </div>
+                <div class="chat-composer-input-row">
+                  <input
+                    id="chat-input"
+                    class="list-search-input"
+                    type="search"
+                    maxlength="280"
+                    placeholder="Message the room (^all)..."
+                    autocomplete="off"
+                  />
+                  <button id="chat-emoji-btn" type="button" title="Insert emoji" aria-label="Insert emoji" aria-expanded="false">🙂</button>
+                  <button id="chat-send-btn" type="button">Send</button>
+                </div>
+                <div id="chat-emoji-panel" class="chat-emoji-panel" hidden></div>
+              </div>
+              <div id="chat-send-status" class="chat-send-status"></div>
+            </div>
+            <div id="chat-reaction-popover" class="chat-reaction-popover" hidden></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card map">
+      <h2 id="map-card-title">Network Map</h2>
+      <div class="body">
+        <div class="map-frame">
+          <div id="map"></div>
+        </div>
+        <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <div class="hsplitter" data-target="top" title="Drag to resize top and middle panels"></div>
+
+    <section class="card nodes">
+      <h2 id="nodes-card-title">Nodes</h2>
+      <div class="body nodes-body">
+        <div class="nodes-search-wrap">
+          <input id="nodes-search-input" class="list-search-input" type="search" placeholder="Search by ID or name" autocomplete="off" />
+        </div>
+        <div class="network-node-stack">
+          <div class="scroll nodes-table-scroll">
+            <table id="nodes-table">
+                <thead>
+                  <tr>
+                  <th>Last Heard</th><th>ID</th><th>Name</th><th>HW</th><th>SNR</th><th>Hops</th><th>Battery</th><th>Saved</th><th>Pos</th><th>★</th>
+                  </tr>
+                </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="network-node-splitter" class="network-node-splitter" title="Drag to resize node list and history panel"></div>
+          <div id="network-node-history-host" class="network-node-history-host" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card favorites">
+      <h2>Saved Nodes</h2>
+      <div class="body favorites-body">
+        <div class="favorites-toolbar">
+          <div class="favorites-search-wrap">
+            <input id="favorites-search-input" class="list-search-input" type="search" placeholder="Search saved by ID or name" autocomplete="off" />
+          </div>
+          <button id="favorites-clear-btn" class="favorites-clear-btn" type="button" title="Remove all saved nodes">Clear Saved</button>
+        </div>
+        <div id="favorites-caption" class="favorites-caption">No saved nodes yet.</div>
+        <div id="favorites-list" class="scroll favorites-list"></div>
+      </div>
+    </section>
+
+    <section class="card map-data">
+      <h2 id="map-data-title">Map Data</h2>
+      <div id="map-data-body" class="body">
+        <div id="map-data-live" class="map-data-live">
+          <h3 style="margin:0 0 2px 0;font-size:13px;">Top Ports</h3>
+          <div class="scroll" style="max-height:150px;">
+            <table id="ports-table">
+              <thead><tr><th>Port</th><th>Count</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <h3 style="margin:2px 0 2px 0;font-size:13px;">Top Links</h3>
+          <div class="scroll" style="max-height:170px;">
+            <table id="links-table">
+              <thead><tr><th>From</th><th>To</th><th>Count</th><th>Hops</th><th>Status</th><th>Last</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="map-data-node" class="map-data-node" hidden>
+          <div id="node-history-caption" class="history-caption">Select a node to view historical data.</div>
+          <div class="history-tabs">
+            <button class="history-tab-btn active" id="tab-btn-signal" data-tab="signal" type="button">Signal</button>
+            <button class="history-tab-btn" id="tab-btn-overview" data-tab="overview" type="button">Overview</button>
+          </div>
+          <div id="tab-panel-signal" class="history-panel">
+            <div id="signal-chart-wrap">
+              <svg id="signal-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Node signal history"></svg>
+              <div id="signal-empty" class="signal-empty" hidden>No historical signal points yet for this node.</div>
+            </div>
+            <div id="signal-timeline" class="signal-timeline" aria-label="Signal timeline"></div>
+            <div class="signal-legend">
+              <span class="legend-chip" style="color:#1f6f53;">Avg SNR (dB)</span>
+              <span class="legend-chip" style="color:#265d7b;">Avg RSSI (dBm)</span>
+            </div>
+          </div>
+          <div id="tab-panel-overview" class="history-panel" hidden>
+            <div id="node-history-overview" class="overview-grid"></div>
+          </div>
+        </div>
+        <div id="map-data-activity" class="map-data-activity" hidden>
+          <div id="online-activity-caption" class="history-caption">Click Known Nodes to view when nodes are typically online.</div>
+          <div id="online-activity-chart-wrap">
+            <svg id="online-activity-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Online nodes by hour"></svg>
+            <div id="online-activity-empty" class="signal-empty" hidden>No historical online-activity points yet.</div>
+          </div>
+          <div class="signal-legend">
+            <span class="legend-chip activity-legend-nodes">Online nodes / hour</span>
+          </div>
+          <div id="online-activity-overview" class="overview-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="hsplitter" data-target="mid" title="Drag to resize middle and lower panels"></div>
+
+    <section class="card packets">
+      <h2>Recent Packets</h2>
+      <div class="body scroll">
+        <table id="packets-table">
+          <thead>
+            <tr>
+              <th>Captured</th><th>From</th><th>To</th><th>Port</th><th>SNR</th><th>RSSI</th><th>Text</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="splitter" data-row="8" title="Drag to resize side panels"></div>
+
+    <section class="card raw">
+      <h2>Raw Data</h2>
+      <div class="body">
+        <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
+        <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
+        <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
+        <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
+        <details><summary>channels</summary><pre id="raw-channels"></pre></details>
+        <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
+      </div>
+    </section>
+
+    <div class="hsplitter" data-target="low" title="Drag to resize lower panels and console"></div>
+
+    <section class="card console">
+      <h2>Realtime Console</h2>
+      <div class="body">
+        <div class="console-controls">
+          <button id="console-clear-btn" type="button">Clear</button>
+          <label><input id="console-autoscroll" type="checkbox" checked /> Auto-scroll</label>
+        </div>
+        <pre id="live-console"></pre>
+      </div>
+    </section>
+  </div>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+{app_js}
+  </script>
+</body>
+</html>
