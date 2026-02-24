@@ -1,7 +1,6 @@
 import threading
 import time
-from collections import Counter, deque
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 try:
     import meshtastic
@@ -75,6 +74,10 @@ from .tracker_local_entry import (
 from .tracker_callbacks import (
     build_tracker_delivery_callbacks as _build_tracker_delivery_callbacks_helper,
 )
+from .tracker_setup import (
+    apply_tracker_history_bootstrap as _apply_tracker_history_bootstrap_helper,
+    initialize_tracker_buffers as _initialize_tracker_buffers_helper,
+)
 
 
 DEFAULT_CHAT_DELIVERY_TIMEOUT_SECONDS = 90
@@ -97,11 +100,12 @@ class DashboardTracker:
         self._history_store = history_store
         self._chat_delivery_timeout_seconds = DEFAULT_CHAT_DELIVERY_TIMEOUT_SECONDS
         self.live_packet_count = 0
-        self.edges: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        self._historical_edges: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        self.port_counts: Counter[str] = Counter()
-        self.recent_packets: deque[Dict[str, Any]] = deque(maxlen=packet_limit)
-        self.recent_chat: deque[Dict[str, Any]] = deque(maxlen=packet_limit)
+        buffers = _initialize_tracker_buffers_helper(packet_limit)
+        self.edges = buffers["edges"]
+        self._historical_edges = buffers["historical_edges"]
+        self.port_counts = buffers["port_counts"]
+        self.recent_packets = buffers["recent_packets"]
+        self.recent_chat = buffers["recent_chat"]
         delivery_callbacks = _build_tracker_delivery_callbacks_helper(
             self.recent_chat,
             get_timeout_seconds_fn=lambda: self._chat_delivery_timeout_seconds,
@@ -114,15 +118,14 @@ class DashboardTracker:
         self._extract_delivery_update_fn = delivery_callbacks["extract_delivery_update"]
         self._expire_pending_deliveries_fn = delivery_callbacks["expire_pending_deliveries"]
 
-        if self._history_store is not None:
-            bootstrap = _load_tracker_history_bootstrap_helper(
-                self._history_store,
-                packet_limit=packet_limit,
-                build_historical_edges_fn=_build_historical_edges_helper,
-            )
-            self.recent_packets.extend(bootstrap["recent_packets"])
-            self.recent_chat.extend(bootstrap["recent_chat"])
-            self._historical_edges = bootstrap["historical_edges"]
+        self._historical_edges = _apply_tracker_history_bootstrap_helper(
+            history_store=self._history_store,
+            packet_limit=packet_limit,
+            recent_packets=self.recent_packets,
+            recent_chat=self.recent_chat,
+            load_tracker_history_bootstrap_fn=_load_tracker_history_bootstrap_helper,
+            build_historical_edges_fn=_build_historical_edges_helper,
+        )
 
     def on_receive(self, packet: Dict[str, Any], interface: Any) -> None:
         with self._lock:

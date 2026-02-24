@@ -12,15 +12,19 @@
 - `meshdash/app_meta.py`: environment/version/commit metadata assembly helpers.
 - `meshdash/api_inputs.py`: shared API query/body parsing and request-size validation helpers.
 - `meshdash/cli.py`: CLI parser/bootstrap argument definitions and env default resolution.
+- `meshdash/cli_arguments.py`: grouped CLI argument registration helpers for gateway/http/history views.
 - `meshdash/dashboard_runtime.py`: dashboard runtime orchestration and server lifecycle.
 - `meshdash/dashboard_loaders.py`: runtime loader assembly helpers for state/history/activity/chat closures.
 - `meshdash/dashboard_server.py`: runtime server build helper for HTML render, handler wiring, and HTTP bind.
 - `meshdash/dashboard_setup.py`: runtime setup helpers for optional history store and tracker seeding.
-- `meshdash/html.py`: extracted dashboard HTML renderer and frontend template.
+- `meshdash/html.py`: stable HTML renderer facade used by runtime wiring/tests.
+- `meshdash/html_context.py`: HTML render-context builder (theme CSS + safety/history labels).
+- `meshdash/html_template.py`: full dashboard HTML/CSS/JS template implementation.
 - `meshdash/helpers.py`: stable helper facade re-exporting utility APIs for runtime/test compatibility.
 - `meshdash/helpers_core.py`: core primitive/json/secrets/formatting/emoji/disk helper implementations.
 - `meshdash/helpers_packet.py`: packet-oriented extraction helpers (reply/emoji/hops/position/battery).
 - `meshdash/history_store.py`: extracted SQLite history persistence/rollup store.
+- `meshdash/history_store_connection.py`: `HistoryStore` DB open/init/prune helper routines.
 - `meshdash/history_schema.py`: schema/index creation statements for history DB initialization.
 - `meshdash/history_prune.py`: retention and max-row pruning operations for history tables.
 - `meshdash/history_readers.py`: row-to-payload decoders for recent packets/chat/connections reads.
@@ -44,9 +48,12 @@
 - `meshdash/history_read_api.py`: shared history read-side loader helpers for packets/chat/connections/capabilities.
 - `meshdash/history_read_history.py`: shared node-history and online-activity read-orchestration helpers.
 - `meshdash/history_queries.py`: shared SQL row fetchers for history read/aggregation surfaces.
+- `meshdash/history_store_reads.py`: `HistoryStore` read-operation wrappers using read/query/decoder helpers.
+- `meshdash/history_store_writes.py`: `HistoryStore` write-operation wrappers with prune+commit flow.
 - `meshdash/history_writes.py`: packet-event rollup orchestration helper.
 - `meshdash/history_views.py`: node history/online activity empty payload and loader builders.
 - `meshdash/http_api.py`: extracted HTTP handler factory for dashboard API routes.
+- `meshdash/http_handler.py`: shared HTTP `BaseHTTPRequestHandler` shell for GET/POST dispatch wiring.
 - `meshdash/http_routes.py`: GET/POST route handlers used by dashboard HTTP API class.
 - `meshdash/http_responses.py`: shared HTTP response emitters for JSON/HTML/text.
 - `meshdash/mesh_ops.py`: Meshtastic/protobuf-specific packet send and local node-id helpers.
@@ -74,6 +81,7 @@
 - `meshdash/tracker_packet_artifacts.py`: packet/chat artifact builders for tracker receive flow.
 - `meshdash/tracker_observation.py`: delivery/direct-edge/port-count observation helper for tracker receive flow.
 - `meshdash/tracker_seed.py`: tracker seed helper that replays node-db `lastReceived` packets.
+- `meshdash/tracker_setup.py`: tracker buffer/bootstrap setup helpers used by tracker constructor.
 - `meshdash/tracker_receive.py`: receive-flow orchestration helper that wires parse results into storage.
 - `meshdash/tracker_snapshot.py`: edge snapshot and full tracker snapshot payload builders.
 - `meshdash/tracker_storage.py`: tracker receive-path storage fanout (recent deques + optional history writes).
