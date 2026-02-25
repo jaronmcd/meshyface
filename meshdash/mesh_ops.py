@@ -1,14 +1,15 @@
-from typing import Any, Callable, Optional
+from typing import Any
 
 from .nodes import get_local_node_id as _get_local_node_id_helper
+from .runtime_types import ToIntFn, ToJsonableFn
 
 
 def get_local_node_id(
     iface: Any,
     *,
     meshtastic_module: Any,
-    to_jsonable_fn: Callable[[Any], Any],
-    to_int_fn: Callable[[Any], Optional[int]],
+    to_jsonable_fn: ToJsonableFn,
+    to_int_fn: ToIntFn,
 ) -> str:
     broadcast_num = (
         getattr(meshtastic_module, "BROADCAST_NUM", None)

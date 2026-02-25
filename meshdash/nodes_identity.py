@@ -1,7 +1,8 @@
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from .helpers import to_int as _to_int
 from .helpers import to_jsonable as _to_jsonable
+from .runtime_types import ToIntFn, ToJsonableFn
 
 
 def get_node_id_from_num(
@@ -9,7 +10,7 @@ def get_node_id_from_num(
     node_num: Any,
     *,
     broadcast_num: Optional[int],
-    to_int_fn: Callable[[Any], Optional[int]] = _to_int,
+    to_int_fn: ToIntFn = _to_int,
 ) -> Optional[str]:
     numeric = to_int_fn(node_num)
     if numeric is None:
@@ -29,8 +30,8 @@ def get_node_id_from_num(
 def get_local_node_num(
     iface: Any,
     *,
-    to_jsonable_fn: Callable[..., Any] = _to_jsonable,
-    to_int_fn: Callable[[Any], Optional[int]] = _to_int,
+    to_jsonable_fn: ToJsonableFn = _to_jsonable,
+    to_int_fn: ToIntFn = _to_int,
 ) -> Optional[int]:
     my_info = to_jsonable_fn(getattr(iface, "myInfo", None))
     if isinstance(my_info, dict):
@@ -52,8 +53,8 @@ def get_local_node_id(
     iface: Any,
     *,
     broadcast_num: Optional[int],
-    to_jsonable_fn: Callable[..., Any] = _to_jsonable,
-    to_int_fn: Callable[[Any], Optional[int]] = _to_int,
+    to_jsonable_fn: ToJsonableFn = _to_jsonable,
+    to_int_fn: ToIntFn = _to_int,
 ) -> str:
     node_num = get_local_node_num(iface, to_jsonable_fn=to_jsonable_fn, to_int_fn=to_int_fn)
     if node_num is None:
