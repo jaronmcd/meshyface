@@ -80,7 +80,7 @@ def record_tracker_receive_unlocked(
     tracker: TrackerReceiveRuntimeState,
     *,
     packet: TrackerPacket,
-    interface: Any,
+    interface: object,
     include_live_count: bool,
     get_node_id_from_num_fn: GetNodeIdFromNumFn,
     record_tracker_packet_unlocked_fn: RecordTrackerPacketUnlockedFn | None = None,

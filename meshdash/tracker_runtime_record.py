@@ -36,7 +36,7 @@ from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer, Tra
 def record_tracker_packet_unlocked_with_dependencies(
     *,
     packet: TrackerPacket,
-    interface: Any,
+    interface: object,
     include_live_count: bool,
     deps: TrackerPacketRuntimeDependencies,
 ) -> None:
@@ -81,7 +81,7 @@ def record_tracker_packet_unlocked_with_dependencies(
 def record_tracker_packet_unlocked(
     *,
     packet: TrackerPacket,
-    interface: Any,
+    interface: object,
     include_live_count: bool,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
