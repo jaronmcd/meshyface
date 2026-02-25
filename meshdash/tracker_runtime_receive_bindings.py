@@ -20,6 +20,9 @@ from .tracker_runtime_receive import (
 from .tracker_runtime_record import (
     record_tracker_packet_unlocked_with_dependencies as _record_tracker_packet_unlocked_with_dependencies_helper,
 )
+from .tracker_runtime_types import (
+    TrackerReceiveRuntimeState,
+)
 from .runtime_types import (
     GetNodeIdFromNumFn,
     RecordTrackerPacketUnlockedFn,
@@ -46,7 +49,7 @@ def _resolve_tracker_node_id_from_num(
 
 
 def record_tracker_receive_unlocked_for_tracker(
-    tracker: Any,
+    tracker: TrackerReceiveRuntimeState,
     *,
     packet: TrackerPacket,
     interface: Any,

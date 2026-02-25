@@ -23,10 +23,11 @@ from .runtime_types import (
     UtcNowFn,
 )
 from .tracker_runtime_packet_contracts import TrackerPacketRuntimeDependencies
+from .tracker_runtime_types import TrackerReceiveRuntimeState
 
 
 def build_tracker_packet_runtime_dependencies(
-    tracker: Any,
+    tracker: TrackerReceiveRuntimeState,
     *,
     get_node_id_from_num_fn: GetNodeIdFromNumFn,
     apply_tracker_observation_fn: ApplyTrackerObservationFn,

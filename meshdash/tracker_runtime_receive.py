@@ -43,6 +43,9 @@ from .tracker_runtime_receive_dependencies import (
     build_tracker_packet_runtime_dependencies as _build_tracker_packet_runtime_dependencies_helper,
     tracker_packet_runtime_dependencies_to_legacy_kwargs as _tracker_packet_runtime_dependencies_to_legacy_kwargs_helper,
 )
+from .tracker_runtime_types import (
+    TrackerReceiveRuntimeState,
+)
 from .tracker_storage import (
     apply_tracker_storage_updates as _apply_tracker_storage_updates_helper,
 )
@@ -74,7 +77,7 @@ from .runtime_types import (
 
 
 def record_tracker_receive_unlocked(
-    tracker: Any,
+    tracker: TrackerReceiveRuntimeState,
     *,
     packet: TrackerPacket,
     interface: Any,

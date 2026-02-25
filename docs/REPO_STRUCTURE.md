@@ -137,6 +137,7 @@
 - `meshdash/tracker_runtime_init.py`: tracker constructor/runtime initialization wiring for buffers, typed delivery callbacks, and bootstrap state.
 - `meshdash/tracker_runtime_record.py`: tracker receive-path runtime packet record wiring (parse + process handoff).
 - `meshdash/tracker_runtime_packet_contracts.py`: typed packet-ingest dependency contract for tracker runtime receive-path orchestration.
+- `meshdash/tracker_runtime_types.py`: typed tracker runtime protocol contracts for receive-path state dependencies.
 - `meshdash/tracker_runtime_receive.py`: tracker receive wrapper that assembles typed packet-runtime dependencies and routes packet ingest into tracker record helpers.
 - `meshdash/tracker_runtime_receive_dependencies.py`: tracker receive dependency assembly + compatibility mapping helpers from typed packet contracts to legacy callback kwargs.
 - `meshdash/tracker_runtime_receive_bindings.py`: tracker-bound node-id resolver + receive wiring defaults used by runtime class.
