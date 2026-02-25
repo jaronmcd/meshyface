@@ -122,7 +122,7 @@
 - `meshdash/runtime_state_loader.py`: state snapshot closure builder with typed revision input and payload-boundary conversion.
 - `meshdash/runtime_send_loader.py`: chat-send closure builder.
 - `meshdash/runtime_lifecycle.py`: startup status output, serve-loop interrupt handling, and shutdown cleanup helpers.
-- `meshdash/runtime_types.py`: shared runtime callback/type aliases used by wiring and runner/context orchestration.
+- `meshdash/runtime_types.py`: shared runtime callback/type aliases used by wiring/runner/context orchestration and tracker receive/record callback contracts.
 - `meshdash/services.py`: stable services facade re-exporting history loaders and chat-send service entrypoint.
 - `meshdash/services_chat.py`: chat-send orchestration service implementation.
 - `meshdash/state.py`: stable state facade re-exporting node/local collectors and state payload builder.

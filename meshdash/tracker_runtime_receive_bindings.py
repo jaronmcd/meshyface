@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 try:
     import meshtastic
@@ -19,6 +19,12 @@ from .tracker_runtime_receive import (
 )
 from .tracker_runtime_record import (
     record_tracker_packet_unlocked_with_dependencies as _record_tracker_packet_unlocked_with_dependencies_helper,
+)
+from .runtime_types import (
+    GetNodeIdFromNumFn,
+    RecordTrackerPacketUnlockedFn,
+    RecordTrackerPacketUnlockedWithDependenciesFn,
+    TrackerPacket,
 )
 
 
@@ -42,12 +48,12 @@ def _resolve_tracker_node_id_from_num(
 def record_tracker_receive_unlocked_for_tracker(
     tracker: Any,
     *,
-    packet: Dict[str, Any],
+    packet: TrackerPacket,
     interface: Any,
     include_live_count: bool,
-    get_node_id_from_num_fn: Any = _get_node_id_from_num_helper,
-    record_tracker_packet_unlocked_fn: Any = None,
-    record_tracker_packet_unlocked_with_dependencies_fn: Any = _record_tracker_packet_unlocked_with_dependencies_helper,
+    get_node_id_from_num_fn: GetNodeIdFromNumFn = _get_node_id_from_num_helper,
+    record_tracker_packet_unlocked_fn: RecordTrackerPacketUnlockedFn | None = None,
+    record_tracker_packet_unlocked_with_dependencies_fn: RecordTrackerPacketUnlockedWithDependenciesFn = _record_tracker_packet_unlocked_with_dependencies_helper,
     resolve_tracker_node_id_from_num_fn: Any = _resolve_tracker_node_id_from_num,
     record_tracker_receive_unlocked_fn: Any = _record_tracker_receive_unlocked_helper,
 ) -> None:
