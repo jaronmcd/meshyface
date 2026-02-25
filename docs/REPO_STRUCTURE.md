@@ -137,7 +137,8 @@
 - `meshdash/state.py`: stable state facade re-exporting node/local collectors and state payload builder.
 - `meshdash/state_service.py`: `/api/state` payload assembly service (tracker snapshot + local/summary composition + redaction).
 - `meshdash/state_nodes.py`: stable state-node facade re-exporting node/local collectors.
-- `meshdash/state_node_rows.py`: node row/full-node snapshot collection helpers.
+- `meshdash/state_node_contracts.py`: typed node-collection contract + compatibility coercion helper for state assembly.
+- `meshdash/state_node_rows.py`: node row/full-node snapshot collection helpers (`collect_nodes_typed` + dict compatibility wrapper).
 - `meshdash/state_local.py`: local-node config/module/channel snapshot collection helper.
 - `meshdash/state_summary.py`: summary/local-state enrichment helpers for `/api/state` (accepts typed `RevisionInfo` with dict compatibility at payload boundary).
 - `meshdash/tracker.py`: stable tracker facade re-exporting tracker class and seed helper.

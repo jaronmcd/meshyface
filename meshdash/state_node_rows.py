@@ -2,9 +2,14 @@ from typing import Any, Dict
 
 from .helpers import format_epoch, to_int, to_jsonable
 from .nodes import extract_position, safe_nodes_items
+from .state_node_contracts import CollectedNodes
 
 
 def collect_nodes(iface: Any) -> Dict[str, Any]:
+    return collect_nodes_typed(iface).as_dict()
+
+
+def collect_nodes_typed(iface: Any) -> CollectedNodes:
     rows: list[Dict[str, Any]] = []
     full_nodes: list[Dict[str, Any]] = []
     nodes_by_id: Dict[str, Dict[str, Any]] = {}
@@ -69,9 +74,9 @@ def collect_nodes(iface: Any) -> Dict[str, Any]:
         1 for node in rows if node.get("lat") is not None and node.get("lon") is not None
     )
 
-    return {
-        "rows": rows,
-        "full": full_nodes,
-        "by_id": nodes_by_id,
-        "with_position_count": nodes_with_position,
-    }
+    return CollectedNodes(
+        rows=rows,
+        full=full_nodes,
+        by_id=nodes_by_id,
+        with_position_count=nodes_with_position,
+    )

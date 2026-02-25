@@ -271,6 +271,10 @@ Reduce string-key coupling between runtime builders and orchestration modules.
   - existing `build_dashboard_server(...)` preserved as compatibility wrapper.
 - State summary/revision flow now accepts typed `RevisionInfo` through runtime state loading while preserving dict compatibility at the state/summary payload boundary.
 - `meshdash/services_chat.py` now uses shared runtime callable aliases for reaction/local-node/time and chat normalization callbacks (no remaining ad-hoc `Callable[..., Any]` in runtime-adjacent modules).
+- Added typed node-collection contract for state assembly:
+  - `CollectedNodes` + `coerce_collected_nodes(...)` in `meshdash/state_node_contracts.py`
+  - `collect_nodes_typed(...)` in `meshdash/state_node_rows.py` with legacy dict wrapper preserved
+  - `state_service` now consumes the typed node contract internally while accepting legacy mapping-shaped injections in tests/callers.
 - Added typed chat-send parse contract:
   - `ChatSendRequest` dataclass in `meshdash/api_inputs.py`
   - `parse_chat_send_request(...)` now used by POST route wiring + chat API handler

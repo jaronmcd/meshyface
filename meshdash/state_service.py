@@ -9,6 +9,7 @@ from .nodes import (
 )
 from .revision import RevisionInfo
 from .runtime_types import ToJsonableFn, UtcNowFn
+from .state_node_contracts import CollectedNodes, coerce_collected_nodes
 from .state_nodes import (
     collect_local_state as _collect_local_state_helper,
     collect_nodes as _collect_nodes_helper,
@@ -31,7 +32,7 @@ def build_dashboard_state(
     storage_probe_path: Optional[str],
     revision_info: RevisionInfo | Dict[str, str],
     sensitive_field_names: set[str],
-    collect_nodes_fn: Callable[[Any], Dict[str, Any]] = _collect_nodes_helper,
+    collect_nodes_fn: Callable[[Any], CollectedNodes | Dict[str, Any]] = _collect_nodes_helper,
     collect_local_state_fn: Callable[[Any], Dict[str, Any]] = _collect_local_state_helper,
     collect_local_state_safe_fn: Callable[..., tuple[Dict[str, Any], Optional[str]]] = _collect_local_state_safe_helper,
     modem_preset_from_local_state_fn: Callable[[Dict[str, Any]], Optional[str]] = _modem_preset_from_local_state_helper,
@@ -41,11 +42,11 @@ def build_dashboard_state(
     redact_secrets_fn: Callable[[Any, set[str]], Any] = _redact_secrets,
     utc_now_fn: UtcNowFn = _utc_now,
 ) -> Dict[str, Any]:
-    nodes = collect_nodes_fn(iface)
-    tracker_data = tracker.snapshot(nodes["by_id"])
+    nodes = coerce_collected_nodes(collect_nodes_fn(iface))
+    tracker_data = tracker.snapshot(nodes.by_id)
     node_saved_counts = tracker.load_node_saved_counts()
     node_capabilities = tracker.load_node_capabilities()
-    apply_node_saved_counts_fn(nodes["rows"], node_saved_counts)
+    apply_node_saved_counts_fn(nodes.rows, node_saved_counts)
 
     my_info = to_jsonable_fn(getattr(iface, "myInfo", None))
     metadata = to_jsonable_fn(getattr(iface, "metadata", None))
@@ -61,8 +62,8 @@ def build_dashboard_state(
         "summary": build_summary_payload_fn(
             target=target,
             started_at=started_at,
-            node_rows=nodes["rows"],
-            nodes_with_position=nodes["with_position_count"],
+            node_rows=nodes.rows,
+            nodes_with_position=nodes.with_position_count,
             tracker_data=tracker_data,
             storage_probe_path=storage_probe_path,
             revision_info=revision_info,
@@ -72,9 +73,9 @@ def build_dashboard_state(
         "metadata": metadata,
         "local_state": local_state,
         "local_state_error": local_error,
-        "nodes": nodes["rows"],
+        "nodes": nodes.rows,
         "history_caps": node_capabilities,
-        "nodes_full": nodes["full"],
+        "nodes_full": nodes.full,
         "traffic": {
             "edges": tracker_data["edges"],
             "port_counts": tracker_data["port_counts"],

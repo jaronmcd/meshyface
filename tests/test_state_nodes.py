@@ -1,6 +1,7 @@
 import types
 
-from meshdash.state_nodes import collect_local_state, collect_nodes
+from meshdash.state_node_contracts import CollectedNodes
+from meshdash.state_nodes import collect_local_state, collect_nodes, collect_nodes_typed
 
 
 def _iface_fixture(local_node=None):
@@ -38,6 +39,15 @@ def test_collect_nodes_shapes_rows_and_sorts_by_last_heard():
     assert nodes["rows"][0]["id"] == "!00000002"
     assert nodes["rows"][1]["id"] == "!00000001"
     assert nodes["with_position_count"] == 1
+
+
+def test_collect_nodes_typed_returns_collected_nodes_contract():
+    nodes = collect_nodes_typed(_iface_fixture())
+    assert isinstance(nodes, CollectedNodes)
+    assert len(nodes.rows) == 2
+    assert nodes.rows[0]["id"] == "!00000002"
+    assert nodes.rows[1]["id"] == "!00000001"
+    assert nodes.with_position_count == 1
 
 
 def test_collect_local_state_uses_getnode_fallback():
