@@ -113,10 +113,13 @@ Break `HistoryStore` into smaller repositories.
   - `meshdash/history_store_chat.py`
   - `meshdash/history_store_connections.py`
   - `meshdash/history_store_nodes.py`
+- Added centralized history retention/limit policy helper:
+  - `meshdash/history_store_policy.py`
 - Added targeted tests:
   - `tests/test_history_store_runtime_init.py`
   - `tests/test_history_store_runtime_maintenance.py`
   - `tests/test_history_store_io_wrappers.py` domain-wrapper coverage
+  - `tests/test_history_store_policy.py`
 
 ### Steps
 

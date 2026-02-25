@@ -6,6 +6,9 @@ from .history_maintenance import (
 from .history_store_connection import (
     prune_history_connection as _prune_history_connection_helper,
 )
+from .history_store_policy import (
+    policy_from_store_fields as _policy_from_store_fields_helper,
+)
 
 
 def close_history_store(store: Any) -> None:
@@ -18,13 +21,16 @@ def prune_history_store_unlocked(
     *,
     prune_history_connection_fn: Callable[..., None] = _prune_history_connection_helper,
 ) -> None:
+    policy = getattr(store, "_policy", None)
+    if policy is None:
+        policy = _policy_from_store_fields_helper(store)
     prune_history_connection_fn(
         store._conn,
-        retention_seconds=store.retention_seconds,
-        event_retention_seconds=store.event_retention_seconds,
-        rollup_retention_seconds=store.rollup_retention_seconds,
-        max_rows=store.max_rows,
-        event_max_rows=store.event_max_rows,
+        retention_seconds=policy.retention_seconds,
+        event_retention_seconds=policy.event_retention_seconds,
+        rollup_retention_seconds=policy.rollup_retention_seconds,
+        max_rows=policy.max_rows,
+        event_max_rows=policy.event_max_rows,
     )
 
 

@@ -32,6 +32,11 @@ def test_initialize_history_store_runtime_sets_fields_and_opens_connection():
     assert store.event_max_rows == 1000
     assert store.event_retention_seconds == 30 * 86400
     assert store.rollup_retention_seconds == 365 * 86400
+    assert store._policy.max_rows == 100
+    assert store._policy.event_max_rows == 1000
+    assert store._policy.retention_seconds == 7 * 86400
+    assert store._policy.event_retention_seconds == 30 * 86400
+    assert store._policy.rollup_retention_seconds == 365 * 86400
     assert store._writes_since_prune == 0
     assert store._lock is sentinel_lock
     assert store._conn is sentinel_conn

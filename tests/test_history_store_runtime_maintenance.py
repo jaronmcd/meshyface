@@ -84,6 +84,65 @@ def test_prune_history_store_unlocked_forwards_runtime_fields():
     }
 
 
+def test_prune_history_store_unlocked_prefers_policy_when_present():
+    observed = {}
+
+    def _prune_history_connection(
+        conn,
+        *,
+        retention_seconds,
+        event_retention_seconds,
+        rollup_retention_seconds,
+        max_rows,
+        event_max_rows,
+    ):
+        observed["kwargs"] = {
+            "retention_seconds": retention_seconds,
+            "event_retention_seconds": event_retention_seconds,
+            "rollup_retention_seconds": rollup_retention_seconds,
+            "max_rows": max_rows,
+            "event_max_rows": event_max_rows,
+        }
+
+    policy = type(
+        "_Policy",
+        (),
+        {
+            "retention_seconds": 1,
+            "event_retention_seconds": 2,
+            "rollup_retention_seconds": 3,
+            "max_rows": 4,
+            "event_max_rows": 5,
+        },
+    )()
+    store = type(
+        "_Store",
+        (),
+        {
+            "_conn": "conn",
+            "_policy": policy,
+            "retention_seconds": 7 * 86400,
+            "event_retention_seconds": 30 * 86400,
+            "rollup_retention_seconds": 365 * 86400,
+            "max_rows": 5000,
+            "event_max_rows": 200000,
+        },
+    )()
+
+    prune_history_store_unlocked(
+        store,
+        prune_history_connection_fn=_prune_history_connection,
+    )
+
+    assert observed["kwargs"] == {
+        "retention_seconds": 1,
+        "event_retention_seconds": 2,
+        "rollup_retention_seconds": 3,
+        "max_rows": 4,
+        "event_max_rows": 5,
+    }
+
+
 def test_maybe_prune_history_store_unlocked_only_prunes_on_threshold():
     observed = {"prunes": 0}
 
