@@ -147,8 +147,8 @@
 - `meshdash/tracker_receive.py`: receive-flow orchestration helper that wires parse results into storage.
 - `meshdash/tracker_snapshot.py`: edge snapshot and full tracker snapshot payload builders.
 - `meshdash/tracker_storage.py`: tracker receive-path storage fanout (recent deques + optional history writes).
-- `meshdash/wiring.py`: stable wiring facade re-exporting runtime dependency wiring APIs.
-- `meshdash/wiring_runtime.py`: dependency checks and runtime wiring assembly for dashboard startup.
+- `meshdash/wiring.py`: stable wiring facade re-exporting runtime dependency wiring APIs and typed runtime dependency contract.
+- `meshdash/wiring_runtime.py`: dependency checks and runtime wiring assembly for dashboard startup (`DashboardRuntimeDependencies`).
 - `meshdash/wiring_adapters.py`: wiring wrapper builders for state/reaction/local-node/http dependency adapters.
 - `meshtastic-dashboard.service`: systemd unit template for VM deployment.
 - `README.md`: setup, deploy loop, and operations.

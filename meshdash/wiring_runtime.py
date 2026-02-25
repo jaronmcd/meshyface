@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
 from .revision import RevisionInfo
@@ -7,6 +8,54 @@ from .wiring_adapters import (
     build_reaction_sender as _build_reaction_sender_helper,
     build_state_builder as _build_state_builder_helper,
 )
+
+
+@dataclass(frozen=True)
+class DashboardRuntimeDependencies:
+    mesh_target_label_fn: Callable[[Any], str]
+    open_mesh_interface_fn: Callable[[Any], Any]
+    history_store_cls: Any
+    dashboard_tracker_cls: Any
+    subscribe_fn: Callable[[Any, str], None]
+    seed_tracker_fn: Callable[..., None]
+    revision_info_fn: Callable[[], RevisionInfo]
+    build_state_fn: Callable[..., dict]
+    build_node_history_loader_fn: Callable[..., Callable[..., dict]]
+    build_online_activity_loader_fn: Callable[..., Callable[..., dict]]
+    send_chat_message_fn: Callable[..., dict]
+    send_reaction_packet_fn: Callable[..., Any]
+    get_local_node_id_fn: Callable[..., str]
+    normalize_single_emoji_fn: Callable[[Any], Any]
+    to_int_fn: Callable[[Any], Any]
+    utc_now_fn: Callable[[], str]
+    render_html_fn: Callable[..., str]
+    make_http_handler_fn: Callable[..., Any]
+    guess_lan_ipv4_fn: Callable[[], Any]
+    default_chat_max_bytes: int
+
+    def to_runner_kwargs(self) -> Dict[str, Any]:
+        return {
+            "mesh_target_label_fn": self.mesh_target_label_fn,
+            "open_mesh_interface_fn": self.open_mesh_interface_fn,
+            "history_store_cls": self.history_store_cls,
+            "dashboard_tracker_cls": self.dashboard_tracker_cls,
+            "subscribe_fn": self.subscribe_fn,
+            "seed_tracker_fn": self.seed_tracker_fn,
+            "revision_info_fn": self.revision_info_fn,
+            "build_state_fn": self.build_state_fn,
+            "build_node_history_loader_fn": self.build_node_history_loader_fn,
+            "build_online_activity_loader_fn": self.build_online_activity_loader_fn,
+            "send_chat_message_fn": self.send_chat_message_fn,
+            "send_reaction_packet_fn": self.send_reaction_packet_fn,
+            "get_local_node_id_fn": self.get_local_node_id_fn,
+            "normalize_single_emoji_fn": self.normalize_single_emoji_fn,
+            "to_int_fn": self.to_int_fn,
+            "utc_now_fn": self.utc_now_fn,
+            "render_html_fn": self.render_html_fn,
+            "make_http_handler_fn": self.make_http_handler_fn,
+            "guess_lan_ipv4_fn": self.guess_lan_ipv4_fn,
+            "default_chat_max_bytes": self.default_chat_max_bytes,
+        }
 
 
 def ensure_runtime_dependencies(*, meshtastic_module: Any, pub_module: Any) -> None:
@@ -48,7 +97,7 @@ def build_dashboard_runtime_dependencies(
     default_node_history_hours: int,
     guess_lan_ipv4_fn: Callable[[], Any],
     default_chat_max_bytes: int,
-) -> Dict[str, Any]:
+) -> DashboardRuntimeDependencies:
     build_state_with_sensitive_fields = _build_state_builder_helper(
         build_state_fn=build_state_fn,
         sensitive_field_names=sensitive_field_names,
@@ -70,25 +119,25 @@ def build_dashboard_runtime_dependencies(
         to_int_fn=to_int_fn,
     )
 
-    return {
-        "mesh_target_label_fn": mesh_target_label_fn,
-        "open_mesh_interface_fn": open_mesh_interface_fn,
-        "history_store_cls": history_store_cls,
-        "dashboard_tracker_cls": dashboard_tracker_cls,
-        "subscribe_fn": pub_module.subscribe,
-        "seed_tracker_fn": seed_tracker_fn,
-        "revision_info_fn": revision_info_fn,
-        "build_state_fn": build_state_with_sensitive_fields,
-        "build_node_history_loader_fn": build_node_history_loader_fn,
-        "build_online_activity_loader_fn": build_online_activity_loader_fn,
-        "send_chat_message_fn": send_chat_message_fn,
-        "send_reaction_packet_fn": send_reaction_packet,
-        "get_local_node_id_fn": get_local_node_id,
-        "normalize_single_emoji_fn": normalize_single_emoji_fn,
-        "to_int_fn": to_int_fn,
-        "utc_now_fn": utc_now_fn,
-        "render_html_fn": render_html_fn,
-        "make_http_handler_fn": make_http_handler,
-        "guess_lan_ipv4_fn": guess_lan_ipv4_fn,
-        "default_chat_max_bytes": default_chat_max_bytes,
-    }
+    return DashboardRuntimeDependencies(
+        mesh_target_label_fn=mesh_target_label_fn,
+        open_mesh_interface_fn=open_mesh_interface_fn,
+        history_store_cls=history_store_cls,
+        dashboard_tracker_cls=dashboard_tracker_cls,
+        subscribe_fn=pub_module.subscribe,
+        seed_tracker_fn=seed_tracker_fn,
+        revision_info_fn=revision_info_fn,
+        build_state_fn=build_state_with_sensitive_fields,
+        build_node_history_loader_fn=build_node_history_loader_fn,
+        build_online_activity_loader_fn=build_online_activity_loader_fn,
+        send_chat_message_fn=send_chat_message_fn,
+        send_reaction_packet_fn=send_reaction_packet,
+        get_local_node_id_fn=get_local_node_id,
+        normalize_single_emoji_fn=normalize_single_emoji_fn,
+        to_int_fn=to_int_fn,
+        utc_now_fn=utc_now_fn,
+        render_html_fn=render_html_fn,
+        make_http_handler_fn=make_http_handler,
+        guess_lan_ipv4_fn=guess_lan_ipv4_fn,
+        default_chat_max_bytes=default_chat_max_bytes,
+    )

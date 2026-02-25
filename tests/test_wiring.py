@@ -3,6 +3,7 @@ import types
 import pytest
 
 from meshdash.wiring import (
+    DashboardRuntimeDependencies,
     build_dashboard_runtime_dependencies,
     ensure_runtime_dependencies,
 )
@@ -67,22 +68,27 @@ def test_build_dashboard_runtime_dependencies_wraps_injected_context():
         default_chat_max_bytes=220,
     )
 
-    assert deps["subscribe_fn"] is fake_pub.subscribe
+    assert isinstance(deps, DashboardRuntimeDependencies)
+    assert deps.subscribe_fn is fake_pub.subscribe
 
-    deps["build_state_fn"](iface="iface", tracker="tracker")
+    deps.build_state_fn(iface="iface", tracker="tracker")
     assert calls["state"]["sensitive_field_names"] == {"token", "password"}
     assert calls["state"]["iface"] == "iface"
 
-    deps["send_reaction_packet_fn"](destination_id="!abcd")
+    deps.send_reaction_packet_fn(destination_id="!abcd")
     assert calls["reaction"]["mesh_pb2_module"] == "MESH_PB2"
     assert calls["reaction"]["portnums_pb2_module"] == "PORTNUMS_PB2"
     assert calls["reaction"]["destination_id"] == "!abcd"
 
-    node_id = deps["get_local_node_id_fn"]("iface")
+    node_id = deps.get_local_node_id_fn("iface")
     assert node_id == "!abcd1234"
     assert calls["local_node"]["meshtastic_module"] == "MESHTASTIC_MODULE"
     assert calls["local_node"]["iface"] == "iface"
 
-    deps["make_http_handler_fn"]("<html>", lambda: {})
+    deps.make_http_handler_fn("<html>", lambda: {})
     assert calls["http"]["default_node_history_hours"] == 72
     assert callable(calls["http"]["to_int_fn"])
+
+    run_kwargs = deps.to_runner_kwargs()
+    assert run_kwargs["mesh_target_label_fn"]("ignored") == "target"
+    assert run_kwargs["subscribe_fn"] is fake_pub.subscribe

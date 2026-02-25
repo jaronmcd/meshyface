@@ -198,11 +198,12 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Added `TrackerDeliveryCallbacks` dataclass in `meshdash/tracker_callbacks.py` and moved tracker runtime init wiring off callback dict keys.
 - Added `TrackerHistoryBootstrap` dataclass in `meshdash/tracker_bootstrap.py` and moved tracker setup bootstrap handoff off dict keys.
 - Added `RevisionInfo` dataclass in `meshdash/revision.py` and wired startup/server metadata to typed revision contracts while preserving API payload dict shape.
+- Added `DashboardRuntimeDependencies` dataclass in `meshdash/wiring_runtime.py` and moved startup dependency assembly off ad-hoc dict payloads.
 
 ### Steps
 
-1. Replace remaining ad-hoc dict payloads in runtime orchestration boundaries.
-2. Consider stricter type aliases/protocols for callback signatures used in runtime wiring.
+1. Consider stricter type aliases/protocols for callback signatures used in runtime wiring.
+2. Triage remaining dict-shaped payloads where they represent transport formats vs internal contracts.
 
 ### Exit criteria
 

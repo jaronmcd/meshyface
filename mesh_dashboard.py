@@ -154,7 +154,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
         guess_lan_ipv4_fn=_guess_lan_ipv4_helper,
         default_chat_max_bytes=DEFAULT_CHAT_MAX_BYTES,
     )
-    _run_dashboard_runtime_helper(args, **runtime_dependencies)
+    _run_dashboard_runtime_helper(args, **runtime_dependencies.to_runner_kwargs())
 
 
 def main() -> None:
