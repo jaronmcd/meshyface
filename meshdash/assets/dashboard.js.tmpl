@@ -1555,15 +1555,14 @@
       const btn = document.querySelector('.teams-rail .rail-btn[data-view="saved"]');
       if (!(btn instanceof HTMLButtonElement)) return;
       if (!btn.dataset.baseTitle) {{
-        btn.dataset.baseTitle = btn.getAttribute("title") || "Saved favorite nodes";
+        btn.dataset.baseTitle = btn.getAttribute("title") || "Node details and saved nodes";
       }}
       const count = Math.max(0, favoriteNodeIds.size);
-      const shown = count > 99 ? "99+" : String(count);
-      btn.textContent = count > 0 ? `Saved (${{shown}})` : "Saved";
-      const baseTitle = btn.dataset.baseTitle || "Saved favorite nodes";
+      btn.textContent = "Node";
+      const baseTitle = btn.dataset.baseTitle || "Node details and saved nodes";
       btn.title = count > 0
         ? `${{baseTitle}}. ${{count}} saved node${{count === 1 ? "" : "s"}}.`
-        : baseTitle;
+        : `${{baseTitle}}. No saved nodes yet.`;
       btn.setAttribute("aria-label", btn.title);
     }}
 
@@ -1668,7 +1667,23 @@
     function renderSelectionStatus() {{
       const pill = document.getElementById("selected-node-pill");
       if (pill) {{
-        pill.textContent = selectedNodeId ? `Selected: ${{selectedNodeId}}` : "Selected: none";
+        if (selectedNodeId) {{
+          let nodeName = "";
+          if (latestState && Array.isArray(latestState.nodes)) {{
+            const selectedNode = latestState.nodes.find((node) => (
+              normalizeNodeId(node && node.id) === selectedNodeId
+            ));
+            nodeName = preferredNodeName(selectedNode);
+          }}
+          if (!nodeName) {{
+            nodeName = nodeNameCache.get(selectedNodeId) || "";
+          }}
+          pill.textContent = nodeName
+            ? `Selected: ${{nodeName}} (${{selectedNodeId}})`
+            : `Selected: ${{selectedNodeId}}`;
+        }} else {{
+          pill.textContent = "Selected: none";
+        }}
       }}
       const btn = document.getElementById("clear-selection-btn");
       if (btn) {{
@@ -1915,7 +1930,7 @@
       const mapTitle = document.getElementById("map-card-title");
       if (mapTitle) {{
         mapTitle.textContent = next === "saved"
-          ? "Saved Node Details"
+          ? "Node Details"
           : (isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map");
       }}
       setMapWheelZoomActive(next === "network" || next === "saved");
@@ -2900,7 +2915,7 @@
       const mapTitle = document.getElementById("map-card-title");
       if (mapTitle) {{
         if (activeLayoutView === "saved") {{
-          mapTitle.textContent = "Saved Node Details";
+          mapTitle.textContent = "Node Details";
         }} else {{
           mapTitle.textContent = selectionMode ? "Selected Node Map" : "Network Map";
         }}
@@ -3259,6 +3274,89 @@
       return stats;
     }}
 
+    function mapLatestChatTouchInfo(messages) {{
+      const latestByNodeId = new Map();
+      const updateTouch = (rawNodeId, timeUnix, timeText) => {{
+        const nodeId = normalizeNodeId(rawNodeId);
+        if (!isSelectableNodeId(nodeId)) return;
+        if (!Number.isFinite(timeUnix) || timeUnix <= 0) return;
+        const existing = latestByNodeId.get(nodeId);
+        if (!existing || timeUnix > existing.unix) {{
+          latestByNodeId.set(nodeId, {{
+            unix: Math.trunc(timeUnix),
+            text: String(timeText || "").trim() || "n/a",
+          }});
+        }}
+      }};
+
+      for (const msg of (messages || [])) {{
+        const timeUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+        const timeText = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+        updateTouch(msg && msg.from, timeUnix, timeText);
+        updateTouch(msg && msg.to, timeUnix, timeText);
+      }}
+      return latestByNodeId;
+    }}
+
+    function resolveNodeFreshness(node, caps, historySummary = null, chatTouch = null) {{
+      const candidates = [];
+      const liveLastSeenUnix = nodeLastHeardUnix(node);
+      if (Number.isFinite(liveLastSeenUnix) && liveLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(liveLastSeenUnix),
+          text: String((node && node.last_heard) || "").trim(),
+          source: "live",
+        }});
+      }}
+
+      const capsLastSeenUnix = Number(caps && caps.last_seen_unix);
+      if (Number.isFinite(capsLastSeenUnix) && capsLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(capsLastSeenUnix),
+          text: String((caps && (caps.last_seen || caps.last_position_time)) || "").trim(),
+          source: "caps",
+        }});
+      }}
+
+      const historyLastSeenUnix = parseDashboardTimeToUnix(historySummary && historySummary.last_seen);
+      if (Number.isFinite(historyLastSeenUnix) && historyLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(historyLastSeenUnix),
+          text: String((historySummary && historySummary.last_seen) || "").trim(),
+          source: "history",
+        }});
+      }}
+
+      const chatLastSeenUnix = Number(chatTouch && chatTouch.unix);
+      if (Number.isFinite(chatLastSeenUnix) && chatLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(chatLastSeenUnix),
+          text: String((chatTouch && chatTouch.text) || "").trim(),
+          source: "chat",
+        }});
+      }}
+
+      if (candidates.length === 0) {{
+        return {{ unix: null, text: "n/a", source: "unknown" }};
+      }}
+      candidates.sort((a, b) => b.unix - a.unix);
+      const freshest = candidates[0];
+      return {{
+        unix: freshest.unix,
+        text: freshest.text || "n/a",
+        source: freshest.source,
+      }};
+    }}
+
+    function nodeFreshnessSourceLabel(source) {{
+      const key = String(source || "").toLowerCase();
+      if (key === "chat") return "Chat traffic";
+      if (key === "live") return "Live node state";
+      if (key === "caps") return "History capabilities";
+      if (key === "history") return "History summary";
+      return "Unknown";
+    }}
+
     function computeSavedLinkStats(nodeId, edges) {{
       const stats = {{
         links: 0,
@@ -3327,17 +3425,10 @@
       const nodeId = normalizeNodeId(selectedNodeId || "");
       const loadingId = normalizeNodeId(loadingNodeId || "");
 
-      if (favoriteNodeIds.size === 0) {{
-        host.innerHTML = '<div class="saved-node-details-empty">No saved nodes yet. Star a node in Chat, Network, or Saved list to start tracking it here.</div>';
-        return;
-      }}
-
       if (!isSelectableNodeId(nodeId)) {{
-        host.innerHTML = '<div class="saved-node-details-empty">Select a saved node to view historical summary, links, and recent chat activity.</div>';
-        return;
-      }}
-      if (!favoriteNodeIds.has(nodeId)) {{
-        host.innerHTML = '<div class="saved-node-details-empty">Selected node is not in Saved. Pick a node from the Saved list on the left.</div>';
+        host.innerHTML = favoriteNodeIds.size === 0
+          ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Star nodes to build your Saved Nodes subsection.</div>'
+          : '<div class="saved-node-details-empty">Select any node to view history and summary, or pick one from Saved Nodes.</div>';
         return;
       }}
 
@@ -3366,17 +3457,20 @@
       const historyPoints = Array.isArray(history && history.points) ? history.points : [];
       const historyPositions = Array.isArray(history && history.positions) ? history.positions : [];
       const historyLoading = loadingId === nodeId && !history;
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
+      const chatStats = computeSavedChatStats(nodeId, chatMessages);
+      const chatTouch = Number.isFinite(chatStats.lastChatUnix)
+        ? {{ unix: Math.trunc(chatStats.lastChatUnix), text: chatStats.lastChatText }}
+        : null;
+      const linkStats = computeSavedLinkStats(nodeId, edges);
 
       const nodeName = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
       const nowUnix = Math.floor(Date.now() / 1000);
-      const liveLastSeenUnix = nodeLastHeardUnix(node);
-      const capsLastSeenUnix = Number(caps && caps.last_seen_unix);
-      const historyLastSeenUnix = parseDashboardTimeToUnix(historySummary.last_seen || "");
-      const lastSeenUnix = Number.isFinite(liveLastSeenUnix)
-        ? liveLastSeenUnix
-        : (Number.isFinite(capsLastSeenUnix)
-            ? Math.trunc(capsLastSeenUnix)
-            : (Number.isFinite(historyLastSeenUnix) ? historyLastSeenUnix : null));
+      const freshness = resolveNodeFreshness(node, caps, historySummary, chatTouch);
+      const freshnessSource = nodeFreshnessSourceLabel(freshness.source);
+      const lastSeenUnix = freshness.unix;
       const status = freshnessStatus(lastSeenUnix, nowUnix);
       const statusLabel = status === "online"
         ? "Online"
@@ -3506,18 +3600,13 @@
       const snrRange = `${{formatMetricValue(historySummary.snr_min, 1)}} to ${{formatMetricValue(historySummary.snr_max, 1)}} dB`;
       const rssiRange = `${{formatMetricValue(historySummary.rssi_min, 0)}} to ${{formatMetricValue(historySummary.rssi_max, 0)}} dBm`;
 
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
-      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
-      const chatStats = computeSavedChatStats(nodeId, chatMessages);
-      const linkStats = computeSavedLinkStats(nodeId, edges);
       const linkAvgHops = linkStats.hopsWeight > 0
         ? formatMetricValue(linkStats.hopsWeighted / linkStats.hopsWeight, 2)
         : "n/a";
 
       const subtitleBits = [
         nodeId,
-        `Last seen: ${{savedDetailText((node && node.last_heard) || (caps && caps.last_seen) || historySummary.last_seen)}}`,
+        `Last seen: ${{savedDetailText(freshness.text)}}`,
       ];
       if (historyLoading) {{
         subtitleBits.push("Loading historical data...");
@@ -3529,6 +3618,7 @@
         ["Hardware", (node && node.hardware_model) || "n/a"],
         ["Role", (node && node.role) || "n/a"],
         ["Status", statusLabel],
+        ["Freshness Source", freshnessSource],
         ["Battery", batteryText],
         ["Hops Away", hopsText],
         ["Voltage", Number.isFinite(voltageValue) ? `${{voltageValue.toFixed(2)}}V` : "n/a"],
@@ -3621,6 +3711,9 @@
           .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
           .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
       );
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
 
       const nowUnix = Math.floor(Date.now() / 1000);
       const entries = Array.from(favoriteNodeIds)
@@ -3628,17 +3721,9 @@
           const node = nodesById.get(nodeId);
           const caps = historyCapsById.get(nodeId);
           const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
-          const liveLastSeen = nodeLastHeardUnix(node);
-          const capsLastSeen = Number(caps && caps.last_seen_unix);
-          const lastSeenUnix = Number.isFinite(liveLastSeen)
-            ? liveLastSeen
-            : (Number.isFinite(capsLastSeen) ? Math.trunc(capsLastSeen) : null);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const lastSeenText = String(
-            (node && node.last_heard)
-            || (caps && (caps.last_seen || caps.last_position_time))
-            || "n/a"
-          );
+          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(nodeId) || null);
+          const status = freshnessStatus(freshness.unix, nowUnix);
+          const lastSeenText = savedDetailText(freshness.text);
           const batteryRaw = Number(
             (node && node.battery_level != null)
               ? node.battery_level
@@ -3686,11 +3771,11 @@
       const warnCount = entries.filter((entry) => entry.status === "warn").length;
       const staleCount = entries.filter((entry) => entry.status === "stale").length;
       if (caption) {{
-        caption.textContent = `Saved nodes: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
+        caption.textContent = `Saved subsection: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
       }}
 
       if (entries.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No saved nodes yet. Click ☆ next to a node name to save it.</div>';
+        list.innerHTML = '<div class="favorites-empty">No saved nodes yet. Click ☆ next to a node name to add it to this subsection.</div>';
         return;
       }}
       if (filtered.length === 0) {{

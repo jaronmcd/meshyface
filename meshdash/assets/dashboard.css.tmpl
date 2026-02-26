@@ -26,9 +26,23 @@
       font-size: 11px;
       opacity: 0.95;
       display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }}
+    .topbar .sub .sub-main {{
+      display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: 6px;
+      min-width: 0;
+    }}
+    .topbar .sub .selection-row {{
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      min-width: 0;
     }}
     .topbar .sub .sub-text {{
       margin-right: 2px;
@@ -2178,6 +2192,13 @@
       background: #e7f6ec;
       color: #194c33;
     }}
+    .topbar .sub .selection-row .selection-pill {{
+      margin-left: 0;
+      max-width: 72ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
     .selection-btn {{
       margin-left: 6px;
       font-size: 10px;
@@ -2188,6 +2209,10 @@
       border-radius: 999px;
       padding: 3px 8px;
       cursor: pointer;
+    }}
+    .topbar .sub .selection-row .selection-btn {{
+      margin-left: 0;
+      flex: 0 0 auto;
     }}
     .selection-btn:hover {{
       background: #e1f2e7;
