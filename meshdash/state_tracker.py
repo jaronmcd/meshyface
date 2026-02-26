@@ -14,6 +14,9 @@ def load_tracker_snapshot_safe(
     nodes_by_id: NodeByIdMap,
 ) -> tuple[TrackerSnapshot, Optional[str]]:
     try:
+        snapshot_typed_fn = getattr(tracker, "snapshot_typed", None)
+        if callable(snapshot_typed_fn):
+            return coerce_tracker_snapshot(snapshot_typed_fn(nodes_by_id)), None
         return coerce_tracker_snapshot(tracker.snapshot(nodes_by_id)), None
     except Exception as exc:
         return empty_tracker_snapshot(), str(exc)

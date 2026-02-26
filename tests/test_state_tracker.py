@@ -3,6 +3,7 @@ from meshdash.state_tracker import (
     load_tracker_node_saved_counts_safe,
     load_tracker_snapshot_safe,
 )
+from meshdash.tracker_snapshot_contracts import TrackerSnapshot
 
 
 class _OkTracker:
@@ -34,6 +35,33 @@ class _FailTracker:
         raise RuntimeError("caps failed")
 
 
+class _TypedSnapshotTracker:
+    def __init__(self):
+        self.snapshot_calls = 0
+        self.snapshot_typed_calls = 0
+
+    def snapshot(self, by_id):
+        self.snapshot_calls += 1
+        return {}
+
+    def snapshot_typed(self, by_id):
+        self.snapshot_typed_calls += 1
+        return TrackerSnapshot(
+            live_packet_count=9,
+            real_edge_count=4,
+            edges=[{"from": "!a", "to": "!b"}],
+            port_counts=[],
+            recent_packets=[],
+            recent_chat=[],
+        )
+
+    def load_node_saved_counts(self):
+        return {}
+
+    def load_node_capabilities(self):
+        return {}
+
+
 def test_load_tracker_snapshot_safe_success_path():
     out, error = load_tracker_snapshot_safe(_OkTracker(), {"!a": {"id": "!a"}})
     assert error is None
@@ -49,6 +77,16 @@ def test_load_tracker_snapshot_safe_failure_path_returns_empty_snapshot():
     assert out.real_edge_count == 0
     assert out.edges == []
     assert out.recent_chat == []
+
+
+def test_load_tracker_snapshot_safe_prefers_snapshot_typed_when_available():
+    tracker = _TypedSnapshotTracker()
+    out, error = load_tracker_snapshot_safe(tracker, {"!a": {"id": "!a"}})
+    assert error is None
+    assert out.live_packet_count == 9
+    assert out.real_edge_count == 4
+    assert tracker.snapshot_typed_calls == 1
+    assert tracker.snapshot_calls == 0
 
 
 def test_load_tracker_node_saved_counts_safe_failure_path_returns_empty_mapping():

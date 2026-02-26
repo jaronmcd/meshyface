@@ -27,7 +27,7 @@ from .state_service_contracts import (
 )
 from .state_nodes import (
     collect_local_state as _collect_local_state_helper,
-    collect_nodes as _collect_nodes_helper,
+    collect_nodes_typed as _collect_nodes_helper,
 )
 from .state_tracker import (
     load_tracker_node_capabilities_safe as _load_tracker_node_capabilities_safe_helper,
