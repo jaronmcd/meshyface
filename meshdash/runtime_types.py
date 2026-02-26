@@ -40,15 +40,73 @@ NowUnixFn = Callable[[], float]
 GetTimeoutSecondsFn = Callable[[], int]
 ParseUtcTextToUnixFn = Callable[[object], Optional[float]]
 
-RenderHtmlFn = Callable[..., str]
-MakeHttpHandlerFn = Callable[..., object]
 ThreadingHttpServerCls = Callable[[tuple[str, int], object], object]
 GuessLanIpv4Fn = Callable[[], Optional[str]]
 
-StateFn = Callable[[], StatePayload]
-NodeHistoryFn = Callable[..., dict]
-OnlineActivityFn = Callable[..., dict]
-SendChatFn = Callable[..., dict]
+class RenderHtmlFn(Protocol):
+    def __call__(
+        self,
+        refresh_ms: int,
+        packet_limit: int,
+        show_secrets: bool,
+        history_enabled: bool,
+        history_max_rows: int,
+        history_retention_days: int,
+        node_history_hours: int,
+        node_history_max_points: int,
+        revision_label: str,
+        revision_title: str,
+        light_theme_vars: dict | None = None,
+        dark_theme_vars: dict | None = None,
+    ) -> str:
+        ...
+
+
+class StateFn(Protocol):
+    def __call__(self) -> StatePayload:
+        ...
+
+
+class NodeHistoryFn(Protocol):
+    def __call__(
+        self,
+        node_id: str,
+        hours_override: Optional[int] = None,
+        points_override: Optional[int] = None,
+    ) -> dict[str, object]:
+        ...
+
+
+class OnlineActivityFn(Protocol):
+    def __call__(self, hours_override: Optional[int] = None) -> dict[str, object]:
+        ...
+
+
+class SendChatFn(Protocol):
+    def __call__(
+        self,
+        text: object,
+        destination: object = None,
+        channel_index: Optional[int] = None,
+        reply_id: Optional[int] = None,
+        retry_of: Optional[int] = None,
+        emoji: object = None,
+    ) -> dict[str, object]:
+        ...
+
+
+class MakeHttpHandlerFn(Protocol):
+    def __call__(
+        self,
+        html_text: str,
+        state_fn: StateFn,
+        node_history_fn: NodeHistoryFn | None = None,
+        online_activity_fn: OnlineActivityFn | None = None,
+        send_chat_fn: SendChatFn | None = None,
+        default_node_history_hours: int = 72,
+        to_int_fn: ToIntFn = ...,
+    ) -> object:
+        ...
 
 TrackerPacket = dict[str, object]
 TrackerParsedPacket = dict[str, object]
