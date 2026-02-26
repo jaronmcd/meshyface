@@ -127,6 +127,20 @@
     const nodeNameCache = new Map();
     const favoriteNodeIds = new Set();
     let favoritesSearchQuery = "";
+    const signalChartLayout = {{
+      width: 900,
+      height: 220,
+      padLeft: 44,
+      padRight: 44,
+      padTop: 12,
+      padBottom: 30,
+    }};
+    const signalZoomMinPoints = 10;
+    let signalChartPoints = [];
+    let signalChartZoomNodeId = "";
+    let signalChartZoomStart = 0;
+    let signalChartZoomEnd = 1;
+    let signalChartPointerDrag = null;
 
     function applyMapTiles(themeName) {{
       const nextTheme = themeName === "dark" ? "dark" : "light";
@@ -2745,6 +2759,8 @@
 
     function renderNodeHistoryLoading(nodeId) {{
       setMapDataMode("node");
+      resetSignalChartZoom(nodeId || "");
+      signalChartPoints = [];
       const caption = document.getElementById("node-history-caption");
       if (caption) {{
         caption.textContent = `Loading history for ${{nodeId}}...`;
@@ -2802,6 +2818,8 @@
 
     function clearNodeSelection() {{
       selectedNodeId = null;
+      resetSignalChartZoom("");
+      signalChartPoints = [];
       pendingSelectionScroll = false;
       persistSelection();
       renderSelectionStatus();
@@ -3459,6 +3477,28 @@
         }}
         if (trailPoints.length > 0) {{
           const endPoint = trailPoints[trailPoints.length - 1];
+          for (let i = 0; i < trailPoints.length; i += 1) {{
+            const point = trailPoints[i];
+            const isLatestPoint = i === (trailPoints.length - 1);
+            const ratio = trailPoints.length <= 1 ? 1 : (i / (trailPoints.length - 1));
+            const marker = L.circleMarker([point.lat, point.lon], {{
+              radius: isLatestPoint ? 4.8 : (i === 0 ? 3.4 : 2.4),
+              color: isLatestPoint ? "#f97316" : "#2f855a",
+              fillColor: isLatestPoint ? "#f97316" : "#63d297",
+              fillOpacity: isLatestPoint ? 0.92 : (0.2 + (ratio * 0.45)),
+              weight: isLatestPoint ? 1.8 : 1,
+              bubblingMouseEvents: false,
+            }});
+            const pointTime = point.time || "n/a";
+            marker.bindTooltip(
+              isLatestPoint
+                ? `Selected trail newest point: ${{pointTime}}`
+                : `Selected trail point ${{i + 1}}/${{trailPoints.length}}: ${{pointTime}}`,
+              {{ sticky: true, opacity: 0.88 }}
+            );
+            marker.addTo(trailLayer);
+          }}
+
           const latestHalo = L.circleMarker([endPoint.lat, endPoint.lon], {{
             radius: 8,
             color: "#f97316",
@@ -4182,6 +4222,200 @@
       return `${{num.toFixed(decimals)}}${{suffix}}`;
     }}
 
+    function clampUnit(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      if (num < 0) return 0;
+      if (num > 1) return 1;
+      return num;
+    }}
+
+    function signalZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeSignalZoomWindow(totalPoints) {{
+      const minSpan = signalZoomMinSpan(totalPoints);
+      let start = clampUnit(signalChartZoomStart);
+      let end = clampUnit(signalChartZoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      signalChartZoomStart = clampUnit(start);
+      signalChartZoomEnd = clampUnit(end);
+    }}
+
+    function resetSignalChartZoom(nodeId = "") {{
+      signalChartZoomNodeId = normalizeNodeId(nodeId || "");
+      signalChartZoomStart = 0;
+      signalChartZoomEnd = 1;
+      signalChartPointerDrag = null;
+    }}
+
+    function setSignalChartZoomWindow(start, end, totalPoints) {{
+      const prevStart = signalChartZoomStart;
+      const prevEnd = signalChartZoomEnd;
+      signalChartZoomStart = start;
+      signalChartZoomEnd = end;
+      normalizeSignalZoomWindow(totalPoints);
+      return Math.abs(signalChartZoomStart - prevStart) > 1e-6
+        || Math.abs(signalChartZoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function getSignalChartAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((signalChartLayout.padLeft / signalChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((signalChartLayout.width - signalChartLayout.padRight) / signalChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleSignalRows(rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeSignalZoomWindow(total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(signalChartZoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(signalChartZoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      const visible = allRows.slice(startIndex, endIndex + 1);
+      return {{
+        rows: visible,
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function rerenderSignalChartFromCache() {{
+      if (!Array.isArray(signalChartPoints)) return;
+      renderSignalChart(signalChartPoints);
+    }}
+
+    function bindSignalChartZoom() {{
+      const svg = document.getElementById("signal-chart");
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, signalChartZoomEnd - signalChartZoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = signalZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = signalChartZoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || signalChartPoints.length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        signalChartPointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: signalChartZoomStart,
+          startZoomEnd: signalChartZoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!signalChartPointerDrag || signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getSignalChartAxisBounds(svg);
+        const deltaRatio = (ev.clientX - signalChartPointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = signalChartPointerDrag.startZoomEnd - signalChartPointerDrag.startZoomStart;
+        const nextStart = signalChartPointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = signalChartPointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!signalChartPointerDrag) return;
+        if (ev && signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        signalChartPointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+    }}
+
     function setSignalTimelineMessage(message) {{
       const timeline = document.getElementById("signal-timeline");
       if (!(timeline instanceof HTMLElement)) return;
@@ -4300,23 +4534,41 @@
       const empty = document.getElementById("signal-empty");
       if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
 
+      bindSignalChartZoom();
+
       const rows = Array.isArray(points) ? points : [];
-      const width = 900;
-      const height = 220;
-      const padLeft = 44;
-      const padRight = 44;
-      const padTop = 12;
-      const padBottom = 30;
+      signalChartPoints = rows;
+      const currentNodeId = normalizeNodeId(selectedNodeId || "");
+      if (currentNodeId !== signalChartZoomNodeId) {{
+        resetSignalChartZoom(currentNodeId);
+      }}
+      const visible = getVisibleSignalRows(rows);
+      const plotRows = visible.rows;
+
+      const width = signalChartLayout.width;
+      const height = signalChartLayout.height;
+      const padLeft = signalChartLayout.padLeft;
+      const padRight = signalChartLayout.padRight;
+      const padTop = signalChartLayout.padTop;
+      const padBottom = signalChartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
 
-      const snrVals = rows.map((p) => Number(p.avg_snr)).filter((v) => Number.isFinite(v));
-      const rssiVals = rows.map((p) => Number(p.avg_rssi)).filter((v) => Number.isFinite(v));
+      svg.classList.toggle("zoomed", visible.zoomed);
+      svg.setAttribute(
+        "title",
+        visible.zoomed
+          ? "Signal chart zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset."
+          : "Signal chart. Wheel to zoom, drag to pan, double-click or Esc to reset."
+      );
+
+      const snrVals = plotRows.map((p) => Number(p.avg_snr)).filter((v) => Number.isFinite(v));
+      const rssiVals = plotRows.map((p) => Number(p.avg_rssi)).filter((v) => Number.isFinite(v));
       if (snrVals.length === 0 && rssiVals.length === 0) {{
         svg.innerHTML = "";
         empty.hidden = false;
         empty.textContent = "No historical signal points yet for this node.";
-        renderSignalTimeline(rows, padLeft, padRight, width);
+        renderSignalTimeline(plotRows, padLeft, padRight, width);
         return;
       }}
       empty.hidden = true;
@@ -4342,11 +4594,11 @@
       );
 
       const buildPath = (metricKey, minVal, maxVal) => {{
-        const n = rows.length;
+        const n = plotRows.length;
         let d = "";
         let started = false;
         for (let i = 0; i < n; i += 1) {{
-          const raw = Number(rows[i][metricKey]);
+          const raw = Number(plotRows[i][metricKey]);
           if (!Number.isFinite(raw)) continue;
           const x = xAt(i, n);
           const y = yFrom(raw, minVal, maxVal);
@@ -4389,7 +4641,7 @@
         <text x="${{width - padRight + 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMax, 0)}}</text>
         <text x="${{width - padRight + 4}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMin, 0)}}</text>
       `;
-      renderSignalTimeline(rows, padLeft, padRight, width);
+      renderSignalTimeline(plotRows, padLeft, padRight, width);
     }}
 
     function renderOnlineActivityLoading() {{

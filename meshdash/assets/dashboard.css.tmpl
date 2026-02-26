@@ -760,6 +760,16 @@
       height: 100%;
       display: block;
     }}
+    #signal-chart {{
+      cursor: zoom-in;
+      touch-action: none;
+    }}
+    #signal-chart.zoomed {{
+      cursor: grab;
+    }}
+    #signal-chart.chart-dragging {{
+      cursor: grabbing;
+    }}
     .signal-empty {{
       position: absolute;
       inset: 0;
