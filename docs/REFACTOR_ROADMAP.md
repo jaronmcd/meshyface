@@ -65,9 +65,9 @@ Split `_render_html()` into composable builders while keeping server behavior un
 
 ### Steps
 
-1. Keep Python-side builders thin and move future UI edits to `meshdash/assets/*`.
-2. Add optional lint/minify checks for template assets in CI.
-3. Track frontend behavior slices (chat/network/saved) with focused render assertions.
+1. [done] Keep Python-side builders thin and move future UI edits to `meshdash/assets/*`.
+2. [done] Add lint checks for template assets in CI (`tests/test_html_asset_lint.py`).
+3. [done] Track frontend behavior slices (chat/network/saved) with focused render assertions.
 
 ### Exit criteria
 
@@ -244,10 +244,10 @@ Route handlers by domain.
 
 ### Steps
 
-1. `meshdash/api/chat.py`
-2. `meshdash/api/network.py`
-3. `meshdash/api/history.py`
-4. `meshdash/api/system.py`
+1. [done] Split API behavior by domain (`api_chat.py`, `api_history_node.py`, `api_history_online.py`, `api_system.py`).
+2. [done] Keep network payload delivery through `/api/state` (no standalone `/api/network` endpoint required in current design).
+3. [done] Split API input parsing by domain (`api_input_chat.py`, `api_input_history.py`, `api_input_theme.py`).
+4. [done] Add runtime theme settings API module (`api_theme.py`) and route wiring.
 
 ### Exit criteria
 
@@ -279,9 +279,9 @@ Allow operator theme presets without editing code.
 
 ### Steps
 
-1. JSON theme schema (light/dark token maps).
-2. Safe validation + fallback to defaults.
-3. Settings endpoint + local persistence.
+1. [done] JSON theme schema (light/dark token maps).
+2. [done] Safe validation + fallback to defaults.
+3. [done] Settings endpoint + local persistence.
 
 ### Exit criteria
 
