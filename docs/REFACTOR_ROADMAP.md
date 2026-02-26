@@ -93,6 +93,9 @@ Separate state assembly from HTTP wiring.
 - State service now validates collaborator return shapes for local-state and summary payload builders:
   - non-mapping `local_state` returns now degrade to `{}` with explicit `local_state_error`
   - non-mapping summary returns now trigger `summary_error` and use typed fallback summary payload.
+- `state_tracker` safe-load helpers now normalize tracker-returned node stats/capability mappings:
+  - invalid top-level saved-count/capability payload shapes now fail-safe to `{}` with explicit error text
+  - mixed nested value shapes are normalized to dict rows, preserving payload stability for state assembly.
 - Added typed state payload contracts in `meshdash/state_payload_contracts.py`:
   - `StateTrafficPayload` and `DashboardStatePayload` with dict conversion at API boundary
   - compatibility coercion helpers for mapping-shaped callers.

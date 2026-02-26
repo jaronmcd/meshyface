@@ -35,6 +35,28 @@ class _FailTracker:
         raise RuntimeError("caps failed")
 
 
+class _BadShapeTracker:
+    def snapshot(self, by_id):
+        return {}
+
+    def load_node_saved_counts(self):
+        return ["bad"]
+
+    def load_node_capabilities(self):
+        return "bad"
+
+
+class _MixedShapeTracker:
+    def snapshot(self, by_id):
+        return {}
+
+    def load_node_saved_counts(self):
+        return {"!a": {"saved_packets": 2}, 123: "bad"}
+
+    def load_node_capabilities(self):
+        return {"!a": {"gps_capable": True}, 456: None}
+
+
 class _TypedSnapshotTracker:
     def __init__(self):
         self.snapshot_calls = 0
@@ -99,3 +121,29 @@ def test_load_tracker_node_capabilities_safe_failure_path_returns_empty_mapping(
     out, error = load_tracker_node_capabilities_safe(_FailTracker())
     assert error == "caps failed"
     assert out == {}
+
+
+def test_load_tracker_node_saved_counts_safe_handles_invalid_top_level_shape():
+    out, error = load_tracker_node_saved_counts_safe(_BadShapeTracker())
+    assert error == "Expected node saved counts mapping from tracker"
+    assert out == {}
+
+
+def test_load_tracker_node_capabilities_safe_handles_invalid_top_level_shape():
+    out, error = load_tracker_node_capabilities_safe(_BadShapeTracker())
+    assert error == "Expected node capabilities mapping from tracker"
+    assert out == {}
+
+
+def test_load_tracker_node_saved_counts_safe_coerces_nested_shapes():
+    out, error = load_tracker_node_saved_counts_safe(_MixedShapeTracker())
+    assert error is None
+    assert out["!a"]["saved_packets"] == 2
+    assert out["123"] == {}
+
+
+def test_load_tracker_node_capabilities_safe_coerces_nested_shapes():
+    out, error = load_tracker_node_capabilities_safe(_MixedShapeTracker())
+    assert error is None
+    assert out["!a"]["gps_capable"] is True
+    assert out["456"] == {}

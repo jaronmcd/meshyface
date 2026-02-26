@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Optional
 
 from .state_node_contracts import NodeByIdMap
@@ -26,7 +27,16 @@ def load_tracker_node_saved_counts_safe(
     tracker: StateTracker,
 ) -> tuple[dict[str, dict[str, object]], Optional[str]]:
     try:
-        return tracker.load_node_saved_counts(), None
+        raw = tracker.load_node_saved_counts()
+        if not isinstance(raw, Mapping):
+            raise TypeError("Expected node saved counts mapping from tracker")
+        out: dict[str, dict[str, object]] = {}
+        for node_id, value in raw.items():
+            if isinstance(value, Mapping):
+                out[str(node_id)] = dict(value)
+            else:
+                out[str(node_id)] = {}
+        return out, None
     except Exception as exc:
         return {}, str(exc)
 
@@ -35,6 +45,15 @@ def load_tracker_node_capabilities_safe(
     tracker: StateTracker,
 ) -> tuple[dict[str, dict[str, object]], Optional[str]]:
     try:
-        return tracker.load_node_capabilities(), None
+        raw = tracker.load_node_capabilities()
+        if not isinstance(raw, Mapping):
+            raise TypeError("Expected node capabilities mapping from tracker")
+        out: dict[str, dict[str, object]] = {}
+        for node_id, value in raw.items():
+            if isinstance(value, Mapping):
+                out[str(node_id)] = dict(value)
+            else:
+                out[str(node_id)] = {}
+        return out, None
     except Exception as exc:
         return {}, str(exc)
