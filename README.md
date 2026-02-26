@@ -127,11 +127,17 @@ sudo systemctl status meshtastic-dashboard --no-pager
 
 ## Fast Update/Deploy Loop
 
-Use this after editing `mesh_dashboard.py`:
+Use this after editing `mesh_dashboard.py` or `meshdash/*.py`:
 
 ```bash
-scp ~/mesh_py/mesh_dashboard.py j@192.168.1.241:/home/j/mesh/app/mesh_dashboard.py
-ssh -t j@192.168.1.241 'sudo systemctl restart meshtastic-dashboard && sudo systemctl status meshtastic-dashboard --no-pager'
+scp /home/j/mesh_py/mesh_dashboard.py j@192.168.1.241:/home/j/mesh/app/ && \
+tar -C /home/j/mesh_py --exclude='meshdash/__pycache__' --exclude='*.pyc' -cf - meshdash | \
+ssh j@192.168.1.241 'tar -C /home/j/mesh/app -xf -' && \
+ssh -t j@192.168.1.241 '
+python3 -m py_compile /home/j/mesh/app/mesh_dashboard.py /home/j/mesh/app/meshdash/*.py &&
+sudo systemctl restart meshtastic-dashboard &&
+SYSTEMD_PAGER=cat sudo systemctl --no-pager -l status meshtastic-dashboard
+'
 ```
 
 Then hard refresh browser: `Ctrl+Shift+R`.

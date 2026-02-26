@@ -314,6 +314,8 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Unified tracker history-store runtime typing in `tracker_runtime_types.py` / `tracker_runtime_init_contracts.py` so receive/snapshot/init paths share a combined `TrackerRuntimeHistoryStore` contract instead of parallel store aliases.
 - Added local-chat runtime protocol contracts in `meshdash/tracker_local_chat_contracts.py` and applied them through `tracker_local_entry.py`, `tracker_local_chat.py`, and `tracker_runtime_chat.py` so local chat append/build/runtime-state surfaces are explicitly typed.
 - Added send-path protocol contracts in `meshdash/send_chat_contracts.py` and applied them through `runtime_send_contracts.py`, `runtime_send_dependencies.py`, `runtime_send_loader.py`, and `services_chat.py` so send interface/lock dependency boundaries are explicitly typed.
+- Tightened tracker receive/record runtime callback contracts in `meshdash/runtime_types.py` by replacing broad callback aliases with explicit protocol signatures for packet recorders, receive dispatch, and node-id resolution callbacks.
+- Removed the receive-path legacy dependency dict shim by adding `record_tracker_packet_unlocked_from_dependencies(...)` in `meshdash/tracker_runtime_receive_dependencies.py`; `tracker_runtime_receive.py` now forwards typed dependency objects directly to legacy callbacks.
 - Added typed tracker packet-ingest dependency contract:
   - `TrackerPacketRuntimeDependencies` in `meshdash/tracker_runtime_packet_contracts.py`
   - `record_tracker_packet_unlocked_with_dependencies(...)` in `meshdash/tracker_runtime_record.py`

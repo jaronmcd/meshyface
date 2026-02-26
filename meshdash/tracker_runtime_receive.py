@@ -39,7 +39,7 @@ from .tracker_runtime_record import (
 )
 from .tracker_runtime_receive_dependencies import (
     build_tracker_packet_runtime_dependencies as _build_tracker_packet_runtime_dependencies_helper,
-    tracker_packet_runtime_dependencies_to_legacy_kwargs as _tracker_packet_runtime_dependencies_to_legacy_kwargs_helper,
+    record_tracker_packet_unlocked_from_dependencies as _record_tracker_packet_unlocked_from_dependencies_helper,
 )
 from .tracker_runtime_types import (
     TrackerReceiveRuntimeState,
@@ -127,11 +127,12 @@ def record_tracker_receive_unlocked(
         to_jsonable_fn=to_jsonable_fn,
     )
     if record_tracker_packet_unlocked_fn is not None:
-        record_tracker_packet_unlocked_fn(
+        _record_tracker_packet_unlocked_from_dependencies_helper(
+            record_tracker_packet_unlocked_fn,
             packet=packet,
             interface=interface,
             include_live_count=include_live_count,
-            **_tracker_packet_runtime_dependencies_to_legacy_kwargs_helper(deps),
+            deps=deps,
         )
     else:
         record_tracker_packet_unlocked_with_dependencies_fn(
