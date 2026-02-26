@@ -2484,7 +2484,7 @@
       networkHost.hidden = true;
       networkHost.classList.remove("empty");
       if (nodesTitle instanceof HTMLElement) {{
-        nodesTitle.textContent = activeLayoutView === "network" ? "Node Explorer" : "Nodes";
+        nodesTitle.textContent = activeLayoutView === "network" ? "Network Explorer" : "Nodes";
       }}
     }}
 
@@ -2511,7 +2511,7 @@
         if (next === "saved") {{
           mapTitle.textContent = "Node Details";
         }} else if (next === "network") {{
-          mapTitle.textContent = "Network Map";
+          mapTitle.textContent = "";
         }} else {{
           mapTitle.textContent = isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map";
         }}
@@ -3702,7 +3702,7 @@
         if (activeLayoutView === "saved") {{
           mapTitle.textContent = "Node Details";
         }} else if (activeLayoutView === "network") {{
-          mapTitle.textContent = "Network Map";
+          mapTitle.textContent = "";
         }} else {{
           mapTitle.textContent = selectionMode ? "Selected Node Map" : "Network Map";
         }}
