@@ -1,3 +1,5 @@
+from collections.abc import MutableMapping
+
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -83,7 +85,7 @@ def record_tracker_packet_unlocked(
     include_live_count: bool,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
-    port_counts: object,
+    port_counts: MutableMapping[str, int],
     recent_packets: RecentPacketBuffer,
     recent_chat: RecentChatBuffer,
     history_store: TrackerHistoryWriter | None,

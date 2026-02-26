@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections.abc import MutableMapping
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -31,7 +32,7 @@ from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer, Tra
 class TrackerPacketRuntimeDependencies:
     session_edges: TrackerEdgeMap
     historical_edges: TrackerEdgeMap
-    port_counts: object
+    port_counts: MutableMapping[str, int]
     recent_packets: RecentPacketBuffer
     recent_chat: RecentChatBuffer
     history_store: TrackerHistoryWriter | None
