@@ -1,18 +1,22 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
+
+NormalizeSingleEmojiFn = Callable[[object], tuple[Optional[str], Optional[int]]]
+ToIntFn = Callable[[object], Optional[int]]
+PreparedChatInput = dict[str, object]
 
 
 def prepare_chat_send_input(
     *,
-    text: Any,
-    destination: Any,
+    text: object,
+    destination: object,
     channel_index: Optional[int],
     reply_id: Optional[int],
     retry_of: Optional[int],
-    emoji: Any,
+    emoji: object,
     chat_max_bytes: int,
-    normalize_single_emoji_fn: Callable[[Any], tuple[Optional[str], Optional[int]]],
-    to_int_fn: Callable[[Any], Optional[int]],
-) -> Dict[str, Any]:
+    normalize_single_emoji_fn: NormalizeSingleEmojiFn,
+    to_int_fn: ToIntFn,
+) -> PreparedChatInput:
     clean_text = str(text or "").strip()
     clean_reply_id = to_int_fn(reply_id)
     clean_retry_of = to_int_fn(retry_of)

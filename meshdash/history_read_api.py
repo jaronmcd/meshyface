@@ -1,5 +1,3 @@
-from typing import Any
-
 from .history_read_contracts import (
     DecodeNodeCapabilityMapFn,
     DecodeRowsListFn,
@@ -8,9 +6,10 @@ from .history_read_contracts import (
     HistoryListPayload,
     NodeCapabilityMap,
 )
+from .sql_contracts import SqlConnection
 
 def load_recent_packets_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     limit: int,
     fetch_recent_packet_rows_fn: FetchRowsWithLimitFn,
@@ -21,7 +20,7 @@ def load_recent_packets_data(
 
 
 def load_recent_chat_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     limit: int,
     fetch_recent_chat_rows_fn: FetchRowsWithLimitFn,
@@ -32,7 +31,7 @@ def load_recent_chat_data(
 
 
 def load_connections_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     fetch_connection_rows_fn: FetchRowsFn,
     decode_connections_rows_fn: DecodeRowsListFn,
@@ -42,7 +41,7 @@ def load_connections_data(
 
 
 def load_node_saved_counts_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     fetch_node_saved_count_rows_fn: FetchRowsFn,
     decode_node_saved_counts_rows_fn: DecodeNodeCapabilityMapFn,
@@ -52,7 +51,7 @@ def load_node_saved_counts_data(
 
 
 def load_node_capabilities_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     fetch_node_capability_rows_fn: FetchRowsFn,
     decode_node_capabilities_rows_fn: DecodeNodeCapabilityMapFn,

@@ -1,12 +1,18 @@
-from typing import Any, Dict
+from typing import Callable, Optional
+
+from .sql_contracts import SqlConnection
 
 
-def backfill_node_capabilities(conn: Any, *, to_int_fn) -> None:
+def backfill_node_capabilities(
+    conn: SqlConnection,
+    *,
+    to_int_fn: Callable[[object], Optional[int]],
+) -> None:
     existing = conn.execute("SELECT COUNT(*) FROM node_capabilities").fetchone()
     if existing and int(existing[0] or 0) > 0:
         return
 
-    merged: Dict[str, Dict[str, Any]] = {}
+    merged: dict[str, dict[str, object]] = {}
 
     metric_rows = conn.execute(
         """

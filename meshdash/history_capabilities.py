@@ -1,10 +1,14 @@
-from typing import Any, Dict, Iterable
+from collections.abc import Iterable
 
 from .helpers import format_epoch as _format_epoch, to_int as _to_int
 
 
-def decode_node_saved_counts_rows(rows: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
-    out: Dict[str, Dict[str, Any]] = {}
+SavedCountsRow = tuple[object, object, object, object]
+CapabilityRow = tuple[object, object, object, object, object, object, object]
+
+
+def decode_node_saved_counts_rows(rows: Iterable[SavedCountsRow]) -> dict[str, dict[str, object]]:
+    out: dict[str, dict[str, object]] = {}
     for node_id, saved_packets, saved_points, saved_last_seen_unix in rows:
         clean_node_id = str(node_id or "").strip()
         if not clean_node_id:
@@ -17,8 +21,8 @@ def decode_node_saved_counts_rows(rows: Iterable[Any]) -> Dict[str, Dict[str, An
     return out
 
 
-def decode_node_capabilities_rows(rows: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
-    out: Dict[str, Dict[str, Any]] = {}
+def decode_node_capabilities_rows(rows: Iterable[CapabilityRow]) -> dict[str, dict[str, object]]:
+    out: dict[str, dict[str, object]] = {}
     for (
         node_id,
         last_seen_unix,

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 from .revision import RevisionInfo
 from .state_service_contracts import StateTracker
@@ -7,7 +7,7 @@ from .state_service_contracts import StateTracker
 
 @dataclass(frozen=True)
 class StateSnapshotRuntimeDependencies:
-    iface: Any
+    iface: object
     tracker: StateTracker
     started_at: float
     target: str

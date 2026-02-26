@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
+from .dashboard_args_contracts import DashboardArgs
 from .revision import RevisionInfo
 from .runtime_types import (
     MakeHttpHandlerFn,
@@ -13,9 +14,13 @@ from .runtime_types import (
 )
 
 
+class DashboardHttpServer(Protocol):
+    server_address: tuple[object, object]
+
+
 @dataclass(frozen=True)
 class DashboardServerDependencies:
-    args: Any
+    args: DashboardArgs
     revision_info: RevisionInfo
     history_enabled: bool
     state_fn: StateFn

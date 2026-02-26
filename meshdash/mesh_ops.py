@@ -1,13 +1,24 @@
-from typing import Any
+from typing import Protocol, cast
 
 from .nodes import get_local_node_id as _get_local_node_id_helper
 from .runtime_types import ToIntFn, ToJsonableFn
 
 
+class PacketSender(Protocol):
+    def _sendPacket(
+        self,
+        packet: object,
+        *,
+        destinationId: str,
+        wantAck: bool,
+    ) -> object:
+        ...
+
+
 def get_local_node_id(
-    iface: Any,
+    iface: object,
     *,
-    meshtastic_module: Any,
+    meshtastic_module: object,
     to_jsonable_fn: ToJsonableFn,
     to_int_fn: ToIntFn,
 ) -> str:
@@ -26,16 +37,16 @@ def get_local_node_id(
 
 def send_emoji_reaction_packet(
     *,
-    iface: Any,
+    iface: object,
     destination_id: str,
     channel_index: int,
     reply_id: int,
     emoji_codepoint: int,
     emoji_text: str,
     want_ack: bool,
-    mesh_pb2_module: Any,
-    portnums_pb2_module: Any,
-) -> Any:
+    mesh_pb2_module: object,
+    portnums_pb2_module: object,
+) -> object:
     if mesh_pb2_module is None or portnums_pb2_module is None:
         raise RuntimeError("Meshtastic protobuf modules are unavailable for emoji reactions")
     if not hasattr(iface, "_sendPacket"):
@@ -47,4 +58,5 @@ def send_emoji_reaction_packet(
     packet.decoded.reply_id = int(reply_id)
     packet.decoded.emoji = int(emoji_codepoint)
     packet.decoded.payload = str(emoji_text or "").encode("utf-8")
-    return iface._sendPacket(packet, destinationId=destination_id, wantAck=bool(want_ack))
+    sender = cast(PacketSender, iface)
+    return sender._sendPacket(packet, destinationId=destination_id, wantAck=bool(want_ack))

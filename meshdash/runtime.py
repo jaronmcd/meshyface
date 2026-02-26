@@ -1,8 +1,52 @@
 import socket
-from typing import Any, Optional
+from typing import Optional, Protocol
 
 
-def guess_lan_ipv4(socket_module: Any = socket) -> Optional[str]:
+class UdpSocketLike(Protocol):
+    def __enter__(self) -> "UdpSocketLike":
+        ...
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        ...
+
+    def connect(self, address: tuple[str, int]) -> None:
+        ...
+
+    def getsockname(self) -> tuple[str, int]:
+        ...
+
+
+class SocketModuleLike(Protocol):
+    AF_INET: int
+    SOCK_DGRAM: int
+    gaierror: type[BaseException]
+
+    def socket(self, family: int, socktype: int) -> UdpSocketLike:
+        ...
+
+    def gethostname(self) -> str:
+        ...
+
+    def getaddrinfo(
+        self,
+        hostname: str,
+        service: object,
+        *,
+        family: int | None = None,
+    ) -> list[tuple[int, int, int, str, tuple[str, int]]]:
+        ...
+
+
+class DefaultGatewayArgs(Protocol):
+    no_default_gateway: bool
+    mesh_host: str | None
+    mesh_port: str
+    default_gateway_host: str | None
+    default_gateway_port: int
+    mesh_tcp_port: int
+
+
+def guess_lan_ipv4(socket_module: SocketModuleLike = socket) -> Optional[str]:
     try:
         with socket_module.socket(socket_module.AF_INET, socket_module.SOCK_DGRAM) as sock:
             sock.connect(("8.8.8.8", 80))
@@ -24,7 +68,7 @@ def guess_lan_ipv4(socket_module: Any = socket) -> Optional[str]:
     return None
 
 
-def apply_default_gateway(args: Any, *, default_mesh_port: str) -> None:
+def apply_default_gateway(args: DefaultGatewayArgs, *, default_mesh_port: str) -> None:
     # If user did not provide --mesh-host and left serial at the default path,
     # prefer the shared TCP gateway for this dashboard.
     if args.no_default_gateway:

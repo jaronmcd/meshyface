@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
+from .dashboard_setup_contracts import DashboardTrackerFactory, HistoryStoreFactory
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
@@ -33,8 +34,8 @@ from .wiring_adapters import (
 class DashboardRuntimeDependencies:
     mesh_target_label_fn: MeshTargetLabelFn
     open_mesh_interface_fn: OpenMeshInterfaceFn
-    history_store_cls: Any
-    dashboard_tracker_cls: Any
+    history_store_cls: HistoryStoreFactory
+    dashboard_tracker_cls: DashboardTrackerFactory
     subscribe_fn: SubscribeFn
     seed_tracker_fn: SeedTrackerFn
     revision_info_fn: RevisionInfoFn
@@ -53,7 +54,12 @@ class DashboardRuntimeDependencies:
     default_chat_max_bytes: int
 
 
-def ensure_runtime_dependencies(*, meshtastic_module: Any, pub_module: Any) -> None:
+class PubSubModule(Protocol):
+    def subscribe(self, callback: object, topic: str) -> None:
+        ...
+
+
+def ensure_runtime_dependencies(*, meshtastic_module: object | None, pub_module: object | None) -> None:
     if meshtastic_module is None:
         raise RuntimeError(
             "meshtastic Python package is required. Install with: pip install meshtastic"
@@ -66,12 +72,12 @@ def ensure_runtime_dependencies(*, meshtastic_module: Any, pub_module: Any) -> N
 
 def build_dashboard_runtime_dependencies(
     *,
-    meshtastic_module: Any,
-    pub_module: Any,
+    meshtastic_module: object,
+    pub_module: PubSubModule,
     mesh_target_label_fn: MeshTargetLabelFn,
     open_mesh_interface_fn: OpenMeshInterfaceFn,
-    history_store_cls: Any,
-    dashboard_tracker_cls: Any,
+    history_store_cls: HistoryStoreFactory,
+    dashboard_tracker_cls: DashboardTrackerFactory,
     seed_tracker_fn: SeedTrackerFn,
     revision_info_fn: RevisionInfoFn,
     build_state_fn: BuildStateFn,
@@ -80,8 +86,8 @@ def build_dashboard_runtime_dependencies(
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_emoji_reaction_packet_fn: SendReactionPacketFn,
-    mesh_pb2_module: Any,
-    portnums_pb2_module: Any,
+    mesh_pb2_module: object,
+    portnums_pb2_module: object,
     get_local_node_id_fn: GetLocalNodeIdFn,
     to_jsonable_fn: ToJsonableFn,
     normalize_single_emoji_fn: NormalizeSingleEmojiFn,

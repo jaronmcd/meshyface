@@ -1,5 +1,3 @@
-from typing import Any
-
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -84,7 +82,7 @@ def build_tracker_packet_runtime_dependencies(
 
 def tracker_packet_runtime_dependencies_to_legacy_kwargs(
     deps: TrackerPacketRuntimeDependencies,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     return {
         "session_edges": deps.session_edges,
         "historical_edges": deps.historical_edges,

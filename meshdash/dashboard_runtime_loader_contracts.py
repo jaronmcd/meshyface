@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
+from .dashboard_setup_contracts import HistoryStoreLike
 from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
@@ -15,19 +16,20 @@ from .runtime_types import (
     ToIntFn,
     UtcNowFn,
 )
+from .send_chat_contracts import SendLock
 
 
 @dataclass(frozen=True)
 class DashboardRuntimeLoaderDependencies:
-    iface: Any
-    tracker: Any
-    send_lock: Any
+    iface: object
+    tracker: object
+    send_lock: SendLock
     started_at: float
     target: str
     show_secrets: bool
     history_db_path: str
     revision_info: RevisionInfo
-    history_store: Optional[Any]
+    history_store: Optional[HistoryStoreLike]
     default_node_history_hours: int
     default_node_history_points: int
     send_chat_message_fn: SendChatMessageFn

@@ -1,10 +1,12 @@
-from typing import Any, Dict, Iterable, Tuple
+from collections.abc import Iterable
+
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
 
 
 def build_historical_edges(
-    connection_rows: Iterable[Dict[str, Any]],
-) -> Dict[Tuple[str, str], Dict[str, Any]]:
-    out: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    connection_rows: Iterable[EdgeRow],
+) -> dict[EdgeKey, EdgeRow]:
+    out: dict[EdgeKey, EdgeRow] = {}
     for edge in connection_rows:
         from_id = str(edge["from"])
         to_id = str(edge["to"])

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .revision import RevisionInfo
 from .runtime_state_contracts import StateSnapshotRuntimeDependencies
@@ -7,7 +7,7 @@ from .state_service_contracts import StateTracker
 
 def build_state_snapshot_runtime_dependencies_from_legacy_args(
     *,
-    iface: Any,
+    iface: object,
     tracker: StateTracker,
     started_at: float,
     target: str,

@@ -1,13 +1,13 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from .helpers import to_int
 
 
 def extract_routing_delivery_update(
-    decoded: Any,
+    decoded: object,
     *,
-    to_int_fn: Callable[[Any], Optional[int]] = to_int,
-) -> Optional[Dict[str, Any]]:
+    to_int_fn: Callable[[object], Optional[int]] = to_int,
+) -> Optional[dict[str, object]]:
     if not isinstance(decoded, dict):
         return None
     portnum = str(decoded.get("portnum") or "")

@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 
 def utc_now() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
 
 
-def parse_utc_text_to_unix(value: Any) -> Optional[int]:
+def parse_utc_text_to_unix(value: object) -> Optional[int]:
     text = str(value or "").strip()
     if not text:
         return None

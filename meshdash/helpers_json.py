@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict
+from typing import TypeAlias, TypeVar
 
 try:
     from google.protobuf.json_format import MessageToDict as _protobuf_message_to_dict
@@ -9,14 +9,19 @@ except Exception:
     _protobuf_message_to_dict = None
 
 
-def safe_json_loads(value: str, default: Any) -> Any:
+JsonScalar: TypeAlias = None | str | int | float | bool
+JsonValue: TypeAlias = JsonScalar | dict[str, "JsonValue"] | list["JsonValue"]
+DefaultT = TypeVar("DefaultT")
+
+
+def safe_json_loads(value: str, default: DefaultT) -> JsonValue | DefaultT:
     try:
         return json.loads(value)
     except (TypeError, json.JSONDecodeError):
         return default
 
 
-def message_to_dict(value: Any) -> Any:
+def message_to_dict(value: object) -> object | None:
     if (
         _protobuf_message_type is not None
         and _protobuf_message_to_dict is not None
@@ -26,7 +31,7 @@ def message_to_dict(value: Any) -> Any:
     return None
 
 
-def to_jsonable(value: Any, depth: int = 0) -> Any:
+def to_jsonable(value: object, depth: int = 0) -> JsonValue:
     if depth > 12:
         return "<max-depth>"
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -37,7 +42,7 @@ def to_jsonable(value: Any, depth: int = 0) -> Any:
     if as_message is not None:
         return to_jsonable(as_message, depth + 1)
     if isinstance(value, dict):
-        out: Dict[str, Any] = {}
+        out: dict[str, JsonValue] = {}
         for key, val in value.items():
             out[str(key)] = to_jsonable(val, depth + 1)
         return out

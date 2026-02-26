@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from .revision import RevisionInfo
 from .helpers import (
@@ -43,10 +43,10 @@ from .state_summary import (
 
 
 def _to_jsonable_safe(
-    value: Any,
+    value: object,
     *,
     to_jsonable_fn: ToJsonableFn,
-) -> tuple[Any, Optional[str]]:
+) -> tuple[object, Optional[str]]:
     try:
         return to_jsonable_fn(value), None
     except Exception as exc:
@@ -56,12 +56,12 @@ def _to_jsonable_safe(
 def _build_summary_payload_fallback(
     *,
     target: str,
-    node_rows: list[dict[str, Any]],
+    node_rows: list[dict[str, object]],
     nodes_with_position: int,
-    tracker_data: Any,
+    tracker_data: object,
     revision_info: RevisionPayload,
     modem_preset: Optional[str],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     if isinstance(revision_info, RevisionInfo):
         revision_payload = revision_info.as_dict()
     else:
@@ -84,7 +84,7 @@ def _build_summary_payload_fallback(
 
 def build_dashboard_state_typed(
     *,
-    iface: Any,
+    iface: object,
     tracker: StateTracker,
     target: str,
     started_at: float,
@@ -180,7 +180,7 @@ def build_dashboard_state_typed(
 
 def build_dashboard_state(
     *,
-    iface: Any,
+    iface: object,
     tracker: StateTracker,
     started_at: float,
     target: str,
@@ -200,7 +200,7 @@ def build_dashboard_state(
     to_jsonable_fn: ToJsonableFn = _to_jsonable,
     redact_secrets_fn: RedactSecretsFn = _redact_secrets,
     utc_now_fn: UtcNowFn = _utc_now,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     state_payload = build_dashboard_state_typed(
         iface=iface,
         tracker=tracker,

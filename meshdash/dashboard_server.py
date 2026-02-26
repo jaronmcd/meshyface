@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Any
 
+from .dashboard_args_contracts import DashboardArgs
 from .dashboard_server_contracts import DashboardServerDependencies
 from .dashboard_server_dependencies import (
     build_dashboard_server_dependencies_from_legacy_args,
@@ -19,16 +19,16 @@ from .runtime_types import (
 
 @dataclass(frozen=True)
 class DashboardServerParts:
-    server: Any
+    server: object
     html: str
-    handler_cls: Any
+    handler_cls: object
     bound_host: str
     bound_port: int
 
 
 def build_dashboard_server(
     *,
-    args: Any,
+    args: DashboardArgs,
     revision_info: RevisionInfo,
     history_enabled: bool,
     state_fn: StateFn,

@@ -1,13 +1,20 @@
-from typing import Any, Optional, Protocol
+from collections.abc import Iterable
+from typing import Optional, Protocol
 
 
 class RecentPacketBuffer(Protocol):
-    def append(self, value: dict[str, Any]) -> None:
+    def append(self, value: dict[str, object]) -> None:
+        ...
+
+    def extend(self, values: Iterable[dict[str, object]]) -> None:
         ...
 
 
 class RecentChatBuffer(Protocol):
-    def append(self, value: dict[str, Any]) -> None:
+    def append(self, value: dict[str, object]) -> None:
+        ...
+
+    def extend(self, values: Iterable[dict[str, object]]) -> None:
         ...
 
 
@@ -23,8 +30,8 @@ class TrackerHistoryWriter(Protocol):
     ) -> None:
         ...
 
-    def save_packet(self, entry: dict[str, Any]) -> None:
+    def save_packet(self, entry: dict[str, object]) -> None:
         ...
 
-    def save_chat(self, entry: dict[str, Any]) -> None:
+    def save_chat(self, entry: dict[str, object]) -> None:
         ...

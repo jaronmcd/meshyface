@@ -1,11 +1,11 @@
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 
 def apply_routing_delivery_update(
-    decoded: Any,
+    decoded: object,
     *,
-    extract_update_fn: Callable[[Any], Optional[dict[str, Any]]],
-    set_delivery_state_fn: Callable[[Any, str, Optional[str]], bool],
+    extract_update_fn: Callable[[object], Optional[dict[str, object]]],
+    set_delivery_state_fn: Callable[[object, str, Optional[str]], bool],
 ) -> bool:
     delivery_update = extract_update_fn(decoded)
     if delivery_update is None:

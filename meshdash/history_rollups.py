@@ -1,15 +1,15 @@
-from typing import Any, Optional, Tuple
+from typing import Optional
 
 from .helpers import to_float as _to_float
 
 
 def merge_metric(
-    sum_value: Any,
-    count_value: Any,
-    min_value: Any,
-    max_value: Any,
+    sum_value: object,
+    count_value: object,
+    min_value: object,
+    max_value: object,
     sample: Optional[float],
-) -> Tuple[float, int, Optional[float], Optional[float]]:
+) -> tuple[float, int, Optional[float], Optional[float]]:
     merged_sum = float(sum_value or 0.0)
     merged_count = int(count_value or 0)
     merged_min = _to_float(min_value)
@@ -29,7 +29,7 @@ def bucket_minute(epoch_seconds: int) -> int:
     return int(epoch_seconds) - (int(epoch_seconds) % 60)
 
 
-def clean_node_id(node_id: Any) -> Optional[str]:
+def clean_node_id(node_id: object) -> Optional[str]:
     value = str(node_id or "").strip()
     if not value or value in ("Unknown", "n/a", "^all"):
         return None

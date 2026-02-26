@@ -1,5 +1,5 @@
 import time
-from typing import Any, Optional
+from typing import Optional
 
 from .chat import (
     build_local_chat_entry as _build_local_chat_entry,
@@ -17,6 +17,15 @@ from .tracker_local_chat import (
 from .tracker_local_entry import (
     build_tracker_local_entry as _build_tracker_local_entry_helper,
 )
+from .runtime_types import EmojiFromCodepointFn, NowUnixFn, ToIntFn, UtcNowFn
+from .tracker_local_chat_contracts import (
+    AppendLocalChatEntryFn,
+    BuildLocalChatEntryFn,
+    BuildTrackerLocalEntryFn,
+    LocalChatHistoryWriter,
+    RecentChatBuffer,
+    TrackerLocalChatRuntimeState,
+)
 
 
 def record_tracker_local_chat(
@@ -32,15 +41,15 @@ def record_tracker_local_chat(
     is_reaction: bool,
     ack_requested: bool,
     retry_of: Optional[int],
-    recent_chat: Any,
-    history_store: Any,
-    build_tracker_local_entry_fn: Any,
-    append_local_chat_entry_fn: Any,
-    build_local_chat_entry_fn: Any,
-    utc_now_fn: Any,
-    now_unix_fn: Any,
-    to_int_fn: Any,
-    emoji_from_codepoint_fn: Any,
+    recent_chat: RecentChatBuffer,
+    history_store: LocalChatHistoryWriter | None,
+    build_tracker_local_entry_fn: BuildTrackerLocalEntryFn,
+    append_local_chat_entry_fn: AppendLocalChatEntryFn,
+    build_local_chat_entry_fn: BuildLocalChatEntryFn,
+    utc_now_fn: UtcNowFn,
+    now_unix_fn: NowUnixFn,
+    to_int_fn: ToIntFn,
+    emoji_from_codepoint_fn: EmojiFromCodepointFn,
 ) -> None:
     entry = build_tracker_local_entry_fn(
         text=text,
@@ -70,7 +79,7 @@ def record_tracker_local_chat(
 
 
 def record_tracker_local_chat_for_tracker(
-    tracker: Any,
+    tracker: TrackerLocalChatRuntimeState,
     *,
     text: str,
     from_id: str,
@@ -83,7 +92,7 @@ def record_tracker_local_chat_for_tracker(
     is_reaction: bool,
     ack_requested: bool,
     retry_of: Optional[int],
-    now_unix_fn: Any = time.time,
+    now_unix_fn: NowUnixFn = time.time,
 ) -> None:
     record_tracker_local_chat(
         text=text,

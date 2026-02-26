@@ -30,6 +30,7 @@
 - `meshdash/cli_args_history.py`: history + node-history CLI argument registration helpers.
 - `meshdash/cli_args_theme.py`: theme preset CLI argument registration helpers.
 - `meshdash/dashboard_runtime.py`: stable dashboard-runtime facade re-exporting runner entrypoint.
+- `meshdash/dashboard_args_contracts.py`: shared protocol contract for dashboard runtime/server CLI argument shape.
 - `meshdash/dashboard_runner.py`: stable dashboard-runner facade re-exporting runtime entrypoint.
 - `meshdash/dashboard_runner_impl.py`: dashboard runtime server lifecycle orchestration using runtime context helpers.
 - `meshdash/dashboard_runtime_context.py`: dashboard runtime bootstrap context helper + typed runtime context dataclass (typed loader dependency path by default, legacy override retained).
@@ -41,6 +42,7 @@
 - `meshdash/dashboard_server_dependencies.py`: helper mapping legacy server-build args into `DashboardServerDependencies`.
 - `meshdash/dashboard_server.py`: runtime server build helper for HTML render/handler wiring/HTTP bind (typed dependency path + compatibility wrapper) and typed server-parts return.
 - `meshdash/dashboard_setup.py`: runtime setup helpers for optional history store and tracker seeding.
+- `meshdash/dashboard_setup_contracts.py`: typed protocol contracts for runtime history-store and tracker setup collaborators.
 - `meshdash/html.py`: stable HTML renderer facade used by runtime wiring/tests.
 - `meshdash/html_assets.py`: cached template-asset loader/formatter for frontend CSS/JS bodies.
 - `meshdash/html_context.py`: HTML render-context builder (theme CSS + safety/history labels).
@@ -67,6 +69,7 @@
 - `meshdash/history_store_runtime_impl.py`: SQLite history persistence/rollup `HistoryStore` implementation.
 - `meshdash/history_store_runtime_init.py`: `HistoryStore` constructor/runtime field + connection initialization helper.
 - `meshdash/history_store_runtime_maintenance.py`: `HistoryStore` close/prune runtime maintenance helpers.
+- `meshdash/history_store_runtime_contracts.py`: typed runtime lock/store/connection/prune contracts shared by history-store init and maintenance helpers.
 - `meshdash/history_store_policy.py`: centralized `HistoryStore` retention/row-limit policy builder + runtime-field fallback helper.
 - `meshdash/history_store_connection.py`: `HistoryStore` DB open/init/prune helper routines (scalar + policy-aware entrypoints).
 - `meshdash/history_schema.py`: schema initialization facade applying table + index statement groups.
@@ -131,7 +134,9 @@
 - `meshdash/runtime_send_contracts.py`: typed chat-send runtime dependency dataclass contract.
 - `meshdash/runtime_send_dependencies.py`: helper mapping legacy runtime send arguments into `SendChatRuntimeDependencies`.
 - `meshdash/runtime_send_loader.py`: chat-send closure builders (typed dependency path + compatibility wrapper).
+- `meshdash/send_chat_contracts.py`: typed protocol contracts for send-text interface and send-lock context manager surfaces.
 - `meshdash/runtime_lifecycle.py`: startup status output, serve-loop interrupt handling, and shutdown cleanup helpers.
+- `meshdash/runtime_lifecycle_contracts.py`: typed lifecycle protocol contracts for serve/close runtime resources.
 - `meshdash/runtime_types.py`: shared runtime callback/type aliases used by wiring/runner/context orchestration and tracker receive/record callback contracts.
 - `meshdash/services.py`: stable services facade re-exporting history loaders and chat-send service entrypoint.
 - `meshdash/services_chat.py`: chat-send orchestration service implementation.
@@ -173,6 +178,7 @@
 - `meshdash/tracker_ingest.py`: packet ingest normalization/parsing helpers used by tracker receive flow.
 - `meshdash/tracker_history_edges.py`: historical connection-row normalization for tracker bootstrap state.
 - `meshdash/tracker_local_chat.py`: local chat append/history-write helper used by tracker send flow.
+- `meshdash/tracker_local_chat_contracts.py`: typed protocol contracts for local-chat entry builder/append/runtime state surfaces.
 - `meshdash/tracker_local_entry.py`: local chat-entry builder wrapper for tracker send flow.
 - `meshdash/tracker_packet_artifacts.py`: packet/chat artifact builders for tracker receive flow.
 - `meshdash/tracker_observation.py`: delivery/direct-edge/port-count observation helper for tracker receive flow.

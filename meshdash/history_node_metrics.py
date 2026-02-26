@@ -1,12 +1,33 @@
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import to_float as _to_float
 from .helpers import to_int as _to_int
 
 
-def build_metric_history_points(metric_rows: Iterable[Any]) -> Dict[str, Any]:
-    points: list[Dict[str, Any]] = []
+def build_metric_history_points(
+    metric_rows: Iterable[
+        tuple[
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+            object,
+        ]
+    ],
+) -> dict[str, object]:
+    points: list[dict[str, object]] = []
     total_packets = 0
     snr_min_all: Optional[float] = None
     snr_max_all: Optional[float] = None

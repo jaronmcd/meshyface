@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .history_metric_rows import (
     build_metric_rollup_values as _build_metric_rollup_values,
@@ -7,10 +7,11 @@ from .history_metric_rows import (
 from .history_metric_upsert import (
     upsert_metric_rollup_row as _upsert_metric_rollup_row_helper,
 )
+from .sql_contracts import SqlConnection
 
 
 def upsert_node_metric(
-    conn: Any,
+    conn: SqlConnection,
     *,
     bucket_unix: int,
     node_id: str,
@@ -35,7 +36,7 @@ def upsert_node_metric(
 
 
 def upsert_link_metric(
-    conn: Any,
+    conn: SqlConnection,
     *,
     bucket_unix: int,
     from_id: str,

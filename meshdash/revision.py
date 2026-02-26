@@ -1,6 +1,6 @@
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 
 @dataclass(frozen=True)
@@ -19,7 +19,7 @@ class RevisionInfo:
         }
 
 
-def sanitize_revision_token(raw: Any, fallback: str) -> str:
+def sanitize_revision_token(raw: object, fallback: str) -> str:
     text = str(raw or "").strip()
     if not text:
         return fallback
@@ -28,11 +28,11 @@ def sanitize_revision_token(raw: Any, fallback: str) -> str:
 
 
 def detect_git_commit(
-    explicit_commit: Any,
+    explicit_commit: object,
     script_dir: str,
     cwd: str,
     unknown_git_commit: str,
-    sanitize_token: Callable[[Any, str], str] = sanitize_revision_token,
+    sanitize_token: Callable[[object, str], str] = sanitize_revision_token,
 ) -> Optional[str]:
     explicit = str(explicit_commit or "").strip()
     if explicit:
@@ -62,11 +62,11 @@ def detect_git_commit(
 
 
 def revision_info(
-    version_raw: Any,
+    version_raw: object,
     default_version: str,
     unknown_git_commit: str,
     detect_commit: Callable[[], Optional[str]],
-    sanitize_token: Callable[[Any, str], str] = sanitize_revision_token,
+    sanitize_token: Callable[[object, str], str] = sanitize_revision_token,
 ) -> RevisionInfo:
     version = sanitize_token(version_raw or default_version, "0.0.0")
     if version.lower().startswith("v"):

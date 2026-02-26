@@ -1,5 +1,6 @@
-from typing import Any, Optional
+from typing import Optional
 
+from .send_chat_contracts import SendLock, SendTextInterface
 from .runtime_send_contracts import SendChatRuntimeDependencies
 from .runtime_send_dependencies import (
     TrackerChatRecorder,
@@ -18,9 +19,9 @@ from .runtime_types import (
 
 def build_send_chat_loader(
     *,
-    iface: Any,
+    iface: SendTextInterface,
     tracker: TrackerChatRecorder,
-    send_lock: Any,
+    send_lock: SendLock,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
     get_local_node_id_fn: GetLocalNodeIdFn,
@@ -52,12 +53,12 @@ def build_send_chat_loader_with_dependencies(
     dependencies: SendChatRuntimeDependencies,
 ) -> SendChatFn:
     def send_chat_fn(
-        text: Any,
-        destination: Any = None,
+        text: object,
+        destination: object = None,
         channel_index: Optional[int] = None,
         reply_id: Optional[int] = None,
         retry_of: Optional[int] = None,
-        emoji: Any = None,
+        emoji: object = None,
     ) -> dict:
         return send_chat_message_fn(
             text=text,

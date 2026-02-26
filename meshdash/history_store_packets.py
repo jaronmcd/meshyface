@@ -1,5 +1,4 @@
 import time
-from typing import Any, Dict
 
 from .history_queries import (
     fetch_recent_packet_rows as _fetch_recent_packet_rows_helper,
@@ -18,7 +17,7 @@ from .history_writes import (
 )
 
 
-def load_recent_packets(store: Any, limit: int) -> list[Dict[str, Any]]:
+def load_recent_packets(store: object, limit: int) -> list[dict[str, object]]:
     with store._lock:
         return _load_recent_packets_data_helper(
             store._conn,
@@ -28,7 +27,7 @@ def load_recent_packets(store: Any, limit: int) -> list[Dict[str, Any]]:
         )
 
 
-def save_packet(store: Any, packet_entry: Dict[str, Any]) -> None:
+def save_packet(store: object, packet_entry: dict[str, object]) -> None:
     with store._lock:
         _save_packet_record_helper(
             store._conn,

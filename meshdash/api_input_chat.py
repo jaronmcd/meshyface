@@ -1,12 +1,12 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Mapping, Optional
 
 from .runtime_types import ToIntFn
 
 
 def validate_content_length(
-    headers: Mapping[str, Any],
+    headers: Mapping[str, object],
     *,
     to_int_fn: ToIntFn,
     max_bytes: int = 8192,
@@ -19,12 +19,12 @@ def validate_content_length(
 
 @dataclass(frozen=True)
 class ChatSendRequest:
-    text: Any
-    destination: Any
+    text: object
+    destination: object
     channel_index: Optional[int]
     reply_id: Optional[int]
     retry_of: Optional[int]
-    emoji: Any
+    emoji: object
 
 
 def parse_chat_send_request(
@@ -51,7 +51,7 @@ def parse_chat_send_body(
     raw_body: bytes,
     *,
     to_int_fn: ToIntFn,
-) -> dict:
+) -> dict[str, object]:
     request = parse_chat_send_request(raw_body, to_int_fn=to_int_fn)
     return {
         "text": request.text,

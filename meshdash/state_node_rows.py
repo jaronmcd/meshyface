@@ -1,18 +1,16 @@
-from typing import Any, Dict
-
 from .helpers import format_epoch, to_int, to_jsonable
 from .nodes import extract_position, safe_nodes_items
 from .state_node_contracts import CollectedNodes
 
 
-def collect_nodes(iface: Any) -> Dict[str, Any]:
+def collect_nodes(iface: object) -> dict[str, object]:
     return collect_nodes_typed(iface).as_dict()
 
 
-def collect_nodes_typed(iface: Any) -> CollectedNodes:
-    rows: list[Dict[str, Any]] = []
-    full_nodes: list[Dict[str, Any]] = []
-    nodes_by_id: Dict[str, Dict[str, Any]] = {}
+def collect_nodes_typed(iface: object) -> CollectedNodes:
+    rows: list[dict[str, object]] = []
+    full_nodes: list[dict[str, object]] = []
+    nodes_by_id: dict[str, dict[str, object]] = {}
 
     for node_num, raw_info in safe_nodes_items(iface):
         if not isinstance(raw_info, dict):

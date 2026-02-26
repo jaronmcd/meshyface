@@ -1,20 +1,20 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Mapping, Optional
 
-StateRow = dict[str, Any]
-StateSummary = dict[str, Any]
-StateLocal = dict[str, Any]
-StateHistoryCaps = dict[str, dict[str, Any]]
+StateRow = dict[str, object]
+StateSummary = dict[str, object]
+StateLocal = dict[str, object]
+StateHistoryCaps = dict[str, dict[str, object]]
 
 
 @dataclass(frozen=True)
 class StateTrafficPayload:
-    edges: list[dict[str, Any]]
-    port_counts: list[dict[str, Any]]
-    recent_packets: list[dict[str, Any]]
-    recent_chat: list[dict[str, Any]]
+    edges: list[dict[str, object]]
+    port_counts: list[dict[str, object]]
+    recent_packets: list[dict[str, object]]
+    recent_chat: list[dict[str, object]]
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "edges": self.edges,
             "port_counts": self.port_counts,
@@ -28,9 +28,9 @@ class DashboardStatePayload:
     generated_at: str
     summary: StateSummary
     summary_error: Optional[str]
-    my_info: Any
+    my_info: object
     my_info_error: Optional[str]
-    metadata: Any
+    metadata: object
     metadata_error: Optional[str]
     local_state: StateLocal
     local_state_error: Optional[str]
@@ -43,7 +43,7 @@ class DashboardStatePayload:
     nodes_full: list[StateRow]
     traffic: StateTrafficPayload
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "generated_at": self.generated_at,
             "summary": self.summary,
@@ -66,7 +66,7 @@ class DashboardStatePayload:
 
 
 def coerce_state_traffic_payload(
-    value: StateTrafficPayload | Mapping[str, Any],
+    value: StateTrafficPayload | Mapping[str, object],
 ) -> StateTrafficPayload:
     if isinstance(value, StateTrafficPayload):
         return value
@@ -92,7 +92,7 @@ def coerce_state_traffic_payload(
 
 
 def coerce_dashboard_state_payload(
-    value: DashboardStatePayload | Mapping[str, Any],
+    value: DashboardStatePayload | Mapping[str, object],
 ) -> DashboardStatePayload:
     if isinstance(value, DashboardStatePayload):
         return value
@@ -125,8 +125,8 @@ def coerce_dashboard_state_payload(
 
 
 def normalize_state_payload_for_api(
-    value: Any,
-) -> Any:
+    value: object,
+) -> object:
     if isinstance(value, DashboardStatePayload):
         return value.as_dict()
     if isinstance(value, Mapping) and (

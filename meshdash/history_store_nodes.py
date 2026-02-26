@@ -1,5 +1,4 @@
 import time
-from typing import Any, Dict
 
 from .history_analytics import (
     build_node_history_payload as _build_node_history_payload_helper,
@@ -25,7 +24,7 @@ from .history_read_history import (
 )
 
 
-def load_node_history(store: Any, node_id: str, window_hours: int, max_points: int) -> Dict[str, Any]:
+def load_node_history(store: object, node_id: str, window_hours: int, max_points: int) -> dict[str, object]:
     with store._lock:
         return _load_node_history_data_helper(
             store._conn,
@@ -38,7 +37,7 @@ def load_node_history(store: Any, node_id: str, window_hours: int, max_points: i
         )
 
 
-def load_online_activity(store: Any, window_hours: int) -> Dict[str, Any]:
+def load_online_activity(store: object, window_hours: int) -> dict[str, object]:
     with store._lock:
         return _load_online_activity_data_helper(
             store._conn,
@@ -49,7 +48,7 @@ def load_online_activity(store: Any, window_hours: int) -> Dict[str, Any]:
         )
 
 
-def load_node_saved_counts(store: Any) -> Dict[str, Dict[str, Any]]:
+def load_node_saved_counts(store: object) -> dict[str, dict[str, object]]:
     with store._lock:
         return _load_node_saved_counts_data_helper(
             store._conn,
@@ -58,7 +57,7 @@ def load_node_saved_counts(store: Any) -> Dict[str, Dict[str, Any]]:
         )
 
 
-def load_node_capabilities(store: Any) -> Dict[str, Dict[str, Any]]:
+def load_node_capabilities(store: object) -> dict[str, dict[str, object]]:
     with store._lock:
         return _load_node_capabilities_data_helper(
             store._conn,

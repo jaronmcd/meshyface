@@ -1,9 +1,9 @@
 import os
 import shutil
-from typing import Any, Dict, Optional
+from typing import Optional
 
 
-def disk_space_info(path: Optional[str]) -> Dict[str, Any]:
+def disk_space_info(path: Optional[str]) -> dict[str, object]:
     probe = os.path.abspath(os.path.expanduser(path or "."))
     if os.path.isfile(probe):
         probe = os.path.dirname(probe) or "."

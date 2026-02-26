@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .history_connection_writes import (
     save_connection_event as _save_connection_event_helper,
@@ -15,7 +15,7 @@ from .history_readers import (
 )
 
 
-def load_connections(store: Any) -> list[Dict[str, Any]]:
+def load_connections(store: object) -> list[dict[str, object]]:
     with store._lock:
         return _load_connections_data_helper(
             store._conn,
@@ -25,7 +25,7 @@ def load_connections(store: Any) -> list[Dict[str, Any]]:
 
 
 def save_connection_event(
-    store: Any,
+    store: object,
     *,
     from_id: str,
     to_id: str,

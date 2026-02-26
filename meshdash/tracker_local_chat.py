@@ -1,11 +1,13 @@
-from typing import Any
+from typing import Optional
+
+from .tracker_local_chat_contracts import LocalChatEntry, LocalChatHistoryWriter, RecentChatBuffer
 
 
 def append_local_chat_entry(
     *,
-    recent_chat: Any,
-    history_store: Any,
-    entry: Any,
+    recent_chat: RecentChatBuffer,
+    history_store: LocalChatHistoryWriter | None,
+    entry: Optional[LocalChatEntry],
 ) -> bool:
     if entry is None:
         return False

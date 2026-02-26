@@ -1,14 +1,12 @@
-from typing import Any, Dict
-
 from .helpers import to_jsonable
 
 
-def collect_local_state(iface: Any) -> Dict[str, Any]:
+def collect_local_state(iface: object) -> dict[str, object]:
     local = getattr(iface, "localNode", None)
     if local is None:
         local = iface.getNode("^local")
 
-    state: Dict[str, Any] = {}
+    state: dict[str, object] = {}
     state["local_config"] = to_jsonable(getattr(local, "localConfig", None))
     state["module_config"] = to_jsonable(getattr(local, "moduleConfig", None))
     channels = getattr(local, "channels", None)

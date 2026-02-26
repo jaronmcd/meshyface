@@ -2,14 +2,21 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from .dashboard_loaders import DashboardRuntimeLoaders
+from .dashboard_args_contracts import DashboardArgs
 from .dashboard_runtime_loader_contracts import DashboardRuntimeLoaderDependencies
 from .dashboard_runtime_loader_dependencies import (
     build_dashboard_runtime_loader_dependencies_from_legacy_args,
 )
 from .dashboard_runtime_loaders import build_dashboard_runtime_loaders_with_dependencies
+from .dashboard_setup_contracts import (
+    DashboardTrackerFactory,
+    DashboardTrackerLike,
+    HistoryStoreFactory,
+    HistoryStoreLike,
+)
 from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
@@ -37,16 +44,17 @@ from .dashboard_setup import (
     open_optional_history_store,
     seed_tracker_if_empty,
 )
+from .send_chat_contracts import SendLock
 
 
 @dataclass(frozen=True)
 class DashboardRuntimeContext:
     target: str
-    iface: Any
+    iface: object
     history_db_path: str
-    history_store: Optional[Any]
-    tracker: Any
-    send_lock: Any
+    history_store: Optional[HistoryStoreLike]
+    tracker: DashboardTrackerLike
+    send_lock: SendLock
     started_at: float
     revision_info: RevisionInfo
     state_fn: StateFn
@@ -57,12 +65,12 @@ class DashboardRuntimeContext:
 
 
 def build_dashboard_runtime_context(
-    args: Any,
+    args: DashboardArgs,
     *,
     mesh_target_label_fn: MeshTargetLabelFn,
     open_mesh_interface_fn: OpenMeshInterfaceFn,
-    history_store_cls: Any,
-    dashboard_tracker_cls: Any,
+    history_store_cls: HistoryStoreFactory,
+    dashboard_tracker_cls: DashboardTrackerFactory,
     subscribe_fn: SubscribeFn,
     seed_tracker_fn: SeedTrackerFn,
     revision_info_fn: RevisionInfoFn,
@@ -79,12 +87,12 @@ def build_dashboard_runtime_context(
     build_send_chat_loader_fn: BuildSendChatLoaderFn,
     default_chat_max_bytes: int,
     print_fn: Callable[[str], None] = print,
-    lock_factory: Callable[[], Any] = threading.Lock,
+    lock_factory: Callable[[], SendLock] = threading.Lock,
     now_unix_fn: Callable[[], float] = time.time,
     resolve_history_db_path_fn: Callable[[str], str] = lambda path: os.path.abspath(
         os.path.expanduser(path)
     ),
-    open_optional_history_store_fn: Callable[..., Optional[Any]] = open_optional_history_store,
+    open_optional_history_store_fn: Callable[..., Optional[HistoryStoreLike]] = open_optional_history_store,
     seed_tracker_if_empty_fn: Callable[..., None] = seed_tracker_if_empty,
     build_dashboard_runtime_loaders_fn: Optional[Callable[..., DashboardRuntimeLoaders]] = None,
     build_dashboard_runtime_loader_dependencies_from_legacy_args_fn: Callable[
@@ -99,7 +107,7 @@ def build_dashboard_runtime_context(
     iface = open_mesh_interface_fn(args)
 
     history_db_path = resolve_history_db_path_fn(args.history_db)
-    history_store: Optional[Any] = open_optional_history_store_fn(
+    history_store: Optional[HistoryStoreLike] = open_optional_history_store_fn(
         args,
         history_store_cls=history_store_cls,
         history_db_path=history_db_path,

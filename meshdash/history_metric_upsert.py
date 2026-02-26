@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from .history_metric_upsert_queries import (
     select_existing_row as _select_existing_row_helper,
@@ -9,21 +9,22 @@ from .history_metric_upsert_writes import (
 from .history_metric_upsert_writes import (
     update_metric_row as _update_metric_row_helper,
 )
+from .sql_contracts import SqlConnection
 
 
 def upsert_metric_rollup_row(
-    conn: Any,
+    conn: SqlConnection,
     *,
     table_name: str,
     key_fields: Sequence[str],
-    key_values: Sequence[Any],
+    key_values: Sequence[object],
     bucket_unix: int,
     event_unix: int,
     rx_snr: Optional[float],
     rx_rssi: Optional[float],
     hops: Optional[int],
-    build_metric_rollup_values_fn: Callable[..., dict],
-    merge_metric_rollup_row_fn: Callable[..., dict],
+    build_metric_rollup_values_fn: Callable[..., dict[str, object]],
+    merge_metric_rollup_row_fn: Callable[..., dict[str, object]],
 ) -> None:
     row = _select_existing_row_helper(
         conn,

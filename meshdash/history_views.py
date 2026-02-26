@@ -1,11 +1,29 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional, Protocol
 
 
-def empty_node_history(node_id: str) -> Dict[str, Any]:
+class HistoryViewStore(Protocol):
+    def load_node_history(
+        self,
+        *,
+        node_id: str,
+        window_hours: int,
+        max_points: int,
+    ) -> dict[str, object]:
+        ...
+
+    def load_online_activity(
+        self,
+        *,
+        window_hours: int,
+    ) -> dict[str, object]:
+        ...
+
+
+def empty_node_history(node_id: str) -> dict[str, object]:
     return {"node_id": str(node_id or ""), "points": [], "positions": [], "summary": {}}
 
 
-def empty_online_activity(window_hours: int) -> Dict[str, Any]:
+def empty_online_activity(window_hours: int) -> dict[str, object]:
     clean_hours = int(window_hours) if isinstance(window_hours, int) and window_hours > 0 else 72
     return {
         "window_hours": clean_hours,
@@ -37,16 +55,16 @@ def empty_online_activity(window_hours: int) -> Dict[str, Any]:
 
 
 def build_node_history_loader(
-    history_store: Any,
+    history_store: HistoryViewStore | None,
     *,
     default_hours: int,
     default_points: int,
-) -> Callable[[str, Optional[int], Optional[int]], Dict[str, Any]]:
+) -> Callable[[str, Optional[int], Optional[int]], dict[str, object]]:
     def node_history_loader(
         node_id: str,
         hours_override: Optional[int] = None,
         points_override: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, object]:
         clean_node_id = str(node_id or "").strip()
         if history_store is None:
             return empty_node_history(clean_node_id)
@@ -70,11 +88,11 @@ def build_node_history_loader(
 
 
 def build_online_activity_loader(
-    history_store: Any,
+    history_store: HistoryViewStore | None,
     *,
     default_hours: int,
-) -> Callable[[Optional[int]], Dict[str, Any]]:
-    def online_activity_loader(hours_override: Optional[int] = None) -> Dict[str, Any]:
+) -> Callable[[Optional[int]], dict[str, object]]:
+    def online_activity_loader(hours_override: Optional[int] = None) -> dict[str, object]:
         hours = (
             hours_override
             if isinstance(hours_override, int) and hours_override > 0

@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import MutableMapping
 
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
@@ -27,7 +27,7 @@ def process_parsed_tracker_packet(
     include_live_count: bool,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
-    port_counts: Any,
+    port_counts: MutableMapping[str, int],
     apply_tracker_observation_fn: ApplyTrackerObservationFn,
     apply_routing_delivery_update_fn: ApplyRoutingDeliveryUpdateFn,
     extract_update_fn: ExtractDeliveryUpdateFn,
@@ -41,9 +41,9 @@ def process_parsed_tracker_packet(
     to_int_fn: ToIntFn,
     to_jsonable_fn: ToJsonableFn,
     apply_tracker_storage_updates_fn: ApplyTrackerStorageUpdatesFn,
-    recent_packets: Any,
-    recent_chat: Any,
-    history_store: Any,
+    recent_packets: object,
+    recent_chat: object,
+    history_store: object,
 ) -> None:
     rx_time = parsed["rx_time"]
     hops = parsed["hops"]

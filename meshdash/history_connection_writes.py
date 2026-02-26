@@ -1,22 +1,23 @@
 import time
-from typing import Any, Optional
+from typing import Callable, Optional
 
 from .history_connections import (
     build_connection_insert_values as _build_connection_insert_values,
     merge_connection_row as _merge_connection_row,
     normalize_connection_event_input as _normalize_connection_event_input,
 )
+from .sql_contracts import SqlConnection
 
 
 def save_connection_event(
-    conn: Any,
+    conn: SqlConnection,
     *,
     from_id: str,
     to_id: str,
     rx_time: Optional[int],
     portnum: Optional[str],
     hops: Optional[int],
-    now_unix_fn=time.time,
+    now_unix_fn: Callable[[], float] = time.time,
 ) -> None:
     event_unix, clean_port, clean_hops = _normalize_connection_event_input(
         rx_time=rx_time,

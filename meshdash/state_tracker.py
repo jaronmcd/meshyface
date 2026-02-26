@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .state_node_contracts import NodeByIdMap
 from .state_service_contracts import StateTracker
@@ -21,7 +21,7 @@ def load_tracker_snapshot_safe(
 
 def load_tracker_node_saved_counts_safe(
     tracker: StateTracker,
-) -> tuple[dict[str, dict[str, Any]], Optional[str]]:
+) -> tuple[dict[str, dict[str, object]], Optional[str]]:
     try:
         return tracker.load_node_saved_counts(), None
     except Exception as exc:
@@ -30,7 +30,7 @@ def load_tracker_node_saved_counts_safe(
 
 def load_tracker_node_capabilities_safe(
     tracker: StateTracker,
-) -> tuple[dict[str, dict[str, Any]], Optional[str]]:
+) -> tuple[dict[str, dict[str, object]], Optional[str]]:
     try:
         return tracker.load_node_capabilities(), None
     except Exception as exc:

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Mapping
 
-NodeRow = dict[str, Any]
-NodeFullRow = dict[str, Any]
+NodeRow = dict[str, object]
+NodeFullRow = dict[str, object]
 NodeByIdMap = dict[str, NodeRow]
 
 
@@ -13,7 +13,7 @@ class CollectedNodes:
     by_id: NodeByIdMap
     with_position_count: int
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "rows": self.rows,
             "full": self.full,
@@ -22,7 +22,7 @@ class CollectedNodes:
         }
 
 
-def coerce_collected_nodes(value: CollectedNodes | Mapping[str, Any]) -> CollectedNodes:
+def coerce_collected_nodes(value: CollectedNodes | Mapping[str, object]) -> CollectedNodes:
     if isinstance(value, CollectedNodes):
         return value
     if not isinstance(value, Mapping):

@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Protocol
+from typing import Mapping, Optional, Protocol
 
 from .api_inputs import ChatSendRequest, NodeHistoryQuery, OnlineActivityQuery
 from .http_handler_contracts import DashboardHttpHandler
 from .state_payload_contracts import DashboardStatePayload
 
-StatePayload = DashboardStatePayload | dict[str, Any]
+StatePayload = DashboardStatePayload | dict[str, object]
 
 
 class StateFn(Protocol):
@@ -19,22 +19,22 @@ class NodeHistoryFn(Protocol):
         node_id: str,
         hours_override: Optional[int],
         points_override: Optional[int],
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         ...
 
 
 class OnlineActivityFn(Protocol):
-    def __call__(self, hours_override: Optional[int]) -> dict[str, Any]:
+    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
         ...
 
 
 class SendChatFn(Protocol):
-    def __call__(self, **kwargs: Any) -> dict[str, Any]:
+    def __call__(self, **kwargs: object) -> dict[str, object]:
         ...
 
 
 class ToIntFn(Protocol):
-    def __call__(self, value: Any) -> Optional[int]:
+    def __call__(self, value: object) -> Optional[int]:
         ...
 
 
@@ -59,19 +59,19 @@ class ParseOnlineActivityRequestFn(Protocol):
 
 
 class EmptyNodeHistoryFn(Protocol):
-    def __call__(self, node_id: str) -> dict[str, Any]:
+    def __call__(self, node_id: str) -> dict[str, object]:
         ...
 
 
 class EmptyOnlineActivityFn(Protocol):
-    def __call__(self, hours: int) -> dict[str, Any]:
+    def __call__(self, hours: int) -> dict[str, object]:
         ...
 
 
 class ValidateContentLengthFn(Protocol):
     def __call__(
         self,
-        headers: Mapping[str, Any],
+        headers: Mapping[str, object],
         *,
         to_int_fn: ToIntFn,
         max_bytes: int = 8192,
@@ -100,7 +100,7 @@ class WriteJsonResponseFn(Protocol):
         handler: DashboardHttpHandler,
         *,
         status_code: int,
-        payload_obj: Any,
+        payload_obj: object,
         no_store: bool = False,
     ) -> None:
         ...

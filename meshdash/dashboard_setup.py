@@ -1,13 +1,20 @@
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
+
+from .dashboard_args_contracts import DashboardArgs
+from .dashboard_setup_contracts import (
+    DashboardTrackerLike,
+    HistoryStoreFactory,
+    HistoryStoreLike,
+)
 
 
 def open_optional_history_store(
-    args: Any,
+    args: DashboardArgs,
     *,
-    history_store_cls: Any,
+    history_store_cls: HistoryStoreFactory,
     history_db_path: str,
     print_fn: Callable[[str], None] = print,
-) -> Optional[Any]:
+) -> Optional[HistoryStoreLike]:
     if args.no_history:
         return None
     try:
@@ -25,10 +32,10 @@ def open_optional_history_store(
 
 
 def seed_tracker_if_empty(
-    tracker: Any,
-    iface: Any,
+    tracker: DashboardTrackerLike,
+    iface: object,
     *,
-    seed_tracker_fn: Callable[[Any, Any], None],
+    seed_tracker_fn: Callable[[DashboardTrackerLike, object], None],
 ) -> None:
     if tracker.has_recent_packets():
         return

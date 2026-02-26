@@ -1,11 +1,10 @@
-from typing import Any, Protocol
+from typing import Protocol
 
 from .runtime_types import (
     ExtractDeliveryUpdateFn,
     SetDeliveryStateFn,
-    TrackerEdgeMap,
 )
-from .tracker_snapshot_build_contracts import TrackerHistoryStore
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow, PortCounter, TrackerHistoryStore
 from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer, TrackerHistoryWriter
 
 
@@ -14,9 +13,9 @@ class TrackerRuntimeHistoryStore(TrackerHistoryStore, TrackerHistoryWriter, Prot
 
 
 class TrackerReceiveRuntimeState(Protocol):
-    edges: TrackerEdgeMap
-    _historical_edges: TrackerEdgeMap
-    port_counts: Any
+    edges: dict[EdgeKey, EdgeRow]
+    _historical_edges: dict[EdgeKey, EdgeRow]
+    port_counts: PortCounter
     recent_packets: RecentPacketBuffer
     recent_chat: RecentChatBuffer
     _history_store: TrackerRuntimeHistoryStore | None

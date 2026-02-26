@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .history_store_runtime_init import (
     initialize_history_store_runtime as _initialize_history_store_runtime_helper,
@@ -62,25 +62,25 @@ class HistoryStore:
             prune_unlocked_fn=self._prune_unlocked,
         )
 
-    def load_recent_packets(self, limit: int) -> list[Dict[str, Any]]:
+    def load_recent_packets(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_packets_helper(self, limit)
 
-    def load_recent_chat(self, limit: int) -> list[Dict[str, Any]]:
+    def load_recent_chat(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_chat_helper(self, limit)
 
-    def load_connections(self) -> list[Dict[str, Any]]:
+    def load_connections(self) -> list[dict[str, object]]:
         return _load_connections_helper(self)
 
-    def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> Dict[str, Any]:
+    def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> dict[str, object]:
         return _load_node_history_helper(self, node_id, window_hours, max_points)
 
-    def load_online_activity(self, window_hours: int) -> Dict[str, Any]:
+    def load_online_activity(self, window_hours: int) -> dict[str, object]:
         return _load_online_activity_helper(self, window_hours)
 
-    def load_node_saved_counts(self) -> Dict[str, Dict[str, Any]]:
+    def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
         return _load_node_saved_counts_helper(self)
 
-    def load_node_capabilities(self) -> Dict[str, Dict[str, Any]]:
+    def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         return _load_node_capabilities_helper(self)
 
     def save_connection_event(
@@ -100,8 +100,8 @@ class HistoryStore:
             hops=hops,
         )
 
-    def save_packet(self, packet_entry: Dict[str, Any]) -> None:
+    def save_packet(self, packet_entry: dict[str, object]) -> None:
         _save_packet_helper(self, packet_entry)
 
-    def save_chat(self, chat_entry: Dict[str, Any]) -> None:
+    def save_chat(self, chat_entry: dict[str, object]) -> None:
         _save_chat_helper(self, chat_entry)

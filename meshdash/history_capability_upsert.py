@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .helpers import to_int as _to_int
 
@@ -24,7 +24,7 @@ def build_node_capability_insert_values(
     has_position: bool,
     clean_hops: Optional[int],
     clean_battery: Optional[int],
-) -> tuple[Any, ...]:
+) -> tuple[object, ...]:
     return (
         node_id,
         event_unix,
@@ -38,12 +38,12 @@ def build_node_capability_insert_values(
 
 def merge_node_capability_row(
     *,
-    row: tuple[Any, ...],
+    row: tuple[object, ...],
     event_unix: int,
     has_position: bool,
     clean_hops: Optional[int],
     clean_battery: Optional[int],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     (
         last_seen_unix,
         row_has_position,

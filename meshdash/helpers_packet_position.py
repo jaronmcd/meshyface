@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 from .helpers_core import to_float as _to_float
 from .helpers_core import to_int as _to_int
 
 
-def extract_position_fields(position: Any) -> Optional[Tuple[float, float]]:
+def extract_position_fields(position: object) -> Optional[tuple[float, float]]:
     if not isinstance(position, dict):
         return None
 
@@ -40,11 +40,11 @@ def extract_position_fields(position: Any) -> Optional[Tuple[float, float]]:
     return lat_f, lon_f
 
 
-def extract_packet_position(packet: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def extract_packet_position(packet: dict[str, object]) -> Optional[dict[str, object]]:
     if not isinstance(packet, dict):
         return None
 
-    candidates: list[Dict[str, Any]] = []
+    candidates: list[dict[str, object]] = []
     decoded = packet.get("decoded")
     if isinstance(decoded, dict):
         for key in ("position", "gps", "location"):
@@ -76,7 +76,7 @@ def extract_packet_position(packet: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if sats is None:
             sats = _to_int(candidate.get("satellites"))
 
-        out: Dict[str, Any] = {
+        out: dict[str, object] = {
             "lat": coords[0],
             "lon": coords[1],
         }

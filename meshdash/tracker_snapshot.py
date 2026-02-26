@@ -1,19 +1,28 @@
-from typing import Any, Dict, Optional, Tuple
+from collections.abc import Iterable
+from typing import Optional
 
 from .runtime_types import FormatEpochFn
-from .tracker_snapshot_build_contracts import BuildEdgeSnapshotRowsFn
+from .tracker_snapshot_build_contracts import (
+    BuildEdgeSnapshotRowsFn,
+    ChatRow,
+    EdgeKey,
+    EdgeRow,
+    NodeRow,
+    PacketRow,
+    PortCounter,
+)
 from .tracker_snapshot_contracts import TrackerSnapshot
 
 
 def build_edge_snapshot_rows(
     *,
-    session_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    historical_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    nodes_by_id: Dict[str, Dict[str, Any]],
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+    nodes_by_id: dict[str, NodeRow],
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn,
-) -> tuple[list[Dict[str, Any]], int]:
-    edge_rows: list[Dict[str, Any]] = []
+) -> tuple[list[EdgeRow], int]:
+    edge_rows: list[EdgeRow] = []
     real_edge_count = 0
     combined_keys = set(session_edges.keys()) | set(historical_edges.keys())
     for key in combined_keys:
@@ -86,12 +95,12 @@ def build_edge_snapshot_rows(
 
 def build_tracker_snapshot_payload_typed(
     *,
-    session_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    historical_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    nodes_by_id: Dict[str, Dict[str, Any]],
-    port_counts: Any,
-    recent_packets: Any,
-    recent_chat: Any,
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+    nodes_by_id: dict[str, NodeRow],
+    port_counts: PortCounter,
+    recent_packets: Iterable[PacketRow],
+    recent_chat: Iterable[ChatRow],
     live_packet_count: int,
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn,
@@ -121,17 +130,17 @@ def build_tracker_snapshot_payload_typed(
 
 def build_tracker_snapshot_payload(
     *,
-    session_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    historical_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    nodes_by_id: Dict[str, Dict[str, Any]],
-    port_counts: Any,
-    recent_packets: Any,
-    recent_chat: Any,
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+    nodes_by_id: dict[str, NodeRow],
+    port_counts: PortCounter,
+    recent_packets: Iterable[PacketRow],
+    recent_chat: Iterable[ChatRow],
     live_packet_count: int,
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn,
     build_edge_snapshot_rows_fn: BuildEdgeSnapshotRowsFn = build_edge_snapshot_rows,
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     return build_tracker_snapshot_payload_typed(
         session_edges=session_edges,
         historical_edges=historical_edges,

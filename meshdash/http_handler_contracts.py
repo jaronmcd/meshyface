@@ -1,4 +1,4 @@
-from typing import Any, Mapping, Protocol
+from typing import Mapping, Protocol
 
 
 class BodyReader(Protocol):
@@ -7,13 +7,13 @@ class BodyReader(Protocol):
 
 
 class BodyWriter(Protocol):
-    def write(self, data: bytes) -> Any:
+    def write(self, data: bytes) -> object:
         ...
 
 
 class DashboardHttpHandler(Protocol):
     path: str
-    headers: Mapping[str, Any]
+    headers: Mapping[str, object]
     rfile: BodyReader
     wfile: BodyWriter
 

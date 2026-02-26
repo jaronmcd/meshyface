@@ -1,12 +1,14 @@
-from typing import Any, Dict, Optional
+from typing import Optional
+
+from .runtime_types import FormatEpochFn, ToIntFn, UtcNowFn
 
 
 def build_packet_summary(
     *,
-    packet: Dict[str, Any],
-    decoded: Any,
-    from_id: Any,
-    to_id: Any,
+    packet: dict[str, object],
+    decoded: object,
+    from_id: object,
+    to_id: object,
     packet_id: Optional[int],
     rx_time: Optional[int],
     hops: Optional[int],
@@ -14,12 +16,12 @@ def build_packet_summary(
     emoji_glyph: Optional[str],
     emoji_codepoint: Optional[int],
     is_reaction: bool,
-    packet_position: Optional[Dict[str, Any]],
+    packet_position: Optional[dict[str, object]],
     packet_battery: Optional[int],
-    utc_now_fn,
-    format_epoch_fn,
-    to_int_fn,
-) -> Dict[str, Any]:
+    utc_now_fn: UtcNowFn,
+    format_epoch_fn: FormatEpochFn,
+    to_int_fn: ToIntFn,
+) -> dict[str, object]:
     portnum = decoded.get("portnum") if isinstance(decoded, dict) else None
     summary = {
         "captured_at": utc_now_fn(),
@@ -55,19 +57,19 @@ def build_packet_summary(
 
 def build_chat_entry_from_packet(
     *,
-    packet: Dict[str, Any],
-    decoded: Any,
-    from_id: Any,
-    to_id: Any,
+    packet: dict[str, object],
+    decoded: object,
+    from_id: object,
+    to_id: object,
     packet_id: Optional[int],
     hops: Optional[int],
     reply_id: Optional[int],
     emoji_glyph: Optional[str],
     emoji_codepoint: Optional[int],
     is_reaction: bool,
-    utc_now_fn,
-    format_epoch_fn,
-) -> Optional[Dict[str, Any]]:
+    utc_now_fn: UtcNowFn,
+    format_epoch_fn: FormatEpochFn,
+) -> Optional[dict[str, object]]:
     decoded_text = decoded.get("text") if isinstance(decoded, dict) else None
     has_text = isinstance(decoded_text, str) and decoded_text.strip()
     if not (has_text or is_reaction):

@@ -1,14 +1,15 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .history_capability_upsert import (
     build_node_capability_insert_values as _build_node_capability_insert_values,
     merge_node_capability_row as _merge_node_capability_row,
     normalize_node_capability_inputs as _normalize_node_capability_inputs,
 )
+from .sql_contracts import SqlConnection
 
 
 def upsert_node_capability(
-    conn: Any,
+    conn: SqlConnection,
     *,
     node_id: str,
     event_unix: int,

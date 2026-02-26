@@ -1,5 +1,8 @@
 import time
-from typing import Any, Optional
+from typing import Optional
+
+from .runtime_types import EmojiFromCodepointFn, NowUnixFn, ToIntFn, UtcNowFn
+from .tracker_local_chat_contracts import BuildLocalChatEntryFn, LocalChatEntry
 
 
 def build_tracker_local_entry(
@@ -15,12 +18,12 @@ def build_tracker_local_entry(
     is_reaction: bool,
     ack_requested: bool,
     retry_of: Optional[int],
-    build_local_chat_entry_fn,
-    utc_now_fn,
-    now_unix_fn=time.time,
-    to_int_fn,
-    emoji_from_codepoint_fn,
-) -> Any:
+    build_local_chat_entry_fn: BuildLocalChatEntryFn,
+    utc_now_fn: UtcNowFn,
+    to_int_fn: ToIntFn,
+    emoji_from_codepoint_fn: EmojiFromCodepointFn,
+    now_unix_fn: NowUnixFn = time.time,
+) -> Optional[LocalChatEntry]:
     now_text = utc_now_fn()
     now_unix = int(now_unix_fn())
     return build_local_chat_entry_fn(

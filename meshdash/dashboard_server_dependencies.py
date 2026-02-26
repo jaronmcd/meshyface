@@ -1,5 +1,4 @@
-from typing import Any
-
+from .dashboard_args_contracts import DashboardArgs
 from .dashboard_server_contracts import DashboardServerDependencies
 from .revision import RevisionInfo
 from .runtime_types import (
@@ -15,7 +14,7 @@ from .runtime_types import (
 
 def build_dashboard_server_dependencies_from_legacy_args(
     *,
-    args: Any,
+    args: DashboardArgs,
     revision_info: RevisionInfo,
     history_enabled: bool,
     state_fn: StateFn,

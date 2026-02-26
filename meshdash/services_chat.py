@@ -1,10 +1,11 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .chat_send import (
     build_chat_send_response,
     delivery_state_for_send,
     prepare_chat_send_input,
 )
+from .send_chat_contracts import SendLock, SendTextInterface
 from .runtime_types import (
     LocalNodeIdFn,
     NormalizeSingleEmojiFn,
@@ -17,14 +18,14 @@ from .runtime_types import (
 
 def send_chat_message(
     *,
-    text: Any,
-    destination: Any = None,
+    text: object,
+    destination: object = None,
     channel_index: Optional[int] = None,
     reply_id: Optional[int] = None,
     retry_of: Optional[int] = None,
-    emoji: Any = None,
-    iface: Any,
-    send_lock: Any,
+    emoji: object = None,
+    iface: SendTextInterface,
+    send_lock: SendLock,
     send_reaction_packet_fn: SendReactionPacketFn,
     local_node_id_fn: LocalNodeIdFn,
     record_local_chat_fn: RecordLocalChatFn,
@@ -32,7 +33,7 @@ def send_chat_message(
     normalize_single_emoji_fn: NormalizeSingleEmojiFn,
     to_int_fn: ToIntFn,
     now_text_fn: UtcNowFn,
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     prepared = prepare_chat_send_input(
         text=text,
         destination=destination,
@@ -45,15 +46,17 @@ def send_chat_message(
         to_int_fn=to_int_fn,
     )
 
-    dest = prepared["destination"]
-    chan = prepared["channel_index"]
-    clean_text = prepared["text"]
-    clean_reply_id = prepared["reply_id"]
-    clean_retry_of = prepared["retry_of"]
-    clean_emoji = prepared["emoji"]
-    clean_emoji_codepoint = prepared["emoji_codepoint"]
-    has_reaction = prepared["is_reaction"]
-    should_request_ack = prepared["ack_requested"]
+    dest = str(prepared.get("destination") or "^all")
+    chan_candidate = to_int_fn(prepared.get("channel_index"))
+    chan = chan_candidate if chan_candidate is not None and chan_candidate >= 0 else 0
+    clean_text = str(prepared.get("text") or "")
+    clean_reply_id = to_int_fn(prepared.get("reply_id"))
+    clean_retry_of = to_int_fn(prepared.get("retry_of"))
+    clean_emoji_raw = prepared.get("emoji")
+    clean_emoji = str(clean_emoji_raw or "") if clean_emoji_raw is not None else None
+    clean_emoji_codepoint = to_int_fn(prepared.get("emoji_codepoint"))
+    has_reaction = bool(prepared.get("is_reaction"))
+    should_request_ack = bool(prepared.get("ack_requested"))
     with send_lock:
         if has_reaction:
             sent_packet = send_reaction_packet_fn(

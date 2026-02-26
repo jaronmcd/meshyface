@@ -1,12 +1,15 @@
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import to_float as _to_float
 from .helpers import to_int as _to_int
 
 
-def build_position_history_points(position_rows: Iterable[Any]) -> Dict[str, Any]:
-    positions: list[Dict[str, Any]] = []
+def build_position_history_points(
+    position_rows: Iterable[tuple[object, object, object, object, object]],
+) -> dict[str, object]:
+    positions: list[dict[str, object]] = []
     trail_start: Optional[int] = None
     trail_end: Optional[int] = None
 

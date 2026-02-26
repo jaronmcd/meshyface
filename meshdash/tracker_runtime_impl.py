@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .helpers import (
     to_int as _to_int,
@@ -66,7 +66,7 @@ class DashboardTracker:
             now_unix_fn=time.time,
         )
 
-    def on_receive(self, packet: Dict[str, Any], interface: Any) -> None:
+    def on_receive(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
             self.live_packet_count += 1
             self._record_packet_unlocked(packet, interface, include_live_count=True)
@@ -75,10 +75,10 @@ class DashboardTracker:
         with self._lock:
             return bool(self.recent_packets)
 
-    def load_node_saved_counts(self) -> Dict[str, Dict[str, Any]]:
+    def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
         return _load_tracker_node_saved_counts_for_tracker_helper(self)
 
-    def load_node_capabilities(self) -> Dict[str, Dict[str, Any]]:
+    def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         return _load_tracker_node_capabilities_for_tracker_helper(self)
 
     def record_local_chat(
@@ -112,12 +112,12 @@ class DashboardTracker:
                 now_unix_fn=time.time,
             )
 
-    def seed_packet(self, packet: Dict[str, Any], interface: Any) -> None:
+    def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
             self._record_packet_unlocked(packet, interface, include_live_count=False)
 
     def _record_packet_unlocked(
-        self, packet: Dict[str, Any], interface: Any, include_live_count: bool
+        self, packet: dict[str, object], interface: object, include_live_count: bool
     ) -> None:
         _record_tracker_receive_unlocked_for_tracker_helper(
             self,
@@ -126,7 +126,7 @@ class DashboardTracker:
             include_live_count=include_live_count,
         )
 
-    def snapshot_typed(self, nodes_by_id: Dict[str, Dict[str, Any]]) -> TrackerSnapshot:
+    def snapshot_typed(self, nodes_by_id: dict[str, dict[str, object]]) -> TrackerSnapshot:
         with self._lock:
             return _build_tracker_snapshot_for_tracker_typed_helper(
                 self,
@@ -134,9 +134,9 @@ class DashboardTracker:
                 min_real_link_count=MIN_REAL_LINK_COUNT,
             )
 
-    def snapshot(self, nodes_by_id: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def snapshot(self, nodes_by_id: dict[str, dict[str, object]]) -> dict[str, object]:
         return self.snapshot_typed(nodes_by_id).as_dict()
 
 
-def seed_tracker_from_node_db(tracker: DashboardTracker, iface: Any) -> None:
+def seed_tracker_from_node_db(tracker: DashboardTracker, iface: object) -> None:
     _seed_tracker_from_node_db_helper(tracker, iface)

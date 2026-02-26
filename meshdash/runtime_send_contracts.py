@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Any
 
+from .send_chat_contracts import SendLock, SendTextInterface
 from .runtime_types import (
     LocalNodeIdFn,
     NormalizeSingleEmojiFn,
@@ -13,8 +13,8 @@ from .runtime_types import (
 
 @dataclass(frozen=True)
 class SendChatRuntimeDependencies:
-    iface: Any
-    send_lock: Any
+    iface: SendTextInterface
+    send_lock: SendLock
     send_reaction_packet_fn: SendReactionPacketFn
     local_node_id_fn: LocalNodeIdFn
     record_local_chat_fn: RecordLocalChatFn

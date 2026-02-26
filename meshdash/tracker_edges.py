@@ -1,7 +1,9 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
+
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
 
 
-def _new_edge(from_id: str, to_id: str) -> Dict[str, Any]:
+def _new_edge(from_id: str, to_id: str) -> EdgeRow:
     return {
         "from": from_id,
         "to": to_id,
@@ -15,7 +17,7 @@ def _new_edge(from_id: str, to_id: str) -> Dict[str, Any]:
     }
 
 
-def is_direct_link(from_id: Any, to_id: Any) -> bool:
+def is_direct_link(from_id: object, to_id: object) -> bool:
     return (
         bool(from_id)
         and bool(to_id)
@@ -27,15 +29,15 @@ def is_direct_link(from_id: Any, to_id: Any) -> bool:
 
 def record_direct_edge_observation(
     *,
-    session_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    historical_edges: Dict[Tuple[str, str], Dict[str, Any]],
-    from_id: Any,
-    to_id: Any,
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+    from_id: object,
+    to_id: object,
     rx_time: Optional[int],
-    portnum: Optional[Any],
+    portnum: Optional[object],
     hops: Optional[int],
     include_live_count: bool,
-) -> Optional[Tuple[str, str]]:
+) -> Optional[EdgeKey]:
     if not is_direct_link(from_id, to_id):
         return None
 

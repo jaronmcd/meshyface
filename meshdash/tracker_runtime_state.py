@@ -1,11 +1,18 @@
-from typing import Any, Dict
+from collections.abc import Iterable
+from typing import Dict
 
 from .helpers import (
     format_epoch as _format_epoch,
 )
 from .runtime_types import FormatEpochFn
 from .tracker_snapshot_build_contracts import (
+    ChatRow,
     BuildEdgeSnapshotRowsFn,
+    EdgeKey,
+    EdgeRow,
+    NodeRow,
+    PacketRow,
+    PortCounter,
     BuildTrackerSnapshotPayloadFn,
     BuildTrackerSnapshotPayloadTypedFn,
     ExpirePendingDeliveriesFn,
@@ -20,13 +27,17 @@ from .tracker_snapshot_contracts import TrackerSnapshot, coerce_tracker_snapshot
 from .tracker_runtime_types import TrackerSnapshotRuntimeState
 
 
-def load_tracker_node_saved_counts(history_store: TrackerHistoryStore | None) -> Dict[str, Dict[str, Any]]:
+def load_tracker_node_saved_counts(
+    history_store: TrackerHistoryStore | None,
+) -> Dict[str, Dict[str, object]]:
     if history_store is None:
         return {}
     return history_store.load_node_saved_counts()
 
 
-def load_tracker_node_capabilities(history_store: TrackerHistoryStore | None) -> Dict[str, Dict[str, Any]]:
+def load_tracker_node_capabilities(
+    history_store: TrackerHistoryStore | None,
+) -> Dict[str, Dict[str, object]]:
     if history_store is None:
         return {}
     return history_store.load_node_capabilities()
@@ -34,19 +45,19 @@ def load_tracker_node_capabilities(history_store: TrackerHistoryStore | None) ->
 
 def build_tracker_snapshot(
     *,
-    nodes_by_id: Dict[str, Dict[str, Any]],
+    nodes_by_id: Dict[str, NodeRow],
     expire_pending_deliveries_fn: ExpirePendingDeliveriesFn,
-    session_edges: Dict[Any, Dict[str, Any]],
-    historical_edges: Dict[Any, Dict[str, Any]],
-    port_counts: Any,
-    recent_packets: Any,
-    recent_chat: Any,
+    session_edges: Dict[EdgeKey, EdgeRow],
+    historical_edges: Dict[EdgeKey, EdgeRow],
+    port_counts: PortCounter,
+    recent_packets: Iterable[PacketRow],
+    recent_chat: Iterable[ChatRow],
     live_packet_count: int,
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn,
     build_edge_snapshot_rows_fn: BuildEdgeSnapshotRowsFn,
     build_tracker_snapshot_payload_fn: BuildTrackerSnapshotPayloadFn,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     expire_pending_deliveries_fn()
     return build_tracker_snapshot_payload_fn(
         session_edges=session_edges,
@@ -64,13 +75,13 @@ def build_tracker_snapshot(
 
 def build_tracker_snapshot_typed(
     *,
-    nodes_by_id: Dict[str, Dict[str, Any]],
+    nodes_by_id: Dict[str, NodeRow],
     expire_pending_deliveries_fn: ExpirePendingDeliveriesFn,
-    session_edges: Dict[Any, Dict[str, Any]],
-    historical_edges: Dict[Any, Dict[str, Any]],
-    port_counts: Any,
-    recent_packets: Any,
-    recent_chat: Any,
+    session_edges: Dict[EdgeKey, EdgeRow],
+    historical_edges: Dict[EdgeKey, EdgeRow],
+    port_counts: PortCounter,
+    recent_packets: Iterable[PacketRow],
+    recent_chat: Iterable[ChatRow],
     live_packet_count: int,
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn,
@@ -94,23 +105,27 @@ def build_tracker_snapshot_typed(
     )
 
 
-def load_tracker_node_saved_counts_for_tracker(tracker: TrackerSnapshotRuntimeState) -> Dict[str, Dict[str, Any]]:
+def load_tracker_node_saved_counts_for_tracker(
+    tracker: TrackerSnapshotRuntimeState,
+) -> Dict[str, Dict[str, object]]:
     return load_tracker_node_saved_counts(tracker._history_store)
 
 
-def load_tracker_node_capabilities_for_tracker(tracker: TrackerSnapshotRuntimeState) -> Dict[str, Dict[str, Any]]:
+def load_tracker_node_capabilities_for_tracker(
+    tracker: TrackerSnapshotRuntimeState,
+) -> Dict[str, Dict[str, object]]:
     return load_tracker_node_capabilities(tracker._history_store)
 
 
 def build_tracker_snapshot_for_tracker(
     tracker: TrackerSnapshotRuntimeState,
     *,
-    nodes_by_id: Dict[str, Dict[str, Any]],
+    nodes_by_id: Dict[str, NodeRow],
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn = _format_epoch,
     build_edge_snapshot_rows_fn: BuildEdgeSnapshotRowsFn = _build_edge_snapshot_rows_helper,
     build_tracker_snapshot_payload_fn: BuildTrackerSnapshotPayloadFn = _build_tracker_snapshot_payload_helper,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     return build_tracker_snapshot(
         nodes_by_id=nodes_by_id,
         expire_pending_deliveries_fn=tracker._expire_pending_deliveries_fn,
@@ -130,7 +145,7 @@ def build_tracker_snapshot_for_tracker(
 def build_tracker_snapshot_for_tracker_typed(
     tracker: TrackerSnapshotRuntimeState,
     *,
-    nodes_by_id: Dict[str, Dict[str, Any]],
+    nodes_by_id: Dict[str, NodeRow],
     min_real_link_count: int,
     format_epoch_fn: FormatEpochFn = _format_epoch,
     build_edge_snapshot_rows_fn: BuildEdgeSnapshotRowsFn = _build_edge_snapshot_rows_helper,

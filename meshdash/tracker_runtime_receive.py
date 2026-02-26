@@ -1,5 +1,3 @@
-from typing import Any
-
 from .helpers import (
     calculate_hops as _calculate_hops,
     emoji_from_codepoint as _emoji_from_codepoint,

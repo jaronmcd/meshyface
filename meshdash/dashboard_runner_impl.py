@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer
-from typing import Any
 
+from .dashboard_args_contracts import DashboardArgs
+from .dashboard_setup_contracts import DashboardTrackerFactory, HistoryStoreFactory
 from .runtime_lifecycle import (
     close_runtime_resources,
     emit_startup_status,
@@ -39,12 +40,12 @@ from .runtime_types import (
 
 
 def run_dashboard_runtime(
-    args: Any,
+    args: DashboardArgs,
     *,
     mesh_target_label_fn: MeshTargetLabelFn,
     open_mesh_interface_fn: OpenMeshInterfaceFn,
-    history_store_cls: Any,
-    dashboard_tracker_cls: Any,
+    history_store_cls: HistoryStoreFactory,
+    dashboard_tracker_cls: DashboardTrackerFactory,
     subscribe_fn: SubscribeFn,
     seed_tracker_fn: SeedTrackerFn,
     revision_info_fn: RevisionInfoFn,

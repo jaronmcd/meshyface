@@ -1,10 +1,9 @@
 import json
-from typing import Any
 
 from .http_handler_contracts import DashboardHttpHandler
 
 
-def json_bytes(payload_obj: Any) -> bytes:
+def json_bytes(payload_obj: object) -> bytes:
     return json.dumps(payload_obj, separators=(",", ":")).encode("utf-8")
 
 
@@ -12,7 +11,7 @@ def write_json_response(
     handler: DashboardHttpHandler,
     *,
     status_code: int,
-    payload_obj: Any,
+    payload_obj: object,
     no_store: bool = False,
 ) -> None:
     payload = json_bytes(payload_obj)

@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import Any, Optional
+from typing import Optional
 
 try:
     import meshtastic

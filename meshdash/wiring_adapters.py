@@ -1,5 +1,3 @@
-from typing import Any
-
 from .runtime_types import (
     BuildStateFn,
     GetLocalNodeIdFn,
@@ -20,7 +18,7 @@ def build_state_builder(
     build_state_fn: BuildStateFn,
     sensitive_field_names: set[str],
 ) -> BuildStateFn:
-    def state_with_sensitive_fields(**kwargs: Any) -> dict:
+    def state_with_sensitive_fields(**kwargs: object) -> dict[str, object]:
         return build_state_fn(
             sensitive_field_names=sensitive_field_names,
             **kwargs,
@@ -32,10 +30,10 @@ def build_state_builder(
 def build_reaction_sender(
     *,
     send_emoji_reaction_packet_fn: SendReactionPacketFn,
-    mesh_pb2_module: Any,
-    portnums_pb2_module: Any,
+    mesh_pb2_module: object,
+    portnums_pb2_module: object,
 ) -> SendReactionPacketFn:
-    def send_reaction_packet(**kwargs: Any) -> Any:
+    def send_reaction_packet(**kwargs: object) -> object:
         return send_emoji_reaction_packet_fn(
             mesh_pb2_module=mesh_pb2_module,
             portnums_pb2_module=portnums_pb2_module,
@@ -48,11 +46,11 @@ def build_reaction_sender(
 def build_local_node_id_getter(
     *,
     get_local_node_id_fn: RawGetLocalNodeIdFn,
-    meshtastic_module: Any,
+    meshtastic_module: object,
     to_jsonable_fn: ToJsonableFn,
     to_int_fn: ToIntFn,
 ) -> GetLocalNodeIdFn:
-    def get_local_node_id(iface: Any) -> str:
+    def get_local_node_id(iface: object) -> str:
         return get_local_node_id_fn(
             iface,
             meshtastic_module=meshtastic_module,
@@ -75,7 +73,7 @@ def build_http_handler_factory(
         node_history_fn: NodeHistoryFn | None = None,
         online_activity_fn: OnlineActivityFn | None = None,
         send_chat_fn: SendChatFn | None = None,
-    ) -> Any:
+    ) -> object:
         return make_http_handler_fn(
             html_text=html_text,
             state_fn=state_fn,

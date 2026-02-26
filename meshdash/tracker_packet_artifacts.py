@@ -1,18 +1,28 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
+from .runtime_types import (
+    BuildChatEntryFromPacketFn,
+    BuildPacketSummaryFn,
+    FormatEpochFn,
+    ToIntFn,
+    ToJsonableFn,
+    TrackerPacket,
+    TrackerParsedPacket,
+    UtcNowFn,
+)
 
 def build_tracker_packet_artifacts(
     *,
-    packet: Dict[str, Any],
-    parsed: Dict[str, Any],
+    packet: TrackerPacket,
+    parsed: TrackerParsedPacket,
     include_live_count: bool,
-    build_packet_summary_fn,
-    build_chat_entry_from_packet_fn,
-    utc_now_fn,
-    format_epoch_fn,
-    to_int_fn,
-    to_jsonable_fn,
-) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    build_packet_summary_fn: BuildPacketSummaryFn,
+    build_chat_entry_from_packet_fn: BuildChatEntryFromPacketFn,
+    utc_now_fn: UtcNowFn,
+    format_epoch_fn: FormatEpochFn,
+    to_int_fn: ToIntFn,
+    to_jsonable_fn: ToJsonableFn,
+) -> tuple[dict[str, object], Optional[dict[str, object]]]:
     packet_summary = build_packet_summary_fn(
         packet=packet,
         decoded=parsed["decoded"],

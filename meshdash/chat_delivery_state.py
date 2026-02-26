@@ -1,11 +1,16 @@
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Reversible
+from typing import Callable, Optional
 
 from .helpers import to_int
 from .nodes import utc_now
 
 
-def chat_message_id(entry: Any, *, to_int_fn: Callable[[Any], Optional[int]] = to_int) -> Optional[int]:
+def chat_message_id(
+    entry: object,
+    *,
+    to_int_fn: Callable[[object], Optional[int]] = to_int,
+) -> Optional[int]:
     if not isinstance(entry, dict):
         return None
     return to_int_fn(
@@ -17,12 +22,12 @@ def chat_message_id(entry: Any, *, to_int_fn: Callable[[Any], Optional[int]] = t
 
 
 def set_delivery_state(
-    recent_chat: Any,
-    message_id: Any,
+    recent_chat: Reversible[object],
+    message_id: object,
     state: str,
     error: Optional[str] = None,
     *,
-    to_int_fn: Callable[[Any], Optional[int]] = to_int,
+    to_int_fn: Callable[[object], Optional[int]] = to_int,
     now_text_fn: Callable[[], str] = utc_now,
     now_unix_fn: Callable[[], int] = lambda: int(time.time()),
 ) -> bool:
@@ -30,7 +35,7 @@ def set_delivery_state(
     if clean_message_id is None or clean_message_id <= 0:
         return False
 
-    target: Optional[Dict[str, Any]] = None
+    target: Optional[dict[str, object]] = None
     for entry in reversed(recent_chat):
         if not isinstance(entry, dict):
             continue

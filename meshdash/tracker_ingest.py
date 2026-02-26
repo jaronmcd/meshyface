@@ -1,5 +1,3 @@
-from typing import Any
-
 from .runtime_types import (
     CalculateHopsFn,
     EmojiFromCodepointFn,
@@ -15,7 +13,7 @@ from .runtime_types import (
 
 def parse_tracker_packet(
     packet: TrackerPacket,
-    interface: Any,
+    interface: object,
     *,
     get_node_id_from_num_fn: GetNodeIdFromNumFn,
     to_int_fn: ToIntFn,

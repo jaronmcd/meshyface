@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import to_int as _to_int
@@ -8,15 +9,15 @@ from .helpers import to_int as _to_int
 def build_online_activity_payload(
     *,
     window_hours: int,
-    hour_rows: Iterable[Any],
+    hour_rows: Iterable[tuple[object, ...]],
     distinct_nodes: int,
     timezone_label: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     hours = max(1, int(window_hours))
     tz_label = timezone_label or datetime.now().astimezone().tzname() or "local"
 
-    points: list[Dict[str, Any]] = []
-    by_hour: Dict[int, list[int]] = {hour: [] for hour in range(24)}
+    points: list[dict[str, object]] = []
+    by_hour: dict[int, list[int]] = {hour: [] for hour in range(24)}
     total_online = 0
     max_online = 0
     first_bucket: Optional[int] = None
@@ -47,7 +48,7 @@ def build_online_activity_payload(
 
     best_hour: Optional[int] = None
     best_avg: Optional[float] = None
-    hourly_profile: list[Dict[str, Any]] = []
+    hourly_profile: list[dict[str, object]] = []
     for hour in range(24):
         samples = by_hour.get(hour, [])
         sample_count = len(samples)

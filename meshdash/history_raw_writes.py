@@ -1,11 +1,13 @@
 import json
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
+
+from .sql_contracts import SqlConnection
 
 
 def save_packet_record(
-    conn: Any,
-    packet_entry: Dict[str, Any],
+    conn: SqlConnection,
+    packet_entry: dict[str, object],
     *,
     now_unix_fn: Callable[[], float] = time.time,
     save_packet_event_and_rollups_fn: Optional[Callable[..., None]] = None,
@@ -24,8 +26,8 @@ def save_packet_record(
 
 
 def save_chat_record(
-    conn: Any,
-    chat_entry: Dict[str, Any],
+    conn: SqlConnection,
+    chat_entry: dict[str, object],
     *,
     now_unix_fn: Callable[[], float] = time.time,
 ) -> None:

@@ -1,6 +1,7 @@
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from .revision import RevisionInfo
+from .runtime_lifecycle_contracts import CloseableResource, RuntimeServer
 
 
 def emit_startup_status(
@@ -49,7 +50,7 @@ def emit_startup_status(
 
 
 def serve_until_stopped(
-    server: Any,
+    server: RuntimeServer,
     *,
     poll_interval: float = 0.5,
     out_fn: Callable[[str], None] = print,
@@ -62,9 +63,9 @@ def serve_until_stopped(
 
 def close_runtime_resources(
     *,
-    server: Any,
-    iface: Any,
-    history_store: Optional[Any],
+    server: RuntimeServer,
+    iface: CloseableResource,
+    history_store: Optional[CloseableResource],
 ) -> None:
     server.server_close()
     iface.close()

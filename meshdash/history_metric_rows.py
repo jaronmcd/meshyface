@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from .helpers import to_int as _to_int
 from .history_rollups import merge_metric as _merge_metric
@@ -10,7 +10,7 @@ def build_metric_rollup_values(
     rx_snr: Optional[float],
     rx_rssi: Optional[float],
     hops: Optional[int],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     snr_sum, snr_count, snr_min, snr_max = _merge_metric(0.0, 0, None, None, rx_snr)
     rssi_sum, rssi_count, rssi_min, rssi_max = _merge_metric(0.0, 0, None, None, rx_rssi)
     hops_sum, hops_count, hops_min, hops_max = _merge_metric(
@@ -40,12 +40,12 @@ def build_metric_rollup_values(
 
 def merge_metric_rollup_row(
     *,
-    row: tuple[Any, ...],
+    row: tuple[object, ...],
     event_unix: int,
     rx_snr: Optional[float],
     rx_rssi: Optional[float],
     hops: Optional[int],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     (
         packet_count,
         snr_sum,

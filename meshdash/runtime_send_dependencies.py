@@ -1,5 +1,6 @@
-from typing import Any, Protocol
+from typing import Protocol
 
+from .send_chat_contracts import SendLock, SendTextInterface
 from .runtime_send_contracts import SendChatRuntimeDependencies
 from .runtime_types import (
     GetLocalNodeIdFn,
@@ -17,9 +18,9 @@ class TrackerChatRecorder(Protocol):
 
 def build_send_chat_runtime_dependencies_from_legacy_args(
     *,
-    iface: Any,
+    iface: SendTextInterface,
     tracker: TrackerChatRecorder,
-    send_lock: Any,
+    send_lock: SendLock,
     send_reaction_packet_fn: SendReactionPacketFn,
     get_local_node_id_fn: GetLocalNodeIdFn,
     chat_max_bytes: int,

@@ -1,4 +1,6 @@
-from typing import Any, Iterable, Optional, Sequence
+from typing import Optional, Sequence
+
+from .sql_contracts import SqlConnection, SqlRow
 
 
 METRIC_FIELDS: tuple[str, ...] = (
@@ -25,13 +27,13 @@ def where_clause(*, key_fields: Sequence[str]) -> str:
 
 
 def select_existing_row(
-    conn: Any,
+    conn: SqlConnection,
     *,
     table_name: str,
     key_fields: Sequence[str],
     bucket_unix: int,
-    key_values: Sequence[Any],
-) -> Optional[Iterable[Any]]:
+    key_values: Sequence[object],
+) -> Optional[SqlRow]:
     sql = (
         f"SELECT {', '.join(METRIC_FIELDS)} "
         f"FROM {table_name} "

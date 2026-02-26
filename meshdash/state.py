@@ -1,6 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from .revision import RevisionInfo
+from .state_service_contracts import RevisionPayload, StateTracker
 
 from .state_nodes import (
     collect_local_state as _collect_local_state_helper,
@@ -11,24 +11,24 @@ from .state_service import (
 )
 
 
-def collect_nodes(iface: Any) -> Dict[str, Any]:
+def collect_nodes(iface: object) -> dict[str, object]:
     return _collect_nodes_helper(iface)
 
 
-def collect_local_state(iface: Any) -> Dict[str, Any]:
+def collect_local_state(iface: object) -> dict[str, object]:
     return _collect_local_state_helper(iface)
 
 
 def build_state(
-    iface: Any,
-    tracker: Any,
+    iface: object,
+    tracker: StateTracker,
     started_at: float,
     target: str,
     show_secrets: bool,
     storage_probe_path: Optional[str],
-    revision_info: RevisionInfo | Dict[str, str],
+    revision_info: RevisionPayload,
     sensitive_field_names: set[str],
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     return _build_dashboard_state_helper(
         iface=iface,
         tracker=tracker,

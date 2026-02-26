@@ -1,6 +1,5 @@
 import time
 from datetime import datetime
-from typing import Any
 
 from .history_read_contracts import (
     BuildNodeHistoryPayloadFn,
@@ -11,10 +10,11 @@ from .history_read_contracts import (
     TimezoneLabelFn,
 )
 from .runtime_types import NowUnixFn
+from .sql_contracts import SqlConnection
 
 
 def load_node_history_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     node_id: str,
     window_hours: int,
@@ -50,7 +50,7 @@ def load_node_history_data(
 
 
 def load_online_activity_data(
-    conn: Any,
+    conn: SqlConnection,
     *,
     window_hours: int,
     fetch_online_activity_rows_fn: FetchOnlineActivityRowsFn,

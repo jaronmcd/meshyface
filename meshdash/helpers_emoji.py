@@ -1,4 +1,4 @@
-from typing import Any, Optional, Tuple
+from typing import Optional
 
 from .helpers_types import to_int as _to_int
 
@@ -13,7 +13,7 @@ def emoji_from_codepoint(codepoint: Optional[int]) -> Optional[str]:
         return None
 
 
-def normalize_single_emoji(value: Any) -> Tuple[Optional[str], Optional[int]]:
+def normalize_single_emoji(value: object) -> tuple[Optional[str], Optional[int]]:
     if value is None:
         return None, None
     text = str(value).strip()

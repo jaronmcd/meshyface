@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Callable, Optional
 
 from .helpers import safe_json_loads as _safe_json_loads, to_int as _to_int
 
@@ -10,7 +10,7 @@ def normalize_connection_event_input(
     rx_time: Optional[int],
     portnum: Optional[str],
     hops: Optional[int],
-    now_unix_fn=time.time,
+    now_unix_fn: Callable[[], float] = time.time,
 ) -> tuple[int, Optional[str], Optional[int]]:
     event_unix = rx_time if isinstance(rx_time, int) and rx_time > 0 else int(now_unix_fn())
     clean_port = str(portnum) if portnum is not None else None
@@ -25,7 +25,7 @@ def build_connection_insert_values(
     event_unix: int,
     clean_port: Optional[str],
     clean_hops: Optional[int],
-) -> Tuple[Any, ...]:
+) -> tuple[object, ...]:
     ports: set[str] = set()
     if clean_port:
         ports.add(clean_port)
@@ -44,11 +44,11 @@ def build_connection_insert_values(
 
 def merge_connection_row(
     *,
-    row: Tuple[Any, ...],
+    row: tuple[object, ...],
     event_unix: int,
     clean_port: Optional[str],
     clean_hops: Optional[int],
-) -> Dict[str, Any]:
+) -> dict[str, object]:
     first_seen_unix, last_seen_unix, seen_count, portnums_json, last_hops, hops_sum, hops_count = row
     ports = _safe_json_loads(portnums_json, [])
     if not isinstance(ports, list):

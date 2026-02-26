@@ -1,19 +1,20 @@
 from collections import Counter, deque
 from dataclasses import dataclass
-from typing import Any, Dict, MutableSequence
 
 from .tracker_bootstrap import TrackerHistoryBootstrap
 from .tracker_bootstrap_contracts import TrackerBootstrapHistoryStore
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
+from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer
 from .tracker_runtime_init_contracts import BuildHistoricalEdgesFn, LoadTrackerHistoryBootstrapFn
 
 
 @dataclass
 class TrackerBuffers:
-    edges: Dict[Any, Dict[str, Any]]
-    historical_edges: Dict[Any, Dict[str, Any]]
+    edges: dict[EdgeKey, EdgeRow]
+    historical_edges: dict[EdgeKey, EdgeRow]
     port_counts: Counter[str]
-    recent_packets: deque[dict[str, Any]]
-    recent_chat: deque[dict[str, Any]]
+    recent_packets: deque[dict[str, object]]
+    recent_chat: deque[dict[str, object]]
 
 
 def initialize_tracker_buffers(packet_limit: int) -> TrackerBuffers:
@@ -30,11 +31,11 @@ def apply_tracker_history_bootstrap(
     *,
     history_store: TrackerBootstrapHistoryStore | None,
     packet_limit: int,
-    recent_packets: MutableSequence[dict[str, Any]],
-    recent_chat: MutableSequence[dict[str, Any]],
+    recent_packets: RecentPacketBuffer,
+    recent_chat: RecentChatBuffer,
     load_tracker_history_bootstrap_fn: LoadTrackerHistoryBootstrapFn,
     build_historical_edges_fn: BuildHistoricalEdgesFn,
-) -> Dict[Any, Dict[str, Any]]:
+) -> dict[EdgeKey, EdgeRow]:
     if history_store is None:
         return {}
     bootstrap: TrackerHistoryBootstrap = load_tracker_history_bootstrap_fn(

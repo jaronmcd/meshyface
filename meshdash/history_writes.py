@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict
+from typing import Callable
 
 from .helpers import extract_position_fields as _extract_position_fields
 from .history_capability_writes import (
@@ -17,13 +17,14 @@ from .history_positions import (
     insert_node_position_if_changed as _insert_node_position_if_changed,
 )
 from .history_rollups import bucket_minute as _bucket_minute
+from .sql_contracts import SqlConnection
 
 
 def save_packet_event_and_rollups(
-    conn: Any,
-    summary: Dict[str, Any],
+    conn: SqlConnection,
+    summary: dict[str, object],
     *,
-    now_unix_fn=time.time,
+    now_unix_fn: Callable[[], float] = time.time,
 ) -> None:
     normalized = _normalize_packet_event_summary(summary, now_unix_fn=now_unix_fn)
     event_unix = normalized["event_unix"]

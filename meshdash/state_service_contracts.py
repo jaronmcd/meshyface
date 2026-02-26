@@ -1,4 +1,4 @@
-from typing import Any, Optional, Protocol
+from typing import Optional, Protocol
 
 from .revision import RevisionInfo
 from .state_node_contracts import CollectedNodes, NodeByIdMap
@@ -8,35 +8,35 @@ RevisionPayload = RevisionInfo | dict[str, str]
 
 
 class CollectNodesFn(Protocol):
-    def __call__(self, iface: Any) -> CollectedNodes | dict[str, Any]:
+    def __call__(self, iface: object) -> CollectedNodes | dict[str, object]:
         ...
 
 
 class CollectLocalStateFn(Protocol):
-    def __call__(self, iface: Any) -> dict[str, Any]:
+    def __call__(self, iface: object) -> dict[str, object]:
         ...
 
 
 class CollectLocalStateSafeFn(Protocol):
     def __call__(
         self,
-        iface: Any,
+        iface: object,
         *,
         collect_local_state_fn: CollectLocalStateFn,
-    ) -> tuple[dict[str, Any], Optional[str]]:
+    ) -> tuple[dict[str, object], Optional[str]]:
         ...
 
 
 class ModemPresetFromLocalStateFn(Protocol):
-    def __call__(self, local_state: dict[str, Any]) -> Optional[str]:
+    def __call__(self, local_state: dict[str, object]) -> Optional[str]:
         ...
 
 
 class ApplyNodeSavedCountsFn(Protocol):
     def __call__(
         self,
-        rows: list[dict[str, Any]],
-        node_saved_counts: dict[str, dict[str, Any]],
+        rows: list[dict[str, object]],
+        node_saved_counts: dict[str, dict[str, object]],
     ) -> None:
         ...
 
@@ -47,29 +47,29 @@ class BuildSummaryPayloadFn(Protocol):
         *,
         target: str,
         started_at: float,
-        node_rows: list[dict[str, Any]],
+        node_rows: list[dict[str, object]],
         nodes_with_position: int,
-        tracker_data: TrackerSnapshot | dict[str, Any],
+        tracker_data: TrackerSnapshot | dict[str, object],
         storage_probe_path: Optional[str],
         revision_info: RevisionPayload,
         modem_preset: Optional[str],
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         ...
 
 
 class RedactSecretsFn(Protocol):
-    def __call__(self, state: Any, sensitive_field_names: set[str]) -> Any:
+    def __call__(self, state: object, sensitive_field_names: set[str]) -> object:
         ...
 
 
 class StateTracker(Protocol):
-    def snapshot(self, by_id: dict[str, dict[str, Any]]) -> TrackerSnapshot | dict[str, Any]:
+    def snapshot(self, by_id: dict[str, dict[str, object]]) -> TrackerSnapshot | dict[str, object]:
         ...
 
-    def load_node_saved_counts(self) -> dict[str, dict[str, Any]]:
+    def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
         ...
 
-    def load_node_capabilities(self) -> dict[str, dict[str, Any]]:
+    def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         ...
 
 
@@ -86,7 +86,7 @@ class LoadTrackerNodeSavedCountsSafeFn(Protocol):
     def __call__(
         self,
         tracker: StateTracker,
-    ) -> tuple[dict[str, dict[str, Any]], Optional[str]]:
+    ) -> tuple[dict[str, dict[str, object]], Optional[str]]:
         ...
 
 
@@ -94,5 +94,5 @@ class LoadTrackerNodeCapabilitiesSafeFn(Protocol):
     def __call__(
         self,
         tracker: StateTracker,
-    ) -> tuple[dict[str, dict[str, Any]], Optional[str]]:
+    ) -> tuple[dict[str, dict[str, object]], Optional[str]]:
         ...

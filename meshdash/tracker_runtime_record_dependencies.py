@@ -1,5 +1,3 @@
-from typing import Any
-
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -33,7 +31,7 @@ def build_tracker_packet_runtime_dependencies_from_legacy_args(
     *,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
-    port_counts: Any,
+    port_counts: object,
     recent_packets: RecentPacketBuffer,
     recent_chat: RecentChatBuffer,
     history_store: TrackerHistoryWriter | None,

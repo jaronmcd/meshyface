@@ -1,14 +1,13 @@
 from dataclasses import dataclass
-from typing import Any
 
-from .runtime_types import TrackerEdgeMap
 from .tracker_bootstrap_contracts import BuildHistoricalEdgesFn, TrackerBootstrapHistoryStore
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
 
 @dataclass(frozen=True)
 class TrackerHistoryBootstrap:
-    recent_packets: list[dict[str, Any]]
-    recent_chat: list[dict[str, Any]]
-    historical_edges: TrackerEdgeMap
+    recent_packets: list[dict[str, object]]
+    recent_chat: list[dict[str, object]]
+    historical_edges: dict[EdgeKey, EdgeRow]
 
 
 def load_tracker_history_bootstrap(

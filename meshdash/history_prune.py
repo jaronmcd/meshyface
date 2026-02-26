@@ -1,8 +1,8 @@
-from typing import Any
+from .sql_contracts import SqlConnection
 
 
 def prune_history_tables(
-    conn: Any,
+    conn: SqlConnection,
     *,
     now_unix: int,
     retention_seconds: int,

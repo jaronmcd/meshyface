@@ -1,13 +1,13 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from .helpers_core import to_float as _to_float
 
 
-def extract_packet_battery_level(packet: Dict[str, Any]) -> Optional[int]:
+def extract_packet_battery_level(packet: dict[str, object]) -> Optional[int]:
     if not isinstance(packet, dict):
         return None
 
-    candidates: list[Dict[str, Any]] = []
+    candidates: list[dict[str, object]] = []
     decoded = packet.get("decoded")
     if isinstance(decoded, dict):
         telemetry = decoded.get("telemetry")

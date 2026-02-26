@@ -1,16 +1,17 @@
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Iterable
+from typing import Callable, Optional
 
 from .helpers import to_int
 from .nodes import parse_utc_text_to_unix, utc_now
 
 
 def expire_pending_deliveries(
-    recent_chat: Any,
+    recent_chat: Iterable[object],
     timeout_seconds: int,
     *,
-    to_int_fn: Callable[[Any], Optional[int]] = to_int,
-    parse_utc_text_to_unix_fn: Callable[[Any], Optional[int]] = parse_utc_text_to_unix,
+    to_int_fn: Callable[[object], Optional[int]] = to_int,
+    parse_utc_text_to_unix_fn: Callable[[object], Optional[int]] = parse_utc_text_to_unix,
     now_unix_fn: Callable[[], int] = lambda: int(time.time()),
     now_text_fn: Callable[[], str] = utc_now,
 ) -> None:

@@ -1,19 +1,20 @@
-from typing import Any, Iterable, Protocol
+from collections.abc import Iterable
+from typing import Protocol
 
-from .runtime_types import TrackerEdgeMap
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
 
 
 class TrackerBootstrapHistoryStore(Protocol):
-    def load_recent_packets(self, limit: int) -> Iterable[dict[str, Any]]:
+    def load_recent_packets(self, limit: int) -> Iterable[dict[str, object]]:
         ...
 
-    def load_recent_chat(self, limit: int) -> Iterable[dict[str, Any]]:
+    def load_recent_chat(self, limit: int) -> Iterable[dict[str, object]]:
         ...
 
-    def load_connections(self) -> Iterable[dict[str, Any]]:
+    def load_connections(self) -> Iterable[EdgeRow]:
         ...
 
 
 class BuildHistoricalEdgesFn(Protocol):
-    def __call__(self, connection_rows: Iterable[dict[str, Any]]) -> TrackerEdgeMap:
+    def __call__(self, connection_rows: Iterable[EdgeRow]) -> dict[EdgeKey, EdgeRow]:
         ...

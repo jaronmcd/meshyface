@@ -1,18 +1,21 @@
-from typing import Any, Dict
+from collections.abc import MutableMapping
+from typing import Callable, Optional
+
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
 
 
 def apply_tracker_observation(
     *,
-    parsed: Dict[str, Any],
+    parsed: dict[str, object],
     include_live_count: bool,
-    session_edges: Dict[Any, Dict[str, Any]],
-    historical_edges: Dict[Any, Dict[str, Any]],
-    port_counts: Any,
-    apply_routing_delivery_update_fn,
-    extract_update_fn,
-    set_delivery_state_fn,
-    record_direct_edge_observation_fn,
-):
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+    port_counts: MutableMapping[str, int],
+    apply_routing_delivery_update_fn: Callable[..., object],
+    extract_update_fn: object,
+    set_delivery_state_fn: object,
+    record_direct_edge_observation_fn: Callable[..., Optional[EdgeKey]],
+) -> Optional[EdgeKey]:
     decoded = parsed["decoded"]
     from_id = parsed["from_id"]
     to_id = parsed["to_id"]
@@ -26,7 +29,8 @@ def apply_tracker_observation(
         set_delivery_state_fn=set_delivery_state_fn,
     )
     if portnum is not None:
-        port_counts[str(portnum)] += 1
+        key = str(portnum)
+        port_counts[key] = int(port_counts.get(key, 0)) + 1
 
     return record_direct_edge_observation_fn(
         session_edges=session_edges,

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 
 def is_sensitive_key(key: str, sensitive_field_names: set[str]) -> bool:
@@ -9,10 +9,10 @@ def is_sensitive_key(key: str, sensitive_field_names: set[str]) -> bool:
 
 
 def redact_secrets(
-    value: Any,
+    value: object,
     sensitive_field_names: set[str],
     parent_key: Optional[str] = None,
-) -> Any:
+) -> object:
     if parent_key and is_sensitive_key(parent_key, sensitive_field_names):
         return "<redacted>"
     if isinstance(value, dict):

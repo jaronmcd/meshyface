@@ -54,6 +54,7 @@ Split `_render_html()` into composable builders while keeping server behavior un
   - `tests/test_html.py`
   - `tests/test_html_assets.py`
   - `tests/test_html_sections.py`
+  - focused chat/network/saved structure assertions in `tests/test_html.py` to guard key DOM anchors used by frontend behavior.
 
 ### Steps
 
@@ -100,6 +101,12 @@ Separate state assembly from HTTP wiring.
   - emits `summary_error` and falls back to a minimal summary payload instead of raising.
 - `/api/state` now normalizes both typed and dict state payload returns through `coerce_dashboard_state_payload(...)` at the API boundary before JSON writing.
 - Centralized state API-boundary normalization in `normalize_state_payload_for_api(...)` within `meshdash/state_payload_contracts.py`, keeping handler modules transport-thin.
+- Tightened state payload/service contracts from broad `Any` to concrete `object` + typed dict shapes across:
+  - `state_node_contracts.py`
+  - `state_payload_contracts.py`
+  - `state_service_contracts.py`
+  - `state_summary.py`
+  - `state_service.py`
 - Replaced loose callable aliases in `meshdash/http_route_contracts.py` with explicit parser/writer protocol signatures for GET/POST dependency wiring.
 - Normalized API input parser integer-coercion typing (`api_input_chat.py`, `api_input_history.py`) to shared `runtime_types.ToIntFn` alias.
 - Updated `http_api.make_http_handler(...)` to consume shared route-contract types (`StateFn`, `NodeHistoryFn`, `OnlineActivityFn`, `SendChatFn`, `ToIntFn`) instead of local raw callable signatures.
@@ -147,6 +154,8 @@ Break `HistoryStore` into smaller repositories.
   - tighter node-history and online-activity wrapper delegation assertions in `tests/test_history_store_io_wrappers.py`
   - shared callback protocol/type aliases for history read modules in `meshdash/history_read_contracts.py` and usage in `history_read_api.py` / `history_read_history.py`
   - explicit callback protocol contracts in `meshdash/history_store_runtime_init.py` for policy builder and history connection openers
+  - shared SQL execution protocols in `meshdash/sql_contracts.py` and adoption across history read/write modules to reduce duplicate SQL typing contracts.
+  - centralized history runtime store/lock/prune protocol contracts in `meshdash/history_store_runtime_contracts.py` with `history_store_runtime_init.py` and `history_store_runtime_maintenance.py` now consuming the shared contracts.
 
 ### Steps
 
@@ -258,6 +267,41 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Applied shared tracker callback aliases across `tracker_ingest.py` and `tracker_receive.py` so parse/process layers share the same contract vocabulary as runtime receive/record wiring.
 - Applied shared tracker callback aliases in `tracker_runtime_receive_bindings.py` for resolver and dispatch hook signatures.
 - Added `TrackerReceiveRuntimeState` protocol in `meshdash/tracker_runtime_types.py` and applied it to receive-path dependency assembly/wiring entrypoints.
+- Added explicit runtime/setup protocol contracts:
+  - `meshdash/dashboard_args_contracts.py` (shared runtime/server arg shape)
+  - `meshdash/dashboard_setup_contracts.py` (history-store/tracker factory + runtime setup collaborators)
+  - `meshdash/runtime_lifecycle_contracts.py` (serve/close lifecycle boundaries)
+- Applied those contracts through dashboard runtime setup/orchestration modules:
+  - `dashboard_setup.py`
+  - `dashboard_runtime_context.py`
+  - `dashboard_runner_impl.py`
+  - `dashboard_runtime_loader_contracts.py`
+  - `dashboard_runtime_loader_dependencies.py`
+  - `dashboard_runtime_loaders.py`
+  - `dashboard_server_contracts.py`
+  - `dashboard_server_dependencies.py`
+  - `dashboard_server.py`
+  - `runtime.py`
+  - `runtime_lifecycle.py`
+- Normalized `meshdash/runtime_types.py` callback aliases from broad `Any` to `object`/typed built-in generics, eliminating remaining `Any` usage in `dashboard_*` / `runtime*` modules.
+- Tightened tracker snapshot/runtime state contracts to concrete typed row/counter/iterable boundaries:
+  - `tracker_snapshot_build_contracts.py`
+  - `tracker_snapshot.py`
+  - `tracker_runtime_state.py`
+  - `tracker_runtime_types.py`
+  - `tracker_snapshot_contracts.py`
+  - `tracker_storage_contracts.py`
+- Tightened chat/packet entry helper signatures from broad `Any` to typed object+callback contracts:
+  - `chat_entry.py`
+  - `tracker_entries.py`
+- Tightened history read/query contract surfaces (protocols + loaders + analytics helpers):
+  - `history_read_contracts.py`
+  - `history_read_api.py`
+  - `history_read_history.py`
+  - `history_queries.py`
+  - `history_readers.py`
+  - `history_node_analytics.py`
+  - `history_online_analytics.py`
 - `runtime_state_loader` now accepts `RevisionInfo` and performs dict conversion at the state-payload boundary.
 - Reused shared HTTP route type aliases across API domain modules (`api_system`, `api_chat`, `api_history_node`, `api_history_online`) to reduce duplicated callable signatures.
 - Added shared HTTP handler protocol contracts in `meshdash/http_handler_contracts.py` and applied them across API/route/response dispatch modules (`api_chat`, `api_system`, `http_routes_*`, `http_api_*`, `http_responses`, `http_handler`) so HTTP boundaries no longer rely on raw `Any` handler typing.
@@ -268,6 +312,8 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Tightened tracker receive/record interface typing (`tracker_runtime_receive.py`, `tracker_runtime_record.py`) by replacing raw `Any` interface surfaces with `object` where no concrete interface API is consumed.
 - Tightened node-id resolver identity surfaces (`tracker_node_resolver.py`, `nodes_identity.py`, `runtime_types.py`) so interface/node-number callback contracts use explicit `object` inputs instead of raw `Any`.
 - Unified tracker history-store runtime typing in `tracker_runtime_types.py` / `tracker_runtime_init_contracts.py` so receive/snapshot/init paths share a combined `TrackerRuntimeHistoryStore` contract instead of parallel store aliases.
+- Added local-chat runtime protocol contracts in `meshdash/tracker_local_chat_contracts.py` and applied them through `tracker_local_entry.py`, `tracker_local_chat.py`, and `tracker_runtime_chat.py` so local chat append/build/runtime-state surfaces are explicitly typed.
+- Added send-path protocol contracts in `meshdash/send_chat_contracts.py` and applied them through `runtime_send_contracts.py`, `runtime_send_dependencies.py`, `runtime_send_loader.py`, and `services_chat.py` so send interface/lock dependency boundaries are explicitly typed.
 - Added typed tracker packet-ingest dependency contract:
   - `TrackerPacketRuntimeDependencies` in `meshdash/tracker_runtime_packet_contracts.py`
   - `record_tracker_packet_unlocked_with_dependencies(...)` in `meshdash/tracker_runtime_record.py`
@@ -295,6 +341,7 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Applied shared runtime callback aliases in `meshdash/tracker_callbacks.py` (delivery callback bundle + timeout/clock parsers) to reduce ad-hoc callable typing in tracker runtime wiring.
 - Applied shared runtime callback aliases in `meshdash/dashboard_server.py`, `meshdash/dashboard_runner_impl.py`, and `meshdash/wiring_runtime.py` to reduce remaining ad-hoc runtime/server callable signatures.
 - Normalized remaining shared callable aliases in utility/state surfaces (`meshdash/nodes_identity.py`, `meshdash/mesh_ops.py`, `meshdash/state_service.py`) to use `runtime_types` contracts.
+- Completed a broad `Any`-removal pass across `meshdash/*.py` helper/runtime modules (tracker ingest/record/receive, history write/read helpers, HTTP helpers, chat send/delivery helpers, node/time/disk/theme utilities), reducing remaining `Any` references in `meshdash` to zero while preserving behavior.
 - Added typed dashboard-server dependency contract:
   - `DashboardServerDependencies` in `meshdash/dashboard_server_contracts.py`
   - `build_dashboard_server_dependencies_from_legacy_args(...)` in `meshdash/dashboard_server_dependencies.py`

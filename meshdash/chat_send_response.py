@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 
 def delivery_state_for_send(
@@ -28,8 +28,8 @@ def build_chat_send_response(
     is_reaction: bool,
     emoji: Optional[str],
     emoji_codepoint: Optional[int],
-) -> Dict[str, Any]:
-    response: Dict[str, Any] = {
+) -> dict[str, object]:
+    response: dict[str, object] = {
         "ok": True,
         "sent_at": now_text_fn(),
         "from": local_node_id,

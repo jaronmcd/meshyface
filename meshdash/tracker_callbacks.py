@@ -1,6 +1,7 @@
 import time
+from collections.abc import Reversible
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable, Optional
 
 from .runtime_types import (
     ExtractDeliveryUpdateFn,
@@ -26,7 +27,7 @@ class TrackerDeliveryCallbacks:
 
 
 def build_tracker_delivery_callbacks(
-    recent_chat: Any,
+    recent_chat: Reversible[object],
     *,
     get_timeout_seconds_fn: GetTimeoutSecondsFn,
     to_int_fn: ToIntFn,
@@ -34,7 +35,7 @@ def build_tracker_delivery_callbacks(
     utc_now_fn: UtcNowFn,
     now_unix_fn: NowUnixFn = time.time,
 ) -> TrackerDeliveryCallbacks:
-    def _set_delivery_state(message_id: Any, state: str, error: Any = None) -> bool:
+    def _set_delivery_state(message_id: object, state: str, error: Optional[str] = None) -> bool:
         return _set_tracker_delivery_state_helper(
             recent_chat,
             message_id=message_id,
@@ -45,7 +46,7 @@ def build_tracker_delivery_callbacks(
             now_unix_fn=now_unix_fn,
         )
 
-    def _extract_delivery_update(decoded: Any):
+    def _extract_delivery_update(decoded: object) -> Optional[dict[str, object]]:
         return _extract_tracker_delivery_update_helper(decoded, to_int_fn=to_int_fn)
 
     def _expire_pending_deliveries() -> None:

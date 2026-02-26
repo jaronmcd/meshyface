@@ -1,4 +1,4 @@
-from typing import Any, Protocol
+from typing import Protocol
 
 from .runtime_types import (
     ExtractDeliveryUpdateFn,
@@ -7,33 +7,33 @@ from .runtime_types import (
     ParseUtcTextToUnixFn,
     SetDeliveryStateFn,
     ToIntFn,
-    TrackerEdgeMap,
     UtcNowFn,
 )
 from .tracker_bootstrap_contracts import BuildHistoricalEdgesFn, TrackerBootstrapHistoryStore
 from .tracker_bootstrap import TrackerHistoryBootstrap
 from .tracker_callbacks import TrackerDeliveryCallbacks
-from .tracker_snapshot_build_contracts import ExpirePendingDeliveriesFn
+from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow, ExpirePendingDeliveriesFn, PortCounter
 from .tracker_runtime_types import TrackerRuntimeHistoryStore
+from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer
 
 
 class TrackerBuffersLike(Protocol):
-    edges: TrackerEdgeMap
-    historical_edges: TrackerEdgeMap
-    port_counts: Any
-    recent_packets: Any
-    recent_chat: Any
+    edges: dict[EdgeKey, EdgeRow]
+    historical_edges: dict[EdgeKey, EdgeRow]
+    port_counts: PortCounter
+    recent_packets: RecentPacketBuffer
+    recent_chat: RecentChatBuffer
 
 
 class TrackerInitRuntimeState(Protocol):
     _history_store: TrackerRuntimeHistoryStore | None
     _chat_delivery_timeout_seconds: int
     live_packet_count: int
-    edges: TrackerEdgeMap
-    _historical_edges: TrackerEdgeMap
-    port_counts: Any
-    recent_packets: Any
-    recent_chat: Any
+    edges: dict[EdgeKey, EdgeRow]
+    _historical_edges: dict[EdgeKey, EdgeRow]
+    port_counts: PortCounter
+    recent_packets: RecentPacketBuffer
+    recent_chat: RecentChatBuffer
     _set_delivery_state_fn: SetDeliveryStateFn
     _extract_delivery_update_fn: ExtractDeliveryUpdateFn
     _expire_pending_deliveries_fn: ExpirePendingDeliveriesFn
@@ -47,7 +47,7 @@ class InitializeTrackerBuffersFn(Protocol):
 class BuildTrackerDeliveryCallbacksFn(Protocol):
     def __call__(
         self,
-        recent_chat: Any,
+        recent_chat: RecentChatBuffer,
         *,
         get_timeout_seconds_fn: GetTimeoutSecondsFn,
         to_int_fn: ToIntFn,
@@ -75,9 +75,9 @@ class ApplyTrackerHistoryBootstrapFn(Protocol):
         *,
         history_store: TrackerBootstrapHistoryStore | None,
         packet_limit: int,
-        recent_packets: Any,
-        recent_chat: Any,
+        recent_packets: RecentPacketBuffer,
+        recent_chat: RecentChatBuffer,
         load_tracker_history_bootstrap_fn: LoadTrackerHistoryBootstrapFn,
         build_historical_edges_fn: BuildHistoricalEdgesFn,
-    ) -> TrackerEdgeMap:
+    ) -> dict[EdgeKey, EdgeRow]:
         ...

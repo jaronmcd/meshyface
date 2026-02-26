@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer, TrackerHistoryWriter
 
@@ -9,12 +9,12 @@ def apply_tracker_storage_updates(
     recent_chat: RecentChatBuffer,
     history_store: TrackerHistoryWriter | None,
     include_live_count: bool,
-    direct_key: Optional[Tuple[str, str]],
+    direct_key: Optional[tuple[str, str]],
     rx_time: Optional[int],
-    portnum: Optional[Any],
+    portnum: Optional[object],
     hops: Optional[int],
-    packet_entry: Dict[str, Any],
-    chat_entry: Optional[Dict[str, Any]],
+    packet_entry: dict[str, object],
+    chat_entry: Optional[dict[str, object]],
 ) -> None:
     if direct_key is not None and include_live_count and history_store is not None:
         history_store.save_connection_event(

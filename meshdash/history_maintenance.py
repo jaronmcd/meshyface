@@ -1,9 +1,11 @@
 import time
-from typing import Any, Callable, Tuple
+from typing import Callable
+
+from .sql_contracts import SqlConnection
 
 
 def prune_history_tables_now(
-    conn: Any,
+    conn: SqlConnection,
     *,
     retention_seconds: int,
     event_retention_seconds: int,
@@ -28,7 +30,7 @@ def next_prune_counter(
     writes_since_prune: int,
     *,
     prune_every: int = 50,
-) -> Tuple[int, bool]:
+) -> tuple[int, bool]:
     next_count = int(writes_since_prune) + 1
     if next_count < int(prune_every):
         return next_count, False

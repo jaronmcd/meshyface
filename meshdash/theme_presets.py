@@ -1,15 +1,20 @@
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from .theme import DARK_THEME_VARS, LIGHT_THEME_VARS
 
 
-def _copy_theme_tokens(tokens: Dict[str, str]) -> Dict[str, str]:
+ThemeTokens = dict[str, str]
+ThemePreset = dict[str, ThemeTokens]
+ThemePresetMap = dict[str, ThemePreset]
+
+
+def _copy_theme_tokens(tokens: ThemeTokens) -> ThemeTokens:
     return {str(key): str(value) for key, value in tokens.items()}
 
 
-def default_theme_presets() -> Dict[str, Dict[str, Dict[str, str]]]:
+def default_theme_presets() -> ThemePresetMap:
     return {
         "default": {
             "light": _copy_theme_tokens(LIGHT_THEME_VARS),
@@ -19,10 +24,10 @@ def default_theme_presets() -> Dict[str, Dict[str, Dict[str, str]]]:
 
 
 def _normalize_theme_tokens(
-    raw_tokens: Any,
+    raw_tokens: object,
     *,
     required_keys: set[str],
-) -> Optional[Dict[str, str]]:
+) -> Optional[ThemeTokens]:
     if not isinstance(raw_tokens, dict):
         return None
     normalized = {str(key): str(value) for key, value in raw_tokens.items()}
@@ -32,11 +37,11 @@ def _normalize_theme_tokens(
 
 
 def _normalize_theme_preset(
-    raw_preset: Any,
+    raw_preset: object,
     *,
     required_light_keys: set[str],
     required_dark_keys: set[str],
-) -> Optional[Dict[str, Dict[str, str]]]:
+) -> Optional[ThemePreset]:
     if not isinstance(raw_preset, dict):
         return None
     light_tokens = _normalize_theme_tokens(
@@ -59,9 +64,9 @@ def load_theme_presets(
     presets_path: Optional[str],
     *,
     read_text_fn: Optional[Callable[[str], str]] = None,
-    json_loads_fn: Callable[[str], Any] = json.loads,
-    default_presets_fn: Callable[[], Dict[str, Dict[str, Dict[str, str]]]] = default_theme_presets,
-) -> Dict[str, Dict[str, Dict[str, str]]]:
+    json_loads_fn: Callable[[str], object] = json.loads,
+    default_presets_fn: Callable[[], ThemePresetMap] = default_theme_presets,
+) -> ThemePresetMap:
     presets = default_presets_fn()
     if not presets_path:
         return presets
@@ -93,11 +98,11 @@ def load_theme_presets(
 
 
 def select_theme_preset(
-    presets: Dict[str, Dict[str, Dict[str, str]]],
+    presets: ThemePresetMap,
     preset_name: Optional[str],
     *,
     fallback_name: str = "default",
-) -> Dict[str, Dict[str, str]]:
+) -> ThemePreset:
     if preset_name:
         selected = presets.get(str(preset_name))
         if isinstance(selected, dict):

@@ -1,10 +1,12 @@
-from typing import Any, Dict, Iterable
+from collections.abc import Iterable
 
 from .helpers import safe_json_loads as _safe_json_loads, to_int as _to_int
 
+HistoryRow = tuple[object, ...]
+HistoryPayload = dict[str, object]
 
-def decode_recent_packets_rows(rows: Iterable[Any]) -> list[Dict[str, Any]]:
-    out: list[Dict[str, Any]] = []
+def decode_recent_packets_rows(rows: Iterable[HistoryRow]) -> list[HistoryPayload]:
+    out: list[HistoryPayload] = []
     for summary_json, packet_json in reversed(list(rows)):
         summary = _safe_json_loads(summary_json, {})
         if not isinstance(summary, dict):
@@ -14,8 +16,8 @@ def decode_recent_packets_rows(rows: Iterable[Any]) -> list[Dict[str, Any]]:
     return out
 
 
-def decode_recent_chat_rows(rows: Iterable[Any]) -> list[Dict[str, Any]]:
-    out: list[Dict[str, Any]] = []
+def decode_recent_chat_rows(rows: Iterable[HistoryRow]) -> list[HistoryPayload]:
+    out: list[HistoryPayload] = []
     for (message_json,) in reversed(list(rows)):
         entry = _safe_json_loads(message_json, {})
         if isinstance(entry, dict):
@@ -23,8 +25,8 @@ def decode_recent_chat_rows(rows: Iterable[Any]) -> list[Dict[str, Any]]:
     return out
 
 
-def decode_connections_rows(rows: Iterable[Any]) -> list[Dict[str, Any]]:
-    out: list[Dict[str, Any]] = []
+def decode_connections_rows(rows: Iterable[HistoryRow]) -> list[HistoryPayload]:
+    out: list[HistoryPayload] = []
     for row in rows:
         (
             from_id,

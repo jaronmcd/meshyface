@@ -1,16 +1,16 @@
 import json
 import time
-from typing import Any, Dict
+from typing import Callable
 
 from .helpers import to_float as _to_float, to_int as _to_int
 from .history_rollups import clean_node_id as _clean_node_id
 
 
 def normalize_packet_event_summary(
-    summary: Dict[str, Any],
+    summary: dict[str, object],
     *,
-    now_unix_fn=time.time,
-) -> Dict[str, Any]:
+    now_unix_fn: Callable[[], float] = time.time,
+) -> dict[str, object]:
     event_unix = _to_int(summary.get("rx_time_unix"))
     if event_unix is None or event_unix <= 0:
         event_unix = int(now_unix_fn())
@@ -38,7 +38,7 @@ def normalize_packet_event_summary(
     }
 
 
-def build_packet_event_insert_values(normalized: Dict[str, Any]) -> tuple[Any, ...]:
+def build_packet_event_insert_values(normalized: dict[str, object]) -> tuple[object, ...]:
     return (
         normalized["event_unix"],
         normalized["from_id"],

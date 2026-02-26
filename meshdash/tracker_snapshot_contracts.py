@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Mapping
 
-TrackerEdgeRow = dict[str, Any]
-TrackerPortCountRow = dict[str, Any]
-TrackerPacketRow = dict[str, Any]
-TrackerChatRow = dict[str, Any]
+TrackerEdgeRow = dict[str, object]
+TrackerPortCountRow = dict[str, object]
+TrackerPacketRow = dict[str, object]
+TrackerChatRow = dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -16,7 +16,7 @@ class TrackerSnapshot:
     recent_packets: list[TrackerPacketRow]
     recent_chat: list[TrackerChatRow]
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "live_packet_count": self.live_packet_count,
             "real_edge_count": self.real_edge_count,
@@ -38,7 +38,7 @@ def empty_tracker_snapshot() -> TrackerSnapshot:
     )
 
 
-def coerce_tracker_snapshot(value: TrackerSnapshot | Mapping[str, Any]) -> TrackerSnapshot:
+def coerce_tracker_snapshot(value: TrackerSnapshot | Mapping[str, object]) -> TrackerSnapshot:
     if isinstance(value, TrackerSnapshot):
         return value
     if not isinstance(value, Mapping):

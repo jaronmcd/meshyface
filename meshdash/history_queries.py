@@ -1,21 +1,21 @@
-from typing import Any
+from .sql_contracts import SqlConnection, SqlRows
 
 
-def fetch_recent_packet_rows(conn: Any, limit: int) -> list[tuple[Any, ...]]:
+def fetch_recent_packet_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
         "SELECT summary_json, packet_json FROM packets ORDER BY id DESC LIMIT ?",
         (max(1, int(limit)),),
     ).fetchall()
 
 
-def fetch_recent_chat_rows(conn: Any, limit: int) -> list[tuple[Any, ...]]:
+def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
         "SELECT message_json FROM chat ORDER BY id DESC LIMIT ?",
         (max(1, int(limit)),),
     ).fetchall()
 
 
-def fetch_connection_rows(conn: Any) -> list[tuple[Any, ...]]:
+def fetch_connection_rows(conn: SqlConnection) -> SqlRows:
     return conn.execute(
         """
         SELECT from_id, to_id, first_seen_unix, last_seen_unix, seen_count,
@@ -27,12 +27,12 @@ def fetch_connection_rows(conn: Any) -> list[tuple[Any, ...]]:
 
 
 def fetch_node_history_rows(
-    conn: Any,
+    conn: SqlConnection,
     *,
     node_id: str,
     cutoff: int,
     limit: int,
-) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
+) -> tuple[SqlRows, SqlRows]:
     metric_rows = conn.execute(
         """
         SELECT bucket_unix, packet_count,
@@ -60,7 +60,7 @@ def fetch_node_history_rows(
     return metric_rows, position_rows
 
 
-def fetch_online_activity_rows(conn: Any, cutoff: int) -> tuple[list[tuple[Any, ...]], int]:
+def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRows, int]:
     hour_rows = conn.execute(
         """
         SELECT bucket_unix - (bucket_unix % 3600) AS hour_bucket,
@@ -80,7 +80,7 @@ def fetch_online_activity_rows(conn: Any, cutoff: int) -> tuple[list[tuple[Any, 
     return hour_rows, distinct_nodes
 
 
-def fetch_node_saved_count_rows(conn: Any) -> list[tuple[Any, ...]]:
+def fetch_node_saved_count_rows(conn: SqlConnection) -> SqlRows:
     return conn.execute(
         """
         SELECT node_id,
@@ -93,7 +93,7 @@ def fetch_node_saved_count_rows(conn: Any) -> list[tuple[Any, ...]]:
     ).fetchall()
 
 
-def fetch_node_capability_rows(conn: Any) -> list[tuple[Any, ...]]:
+def fetch_node_capability_rows(conn: SqlConnection) -> SqlRows:
     return conn.execute(
         """
         SELECT node_id, last_seen_unix, has_position, last_position_unix,

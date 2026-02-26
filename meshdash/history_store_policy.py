@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -28,7 +27,7 @@ def build_history_store_policy(
     )
 
 
-def policy_from_store_fields(store: Any) -> HistoryStorePolicy:
+def policy_from_store_fields(store: object) -> HistoryStorePolicy:
     return HistoryStorePolicy(
         max_rows=int(getattr(store, "max_rows")),
         event_max_rows=int(getattr(store, "event_max_rows")),

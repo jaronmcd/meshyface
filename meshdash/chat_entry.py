@@ -1,26 +1,27 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from .helpers import emoji_from_codepoint, to_int
+from .runtime_types import EmojiFromCodepointFn, ToIntFn
 
 
 def build_local_chat_entry(
-    text: Any,
+    text: object,
     *,
-    from_id: Any = "local",
-    to_id: Any = "^all",
-    channel_index: Any = 0,
-    message_id: Any = None,
-    reply_id: Any = None,
-    emoji: Any = None,
-    emoji_codepoint: Any = None,
+    from_id: object = "local",
+    to_id: object = "^all",
+    channel_index: object = 0,
+    message_id: object = None,
+    reply_id: object = None,
+    emoji: object = None,
+    emoji_codepoint: object = None,
     is_reaction: bool = False,
     ack_requested: bool = False,
-    retry_of: Any = None,
+    retry_of: object = None,
     now_text: str,
     now_unix: int,
-    to_int_fn: Callable[[Any], Optional[int]] = to_int,
-    emoji_from_codepoint_fn: Callable[[Optional[int]], Optional[str]] = emoji_from_codepoint,
-) -> Optional[Dict[str, Any]]:
+    to_int_fn: ToIntFn = to_int,
+    emoji_from_codepoint_fn: EmojiFromCodepointFn = emoji_from_codepoint,
+) -> Optional[dict[str, object]]:
     clean_text = str(text or "").strip()
     clean_message_id = to_int_fn(message_id)
     clean_reply_id = to_int_fn(reply_id)
@@ -44,7 +45,7 @@ def build_local_chat_entry(
             delivery_state = "error"
             delivery_error = "Delivery tracking unavailable (missing packet id)"
 
-    entry: Dict[str, Any] = {
+    entry: dict[str, object] = {
         "captured_at": now_text,
         "from": str(from_id or "local"),
         "to": str(to_id or "^all"),

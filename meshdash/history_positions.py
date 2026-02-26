@@ -1,18 +1,17 @@
-from typing import Any
-
 from .helpers import (
     extract_position_fields as _extract_position_fields,
     to_float as _to_float,
     to_int as _to_int,
 )
+from .sql_contracts import SqlConnection
 
 
 def insert_node_position_if_changed(
-    conn: Any,
+    conn: SqlConnection,
     *,
     node_id: str,
     event_unix: int,
-    position_data: Any,
+    position_data: object,
 ) -> None:
     coords = _extract_position_fields(position_data)
     if coords is None:

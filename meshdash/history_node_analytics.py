@@ -1,4 +1,5 @@
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .history_node_metrics import (
@@ -13,9 +14,9 @@ def build_node_history_payload(
     *,
     node_id: str,
     window_hours: int,
-    metric_rows: Iterable[Any],
-    position_rows: Iterable[Any],
-) -> Dict[str, Any]:
+    metric_rows: Iterable[tuple[object, ...]],
+    position_rows: Iterable[tuple[object, ...]],
+) -> dict[str, object]:
     clean_node_id = str(node_id or "").strip()
     hours = max(1, int(window_hours))
     if not clean_node_id:
@@ -27,8 +28,8 @@ def build_node_history_payload(
             "summary": {},
         }
 
-    points: list[Dict[str, Any]] = []
-    positions: list[Dict[str, Any]] = []
+    points: list[dict[str, object]] = []
+    positions: list[dict[str, object]] = []
     total_packets = 0
     snr_min_all: Optional[float] = None
     snr_max_all: Optional[float] = None
