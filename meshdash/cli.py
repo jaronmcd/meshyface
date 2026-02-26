@@ -1,5 +1,5 @@
 import argparse
-from typing import Callable, Optional
+from typing import Optional, Protocol
 
 from .cli_arguments import (
     add_default_gateway_args as _add_default_gateway_args_helper,
@@ -8,6 +8,16 @@ from .cli_arguments import (
     add_node_history_args as _add_node_history_args_helper,
     add_theme_args as _add_theme_args_helper,
 )
+
+
+class AddMeshConnectionArgsFn(Protocol):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        *,
+        default_mesh_port: str,
+    ) -> None:
+        ...
 
 
 def resolve_default_gateway_port(raw_value: Optional[str], fallback: int) -> int:
@@ -19,7 +29,7 @@ def resolve_default_gateway_port(raw_value: Optional[str], fallback: int) -> int
 
 def build_dashboard_parser(
     *,
-    add_mesh_connection_args_fn: Callable[..., None],
+    add_mesh_connection_args_fn: AddMeshConnectionArgsFn,
     default_mesh_port: str,
     default_gateway_host: str,
     default_gateway_port: int,

@@ -325,6 +325,12 @@ Reduce string-key coupling between runtime builders and orchestration modules.
   - `dashboard_setup_contracts.py`: `PrintLineFn`, `SeedTrackerBootstrapFn`, `OpenOptionalHistoryStoreFn`, `SeedTrackerIfEmptyFn`
   - `dashboard_runtime_loader_contracts.py`: `BuildDashboardRuntimeLoaderDependenciesFromLegacyArgsFn`, `BuildDashboardRuntimeLoadersWithDependenciesFn`, `BuildDashboardRuntimeLoadersFn`
   - `dashboard_runtime_context.py` now consumes those protocol contracts for setup/loader injection boundaries.
+- Removed remaining broad `Callable[..., ...]` signatures across `meshdash` by introducing explicit protocol contracts in non-runtime helper modules:
+  - `cli.py`: `AddMeshConnectionArgsFn`
+  - `app_meta.py`: `SanitizeTokenFn`, `DetectGitCommitFn`, `DetectCommitFn`, `BuildRevisionInfoFn`
+  - `history_metric_upsert.py`: `BuildMetricRollupValuesFn`, `MergeMetricRollupRowFn`
+  - `history_maintenance.py`: `PruneHistoryTablesFn`, `NowUnixFn`
+  - `history_raw_writes.py`: `NowUnixFn`, `SavePacketEventAndRollupsFn`
 - Removed the receive-path legacy dependency dict shim by adding `record_tracker_packet_unlocked_from_dependencies(...)` in `meshdash/tracker_runtime_receive_dependencies.py`; `tracker_runtime_receive.py` now forwards typed dependency objects directly to legacy callbacks.
 - Added typed tracker packet-ingest dependency contract:
   - `TrackerPacketRuntimeDependencies` in `meshdash/tracker_runtime_packet_contracts.py`

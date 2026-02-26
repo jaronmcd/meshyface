@@ -1,5 +1,5 @@
 import os
-from typing import Callable, Optional
+from typing import Optional, Protocol
 
 from .revision import (
     RevisionInfo,
@@ -9,14 +9,50 @@ from .revision import (
 )
 
 
+class SanitizeTokenFn(Protocol):
+    def __call__(self, value: object, fallback: str) -> str:
+        ...
+
+
+class DetectGitCommitFn(Protocol):
+    def __call__(
+        self,
+        *,
+        explicit_commit: object,
+        script_dir: str,
+        cwd: str,
+        unknown_git_commit: str,
+        sanitize_token: SanitizeTokenFn,
+    ) -> Optional[str]:
+        ...
+
+
+class DetectCommitFn(Protocol):
+    def __call__(self) -> Optional[str]:
+        ...
+
+
+class BuildRevisionInfoFn(Protocol):
+    def __call__(
+        self,
+        *,
+        version_raw: object,
+        default_version: str,
+        unknown_git_commit: str,
+        detect_commit: DetectCommitFn,
+        sanitize_token: SanitizeTokenFn,
+    ) -> RevisionInfo:
+        ...
+
+
 def detect_git_commit_from_env(
     *,
     script_file: str,
     cwd: str,
     explicit_commit: object,
     unknown_git_commit: str,
-    detect_git_commit_fn: Callable[..., Optional[str]] = _detect_git_commit_helper,
-    sanitize_token_fn: Callable[[object, str], str] = _sanitize_revision_token_helper,
+    detect_git_commit_fn: DetectGitCommitFn = _detect_git_commit_helper,
+    sanitize_token_fn: SanitizeTokenFn = _sanitize_revision_token_helper,
 ) -> Optional[str]:
     script_dir = os.path.dirname(os.path.abspath(script_file))
     return detect_git_commit_fn(
@@ -33,9 +69,9 @@ def revision_info_from_env(
     env_version: object,
     default_version: str,
     unknown_git_commit: str,
-    detect_commit_fn: Callable[[], Optional[str]],
-    build_revision_info_fn: Callable[..., RevisionInfo] = _build_revision_info_helper,
-    sanitize_token_fn: Callable[[object, str], str] = _sanitize_revision_token_helper,
+    detect_commit_fn: DetectCommitFn,
+    build_revision_info_fn: BuildRevisionInfoFn = _build_revision_info_helper,
+    sanitize_token_fn: SanitizeTokenFn = _sanitize_revision_token_helper,
 ) -> RevisionInfo:
     version_raw = env_version or default_version
     return build_revision_info_fn(

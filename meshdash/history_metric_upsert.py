@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Sequence
+from typing import Optional, Protocol, Sequence
 
 from .history_metric_upsert_queries import (
     select_existing_row as _select_existing_row_helper,
@@ -9,7 +9,32 @@ from .history_metric_upsert_writes import (
 from .history_metric_upsert_writes import (
     update_metric_row as _update_metric_row_helper,
 )
-from .sql_contracts import SqlConnection
+from .sql_contracts import SqlConnection, SqlRow
+
+
+class BuildMetricRollupValuesFn(Protocol):
+    def __call__(
+        self,
+        *,
+        event_unix: int,
+        rx_snr: Optional[float],
+        rx_rssi: Optional[float],
+        hops: Optional[int],
+    ) -> dict[str, object]:
+        ...
+
+
+class MergeMetricRollupRowFn(Protocol):
+    def __call__(
+        self,
+        *,
+        row: SqlRow,
+        event_unix: int,
+        rx_snr: Optional[float],
+        rx_rssi: Optional[float],
+        hops: Optional[int],
+    ) -> dict[str, object]:
+        ...
 
 
 def upsert_metric_rollup_row(
@@ -23,8 +48,8 @@ def upsert_metric_rollup_row(
     rx_snr: Optional[float],
     rx_rssi: Optional[float],
     hops: Optional[int],
-    build_metric_rollup_values_fn: Callable[..., dict[str, object]],
-    merge_metric_rollup_row_fn: Callable[..., dict[str, object]],
+    build_metric_rollup_values_fn: BuildMetricRollupValuesFn,
+    merge_metric_rollup_row_fn: MergeMetricRollupRowFn,
 ) -> None:
     row = _select_existing_row_helper(
         conn,

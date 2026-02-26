@@ -1,7 +1,27 @@
 import time
-from typing import Callable
+from typing import Protocol
 
 from .sql_contracts import SqlConnection
+
+
+class PruneHistoryTablesFn(Protocol):
+    def __call__(
+        self,
+        conn: SqlConnection,
+        *,
+        now_unix: int,
+        retention_seconds: int,
+        event_retention_seconds: int,
+        rollup_retention_seconds: int,
+        max_rows: int,
+        event_max_rows: int,
+    ) -> None:
+        ...
+
+
+class NowUnixFn(Protocol):
+    def __call__(self) -> float:
+        ...
 
 
 def prune_history_tables_now(
@@ -12,8 +32,8 @@ def prune_history_tables_now(
     rollup_retention_seconds: int,
     max_rows: int,
     event_max_rows: int,
-    prune_history_tables_fn: Callable[..., None],
-    now_unix_fn: Callable[[], float] = time.time,
+    prune_history_tables_fn: PruneHistoryTablesFn,
+    now_unix_fn: NowUnixFn = time.time,
 ) -> None:
     prune_history_tables_fn(
         conn,
