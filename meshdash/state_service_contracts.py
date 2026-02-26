@@ -8,7 +8,7 @@ RevisionPayload = RevisionInfo | dict[str, str]
 
 
 class CollectNodesFn(Protocol):
-    def __call__(self, iface: object) -> CollectedNodes | dict[str, object]:
+    def __call__(self, iface: object) -> CollectedNodes:
         ...
 
 
@@ -49,7 +49,7 @@ class BuildSummaryPayloadFn(Protocol):
         started_at: float,
         node_rows: list[dict[str, object]],
         nodes_with_position: int,
-        tracker_data: TrackerSnapshot | dict[str, object],
+        tracker_data: TrackerSnapshot,
         storage_probe_path: Optional[str],
         revision_info: RevisionPayload,
         modem_preset: Optional[str],
@@ -63,7 +63,7 @@ class RedactSecretsFn(Protocol):
 
 
 class StateTracker(Protocol):
-    def snapshot(self, by_id: dict[str, dict[str, object]]) -> TrackerSnapshot | dict[str, object]:
+    def snapshot(self, by_id: dict[str, dict[str, object]]) -> TrackerSnapshot:
         ...
 
     def load_node_saved_counts(self) -> dict[str, dict[str, object]]:

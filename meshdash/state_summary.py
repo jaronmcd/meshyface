@@ -1,15 +1,15 @@
 import time
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
 from .revision import RevisionInfo
-from .tracker_snapshot_contracts import TrackerSnapshot, coerce_tracker_snapshot
+from .tracker_snapshot_contracts import TrackerSnapshot
 
 from .helpers import disk_space_info
 
 
 def apply_node_saved_counts(
-    rows: list[Dict[str, object]],
-    node_saved_counts: Dict[str, Dict[str, object]],
+    rows: list[dict[str, object]],
+    node_saved_counts: dict[str, dict[str, object]],
 ) -> None:
     for row in rows:
         stats = node_saved_counts.get(str(row.get("id") or ""), {})
@@ -21,15 +21,15 @@ def apply_node_saved_counts(
 def collect_local_state_safe(
     iface: object,
     *,
-    collect_local_state_fn: Callable[[object], Dict[str, object]],
-) -> tuple[Dict[str, object], Optional[str]]:
+    collect_local_state_fn: Callable[[object], dict[str, object]],
+) -> tuple[dict[str, object], Optional[str]]:
     try:
         return collect_local_state_fn(iface), None
     except Exception as exc:
         return {}, str(exc)
 
 
-def modem_preset_from_local_state(local_state: Dict[str, object]) -> Optional[str]:
+def modem_preset_from_local_state(local_state: dict[str, object]) -> Optional[str]:
     try:
         return (local_state.get("local_config") or {}).get("lora", {}).get("modem_preset")
     except Exception:
@@ -40,16 +40,16 @@ def build_summary_payload(
     *,
     target: str,
     started_at: float,
-    node_rows: list[Dict[str, object]],
+    node_rows: list[dict[str, object]],
     nodes_with_position: int,
-    tracker_data: TrackerSnapshot | Dict[str, object],
+    tracker_data: TrackerSnapshot,
     storage_probe_path: Optional[str],
-    revision_info: RevisionInfo | Dict[str, str],
+    revision_info: RevisionInfo | dict[str, str],
     modem_preset: Optional[str],
     now_ts_fn: Callable[[], float] = time.time,
-    disk_space_info_fn: Callable[[Optional[str]], Dict[str, object]] = disk_space_info,
-) -> Dict[str, object]:
-    tracker_snapshot = coerce_tracker_snapshot(tracker_data)
+    disk_space_info_fn: Callable[[Optional[str]], dict[str, object]] = disk_space_info,
+) -> dict[str, object]:
+    tracker_snapshot = tracker_data
     if isinstance(revision_info, RevisionInfo):
         revision_payload = revision_info.as_dict()
     else:
