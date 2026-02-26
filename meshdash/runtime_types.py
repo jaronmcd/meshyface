@@ -1,4 +1,3 @@
-from collections.abc import MutableMapping
 from typing import TYPE_CHECKING, Callable, Optional, Protocol
 
 from .revision import RevisionInfo
@@ -146,6 +145,17 @@ class ApplyTrackerStorageUpdatesFn(Protocol):
         ...
 
 
+class PortCounter(Protocol):
+    def get(self, key: str, default: int = 0) -> int:
+        ...
+
+    def __setitem__(self, key: str, value: int) -> None:
+        ...
+
+    def most_common(self) -> list[tuple[str, int]]:
+        ...
+
+
 class ExtractDeliveryUpdateFn(Protocol):
     def __call__(self, decoded: object) -> Optional[dict[str, object]]:
         ...
@@ -196,7 +206,7 @@ class ApplyTrackerObservationFn(Protocol):
         include_live_count: bool,
         session_edges: TrackerEdgeMap,
         historical_edges: TrackerEdgeMap,
-        port_counts: MutableMapping[str, int],
+        port_counts: PortCounter,
         apply_routing_delivery_update_fn: ApplyRoutingDeliveryUpdateFn,
         extract_update_fn: ExtractDeliveryUpdateFn,
         set_delivery_state_fn: SetDeliveryStateFn,
@@ -232,7 +242,7 @@ class ProcessParsedTrackerPacketFn(Protocol):
         include_live_count: bool,
         session_edges: TrackerEdgeMap,
         historical_edges: TrackerEdgeMap,
-        port_counts: MutableMapping[str, int],
+        port_counts: PortCounter,
         apply_tracker_observation_fn: ApplyTrackerObservationFn,
         apply_routing_delivery_update_fn: ApplyRoutingDeliveryUpdateFn,
         extract_update_fn: ExtractDeliveryUpdateFn,
@@ -262,7 +272,7 @@ class RecordTrackerPacketUnlockedFn(Protocol):
         include_live_count: bool,
         session_edges: TrackerEdgeMap,
         historical_edges: TrackerEdgeMap,
-        port_counts: MutableMapping[str, int],
+        port_counts: PortCounter,
         recent_packets: RecentPacketBuffer,
         recent_chat: RecentChatBuffer,
         history_store: TrackerHistoryWriter | None,

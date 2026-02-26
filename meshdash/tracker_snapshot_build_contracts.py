@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import Protocol
 
-from .runtime_types import FormatEpochFn
+from .runtime_types import FormatEpochFn, PortCounter
 from .tracker_snapshot_contracts import TrackerSnapshot
 
 EdgeKey = tuple[str, str]
@@ -18,12 +18,6 @@ class TrackerHistoryStore(Protocol):
 
     def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         ...
-
-
-class PortCounter(Protocol):
-    def most_common(self) -> list[tuple[str, int]]:
-        ...
-
 
 class ExpirePendingDeliveriesFn(Protocol):
     def __call__(self) -> None:

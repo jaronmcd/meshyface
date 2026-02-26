@@ -1,5 +1,3 @@
-from collections.abc import MutableMapping
-
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -9,6 +7,7 @@ from .runtime_types import (
     BuildTrackerPacketArtifactsFn,
     ExtractDeliveryUpdateFn,
     FormatEpochFn,
+    PortCounter,
     RecordDirectEdgeObservationFn,
     SetDeliveryStateFn,
     ToIntFn,
@@ -28,7 +27,7 @@ def process_parsed_tracker_packet(
     include_live_count: bool,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
-    port_counts: MutableMapping[str, int],
+    port_counts: PortCounter,
     apply_tracker_observation_fn: ApplyTrackerObservationFn,
     apply_routing_delivery_update_fn: ApplyRoutingDeliveryUpdateFn,
     extract_update_fn: ExtractDeliveryUpdateFn,

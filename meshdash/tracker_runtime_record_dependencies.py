@@ -1,5 +1,3 @@
-from collections.abc import MutableMapping
-
 from .runtime_types import (
     ApplyRoutingDeliveryUpdateFn,
     ApplyTrackerObservationFn,
@@ -18,6 +16,7 @@ from .runtime_types import (
     GetNodeIdFromNumFn,
     ParseTrackerPacketFn,
     ProcessParsedTrackerPacketFn,
+    PortCounter,
     RecordDirectEdgeObservationFn,
     SetDeliveryStateFn,
     ToIntFn,
@@ -33,7 +32,7 @@ def build_tracker_packet_runtime_dependencies_from_legacy_args(
     *,
     session_edges: TrackerEdgeMap,
     historical_edges: TrackerEdgeMap,
-    port_counts: MutableMapping[str, int],
+    port_counts: PortCounter,
     recent_packets: RecentPacketBuffer,
     recent_chat: RecentChatBuffer,
     history_store: TrackerHistoryWriter | None,
