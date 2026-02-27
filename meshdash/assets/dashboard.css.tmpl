@@ -26,24 +26,9 @@
       font-size: 11px;
       opacity: 0.95;
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 4px;
-    }}
-    .topbar .sub .sub-main {{
-      display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: 6px;
-      min-width: 0;
-    }}
-    .topbar .sub .selection-row {{
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 6px;
-      flex-wrap: wrap;
-      min-width: 0;
     }}
     .topbar .sub .sub-text {{
       margin-right: 2px;
@@ -365,8 +350,6 @@
       --split-mid-px: 250px;
       --split-low-px: 240px;
       --network-nodes-list-pct: 52%;
-      --saved-node-pane-pct: 50%;
-      --saved-node-main-pct: 56%;
       display: grid;
       gap: 8px;
       padding: 0;
@@ -403,57 +386,6 @@
       color: #274935;
       border-bottom: 1px solid #d2e1d0;
       background: #edf6ec;
-    }}
-    .map-card-head {{
-      margin: 0;
-      padding: 8px 10px 7px 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      border-bottom: 1px solid #d2e1d0;
-      background: #edf6ec;
-    }}
-    .map-card-head h2 {{
-      margin: 0;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.15px;
-      text-transform: uppercase;
-      color: #274935;
-      border: 0;
-      background: transparent;
-      padding: 0;
-    }}
-    .map-heatmap-wrap {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid #bfd4c3;
-      border-radius: 999px;
-      background: #f7fcf7;
-      color: #274935;
-      padding: 2px 9px;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.1px;
-      line-height: 1.2;
-      user-select: none;
-      white-space: nowrap;
-    }}
-    .map-heatmap-wrap input {{
-      margin: 0;
-      width: 12px;
-      height: 12px;
-      accent-color: #2f855a;
-      cursor: pointer;
-    }}
-    .map-heatmap-wrap.disabled {{
-      opacity: 0.65;
-      cursor: not-allowed;
-    }}
-    .map-heatmap-wrap.disabled input {{
-      cursor: not-allowed;
     }}
     .card.chat {{
       border: 1px solid #c6d6c0;
@@ -511,48 +443,6 @@
     }}
     .metric .label {{ font-size: 10px; color: var(--muted); }}
     .metric .value {{ font-size: 15px; font-weight: 700; margin-top: 2px; line-height: 1.1; }}
-    .summary-updated-row {{
-      margin-top: 10px;
-      font-size: 12px;
-      color: #3e5a46;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .summary-freshness {{
-      border: 1px solid #c7dac5;
-      border-radius: 999px;
-      background: #edf5ef;
-      color: #2f4f3d;
-      padding: 2px 8px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      text-transform: uppercase;
-      line-height: 1.2;
-      white-space: nowrap;
-    }}
-    .summary-freshness.status-online {{
-      border-color: #2f855a;
-      background: #e9f8ee;
-      color: #1d5a3b;
-    }}
-    .summary-freshness.status-warn {{
-      border-color: #d3a856;
-      background: #fff8e8;
-      color: #7a5a1f;
-    }}
-    .summary-freshness.status-stale {{
-      border-color: #ce8e8e;
-      background: #fff2f2;
-      color: #7a2f2f;
-    }}
-    .summary-freshness.status-unknown {{
-      border-color: #c7dac5;
-      background: #edf5ef;
-      color: #2f4f3d;
-    }}
     .summary {{ grid-column: 1 / span 3; grid-row: 1; }}
     .map {{
       grid-column: 1 / span 3;
@@ -590,33 +480,7 @@
       border-radius: 8px;
       background: #f9fdf9;
       padding: 8px;
-      overflow: hidden;
-    }}
-    .saved-map-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid #d1e0cb;
-      background: linear-gradient(180deg, #f4faf3, #edf5ea);
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      min-width: 6px;
-    }}
-    .saved-map-splitter::before {{
-      content: "";
-      position: absolute;
-      top: 8px;
-      bottom: 8px;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: #b8cab9;
-      border-radius: 1px;
-    }}
-    .saved-map-splitter:hover::before,
-    .saved-map-splitter.active::before {{
-      background: #2f855a;
+      overflow: auto;
     }}
     .saved-node-details-empty {{
       border: 1px dashed #c6d8cc;
@@ -627,63 +491,71 @@
       line-height: 1.35;
       padding: 12px;
     }}
+    .saved-node-details-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #d7e5d2;
+      padding-bottom: 8px;
+      flex-wrap: wrap;
+    }}
+    .saved-node-title-wrap {{
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }}
+    .saved-node-title {{
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a3b2b;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .saved-node-subtitle {{
+      font-size: 11px;
+      color: #4d6759;
+      line-height: 1.2;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .saved-node-status {{
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      border: 1px solid #c7dac5;
+      border-radius: 999px;
+      padding: 2px 8px;
+      background: #edf5ef;
+      color: #2f4f3d;
+      white-space: nowrap;
+    }}
+    .saved-node-status.status-online {{
+      border-color: #2f855a;
+      background: #e9f8ee;
+      color: #1d5a3b;
+    }}
+    .saved-node-status.status-warn {{
+      border-color: #d3a856;
+      background: #fff8e8;
+      color: #7a5a1f;
+    }}
+    .saved-node-status.status-stale {{
+      border-color: #ce8e8e;
+      background: #fff2f2;
+      color: #7a2f2f;
+    }}
     .saved-node-sections {{
       display: flex;
       flex-direction: column;
       gap: 8px;
       min-height: 0;
-    }}
-    .saved-node-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .saved-node-main-scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .saved-node-history-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid #d1e0cb;
-      background: linear-gradient(90deg, #f4faf3, #edf5ea);
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .saved-node-history-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: #b8cab9;
-      border-radius: 1px;
-    }}
-    .saved-node-history-splitter:hover::before,
-    .saved-node-history-splitter.active::before {{
-      background: #2f855a;
-    }}
-    .saved-node-history-host {{
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .saved-node-history-host:not(:empty) {{
-      display: flex;
-      flex: 1 1 auto;
     }}
     .saved-node-section {{
       border: 1px solid #d7e5d2;
@@ -810,16 +682,6 @@
       width: 100%;
       height: 100%;
       display: block;
-    }}
-    #signal-chart {{
-      cursor: zoom-in;
-      touch-action: none;
-    }}
-    #signal-chart.zoomed {{
-      cursor: grab;
-    }}
-    #signal-chart.chart-dragging {{
-      cursor: grabbing;
     }}
     .signal-empty {{
       position: absolute;
@@ -1213,80 +1075,63 @@
       height: calc(100vh - 96px);
       height: calc(100dvh - 96px);
       min-height: 560px;
-      grid-template-columns: minmax(320px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-columns: minmax(350px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
     }}
     .layout.view-network .summary {{
       display: block;
       grid-column: 1 / span 3;
       grid-row: 1;
     }}
-    .layout.view-network .map {{
-      display: contents;
-    }}
-    .layout.view-network .map-card-head {{
-      display: flex;
-      grid-column: 1 / span 3;
-      grid-row: 2;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-    }}
-    .layout.view-network .map-card-head h2 {{
-      display: block;
-    }}
     .layout.view-network .nodes {{
       grid-column: 1;
-      grid-row: 3;
+      grid-row: 2;
       min-height: 0;
-    }}
-    .layout.view-network .nodes > h2 {{
-      display: none !important;
     }}
     .layout.view-network .map {{
       grid-column: 3;
-      grid-row: 3;
+      grid-row: 2;
       min-height: 0;
     }}
     .layout.view-network .nodes .body {{
       min-height: 0;
       overflow: hidden;
     }}
-    .layout.view-network .network-node-stack {{
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
     .layout.view-network .nodes-table-scroll {{
-      flex: 1 1 auto !important;
-      min-height: 0;
-      max-height: none !important;
-      height: 100%;
+      flex: 0 0 var(--network-nodes-list-pct);
+      min-height: 150px;
     }}
     .layout.view-network .network-node-splitter {{
-      display: none !important;
-      margin: 0 !important;
-      min-height: 0 !important;
-      max-height: 0 !important;
-      border: 0 !important;
-      padding: 0 !important;
+      display: block;
     }}
     .layout.view-network .network-node-history-host {{
-      display: none !important;
-      margin: 0 !important;
-      min-height: 0 !important;
-      max-height: 0 !important;
-      border: 0 !important;
-      padding: 0 !important;
+      flex: 1 1 auto;
+      min-height: 200px;
+      overflow: auto;
+    }}
+    .layout.view-network .network-node-history-host #map-data-node {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 8px;
+    }}
+    .layout.view-network .network-node-history-host #tab-panel-signal {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }}
+    .layout.view-network .network-node-history-host #tab-panel-signal,
+    .layout.view-network .network-node-history-host #tab-panel-overview {{
+      flex: 1 1 auto;
+      min-height: 0;
+    }}
+    .layout.view-network .network-node-history-host #signal-chart-wrap {{
+      height: auto;
+      min-height: 160px;
+      flex: 1 1 auto;
     }}
     .layout.view-network .map .body {{
-      grid-column: 3;
-      grid-row: 3;
       min-height: 0;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-      background: var(--panel);
     }}
     .layout.view-network .map-frame {{
       min-height: 0;
@@ -1303,16 +1148,7 @@
     }}
     .layout.view-network .splitter {{
       display: block;
-      grid-row: 3;
-      border-color: #d1e0cb;
-      background: linear-gradient(90deg, #f4faf3, #edf5ea);
-    }}
-    .layout.view-network .splitter::before {{
-      background: #b8cab9;
-    }}
-    .layout.view-network .splitter:hover::before,
-    .layout.view-network .splitter.active::before {{
-      background: #2f855a;
+      grid-row: 2;
     }}
 
     .layout.view-packets {{
@@ -1380,92 +1216,39 @@
       height: calc(100dvh - 96px);
       min-height: 560px;
       grid-template-columns: minmax(350px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
-    }}
-    .layout.view-saved .summary {{
-      display: block;
-      grid-column: 1 / span 3;
-      grid-row: 1;
+      grid-template-rows: minmax(0, 1fr);
     }}
     .layout.view-saved .favorites {{
-      display: none !important;
+      display: flex;
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
     }}
     .layout.view-saved .map {{
       display: flex;
-      grid-column: 1 / span 3;
-      grid-row: 2;
+      grid-column: 3;
+      grid-row: 1;
       min-height: 0;
     }}
     .layout.view-saved .map .body {{
       min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(320px, var(--saved-node-pane-pct)) var(--splitter-size) minmax(320px, 1fr);
+      display: flex;
+      flex-direction: column;
       gap: 8px;
     }}
     .layout.view-saved .map-frame {{
       display: block;
-      grid-column: 3;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 260px;
+      order: 2;
+      flex: 0 0 clamp(170px, 28vh, 280px);
+      min-height: 170px;
     }}
     .layout.view-saved .saved-node-details {{
       display: flex;
-      grid-column: 1;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-map-splitter {{
-      display: block;
-      grid-column: 2;
-      grid-row: 1;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .layout.view-saved .saved-node-main-scroll {{
-      flex: 0 0 var(--saved-node-main-pct);
-      min-height: 0;
-      overflow: auto;
-    }}
-    .layout.view-saved .saved-node-history-splitter {{
-      display: block;
-    }}
-    .layout.view-saved .saved-node-history-host {{
-      display: flex;
+      order: 1;
       flex: 1 1 auto;
       min-height: 0;
     }}
-    .layout.view-saved .saved-node-history-host #map-data-node {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal,
-    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-history-host #signal-chart-wrap {{
-      height: 260px;
-      min-height: 220px;
-    }}
+    .layout.view-saved .summary,
     .layout.view-saved .map-data,
     .layout.view-saved .chat,
     .layout.view-saved .nodes,
@@ -1478,7 +1261,7 @@
       display: none !important;
     }}
     .layout.view-saved .splitter {{
-      display: none !important;
+      display: block;
       grid-row: 1;
     }}
     table {{
@@ -2395,46 +2178,6 @@
       background: #e7f6ec;
       color: #194c33;
     }}
-    .starred-node-wrap {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid #c2d8c7;
-      background: #f0f8f2;
-      color: #1e5e40;
-      border-radius: 999px;
-      padding: 2px 8px;
-      max-width: min(56vw, 420px);
-      min-width: 150px;
-    }}
-    .starred-node-label {{
-      font-size: 10px;
-      line-height: 1.2;
-      opacity: 0.92;
-      white-space: nowrap;
-    }}
-    .starred-node-select {{
-      border: none;
-      background: transparent;
-      color: inherit;
-      font-size: 10px;
-      line-height: 1.2;
-      min-width: 130px;
-      max-width: 260px;
-      outline: none;
-      cursor: pointer;
-    }}
-    .starred-node-select:disabled {{
-      opacity: 0.7;
-      cursor: default;
-    }}
-    .topbar .sub .selection-row .selection-pill {{
-      margin-left: 0;
-      max-width: 60ch;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
     .selection-btn {{
       margin-left: 6px;
       font-size: 10px;
@@ -2445,10 +2188,6 @@
       border-radius: 999px;
       padding: 3px 8px;
       cursor: pointer;
-    }}
-    .topbar .sub .selection-row .selection-btn {{
-      margin-left: 0;
-      flex: 0 0 auto;
     }}
     .selection-btn:hover {{
       background: #e1f2e7;
@@ -2588,14 +2327,10 @@
       background: rgba(166, 215, 190, 0.28);
     }}
     [data-theme="dark"] .pill,
-    [data-theme="dark"] .selection-btn,
-    [data-theme="dark"] .starred-node-wrap {{
+    [data-theme="dark"] .selection-btn {{
       background: #22342a;
       border-color: #355041;
       color: #d6e8dd;
-    }}
-    [data-theme="dark"] .starred-node-select {{
-      color: inherit;
     }}
     [data-theme="dark"] .selection-btn:disabled {{
       opacity: 0.65;
@@ -3028,34 +2763,6 @@
     [data-theme="dark"] .signal-legend .legend-chip {{
       color: var(--ui-text-soft) !important;
     }}
-    [data-theme="dark"] .summary-updated-row {{
-      color: var(--ui-text-soft);
-    }}
-    [data-theme="dark"] .summary-freshness {{
-      border-color: rgba(124, 161, 190, 0.36);
-      background: rgba(121, 192, 255, 0.08);
-      color: #cfe4f8;
-    }}
-    [data-theme="dark"] .summary-freshness.status-online {{
-      border-color: rgba(63, 185, 80, 0.7);
-      background: rgba(47, 133, 90, 0.3);
-      color: #cbf7d8;
-    }}
-    [data-theme="dark"] .summary-freshness.status-warn {{
-      border-color: rgba(234, 179, 8, 0.72);
-      background: rgba(161, 98, 7, 0.3);
-      color: #ffe9b0;
-    }}
-    [data-theme="dark"] .summary-freshness.status-stale {{
-      border-color: rgba(248, 113, 113, 0.74);
-      background: rgba(153, 27, 27, 0.34);
-      color: #ffd6d6;
-    }}
-    [data-theme="dark"] .summary-freshness.status-unknown {{
-      border-color: rgba(124, 161, 190, 0.36);
-      background: rgba(121, 192, 255, 0.08);
-      color: #cfe4f8;
-    }}
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card,
@@ -3082,7 +2789,6 @@
     }}
     [data-theme="dark"] .pill,
     [data-theme="dark"] .selection-btn,
-    [data-theme="dark"] .starred-node-wrap,
     [data-theme="dark"] .theme-btn,
     [data-theme="dark"] .disk-meter,
     [data-theme="dark"] .rail-btn,
@@ -3256,10 +2962,37 @@
       background: #121b24;
       color: #a9bfd3;
     }}
+    [data-theme="dark"] .saved-node-details-head {{
+      border-bottom-color: var(--ui-border);
+    }}
+    [data-theme="dark"] .saved-node-title {{
+      color: #e6eef8;
+    }}
+    [data-theme="dark"] .saved-node-subtitle,
     [data-theme="dark"] .saved-node-section-title,
     [data-theme="dark"] .saved-node-stat-k,
     [data-theme="dark"] .saved-node-note {{
       color: #9db3c8;
+    }}
+    [data-theme="dark"] .saved-node-status {{
+      border-color: rgba(124, 161, 190, 0.36);
+      background: rgba(121, 192, 255, 0.08);
+      color: #cfe4f8;
+    }}
+    [data-theme="dark"] .saved-node-status.status-online {{
+      border-color: rgba(63, 185, 80, 0.7);
+      background: rgba(47, 133, 90, 0.3);
+      color: #cbf7d8;
+    }}
+    [data-theme="dark"] .saved-node-status.status-warn {{
+      border-color: rgba(234, 179, 8, 0.72);
+      background: rgba(161, 98, 7, 0.3);
+      color: #ffe9b0;
+    }}
+    [data-theme="dark"] .saved-node-status.status-stale {{
+      border-color: rgba(248, 113, 113, 0.74);
+      background: rgba(153, 27, 27, 0.34);
+      color: #ffd6d6;
     }}
     [data-theme="dark"] .saved-node-section {{
       border-color: var(--ui-border);
@@ -3283,47 +3016,11 @@
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
     }}
-    [data-theme="dark"] .layout.view-network .splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-node-history-host {{
-      border-top: none;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-node-history-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter:hover::before,
-    [data-theme="dark"] .saved-node-history-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .saved-map-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-map-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-map-splitter:hover::before,
-    [data-theme="dark"] .saved-map-splitter.active::before {{
-      background: #79c0ff;
-    }}
     [data-theme="dark"] .network-node-splitter::before {{
       background: #44566a;
     }}
     [data-theme="dark"] .network-node-splitter:hover::before,
     [data-theme="dark"] .network-node-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .layout.view-network .splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .layout.view-network .splitter:hover::before,
-    [data-theme="dark"] .layout.view-network .splitter.active::before {{
       background: #79c0ff;
     }}
     [data-theme="dark"] .network-node-history-host.empty::before {{
@@ -3341,7 +3038,6 @@
     }}
     [data-theme="dark"] .theme-btn:hover,
     [data-theme="dark"] .selection-btn:hover,
-    [data-theme="dark"] .starred-node-wrap:hover,
     [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
     [data-theme="dark"] .chat-member-item:hover,
@@ -3515,24 +3211,6 @@
       background: #1b2430;
       color: var(--ui-text);
     }}
-    [data-theme="dark"] .map-card-head {{
-      background: #121c16;
-      border-bottom-color: #2b4336;
-    }}
-    [data-theme="dark"] .map-card-head h2 {{
-      color: #d8efe0;
-      border: 0;
-      background: transparent;
-      padding: 0;
-    }}
-    [data-theme="dark"] .map-heatmap-wrap {{
-      background: #16231d;
-      border-color: #355343;
-      color: #cbe8d7;
-    }}
-    [data-theme="dark"] .map-heatmap-wrap input {{
-      accent-color: #5aa878;
-    }}
     [data-theme="dark"] .chat-compose-shell,
     [data-theme="dark"] .card.chat .chat-compose-shell {{
       background: var(--ui-panel-alt);
@@ -3584,19 +3262,6 @@
       .layout.view-saved {{
         height: auto;
         min-height: 0;
-      }}
-      .layout.view-saved .map .body {{
-        display: flex;
-        flex-direction: column;
-      }}
-      .saved-map-splitter {{
-        display: none !important;
-      }}
-      .saved-node-history-splitter {{
-        display: none !important;
-      }}
-      .layout.view-saved .saved-node-main-scroll {{
-        flex: 1 1 auto;
       }}
       .layout.view-packets {{
         height: auto;
