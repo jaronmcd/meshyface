@@ -1,6 +1,7 @@
 import threading
 
 import meshdash.history_store_nodes as history_store_nodes_module
+import meshdash.history_store_packets as history_store_packets_module
 from meshdash.history_store import HistoryStore
 from meshdash.history_store_chat import (
     load_recent_chat as load_recent_chat_domain,
@@ -299,3 +300,97 @@ def test_history_store_domain_saved_count_and_capability_wrappers_delegate(monke
         calls["capabilities"]["decode_fn"]
         is history_store_nodes_module._decode_node_capabilities_rows_helper
     )
+
+
+class _CountingLock:
+    def __init__(self):
+        self.enter_count = 0
+
+    def __enter__(self):
+        self.enter_count += 1
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FailLock:
+    def __enter__(self):
+        raise AssertionError("unexpected lock use")
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def test_load_recent_packets_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_load_recent_packets_data(
+        conn,
+        *,
+        limit,
+        fetch_recent_packet_rows_fn,
+        decode_recent_packets_rows_fn,
+    ):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [{"ok": True}]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_load_recent_packets_data_helper",
+        _fake_load_recent_packets_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            # If selected while _read_conn is missing, this test should fail.
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    rows = load_recent_packets_domain(store, 5)
+
+    assert rows == [{"ok": True}]
+    assert calls["conn"] is store._conn
+    assert calls["limit"] == 5
+    assert store._lock.enter_count == 1
+
+
+def test_load_recent_packets_uses_read_lock_when_read_connection_present(monkeypatch):
+    calls = {}
+
+    def _fake_load_recent_packets_data(
+        conn,
+        *,
+        limit,
+        fetch_recent_packet_rows_fn,
+        decode_recent_packets_rows_fn,
+    ):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [{"ok": True}]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_load_recent_packets_data_helper",
+        _fake_load_recent_packets_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            # If selected when _read_conn exists, this test should fail.
+            self._lock = _FailLock()
+            self._read_lock = _CountingLock()
+            self._read_conn = object()
+
+    store = _Store()
+    rows = load_recent_packets_domain(store, 6)
+
+    assert rows == [{"ok": True}]
+    assert calls["conn"] is store._read_conn
+    assert calls["limit"] == 6
+    assert store._read_lock.enter_count == 1

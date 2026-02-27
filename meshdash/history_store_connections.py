@@ -20,9 +20,15 @@ from .history_store_runtime_contracts import (
 
 
 def load_connections(store: HistoryStoreReadState) -> list[dict[str, object]]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_connections_data_helper(
-            store._conn,
+            read_conn,
             fetch_connection_rows_fn=_fetch_connection_rows_helper,
             decode_connections_rows_fn=_decode_connections_rows_helper,
         )

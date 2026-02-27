@@ -31,9 +31,15 @@ def load_node_history(
     window_hours: int,
     max_points: int,
 ) -> dict[str, object]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_node_history_data_helper(
-            store._conn,
+            read_conn,
             node_id=node_id,
             window_hours=window_hours,
             max_points=max_points,
@@ -44,9 +50,15 @@ def load_node_history(
 
 
 def load_online_activity(store: HistoryStoreReadState, window_hours: int) -> dict[str, object]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_online_activity_data_helper(
-            store._conn,
+            read_conn,
             window_hours=window_hours,
             fetch_online_activity_rows_fn=_fetch_online_activity_rows_helper,
             build_online_activity_payload_fn=_build_online_activity_payload_helper,
@@ -55,18 +67,30 @@ def load_online_activity(store: HistoryStoreReadState, window_hours: int) -> dic
 
 
 def load_node_saved_counts(store: HistoryStoreReadState) -> dict[str, dict[str, object]]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_node_saved_counts_data_helper(
-            store._conn,
+            read_conn,
             fetch_node_saved_count_rows_fn=_fetch_node_saved_count_rows_helper,
             decode_node_saved_counts_rows_fn=_decode_node_saved_counts_rows_helper,
         )
 
 
 def load_node_capabilities(store: HistoryStoreReadState) -> dict[str, dict[str, object]]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_node_capabilities_data_helper(
-            store._conn,
+            read_conn,
             fetch_node_capability_rows_fn=_fetch_node_capability_rows_helper,
             decode_node_capabilities_rows_fn=_decode_node_capabilities_rows_helper,
         )

@@ -19,9 +19,15 @@ from .history_store_runtime_contracts import (
 
 
 def load_recent_chat(store: HistoryStoreReadState, limit: int) -> list[dict[str, object]]:
-    with store._lock:
+    read_conn = getattr(store, "_read_conn", None)
+    if read_conn is None or read_conn is store._conn:
+        read_conn = store._conn
+        read_lock = store._lock
+    else:
+        read_lock = getattr(store, "_read_lock", None) or store._lock
+    with read_lock:
         return _load_recent_chat_data_helper(
-            store._conn,
+            read_conn,
             limit=limit,
             fetch_recent_chat_rows_fn=_fetch_recent_chat_rows_helper,
             decode_recent_chat_rows_fn=_decode_recent_chat_rows_helper,
