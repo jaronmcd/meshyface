@@ -136,7 +136,7 @@ Separate state assembly from HTTP wiring.
 ### Steps
 
 1. [done] Expand service coverage for failure/partial-data cases (remaining: metadata/service-edge variants).
-2. Keep request handlers thin:
+2. [done] Keep request handlers thin:
    - parse request
    - call service
    - encode response
@@ -449,11 +449,16 @@ Reduce string-key coupling between runtime builders and orchestration modules.
 - Kept `parse_chat_send_body(...)` as a compatibility helper for dict-shaped callers.
 - Kept `parse_node_history_query(...)` as a compatibility helper for tuple-shaped callers.
 - Kept `parse_online_activity_query(...)` as a compatibility helper for scalar callers.
+- Confirmed request-handler thinness boundary:
+  - route/HTTP layers now remain parse -> domain service call -> response encode, with domain behavior isolated in API/service modules.
+- Triaged remaining `dict[str, object]` usage boundaries:
+  - transport/API payload shapes intentionally remain dict-compatible at HTTP/history/chat serialization edges.
+  - compatibility facades intentionally keep dict surfaces for legacy callers while typed contracts back internal orchestration paths.
 
 ### Steps
 
-1. Consider stricter type aliases/protocols for callback signatures used in runtime wiring.
-2. Triage remaining dict-shaped payloads where they represent transport formats vs internal contracts.
+1. [done] Consider stricter type aliases/protocols for callback signatures used in runtime wiring.
+2. [done] Triage remaining dict-shaped payloads where they represent transport formats vs internal contracts.
 
 ### Exit criteria
 

@@ -72,6 +72,38 @@ Open:
 - Local machine: `http://127.0.0.1:8877`
 - LAN devices: `http://<your-ip>:8877`
 
+## Windows Quick Start (Local Laptop + USB Radio)
+
+This is the simple local mode: plug the Meshtastic radio into your Windows laptop,
+run the backend in a terminal, and open the dashboard in a browser.
+
+1. Open PowerShell in your repo folder.
+2. Create and activate a venv.
+3. Install dependencies.
+4. Run the dashboard with your radio COM port.
+
+```powershell
+cd C:\path\to\mesh_py
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install meshtastic pypubsub protobuf
+python mesh_dashboard.py --mesh-port COM5 --http-host 0.0.0.0 --http-port 8877
+```
+
+Open:
+
+- Local machine: `http://127.0.0.1:8877`
+- Other devices on same LAN: `http://<your-laptop-ip>:8877`
+
+Notes:
+
+- Replace `COM5` with your actual radio port.
+- If PowerShell blocks activation, run:
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+  then reopen PowerShell.
+- This mode is intentionally terminal-run only (no Windows service/installer).
+
 ## Recommended Production Setup (Debian VM + systemd)
 
 ### 1) Create app folders on VM

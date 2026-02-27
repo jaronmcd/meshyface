@@ -18,24 +18,34 @@
   <div class="topbar">
     <h1>Meshtastic Deep Dashboard</h1>
     <div class="sub">
-      <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
-      <span class="pill">{safety_label}</span>
-      <span class="pill">Packet buffer: {packet_limit}</span>
-      <span class="pill">{history_label}</span>
-      <span class="pill">Refresh: {refresh_ms} ms</span>
-      <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
-      <label for="theme-preset-select" class="theme-preset-wrap" title="Runtime color preset">
-        <span class="theme-preset-label">Preset</span>
-        <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
-          <option value="default">default</option>
-        </select>
-      </label>
-      <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
-      <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
-      <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
-        <span id="disk-label" class="disk-label">Disk free: n/a</span>
-        <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
-      </span>
+      <div class="sub-main">
+        <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
+        <span class="pill">{safety_label}</span>
+        <span class="pill">Packet buffer: {packet_limit}</span>
+        <span class="pill">{history_label}</span>
+        <span class="pill">Refresh: {refresh_ms} ms</span>
+        <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
+        <label for="theme-preset-select" class="theme-preset-wrap" title="Runtime color preset">
+          <span class="theme-preset-label">Preset</span>
+          <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
+            <option value="default">default</option>
+          </select>
+        </label>
+        <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
+          <span id="disk-label" class="disk-label">Disk free: n/a</span>
+          <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+        </span>
+      </div>
+      <div class="selection-row">
+        <label for="starred-node-select" class="starred-node-wrap" title="Jump to a starred node">
+          <span class="starred-node-label">Starred</span>
+          <select id="starred-node-select" class="starred-node-select" aria-label="Starred nodes">
+            <option value="">Starred nodes</option>
+          </select>
+        </label>
+        <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
+        <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
+      </div>
     </div>
   </div>
 
@@ -44,7 +54,7 @@
       <div class="teams-rail-title">Views</div>
       <button class="rail-btn active" data-view="chat" type="button" title="Teams-style chat workspace">Chat</button>
       <button class="rail-btn" data-view="network" type="button" title="Topology, nodes, and links">Network</button>
-      <button class="rail-btn" data-view="saved" type="button" title="Saved favorite nodes">Saved</button>
+      <button class="rail-btn" data-view="saved" type="button" title="Node details and saved nodes">Node</button>
       <button class="rail-btn" data-view="packets" type="button" title="Recent packet stream">Packets</button>
       <button class="rail-btn" data-view="data" type="button" title="Raw node/config views">Data</button>
       <button class="rail-btn" data-view="all" type="button" title="Show every panel">All</button>
@@ -82,8 +92,9 @@
           <div class="metric"><div class="label">LoRa Preset</div><div class="value" id="m-modem-preset">n/a</div></div>
           <div class="metric"><div class="label">Uptime (s)</div><div class="value" id="m-uptime">0</div></div>
         </div>
-        <div style="margin-top:10px; font-size:12px; color:#3e5a46;">
+        <div class="summary-updated-row">
           Updated: <span id="updated-at">n/a</span>
+          <span id="updated-freshness" class="summary-freshness" hidden>Unknown</span>
           <span id="local-state-error" class="warn"></span>
         </div>
       </div>
@@ -133,12 +144,19 @@
     </section>
 
     <section class="card map">
-      <h2 id="map-card-title">Network Map</h2>
+      <div class="map-card-head">
+        <h2 id="map-card-title">Network Map</h2>
+        <label id="map-heatmap-wrap" class="map-heatmap-wrap" title="Overlay realtime signal heatmap">
+          <input id="map-heatmap-toggle" type="checkbox" checked />
+          <span>Signal Heatmap</span>
+        </label>
+      </div>
       <div class="body">
+        <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
+        <div id="saved-map-splitter" class="saved-map-splitter" title="Drag to resize node details and map"></div>
         <div class="map-frame">
           <div id="map"></div>
         </div>
-        <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
       </div>
     </section>
 
@@ -285,6 +303,10 @@
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script
+    src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
     crossorigin=""
   ></script>
   <script>

@@ -32,15 +32,65 @@
     const nodeLayer = L.layerGroup().addTo(map);
     const edgeLayer = L.layerGroup().addTo(map);
     const trailLayer = L.layerGroup().addTo(map);
+    const signalHeatmapPaneName = "signalHeatmapPane";
+    const signalHeatmapGradient = {{
+      0.02: "#1f4f79",
+      0.24: "#2f855a",
+      0.58: "#45ad69",
+      0.82: "#d1a02d",
+      1.0: "#b22222",
+    }};
+    const signalHeatmapLayerOptions = {{
+      maxZoom: 14,
+      gradient: signalHeatmapGradient,
+    }};
+    const signalHeatFreshFullSeconds = 8 * 60;
+    const signalHeatFreshDropSeconds = 40 * 60;
+    const signalHeatProfileDefaults = {{
+      snrMin: -12,
+      snrMax: 10,
+      rssiMin: -125,
+      rssiMax: -88,
+    }};
+    const signalHeatDevKnobsStorageKey = "meshDashboardSignalHeatDevKnobsV1";
+    const signalHeatDevKnobDefaults = {{
+      radius: 26,
+      blur: 20,
+      minOpacity: 0.46,
+      intensityFloor: 0.015,
+      intensityGamma: 1.22,
+      freshnessFloor: 0.84,
+      freshnessGain: 0.16,
+      greenBias: 0.62,
+      geoRadiusLock: 1,
+      coverageKm: 2.8,
+      blurRatio: 0.78,
+    }};
+    const signalHeatDevKnobBounds = {{
+      radius: [14, 46],
+      blur: [10, 36],
+      minOpacity: [0.04, 0.88],
+      intensityFloor: [0, 0.3],
+      intensityGamma: [0.6, 2.4],
+      freshnessFloor: [0.5, 1],
+      freshnessGain: [0, 0.5],
+      greenBias: [0, 1],
+      geoRadiusLock: [0, 1],
+      coverageKm: [0.25, 24],
+      blurRatio: [0.35, 1.4],
+    }};
     const nodeMarkers = new Map();
     const selectionStorageKey = "meshDashboardSelectedNodeId";
     const favoritesStorageKey = "meshDashboardFavoriteNodeIdsV1";
     const nodeNameCacheStorageKey = "meshDashboardNodeNameCacheV1";
     const splitStorageKey = "meshDashboardLayoutSplitState";
     const networkNodesSplitStorageKey = "meshDashboardNetworkNodesSplitPct";
+    const savedNodeSplitStorageKey = "meshDashboardSavedNodePanePct";
+    const savedNodeHistorySplitStorageKey = "meshDashboardSavedNodeMainPct";
     const layoutViewStorageKey = "meshDashboardLayoutView";
     const chatChannelStorageKey = "meshDashboardChatChannel";
     const themeStorageKey = "meshDashboardThemePreference";
+    const signalHeatmapStorageKey = "meshDashboardSignalHeatmapEnabledV1";
     const themeSettingsEndpoint = "/api/settings/theme";
     const themeAcceptedModes = new Set(["auto", "dark", "light"]);
     const chatBottomStickThresholdPx = 28;
@@ -82,6 +132,8 @@
     let splitMidPx = 250;
     let splitLowPx = 240;
     let networkNodesListPct = 52;
+    let savedNodePanePct = 50;
+    let savedNodeMainPct = 56;
     let consoleAutoscroll = true;
     let fitDone = false;
     let mapResizeObserver = null;
@@ -112,6 +164,9 @@
     let themeMediaQuery = null;
     let mapTileLayer = null;
     let mapTileTheme = "";
+    let signalHeatmapEnabled = true;
+    let signalHeatmapLayer = null;
+    let signalHeatDevKnobs = Object.assign({{}}, signalHeatDevKnobDefaults);
     let chatUnreadCount = 0;
     const chatUnreadByChannel = {{ all: 0, direct: 0 }};
     const chatUnreadLatestByChannel = {{ all: "", direct: "" }};
@@ -123,6 +178,20 @@
     const nodeNameCache = new Map();
     const favoriteNodeIds = new Set();
     let favoritesSearchQuery = "";
+    const signalChartLayout = {{
+      width: 900,
+      height: 220,
+      padLeft: 44,
+      padRight: 44,
+      padTop: 12,
+      padBottom: 30,
+    }};
+    const signalZoomMinPoints = 10;
+    let signalChartPoints = [];
+    let signalChartZoomNodeId = "";
+    let signalChartZoomStart = 0;
+    let signalChartZoomEnd = 1;
+    let signalChartPointerDrag = null;
 
     function applyMapTiles(themeName) {{
       const nextTheme = themeName === "dark" ? "dark" : "light";
@@ -163,6 +232,392 @@
         requestMapResize();
       }});
       mapResizeObserver.observe(mapFrameElement);
+    }}
+
+    function supportsSignalHeatmap() {{
+      return !!(window.L && typeof L.heatLayer === "function");
+    }}
+
+    function clampUnitInterval(value) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 0;
+      return Math.max(0, Math.min(1, numeric));
+    }}
+
+    function clampNumber(value, minValue, maxValue, fallbackValue) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return fallbackValue;
+      if (Number.isFinite(minValue) && numeric < minValue) return minValue;
+      if (Number.isFinite(maxValue) && numeric > maxValue) return maxValue;
+      return numeric;
+    }}
+
+    function metersPerPixelAtLatitude(lat, zoom) {{
+      const latRadians = (Number(lat) * Math.PI) / 180;
+      const cosLat = Math.max(0.01, Math.cos(latRadians));
+      const zoomLevel = Number.isFinite(Number(zoom)) ? Number(zoom) : 0;
+      return (156543.03392 * cosLat) / Math.pow(2, zoomLevel);
+    }}
+
+    function sanitizeSignalHeatDevKnobs(raw) {{
+      const next = Object.assign({{}}, signalHeatDevKnobDefaults);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {{
+        return next;
+      }}
+      for (const [name, bounds] of Object.entries(signalHeatDevKnobBounds)) {{
+        if (!Object.prototype.hasOwnProperty.call(raw, name)) continue;
+        const [minValue, maxValue] = bounds;
+        next[name] = clampNumber(raw[name], minValue, maxValue, signalHeatDevKnobDefaults[name]);
+      }}
+      next.freshnessFloor = clampNumber(next.freshnessFloor, 0.4, 1, signalHeatDevKnobDefaults.freshnessFloor);
+      next.freshnessGain = clampNumber(next.freshnessGain, 0, 1 - next.freshnessFloor, signalHeatDevKnobDefaults.freshnessGain);
+      return next;
+    }}
+
+    function parseSignalHeatDevKnobsFromUrl() {{
+      if (!(window.URLSearchParams && window.location && typeof window.location.search === "string")) {{
+        return null;
+      }}
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = {{}};
+      const mapping = [
+        ["radius", "heat_radius"],
+        ["blur", "heat_blur"],
+        ["minOpacity", "heat_min_opacity"],
+        ["intensityFloor", "heat_floor"],
+        ["intensityGamma", "heat_gamma"],
+        ["freshnessFloor", "heat_fresh_floor"],
+        ["freshnessGain", "heat_fresh_gain"],
+        ["greenBias", "heat_green_bias"],
+        ["geoRadiusLock", "heat_geo_lock"],
+        ["coverageKm", "heat_coverage_km"],
+        ["blurRatio", "heat_blur_ratio"],
+      ];
+      for (const [knobName, paramName] of mapping) {{
+        if (!params.has(paramName)) continue;
+        fromUrl[knobName] = params.get(paramName);
+      }}
+      return Object.keys(fromUrl).length > 0 ? fromUrl : null;
+    }}
+
+    function persistSignalHeatDevKnobs() {{
+      try {{
+        window.localStorage.setItem(signalHeatDevKnobsStorageKey, JSON.stringify(signalHeatDevKnobs));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncSignalHeatmapAfterKnobChange() {{
+      if (!latestState || !Array.isArray(latestState.nodes)) return;
+      syncSignalHeatmapLayer(latestState.nodes, false);
+    }}
+
+    function setSignalHeatDevKnobs(overrides, persist = true) {{
+      signalHeatDevKnobs = sanitizeSignalHeatDevKnobs(
+        Object.assign({{}}, signalHeatDevKnobs, overrides || {{}})
+      );
+      if (persist) {{
+        persistSignalHeatDevKnobs();
+      }}
+      syncSignalHeatmapAfterKnobChange();
+      return Object.assign({{}}, signalHeatDevKnobs);
+    }}
+
+    function loadSignalHeatDevKnobs() {{
+      let stored = null;
+      try {{
+        const raw = window.localStorage.getItem(signalHeatDevKnobsStorageKey);
+        if (raw) {{
+          stored = JSON.parse(raw);
+        }}
+      }} catch (_err) {{
+      }}
+      const fromUrl = parseSignalHeatDevKnobsFromUrl();
+      signalHeatDevKnobs = sanitizeSignalHeatDevKnobs(
+        Object.assign({{}}, signalHeatDevKnobDefaults, stored || {{}}, fromUrl || {{}})
+      );
+    }}
+
+    function bindSignalHeatDevApi() {{
+      const api = {{
+        get: () => Object.assign({{}}, signalHeatDevKnobs),
+        set: (overrides = {{}}, persist = true) => setSignalHeatDevKnobs(overrides, !!persist),
+        reset: (persist = true) => {{
+          signalHeatDevKnobs = Object.assign({{}}, signalHeatDevKnobDefaults);
+          if (persist) {{
+            persistSignalHeatDevKnobs();
+          }}
+          syncSignalHeatmapAfterKnobChange();
+          return Object.assign({{}}, signalHeatDevKnobs);
+        }},
+      }};
+      window.meshHeatmapDev = api;
+    }}
+
+    function ensureSignalHeatmapLayer() {{
+      if (!supportsSignalHeatmap()) {{
+        return null;
+      }}
+      if (signalHeatmapLayer) {{
+        return signalHeatmapLayer;
+      }}
+      let pane = map.getPane(signalHeatmapPaneName);
+      if (!pane) {{
+        pane = map.createPane(signalHeatmapPaneName);
+      }}
+      if (pane) {{
+        pane.style.zIndex = "430";
+        pane.style.pointerEvents = "none";
+      }}
+      const initialVisual = {{
+        radius: signalHeatDevKnobs.radius,
+        blur: signalHeatDevKnobs.blur,
+        minOpacity: signalHeatDevKnobs.minOpacity,
+      }};
+      signalHeatmapLayer = L.heatLayer(
+        [],
+        Object.assign({{ pane: signalHeatmapPaneName }}, signalHeatmapLayerOptions, initialVisual)
+      );
+      return signalHeatmapLayer;
+    }}
+
+    function resolveSignalHeatProfile() {{
+      const presetRaw = latestState && latestState.summary
+        ? String(latestState.summary.modem_preset || "")
+        : "";
+      const preset = presetRaw.trim().toUpperCase();
+      if (preset.startsWith("LONG_")) {{
+        return {{
+          snrMin: -16,
+          snrMax: 8,
+          rssiMin: -128,
+          rssiMax: -92,
+          label: preset || "LONG_*",
+        }};
+      }}
+      if (preset.startsWith("SHORT_")) {{
+        return {{
+          snrMin: -10,
+          snrMax: 12,
+          rssiMin: -120,
+          rssiMax: -84,
+          label: preset || "SHORT_*",
+        }};
+      }}
+      if (preset.startsWith("MEDIUM_")) {{
+        return {{
+          snrMin: -12,
+          snrMax: 10,
+          rssiMin: -125,
+          rssiMax: -88,
+          label: preset,
+        }};
+      }}
+      return {{
+        snrMin: signalHeatProfileDefaults.snrMin,
+        snrMax: signalHeatProfileDefaults.snrMax,
+        rssiMin: signalHeatProfileDefaults.rssiMin,
+        rssiMax: signalHeatProfileDefaults.rssiMax,
+        label: preset || "DEFAULT",
+      }};
+    }}
+
+    function normalizeSignalForHeat(rawValue, minValue, maxValue) {{
+      const raw = Number(rawValue);
+      if (!Number.isFinite(raw)) return null;
+      const min = Number(minValue);
+      const max = Number(maxValue);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+      const clamped = Math.max(min, Math.min(max, raw));
+      return (clamped - min) / (max - min);
+    }}
+
+    function signalHeatAgeFactor(node, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const heardUnix = nodeLastHeardUnix(node);
+      if (!Number.isFinite(heardUnix) || heardUnix <= 0) {{
+        return 0.45;
+      }}
+      const ageSeconds = Math.max(0, nowUnix - heardUnix);
+      if (ageSeconds <= signalHeatFreshFullSeconds) {{
+        return 1;
+      }}
+      if (ageSeconds >= signalHeatFreshDropSeconds) {{
+        return 0.08;
+      }}
+      const span = signalHeatFreshDropSeconds - signalHeatFreshFullSeconds;
+      if (span <= 0) {{
+        return 0.08;
+      }}
+      const ratio = (ageSeconds - signalHeatFreshFullSeconds) / span;
+      return 1 - (Math.max(0, Math.min(1, ratio)) * 0.92);
+    }}
+
+    function signalHeatWeight(node, profile, nowUnix) {{
+      if (!node || typeof node !== "object") return null;
+      const activeProfile = profile || signalHeatProfileDefaults;
+      const snrWeight = normalizeSignalForHeat(node.snr, activeProfile.snrMin, activeProfile.snrMax);
+      const rssiWeight = normalizeSignalForHeat(node.rssi, activeProfile.rssiMin, activeProfile.rssiMax);
+      let signalWeight = null;
+      if (Number.isFinite(snrWeight) && Number.isFinite(rssiWeight)) {{
+        // Use both when available so intensity reflects the full reported signal context.
+        signalWeight = ((snrWeight * 0.62) + (rssiWeight * 0.38));
+      }} else if (Number.isFinite(snrWeight)) {{
+        signalWeight = snrWeight;
+      }} else if (Number.isFinite(rssiWeight)) {{
+        signalWeight = rssiWeight;
+      }}
+      if (!Number.isFinite(signalWeight)) return null;
+      const ageWeight = signalHeatAgeFactor(node, nowUnix);
+      const greenBiasedSignal = Math.pow(
+        clampUnitInterval(signalWeight),
+        1 + (clampUnitInterval(signalHeatDevKnobs.greenBias) * 0.55)
+      );
+      const freshnessWeight = signalHeatDevKnobs.freshnessFloor + (ageWeight * signalHeatDevKnobs.freshnessGain);
+      return clampUnitInterval(greenBiasedSignal * freshnessWeight);
+    }}
+
+    function collectSignalHeatmapPoints(nodes, profile) {{
+      const points = [];
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const intensityFloor = signalHeatDevKnobs.intensityFloor;
+      for (const node of (nodes || [])) {{
+        const lat = Number(node && node.lat);
+        const lon = Number(node && node.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const weight = signalHeatWeight(node, profile, nowUnix);
+        if (!Number.isFinite(weight)) continue;
+        const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
+        const intensity = intensityFloor + (eased * (1 - intensityFloor));
+        points.push([lat, lon, Math.max(intensityFloor, Math.min(1, intensity))]);
+      }}
+      return points;
+    }}
+
+    function collectSelectedNodeSignalPoint(nodes, profile) {{
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (!isSelectableNodeId(selectedId)) return [];
+      const selectedNode = (nodes || []).find(
+        (node) => normalizeNodeId(node && node.id) === selectedId
+      );
+      if (!selectedNode || typeof selectedNode !== "object") return [];
+      const lat = Number(selectedNode.lat);
+      const lon = Number(selectedNode.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const weight = signalHeatWeight(selectedNode, profile, nowUnix);
+      if (!Number.isFinite(weight)) return [];
+
+      const intensityFloor = signalHeatDevKnobs.intensityFloor;
+      const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
+      const intensity = intensityFloor + (eased * (1 - intensityFloor));
+      return [[lat, lon, Math.max(intensityFloor, Math.min(1, intensity))]];
+    }}
+
+    function resolveSignalHeatVisualOptions(pointsCount) {{
+      const geoLocked = signalHeatDevKnobs.geoRadiusLock >= 0.5;
+      const zoom = Number(map.getZoom());
+      const safeCount = Number.isFinite(pointsCount) ? Math.max(0, Math.round(pointsCount)) : 0;
+      let radius = signalHeatDevKnobs.radius;
+      let blur = signalHeatDevKnobs.blur;
+
+      if (geoLocked) {{
+        const center = map.getCenter();
+        const centerLat = center && Number.isFinite(center.lat) ? center.lat : 0;
+        const metersPerPixel = metersPerPixelAtLatitude(centerLat, zoom);
+        const targetMeters = Math.max(100, signalHeatDevKnobs.coverageKm * 1000);
+        radius = clampNumber(Math.round(targetMeters / Math.max(1, metersPerPixel)), 10, 64, signalHeatDevKnobs.radius);
+        blur = clampNumber(Math.round(radius * signalHeatDevKnobs.blurRatio), 8, 54, signalHeatDevKnobs.blur);
+      }} else {{
+        if (safeCount >= 36 || (safeCount >= 24 && zoom >= 11)) {{
+          radius = Math.max(16, radius - 2);
+          blur = Math.max(12, blur - 2);
+        }} else if (safeCount >= 18 || zoom >= 10) {{
+          radius = Math.max(15, radius - 1);
+          blur = Math.max(11, blur - 1);
+        }}
+        if (zoom >= 13) {{
+          radius = Math.max(14, radius - 2);
+          blur = Math.max(10, blur - 2);
+        }}
+      }}
+
+      return {{
+        radius,
+        blur,
+        minOpacity: signalHeatDevKnobs.minOpacity,
+      }};
+    }}
+
+    function updateSignalHeatmapControl(
+      pointsCount = null,
+      supported = supportsSignalHeatmap(),
+      profileLabel = ""
+    ) {{
+      const wrap = document.getElementById("map-heatmap-wrap");
+      const toggle = document.getElementById("map-heatmap-toggle");
+      const inMapContext = activeLayoutView === "network"
+        || activeLayoutView === "saved"
+        || activeLayoutView === "all";
+      if (wrap instanceof HTMLElement) {{
+        wrap.hidden = !inMapContext;
+        wrap.classList.toggle("disabled", !supported);
+        const profileText = profileLabel ? `Tuned for ${{profileLabel}}.` : "";
+        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5
+          ? " Coverage is geo-locked (km-stable across zoom/latitude)."
+          : "";
+        const devText = " Dev knobs: window.meshHeatmapDev.get()/set()/reset().";
+        const modeText = activeLayoutView === "saved"
+          ? " In Node Details, this indicates selected-node signal level at current position."
+          : "";
+        const baseTitle = supported
+          ? `Overlay realtime signal heatmap from positioned nodes, weighted by reported SNR/RSSI. ${{profileText}} Nodes fade after ~40 minutes.${{modeText}}${{geoText}}${{devText}}`
+          : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
+        if (Number.isFinite(pointsCount)) {{
+          wrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
+        }} else {{
+          wrap.title = baseTitle;
+        }}
+      }}
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = signalHeatmapEnabled;
+        toggle.disabled = !supported;
+      }}
+    }}
+
+    function syncSignalHeatmapLayer(nodes, forceHide = false) {{
+      const layer = ensureSignalHeatmapLayer();
+      const profile = resolveSignalHeatProfile();
+      const points = layer
+        ? (
+          activeLayoutView === "saved"
+            ? collectSelectedNodeSignalPoint(nodes, profile)
+            : collectSignalHeatmapPoints(nodes, profile)
+        )
+        : [];
+      updateSignalHeatmapControl(points.length, !!layer, profile.label || "");
+      if (!layer) {{
+        return;
+      }}
+      const visual = resolveSignalHeatVisualOptions(points.length);
+      if (typeof layer.setOptions === "function") {{
+        layer.setOptions(visual);
+      }}
+      layer.setLatLngs(points);
+      const mapHasVisibleCard = activeLayoutView === "network"
+        || activeLayoutView === "saved"
+        || activeLayoutView === "all";
+      const shouldShow = !forceHide
+        && mapHasVisibleCard
+        && signalHeatmapEnabled
+        && points.length > 0;
+      if (shouldShow) {{
+        if (!map.hasLayer(layer)) {{
+          layer.addTo(map);
+        }}
+      }} else if (map.hasLayer(layer)) {{
+        map.removeLayer(layer);
+      }}
     }}
 
     function isMapWheelGuardEnabled() {{
@@ -437,6 +892,15 @@
       requestMapResize();
       bindMapContainerObserver();
       bindMapWheelActivation();
+      map.on("zoomend", () => {{
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        syncSignalHeatmapLayer(nodes, false);
+      }});
+      map.on("moveend", () => {{
+        if (signalHeatDevKnobs.geoRadiusLock < 0.5) return;
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        syncSignalHeatmapLayer(nodes, false);
+      }});
     }});
     window.addEventListener("resize", () => {{
       setTimeout(syncMapSize, 120);
@@ -736,6 +1200,44 @@
       }} catch (_err) {{
       }}
       applyThemePreference(stored, false);
+    }}
+
+    function persistSignalHeatmapPreference() {{
+      try {{
+        window.localStorage.setItem(signalHeatmapStorageKey, signalHeatmapEnabled ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSignalHeatmapPreference() {{
+      signalHeatmapEnabled = true;
+      try {{
+        const stored = window.localStorage.getItem(signalHeatmapStorageKey);
+        if (stored === "0") {{
+          signalHeatmapEnabled = false;
+        }} else if (stored === "1") {{
+          signalHeatmapEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+      updateSignalHeatmapControl(null, supportsSignalHeatmap());
+    }}
+
+    function bindSignalHeatmapControl() {{
+      const toggle = document.getElementById("map-heatmap-toggle");
+      if (!(toggle instanceof HTMLInputElement) || toggle.dataset.bound === "1") {{
+        return;
+      }}
+      toggle.dataset.bound = "1";
+      toggle.checked = signalHeatmapEnabled;
+      toggle.addEventListener("change", () => {{
+        signalHeatmapEnabled = !!toggle.checked;
+        persistSignalHeatmapPreference();
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        syncSignalHeatmapLayer(nodes, false);
+      }});
+      const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+      syncSignalHeatmapLayer(nodes, false);
     }}
 
     function getChatScroller() {{
@@ -1555,16 +2057,53 @@
       const btn = document.querySelector('.teams-rail .rail-btn[data-view="saved"]');
       if (!(btn instanceof HTMLButtonElement)) return;
       if (!btn.dataset.baseTitle) {{
-        btn.dataset.baseTitle = btn.getAttribute("title") || "Saved favorite nodes";
+        btn.dataset.baseTitle = btn.getAttribute("title") || "Node details and saved nodes";
       }}
       const count = Math.max(0, favoriteNodeIds.size);
-      const shown = count > 99 ? "99+" : String(count);
-      btn.textContent = count > 0 ? `Saved (${{shown}})` : "Saved";
-      const baseTitle = btn.dataset.baseTitle || "Saved favorite nodes";
+      btn.textContent = "Node";
+      const baseTitle = btn.dataset.baseTitle || "Node details and saved nodes";
       btn.title = count > 0
         ? `${{baseTitle}}. ${{count}} saved node${{count === 1 ? "" : "s"}}.`
-        : baseTitle;
+        : `${{baseTitle}}. No saved nodes yet.`;
       btn.setAttribute("aria-label", btn.title);
+    }}
+
+    function renderStarredNodeSelect(state) {{
+      const select = document.getElementById("starred-node-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
+      const entries = Array.from(favoriteNodeIds)
+        .map((nodeId) => {{
+          const node = nodesById.get(nodeId);
+          const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
+          return {{ id: nodeId, name }};
+        }})
+        .sort((a, b) => {{
+          const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+          if (nameDiff !== 0) return nameDiff;
+          return String(a.id || "").localeCompare(String(b.id || ""));
+        }});
+
+      const placeholder = entries.length > 0
+        ? `Starred nodes (${{entries.length}})`
+        : "Starred nodes";
+      const options = [`<option value="">${{escAttr(placeholder)}}</option>`];
+      for (const entry of entries) {{
+        options.push(`<option value="${{escAttr(entry.id)}}">${{escAttr(`${{entry.name}} (${{entry.id}})` )}}</option>`);
+      }}
+      select.innerHTML = options.join("");
+
+      const selectedValue = (isSelectableNodeId(selectedNodeId) && favoriteNodeIds.has(selectedNodeId))
+        ? selectedNodeId
+        : "";
+      select.value = selectedValue;
+      select.disabled = entries.length === 0;
+      select.title = entries.length > 0
+        ? "Jump to a starred node"
+        : "No starred nodes yet";
     }}
 
     function refreshFavoriteToggleButtons() {{
@@ -1598,6 +2137,8 @@
       refreshFavoriteToggleButtons();
       if (latestState) {{
         renderFavorites(latestState);
+      }} else {{
+        renderStarredNodeSelect({{}});
       }}
     }}
 
@@ -1668,7 +2209,32 @@
     function renderSelectionStatus() {{
       const pill = document.getElementById("selected-node-pill");
       if (pill) {{
-        pill.textContent = selectedNodeId ? `Selected: ${{selectedNodeId}}` : "Selected: none";
+        if (selectedNodeId) {{
+          let nodeName = "";
+          if (latestState && Array.isArray(latestState.nodes)) {{
+            const selectedNode = latestState.nodes.find((node) => (
+              normalizeNodeId(node && node.id) === selectedNodeId
+            ));
+            nodeName = preferredNodeName(selectedNode);
+          }}
+          if (!nodeName) {{
+            nodeName = nodeNameCache.get(selectedNodeId) || "";
+          }}
+          pill.textContent = nodeName
+            ? `Selected: ${{nodeName}} (${{selectedNodeId}})`
+            : `Selected: ${{selectedNodeId}}`;
+        }} else {{
+          pill.textContent = "Selected: none";
+        }}
+      }}
+      const starredSelect = document.getElementById("starred-node-select");
+      if (starredSelect instanceof HTMLSelectElement) {{
+        const selectedValue = (isSelectableNodeId(selectedNodeId) && isFavoriteNode(selectedNodeId))
+          ? selectedNodeId
+          : "";
+        if (starredSelect.value !== selectedValue) {{
+          starredSelect.value = selectedValue;
+        }}
       }}
       const btn = document.getElementById("clear-selection-btn");
       if (btn) {{
@@ -1707,6 +2273,14 @@
       return Math.max(28, Math.min(78, value));
     }}
 
+    function clampSavedNodePanePct(value) {{
+      return Math.max(30, Math.min(70, value));
+    }}
+
+    function clampSavedNodeMainPct(value) {{
+      return Math.max(28, Math.min(78, value));
+    }}
+
     function applySplitState() {{
       const layout = document.querySelector(".layout");
       if (!(layout instanceof HTMLElement)) return;
@@ -1720,6 +2294,18 @@
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
       layout.style.setProperty("--network-nodes-list-pct", `${{networkNodesListPct}}%`);
+    }}
+
+    function applySavedNodeSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--saved-node-pane-pct", `${{savedNodePanePct}}%`);
+    }}
+
+    function applySavedNodeHistorySplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--saved-node-main-pct", `${{savedNodeMainPct}}%`);
     }}
 
     function loadSplitState() {{
@@ -1763,9 +2349,51 @@
       applyNetworkNodesSplitState();
     }}
 
+    function loadSavedNodeSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(savedNodeSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            savedNodePanePct = clampSavedNodePanePct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applySavedNodeSplitState();
+    }}
+
+    function loadSavedNodeHistorySplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(savedNodeHistorySplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            savedNodeMainPct = clampSavedNodeMainPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applySavedNodeHistorySplitState();
+    }}
+
     function persistNetworkNodesSplitState() {{
       try {{
         window.localStorage.setItem(networkNodesSplitStorageKey, String(networkNodesListPct));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSavedNodeSplitState() {{
+      try {{
+        window.localStorage.setItem(savedNodeSplitStorageKey, String(savedNodePanePct));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSavedNodeHistorySplitState() {{
+      try {{
+        window.localStorage.setItem(savedNodeHistorySplitStorageKey, String(savedNodeMainPct));
       }} catch (_err) {{
       }}
     }}
@@ -1876,21 +2504,22 @@
       const nodeHistoryPanel = document.getElementById("map-data-node");
       const mapDataBody = document.getElementById("map-data-body");
       const networkHost = document.getElementById("network-node-history-host");
+      const savedHost = document.getElementById("saved-node-history-host");
       const nodesTitle = document.getElementById("nodes-card-title");
       if (!(nodeHistoryPanel instanceof HTMLElement)) return;
       if (!(mapDataBody instanceof HTMLElement)) return;
       if (!(networkHost instanceof HTMLElement)) return;
 
-      const dockInNodes = activeLayoutView === "network";
-      const target = dockInNodes ? networkHost : mapDataBody;
+      const dockInSaved = activeLayoutView === "saved" && (savedHost instanceof HTMLElement);
+      const target = dockInSaved ? savedHost : mapDataBody;
       if (nodeHistoryPanel.parentElement !== target) {{
         target.appendChild(nodeHistoryPanel);
       }}
 
-      networkHost.hidden = !dockInNodes;
-      networkHost.classList.toggle("empty", dockInNodes && nodeHistoryPanel.hidden);
+      networkHost.hidden = true;
+      networkHost.classList.remove("empty");
       if (nodesTitle instanceof HTMLElement) {{
-        nodesTitle.textContent = dockInNodes ? "Node Explorer" : "Nodes";
+        nodesTitle.textContent = activeLayoutView === "network" ? "Network Explorer" : "Nodes";
       }}
     }}
 
@@ -1914,10 +2543,16 @@
       }}
       const mapTitle = document.getElementById("map-card-title");
       if (mapTitle) {{
-        mapTitle.textContent = next === "saved"
-          ? "Saved Node Details"
-          : (isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map");
+        if (next === "saved") {{
+          mapTitle.textContent = "Node Details";
+        }} else if (next === "network") {{
+          mapTitle.textContent = "Network Explorer";
+        }} else {{
+          mapTitle.textContent = isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map";
+        }}
       }}
+      const mapNodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+      syncSignalHeatmapLayer(mapNodes, false);
       setMapWheelZoomActive(next === "network" || next === "saved");
       if (chatPanelOpen) {{
         if (activeWheelPane instanceof HTMLElement) {{
@@ -1952,6 +2587,9 @@
       if (next === "network" && mapDataFocus === "activity") {{
         mapDataFocus = "auto";
       }}
+      if (next === "network") {{
+        fitDone = false;
+      }}
       if (next === "network" && isSelectableNodeId(selectedNodeId)) {{
         pendingSelectionScroll = true;
         highlightNodeSelection();
@@ -1961,8 +2599,16 @@
       }}
       syncNodeHistoryDock();
       if (latestState) {{
-        renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null, null);
-        renderSavedNodeDetails(latestState, null);
+        let cachedNodeHistory = null;
+        if ((next === "saved" || next === "network") && isSelectableNodeId(selectedNodeId)) {{
+          const cached = nodeHistoryCache.get(selectedNodeId);
+          if (cached && cached.data) {{
+            cachedNodeHistory = cached.data;
+          }}
+        }}
+        renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
+        renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory, null);
+        renderSavedNodeDetails(latestState, cachedNodeHistory);
       }}
       requestMapResize();
     }}
@@ -2087,6 +2733,105 @@
           splitter.classList.remove("active");
           document.body.classList.remove("resizing-panels-y");
           persistNetworkNodesSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindSavedNodeSplitter() {{
+      const splitter = document.getElementById("saved-map-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const pane = splitter.parentElement;
+      if (!(pane instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "saved") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientX = (clientX) => {{
+          const rect = pane.getBoundingClientRect();
+          if (rect.width < 120) return;
+          const relativeX = clientX - rect.left;
+          const pct = clampSavedNodePanePct((relativeX / rect.width) * 100);
+          savedNodePanePct = pct;
+          applySavedNodeSplitState();
+          requestMapResize();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistSavedNodeSplitState();
+          requestMapResize();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindSavedNodeHistorySplitter() {{
+      const splitter = document.getElementById("saved-node-history-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".saved-node-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "saved") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const mainPane = stack.querySelector(".saved-node-main-scroll");
+        if (!(mainPane instanceof HTMLElement)) {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          return;
+        }}
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampSavedNodeMainPct((relativeY / rect.height) * 100);
+          savedNodeMainPct = pct;
+          applySavedNodeHistorySplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistSavedNodeHistorySplitState();
           splitter.removeEventListener("pointermove", onMove);
           splitter.removeEventListener("pointerup", onUp);
           splitter.removeEventListener("pointercancel", onUp);
@@ -2500,6 +3245,8 @@
 
     function renderNodeHistoryLoading(nodeId) {{
       setMapDataMode("node");
+      resetSignalChartZoom(nodeId || "");
+      signalChartPoints = [];
       const caption = document.getElementById("node-history-caption");
       if (caption) {{
         caption.textContent = `Loading history for ${{nodeId}}...`;
@@ -2534,12 +3281,17 @@
       persistSelection();
       renderSelectionStatus();
       highlightNodeSelection();
-      updateMapSelection(shouldFocus);
+      const focusSelection = shouldFocus && activeLayoutView !== "network";
+      updateMapSelection(focusSelection);
       scrollSelectionIntoView();
-      renderNodeHistoryLoading(selectedNodeId);
+      if (activeLayoutView === "saved") {{
+        renderNodeHistoryLoading(selectedNodeId);
+      }} else {{
+        setMapDataMode("live");
+      }}
       if (latestState) {{
         let cachedNodeHistory = null;
-        if (isSelectableNodeId(selectedNodeId)) {{
+        if ((activeLayoutView === "saved" || activeLayoutView === "network") && isSelectableNodeId(selectedNodeId)) {{
           const cached = nodeHistoryCache.get(selectedNodeId);
           if (cached && cached.data) {{
             cachedNodeHistory = cached.data;
@@ -2552,6 +3304,8 @@
 
     function clearNodeSelection() {{
       selectedNodeId = null;
+      resetSignalChartZoom("");
+      signalChartPoints = [];
       pendingSelectionScroll = false;
       persistSelection();
       renderSelectionStatus();
@@ -2684,6 +3438,17 @@
       }});
     }}
 
+    function bindStarredNodeControl() {{
+      const select = document.getElementById("starred-node-select");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+      select.addEventListener("change", () => {{
+        const nodeId = normalizeNodeId(select.value || "");
+        if (!isSelectableNodeId(nodeId)) return;
+        selectNode(nodeId, true, false);
+      }});
+    }}
+
     function bindFavoriteToggleControls() {{
       if (document.body.dataset.favoritesBound === "1") return;
       document.body.dataset.favoritesBound = "1";
@@ -2724,6 +3489,8 @@
           refreshFavoriteToggleButtons();
           if (latestState) {{
             renderFavorites(latestState);
+          }} else {{
+            renderStarredNodeSelect({{}});
           }}
         }});
       }}
@@ -2769,7 +3536,38 @@
 
     function renderSummary(state) {{
       const s = state.summary || {{}};
-      setText("m-target", s.target || "n/a");
+      let targetValue = s.target || "n/a";
+      let updatedValue = state.generated_at || "n/a";
+      let updatedFreshnessStatus = "";
+      let updatedFreshnessLabel = "";
+      if (activeLayoutView === "saved") {{
+        const selectedId = normalizeNodeId(selectedNodeId || "");
+        if (isSelectableNodeId(selectedId)) {{
+          const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+          const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === selectedId) || null;
+          const historyCapsById = new Map(
+            Object.entries((state.history_caps && typeof state.history_caps === "object") ? state.history_caps : {{}})
+              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+          );
+          const caps = historyCapsById.get(selectedId) || null;
+          const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
+          const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+          const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
+          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(selectedId) || null);
+          const status = freshnessStatus(freshness.unix, Math.floor(Date.now() / 1000));
+          const nodeName = preferredNodeName(node) || nodeNameCache.get(selectedId) || `Node ${{selectedId}}`;
+          targetValue = `${{nodeName}} (${{selectedId}})`;
+          updatedValue = savedDetailText(freshness.text, state.generated_at || "n/a");
+          updatedFreshnessStatus = status;
+          updatedFreshnessLabel = status === "online"
+            ? "Fresh"
+            : (status === "warn" ? "Aging" : (status === "stale" ? "Stale" : "Unknown"));
+        }} else {{
+          targetValue = "Select a node";
+        }}
+      }}
+      setText("m-target", targetValue);
       setText("m-nodes", s.node_count ?? 0);
       setText("m-pos-nodes", s.nodes_with_position ?? 0);
       setText("m-live-packets", s.live_packet_count ?? 0);
@@ -2777,7 +3575,19 @@
       setText("m-links", realLinks);
       setText("m-modem-preset", s.modem_preset || "n/a");
       setText("m-uptime", s.uptime_seconds ?? 0);
-      setText("updated-at", state.generated_at || "n/a");
+      setText("updated-at", updatedValue);
+      const updatedFreshness = document.getElementById("updated-freshness");
+      if (updatedFreshness instanceof HTMLElement) {{
+        updatedFreshness.classList.remove("status-online", "status-warn", "status-stale", "status-unknown");
+        if (activeLayoutView === "saved" && updatedFreshnessLabel) {{
+          updatedFreshness.hidden = false;
+          updatedFreshness.textContent = updatedFreshnessLabel;
+          updatedFreshness.classList.add(`status-${{updatedFreshnessStatus || "unknown"}}`);
+        }} else {{
+          updatedFreshness.hidden = true;
+          updatedFreshness.textContent = "";
+        }}
+      }}
       const err = document.getElementById("local-state-error");
       if (err) {{
         err.textContent = state.local_state_error ? `  Local state error: ${{state.local_state_error}}` : "";
@@ -2846,7 +3656,9 @@
 
     function buildMapSignature(nodes, edges, nodeHistory) {{
       const selection = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
-      if (selection) {{
+      const savedSelectionMode = activeLayoutView === "saved" && !!selection;
+      const networkSelectionMode = activeLayoutView === "network" && !!selection;
+      if (savedSelectionMode) {{
         let trailSig = "no-trail";
         const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
         if (historyNodeId && historyNodeId === selection) {{
@@ -2879,12 +3691,31 @@
       const edgeSig = (edges || [])
         .map((edge) => `${{normalizeNodeId(edge.from)}}>${{normalizeNodeId(edge.to)}}:${{edge.lifetime_count ?? edge.count ?? 0}}:${{edge.last_rx_time || ""}}:${{edge.last_hops ?? ""}}`)
         .join("|");
+      if (networkSelectionMode) {{
+        let trailSig = "no-trail";
+        const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
+        if (historyNodeId && historyNodeId === selection) {{
+          const rawTrail = Array.isArray(nodeHistory.positions) ? nodeHistory.positions : [];
+          const compact = [];
+          for (const point of rawTrail) {{
+            const lat = Number(point && point.lat);
+            const lon = Number(point && point.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+            const when = Number(point && point.time_unix);
+            const ts = Number.isFinite(when) ? String(Math.round(when)) : "";
+            compact.push(`${{lat.toFixed(5)}},${{lon.toFixed(5)}}@${{ts}}`);
+          }}
+          trailSig = compact.join("|");
+        }}
+        return `all#${{nodeSig}}#${{edgeSig}}#sel:${{selection}}#trail:${{trailSig}}`;
+      }}
       return `all#${{nodeSig}}#${{edgeSig}}`;
     }}
 
     function renderMap(nodes, edges, nodeHistory = null) {{
       const signature = buildMapSignature(nodes, edges, nodeHistory);
       if (signature === lastMapSignature) {{
+        syncSignalHeatmapLayer(nodes, false);
         updateMapSelection(false);
         return;
       }}
@@ -2897,16 +3728,21 @@
       const features = [];
       const byId = Object.fromEntries(nodes.map((n) => [normalizeNodeId(n.id), n]));
       const selectionMode = isSelectableNodeId(selectedNodeId);
+      const savedSelectionMode = selectionMode && activeLayoutView === "saved";
+      const networkSelectionMode = selectionMode && activeLayoutView === "network";
+      syncSignalHeatmapLayer(nodes, false);
       const mapTitle = document.getElementById("map-card-title");
       if (mapTitle) {{
         if (activeLayoutView === "saved") {{
-          mapTitle.textContent = "Saved Node Details";
+          mapTitle.textContent = "Node Details";
+        }} else if (activeLayoutView === "network") {{
+          mapTitle.textContent = "Network Explorer";
         }} else {{
           mapTitle.textContent = selectionMode ? "Selected Node Map" : "Network Map";
         }}
       }}
 
-      if (selectionMode) {{
+      if (savedSelectionMode) {{
         const selectedNode = selectedNodeFrom(nodes);
         const selectionId = normalizeNodeId(selectedNodeId || "");
         const selectedNodeIdNormalized = normalizeNodeId((selectedNode && selectedNode.id) || "");
@@ -3000,6 +3836,7 @@
             ${{selectedNodeIdNormalized || selectedNode.id}}<br/>
             Num: ${{selectedNode.num ?? "n/a"}}<br/>
             SNR: ${{selectedNode.snr ?? "n/a"}}<br/>
+            RSSI: ${{selectedNode.rssi ?? "n/a"}}<br/>
             Last: ${{selectedNode.last_heard || "n/a"}}<br/>
             Trail points: ${{trailPointsCount}}<br/>
             Trail latest: ${{trailLast}}
@@ -3042,6 +3879,7 @@
           ${{normalizedId || node.id}}<br/>
           Num: ${{node.num ?? "n/a"}}<br/>
           SNR: ${{node.snr ?? "n/a"}}<br/>
+          RSSI: ${{node.rssi ?? "n/a"}}<br/>
           Last: ${{node.last_heard || "n/a"}}
         `);
         marker.on("click", () => {{
@@ -3089,6 +3927,79 @@
         `);
         line.addTo(edgeLayer);
         features.push(line);
+      }}
+
+      if (networkSelectionMode) {{
+        const selectionId = normalizeNodeId(selectedNodeId || "");
+        const canUseHistory = !!nodeHistory
+          && normalizeNodeId((nodeHistory && nodeHistory.node_id) || "") === selectionId;
+        const rawTrail = canUseHistory && Array.isArray(nodeHistory.positions)
+          ? nodeHistory.positions
+          : [];
+        const trailPoints = rawTrail
+          .map((point) => {{
+            const lat = Number(point && point.lat);
+            const lon = Number(point && point.lon);
+            const timeUnix = Number(point && point.time_unix);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+            return {{
+              lat,
+              lon,
+              time_unix: Number.isFinite(timeUnix) ? Math.round(timeUnix) : null,
+              time: point && point.time ? String(point.time) : null,
+            }};
+          }})
+          .filter((point) => point !== null);
+
+        if (trailPoints.length >= 2) {{
+          const line = L.polyline(
+            trailPoints.map((point) => [point.lat, point.lon]),
+            {{
+              color: "#d06a1b",
+              opacity: 0.72,
+              weight: 3,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+          );
+          line.bindTooltip(`Selected node trail (${{trailPoints.length}} points)`, {{ sticky: true, opacity: 0.9 }});
+          line.addTo(trailLayer);
+        }}
+        if (trailPoints.length > 0) {{
+          const endPoint = trailPoints[trailPoints.length - 1];
+          for (let i = 0; i < trailPoints.length; i += 1) {{
+            const point = trailPoints[i];
+            const isLatestPoint = i === (trailPoints.length - 1);
+            const ratio = trailPoints.length <= 1 ? 1 : (i / (trailPoints.length - 1));
+            const marker = L.circleMarker([point.lat, point.lon], {{
+              radius: isLatestPoint ? 4.8 : (i === 0 ? 3.4 : 2.4),
+              color: isLatestPoint ? "#f97316" : "#2f855a",
+              fillColor: isLatestPoint ? "#f97316" : "#63d297",
+              fillOpacity: isLatestPoint ? 0.92 : (0.2 + (ratio * 0.45)),
+              weight: isLatestPoint ? 1.8 : 1,
+              bubblingMouseEvents: false,
+            }});
+            const pointTime = point.time || "n/a";
+            marker.bindTooltip(
+              isLatestPoint
+                ? `Selected trail newest point: ${{pointTime}}`
+                : `Selected trail point ${{i + 1}}/${{trailPoints.length}}: ${{pointTime}}`,
+              {{ sticky: true, opacity: 0.88 }}
+            );
+            marker.addTo(trailLayer);
+          }}
+
+          const latestHalo = L.circleMarker([endPoint.lat, endPoint.lon], {{
+            radius: 8,
+            color: "#f97316",
+            fillColor: "#f97316",
+            fillOpacity: 0.14,
+            weight: 2,
+            bubblingMouseEvents: false,
+          }});
+          latestHalo.bindTooltip(`Selected trail latest: ${{endPoint.time || "n/a"}}`, {{ sticky: true, opacity: 0.9 }});
+          latestHalo.addTo(trailLayer);
+        }}
       }}
 
       if (!fitDone && features.length > 0) {{
@@ -3259,6 +4170,89 @@
       return stats;
     }}
 
+    function mapLatestChatTouchInfo(messages) {{
+      const latestByNodeId = new Map();
+      const updateTouch = (rawNodeId, timeUnix, timeText) => {{
+        const nodeId = normalizeNodeId(rawNodeId);
+        if (!isSelectableNodeId(nodeId)) return;
+        if (!Number.isFinite(timeUnix) || timeUnix <= 0) return;
+        const existing = latestByNodeId.get(nodeId);
+        if (!existing || timeUnix > existing.unix) {{
+          latestByNodeId.set(nodeId, {{
+            unix: Math.trunc(timeUnix),
+            text: String(timeText || "").trim() || "n/a",
+          }});
+        }}
+      }};
+
+      for (const msg of (messages || [])) {{
+        const timeUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+        const timeText = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+        updateTouch(msg && msg.from, timeUnix, timeText);
+        updateTouch(msg && msg.to, timeUnix, timeText);
+      }}
+      return latestByNodeId;
+    }}
+
+    function resolveNodeFreshness(node, caps, historySummary = null, chatTouch = null) {{
+      const candidates = [];
+      const liveLastSeenUnix = nodeLastHeardUnix(node);
+      if (Number.isFinite(liveLastSeenUnix) && liveLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(liveLastSeenUnix),
+          text: String((node && node.last_heard) || "").trim(),
+          source: "live",
+        }});
+      }}
+
+      const capsLastSeenUnix = Number(caps && caps.last_seen_unix);
+      if (Number.isFinite(capsLastSeenUnix) && capsLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(capsLastSeenUnix),
+          text: String((caps && (caps.last_seen || caps.last_position_time)) || "").trim(),
+          source: "caps",
+        }});
+      }}
+
+      const historyLastSeenUnix = parseDashboardTimeToUnix(historySummary && historySummary.last_seen);
+      if (Number.isFinite(historyLastSeenUnix) && historyLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(historyLastSeenUnix),
+          text: String((historySummary && historySummary.last_seen) || "").trim(),
+          source: "history",
+        }});
+      }}
+
+      const chatLastSeenUnix = Number(chatTouch && chatTouch.unix);
+      if (Number.isFinite(chatLastSeenUnix) && chatLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(chatLastSeenUnix),
+          text: String((chatTouch && chatTouch.text) || "").trim(),
+          source: "chat",
+        }});
+      }}
+
+      if (candidates.length === 0) {{
+        return {{ unix: null, text: "n/a", source: "unknown" }};
+      }}
+      candidates.sort((a, b) => b.unix - a.unix);
+      const freshest = candidates[0];
+      return {{
+        unix: freshest.unix,
+        text: freshest.text || "n/a",
+        source: freshest.source,
+      }};
+    }}
+
+    function nodeFreshnessSourceLabel(source) {{
+      const key = String(source || "").toLowerCase();
+      if (key === "chat") return "Chat traffic";
+      if (key === "live") return "Live node state";
+      if (key === "caps") return "History capabilities";
+      if (key === "history") return "History summary";
+      return "Unknown";
+    }}
+
     function computeSavedLinkStats(nodeId, edges) {{
       const stats = {{
         links: 0,
@@ -3322,22 +4316,26 @@
     function renderSavedNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
       const host = document.getElementById("saved-node-details");
       if (!(host instanceof HTMLElement)) return;
+      const dockedHistoryPanel = document.getElementById("map-data-node");
+      const mapDataBody = document.getElementById("map-data-body");
+      // Preserve the shared history panel node before replacing host.innerHTML.
+      if (
+        dockedHistoryPanel instanceof HTMLElement
+        && mapDataBody instanceof HTMLElement
+        && host.contains(dockedHistoryPanel)
+      ) {{
+        mapDataBody.appendChild(dockedHistoryPanel);
+      }}
 
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nodeId = normalizeNodeId(selectedNodeId || "");
       const loadingId = normalizeNodeId(loadingNodeId || "");
 
-      if (favoriteNodeIds.size === 0) {{
-        host.innerHTML = '<div class="saved-node-details-empty">No saved nodes yet. Star a node in Chat, Network, or Saved list to start tracking it here.</div>';
-        return;
-      }}
-
       if (!isSelectableNodeId(nodeId)) {{
-        host.innerHTML = '<div class="saved-node-details-empty">Select a saved node to view historical summary, links, and recent chat activity.</div>';
-        return;
-      }}
-      if (!favoriteNodeIds.has(nodeId)) {{
-        host.innerHTML = '<div class="saved-node-details-empty">Selected node is not in Saved. Pick a node from the Saved list on the left.</div>';
+        host.innerHTML = favoriteNodeIds.size === 0
+          ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Star nodes to build your Saved Nodes subsection.</div>'
+          : '<div class="saved-node-details-empty">Select any node to view history and summary, or pick one from Saved Nodes.</div>';
+        syncNodeHistoryDock();
         return;
       }}
 
@@ -3366,21 +4364,17 @@
       const historyPoints = Array.isArray(history && history.points) ? history.points : [];
       const historyPositions = Array.isArray(history && history.positions) ? history.positions : [];
       const historyLoading = loadingId === nodeId && !history;
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
+      const chatStats = computeSavedChatStats(nodeId, chatMessages);
+      const chatTouch = Number.isFinite(chatStats.lastChatUnix)
+        ? {{ unix: Math.trunc(chatStats.lastChatUnix), text: chatStats.lastChatText }}
+        : null;
+      const linkStats = computeSavedLinkStats(nodeId, edges);
 
-      const nodeName = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
-      const nowUnix = Math.floor(Date.now() / 1000);
-      const liveLastSeenUnix = nodeLastHeardUnix(node);
-      const capsLastSeenUnix = Number(caps && caps.last_seen_unix);
-      const historyLastSeenUnix = parseDashboardTimeToUnix(historySummary.last_seen || "");
-      const lastSeenUnix = Number.isFinite(liveLastSeenUnix)
-        ? liveLastSeenUnix
-        : (Number.isFinite(capsLastSeenUnix)
-            ? Math.trunc(capsLastSeenUnix)
-            : (Number.isFinite(historyLastSeenUnix) ? historyLastSeenUnix : null));
-      const status = freshnessStatus(lastSeenUnix, nowUnix);
-      const statusLabel = status === "online"
-        ? "Online"
-        : (status === "warn" ? "Aging" : (status === "stale" ? "Stale" : "Unknown"));
+      const freshness = resolveNodeFreshness(node, caps, historySummary, chatTouch);
+      const freshnessSource = nodeFreshnessSourceLabel(freshness.source);
 
       const batteryRaw = Number(
         (node && node.battery_level != null)
@@ -3506,29 +4500,16 @@
       const snrRange = `${{formatMetricValue(historySummary.snr_min, 1)}} to ${{formatMetricValue(historySummary.snr_max, 1)}} dB`;
       const rssiRange = `${{formatMetricValue(historySummary.rssi_min, 0)}} to ${{formatMetricValue(historySummary.rssi_max, 0)}} dBm`;
 
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
-      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
-      const chatStats = computeSavedChatStats(nodeId, chatMessages);
-      const linkStats = computeSavedLinkStats(nodeId, edges);
       const linkAvgHops = linkStats.hopsWeight > 0
         ? formatMetricValue(linkStats.hopsWeighted / linkStats.hopsWeight, 2)
         : "n/a";
-
-      const subtitleBits = [
-        nodeId,
-        `Last seen: ${{savedDetailText((node && node.last_heard) || (caps && caps.last_seen) || historySummary.last_seen)}}`,
-      ];
-      if (historyLoading) {{
-        subtitleBits.push("Loading historical data...");
-      }}
 
       const nodeSection = savedDetailSectionHtml("Node", [
         ["Node ID", nodeId],
         ["Node Num", node && node.num != null ? String(node.num) : "n/a"],
         ["Hardware", (node && node.hardware_model) || "n/a"],
         ["Role", (node && node.role) || "n/a"],
-        ["Status", statusLabel],
+        ["Freshness Source", freshnessSource],
         ["Battery", batteryText],
         ["Hops Away", hopsText],
         ["Voltage", Number.isFinite(voltageValue) ? `${{voltageValue.toFixed(2)}}V` : "n/a"],
@@ -3590,30 +4571,31 @@
       ]);
 
       host.innerHTML = `
-        <div class="saved-node-details-head">
-          <div class="saved-node-title-wrap">
-            <div class="saved-node-title">${{escAttr(nodeName)}}</div>
-            <div class="saved-node-subtitle">${{subtitleBits.map((part) => escAttr(part)).join("<span>•</span>")}}</div>
+        <div class="saved-node-stack">
+          <div class="saved-node-main-scroll">
+            <div class="saved-node-sections">
+              ${{nodeSection}}
+              ${{historySection}}
+              ${{locationSection}}
+              ${{chatSection}}
+              ${{linksSection}}
+            </div>
           </div>
-          <span class="saved-node-status status-${{escAttr(status)}}">${{escAttr(statusLabel)}}</span>
-        </div>
-        <div class="saved-node-sections">
-          ${{nodeSection}}
-          ${{historySection}}
-          ${{locationSection}}
-          ${{chatSection}}
-          ${{linksSection}}
+          <div id="saved-node-history-splitter" class="saved-node-history-splitter" title="Drag to resize node info and history panels"></div>
+          <div id="saved-node-history-host" class="saved-node-history-host"></div>
         </div>
       `;
+      bindSavedNodeHistorySplitter();
+      syncNodeHistoryDock();
     }}
 
     function renderFavorites(state) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      renderSavedNodeDetails(safeState, null);
+      renderStarredNodeSelect(safeState);
       const list = document.getElementById("favorites-list");
       const caption = document.getElementById("favorites-caption");
       if (!(list instanceof HTMLElement)) return;
-
-      const safeState = (state && typeof state === "object") ? state : {{}};
-      renderSavedNodeDetails(safeState, null);
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
       const historyCapsById = new Map(
@@ -3621,6 +4603,9 @@
           .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
           .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
       );
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
 
       const nowUnix = Math.floor(Date.now() / 1000);
       const entries = Array.from(favoriteNodeIds)
@@ -3628,17 +4613,9 @@
           const node = nodesById.get(nodeId);
           const caps = historyCapsById.get(nodeId);
           const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
-          const liveLastSeen = nodeLastHeardUnix(node);
-          const capsLastSeen = Number(caps && caps.last_seen_unix);
-          const lastSeenUnix = Number.isFinite(liveLastSeen)
-            ? liveLastSeen
-            : (Number.isFinite(capsLastSeen) ? Math.trunc(capsLastSeen) : null);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const lastSeenText = String(
-            (node && node.last_heard)
-            || (caps && (caps.last_seen || caps.last_position_time))
-            || "n/a"
-          );
+          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(nodeId) || null);
+          const status = freshnessStatus(freshness.unix, nowUnix);
+          const lastSeenText = savedDetailText(freshness.text);
           const batteryRaw = Number(
             (node && node.battery_level != null)
               ? node.battery_level
@@ -3686,11 +4663,11 @@
       const warnCount = entries.filter((entry) => entry.status === "warn").length;
       const staleCount = entries.filter((entry) => entry.status === "stale").length;
       if (caption) {{
-        caption.textContent = `Saved nodes: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
+        caption.textContent = `Saved subsection: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
       }}
 
       if (entries.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No saved nodes yet. Click ☆ next to a node name to save it.</div>';
+        list.innerHTML = '<div class="favorites-empty">No saved nodes yet. Click ☆ next to a node name to add it to this subsection.</div>';
         return;
       }}
       if (filtered.length === 0) {{
@@ -3733,6 +4710,200 @@
       const num = Number(value);
       if (!Number.isFinite(num)) return "n/a";
       return `${{num.toFixed(decimals)}}${{suffix}}`;
+    }}
+
+    function clampUnit(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      if (num < 0) return 0;
+      if (num > 1) return 1;
+      return num;
+    }}
+
+    function signalZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeSignalZoomWindow(totalPoints) {{
+      const minSpan = signalZoomMinSpan(totalPoints);
+      let start = clampUnit(signalChartZoomStart);
+      let end = clampUnit(signalChartZoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      signalChartZoomStart = clampUnit(start);
+      signalChartZoomEnd = clampUnit(end);
+    }}
+
+    function resetSignalChartZoom(nodeId = "") {{
+      signalChartZoomNodeId = normalizeNodeId(nodeId || "");
+      signalChartZoomStart = 0;
+      signalChartZoomEnd = 1;
+      signalChartPointerDrag = null;
+    }}
+
+    function setSignalChartZoomWindow(start, end, totalPoints) {{
+      const prevStart = signalChartZoomStart;
+      const prevEnd = signalChartZoomEnd;
+      signalChartZoomStart = start;
+      signalChartZoomEnd = end;
+      normalizeSignalZoomWindow(totalPoints);
+      return Math.abs(signalChartZoomStart - prevStart) > 1e-6
+        || Math.abs(signalChartZoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function getSignalChartAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((signalChartLayout.padLeft / signalChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((signalChartLayout.width - signalChartLayout.padRight) / signalChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleSignalRows(rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeSignalZoomWindow(total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(signalChartZoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(signalChartZoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      const visible = allRows.slice(startIndex, endIndex + 1);
+      return {{
+        rows: visible,
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function rerenderSignalChartFromCache() {{
+      if (!Array.isArray(signalChartPoints)) return;
+      renderSignalChart(signalChartPoints);
+    }}
+
+    function bindSignalChartZoom() {{
+      const svg = document.getElementById("signal-chart");
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, signalChartZoomEnd - signalChartZoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = signalZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = signalChartZoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || signalChartPoints.length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        signalChartPointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: signalChartZoomStart,
+          startZoomEnd: signalChartZoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!signalChartPointerDrag || signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getSignalChartAxisBounds(svg);
+        const deltaRatio = (ev.clientX - signalChartPointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = signalChartPointerDrag.startZoomEnd - signalChartPointerDrag.startZoomStart;
+        const nextStart = signalChartPointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = signalChartPointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!signalChartPointerDrag) return;
+        if (ev && signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        signalChartPointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
     }}
 
     function setSignalTimelineMessage(message) {{
@@ -3853,23 +5024,41 @@
       const empty = document.getElementById("signal-empty");
       if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
 
+      bindSignalChartZoom();
+
       const rows = Array.isArray(points) ? points : [];
-      const width = 900;
-      const height = 220;
-      const padLeft = 44;
-      const padRight = 44;
-      const padTop = 12;
-      const padBottom = 30;
+      signalChartPoints = rows;
+      const currentNodeId = normalizeNodeId(selectedNodeId || "");
+      if (currentNodeId !== signalChartZoomNodeId) {{
+        resetSignalChartZoom(currentNodeId);
+      }}
+      const visible = getVisibleSignalRows(rows);
+      const plotRows = visible.rows;
+
+      const width = signalChartLayout.width;
+      const height = signalChartLayout.height;
+      const padLeft = signalChartLayout.padLeft;
+      const padRight = signalChartLayout.padRight;
+      const padTop = signalChartLayout.padTop;
+      const padBottom = signalChartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
 
-      const snrVals = rows.map((p) => Number(p.avg_snr)).filter((v) => Number.isFinite(v));
-      const rssiVals = rows.map((p) => Number(p.avg_rssi)).filter((v) => Number.isFinite(v));
+      svg.classList.toggle("zoomed", visible.zoomed);
+      svg.setAttribute(
+        "title",
+        visible.zoomed
+          ? "Signal chart zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset."
+          : "Signal chart. Wheel to zoom, drag to pan, double-click or Esc to reset."
+      );
+
+      const snrVals = plotRows.map((p) => Number(p.avg_snr)).filter((v) => Number.isFinite(v));
+      const rssiVals = plotRows.map((p) => Number(p.avg_rssi)).filter((v) => Number.isFinite(v));
       if (snrVals.length === 0 && rssiVals.length === 0) {{
         svg.innerHTML = "";
         empty.hidden = false;
         empty.textContent = "No historical signal points yet for this node.";
-        renderSignalTimeline(rows, padLeft, padRight, width);
+        renderSignalTimeline(plotRows, padLeft, padRight, width);
         return;
       }}
       empty.hidden = true;
@@ -3895,11 +5084,11 @@
       );
 
       const buildPath = (metricKey, minVal, maxVal) => {{
-        const n = rows.length;
+        const n = plotRows.length;
         let d = "";
         let started = false;
         for (let i = 0; i < n; i += 1) {{
-          const raw = Number(rows[i][metricKey]);
+          const raw = Number(plotRows[i][metricKey]);
           if (!Number.isFinite(raw)) continue;
           const x = xAt(i, n);
           const y = yFrom(raw, minVal, maxVal);
@@ -3942,7 +5131,7 @@
         <text x="${{width - padRight + 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMax, 0)}}</text>
         <text x="${{width - padRight + 4}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMin, 0)}}</text>
       `;
-      renderSignalTimeline(rows, padLeft, padRight, width);
+      renderSignalTimeline(plotRows, padLeft, padRight, width);
     }}
 
     function renderOnlineActivityLoading() {{
@@ -4213,7 +5402,8 @@
         return;
       }}
 
-      if (isSelectableNodeId(selectedNodeId)) {{
+      const showNodeHistory = activeLayoutView === "saved" && isSelectableNodeId(selectedNodeId);
+      if (showNodeHistory) {{
         if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === selectedNodeId) {{
           renderNodeHistory(nodeHistory, nodes);
         }} else {{
@@ -4432,19 +5622,75 @@
         return parseMessageId(msg.reply_id ?? msg.replyId);
       }};
 
-      const emojiOf = (msg) => {{
-        if (!msg || typeof msg !== "object") return "";
-        const direct = String(msg.emoji || "").trim();
-        if (direct) return direct;
-        const codepoint = Number(msg.emoji_codepoint ?? msg.emojiCodepoint);
-        if (Number.isInteger(codepoint) && codepoint > 0) {{
-          try {{
-            return String.fromCodePoint(codepoint);
-          }} catch (_err) {{
+      const emojiFromCodepointValue = (value) => {{
+        const codepoint = Number(value);
+        if (!Number.isInteger(codepoint) || codepoint <= 0) return "";
+        try {{
+          const glyph = String.fromCodePoint(codepoint);
+          // Filter non-printable control chars (often bad legacy payload values).
+          for (const ch of glyph) {{
+            const cp = ch.codePointAt(0);
+            if (!Number.isInteger(cp)) continue;
+            if ((cp >= 0 && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)) {{
+              return "";
+            }}
+          }}
+          return glyph;
+        }} catch (_err) {{
+          return "";
+        }}
+      }};
+
+      const emojiFromAny = (rawValue) => {{
+        if (rawValue == null) return "";
+        if (typeof rawValue === "number") {{
+          return emojiFromCodepointValue(rawValue);
+        }}
+        const raw = String(rawValue).trim();
+        if (!raw) return "";
+
+        // Decimal codepoint payloads (int or int-as-string).
+        if (/^\\d+$/.test(raw)) {{
+          return emojiFromCodepointValue(raw);
+        }}
+        // Hex codepoint payloads like "U+1F44D" or "1F44D".
+        const hex = raw.toUpperCase().replace(/^U\\+/, "");
+        if (/^[0-9A-F]{4,8}$/.test(hex)) {{
+          return emojiFromCodepointValue(parseInt(hex, 16));
+        }}
+
+        // Already a glyph/text payload; reject control chars.
+        for (const ch of raw) {{
+          const cp = ch.codePointAt(0);
+          if (!Number.isInteger(cp)) continue;
+          if ((cp >= 0 && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)) {{
             return "";
           }}
         }}
-        return "";
+        return raw;
+      }};
+
+      const emojiFromTextPayload = (rawValue) => {{
+        const text = String(rawValue == null ? "" : rawValue).trim();
+        if (!text) return "";
+        // Do not treat regular chat text as emoji fallback.
+        if (text.length > 8 || /\\s/.test(text)) return "";
+        if (/^[0-9A-Za-z.,;:!?'"`~_\\-]+$/.test(text)) return "";
+        const glyph = emojiFromAny(text);
+        if (!glyph) return "";
+        // Keep fallback conservative: one emoji (optionally with variation/joiners).
+        const clusters = Array.from(glyph);
+        if (clusters.length > 4) return "";
+        return glyph;
+      }};
+
+      const emojiOf = (msg) => {{
+        if (!msg || typeof msg !== "object") return "";
+        const direct = emojiFromAny(msg.emoji);
+        if (direct) return direct;
+        const fromCodepoint = emojiFromAny(msg.emoji_codepoint ?? msg.emojiCodepoint);
+        if (fromCodepoint) return fromCodepoint;
+        return emojiFromTextPayload(msg.text ?? msg.decoded_text ?? msg.payload_text);
       }};
 
       const isReactionMessage = (msg) => {{
@@ -4832,7 +6078,10 @@
         const state = await resp.json();
         latestState = state;
         let nodeHistory = null;
-        if (mapDataFocus !== "activity" && isSelectableNodeId(selectedNodeId)) {{
+        const shouldLoadNodeHistory = (activeLayoutView === "saved" || activeLayoutView === "network")
+          && mapDataFocus !== "activity"
+          && isSelectableNodeId(selectedNodeId);
+        if (shouldLoadNodeHistory) {{
           try {{
             nodeHistory = await fetchNodeHistory(selectedNodeId);
           }} catch (historyErr) {{
@@ -4879,6 +6128,10 @@
     loadFavoriteNodes();
     loadSplitState();
     loadNetworkNodesSplitState();
+    loadSavedNodeSplitState();
+    loadSavedNodeHistorySplitState();
+    loadSignalHeatDevKnobs();
+    loadSignalHeatmapPreference();
     loadLayoutView();
     loadChatChannel();
     loadThemePreference();
@@ -4886,7 +6139,10 @@
     renderSavedRailStatus();
     bindSplitters();
     bindNetworkNodeSplitter();
+    bindSavedNodeSplitter();
+    bindSavedNodeHistorySplitter();
     bindSelectionControls();
+    bindStarredNodeControl();
     bindFavoriteToggleControls();
     bindFavoritesControls();
     bindNodeListSearchControls();
@@ -4894,6 +6150,8 @@
     bindChatComposer();
     bindThemeToggle();
     bindThemePresetSelector();
+    bindSignalHeatDevApi();
+    bindSignalHeatmapControl();
     bindKnownNodesMetricControl();
     bindChatAutoScroll();
     bindHistoryTabs();

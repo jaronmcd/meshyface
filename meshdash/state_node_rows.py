@@ -45,6 +45,7 @@ def collect_nodes_typed(iface: object) -> CollectedNodes:
             "last_heard_epoch": last_heard_epoch,
             "last_heard_unix": last_heard_epoch,
             "snr": info.get("snr"),
+            "rssi": info.get("rssi"),
             "hops_away": info.get("hopsAway"),
             "battery_level": metrics.get("batteryLevel"),
             "voltage": metrics.get("voltage"),
