@@ -12,6 +12,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     args = argparse.Namespace(
         history_db="state/history.sqlite3",
         no_history=False,
+        seed_from_node_db=True,
         history_max_rows=5000,
         history_retention_days=7,
         history_event_max_rows=200000,
@@ -168,6 +169,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
     args = argparse.Namespace(
         history_db="state/history.sqlite3",
         no_history=False,
+        seed_from_node_db=False,
         history_max_rows=5000,
         history_retention_days=7,
         history_event_max_rows=200000,
@@ -258,3 +260,70 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
     assert calls["build_runtime_loader_dependencies"]["history_store"] is history_store
     assert calls["build_runtime_loader_dependencies"]["revision_info"] is revision_info
     assert calls["build_runtime_loaders_with_dependencies"] == {"deps": True}
+
+
+def test_build_dashboard_runtime_context_skips_node_db_seed_by_default():
+    args = argparse.Namespace(
+        history_db="state/history.sqlite3",
+        no_history=False,
+        history_max_rows=5000,
+        history_retention_days=7,
+        history_event_max_rows=200000,
+        history_event_retention_days=30,
+        history_rollup_retention_days=365,
+        packet_limit=250,
+        show_secrets=False,
+        node_history_hours=72,
+        node_history_max_points=1440,
+    )
+
+    calls = {"seed": 0}
+    iface = object()
+    history_store = object()
+
+    class _Tracker:
+        def __init__(self, packet_limit, history_store):
+            self.packet_limit = packet_limit
+            self.history_store = history_store
+
+        def on_receive(self, _packet, _interface):
+            return None
+
+    def _seed_tracker_if_empty(*_args, **_kwargs):
+        calls["seed"] += 1
+
+    build_dashboard_runtime_context(
+        args,
+        mesh_target_label_fn=lambda _args: "192.168.1.10:4403 (tcp)",
+        open_mesh_interface_fn=lambda _args: iface,
+        history_store_cls=object(),
+        dashboard_tracker_cls=_Tracker,
+        subscribe_fn=lambda *_a: None,
+        seed_tracker_fn="seed-fn",
+        revision_info_fn=lambda: RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title"),
+        send_chat_message_fn="send-chat-message-fn",
+        send_reaction_packet_fn="send-reaction-packet-fn",
+        get_local_node_id_fn="get-local-node-id-fn",
+        normalize_single_emoji_fn="normalize-single-emoji-fn",
+        to_int_fn="to-int-fn",
+        utc_now_fn="utc-now-fn",
+        build_state_fn="build-state-fn",
+        build_state_snapshot_loader_fn="build-state-snapshot-loader-fn",
+        build_node_history_loader_fn="build-node-history-loader-fn",
+        build_online_activity_loader_fn="build-online-activity-loader-fn",
+        build_send_chat_loader_fn="build-send-chat-loader-fn",
+        default_chat_max_bytes=220,
+        lock_factory=lambda: "send-lock",
+        now_unix_fn=lambda: 123.5,
+        resolve_history_db_path_fn=lambda path: f"/abs/{path}",
+        open_optional_history_store_fn=lambda *_a, **_k: history_store,
+        seed_tracker_if_empty_fn=_seed_tracker_if_empty,
+        build_dashboard_runtime_loaders_fn=lambda **_kwargs: DashboardRuntimeLoaders(
+            state_fn=lambda: {"ok": True},
+            node_history_fn=lambda *_a, **_k: {"ok": True},
+            online_activity_fn=lambda *_a, **_k: {"ok": True},
+            send_chat_fn=lambda *_a, **_k: {"ok": True},
+        ),
+    )
+
+    assert calls["seed"] == 0

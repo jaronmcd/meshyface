@@ -59,6 +59,7 @@ def test_run_dashboard_runtime_wires_core_dependencies():
     args = argparse.Namespace(
         history_db="/tmp/fake.sqlite3",
         no_history=False,
+        seed_from_node_db=True,
         history_max_rows=5000,
         history_retention_days=7,
         history_event_max_rows=200000,

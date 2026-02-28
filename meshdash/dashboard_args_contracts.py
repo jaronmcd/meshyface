@@ -4,6 +4,7 @@ from typing import Protocol
 class DashboardArgs(Protocol):
     history_db: str
     no_history: bool
+    seed_from_node_db: bool
     history_max_rows: int
     history_retention_days: int
     history_event_max_rows: int

@@ -64,6 +64,14 @@ def add_history_args(
         action="store_true",
         help="Disable persisted SQLite history (memory-only live buffers).",
     )
+    parser.add_argument(
+        "--seed-from-node-db",
+        action="store_true",
+        help=(
+            "Seed live tracker from connected radio NodeDB at startup. "
+            "Disabled by default to avoid stale carry-over heatmap/state."
+        ),
+    )
 
 
 def add_node_history_args(

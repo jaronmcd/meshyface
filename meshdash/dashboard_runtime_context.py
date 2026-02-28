@@ -119,7 +119,8 @@ def build_dashboard_runtime_context(
     tracker = dashboard_tracker_cls(packet_limit=args.packet_limit, history_store=history_store)
     send_lock = lock_factory()
     subscribe_fn(tracker.on_receive, "meshtastic.receive")
-    seed_tracker_if_empty_fn(tracker, iface, seed_tracker_fn=seed_tracker_fn)
+    if bool(getattr(args, "seed_from_node_db", False)):
+        seed_tracker_if_empty_fn(tracker, iface, seed_tracker_fn=seed_tracker_fn)
     started_at = now_unix_fn()
     revision_info = revision_info_fn()
 

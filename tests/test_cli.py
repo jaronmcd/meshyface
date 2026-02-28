@@ -64,6 +64,7 @@ def test_build_dashboard_parser_uses_env_defaults():
     assert args.theme_presets == "/tmp/theme.json"
     assert args.theme_preset == "forest"
     assert args.theme_settings_file == "/tmp/theme_settings.json"
+    assert args.seed_from_node_db is False
 
 
 def test_build_dashboard_parser_falls_back_on_invalid_gateway_port():
@@ -74,3 +75,10 @@ def test_build_dashboard_parser_falls_back_on_invalid_gateway_port():
     assert args.theme_presets is None
     assert args.theme_preset == "default"
     assert args.theme_settings_file == "mesh_dashboard_theme_settings.json"
+    assert args.seed_from_node_db is False
+
+
+def test_build_dashboard_parser_enables_seed_from_node_db_flag():
+    parser = _build_parser()
+    args = parser.parse_args(["--seed-from-node-db"])
+    assert args.seed_from_node_db is True
