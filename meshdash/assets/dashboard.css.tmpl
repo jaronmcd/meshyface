@@ -460,6 +460,35 @@
       accent-color: #2f855a;
       cursor: pointer;
     }}
+    .map-heatmap-mode-wrap {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #bfd4c3;
+      border-radius: 999px;
+      background: #f7fcf7;
+      color: #274935;
+      padding: 2px 7px 2px 9px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1px;
+      line-height: 1.2;
+      user-select: none;
+      white-space: nowrap;
+    }}
+    .map-heatmap-mode {{
+      border: 1px solid #bfd4c3;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #274935;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1px;
+      line-height: 1.2;
+      padding: 1px 16px 1px 6px;
+      min-height: 19px;
+      cursor: pointer;
+    }}
 
     .map-card-actions {{
       display: inline-flex;
@@ -513,6 +542,13 @@
       cursor: not-allowed;
     }}
     .map-heatmap-wrap.disabled input {{
+      cursor: not-allowed;
+    }}
+    .map-heatmap-mode-wrap.disabled {{
+      opacity: 0.65;
+      cursor: not-allowed;
+    }}
+    .map-heatmap-mode-wrap.disabled .map-heatmap-mode {{
       cursor: not-allowed;
     }}
     .card.chat {{
@@ -3810,6 +3846,16 @@
     }}
     [data-theme="dark"] .map-heatmap-wrap input {{
       accent-color: #5aa878;
+    }}
+    [data-theme="dark"] .map-heatmap-mode-wrap {{
+      background: #16231d;
+      border-color: #355343;
+      color: #cbe8d7;
+    }}
+    [data-theme="dark"] .map-heatmap-mode {{
+      background: #101914;
+      border-color: #355343;
+      color: #cbe8d7;
     }}
 
     [data-theme="dark"] .map-reset-view-btn {{

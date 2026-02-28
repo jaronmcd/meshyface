@@ -106,15 +106,32 @@
       { id: "strong", min: 0.66, max: 0.84, radiusMul: 1.62, blurMul: 1.18, intensityMul: 0.96 },
       { id: "vstrong",min: 0.84, max: 1.01, radiusMul: 2.20, blurMul: 1.34, intensityMul: 0.90 },
     ];
-    const signalHeatFreshFullSeconds = 8 * 60;
-    const signalHeatFreshDropSeconds = 40 * 60;
+    const signalHeatModeDefaults = {{
+      live: {{
+        label: "Live only",
+        freshFullSeconds: 60,
+        freshDropSeconds: 8 * 60,
+        maxAgeSeconds: 15 * 60,
+        tailWeight: 0.02,
+        includeUnknownAge: false,
+      }},
+      coverage: {{
+        label: "Coverage",
+        freshFullSeconds: 4 * 60,
+        freshDropSeconds: 30 * 60,
+        maxAgeSeconds: 120 * 60,
+        tailWeight: 0.03,
+        includeUnknownAge: false,
+      }},
+    }};
+    const signalHeatmapModeAccepted = new Set(Object.keys(signalHeatModeDefaults));
     const signalHeatProfileDefaults = {{
       snrMin: -12,
       snrMax: 10,
       rssiMin: -125,
       rssiMax: -88,
     }};
-    const signalHeatDevKnobsStorageKey = "meshDashboardSignalHeatDevKnobsV2";
+    const signalHeatDevKnobsStorageKey = "meshDashboardSignalHeatDevKnobsV3";
     const signalHeatDevKnobDefaults = {{
       radius: 26,
       blur: 20,
@@ -122,8 +139,8 @@
       minOpacity: 0.46,
       intensityFloor: 0.015,
       intensityGamma: 1.22,
-      freshnessFloor: 0.84,
-      freshnessGain: 0.16,
+      freshnessFloor: 0.18,
+      freshnessGain: 0.82,
       greenBias: 0.62,
       geoRadiusLock: 1,
       coverageKm: 2.8,
@@ -136,8 +153,8 @@
       minOpacity: [0.04, 0.88],
       intensityFloor: [0, 0.3],
       intensityGamma: [0.6, 2.4],
-      freshnessFloor: [0.5, 1],
-      freshnessGain: [0, 0.5],
+      freshnessFloor: [0, 1],
+      freshnessGain: [0, 1],
       greenBias: [0, 1],
       geoRadiusLock: [0, 1],
       coverageKm: [0.25, 24],
@@ -156,6 +173,7 @@
     const chatChannelStorageKey = "meshDashboardChatChannel";
     const themeStorageKey = "meshDashboardThemePreference";
     const signalHeatmapStorageKey = "meshDashboardSignalHeatmapEnabledV1";
+    const signalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV1";
     const themeSettingsEndpoint = "/api/settings/theme";
     const radioSettingsEndpoint = "/api/settings/radio";
     const themeAcceptedModes = new Set(["auto", "dark", "light"]);
@@ -535,6 +553,7 @@
     let mapTileLayer = null;
     let mapTileTheme = "";
     let signalHeatmapEnabled = true;
+    let signalHeatmapMode = "coverage";
     let signalHeatmapLayers = null;
     let signalHeatDevKnobs = Object.assign({{}}, signalHeatDevKnobDefaults);
     const baseDocumentTitle = String(document.title || "").trim() || "Mesh dashboard";
@@ -654,6 +673,38 @@
       return (156543.03392 * cosLat) / Math.pow(2, zoomLevel);
     }}
 
+    function normalizeSignalHeatmapMode(rawValue) {{
+      const clean = String(rawValue || "").trim().toLowerCase();
+      return signalHeatmapModeAccepted.has(clean) ? clean : "coverage";
+    }}
+
+    function resolveSignalHeatModeConfig(mode = signalHeatmapMode) {{
+      const key = normalizeSignalHeatmapMode(mode);
+      return signalHeatModeDefaults[key] || signalHeatModeDefaults.coverage;
+    }}
+
+    function signalHeatNodeAgeSeconds(node, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const heardUnix = nodeLastHeardUnix(node);
+      if (!Number.isFinite(heardUnix) || heardUnix <= 0) {{
+        return null;
+      }}
+      return Math.max(0, nowUnix - heardUnix);
+    }}
+
+    function signalHeatNodeWithinWindow(ageSeconds, modeConfig = null) {{
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const includeUnknownAge = !!(config && config.includeUnknownAge);
+      if (!Number.isFinite(ageSeconds)) {{
+        return includeUnknownAge;
+      }}
+      const maxAgeRaw = Number(config && config.maxAgeSeconds);
+      const maxAgeSeconds = Number.isFinite(maxAgeRaw) ? maxAgeRaw : 0;
+      if (maxAgeSeconds <= 0) {{
+        return true;
+      }}
+      return ageSeconds <= maxAgeSeconds;
+    }}
+
     function sanitizeSignalHeatDevKnobs(raw) {{
       const next = Object.assign({{}}, signalHeatDevKnobDefaults);
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) {{
@@ -664,7 +715,7 @@
         const [minValue, maxValue] = bounds;
         next[name] = clampNumber(raw[name], minValue, maxValue, signalHeatDevKnobDefaults[name]);
       }}
-      next.freshnessFloor = clampNumber(next.freshnessFloor, 0.4, 1, signalHeatDevKnobDefaults.freshnessFloor);
+      next.freshnessFloor = clampNumber(next.freshnessFloor, 0, 1, signalHeatDevKnobDefaults.freshnessFloor);
       next.freshnessGain = clampNumber(next.freshnessGain, 0, 1 - next.freshnessFloor, signalHeatDevKnobDefaults.freshnessGain);
       return next;
     }}
@@ -859,24 +910,41 @@
       return (clamped - min) / (max - min);
     }}
 
-    function signalHeatAgeFactor(node, nowUnix = Math.floor(Date.now() / 1000)) {{
-      const heardUnix = nodeLastHeardUnix(node);
-      if (!Number.isFinite(heardUnix) || heardUnix <= 0) {{
-        return 0.45;
+    function signalHeatAgeFactor(
+      node,
+      nowUnix = Math.floor(Date.now() / 1000),
+      modeConfig = null,
+      ageSeconds = null
+    ) {{
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const includeUnknownAge = !!(config && config.includeUnknownAge);
+      const resolvedAgeSeconds = Number.isFinite(ageSeconds)
+        ? ageSeconds
+        : signalHeatNodeAgeSeconds(node, nowUnix);
+      if (!Number.isFinite(resolvedAgeSeconds)) {{
+        return includeUnknownAge ? 0.35 : 0;
       }}
-      const ageSeconds = Math.max(0, nowUnix - heardUnix);
-      if (ageSeconds <= signalHeatFreshFullSeconds) {{
+      const freshFullRaw = Number(config && config.freshFullSeconds);
+      const freshDropRaw = Number(config && config.freshDropSeconds);
+      const tailRaw = Number(config && config.tailWeight);
+      const freshFullSeconds = Math.max(0, Number.isFinite(freshFullRaw) ? freshFullRaw : 0);
+      const freshDropSeconds = Math.max(
+        freshFullSeconds + 1,
+        Number.isFinite(freshDropRaw) ? freshDropRaw : freshFullSeconds + 1
+      );
+      const tailWeight = clampUnitInterval(Number.isFinite(tailRaw) ? tailRaw : 0.03);
+      if (resolvedAgeSeconds <= freshFullSeconds) {{
         return 1;
       }}
-      if (ageSeconds >= signalHeatFreshDropSeconds) {{
-        return 0.08;
+      if (resolvedAgeSeconds >= freshDropSeconds) {{
+        return tailWeight;
       }}
-      const span = signalHeatFreshDropSeconds - signalHeatFreshFullSeconds;
+      const span = freshDropSeconds - freshFullSeconds;
       if (span <= 0) {{
-        return 0.08;
+        return tailWeight;
       }}
-      const ratio = (ageSeconds - signalHeatFreshFullSeconds) / span;
-      return 1 - (Math.max(0, Math.min(1, ratio)) * 0.92);
+      const ratio = (resolvedAgeSeconds - freshFullSeconds) / span;
+      return 1 - (clampUnitInterval(ratio) * (1 - tailWeight));
     }}
 
     function signalHeatSignalScore(node, profile) {{
@@ -902,11 +970,18 @@
       return clampUnitInterval(greenBiasedSignal);
     }}
 
-    function signalHeatWeight(node, profile, nowUnix) {{
+    function signalHeatWeight(node, profile, nowUnix, modeConfig = null, ageSeconds = null) {{
       // Final weight used for intensity (includes freshness decay).
       const signalScore = signalHeatSignalScore(node, profile);
       if (!Number.isFinite(signalScore)) return null;
-      const ageWeight = signalHeatAgeFactor(node, nowUnix);
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const resolvedAgeSeconds = Number.isFinite(ageSeconds)
+        ? ageSeconds
+        : signalHeatNodeAgeSeconds(node, nowUnix);
+      if (!signalHeatNodeWithinWindow(resolvedAgeSeconds, config)) {{
+        return null;
+      }}
+      const ageWeight = signalHeatAgeFactor(node, nowUnix, config, resolvedAgeSeconds);
       const freshnessWeight = signalHeatDevKnobs.freshnessFloor + (ageWeight * signalHeatDevKnobs.freshnessGain);
       return clampUnitInterval(signalScore * freshnessWeight);
     }}
@@ -928,16 +1003,19 @@
     function collectSignalHeatmapBuckets(nodes, profile) {{
       const buckets = signalHeatBucketDefs.map(() => []);
       const nowUnix = Math.floor(Date.now() / 1000);
+      const modeConfig = resolveSignalHeatModeConfig();
       const intensityFloor = signalHeatDevKnobs.intensityFloor;
       for (const node of (nodes || [])) {{
         const lat = Number(node && node.lat);
         const lon = Number(node && node.lon);
         if (!isValidMapCoord(lat, lon)) continue;
+        const ageSeconds = signalHeatNodeAgeSeconds(node, nowUnix);
+        if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) continue;
 
         const signalScore = signalHeatSignalScore(node, profile);
         if (!Number.isFinite(signalScore)) continue;
 
-        const weight = signalHeatWeight(node, profile, nowUnix);
+        const weight = signalHeatWeight(node, profile, nowUnix, modeConfig, ageSeconds);
         if (!Number.isFinite(weight)) continue;
 
         const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
@@ -969,7 +1047,13 @@
       if (!isValidMapCoord(lat, lon)) {{
         return buckets;
       }}
-      const weight = signalHeatWeight(selectedNode, profile, Math.floor(Date.now() / 1000));
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const modeConfig = resolveSignalHeatModeConfig();
+      const ageSeconds = signalHeatNodeAgeSeconds(selectedNode, nowUnix);
+      if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) {{
+        return buckets;
+      }}
+      const weight = signalHeatWeight(selectedNode, profile, nowUnix, modeConfig, ageSeconds);
       if (!Number.isFinite(weight)) {{
         return buckets;
       }}
@@ -1023,6 +1107,20 @@
     ) {{
       const wrap = document.getElementById("map-heatmap-wrap");
       const toggle = document.getElementById("map-heatmap-toggle");
+      const modeWrap = document.getElementById("map-heatmap-mode-wrap");
+      const modeSelect = document.getElementById("map-heatmap-mode");
+      const modeConfig = resolveSignalHeatModeConfig();
+      const modeLabel = String(modeConfig && modeConfig.label ? modeConfig.label : "Coverage");
+      const maxAgeSeconds = Number(modeConfig && modeConfig.maxAgeSeconds);
+      const fadeSeconds = Number(modeConfig && modeConfig.freshDropSeconds);
+      const maxAgeMinutes = Math.max(
+        1,
+        Math.round((Number.isFinite(maxAgeSeconds) ? Math.max(0, maxAgeSeconds) : 0) / 60)
+      );
+      const fadeMinutes = Math.max(
+        1,
+        Math.round((Number.isFinite(fadeSeconds) ? Math.max(0, fadeSeconds) : 0) / 60)
+      );
       const inMapHeatContext = (
         activeLayoutView === "network"
         || activeLayoutView === "saved"
@@ -1032,6 +1130,8 @@
         wrap.hidden = !inMapHeatContext;
         wrap.classList.toggle("disabled", !supported);
         const profileText = profileLabel ? `Tuned for ${{profileLabel}}.` : "";
+        const modeText = ` Mode: ${{modeLabel}} (heard within ~${{maxAgeMinutes}}m).`;
+        const fadeText = ` Freshness decays over ~${{fadeMinutes}}m.`;
         const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5
           ? " Coverage is geo-locked (km-stable across zoom/latitude)."
           : "";
@@ -1040,7 +1140,7 @@
           ? " In Node view this shows only the selected node's signal footprint."
           : "";
         const baseTitle = supported
-          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}} Nodes fade after ~40 minutes.${{savedModeText}}${{geoText}}${{devText}}`
+          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}}${{modeText}}${{fadeText}}${{savedModeText}}${{geoText}}${{devText}}`
           : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
         if (Number.isFinite(pointsCount)) {{
           wrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
@@ -1048,9 +1148,20 @@
           wrap.title = baseTitle;
         }}
       }}
+      if (modeWrap instanceof HTMLElement) {{
+        modeWrap.hidden = !inMapHeatContext;
+        modeWrap.classList.toggle("disabled", !supported);
+        modeWrap.title = supported
+          ? `Heatmap recency mode. ${{modeLabel}} currently keeps nodes heard within about ${{maxAgeMinutes}} minutes.`
+          : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
+      }}
       if (toggle instanceof HTMLInputElement) {{
         toggle.checked = signalHeatmapEnabled;
         toggle.disabled = !supported;
+      }}
+      if (modeSelect instanceof HTMLSelectElement) {{
+        modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
+        modeSelect.disabled = !supported;
       }}
     }}
 
@@ -1756,6 +1867,23 @@
       }}
     }}
 
+    function persistSignalHeatmapModePreference() {{
+      try {{
+        window.localStorage.setItem(signalHeatmapModeStorageKey, normalizeSignalHeatmapMode(signalHeatmapMode));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSignalHeatmapModePreference() {{
+      signalHeatmapMode = "coverage";
+      try {{
+        const stored = window.localStorage.getItem(signalHeatmapModeStorageKey);
+        signalHeatmapMode = normalizeSignalHeatmapMode(stored || "coverage");
+      }} catch (_err) {{
+      }}
+      updateSignalHeatmapControl(null, supportsSignalHeatmap());
+    }}
+
     function loadSignalHeatmapPreference() {{
       signalHeatmapEnabled = true;
       try {{
@@ -1772,17 +1900,28 @@
 
     function bindSignalHeatmapControl() {{
       const toggle = document.getElementById("map-heatmap-toggle");
-      if (!(toggle instanceof HTMLInputElement) || toggle.dataset.bound === "1") {{
-        return;
+      if (toggle instanceof HTMLInputElement && toggle.dataset.bound !== "1") {{
+        toggle.dataset.bound = "1";
+        toggle.checked = signalHeatmapEnabled;
+        toggle.addEventListener("change", () => {{
+          signalHeatmapEnabled = !!toggle.checked;
+          persistSignalHeatmapPreference();
+          const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        }});
       }}
-      toggle.dataset.bound = "1";
-      toggle.checked = signalHeatmapEnabled;
-      toggle.addEventListener("change", () => {{
-        signalHeatmapEnabled = !!toggle.checked;
-        persistSignalHeatmapPreference();
-        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-        syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
-      }});
+      const modeSelect = document.getElementById("map-heatmap-mode");
+      if (modeSelect instanceof HTMLSelectElement && modeSelect.dataset.bound !== "1") {{
+        modeSelect.dataset.bound = "1";
+        modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
+        modeSelect.addEventListener("change", () => {{
+          signalHeatmapMode = normalizeSignalHeatmapMode(modeSelect.value);
+          modeSelect.value = signalHeatmapMode;
+          persistSignalHeatmapModePreference();
+          const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        }});
+      }}
       const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
       syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
     }}
@@ -1880,12 +2019,22 @@
       el.classList.add(`status-${{key}}`);
     }}
 
-    function computeNodeFreshnessUnix(node, caps = null) {{
+    function computeNodeFreshnessUnix(node, caps = null, chatTouch = null) {{
+      const candidates = [];
       const live = nodeLastHeardUnix(node);
-      if (Number.isFinite(live) && live > 0) return Math.trunc(live);
+      if (Number.isFinite(live) && live > 0) {{
+        candidates.push(Math.trunc(live));
+      }}
       const capsUnix = Number(caps && caps.last_seen_unix);
-      if (Number.isFinite(capsUnix) && capsUnix > 0) return Math.trunc(capsUnix);
-      return null;
+      if (Number.isFinite(capsUnix) && capsUnix > 0) {{
+        candidates.push(Math.trunc(capsUnix));
+      }}
+      const chatUnix = Number(chatTouch && chatTouch.unix);
+      if (Number.isFinite(chatUnix) && chatUnix > 0) {{
+        candidates.push(Math.trunc(chatUnix));
+      }}
+      if (candidates.length === 0) return null;
+      return Math.max(...candidates);
     }}
 
     function tickFreshnessUI(state = latestState) {{
@@ -1899,6 +2048,9 @@
           .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
           .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
       );
+      const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
 
       const nowUnix = Math.floor(Date.now() / 1000);
 
@@ -1911,7 +2063,8 @@
           if (!isSelectableNodeId(nodeId)) continue;
           const node = nodesById.get(nodeId);
           const caps = capsById.get(nodeId);
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           applyFreshnessClass(row, status);
           const dot = row.querySelector(".node-status-dot");
@@ -1933,7 +2086,8 @@
           if (!isSelectableNodeId(nodeId)) continue;
           const node = nodesById.get(nodeId);
           const caps = capsById.get(nodeId);
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           const key = normalizeFreshnessKey(status);
           if (key === "online") chatOnlineCount += 1;
@@ -1955,7 +2109,8 @@
           if (!isSelectableNodeId(nodeId)) continue;
           const node = nodesById.get(nodeId);
           const caps = capsById.get(nodeId);
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           const key = normalizeFreshnessKey(status);
           if (useFallbackCounts) {{
@@ -1996,7 +2151,8 @@
           if (!isSelectableNodeId(nodeId)) continue;
           const node = nodesById.get(nodeId);
           const caps = capsById.get(nodeId);
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           applyFreshnessClass(item, status);
         }}
@@ -2010,7 +2166,8 @@
             if (!isSelectableNodeId(nodeId)) continue;
             const node = nodesById.get(nodeId);
             const caps = capsById.get(nodeId);
-            const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+            const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+            const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
             const status = freshnessStatus(lastSeenUnix, nowUnix);
             const key = normalizeFreshnessKey(status);
             if (key === "online") onlineCount += 1;
@@ -2029,7 +2186,8 @@
         if (activeLayoutView === "saved" && isSelectableNodeId(selectedNodeId)) {{
           const node = nodesById.get(selectedNodeId);
           const caps = capsById.get(selectedNodeId);
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps);
+          const chatTouch = latestChatTouchByNode.get(selectedNodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           const key = normalizeFreshnessKey(status);
           savedChip.textContent = key === "online"
@@ -7397,25 +7555,44 @@ async function applyLoraSettings() {{
           .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
           .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
       );
+      const latestChatTouchByNode = mapLatestChatTouchInfo(traffic.recent_chat || []);
 
-      const nodeIdentityMeta = (nodeId) => {{
+      function resolveChatNodeFreshness(nodeId) {{
         const clean = normalizeNodeId(nodeId);
         if (!clean || !isSelectableNodeId(clean)) {{
-          return {{ html: "", title: "" }};
+          return {{
+            id: "",
+            node: null,
+            historyCaps: null,
+            lastSeenUnix: null,
+            status: "unknown",
+          }};
         }}
         const node = nodesById.get(clean);
         const historyCaps = historyCapsById.get(clean);
+        const chatTouch = latestChatTouchByNode.get(clean) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, historyCaps, chatTouch);
+        return {{
+          id: clean,
+          node,
+          historyCaps,
+          lastSeenUnix,
+          status: freshnessStatus(lastSeenUnix, nowUnix),
+        }};
+      }}
+
+      const nodeIdentityMeta = (nodeId) => {{
+        const snapshot = resolveChatNodeFreshness(nodeId);
+        const clean = snapshot.id;
+        if (!clean) {{
+          return {{ html: "", title: "" }};
+        }}
+        const node = snapshot.node;
+        const historyCaps = snapshot.historyCaps;
         if ((!node || typeof node !== "object") && (!historyCaps || typeof historyCaps !== "object")) {{
           return {{ html: "", title: "" }};
         }}
-
-        const liveLastSeen = nodeLastHeardUnix(node);
-        const capsLastSeen = Number(historyCaps && historyCaps.last_seen_unix);
-        const lastSeenUnix = Number.isFinite(liveLastSeen)
-          ? liveLastSeen
-          : (Number.isFinite(capsLastSeen) ? Math.trunc(capsLastSeen) : null);
-        const freshness = freshnessStatus(lastSeenUnix, nowUnix);
-        const chipStateClass = freshness === "online" ? "online" : "offline";
+        const chipStateClass = snapshot.status === "online" ? "online" : "offline";
 
         const chips = [];
         const titleParts = [];
@@ -7466,7 +7643,7 @@ async function applyLoraSettings() {{
         }};
       }};
 
-      const chatEndpointParts = (nodeId, messageUnixHint = null) => {{
+      const chatEndpointParts = (nodeId, _messageUnixHint = null) => {{
         const clean = normalizeNodeId(nodeId);
         if (!clean) {{
           return {{ label: "n/a", idTag: "", title: "n/a", status: "unknown", metaHtml: "", lastSeenUnix: null }};
@@ -7477,19 +7654,17 @@ async function applyLoraSettings() {{
         if (clean === "local") {{
           return {{ label: "Local", idTag: "", title: "local", status: "online", metaHtml: "", lastSeenUnix: nowUnix }};
         }}
-        const node = nodesById.get(clean);
+        const snapshot = resolveChatNodeFreshness(clean);
+        const node = snapshot.node;
         const name = preferredNodeName(node) || nodeNameCache.get(clean) || "Unknown node";
-        const lastHeard = nodeLastHeardUnix(node);
-        const freshestSeen = latestUnixTimestamp(lastHeard, messageUnixHint);
-        const status = freshnessStatus(freshestSeen, nowUnix);
         const meta = nodeIdentityMeta(clean);
         return {{
           label: name,
           idTag: clean,
           title: `${{name}} (${{clean}})${{meta.title ? ` - ${{meta.title}}` : ""}}`,
-          status,
+          status: snapshot.status,
           metaHtml: meta.html,
-          lastSeenUnix: freshestSeen,
+          lastSeenUnix: snapshot.lastSeenUnix,
         }};
       }};
 
@@ -7498,14 +7673,15 @@ async function applyLoraSettings() {{
       const touchParticipant = (meta, msgTimeUnix) => {{
         if (!meta || !meta.idTag || !isSelectableNodeId(meta.idTag)) return;
         const messageUnix = parseDashboardTimeToUnix(msgTimeUnix);
-        const freshestSeen = latestUnixTimestamp(meta.lastSeenUnix, messageUnix);
         const existing = participants.get(meta.idTag);
         if (!existing) {{
           participants.set(meta.idTag, {{
             id: meta.idTag,
             name: meta.label || meta.idTag,
-            status: freshnessStatus(freshestSeen, nowUnix),
-            lastSeenUnix: freshestSeen,
+            // Keep status tied to node freshness only (not chat message recency),
+            // so selection/channel rerenders cannot flip roster colors.
+            status: freshnessStatus(meta.lastSeenUnix, nowUnix),
+            lastSeenUnix: meta.lastSeenUnix,
             lastMessageUnix: messageUnix || null,
           }});
           return;
@@ -7513,7 +7689,7 @@ async function applyLoraSettings() {{
         if (meta.label && meta.label !== "Unknown node") {{
           existing.name = meta.label;
         }}
-        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, freshestSeen);
+        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, meta.lastSeenUnix);
         existing.status = freshnessStatus(existing.lastSeenUnix, nowUnix);
         if (messageUnix && (!existing.lastMessageUnix || messageUnix > existing.lastMessageUnix)) {{
           existing.lastMessageUnix = messageUnix;
@@ -7523,31 +7699,28 @@ async function applyLoraSettings() {{
       const touchNodeById = (nodeId, msgTimeUnix = null) => {{
         const clean = normalizeNodeId(nodeId);
         if (!isSelectableNodeId(clean)) return;
-        const node = nodesById.get(clean);
+        const snapshot = resolveChatNodeFreshness(clean);
+        const node = snapshot.node;
         const name = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
-        const lastHeard = nodeLastHeardUnix(node);
         const messageUnix = parseDashboardTimeToUnix(msgTimeUnix);
-        const freshestSeen = latestUnixTimestamp(lastHeard, messageUnix);
-        const status = freshnessStatus(freshestSeen, nowUnix);
         const existing = participants.get(clean);
         if (!existing) {{
           participants.set(clean, {{
             id: clean,
             name,
-            status,
-            lastSeenUnix: freshestSeen,
-            lastMessageUnix: latestUnixTimestamp(messageUnix, lastHeard),
+            status: snapshot.status,
+            lastSeenUnix: snapshot.lastSeenUnix,
+            lastMessageUnix: messageUnix || null,
           }});
           return;
         }}
         if (name && name !== "Unknown node") {{
           existing.name = name;
         }}
-        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, freshestSeen);
+        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, snapshot.lastSeenUnix);
         existing.status = freshnessStatus(existing.lastSeenUnix, nowUnix);
-        const recent = latestUnixTimestamp(messageUnix, lastHeard);
-        if (recent && (!existing.lastMessageUnix || recent > existing.lastMessageUnix)) {{
-          existing.lastMessageUnix = recent;
+        if (messageUnix && (!existing.lastMessageUnix || messageUnix > existing.lastMessageUnix)) {{
+          existing.lastMessageUnix = messageUnix;
         }}
       }};
 
@@ -8181,6 +8354,7 @@ async function applyLoraSettings() {{
     loadSavedNodeHistorySplitState();
     loadNodesTableColPcts();
     loadSignalHeatDevKnobs();
+    loadSignalHeatmapModePreference();
     loadSignalHeatmapPreference();
     loadLayoutView();
     loadChatChannel();
