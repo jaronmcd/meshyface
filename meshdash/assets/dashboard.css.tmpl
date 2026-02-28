@@ -2449,21 +2449,50 @@
       position: absolute;
       right: 58px;
       bottom: calc(100% + 6px);
-      width: min(320px, 92%);
+      width: min(420px, 96vw);
       border: 1px solid #c9dbcc;
       border-radius: 8px;
       background: #fbfefb;
       box-shadow: 0 8px 20px rgba(16, 36, 24, 0.18);
       padding: 6px;
       z-index: 9;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }}
     .chat-emoji-panel[hidden] {{
       display: none !important;
+    }}
+    .chat-emoji-toolbar {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }}
+    .chat-emoji-filter {{
+      flex: 1 1 auto;
+      min-width: 0;
+      border: 1px solid #d1e0d4;
+      border-radius: 6px;
+      background: #ffffff;
+      color: inherit;
+      padding: 4px 8px;
+      font-size: 12px;
+      line-height: 1.2;
+    }}
+    .chat-emoji-meta {{
+      flex: 0 0 auto;
+      font-size: 10px;
+      color: #4f6e5a;
+      white-space: nowrap;
     }}
     .chat-emoji-grid {{
       display: grid;
       grid-template-columns: repeat(8, minmax(0, 1fr));
       gap: 4px;
+      max-height: min(56vh, 320px);
+      overflow: auto;
+      padding-right: 2px;
     }}
     .chat-emoji-item {{
       border: 1px solid #d9e7da;
@@ -2984,10 +3013,14 @@
     [data-theme="dark"] #chat-send-btn,
     [data-theme="dark"] #chat-emoji-btn,
     [data-theme="dark"] .chat-emoji-panel,
+    [data-theme="dark"] .chat-emoji-filter,
     [data-theme="dark"] .chat-emoji-item {{
       background: #22352b;
       border-color: #3b5949;
       color: #deeee5;
+    }}
+    [data-theme="dark"] .chat-emoji-meta {{
+      color: #aac8ba;
     }}
     [data-theme="dark"] #chat-send-btn:hover,
     [data-theme="dark"] #chat-emoji-btn:hover,
