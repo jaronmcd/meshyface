@@ -665,7 +665,36 @@
         points.push([lat, lon, Math.max(intensityFloor, adjusted)]);
       }}
       return buckets;
-    }}    function resolveSignalHeatVisualOptions(pointsCount) {{
+    }}
+
+    function collectSavedNodeHeatmapBuckets(nodes, profile) {{
+      const buckets = signalHeatBucketDefs.map(() => []);
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (!(activeLayoutView === "saved" && isSelectableNodeId(selectedId))) {{
+        return buckets;
+      }}
+      const selectedNode = (nodes || []).find((node) => normalizeNodeId(node && node.id) === selectedId);
+      if (!selectedNode) {{
+        return buckets;
+      }}
+      const lat = Number(selectedNode.lat);
+      const lon = Number(selectedNode.lon);
+      if (!isValidMapCoord(lat, lon)) {{
+        return buckets;
+      }}
+      const weight = signalHeatWeight(selectedNode, profile, Math.floor(Date.now() / 1000));
+      if (!Number.isFinite(weight)) {{
+        return buckets;
+      }}
+      const intensityFloor = signalHeatDevKnobs.intensityFloor;
+      const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
+      const intensity = intensityFloor + (eased * (1 - intensityFloor));
+      // Saved/Node view uses a simple singular footprint for the selected node.
+      buckets[0].push([lat, lon, Math.max(intensityFloor, clampUnitInterval(intensity))]);
+      return buckets;
+    }}
+
+    function resolveSignalHeatVisualOptions(pointsCount) {{
       const geoLocked = signalHeatDevKnobs.geoRadiusLock >= 0.5;
       const zoom = Number(map.getZoom());
       const safeCount = Number.isFinite(pointsCount) ? Math.max(0, Math.round(pointsCount)) : 0;
@@ -707,17 +736,24 @@
     ) {{
       const wrap = document.getElementById("map-heatmap-wrap");
       const toggle = document.getElementById("map-heatmap-toggle");
-      const inNetworkMapContext = activeLayoutView !== "saved";
+      const inMapHeatContext = (
+        activeLayoutView === "network"
+        || activeLayoutView === "saved"
+        || activeLayoutView === "all"
+      );
       if (wrap instanceof HTMLElement) {{
-        wrap.hidden = !inNetworkMapContext;
+        wrap.hidden = !inMapHeatContext;
         wrap.classList.toggle("disabled", !supported);
         const profileText = profileLabel ? `Tuned for ${{profileLabel}}.` : "";
         const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5
           ? " Coverage is geo-locked (km-stable across zoom/latitude)."
           : "";
         const devText = " Dev knobs: window.meshHeatmapDev.get()/set()/reset().";
+        const savedModeText = activeLayoutView === "saved"
+          ? " In Node view this shows only the selected node's signal footprint."
+          : "";
         const baseTitle = supported
-          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}} Nodes fade after ~40 minutes.${{geoText}}${{devText}}`
+          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}} Nodes fade after ~40 minutes.${{savedModeText}}${{geoText}}${{devText}}`
           : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
         if (Number.isFinite(pointsCount)) {{
           wrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
@@ -735,7 +771,14 @@
       const layers = ensureSignalHeatmapLayers();
       const profile = resolveSignalHeatProfile();
       const supported = Array.isArray(layers) && layers.length > 0;
-      const buckets = supported ? collectSignalHeatmapBuckets(nodes, profile) : [];
+      const savedSingleNodeMode = activeLayoutView === "saved" && isSelectableNodeId(selectedNodeId);
+      const buckets = supported
+        ? (
+            savedSingleNodeMode
+              ? collectSavedNodeHeatmapBuckets(nodes, profile)
+              : collectSignalHeatmapBuckets(nodes, profile)
+          )
+        : [];
       const pointsCount = supported
         ? buckets.reduce((acc, pts) => acc + (Array.isArray(pts) ? pts.length : 0), 0)
         : 0;
@@ -744,34 +787,56 @@
         return;
       }}
       const baseVisual = resolveSignalHeatVisualOptions(pointsCount);
-      const shouldShow = !forceHide
-        && activeLayoutView !== "saved"
+      const shouldShow = !(forceHide && !savedSingleNodeMode)
         && signalHeatmapEnabled
         && pointsCount > 0;
 
       for (let i = 0; i < layers.length; i++) {{
         const layer = layers[i];
+        if (savedSingleNodeMode && i > 0) {{
+          layer.setLatLngs([]);
+          if (map.hasLayer(layer)) {{
+            map.removeLayer(layer);
+          }}
+          continue;
+        }}
         const bucket = signalHeatBucketDefs[i] || {{}};
         const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
         const baseRadiusMul = Number(bucket.radiusMul);
         const baseBlurMul = Number(bucket.blurMul);
         const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
         const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
-        const visual = {{
-          radius: clampNumber(
-            Math.round(baseVisual.radius * radiusMul),
-            10,
-            160,
-            baseVisual.radius
-          ),
-          blur: clampNumber(
-            Math.round(baseVisual.blur * blurMul),
-            8,
-            140,
-            baseVisual.blur
-          ),
-          minOpacity: baseVisual.minOpacity,
-        }};
+        const visual = savedSingleNodeMode
+          ? {{
+              radius: clampNumber(
+                Math.round(baseVisual.radius * 1.3),
+                10,
+                160,
+                baseVisual.radius
+              ),
+              blur: clampNumber(
+                Math.round(baseVisual.blur * 1.2),
+                8,
+                140,
+                baseVisual.blur
+              ),
+              minOpacity: Math.max(baseVisual.minOpacity, 0.42),
+            }}
+          : {{
+              radius: clampNumber(
+                Math.round(baseVisual.radius * radiusMul),
+                10,
+                160,
+                baseVisual.radius
+              ),
+              blur: clampNumber(
+                Math.round(baseVisual.blur * blurMul),
+                8,
+                140,
+                baseVisual.blur
+              ),
+              minOpacity: baseVisual.minOpacity,
+            }};
         if (typeof layer.setOptions === "function") {{
           layer.setOptions(visual);
         }}
