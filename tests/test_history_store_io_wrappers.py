@@ -21,6 +21,10 @@ from meshdash.history_store_packets import (
     load_recent_packets as load_recent_packets_domain,
     save_packet as save_packet_domain,
 )
+from meshdash.history_store_summary import (
+    load_summary_metrics as load_summary_metrics_domain,
+    save_summary_metrics as save_summary_metrics_domain,
+)
 from meshdash.history_store_reads import (
     load_connections,
     load_recent_chat,
@@ -146,6 +150,30 @@ def test_history_store_domain_node_modules_return_mapping_shapes(tmp_path):
         saved_counts = load_node_saved_counts_domain(store)
         assert isinstance(capabilities, dict)
         assert isinstance(saved_counts, dict)
+    finally:
+        store.close()
+
+
+def test_history_store_domain_summary_metrics_round_trip(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_summary_metrics_domain(
+            store,
+            {
+                "node_count": 12,
+                "nodes_with_position": 9,
+                "live_packet_count": 77,
+                "real_edge_count": 5,
+            },
+        )
+        payload = load_summary_metrics_domain(store, 24)
+        assert payload["window_hours"] == 24
+        assert payload["points"]
+        latest = payload["points"][-1]
+        assert latest["node_count"] == 12
+        assert latest["nodes_with_position"] == 9
+        assert latest["live_packet_count"] == 77
+        assert latest["real_edge_count"] == 5
     finally:
         store.close()
 

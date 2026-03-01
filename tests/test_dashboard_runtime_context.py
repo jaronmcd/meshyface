@@ -31,6 +31,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     send_state = lambda: {"ok": True}
     send_node_history = lambda *_a, **_k: {"ok": True}
     send_online = lambda *_a, **_k: {"ok": True}
+    send_summary = lambda *_a, **_k: {"ok": True}
     send_chat = lambda *_a, **_k: {"ok": True}
     revision_info = RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title")
 
@@ -66,6 +67,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
             state_fn=send_state,
             node_history_fn=send_node_history,
             online_activity_fn=send_online,
+            summary_metrics_fn=send_summary,
             send_chat_fn=send_chat,
         )
 
@@ -89,6 +91,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
         build_state_snapshot_loader_fn="build-state-snapshot-loader-fn",
         build_node_history_loader_fn="build-node-history-loader-fn",
         build_online_activity_loader_fn="build-online-activity-loader-fn",
+        build_summary_metrics_loader_fn="build-summary-metrics-loader-fn",
         build_send_chat_loader_fn="build-send-chat-loader-fn",
         default_chat_max_bytes=220,
         print_fn=printed.append,
@@ -115,6 +118,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     assert context.state_fn is send_state
     assert context.node_history_fn is send_node_history
     assert context.online_activity_fn is send_online
+    assert context.summary_metrics_fn is send_summary
     assert context.send_chat_fn is send_chat
     assert context.history_enabled is True
 
@@ -161,6 +165,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
         "build_state_snapshot_loader_fn": "build-state-snapshot-loader-fn",
         "build_node_history_loader_fn": "build-node-history-loader-fn",
         "build_online_activity_loader_fn": "build-online-activity-loader-fn",
+        "build_summary_metrics_loader_fn": "build-summary-metrics-loader-fn",
         "build_send_chat_loader_fn": "build-send-chat-loader-fn",
     }
 
@@ -188,6 +193,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
     send_state = lambda: {"ok": True}
     send_node_history = lambda *_a, **_k: {"ok": True}
     send_online = lambda *_a, **_k: {"ok": True}
+    send_summary = lambda *_a, **_k: {"ok": True}
     send_chat = lambda *_a, **_k: {"ok": True}
     revision_info = RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title")
 
@@ -218,6 +224,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
             state_fn=send_state,
             node_history_fn=send_node_history,
             online_activity_fn=send_online,
+            summary_metrics_fn=send_summary,
             send_chat_fn=send_chat,
         )
 
@@ -240,6 +247,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
         build_state_snapshot_loader_fn="build-state-snapshot-loader-fn",
         build_node_history_loader_fn="build-node-history-loader-fn",
         build_online_activity_loader_fn="build-online-activity-loader-fn",
+        build_summary_metrics_loader_fn="build-summary-metrics-loader-fn",
         build_send_chat_loader_fn="build-send-chat-loader-fn",
         default_chat_max_bytes=220,
         lock_factory=lambda: "send-lock",
@@ -255,6 +263,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
     assert context.state_fn is send_state
     assert context.node_history_fn is send_node_history
     assert context.online_activity_fn is send_online
+    assert context.summary_metrics_fn is send_summary
     assert context.send_chat_fn is send_chat
     assert calls["build_runtime_loader_dependencies"]["iface"] is iface
     assert calls["build_runtime_loader_dependencies"]["history_store"] is history_store
@@ -311,6 +320,7 @@ def test_build_dashboard_runtime_context_skips_node_db_seed_by_default():
         build_state_snapshot_loader_fn="build-state-snapshot-loader-fn",
         build_node_history_loader_fn="build-node-history-loader-fn",
         build_online_activity_loader_fn="build-online-activity-loader-fn",
+        build_summary_metrics_loader_fn="build-summary-metrics-loader-fn",
         build_send_chat_loader_fn="build-send-chat-loader-fn",
         default_chat_max_bytes=220,
         lock_factory=lambda: "send-lock",
@@ -322,6 +332,7 @@ def test_build_dashboard_runtime_context_skips_node_db_seed_by_default():
             state_fn=lambda: {"ok": True},
             node_history_fn=lambda *_a, **_k: {"ok": True},
             online_activity_fn=lambda *_a, **_k: {"ok": True},
+            summary_metrics_fn=lambda *_a, **_k: {"ok": True},
             send_chat_fn=lambda *_a, **_k: {"ok": True},
         ),
     )

@@ -15,6 +15,7 @@ def test_build_dashboard_server_dependencies_from_legacy_args_maps_fields():
         "state_fn": object(),
         "node_history_fn": object(),
         "online_activity_fn": object(),
+        "summary_metrics_fn": object(),
         "send_chat_fn": object(),
         "render_html_fn": object(),
         "make_http_handler_fn": object(),

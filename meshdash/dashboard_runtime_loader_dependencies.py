@@ -6,6 +6,7 @@ from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
+    BuildSummaryMetricsLoaderFn,
     BuildSendChatLoaderFn,
     BuildStateFn,
     BuildStateSnapshotLoaderFn,
@@ -43,6 +44,7 @@ def build_dashboard_runtime_loader_dependencies_from_legacy_args(
     build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     build_send_chat_loader_fn: BuildSendChatLoaderFn,
 ) -> DashboardRuntimeLoaderDependencies:
     return DashboardRuntimeLoaderDependencies(
@@ -68,5 +70,6 @@ def build_dashboard_runtime_loader_dependencies_from_legacy_args(
         build_state_snapshot_loader_fn=build_state_snapshot_loader_fn,
         build_node_history_loader_fn=build_node_history_loader_fn,
         build_online_activity_loader_fn=build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader_fn,
     )

@@ -55,6 +55,12 @@ def test_prune_history_tables_applies_retention_and_row_limits():
         conn.execute(
             "INSERT INTO link_metrics_1m(bucket_unix, from_id, to_id, packet_count, snr_sum, snr_count, rssi_sum, rssi_count, hops_sum, hops_count, last_seen_unix) VALUES(99, '!a', '!b', 1, 0.0, 0, 0.0, 0, 0, 0, 99)"
         )
+        conn.execute(
+            "INSERT INTO summary_metrics_1m(bucket_unix, node_count, nodes_with_position, live_packet_count, real_edge_count, last_seen_unix) VALUES(0, 1, 1, 1, 1, 10)"
+        )
+        conn.execute(
+            "INSERT INTO summary_metrics_1m(bucket_unix, node_count, nodes_with_position, live_packet_count, real_edge_count, last_seen_unix) VALUES(60, 2, 2, 2, 2, 99)"
+        )
         conn.commit()
 
         prune_history_tables(
@@ -76,5 +82,6 @@ def test_prune_history_tables_applies_retention_and_row_limits():
         assert conn.execute("SELECT COUNT(*) FROM node_capabilities").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM node_metrics_1m").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM link_metrics_1m").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM summary_metrics_1m").fetchone()[0] == 1
     finally:
         conn.close()

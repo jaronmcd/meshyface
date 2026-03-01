@@ -6,6 +6,7 @@ from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
+    BuildSummaryMetricsLoaderFn,
     BuildSendChatLoaderFn,
     BuildStateFn,
     BuildStateSnapshotLoaderFn,
@@ -46,6 +47,7 @@ class DashboardRuntimeLoaderDependencies:
     build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn
     build_send_chat_loader_fn: BuildSendChatLoaderFn
 
 
@@ -75,6 +77,7 @@ class BuildDashboardRuntimeLoaderDependenciesFromLegacyArgsFn(Protocol):
         build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn,
         build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
         build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+        build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
         build_send_chat_loader_fn: BuildSendChatLoaderFn,
     ) -> DashboardRuntimeLoaderDependencies:
         ...
@@ -115,6 +118,7 @@ class BuildDashboardRuntimeLoadersFn(Protocol):
         build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn,
         build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
         build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+        build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
         build_send_chat_loader_fn: BuildSendChatLoaderFn,
     ) -> "DashboardRuntimeLoaders":
         ...

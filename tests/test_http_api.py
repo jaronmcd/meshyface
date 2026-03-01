@@ -50,6 +50,10 @@ def test_http_api_state_and_history_endpoints():
             "summary": {},
         },
         online_activity_fn=None,
+        summary_metrics_fn=lambda hours: {
+            "window_hours": hours,
+            "points": [{"bucket_unix": 60}],
+        },
         send_chat_fn=None,
         default_node_history_hours=72,
     )
@@ -70,6 +74,12 @@ def test_http_api_state_and_history_endpoints():
     online = json.loads(data.decode("utf-8"))
     assert online["window_hours"] == 12
     assert len(online["hourly_profile"]) == 24
+
+    sent, data = _run_get(handler_cls, "/api/history/summary?hours=6")
+    assert sent["status"] == 200
+    summary = json.loads(data.decode("utf-8"))
+    assert summary["window_hours"] == 6
+    assert summary["points"][0]["bucket_unix"] == 60
 
 
 def test_http_api_chat_send_success_and_disabled():

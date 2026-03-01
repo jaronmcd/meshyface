@@ -68,4 +68,23 @@ class BuildOnlineActivityPayloadFn(Protocol):
     ) -> HistoryPayload: ...
 
 
+class FetchSummaryMetricsRowsFn(Protocol):
+    def __call__(
+        self,
+        conn: SqlConnection,
+        *,
+        cutoff: int,
+        limit: int,
+    ) -> HistoryRows: ...
+
+
+class BuildSummaryMetricsPayloadFn(Protocol):
+    def __call__(
+        self,
+        *,
+        window_hours: int,
+        rows: Iterable[HistoryRow],
+    ) -> HistoryPayload: ...
+
+
 TimezoneLabelFn = Callable[[], str]

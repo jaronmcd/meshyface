@@ -72,6 +72,11 @@ class OnlineActivityFn(Protocol):
         ...
 
 
+class SummaryMetricsHistoryFn(Protocol):
+    def __call__(self, hours_override: Optional[int] = None) -> dict[str, object]:
+        ...
+
+
 class SendChatFn(Protocol):
     def __call__(
         self,
@@ -92,6 +97,7 @@ class MakeHttpHandlerFn(Protocol):
         state_fn: StateFn,
         node_history_fn: NodeHistoryFn | None = None,
         online_activity_fn: OnlineActivityFn | None = None,
+        summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
         send_chat_fn: SendChatFn | None = None,
         default_node_history_hours: int = 72,
         to_int_fn: ToIntFn = ...,
@@ -265,6 +271,16 @@ class BuildOnlineActivityLoaderFn(Protocol):
         *,
         default_hours: int,
     ) -> OnlineActivityFn:
+        ...
+
+
+class BuildSummaryMetricsLoaderFn(Protocol):
+    def __call__(
+        self,
+        history_store: object | None,
+        *,
+        default_hours: int,
+    ) -> SummaryMetricsHistoryFn:
         ...
 
 

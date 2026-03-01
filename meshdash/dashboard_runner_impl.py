@@ -20,6 +20,7 @@ from .dashboard_server import (
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
+    BuildSummaryMetricsLoaderFn,
     BuildStateFn,
     GetLocalNodeIdFn,
     GuessLanIpv4Fn,
@@ -52,6 +53,7 @@ def run_dashboard_runtime(
     build_state_fn: BuildStateFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
     get_local_node_id_fn: GetLocalNodeIdFn,
@@ -84,6 +86,7 @@ def run_dashboard_runtime(
         build_state_snapshot_loader_fn=build_state_snapshot_loader,
         build_node_history_loader_fn=build_node_history_loader_fn,
         build_online_activity_loader_fn=build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader,
     )
 
@@ -94,6 +97,7 @@ def run_dashboard_runtime(
         state_fn=context.state_fn,
         node_history_fn=context.node_history_fn,
         online_activity_fn=context.online_activity_fn,
+        summary_metrics_fn=context.summary_metrics_fn,
         send_chat_fn=context.send_chat_fn,
         render_html_fn=render_html_fn,
         make_http_handler_fn=make_http_handler_fn,

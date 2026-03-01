@@ -29,6 +29,7 @@ def test_handle_dashboard_get_returns_state_and_404():
         state_fn=lambda: {"ok": True},
         node_history_fn=None,
         online_activity_fn=None,
+        summary_metrics_fn=None,
         default_node_history_hours=72,
         to_int_fn=lambda value: int(value) if value else None,
         parse_node_history_request_fn=lambda *_args, **_kwargs: NodeHistoryQuery(
@@ -36,9 +37,10 @@ def test_handle_dashboard_get_returns_state_and_404():
             hours_override=None,
             points_override=None,
         ),
-        parse_online_activity_request_fn=lambda *_args, **_kwargs: OnlineActivityQuery(hours_override=None),
+        parse_online_activity_request_fn=lambda *_args, **_kwargs: OnlineActivityQuery(hours_override=6),
         empty_node_history_fn=lambda node_id: {"node_id": node_id},
         empty_online_activity_fn=lambda hours: {"window_hours": hours},
+        empty_summary_metrics_fn=lambda hours: {"window_hours": hours, "points": []},
         write_html_response_fn=lambda *_args, **_kwargs: None,
         write_json_response_fn=lambda *_args, **kwargs: calls["json"].append(kwargs),
         write_text_response_fn=lambda *_args, **kwargs: calls["text"].append(kwargs),
@@ -62,6 +64,15 @@ def test_handle_dashboard_get_returns_state_and_404():
     )
     assert calls["json"][1]["status_code"] == 200
     assert calls["json"][1]["payload_obj"]["selected_preset"] == "default"
+
+    handle_dashboard_get(
+        handler,
+        path="/api/history/summary",
+        query="hours=6",
+        deps=deps,
+    )
+    assert calls["json"][2]["status_code"] == 200
+    assert calls["json"][2]["payload_obj"]["window_hours"] == 6
 
     handle_dashboard_get(
         handler,

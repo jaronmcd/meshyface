@@ -2,6 +2,7 @@ from meshdash.api_inputs import NodeHistoryQuery, OnlineActivityQuery
 from meshdash.api_history import (
     build_node_history_response,
     build_online_activity_response,
+    build_summary_metrics_response,
 )
 
 
@@ -69,3 +70,27 @@ def test_build_online_activity_response_falls_back_to_default_window():
     )
 
     assert response == {"window_hours": 72, "hourly_profile": []}
+
+
+def test_build_summary_metrics_response_uses_loader_when_available():
+    response = build_summary_metrics_response(
+        query="hours=24",
+        summary_metrics_fn=lambda hours: {"window_hours": hours, "points": [1]},
+        default_node_history_hours=72,
+        to_int_fn=lambda value: int(value) if value else None,
+        parse_online_activity_request_fn=lambda query, **kwargs: OnlineActivityQuery(hours_override=24),
+        empty_summary_metrics_fn=lambda hours: {"window_hours": hours, "points": []},
+    )
+    assert response == {"window_hours": 24, "points": [1]}
+
+
+def test_build_summary_metrics_response_falls_back_to_default_window():
+    response = build_summary_metrics_response(
+        query="hours=0",
+        summary_metrics_fn=None,
+        default_node_history_hours=72,
+        to_int_fn=lambda value: int(value) if value else None,
+        parse_online_activity_request_fn=lambda query, **kwargs: OnlineActivityQuery(hours_override=0),
+        empty_summary_metrics_fn=lambda hours: {"window_hours": hours, "points": []},
+    )
+    assert response == {"window_hours": 72, "points": []}

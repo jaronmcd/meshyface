@@ -5,6 +5,7 @@ from .dashboard_setup_contracts import DashboardTrackerFactory, HistoryStoreFact
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
+    BuildSummaryMetricsLoaderFn,
     BuildStateFn,
     BuildStateWithSensitiveFn,
     GetLocalNodeIdFn,
@@ -44,6 +45,7 @@ class DashboardRuntimeDependencies:
     build_state_fn: BuildStateFn
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn
     send_chat_message_fn: SendChatMessageFn
     send_reaction_packet_fn: SendReactionPacketFn
     get_local_node_id_fn: GetLocalNodeIdFn
@@ -87,6 +89,7 @@ def build_dashboard_runtime_dependencies(
     sensitive_field_names: set[str],
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_emoji_reaction_packet_fn: SendReactionPacketWithModulesFn,
     mesh_pb2_module: object,
@@ -145,6 +148,7 @@ def build_dashboard_runtime_dependencies(
         build_state_fn=build_state_with_sensitive_fields,
         build_node_history_loader_fn=build_node_history_loader_fn,
         build_online_activity_loader_fn=build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         send_chat_message_fn=send_chat_message_fn,
         send_reaction_packet_fn=send_reaction_packet,
         get_local_node_id_fn=get_local_node_id,

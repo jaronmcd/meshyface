@@ -27,6 +27,10 @@ from .history_store_packets import (
     load_recent_packets as _load_recent_packets_helper,
     save_packet as _save_packet_helper,
 )
+from .history_store_summary import (
+    load_summary_metrics as _load_summary_metrics_helper,
+    save_summary_metrics as _save_summary_metrics_helper,
+)
 
 
 class HistoryStore:
@@ -87,6 +91,9 @@ class HistoryStore:
     def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         return _load_node_capabilities_helper(self)
 
+    def load_summary_metrics(self, window_hours: int) -> dict[str, object]:
+        return _load_summary_metrics_helper(self, window_hours)
+
     def save_connection_event(
         self,
         from_id: str,
@@ -109,3 +116,6 @@ class HistoryStore:
 
     def save_chat(self, chat_entry: dict[str, object]) -> None:
         _save_chat_helper(self, chat_entry)
+
+    def save_summary_metrics(self, summary: dict[str, object]) -> None:
+        _save_summary_metrics_helper(self, summary)

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Optional
 
@@ -10,6 +11,7 @@ from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
     BuildOnlineActivityLoaderFn,
+    BuildSummaryMetricsLoaderFn,
     BuildSendChatLoaderFn,
     BuildStateFn,
     BuildStateSnapshotLoaderFn,
@@ -17,6 +19,7 @@ from .runtime_types import (
     NodeHistoryFn,
     NormalizeSingleEmojiFn,
     OnlineActivityFn,
+    SummaryMetricsHistoryFn,
     SendChatFn,
     SendChatMessageFn,
     SendReactionPacketFn,
@@ -32,7 +35,75 @@ class DashboardRuntimeLoaders:
     state_fn: StateFn
     node_history_fn: NodeHistoryFn
     online_activity_fn: OnlineActivityFn
+    summary_metrics_fn: SummaryMetricsHistoryFn
     send_chat_fn: SendChatFn
+
+
+def _extract_state_summary(payload: object) -> Mapping[str, object] | None:
+    if isinstance(payload, Mapping):
+        summary = payload.get("summary")
+        return summary if isinstance(summary, Mapping) else None
+    summary = getattr(payload, "summary", None)
+    return summary if isinstance(summary, Mapping) else None
+
+
+def _copy_state_fn_attrs(target_fn: object, source_fn: object) -> None:
+    for name in (
+        "etag",
+        "raw_my_info",
+        "raw_metadata",
+        "raw_local_state",
+        "raw_nodes_full",
+        "_sensitive_field_names",
+    ):
+        attr = getattr(source_fn, name, None)
+        if attr is None:
+            continue
+        try:
+            setattr(target_fn, name, attr)
+        except Exception:
+            continue
+
+
+def _with_summary_persistence(
+    *,
+    base_state_fn: StateFn,
+    history_store: object | None,
+) -> StateFn:
+    save_summary_fn = getattr(history_store, "save_summary_metrics", None)
+    if not callable(save_summary_fn):
+        return base_state_fn
+
+    def _persist_summary(payload: object) -> None:
+        summary = _extract_state_summary(payload)
+        if summary is None:
+            return
+        try:
+            save_summary_fn(summary)
+        except Exception:
+            pass
+
+    def _wrapped_state_fn() -> object:
+        payload = base_state_fn()
+        _persist_summary(payload)
+        return payload
+
+    _copy_state_fn_attrs(_wrapped_state_fn, base_state_fn)
+
+    lite_fn = getattr(base_state_fn, "lite", None)
+    if callable(lite_fn):
+        def _wrapped_state_lite_fn() -> object:
+            payload = lite_fn()
+            _persist_summary(payload)
+            return payload
+
+        _copy_state_fn_attrs(_wrapped_state_lite_fn, lite_fn)
+        try:
+            setattr(_wrapped_state_fn, "lite", _wrapped_state_lite_fn)
+        except Exception:
+            pass
+
+    return _wrapped_state_fn
 
 
 def build_dashboard_runtime_loaders(
@@ -59,6 +130,7 @@ def build_dashboard_runtime_loaders(
     build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
     build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
+    build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     build_send_chat_loader_fn: BuildSendChatLoaderFn,
 ) -> DashboardRuntimeLoaders:
     dependencies = build_dashboard_runtime_loader_dependencies_from_legacy_args(
@@ -84,6 +156,7 @@ def build_dashboard_runtime_loaders(
         build_state_snapshot_loader_fn=build_state_snapshot_loader_fn,
         build_node_history_loader_fn=build_node_history_loader_fn,
         build_online_activity_loader_fn=build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader_fn,
     )
     return build_dashboard_runtime_loaders_with_dependencies(dependencies=dependencies)
@@ -103,6 +176,10 @@ def build_dashboard_runtime_loaders_with_dependencies(
         revision_info=dependencies.revision_info,
         build_state_fn=dependencies.build_state_fn,
     )
+    state_fn = _with_summary_persistence(
+        base_state_fn=state_fn,
+        history_store=dependencies.history_store,
+    )
 
     node_history_fn = dependencies.build_node_history_loader_fn(
         history_store=dependencies.history_store,
@@ -110,6 +187,10 @@ def build_dashboard_runtime_loaders_with_dependencies(
         default_points=dependencies.default_node_history_points,
     )
     online_activity_fn = dependencies.build_online_activity_loader_fn(
+        history_store=dependencies.history_store,
+        default_hours=dependencies.default_node_history_hours,
+    )
+    summary_metrics_fn = dependencies.build_summary_metrics_loader_fn(
         history_store=dependencies.history_store,
         default_hours=dependencies.default_node_history_hours,
     )
@@ -131,5 +212,6 @@ def build_dashboard_runtime_loaders_with_dependencies(
         state_fn=state_fn,
         node_history_fn=node_history_fn,
         online_activity_fn=online_activity_fn,
+        summary_metrics_fn=summary_metrics_fn,
         send_chat_fn=send_chat_fn,
     )

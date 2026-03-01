@@ -121,6 +121,7 @@ def test_run_dashboard_runtime_wires_core_dependencies():
         build_state_fn=lambda **kwargs: {"ok": True},
         build_node_history_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
         build_online_activity_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
+        build_summary_metrics_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
         send_chat_message_fn=lambda **kwargs: {"ok": True},
         send_reaction_packet_fn=lambda **kwargs: type("Packet", (), {"id": 1})(),
         get_local_node_id_fn=lambda iface: "!local",

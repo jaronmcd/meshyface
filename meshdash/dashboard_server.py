@@ -10,6 +10,7 @@ from .runtime_types import (
     MakeHttpHandlerFn,
     NodeHistoryFn,
     OnlineActivityFn,
+    SummaryMetricsHistoryFn,
     RenderHtmlFn,
     SendChatFn,
     StateFn,
@@ -34,6 +35,7 @@ def build_dashboard_server(
     state_fn: StateFn,
     node_history_fn: NodeHistoryFn,
     online_activity_fn: OnlineActivityFn,
+    summary_metrics_fn: SummaryMetricsHistoryFn,
     send_chat_fn: SendChatFn,
     render_html_fn: RenderHtmlFn,
     make_http_handler_fn: MakeHttpHandlerFn,
@@ -46,6 +48,7 @@ def build_dashboard_server(
         state_fn=state_fn,
         node_history_fn=node_history_fn,
         online_activity_fn=online_activity_fn,
+        summary_metrics_fn=summary_metrics_fn,
         send_chat_fn=send_chat_fn,
         render_html_fn=render_html_fn,
         make_http_handler_fn=make_http_handler_fn,
@@ -75,6 +78,7 @@ def build_dashboard_server_with_dependencies(
         dependencies.state_fn,
         node_history_fn=dependencies.node_history_fn,
         online_activity_fn=dependencies.online_activity_fn,
+        summary_metrics_fn=dependencies.summary_metrics_fn,
         send_chat_fn=dependencies.send_chat_fn,
     )
     server = dependencies.threading_http_server_cls(

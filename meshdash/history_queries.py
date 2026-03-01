@@ -84,6 +84,29 @@ def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRow
     return hour_rows, distinct_nodes
 
 
+def fetch_summary_metrics_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    limit: int,
+) -> SqlRows:
+    cutoff_bucket = int(cutoff) - (int(cutoff) % 60)
+    return conn.execute(
+        """
+        SELECT bucket_unix,
+               node_count,
+               nodes_with_position,
+               live_packet_count,
+               real_edge_count
+        FROM summary_metrics_1m
+        WHERE bucket_unix >= ?
+        ORDER BY bucket_unix ASC
+        LIMIT ?
+        """,
+        (cutoff_bucket, max(1, int(limit))),
+    ).fetchall()
+
+
 def fetch_node_saved_count_rows(conn: SqlConnection) -> SqlRows:
     # NOTE: node_saved_counts is maintained by triggers on node_metrics_1m.
     # This avoids scanning/grouping the entire rollup table on every /api/state

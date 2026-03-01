@@ -6,6 +6,7 @@ from meshdash.history_queries import (
     fetch_node_history_rows,
     fetch_node_saved_count_rows,
     fetch_online_activity_rows,
+    fetch_summary_metrics_rows,
     fetch_recent_chat_rows,
     fetch_recent_packet_rows,
 )
@@ -131,5 +132,34 @@ def test_fetch_connection_rows_orders_by_last_seen_desc():
         )
         rows = fetch_connection_rows(conn)
         assert [r[0] for r in rows] == ["!c", "!a"]
+    finally:
+        conn.close()
+
+
+def test_fetch_summary_metrics_rows_filters_and_orders_by_bucket():
+    conn = sqlite3.connect(":memory:")
+    try:
+        initialize_history_schema(conn)
+        conn.execute(
+            """
+            INSERT INTO summary_metrics_1m(
+              bucket_unix, node_count, nodes_with_position,
+              live_packet_count, real_edge_count, last_seen_unix
+            ) VALUES(60, 10, 8, 25, 4, 61)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO summary_metrics_1m(
+              bucket_unix, node_count, nodes_with_position,
+              live_packet_count, real_edge_count, last_seen_unix
+            ) VALUES(120, 12, 9, 30, 5, 121)
+            """
+        )
+        rows = fetch_summary_metrics_rows(conn, cutoff=90, limit=10)
+        assert rows == [
+            (60, 10, 8, 25, 4),
+            (120, 12, 9, 30, 5),
+        ]
     finally:
         conn.close()

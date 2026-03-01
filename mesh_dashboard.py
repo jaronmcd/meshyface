@@ -55,6 +55,7 @@ from meshdash.state import build_state as _build_state_helper, build_state_lite 
 from meshdash.services import (
     build_node_history_loader as _build_node_history_loader,
     build_online_activity_loader as _build_online_activity_loader,
+    build_summary_metrics_loader as _build_summary_metrics_loader,
     send_chat_message as _send_chat_message_helper,
 )
 from meshdash.theme_presets import (
@@ -138,6 +139,7 @@ def _build_make_http_handler_with_theme_settings(theme_settings: _ThemePresetSet
         state_fn,
         node_history_fn=None,
         online_activity_fn=None,
+        summary_metrics_fn=None,
         send_chat_fn=None,
         default_node_history_hours: int = 72,
         to_int_fn=_to_int,
@@ -147,6 +149,7 @@ def _build_make_http_handler_with_theme_settings(theme_settings: _ThemePresetSet
             state_fn=state_fn,
             node_history_fn=node_history_fn,
             online_activity_fn=online_activity_fn,
+            summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             get_theme_settings_fn=theme_settings.get_settings_payload,
             set_theme_preset_fn=theme_settings.set_selected_preset,
@@ -177,6 +180,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
         sensitive_field_names=SENSITIVE_FIELD_NAMES,
         build_node_history_loader_fn=_build_node_history_loader,
         build_online_activity_loader_fn=_build_online_activity_loader,
+        build_summary_metrics_loader_fn=_build_summary_metrics_loader,
         send_chat_message_fn=_send_chat_message_helper,
         send_emoji_reaction_packet_fn=_send_emoji_reaction_packet_helper,
         mesh_pb2_module=mesh_pb2,
@@ -207,6 +211,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
         build_state_fn=runtime_dependencies.build_state_fn,
         build_node_history_loader_fn=runtime_dependencies.build_node_history_loader_fn,
         build_online_activity_loader_fn=runtime_dependencies.build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=runtime_dependencies.build_summary_metrics_loader_fn,
         send_chat_message_fn=runtime_dependencies.send_chat_message_fn,
         send_reaction_packet_fn=runtime_dependencies.send_reaction_packet_fn,
         get_local_node_id_fn=runtime_dependencies.get_local_node_id_fn,

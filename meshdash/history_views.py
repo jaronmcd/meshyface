@@ -18,6 +18,13 @@ class HistoryViewStore(Protocol):
     ) -> dict[str, object]:
         ...
 
+    def load_summary_metrics(
+        self,
+        *,
+        window_hours: int,
+    ) -> dict[str, object]:
+        ...
+
 
 def empty_node_history(node_id: str) -> dict[str, object]:
     return {"node_id": str(node_id or ""), "points": [], "positions": [], "summary": {}}
@@ -50,6 +57,21 @@ def empty_online_activity(window_hours: int) -> dict[str, object]:
             "best_hour_avg_online_nodes": None,
             "window_start": None,
             "window_end": None,
+        },
+    }
+
+
+def empty_summary_metrics(window_hours: int) -> dict[str, object]:
+    clean_hours = int(window_hours) if isinstance(window_hours, int) and window_hours > 0 else 72
+    return {
+        "window_hours": clean_hours,
+        "points": [],
+        "summary": {
+            "samples": 0,
+            "window_start": None,
+            "window_end": None,
+            "latest": {},
+            "delta": {},
         },
     }
 
@@ -103,3 +125,24 @@ def build_online_activity_loader(
         return history_store.load_online_activity(window_hours=hours)
 
     return online_activity_loader
+
+
+def build_summary_metrics_loader(
+    history_store: HistoryViewStore | None,
+    *,
+    default_hours: int,
+) -> Callable[[Optional[int]], dict[str, object]]:
+    def summary_metrics_loader(hours_override: Optional[int] = None) -> dict[str, object]:
+        hours = (
+            hours_override
+            if isinstance(hours_override, int) and hours_override > 0
+            else int(default_hours)
+        )
+        if history_store is None:
+            return empty_summary_metrics(hours)
+        load_summary_metrics_fn = getattr(history_store, "load_summary_metrics", None)
+        if not callable(load_summary_metrics_fn):
+            return empty_summary_metrics(hours)
+        return load_summary_metrics_fn(window_hours=hours)
+
+    return summary_metrics_loader

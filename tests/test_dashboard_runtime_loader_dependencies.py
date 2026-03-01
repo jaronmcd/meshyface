@@ -29,6 +29,7 @@ def test_build_dashboard_runtime_loader_dependencies_from_legacy_args_maps_field
         "build_state_snapshot_loader_fn": object(),
         "build_node_history_loader_fn": object(),
         "build_online_activity_loader_fn": object(),
+        "build_summary_metrics_loader_fn": object(),
         "build_send_chat_loader_fn": object(),
     }
 

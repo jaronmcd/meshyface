@@ -34,6 +34,11 @@ class OnlineActivityFn(Protocol):
         ...
 
 
+class SummaryMetricsHistoryFn(Protocol):
+    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
+        ...
+
+
 class SendChatFn(Protocol):
     def __call__(
         self,
@@ -88,6 +93,11 @@ class EmptyNodeHistoryFn(Protocol):
 
 
 class EmptyOnlineActivityFn(Protocol):
+    def __call__(self, hours: int) -> dict[str, object]:
+        ...
+
+
+class EmptySummaryMetricsFn(Protocol):
     def __call__(self, hours: int) -> dict[str, object]:
         ...
 
@@ -170,12 +180,14 @@ class DashboardGetRouteDependencies:
     state_fn: StateFn
     node_history_fn: Optional[NodeHistoryFn]
     online_activity_fn: Optional[OnlineActivityFn]
+    summary_metrics_fn: Optional[SummaryMetricsHistoryFn]
     default_node_history_hours: int
     to_int_fn: ToIntFn
     parse_node_history_request_fn: ParseNodeHistoryRequestFn
     parse_online_activity_request_fn: ParseOnlineActivityRequestFn
     empty_node_history_fn: EmptyNodeHistoryFn
     empty_online_activity_fn: EmptyOnlineActivityFn
+    empty_summary_metrics_fn: EmptySummaryMetricsFn
     write_html_response_fn: WriteHtmlResponseFn
     write_json_response_fn: WriteJsonResponseFn
     write_text_response_fn: WriteTextResponseFn

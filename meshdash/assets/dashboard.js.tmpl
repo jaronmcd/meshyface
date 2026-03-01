@@ -189,7 +189,7 @@
     const chatFeedMaxEntries = 320;
     const chatPerfEmaAlpha = 0.2;
     const metricTickerWindowMs = 60 * 60 * 1000;
-    const metricTickerMaxPoints = 180;
+    const metricTickerMaxPoints = 240;
     const metricTickerSeries = new Map();
     // Generated from Unicode emoji-test.txt
     // Source: https://unicode.org/Public/emoji/latest/emoji-test.txt
@@ -648,6 +648,9 @@
     let nodeHistoryFetchAbort = null;
     let nodeHistoryFetchNodeId = "";
     const onlineActivityCache = new Map();
+    const summaryMetricsCache = new Map();
+    let summaryMetricsHydrated = false;
+    let summaryMetricsHydrateInFlight = null;
     const nodeNameCache = new Map();
     const favoriteNodeIds = new Set();
     const manualDirectPeerIds = new Set();
@@ -1728,9 +1731,15 @@
       const cleanKey = String(metricKey || "").trim();
       const value = Number(rawValue);
       if (!cleanKey || !Number.isFinite(value)) return [];
+      const bucketMs = Math.floor(nowMs / 60000) * 60000;
       const points = metricTickerSeries.get(cleanKey) || [];
-      points.push({{ ms: nowMs, value }});
-      trimMetricTickerPoints(points, nowMs - metricTickerWindowMs);
+      const last = points.length ? points[points.length - 1] : null;
+      if (last && Number(last.ms) === bucketMs) {{
+        last.value = value;
+      }} else {{
+        points.push({{ ms: bucketMs, value }});
+      }}
+      trimMetricTickerPoints(points, bucketMs - metricTickerWindowMs);
       metricTickerSeries.set(cleanKey, points);
       return points;
     }}
@@ -9021,6 +9030,76 @@
       return data;
     }}
 
+    async function fetchSummaryMetrics(hoursOverride = nodeHistoryHours) {{
+      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
+      const cacheKey = String(cleanHours);
+      const cached = summaryMetricsCache.get(cacheKey);
+      const nowMs = Date.now();
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 10, 60000)) {{
+        return cached.data;
+      }}
+      const url = `/api/history/summary?hours=${{encodeURIComponent(cleanHours)}}`;
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`summary metrics API ${{resp.status}}`);
+      const data = await resp.json();
+      summaryMetricsCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    function hydrateTickerSeriesFromSummaryMetrics(historyPayload) {{
+      const payload = (historyPayload && typeof historyPayload === "object") ? historyPayload : {{}};
+      const points = Array.isArray(payload.points) ? payload.points : [];
+      const byKey = new Map([
+        ["nodes", []],
+        ["pos_nodes", []],
+        ["live_packets", []],
+        ["real_links", []],
+      ]);
+      for (const point of points) {{
+        if (!point || typeof point !== "object") continue;
+        const bucketUnix = Number(point.bucket_unix);
+        if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+        const bucketMs = Math.floor(bucketUnix) * 1000;
+        const nodeCount = Number(point.node_count);
+        const posCount = Number(point.nodes_with_position);
+        const livePackets = Number(point.live_packet_count);
+        const realLinks = Number(point.real_edge_count);
+        if (Number.isFinite(nodeCount)) {{
+          byKey.get("nodes").push({{ ms: bucketMs, value: nodeCount }});
+        }}
+        if (Number.isFinite(posCount)) {{
+          byKey.get("pos_nodes").push({{ ms: bucketMs, value: posCount }});
+        }}
+        if (Number.isFinite(livePackets)) {{
+          byKey.get("live_packets").push({{ ms: bucketMs, value: livePackets }});
+        }}
+        if (Number.isFinite(realLinks)) {{
+          byKey.get("real_links").push({{ ms: bucketMs, value: realLinks }});
+        }}
+      }}
+
+      const cutoffMs = Date.now() - metricTickerWindowMs;
+      for (const [metricKey, series] of byKey.entries()) {{
+        if (!Array.isArray(series) || series.length === 0) continue;
+        series.sort((a, b) => Number(a.ms) - Number(b.ms));
+        trimMetricTickerPoints(series, cutoffMs);
+        metricTickerSeries.set(metricKey, series);
+      }}
+    }}
+
+    async function hydrateSummaryMetricTickers(hoursOverride = Math.max(2, Math.min(24, nodeHistoryHours))) {{
+      try {{
+        const data = await fetchSummaryMetrics(hoursOverride);
+        hydrateTickerSeriesFromSummaryMetrics(data);
+        summaryMetricsHydrated = true;
+        if (latestState && activeLayoutView !== "chat") {{
+          renderSummary(latestState);
+        }}
+      }} catch (_err) {{
+        summaryMetricsHydrated = false;
+      }}
+    }}
+
     function renderTraffic(traffic, nodes, nodeHistory, onlineActivity) {{
       if (mapDataFocus === "activity") {{
         if (onlineActivity && !onlineActivity.error) {{
@@ -10081,6 +10160,12 @@
         }}
         pruneSelfFromManualDirectPeers(state);
         renderSelfRadioPill(state);
+        if (!summaryMetricsHydrated && !summaryMetricsHydrateInFlight) {{
+          summaryMetricsHydrateInFlight = hydrateSummaryMetricTickers()
+            .finally(() => {{
+              summaryMetricsHydrateInFlight = null;
+            }});
+        }}
 
         const mapVisible = activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "all";
         const historyRelevant = (activeLayoutView === "saved" || activeLayoutView === "network")

@@ -2,8 +2,10 @@ import time
 from datetime import datetime
 
 from .history_read_contracts import (
+    BuildSummaryMetricsPayloadFn,
     BuildNodeHistoryPayloadFn,
     BuildOnlineActivityPayloadFn,
+    FetchSummaryMetricsRowsFn,
     FetchNodeHistoryRowsFn,
     FetchOnlineActivityRowsFn,
     HistoryPayload,
@@ -69,4 +71,26 @@ def load_online_activity_data(
         hour_rows=rows,
         distinct_nodes=distinct_nodes,
         timezone_label=timezone_label_fn(),
+    )
+
+
+def load_summary_metrics_history_data(
+    conn: SqlConnection,
+    *,
+    window_hours: int,
+    fetch_summary_metrics_rows_fn: FetchSummaryMetricsRowsFn,
+    build_summary_metrics_payload_fn: BuildSummaryMetricsPayloadFn,
+    now_unix_fn: NowUnixFn = time.time,
+) -> HistoryPayload:
+    hours = max(1, min(24 * 365, int(window_hours)))
+    cutoff = int(now_unix_fn()) - (hours * 3600)
+    limit = max(60, min(24 * 365 * 60, (hours * 60) + 5))
+    rows = fetch_summary_metrics_rows_fn(
+        conn,
+        cutoff=cutoff,
+        limit=limit,
+    )
+    return build_summary_metrics_payload_fn(
+        window_hours=hours,
+        rows=rows,
     )
