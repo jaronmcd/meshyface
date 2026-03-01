@@ -5941,6 +5941,7 @@
     function setSettingsButtonsDisabled(disabled) {{
       for (const id of [
         "settings-apply-lora",
+        "settings-set-time",
         "settings-reset",
         "settings-apply-local",
         "settings-apply-module",
@@ -6169,6 +6170,21 @@
       }}
     }}
 
+    async function setRadioTime() {{
+      if (settingsApplyInFlight) return;
+
+      const ok = await postRadioSettingsPayload(
+        {{ actions: {{ set_time: true }} }},
+        "Setting radio time from dashboard host clock…",
+        "radio time synced from dashboard host clock"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
     function bindSettingsPanel() {{
       const settingsCard = document.querySelector(".card.settings");
       if (!(settingsCard instanceof HTMLElement) || settingsCard.dataset.bound === "1") return;
@@ -6203,6 +6219,13 @@
       if (applyBtn instanceof HTMLButtonElement) {{
         applyBtn.addEventListener("click", () => {{
           void applyLoraSettings();
+        }});
+      }}
+
+      const setTimeBtn = document.getElementById("settings-set-time");
+      if (setTimeBtn instanceof HTMLButtonElement) {{
+        setTimeBtn.addEventListener("click", () => {{
+          void setRadioTime();
         }});
       }}
 

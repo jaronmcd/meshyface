@@ -305,8 +305,16 @@ def apply_radio_settings(
 
     reset_nodedb = bool(actions.get("reset_nodedb"))
     reset_dashboard_db = bool(actions.get("reset_dashboard_db"))
+    set_time = bool(actions.get("set_time"))
 
-    if not lora_updates and not local_updates and not module_updates and not reset_nodedb and not reset_dashboard_db:
+    if (
+        not lora_updates
+        and not local_updates
+        and not module_updates
+        and not reset_nodedb
+        and not reset_dashboard_db
+        and not set_time
+    ):
         return {"ok": False, "error": "No settings/actions provided"}
 
     node = _get_local_node(iface)
@@ -363,6 +371,8 @@ def apply_radio_settings(
         actions_applied.append("reset_nodedb")
     if reset_dashboard_db:
         actions_applied.append("reset_dashboard_db")
+    if set_time:
+        actions_applied.append("set_time")
 
     if not write_sections and not actions_applied:
         return {
@@ -405,6 +415,12 @@ def apply_radio_settings(
                         commit_tx()
                     except Exception:
                         pass
+
+            if set_time:
+                set_time_fn = getattr(node, "setTime", None)
+                if not callable(set_time_fn):
+                    return {"ok": False, "error": "Meshtastic node does not support setTime()"}
+                set_time_fn(0)
 
             if reset_nodedb:
                 reset_db = getattr(node, "resetNodeDb", None)

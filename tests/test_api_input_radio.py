@@ -40,6 +40,7 @@ def test_parse_radio_settings_request_filters_to_supported_value_shapes():
           "actions": {
             "reset_nodedb": "yes",
             "reset_dashboard_db": 1,
+            "set_time": "on",
             "unknown": true
           }
         }
@@ -56,12 +57,12 @@ def test_parse_radio_settings_request_filters_to_supported_value_shapes():
     }
     assert request.local == {"device": {"role": "ROUTER", "is_router": "true"}}
     assert request.module == {"mqtt": {"enabled": True, "address": "mqtt.example.net"}}
-    assert request.actions == {"reset_nodedb": True, "reset_dashboard_db": True}
+    assert request.actions == {"reset_nodedb": True, "reset_dashboard_db": True, "set_time": True}
 
 
 def test_parse_radio_settings_request_supports_top_level_reset_alias():
-    request = parse_radio_settings_request(b'{"reset_nodedb": "1", "reset_dashboard_db": "true"}')
-    assert request.actions == {"reset_nodedb": True, "reset_dashboard_db": True}
+    request = parse_radio_settings_request(b'{"reset_nodedb": "1", "reset_dashboard_db": "true", "set_time": "yes"}')
+    assert request.actions == {"reset_nodedb": True, "reset_dashboard_db": True, "set_time": True}
 
 
 def test_parse_radio_settings_request_rejects_invalid_json():

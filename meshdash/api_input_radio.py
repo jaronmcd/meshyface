@@ -10,7 +10,8 @@ class RadioSettingsRequest:
       - `lora`: legacy LoRa-only field updates.
       - `local`: local config section updates, keyed by section name.
       - `module`: module config section updates, keyed by section name.
-      - `actions`: control actions, e.g. {"reset_nodedb": true, "reset_dashboard_db": true}
+      - `actions`: control actions, e.g.
+        {"reset_nodedb": true, "reset_dashboard_db": true, "set_time": true}
     """
 
     lora: dict[str, object] = field(default_factory=dict)
@@ -95,7 +96,7 @@ def _clean_actions(payload: object) -> dict[str, bool]:
     for key, value in payload.items():
         if not isinstance(key, str):
             continue
-        if key in {"reset_nodedb", "reset_dashboard_db"}:
+        if key in {"reset_nodedb", "reset_dashboard_db", "set_time"}:
             actions[key] = _coerce_bool(value)
     return actions
 
@@ -118,6 +119,8 @@ def parse_radio_settings_request(raw_body: bytes) -> RadioSettingsRequest:
         clean_actions["reset_nodedb"] = _coerce_bool(payload.get("reset_nodedb"))
     if "reset_dashboard_db" not in clean_actions and "reset_dashboard_db" in payload:
         clean_actions["reset_dashboard_db"] = _coerce_bool(payload.get("reset_dashboard_db"))
+    if "set_time" not in clean_actions and "set_time" in payload:
+        clean_actions["set_time"] = _coerce_bool(payload.get("set_time"))
 
     return RadioSettingsRequest(
         lora=clean_lora,
