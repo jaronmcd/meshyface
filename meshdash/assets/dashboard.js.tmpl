@@ -5203,7 +5203,9 @@
           clearTimeout(activeWheelPaneLease);
           activeWheelPaneLease = null;
         }}
-        clearChatUnread(activeChatChannel);
+        // Entering Chat should clear any stale rail badge regardless of which
+        // sub-channel (Everyone vs Peer-to-peer) previously accumulated it.
+        clearChatUnread();
       }}
       syncChatRailUnread();
       if (typeof window.meshRefreshWheelHints === "function") {{
