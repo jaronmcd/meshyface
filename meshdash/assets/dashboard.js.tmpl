@@ -7212,7 +7212,7 @@
           escaped += ch;
         }}
       }}
-      const regexBody = escaped.replace(/\\\*/g, ".*").replace(/\\\?/g, ".");
+      const regexBody = escaped.replace(/\*/g, ".*").replace(/\?/g, ".");
       return new RegExp(`^${{regexBody}}$`, "i");
     }}
 
@@ -7263,7 +7263,7 @@
           quote = ch;
           continue;
         }}
-        if (/\\s/.test(ch)) {{
+        if (/\s/.test(ch)) {{
           if (buf) {{
             tokens.push(buf);
             buf = "";
@@ -7283,21 +7283,35 @@
     function parseConsoleCommandLine(line) {{
       const parsedTokens = parseConsoleTokens(line);
       if (parsedTokens.error) {{
-        return {{ command: "", args: [], options: {{}}, error: parsedTokens.error }};
+        return {{ command: "", args: [], options: {{}}, comparisons: [], error: parsedTokens.error }};
       }}
       const tokens = parsedTokens.tokens || [];
       if (!tokens.length) {{
-        return {{ command: "", args: [], options: {{}}, error: "Empty command" }};
+        return {{ command: "", args: [], options: {{}}, comparisons: [], error: "Empty command" }};
       }}
       const command = String(tokens[0] || "").trim().toLowerCase();
       if (!command) {{
-        return {{ command: "", args: [], options: {{}}, error: "Missing command name" }};
+        return {{ command: "", args: [], options: {{}}, comparisons: [], error: "Missing command name" }};
       }}
       const args = [];
       const options = {{}};
+      const comparisons = [];
       for (let i = 1; i < tokens.length; i += 1) {{
         const token = String(tokens[i] || "");
         if (!token) continue;
+        const nextTokenRaw = (i + 1) < tokens.length ? String(tokens[i + 1] || "").trim() : "";
+        const valueTokenRaw = (i + 2) < tokens.length ? String(tokens[i + 2] || "").trim() : "";
+        const keyLike = /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(token);
+        if (keyLike && (nextTokenRaw === "=" || nextTokenRaw === "<" || nextTokenRaw === ">" || nextTokenRaw === "<=" || nextTokenRaw === ">=") && valueTokenRaw) {{
+          const cmpKey = token.trim().toLowerCase();
+          if (nextTokenRaw === "=") {{
+            options[cmpKey] = valueTokenRaw;
+          }} else {{
+            comparisons.push({{ key: cmpKey, op: nextTokenRaw, value: valueTokenRaw }});
+          }}
+          i += 2;
+          continue;
+        }}
         if (token.startsWith("--")) {{
           const body = token.slice(2).trim();
           if (!body) continue;
@@ -7315,6 +7329,16 @@
           options[body.toLowerCase()] = true;
           continue;
         }}
+        const cmpMatch = token.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(<=|>=|<|>)(.+)$/);
+        if (cmpMatch) {{
+          const cmpKey = String(cmpMatch[1] || "").trim().toLowerCase();
+          const cmpOp = String(cmpMatch[2] || "").trim();
+          const cmpValue = String(cmpMatch[3] || "").trim();
+          if (cmpKey && cmpOp && cmpValue) {{
+            comparisons.push({{ key: cmpKey, op: cmpOp, value: cmpValue }});
+            continue;
+          }}
+        }}
         const eqIdx = token.indexOf("=");
         if (eqIdx > 0) {{
           const key = token.slice(0, eqIdx).trim().toLowerCase();
@@ -7324,7 +7348,7 @@
         }}
         args.push(token);
       }}
-      return {{ command, args, options, error: "" }};
+      return {{ command, args, options, comparisons, error: "" }};
     }}
 
     function pushConsoleHistoryEntry(commandLine) {{
@@ -7533,17 +7557,42 @@
       }});
       registerConsoleCommand({{
         name: "list",
-        usage: "list [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [limit=<n>]",
+        usage: "list [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
         description: "List nodes from current state with wildcard filters.",
         run: (ctx) => {{
           const options = (ctx && ctx.options && typeof ctx.options === "object")
             ? ctx.options
             : {{}};
+          const comparisons = Array.isArray(ctx && ctx.comparisons) ? ctx.comparisons : [];
           const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
           const freePattern = normalizeWildcardPattern(args[0] || "");
           const idPattern = normalizeWildcardPattern(options.id || "");
           const namePattern = normalizeWildcardPattern(options.name || "");
           const statusPattern = normalizeWildcardPattern(options.status || "");
+          const hopsComparators = [];
+          const pushHopsComparator = (op, rawValue) => {{
+            const numeric = Number(rawValue);
+            if (!Number.isFinite(numeric)) {{
+              return false;
+            }}
+            hopsComparators.push({{ op: String(op || "="), value: numeric }});
+            return true;
+          }};
+          if (Object.prototype.hasOwnProperty.call(options, "hops")) {{
+            if (!pushHopsComparator("=", options.hops)) {{
+              return `[list] invalid hops value: ${{String(options.hops)}}`;
+            }}
+          }}
+          for (const cmp of comparisons) {{
+            if (!cmp || typeof cmp !== "object") continue;
+            const cmpKey = String(cmp.key || "").trim().toLowerCase();
+            if (cmpKey !== "hops" && cmpKey !== "hop") continue;
+            const cmpOp = String(cmp.op || "").trim();
+            if (!["<", ">", "<=", ">="].includes(cmpOp)) continue;
+            if (!pushHopsComparator(cmpOp, cmp.value)) {{
+              return `[list] invalid hops comparator: ${{cmpKey}}${{cmpOp}}${{String(cmp.value || "")}}`;
+            }}
+          }}
           const limitRaw = Number(options.limit ?? options.n ?? 50);
           const limit = Math.min(500, Math.max(1, Math.floor(Number.isFinite(limitRaw) ? limitRaw : 50)));
           const rows = collectConsoleNodeRows(ctx && ctx.state);
@@ -7555,6 +7604,18 @@
             if (idPattern && !wildcardMatches(idPattern, row.id)) return false;
             if (namePattern && !wildcardMatches(namePattern, row.name)) return false;
             if (statusPattern && !wildcardMatches(statusPattern, row.status)) return false;
+            if (hopsComparators.length) {{
+              const hopsValue = Number(row.hops);
+              if (!Number.isFinite(hopsValue)) return false;
+              for (const cmp of hopsComparators) {{
+                const target = Number(cmp.value);
+                if (cmp.op === ">" && !(hopsValue > target)) return false;
+                if (cmp.op === "<" && !(hopsValue < target)) return false;
+                if (cmp.op === ">=" && !(hopsValue >= target)) return false;
+                if (cmp.op === "<=" && !(hopsValue <= target)) return false;
+                if (cmp.op === "=" && !(hopsValue === target)) return false;
+              }}
+            }}
             return true;
           }});
           const show = filtered.slice(0, limit);
@@ -7716,6 +7777,7 @@
           command: parsed.command,
           args: parsed.args,
           options: parsed.options,
+          comparisons: parsed.comparisons,
           state: latestState,
           wildcardMatches,
           append: (msg) => appendConsoleEventLine(msg),
