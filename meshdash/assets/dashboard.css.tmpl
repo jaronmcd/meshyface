@@ -1168,8 +1168,55 @@
     .chat-card-head-actions {{
       display: inline-flex;
       align-items: center;
+      gap: 7px;
       margin-left: auto;
       position: relative;
+    }}
+    .chat-change-scope-wrap {{
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: #4f6758;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }}
+    .chat-change-scope-label {{
+      opacity: 0.9;
+      user-select: none;
+    }}
+    .chat-change-scope-select {{
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid #bfd4c3;
+      background: #ffffff;
+      color: #264634;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 0 22px 0 10px;
+      line-height: 1;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position:
+        calc(100% - 12px) 10px,
+        calc(100% - 7px) 10px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }}
+    .chat-change-scope-select:hover {{
+      border-color: #95b6a2;
+      background-color: #f3faf4;
+      color: #1f4231;
+    }}
+    .chat-change-scope-select:focus-visible {{
+      outline: 2px solid #3ea269;
+      outline-offset: 2px;
     }}
     .chat-change-menu-wrap {{
       position: relative;
@@ -3585,6 +3632,16 @@
       line-height: 1.3;
       white-space: nowrap;
     }}
+    .chat-feed-mesh {{
+      font-size: 10px;
+      color: #345f7f;
+      background: #ebf2f8;
+      border: 1px solid #c7d8e6;
+      border-radius: 999px;
+      padding: 1px 7px;
+      line-height: 1.3;
+      white-space: nowrap;
+    }}
     .chat-feed-actions {{
       display: inline-flex;
       align-items: center;
@@ -4649,6 +4706,11 @@
       border-color: #416253;
       color: #c9e2d4;
     }}
+    [data-theme="dark"] .chat-feed-mesh {{
+      background: #1d2f3d;
+      border-color: #3f627a;
+      color: #c6e2f6;
+    }}
     [data-theme="dark"] .chat-reaction-chip,
     [data-theme="dark"] .chat-reply-btn,
     [data-theme="dark"] .chat-react-btn,
@@ -4929,6 +4991,7 @@
     }}
     [data-theme="dark"] .chat-endpoint .chat-id-bg,
     [data-theme="dark"] .chat-feed-hops,
+    [data-theme="dark"] .chat-feed-mesh,
     [data-theme="dark"] .chat-reaction-chip,
     [data-theme="dark"] .chat-reply-btn,
     [data-theme="dark"] .chat-react-btn,
@@ -5125,6 +5188,7 @@
     [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-endpoint .chat-id-bg,
     [data-theme="dark"] .chat-feed-hops,
+    [data-theme="dark"] .chat-feed-mesh,
     [data-theme="dark"] .chat-reaction-chip,
     [data-theme="dark"] .chat-reply-btn,
     [data-theme="dark"] .chat-react-btn,
@@ -5223,6 +5287,7 @@
       border-color: #2f3b4b;
     }}
     [data-theme="dark"] .card.chat .chat-feed-hops,
+    [data-theme="dark"] .card.chat .chat-feed-mesh,
     [data-theme="dark"] .card.chat .chat-endpoint .chat-id-bg,
     [data-theme="dark"] .card.chat .chat-reaction-chip,
     [data-theme="dark"] .card.chat .chat-reply-btn,
@@ -5865,6 +5930,22 @@
       background: #152633;
       border-color: #35556d;
       color: #dbeeff;
+    }}
+    [data-theme="dark"] .chat-change-scope-wrap {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .chat-change-scope-select {{
+      background-color: #152633;
+      border-color: #35556d;
+      color: #dbeeff;
+    }}
+    [data-theme="dark"] .chat-change-scope-select:hover {{
+      background-color: #1b2f3e;
+      border-color: #476b87;
+      color: #f0f8ff;
+    }}
+    [data-theme="dark"] .chat-change-scope-select:focus-visible {{
+      outline-color: #5ea7d6;
     }}
     [data-theme="dark"] .chat-change-toggle-btn:hover {{
       background: #1b2f3e;

@@ -182,6 +182,7 @@
     const historyActivitySplitStorageKey = "meshDashboardHistoryActivityTopPct";
     const layoutViewStorageKey = "meshDashboardLayoutView";
     const chatChannelStorageKey = "meshDashboardChatChannel";
+    const chatNotificationScopeStorageKey = "meshDashboardChatNotificationScopeV1";
     const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
     const chatDirectPeersStorageKey = "meshDashboardDirectPeersV1";
     const chatPerfStorageKey = "meshDashboardChatPerfMetricsV1";
@@ -565,6 +566,8 @@
     const wheelActivationLeaseMs = 1400;
     const knownLayoutViews = new Set(["chat", "history", "network", "saved", "packets", "data", "console", "settings"]);
     const knownChatChannels = new Set(["all", "direct"]);
+    const meshChannelAllIndex = -1;
+    const knownChatNotificationScopes = new Set(["all", "self"]);
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const knownDeliveryStates = new Set(["pending", "sent", "acked", "nak", "timeout", "error"]);
     const reactionPopoverMaxNames = 12;
@@ -623,6 +626,7 @@
     let mapWheelZoomActive = false;
     let mapWheelJustArmed = false;
     let mapWheelLease = null;
+    let tabHasFocus = (typeof document.hasFocus === "function") ? !!document.hasFocus() : true;
     let chatSendInFlight = false;
     let settingsApplyInFlight = false;
     let settingsFetchInFlight = false;
@@ -634,6 +638,7 @@
     let chatChangeMenuOpen = false;
     let activeLayoutView = "chat";
     let activeChatChannel = "all";
+    let chatNotificationScope = "all";
     let activeMeshChannelIndex = 0;
     let meshChannelOptions = [];
     let meshChannelOptionsSignature = "";
@@ -4057,16 +4062,89 @@
       applyChatChannel(preferred, false);
     }}
 
+    function normalizeChatNotificationScope(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return knownChatNotificationScopes.has(clean) ? clean : "all";
+    }}
+
+    function chatNotificationScopeLabel(scopeValue = chatNotificationScope) {{
+      const scope = normalizeChatNotificationScope(scopeValue);
+      return scope === "self" ? "Self only" : "All activity";
+    }}
+
+    function syncChatNotificationScopeControl() {{
+      const select = document.getElementById("chat-change-scope");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const scope = normalizeChatNotificationScope(chatNotificationScope);
+      if (select.value !== scope) {{
+        select.value = scope;
+      }}
+      if (scope === "self") {{
+        select.title = "Notify only for direct messages to you, replies to your messages, and reactions to your messages.";
+      }} else {{
+        select.title = "Notify for all chat activity.";
+      }}
+    }}
+
+    function applyChatNotificationScope(scopeValue, persist = true) {{
+      const scope = normalizeChatNotificationScope(scopeValue);
+      const changed = chatNotificationScope !== scope;
+      chatNotificationScope = scope;
+      syncChatNotificationScopeControl();
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatNotificationScopeStorageKey, scope);
+        }} catch (_err) {{
+        }}
+      }}
+      if (!changed) return;
+      // Avoid stale message-unread counters when switching scope modes.
+      clearChatUnread();
+      renderChatChangeSummary();
+      if (latestState) {{
+        renderChat(latestState);
+      }}
+    }}
+
+    function loadChatNotificationScope() {{
+      let preferred = "all";
+      try {{
+        preferred = normalizeChatNotificationScope(
+          window.localStorage.getItem(chatNotificationScopeStorageKey) || "all"
+        );
+      }} catch (_err) {{
+      }}
+      applyChatNotificationScope(preferred, false);
+    }}
+
+    function bindChatNotificationScopeControl() {{
+      const select = document.getElementById("chat-change-scope");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+      syncChatNotificationScopeControl();
+      select.addEventListener("change", () => {{
+        applyChatNotificationScope(select.value, true);
+      }});
+    }}
+
     // Meshtastic has its own notion of "channels" (0..N) which are distinct from this UI's
     // chat scopes (Everyone vs Peer-to-peer).
     //
     // We expose a lightweight selector so outgoing chat packets can be sent on a user-chosen
     // channel index. Default is channel 0.
 
-    function normalizeMeshChannelIndex(value) {{
+    function normalizeMeshChannelIndex(value, options = {{}}) {{
+      const allowAll = !!(options && options.allowAll);
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (allowAll && (text === "all" || text === "*")) {{
+        return meshChannelAllIndex;
+      }}
       const num = Number(value);
       if (!Number.isFinite(num)) return 0;
       const idx = Math.trunc(num);
+      if (allowAll && idx === meshChannelAllIndex) {{
+        return meshChannelAllIndex;
+      }}
       if (!Number.isInteger(idx) || idx < 0) return 0;
       return idx;
     }}
@@ -4082,14 +4160,28 @@
       return `Ch ${{idx}}`;
     }}
 
-    function meshChannelLabelForIndex(rawIndex, {{ verbose = false }} = {{}}) {{
-      const idx = normalizeMeshChannelIndex(rawIndex);
+    function meshChannelLabelForIndex(rawIndex, {{ verbose = false, compact = false, allowAll = true }} = {{}}) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
+      if (idx === meshChannelAllIndex) {{
+        return compact ? "All" : "All channels";
+      }}
       const match = Array.isArray(meshChannelOptions)
         ? meshChannelOptions.find((opt) => Number(opt && opt.index) === idx)
         : null;
       const name = match && typeof match.name === "string" ? match.name.trim() : "";
+      if (compact) return `Ch ${{idx}}`;
       if (verbose && name) return `Ch ${{idx}} (${{name}})`;
       return `Ch ${{idx}}`;
+    }}
+
+    function activeMeshChannelFilterIndex() {{
+      return normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }});
+    }}
+
+    function meshChannelIndexForSend() {{
+      const activeIdx = activeMeshChannelFilterIndex();
+      if (activeIdx >= 0) return activeIdx;
+      return 0;
     }}
 
     function buildMeshChannelOptionsFromLocalState(localState) {{
@@ -4157,6 +4249,11 @@
 
       const normalized = Array.isArray(options) ? options : [];
       select.innerHTML = "";
+      const allOption = document.createElement("option");
+      allOption.value = String(meshChannelAllIndex);
+      allOption.textContent = "All channels";
+      allOption.title = "Show chat from all mesh channels";
+      select.appendChild(allOption);
       for (const opt of normalized) {{
         const idx = normalizeMeshChannelIndex(opt && opt.index);
         const optionEl = document.createElement("option");
@@ -4170,7 +4267,7 @@
       }}
 
       // Pick an enabled value.
-      const desired = String(activeMeshChannelIndex);
+      const desired = String(normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }}));
       const desiredOpt = Array.from(select.options).find((o) => o.value === desired && !o.disabled);
       if (desiredOpt) {{
         select.value = desired;
@@ -4179,7 +4276,7 @@
       const firstEnabled = Array.from(select.options).find((o) => !o.disabled);
       const nextValue = firstEnabled ? firstEnabled.value : "0";
       select.value = nextValue;
-      activeMeshChannelIndex = normalizeMeshChannelIndex(nextValue);
+      activeMeshChannelIndex = normalizeMeshChannelIndex(nextValue, {{ allowAll: true }});
       try {{
         window.localStorage.setItem(meshChannelIndexStorageKey, String(activeMeshChannelIndex));
       }} catch (_err) {{}}
@@ -4212,7 +4309,7 @@
     }}
 
     function applyMeshChannelIndex(rawIndex, persist = true) {{
-      const idx = normalizeMeshChannelIndex(rawIndex);
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll: true }});
       const changed = idx !== activeMeshChannelIndex;
       activeMeshChannelIndex = idx;
 
@@ -4235,7 +4332,10 @@
     function loadMeshChannelIndex() {{
       let preferred = 0;
       try {{
-        preferred = normalizeMeshChannelIndex(window.localStorage.getItem(meshChannelIndexStorageKey) || "0");
+        preferred = normalizeMeshChannelIndex(
+          window.localStorage.getItem(meshChannelIndexStorageKey) || "0",
+          {{ allowAll: true }}
+        );
       }} catch (_err) {{}}
       activeMeshChannelIndex = preferred;
     }}
@@ -4777,6 +4877,19 @@
       return "direct";
     }}
 
+    function messageMeshChannelIndex(msg) {{
+      if (!msg || typeof msg !== "object") return 0;
+      const raw = msg.channel_index ?? msg.channelIndex ?? msg.channel;
+      const num = Number(raw);
+      return Number.isInteger(num) && num >= 0 ? num : 0;
+    }}
+
+    function messageMatchesActiveMeshChannel(msg) {{
+      const activeIdx = activeMeshChannelFilterIndex();
+      if (activeIdx === meshChannelAllIndex) return true;
+      return messageMeshChannelIndex(msg) === activeIdx;
+    }}
+
     function setChatSendStatus(message, isError = false) {{
       const el = document.getElementById("chat-send-status");
       if (!(el instanceof HTMLElement)) return;
@@ -4858,7 +4971,7 @@
       const requestBody = {{
         text,
         destination,
-        channel_index: activeMeshChannelIndex,
+        channel_index: meshChannelIndexForSend(),
       }};
       if (Number.isInteger(replyId) && replyId > 0) {{
         requestBody.reply_id = replyId;
@@ -4910,7 +5023,7 @@
       const payload = await sendChatPayload(
         {{
           destination,
-          channel_index: activeMeshChannelIndex,
+          channel_index: meshChannelIndexForSend(),
           reply_id: replyNum,
           emoji: cleanEmoji,
         }},
@@ -6311,12 +6424,14 @@
       const focusKey = String(entry.focusKey || key).trim() || key;
       const unixRaw = Number(entry.unix);
       const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+      const selfRelevant = entry.selfRelevant === true;
       list.push({{
         key,
         focusKey,
         sender,
         preview,
         kind,
+        selfRelevant,
         unix,
       }});
       keySet.add(key);
@@ -6328,6 +6443,12 @@
       }}
       // Title badge should include missed reaction updates too.
       syncDocumentUnreadTitle(chatUnreadCount);
+    }}
+
+    function noticeMatchesNotificationScope(notice) {{
+      const scope = normalizeChatNotificationScope(chatNotificationScope);
+      if (scope === "all") return true;
+      return !!(notice && notice.selfRelevant === true);
     }}
 
     function clearChatChangeNotices(channelKey = null) {{
@@ -6355,7 +6476,8 @@
     function chatChangeNoticesForChannel(channelKey) {{
       const key = normalizeChatChannel(channelKey);
       const list = chatChangeNoticesByChannel[key];
-      return Array.isArray(list) ? list : [];
+      if (!Array.isArray(list)) return [];
+      return list.filter((notice) => noticeMatchesNotificationScope(notice));
     }}
 
     function chatChangeFocusKeysForChannel(channelKey) {{
@@ -6383,18 +6505,19 @@
 
     function updateChatChangeBadge(count) {{
       const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+      const scopeLabel = chatNotificationScopeLabel();
       const btn = document.getElementById("chat-change-toggle-btn");
       if (btn instanceof HTMLButtonElement) {{
         btn.classList.toggle("has-unread", safeCount > 0);
         const countLabel = safeCount > 99 ? "99+" : String(safeCount);
         btn.title = safeCount > 0
-          ? `${{countLabel}} missed update${{safeCount === 1 ? "" : "s"}}`
-          : "No missed updates";
+          ? `${{countLabel}} missed update${{safeCount === 1 ? "" : "s"}} (${{scopeLabel}})`
+          : `No missed updates (${{scopeLabel}})`;
         btn.setAttribute(
           "aria-label",
           safeCount > 0
-            ? `Missed updates (${{countLabel}})`
-            : "Missed updates"
+            ? `Missed updates (${{countLabel}}, ${{scopeLabel}})`
+            : `Missed updates (${{scopeLabel}})`
         );
       }}
       const badge = document.getElementById("chat-change-badge");
@@ -6414,9 +6537,10 @@
       if (!(panel instanceof HTMLElement)) return;
       const notices = chatChangeNoticesForChannel(activeChatChannel);
       const count = notices.length;
+      const scopeLabel = chatNotificationScopeLabel();
       updateChatChangeBadge(count);
       if (!notices.length) {{
-        panel.innerHTML = '<div class="chat-change-empty">No missed updates while you were away.</div>';
+        panel.innerHTML = `<div class="chat-change-empty">No missed ${{scopeLabel.toLowerCase()}} updates while you were away.</div>`;
         panel.hidden = !chatChangeMenuOpen;
         return;
       }}
@@ -6439,7 +6563,7 @@
           <span class="chat-change-item-age">${{escAttr(when)}}</span>
         </button>`;
       }}).join("");
-      const headline = `${{count}} update${{count === 1 ? "" : "s"}} while you were away`;
+      const headline = `${{count}} update${{count === 1 ? "" : "s"}} while you were away (${{scopeLabel}})`;
       panel.innerHTML = `<div class="chat-change-head">
         <div class="chat-change-title">${{escAttr(headline)}}</div>
         <button type="button" id="chat-change-clear-btn" class="chat-change-clear-btn">Mark seen</button>
@@ -6569,26 +6693,64 @@
         ? safeState.traffic
         : {{}};
       const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const hasLocalNodeId = isCanonicalNodeId(localNodeId);
       const nodesById = new Map(
         nodes.map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
       );
+      const messageSenderById = new Map();
+      for (const msg of recentChat) {{
+        if (!messageMatchesActiveMeshChannel(msg)) continue;
+        if (!msg || typeof msg !== "object") continue;
+        const msgId = Number(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
+        if (!Number.isInteger(msgId) || msgId <= 0) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        if (!fromId) continue;
+        messageSenderById.set(String(msgId), fromId);
+      }}
       const entries = [];
       for (const msg of recentChat) {{
+        if (!messageMatchesActiveMeshChannel(msg)) continue;
         const key = chatMessageKey(msg);
         if (!key) continue;
+        const channel = classifyMessageChannel(msg);
         const isReaction = isReactionLikeChatMessage(msg);
+        const fromId = normalizeNodeId(msg && msg.from ? msg.from : "");
+        const toId = normalizeNodeId(msg && (msg.to || msg.destination) ? (msg.to || msg.destination) : "");
+        const replyIdRaw = Number(msg && (msg.reply_id ?? msg.replyId));
+        const replyId = Number.isInteger(replyIdRaw) && replyIdRaw > 0
+          ? Math.trunc(replyIdRaw)
+          : null;
+        const replyTargetSenderId = replyId != null
+          ? normalizeNodeId(messageSenderById.get(String(replyId)) || "")
+          : "";
+        const senderIsSelf = hasLocalNodeId && fromId === localNodeId;
+        const directToSelf = hasLocalNodeId && channel === "direct" && toId === localNodeId;
+        const referencesSelfMessage = hasLocalNodeId && !!replyId && replyTargetSenderId === localNodeId;
+        const selfRelevant = hasLocalNodeId && !senderIsSelf && (directToSelf || referencesSelfMessage);
         entries.push({{
           key,
           focusKey: isReaction ? chatChangeFocusKeyFromMessage(msg, key) : key,
-          channel: classifyMessageChannel(msg),
+          channel,
           sender: chatSenderLabelFromMessage(msg, nodesById),
           preview: chatChangePreviewFromMessage(msg, isReaction),
           kind: isReaction ? "reaction" : "message",
           countsUnread: !isReaction,
+          selfRelevant,
           unix: latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at),
         }});
       }}
       return entries;
+    }}
+
+    function entryMatchesNotificationScope(entry) {{
+      const scope = normalizeChatNotificationScope(chatNotificationScope);
+      if (scope === "all") return true;
+      return !!(entry && entry.selfRelevant === true);
+    }}
+
+    function isTabInactiveForNotifications() {{
+      return document.hidden || !tabHasFocus;
     }}
 
     function syncChatUnreadFromEntries(entries, options = {{}}) {{
@@ -6596,6 +6758,7 @@
       const keyedMessages = Array.isArray(entries) ? entries : [];
       const catchupNoticeArmed = chatChangeCatchupArmed;
       chatChangeCatchupArmed = false;
+      const tabInactive = isTabInactiveForNotifications();
       if (!chatUnreadInitialized) {{
         for (const entry of keyedMessages) {{
           rememberSeenChatMessage(entry.key);
@@ -6610,14 +6773,9 @@
       for (const entry of keyedMessages) {{
         if (!rememberSeenChatMessage(entry.key)) continue;
         const key = entry.channel === "direct" ? "direct" : "all";
-        const shouldTrackChange = (
-          catchupNoticeArmed
-          || document.hidden
-          ||
-          activeLayoutView !== "chat"
-          || normalizeChatChannel(activeChatChannel) !== key
-        );
-        if (shouldTrackChange) {{
+        const scopeMatch = entryMatchesNotificationScope(entry);
+        const shouldNotify = catchupNoticeArmed || tabInactive;
+        if (shouldNotify && scopeMatch) {{
           trackChatChangeNotice({{
             key: entry.key,
             focusKey: entry.focusKey || entry.key,
@@ -6625,10 +6783,11 @@
             sender: entry.sender,
             preview: entry.preview,
             kind: entry.kind,
+            selfRelevant: entry.selfRelevant === true,
             unix: entry.unix,
           }});
         }}
-        if (entry.countsUnread === false) continue;
+        if (!shouldNotify || entry.countsUnread === false || !scopeMatch) continue;
         freshByChannel[key] += 1;
         latestSenderByChannel[key] = String(entry.sender || "").trim();
       }}
@@ -6695,12 +6854,8 @@
     }}
 
     function totalChatChangeNotices() {{
-      const allCount = Array.isArray(chatChangeNoticesByChannel.all)
-        ? chatChangeNoticesByChannel.all.length
-        : 0;
-      const directCount = Array.isArray(chatChangeNoticesByChannel.direct)
-        ? chatChangeNoticesByChannel.direct.length
-        : 0;
+      const allCount = chatChangeNoticesForChannel("all").length;
+      const directCount = chatChangeNoticesForChannel("direct").length;
       return allCount + directCount;
     }}
 
@@ -13461,7 +13616,8 @@
         && chatDerivedCache.rawMessagesRef === rawMessages
         && chatDerivedCache.nodesRef === nodes
         && chatDerivedCache.historyCapsRef === historyCapsObj
-        && chatDerivedCache.localNodeId === localNodeId) {{
+        && chatDerivedCache.localNodeId === localNodeId
+        && chatDerivedCache.meshChannelIndex === normalizeMeshChannelIndex(activeMeshChannelIndex)) {{
         derived = chatDerivedCache;
       }}
       if (!derived) {{
@@ -13483,6 +13639,9 @@
         }};
 
         for (const msg of rawMessages) {{
+          if (!messageMatchesActiveMeshChannel(msg)) {{
+            continue;
+          }}
           if (isReactionMessage(msg)) {{
             const replyId = replyIdOf(msg);
             const emoji = emojiOf(msg);
@@ -13554,6 +13713,7 @@
           nodesRef: nodes,
           historyCapsRef: historyCapsObj,
           localNodeId,
+          meshChannelIndex: normalizeMeshChannelIndex(activeMeshChannelIndex),
           reactionBuckets: reactionBucketsLocal,
           baseMessages: baseMessagesLocal,
           messageIndex: messageIndexLocal,
@@ -13581,6 +13741,7 @@
       }};
       const keyedMessages = rawMessages
         .map((msg) => {{
+          if (!messageMatchesActiveMeshChannel(msg)) return null;
           const key = chatMessageKey(msg);
           if (!key) return null;
           const isReaction = isReactionMessage(msg);
@@ -13649,6 +13810,7 @@
       const visibleMessages = messages.length > chatFeedMaxEntries
         ? messages.slice(-chatFeedMaxEntries)
         : messages;
+      const showMeshBadge = activeMeshChannelFilterIndex() === meshChannelAllIndex;
       const activeChangeFocusKeys = chatChangeFocusKeysForChannel(activeChatChannel);
       const participantSourceMessages = (activeChatChannel === "direct")
         ? channelMessages.direct
@@ -13683,6 +13845,10 @@
         const textCompact = compactInlineMessage(msg.text || "", 140);
         const hopNum = Number(msg.hops);
         const hasHop = Number.isFinite(hopNum) && hopNum >= 0;
+        const meshIdx = messageMeshChannelIndex(msg);
+        const meshBadge = showMeshBadge
+          ? `<span class="chat-feed-mesh" title="${{escAttr(meshChannelLabelForIndex(meshIdx, {{ verbose: true, allowAll: false }}))}}">${{escAttr(meshChannelLabelForIndex(meshIdx, {{ compact: true, allowAll: false }}))}}</span>`
+          : "";
         const hopStart = Number(msg.hop_start ?? msg.hopStart);
         const hopLimit = Number(msg.hop_limit ?? msg.hopLimit);
         const hopLabel = hasHop
@@ -13776,7 +13942,7 @@
               <span class="chat-name status-${{toMeta.status}}">${{escAttr(toMeta.label)}}</span>
               ${{toMeta.idTag ? `<span class="chat-id-bg status-${{toMeta.status}}">${{escAttr(toMeta.idTag)}}</span>` : ""}}
             </span>
-            <span class="chat-feed-actions">${{changeBadge}}${{hopBadge}}${{retryButton}}</span>
+            <span class="chat-feed-actions">${{changeBadge}}${{meshBadge}}${{hopBadge}}${{retryButton}}</span>
             ${{deliveryChip}}
             <span class="chat-feed-time">${{escAttr(timeText)}}</span>
           </div>
@@ -14299,6 +14465,7 @@
     loadLayoutView();
     loadManualDirectPeers();
     loadChatChannel();
+    loadChatNotificationScope();
     loadMeshChannelIndex();
     loadChatEmojiPickerState();
     loadChatEmojiUsage();
@@ -14327,6 +14494,7 @@
     bindConsoleControls();
     bindChatComposer();
     bindChatPeerControls();
+    bindChatNotificationScopeControl();
     bindChatChangeSummaryControls();
     bindThemeToggle();
     bindSummaryTickerExpandControl();
@@ -14357,13 +14525,12 @@
         pollQueued = true;
         return;
       }}
-      if (document.hidden) return;
       pollInFlight = true;
       try {{
         await poll();
       }} finally {{
         pollInFlight = false;
-        if (pollQueued && !document.hidden) {{
+        if (pollQueued) {{
           pollQueued = false;
           void pollOnce();
         }}
@@ -14372,9 +14539,19 @@
 
     document.addEventListener("visibilitychange", () => {{
       if (document.hidden) {{
+        tabHasFocus = false;
         chatChangeCatchupArmed = true;
         return;
       }}
+      tabHasFocus = (typeof document.hasFocus === "function") ? !!document.hasFocus() : true;
+      void pollOnce();
+    }});
+    window.addEventListener("blur", () => {{
+      tabHasFocus = false;
+      chatChangeCatchupArmed = true;
+    }});
+    window.addEventListener("focus", () => {{
+      tabHasFocus = true;
       void pollOnce();
     }});
 
