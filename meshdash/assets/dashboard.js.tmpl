@@ -13624,6 +13624,11 @@
       const canonicalReactionEmoji = (rawValue) => {{
         const glyph = emojiFromAny(rawValue);
         if (!glyph) return "";
+        // Preserve keycap sequences (e.g. 3️⃣, #️⃣, *️⃣) as-is.
+        const keycapMatch = glyph.match(/^([0-9#*])(?:\uFE0F)?\u20E3$/u);
+        if (keycapMatch) {{
+          return `${{keycapMatch[1]}}\uFE0F\u20E3`;
+        }}
         for (const ch of glyph) {{
           const cp = ch.codePointAt(0);
           if (!Number.isInteger(cp)) continue;
