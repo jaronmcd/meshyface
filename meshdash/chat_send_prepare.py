@@ -18,9 +18,13 @@ def prepare_chat_send_input(
     to_int_fn: ToIntFn,
 ) -> PreparedChatInput:
     clean_text = str(text or "").strip()
+    raw_emoji = str(emoji or "").strip()
     clean_reply_id = to_int_fn(reply_id)
     clean_retry_of = to_int_fn(retry_of)
     clean_emoji, clean_emoji_codepoint = normalize_single_emoji_fn(emoji)
+
+    if clean_reply_id is not None and clean_reply_id > 0 and raw_emoji and not clean_emoji:
+        raise ValueError("Emoji reactions must use a single-codepoint emoji")
 
     has_reaction = bool(
         clean_reply_id is not None and clean_reply_id > 0 and clean_emoji and clean_emoji_codepoint

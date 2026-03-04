@@ -79,6 +79,21 @@ def test_prepare_chat_send_input_rejects_reaction_with_text():
         )
 
 
+def test_prepare_chat_send_input_rejects_multi_codepoint_reaction_emoji():
+    with pytest.raises(ValueError, match="single-codepoint"):
+        prepare_chat_send_input(
+            text="",
+            destination="!abcd1234",
+            channel_index=0,
+            reply_id=123,
+            retry_of=None,
+            emoji="9️⃣",
+            chat_max_bytes=220,
+            normalize_single_emoji_fn=lambda value: (None, None),
+            to_int_fn=_to_int,
+        )
+
+
 def test_prepare_chat_send_input_rejects_empty_message():
     with pytest.raises(ValueError, match="cannot be empty"):
         prepare_chat_send_input(

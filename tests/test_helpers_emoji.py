@@ -33,6 +33,8 @@ def test_emoji_codepoint_from_any_rejects_empty_or_invalid_values():
 
 def test_normalize_single_emoji_returns_pair_or_none_tuple():
     assert normalize_single_emoji("U+1F44D") == ("👍", 0x1F44D)
-    assert normalize_single_emoji("bad input") == ("b", ord("b"))
+    assert normalize_single_emoji("bad input") == (None, None)
+    assert normalize_single_emoji("9️⃣") == (None, None)
+    assert normalize_single_emoji("👍🏻") == (None, None)
     assert normalize_single_emoji("") == (None, None)
     assert normalize_single_emoji(0) == (None, None)

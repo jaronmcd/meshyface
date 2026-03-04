@@ -34,12 +34,16 @@ def emoji_codepoint_from_any(value: object) -> Optional[int]:
             except ValueError:
                 parsed = None
             return parsed if parsed is not None and parsed > 0 else None
+        parsed_codepoint: Optional[int] = None
         for ch in clean:
             codepoint = ord(ch)
             if codepoint in _SKIP_LEADING_CODEPOINTS:
                 continue
-            return codepoint if codepoint > 0 else None
-        return None
+            # Reactions support a single base codepoint only.
+            if parsed_codepoint is not None:
+                return None
+            parsed_codepoint = codepoint
+        return parsed_codepoint if parsed_codepoint is not None and parsed_codepoint > 0 else None
     as_int = _to_int(value)
     if as_int is None or as_int <= 0:
         return None

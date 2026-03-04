@@ -630,6 +630,7 @@
     let settingsLocalStateCache = null;
     let settingsLocalStateFetchedAt = 0;
     let chatStickToBottom = true;
+    let chatChangeCatchupArmed = false;
     let chatChangeMenuOpen = false;
     let activeLayoutView = "chat";
     let activeChatChannel = "all";
@@ -4566,6 +4567,42 @@
         .filter((part) => part.length > 0);
     }}
 
+    const reactionEmojiIgnoredCodepoints = new Set([0xFE0E, 0xFE0F]);
+
+    function reactionEmojiCodepoint(rawEmoji) {{
+      const text = String(rawEmoji == null ? "" : rawEmoji).trim();
+      if (!text) return null;
+      let baseCodepoint = null;
+      for (const ch of text) {{
+        const cp = ch.codePointAt(0);
+        if (!Number.isInteger(cp)) continue;
+        if (reactionEmojiIgnoredCodepoints.has(cp)) continue;
+        if (baseCodepoint !== null) {{
+          return null;
+        }}
+        baseCodepoint = cp;
+      }}
+      return Number.isInteger(baseCodepoint) && baseCodepoint > 0 ? baseCodepoint : null;
+    }}
+
+    function isReactionCompatibleEmoji(rawEmoji) {{
+      return Number.isInteger(reactionEmojiCodepoint(rawEmoji));
+    }}
+
+    function reactionCompatibleEmojiChoices(rawChoices) {{
+      const list = Array.isArray(rawChoices) ? rawChoices : [];
+      const deduped = [];
+      const seen = new Set();
+      for (const emoji of list) {{
+        const clean = String(emoji || "").trim();
+        if (!clean || seen.has(clean)) continue;
+        seen.add(clean);
+        if (!isReactionCompatibleEmoji(clean)) continue;
+        deduped.push(clean);
+      }}
+      return deduped;
+    }}
+
     function chatEmojiChoicesForGroup(groupId) {{
       const key = normalizeChatEmojiGroup(groupId);
       if (key === "all") return chatEmojiAllChoices;
@@ -4858,6 +4895,10 @@
         setChatSendStatus("Choose an emoji reaction.", true);
         return;
       }}
+      if (!isReactionCompatibleEmoji(cleanEmoji)) {{
+        setChatSendStatus("Choose a single-codepoint emoji for reactions.", true);
+        return;
+      }}
       let destination = "^all";
       if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)) {{
         destination = selectedNodeId;
@@ -4924,15 +4965,20 @@
       const topGrid = document.getElementById("chat-emoji-top-grid");
       if (!(topGrid instanceof HTMLElement)) return;
 
-      const choices = chatEmojiTopChoices();
-      const signature = choices.join("\u0000");
+      const sourceChoices = chatEmojiTopChoices();
+      const choices = chatEmojiMode === "react"
+        ? reactionCompatibleEmojiChoices(sourceChoices)
+        : sourceChoices;
+      const signature = `${{chatEmojiMode}}:${{choices.join("\u0000")}}`;
       if ((topGrid.dataset.signature || "") === signature) {{
         return;
       }}
       if (!choices.length) {{
         const empty = document.createElement("div");
         empty.className = "chat-emoji-top-empty";
-        empty.textContent = "Use emojis and your top 8 will appear here.";
+        empty.textContent = chatEmojiMode === "react"
+          ? "No compatible reaction emojis in your top list yet."
+          : "Use emojis and your top 8 will appear here.";
         topGrid.replaceChildren(empty);
         topGrid.dataset.signature = signature;
         return;
@@ -4971,31 +5017,43 @@
       }}
 
       const searchActive = !!selectedSearch;
-      const choices = searchActive
+      const sourceChoices = searchActive
         ? chatEmojiChoicesForSearch(selectedSearch)
         : chatEmojiChoicesForGroup(selectedGroup);
+      const choices = chatEmojiMode === "react"
+        ? reactionCompatibleEmojiChoices(sourceChoices)
+        : sourceChoices;
       const groupLabel = searchActive
         ? `Search all: "${{selectedSearch}}"`
         : (selectedGroup === "all"
           ? "All groups"
           : ((chatEmojiGroupsById.get(selectedGroup) || {{}}).label || "All groups"));
       if (meta instanceof HTMLElement) {{
-        meta.textContent = `${{groupLabel}} · ${{choices.length}} / ${{chatEmojiTotalChoices}}`;
+        const countText = chatEmojiMode === "react"
+          ? `${{choices.length}} / ${{sourceChoices.length}} compatible`
+          : `${{choices.length}} / ${{chatEmojiTotalChoices}}`;
+        meta.textContent = `${{groupLabel}} · ${{countText}}`;
         meta.title = `Unicode Emoji ${{chatEmojiDataVersion}} (${{
           chatEmojiDataDate
         }})`;
       }}
-      const renderKey = searchActive ? `search:${{selectedSearch}}` : `group:${{selectedGroup}}`;
+      const renderModeKey = chatEmojiMode === "react" ? "react" : "compose";
+      const renderKey = searchActive
+        ? `${{renderModeKey}}:search:${{selectedSearch}}`
+        : `${{renderModeKey}}:group:${{selectedGroup}}`;
       if ((grid.dataset.key || "") !== renderKey) {{
         if (choices.length) {{
-          const nodes = searchActive
-            ? choices.map((emoji) => buildChatEmojiNode(emoji))
-            : chatEmojiNodesForGroup(selectedGroup);
+          const shouldUseCachedGroupNodes = !searchActive && chatEmojiMode !== "react";
+          const nodes = shouldUseCachedGroupNodes
+            ? chatEmojiNodesForGroup(selectedGroup)
+            : choices.map((emoji) => buildChatEmojiNode(emoji));
           grid.replaceChildren(...nodes);
         }} else {{
           const empty = document.createElement("div");
           empty.className = "chat-emoji-empty";
-          empty.textContent = "No emojis matched your search.";
+          empty.textContent = chatEmojiMode === "react"
+            ? "No compatible single-codepoint emojis matched."
+            : "No emojis matched your search.";
           grid.replaceChildren(empty);
         }}
         grid.dataset.key = renderKey;
@@ -5022,7 +5080,7 @@
         btn.setAttribute("aria-expanded", "true");
       }}
       if (chatEmojiMode === "react") {{
-        setChatSendStatus("Pick a reaction emoji...");
+        setChatSendStatus("Pick a single-codepoint reaction emoji...");
       }}
     }}
 
@@ -5130,6 +5188,10 @@
           if (!(emojiBtn instanceof HTMLButtonElement)) return;
           const emoji = String(emojiBtn.getAttribute("data-emoji") || emojiBtn.textContent || "").trim();
           if (!emoji) return;
+          if (chatEmojiMode === "react" && !isReactionCompatibleEmoji(emoji)) {{
+            setChatSendStatus("Choose a single-codepoint emoji for reactions.", true);
+            return;
+          }}
           noteChatEmojiUsage(emoji);
           if (chatEmojiMode === "react" && Number.isInteger(chatReactionTargetId) && chatReactionTargetId > 0) {{
             sendChatReaction(chatReactionTargetId, emoji);
@@ -6264,6 +6326,8 @@
           keySet.delete(String(dropped.key));
         }}
       }}
+      // Title badge should include missed reaction updates too.
+      syncDocumentUnreadTitle(chatUnreadCount);
     }}
 
     function clearChatChangeNotices(channelKey = null) {{
@@ -6281,9 +6345,11 @@
       if (channelKey == null) {{
         clearOne("all");
         clearOne("direct");
+        syncDocumentUnreadTitle(chatUnreadCount);
         return;
       }}
       clearOne(channelKey);
+      syncDocumentUnreadTitle(chatUnreadCount);
     }}
 
     function chatChangeNoticesForChannel(channelKey) {{
@@ -6528,6 +6594,8 @@
     function syncChatUnreadFromEntries(entries, options = {{}}) {{
       const clearActiveWhenInChat = options.clearActiveWhenInChat !== false;
       const keyedMessages = Array.isArray(entries) ? entries : [];
+      const catchupNoticeArmed = chatChangeCatchupArmed;
+      chatChangeCatchupArmed = false;
       if (!chatUnreadInitialized) {{
         for (const entry of keyedMessages) {{
           rememberSeenChatMessage(entry.key);
@@ -6543,6 +6611,9 @@
         if (!rememberSeenChatMessage(entry.key)) continue;
         const key = entry.channel === "direct" ? "direct" : "all";
         const shouldTrackChange = (
+          catchupNoticeArmed
+          || document.hidden
+          ||
           activeLayoutView !== "chat"
           || normalizeChatChannel(activeChatChannel) !== key
         );
@@ -6623,13 +6694,25 @@
         + Math.max(0, Number(chatUnreadByChannel.direct || 0));
     }}
 
+    function totalChatChangeNotices() {{
+      const allCount = Array.isArray(chatChangeNoticesByChannel.all)
+        ? chatChangeNoticesByChannel.all.length
+        : 0;
+      const directCount = Array.isArray(chatChangeNoticesByChannel.direct)
+        ? chatChangeNoticesByChannel.direct.length
+        : 0;
+      return allCount + directCount;
+    }}
+
     function syncChatRailUnread() {{
       chatUnreadCount = Math.min(999, totalChatUnread());
       setChatRailUnread(chatUnreadCount);
     }}
 
     function syncDocumentUnreadTitle(count) {{
-      const safeCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const unreadCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const missedCount = Math.max(0, Math.trunc(Number(totalChatChangeNotices()) || 0));
+      const safeCount = Math.max(unreadCount, missedCount);
       const badge = safeCount > 99 ? "99+" : String(safeCount);
       const nextTitle = safeCount > 0
         ? `(${{badge}}) ${{baseDocumentTitle}}`
@@ -6640,7 +6723,9 @@
     }}
 
     function setChatRailUnread(count) {{
-      const safeCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const unreadCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const missedCount = Math.max(0, Math.trunc(Number(totalChatChangeNotices()) || 0));
+      const safeCount = Math.max(unreadCount, missedCount);
       syncDocumentUnreadTitle(safeCount);
       const btn = document.querySelector('.teams-rail .rail-btn[data-view="chat"]');
       if (!(btn instanceof HTMLButtonElement)) return;
@@ -6652,7 +6737,7 @@
       btn.classList.toggle("has-unread", safeCount > 0);
       const baseTitle = btn.dataset.baseTitle || "Teams-style chat workspace";
       btn.title = safeCount > 0
-        ? `${{baseTitle}}. ${{safeCount}} unread message${{safeCount === 1 ? "" : "s"}}.`
+        ? `${{baseTitle}}. ${{safeCount}} unread update${{safeCount === 1 ? "" : "s"}}.`
         : baseTitle;
       btn.setAttribute("aria-label", btn.title);
     }}
@@ -14286,7 +14371,11 @@
     }}
 
     document.addEventListener("visibilitychange", () => {{
-      if (!document.hidden) void pollOnce();
+      if (document.hidden) {{
+        chatChangeCatchupArmed = true;
+        return;
+      }}
+      void pollOnce();
     }});
 
     void pollOnce();
