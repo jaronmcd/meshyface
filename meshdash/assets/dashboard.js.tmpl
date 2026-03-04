@@ -704,6 +704,7 @@
     const chatSeenMessageOrder = [];
     const chatChangeNoticesByChannel = {{ all: [], direct: [] }};
     const chatChangeNoticeKeysByChannel = {{ all: new Set(), direct: new Set() }};
+    const chatChangeAcknowledgedKeysByChannel = {{ all: new Set(), direct: new Set() }};
     let chatChangeFocusTimer = null;
     let chatPerfEnabled = false;
     const chatPerfStats = {{
@@ -6415,6 +6416,7 @@
       if (!key) return;
       const keySet = chatChangeNoticeKeysByChannel[channel];
       const list = chatChangeNoticesByChannel[channel];
+      const ackSet = chatChangeAcknowledgedKeysByChannel[channel];
       if (!(keySet instanceof Set) || !Array.isArray(list)) return;
       if (keySet.has(key)) return;
       const sender = String(entry.sender || "Unknown node").replace(/\\s+/g, " ").trim() || "Unknown node";
@@ -6439,10 +6441,54 @@
         const dropped = list.shift();
         if (dropped && dropped.key) {{
           keySet.delete(String(dropped.key));
+          if (ackSet instanceof Set) {{
+            ackSet.delete(String(dropped.key));
+          }}
         }}
       }}
       // Title badge should include missed reaction updates too.
       syncDocumentUnreadTitle(chatUnreadCount);
+    }}
+
+    function chatChangeAcknowledgedKeySetForChannel(channelKey) {{
+      const key = normalizeChatChannel(channelKey);
+      const set = chatChangeAcknowledgedKeysByChannel[key];
+      return set instanceof Set ? set : null;
+    }}
+
+    function markChatChangeAlertsAcknowledged(channelKey = null) {{
+      const markOne = (key) => {{
+        const ackSet = chatChangeAcknowledgedKeySetForChannel(key);
+        if (!(ackSet instanceof Set)) return;
+        for (const notice of chatChangeNoticesForChannel(key)) {{
+          const noticeKey = String(notice && notice.key ? notice.key : "").trim();
+          if (!noticeKey) continue;
+          ackSet.add(noticeKey);
+        }}
+      }};
+      if (channelKey == null) {{
+        markOne("all");
+        markOne("direct");
+      }} else {{
+        markOne(channelKey);
+      }}
+      syncDocumentUnreadTitle(chatUnreadCount);
+    }}
+
+    function chatChangeUnacknowledgedCountForChannel(channelKey) {{
+      const notices = chatChangeNoticesForChannel(channelKey);
+      if (!notices.length) return 0;
+      const ackSet = chatChangeAcknowledgedKeySetForChannel(channelKey);
+      if (!(ackSet instanceof Set)) return notices.length;
+      let count = 0;
+      for (const notice of notices) {{
+        const noticeKey = String(notice && notice.key ? notice.key : "").trim();
+        if (!noticeKey) continue;
+        if (!ackSet.has(noticeKey)) {{
+          count += 1;
+        }}
+      }}
+      return count;
     }}
 
     function noticeMatchesNotificationScope(notice) {{
@@ -6456,11 +6502,15 @@
         const normalized = normalizeChatChannel(key);
         const list = chatChangeNoticesByChannel[normalized];
         const keySet = chatChangeNoticeKeysByChannel[normalized];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[normalized];
         if (Array.isArray(list)) {{
           list.length = 0;
         }}
         if (keySet instanceof Set) {{
           keySet.clear();
+        }}
+        if (ackSet instanceof Set) {{
+          ackSet.clear();
         }}
       }};
       if (channelKey == null) {{
@@ -6537,8 +6587,9 @@
       if (!(panel instanceof HTMLElement)) return;
       const notices = chatChangeNoticesForChannel(activeChatChannel);
       const count = notices.length;
+      const alertCount = chatChangeUnacknowledgedCountForChannel(activeChatChannel);
       const scopeLabel = chatNotificationScopeLabel();
-      updateChatChangeBadge(count);
+      updateChatChangeBadge(alertCount);
       if (!notices.length) {{
         panel.innerHTML = `<div class="chat-change-empty">No missed ${{scopeLabel.toLowerCase()}} updates while you were away.</div>`;
         panel.hidden = !chatChangeMenuOpen;
@@ -6614,6 +6665,8 @@
           ev.stopPropagation();
           setChatChangeMenuOpen(!chatChangeMenuOpen);
           if (chatChangeMenuOpen) {{
+            // Opening the bell acknowledges current alerts without clearing history.
+            markChatChangeAlertsAcknowledged();
             renderChatChangeSummary();
             bindChatChangeSummaryControls();
           }}
@@ -6854,8 +6907,8 @@
     }}
 
     function totalChatChangeNotices() {{
-      const allCount = chatChangeNoticesForChannel("all").length;
-      const directCount = chatChangeNoticesForChannel("direct").length;
+      const allCount = chatChangeUnacknowledgedCountForChannel("all");
+      const directCount = chatChangeUnacknowledgedCountForChannel("direct");
       return allCount + directCount;
     }}
 
