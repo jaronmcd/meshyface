@@ -1,5 +1,6 @@
 # Ideas Backlog
 
+
 - the the "missed while you were gone and consoldate into a notication dropdown with a facebook style (1)"
 
 - add a toggle for network connections
