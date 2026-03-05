@@ -26,7 +26,7 @@
       box-shadow: var(--shadow);
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 1200;
       padding-right: max(12px, calc(78px + env(safe-area-inset-right)));
     }}
     .topbar-notify-corner {{
@@ -134,19 +134,6 @@
       flex-wrap: wrap;
       gap: 6px;
       min-width: 0;
-    }}
-    .topbar .sub .sub-main::after {{
-      content: "";
-      order: 98;
-      flex-basis: 100%;
-      width: 0;
-      height: 0;
-    }}
-    .topbar .sub .sub-main .disk-meter {{
-      order: 99;
-      flex: 0 0 auto;
-      width: auto;
-      margin-left: auto;
     }}
     .topbar .sub .selection-row {{
       display: flex;
@@ -3673,19 +3660,149 @@
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      width: min(260px, 82vw);
+      width: min(340px, 88vw);
       border: 1px solid #ccddcf;
       border-radius: 10px;
       background: #f4fbf5;
       padding: 8px 9px;
       display: flex;
       flex-direction: column;
-      gap: 7px;
+      gap: 8px;
       box-shadow: 0 10px 28px rgba(21, 47, 33, 0.24);
       z-index: 45;
     }}
     .chat-settings-menu[hidden] {{
       display: none !important;
+    }}
+    .chat-settings-section {{
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      min-width: 0;
+    }}
+    .chat-settings-section + .chat-settings-section {{
+      border-top: 1px solid #d5e4d8;
+      padding-top: 8px;
+    }}
+    .chat-settings-section-title {{
+      margin: 0;
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      color: #4f6758;
+    }}
+    .chat-settings-menu .theme-btn {{
+      border: 1px solid #bfd4c3;
+      background: #ffffff;
+      color: #264634;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      line-height: 1.2;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    .chat-settings-menu .theme-btn:hover {{
+      background: #f3faf4;
+      border-color: #95b6a2;
+      color: #1f4231;
+    }}
+    .chat-settings-theme-btn {{
+      width: 100%;
+      text-align: center;
+    }}
+    .chat-settings-menu .theme-preset-wrap {{
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #ccddcf;
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 6px 7px;
+      color: #274935;
+      white-space: normal;
+    }}
+    .chat-settings-menu .theme-preset-label {{
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      color: #4f6758;
+      opacity: 1;
+    }}
+    .chat-settings-menu .theme-preset-select {{
+      border: 1px solid #bfd4c3;
+      border-radius: 999px;
+      background-color: #ffffff;
+      color: #264634;
+      font-size: 11px;
+      line-height: 1.2;
+      padding: 3px 22px 3px 9px;
+      min-width: 0;
+      width: 100%;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position:
+        calc(100% - 12px) 9px,
+        calc(100% - 7px) 9px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      outline: none;
+    }}
+    .chat-settings-menu .theme-preset-select:hover {{
+      border-color: #95b6a2;
+      background-color: #f3faf4;
+      color: #1f4231;
+    }}
+    .chat-settings-menu .theme-preset-select:focus-visible {{
+      outline: 2px solid #3ea269;
+      outline-offset: 2px;
+    }}
+    .chat-settings-menu .theme-preset-select:disabled {{
+      cursor: default;
+      opacity: 0.72;
+    }}
+    .chat-settings-meta-list {{
+      display: grid;
+      gap: 4px;
+    }}
+    .chat-settings-meta-item {{
+      border: 1px solid #ccddcf;
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 4px 7px;
+      font-size: 11px;
+      line-height: 1.25;
+      color: #274935;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .chat-settings-menu .disk-meter {{
+      margin-left: 0;
+      width: 100%;
+      justify-content: space-between;
+      border-color: #ccddcf;
+      background: #ffffff;
+      padding: 4px 8px;
+    }}
+    .chat-settings-menu .disk-label {{
+      font-size: 11px;
+      color: #274935;
+    }}
+    .chat-settings-menu .disk-track {{
+      width: 132px;
+      max-width: 48%;
+      background: #d9e9de;
     }}
     .chat-settings-menu .chat-change-scope-wrap {{
       display: flex;
@@ -6314,6 +6431,56 @@
       background: #0f1f17;
       border-color: #2f4d3d;
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.56);
+    }}
+    [data-theme="dark"] .chat-settings-section + .chat-settings-section {{
+      border-top-color: #2a4638;
+    }}
+    [data-theme="dark"] .chat-settings-section-title {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-btn {{
+      background: #162820;
+      border-color: #3a5a49;
+      color: #c6e8d5;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-btn:hover {{
+      background: #1d3228;
+      border-color: #4e7962;
+      color: #e2f6eb;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-preset-wrap {{
+      background: #13241b;
+      border-color: #2a4638;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-preset-label {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-preset-select {{
+      background-color: #152633;
+      border-color: #35556d;
+      color: #dbeeff;
+    }}
+    [data-theme="dark"] .chat-settings-menu .theme-preset-select:hover {{
+      background-color: #1b2f3e;
+      border-color: #476b87;
+      color: #f0f8ff;
+    }}
+    [data-theme="dark"] .chat-settings-meta-item {{
+      background: #13241b;
+      border-color: #2a4638;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .chat-settings-menu .disk-meter {{
+      background: #13241b;
+      border-color: #2a4638;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .chat-settings-menu .disk-label {{
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .chat-settings-menu .disk-track {{
+      background: rgba(121, 255, 182, 0.16);
     }}
     [data-theme="dark"] .chat-change-title {{
       color: #c7e8d6;

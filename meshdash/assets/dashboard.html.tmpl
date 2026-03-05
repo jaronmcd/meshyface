@@ -42,8 +42,8 @@
           id="chat-settings-toggle-btn"
           class="chat-settings-toggle-btn"
           type="button"
-          title="Chat settings"
-          aria-label="Chat settings"
+          title="Dashboard settings"
+          aria-label="Dashboard settings"
           aria-haspopup="menu"
           aria-expanded="false"
         >
@@ -52,13 +52,39 @@
           </svg>
         </button>
         <div id="chat-settings-menu" class="chat-settings-menu" hidden>
-          <label class="chat-change-scope-wrap" for="chat-change-scope" title="Notification scope">
-            <span class="chat-change-scope-label">Notification scope</span>
-            <select id="chat-change-scope" class="chat-change-scope-select" aria-label="Notification scope">
-              <option value="all">All</option>
-              <option value="self">Self</option>
-            </select>
-          </label>
+          <section class="chat-settings-section chat-settings-theme-section" aria-label="Theme">
+            <h3 class="chat-settings-section-title">Theme</h3>
+            <button id="theme-toggle-btn" class="theme-btn chat-settings-theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
+            <label for="theme-preset-select" class="theme-preset-wrap chat-settings-theme-preset-wrap" title="Runtime color preset">
+              <span class="theme-preset-label">Preset</span>
+              <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
+                <option value="default">default</option>
+              </select>
+            </label>
+          </section>
+          <section class="chat-settings-section" aria-label="Runtime">
+            <h3 class="chat-settings-section-title">Runtime</h3>
+            <div class="chat-settings-meta-list">
+              <div class="chat-settings-meta-item">{safety_label}</div>
+              <div class="chat-settings-meta-item">Packet buffer: {packet_limit}</div>
+              <div class="chat-settings-meta-item">{history_label}</div>
+              <div class="chat-settings-meta-item">Refresh: {refresh_ms} ms</div>
+            </div>
+            <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
+              <span id="disk-label" class="disk-label">Disk free: n/a</span>
+              <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+            </span>
+          </section>
+          <section class="chat-settings-section" aria-label="Notifications">
+            <h3 class="chat-settings-section-title">Notifications</h3>
+            <label class="chat-change-scope-wrap" for="chat-change-scope" title="Notification scope">
+              <span class="chat-change-scope-label">Notification scope</span>
+              <select id="chat-change-scope" class="chat-change-scope-select" aria-label="Notification scope">
+                <option value="all">All</option>
+                <option value="self">Self</option>
+              </select>
+            </label>
+          </section>
         </div>
       </div>
     </div>
@@ -66,21 +92,6 @@
     <div class="sub">
       <div class="sub-main">
         <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
-        <span class="pill">{safety_label}</span>
-        <span class="pill">Packet buffer: {packet_limit}</span>
-        <span class="pill">{history_label}</span>
-        <span class="pill">Refresh: {refresh_ms} ms</span>
-        <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
-        <label for="theme-preset-select" class="theme-preset-wrap" title="Runtime color preset">
-          <span class="theme-preset-label">Preset</span>
-          <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
-            <option value="default">default</option>
-          </select>
-        </label>
-        <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
-          <span id="disk-label" class="disk-label">Disk free: n/a</span>
-          <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
-        </span>
       </div>
       <div class="selection-row">
         <label for="starred-node-select" class="starred-node-wrap" title="Jump to a starred node">
