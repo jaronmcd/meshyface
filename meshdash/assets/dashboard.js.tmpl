@@ -5828,7 +5828,7 @@
         return;
       }}
 
-      if (!favoriteMenuOpen || isSelectableNodeId(selectedNodeId)) {{
+      if (!favoriteMenuOpen) {{
         dropdown.hidden = true;
         return;
       }}
@@ -5951,13 +5951,22 @@
           if (nameDiff !== 0) return nameDiff;
           return String(a.id || "").localeCompare(String(b.id || ""));
         }});
-      const selectedValue = (isSelectableNodeId(selectedNodeId) && favoriteNodeIds.has(selectedNodeId))
-        ? selectedNodeId
-        : "";
       const selectedNodeValue = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      const showSelectedTopRow = !!selectedNodeValue;
 
       if (selectedList instanceof HTMLElement) {{
-        if (!selectedNodeValue) {{
+        if (showSelectedTopRow) {{
+          closeFavoriteMenuNodeSearchDropdown();
+          const selectedName = resolveEntryName(selectedNodeValue);
+          const title = `Selected: ${{selectedName}} (${{selectedNodeValue}}). Click to clear selection.`;
+          selectedList.innerHTML = `<button type="button" role="listitem" class="favorite-menu-saved-item favorite-menu-selected-item active" data-node-id="${{escAttr(selectedNodeValue)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
+            <span class="favorite-menu-saved-main">
+              <span class="favorite-menu-selected-prefix">Selected</span>
+              <span class="favorite-menu-saved-name">${{escAttr(selectedName)}}</span>
+            </span>
+            <span class="favorite-menu-saved-id">${{escAttr(selectedNodeValue)}}</span>
+          </button>`;
+        }} else {{
           let searchInput = document.getElementById("favorite-menu-node-search-input");
           let searchDropdown = document.getElementById("favorite-menu-node-search-dropdown");
           const hasSearchControls = (
@@ -5985,17 +5994,6 @@
           }}
           bindFavoriteMenuNodeSearchControls();
           renderFavoriteMenuNodeSearchDropdown(safeState);
-        }} else {{
-          closeFavoriteMenuNodeSearchDropdown();
-          const selectedName = resolveEntryName(selectedNodeValue);
-          const title = `Selected: ${{selectedName}} (${{selectedNodeValue}}). Click to clear selection.`;
-          selectedList.innerHTML = `<button type="button" role="listitem" class="favorite-menu-saved-item favorite-menu-selected-item active" data-node-id="${{escAttr(selectedNodeValue)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
-            <span class="favorite-menu-saved-main">
-              <span class="favorite-menu-selected-prefix">Selected</span>
-              <span class="favorite-menu-saved-name">${{escAttr(selectedName)}}</span>
-            </span>
-            <span class="favorite-menu-saved-id">${{escAttr(selectedNodeValue)}}</span>
-          </button>`;
         }}
       }}
       if (!entries.length) {{
@@ -6003,9 +6001,8 @@
         return;
       }}
       list.innerHTML = entries.map((entry) => {{
-        const selectedClass = selectedValue && selectedValue === entry.id ? " active" : "";
         const title = `${{entry.name}} (${{entry.id}})`;
-        return `<button type="button" role="listitem" class="favorite-menu-saved-item${{selectedClass}}" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
+        return `<button type="button" role="listitem" class="favorite-menu-saved-item" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
           <span class="favorite-menu-saved-name">${{escAttr(entry.name)}}</span>
           <span class="favorite-menu-saved-id">${{escAttr(entry.id)}}</span>
         </button>`;
@@ -10628,11 +10625,7 @@
             return;
           }}
           if (!isSelectableNodeId(nodeId)) return;
-          if (normalizeNodeId(selectedNodeId || "") === nodeId) {{
-            clearNodeSelection();
-          }} else {{
-            selectNode(nodeId, true, false);
-          }}
+          selectNode(nodeId, true, false);
           setFavoriteMenuOpen(false);
         }});
       }}
