@@ -221,6 +221,15 @@ Then hard refresh browser: `Ctrl+Shift+R`.
 
 By default, history is enabled and stored in SQLite (`--history-db`).
 
+History is now profile-scoped by connected radio identity. The runtime derives a
+profile key from the local radio ID (fallback: connection target) and writes to
+a per-radio DB file, for example:
+
+- base: `mesh_dashboard_history.sqlite3`
+- radio profile: `mesh_dashboard_history.radio-abcdef12.sqlite3`
+
+This isolates persisted data when you swap radios.
+
 Important knobs:
 
 - `--history-max-rows` (default `5000`)
@@ -271,7 +280,7 @@ ss -ltnp | grep 8877
 Verify history DB exists:
 
 ```bash
-ls -lh /home/j/mesh/mesh_dashboard_history.sqlite3
+ls -lh /home/j/mesh/mesh_dashboard_history*.sqlite3
 ```
 
 If UI seems stale after deploy, hard-refresh browser (`Ctrl+Shift+R`).

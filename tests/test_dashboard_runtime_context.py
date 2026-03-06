@@ -33,6 +33,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     send_online = lambda *_a, **_k: {"ok": True}
     send_summary = lambda *_a, **_k: {"ok": True}
     send_chat = lambda *_a, **_k: {"ok": True}
+    local_node_id_fn = lambda _iface: "!ABCDEF12"
     revision_info = RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title")
 
     def _mesh_target_label(_args):
@@ -93,7 +94,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
         revision_info_fn=lambda: revision_info,
         send_chat_message_fn="send-chat-message-fn",
         send_reaction_packet_fn="send-reaction-packet-fn",
-        get_local_node_id_fn="get-local-node-id-fn",
+        get_local_node_id_fn=local_node_id_fn,
         normalize_single_emoji_fn="normalize-single-emoji-fn",
         to_int_fn="to-int-fn",
         utc_now_fn="utc-now-fn",
@@ -117,7 +118,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     assert isinstance(context, DashboardRuntimeContext)
     assert context.target == "192.168.1.10:4403 (tcp)"
     assert context.iface is iface
-    assert context.history_db_path == "/abs/state/history.sqlite3"
+    assert context.history_db_path == "/abs/state/history.radio-abcdef12.sqlite3"
     assert context.history_store is history_store
     assert isinstance(context.tracker, _Tracker)
     assert context.tracker.packet_limit == 250
@@ -139,7 +140,7 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
     assert open_args is args
     assert open_kwargs == {
         "history_store_cls": history_store_cls,
-        "history_db_path": "/abs/state/history.sqlite3",
+        "history_db_path": "/abs/state/history.radio-abcdef12.sqlite3",
     }
 
     subscribe_topics = [topic for _callback, topic in calls["subscribe"]]
@@ -170,14 +171,14 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
         "started_at": 123.5,
         "target": "192.168.1.10:4403 (tcp)",
         "show_secrets": False,
-        "history_db_path": "/abs/state/history.sqlite3",
+        "history_db_path": "/abs/state/history.radio-abcdef12.sqlite3",
         "revision_info": revision_info,
         "history_store": history_store,
         "default_node_history_hours": 72,
         "default_node_history_points": 1440,
         "send_chat_message_fn": "send-chat-message-fn",
         "send_reaction_packet_fn": "send-reaction-packet-fn",
-        "get_local_node_id_fn": "get-local-node-id-fn",
+        "get_local_node_id_fn": local_node_id_fn,
         "default_chat_max_bytes": 220,
         "normalize_single_emoji_fn": "normalize-single-emoji-fn",
         "to_int_fn": "to-int-fn",
@@ -216,6 +217,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
     send_online = lambda *_a, **_k: {"ok": True}
     send_summary = lambda *_a, **_k: {"ok": True}
     send_chat = lambda *_a, **_k: {"ok": True}
+    local_node_id_fn = lambda _iface: "!ABCDEF12"
     revision_info = RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title")
 
     def _mesh_target_label(_args):
@@ -260,7 +262,7 @@ def test_build_dashboard_runtime_context_uses_typed_loader_dependency_path_by_de
         revision_info_fn=lambda: revision_info,
         send_chat_message_fn="send-chat-message-fn",
         send_reaction_packet_fn="send-reaction-packet-fn",
-        get_local_node_id_fn="get-local-node-id-fn",
+        get_local_node_id_fn=local_node_id_fn,
         normalize_single_emoji_fn="normalize-single-emoji-fn",
         to_int_fn="to-int-fn",
         utc_now_fn="utc-now-fn",
@@ -310,6 +312,7 @@ def test_build_dashboard_runtime_context_skips_node_db_seed_by_default():
     calls = {"seed": 0}
     iface = object()
     history_store = object()
+    local_node_id_fn = lambda _iface: "!ABCDEF12"
 
     class _Tracker:
         def __init__(self, packet_limit, history_store):
@@ -333,7 +336,7 @@ def test_build_dashboard_runtime_context_skips_node_db_seed_by_default():
         revision_info_fn=lambda: RevisionInfo(version="0.1.0", commit="abc", label="Rev", title="Rev Title"),
         send_chat_message_fn="send-chat-message-fn",
         send_reaction_packet_fn="send-reaction-packet-fn",
-        get_local_node_id_fn="get-local-node-id-fn",
+        get_local_node_id_fn=local_node_id_fn,
         normalize_single_emoji_fn="normalize-single-emoji-fn",
         to_int_fn="to-int-fn",
         utc_now_fn="utc-now-fn",
