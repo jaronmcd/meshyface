@@ -189,6 +189,7 @@
     const savedNodeSplitStorageKey = "meshDashboardSavedNodePanePct";
     const savedNodeHistorySplitStorageKey = "meshDashboardSavedNodeMainPct";
     const historyActivitySplitStorageKey = "meshDashboardHistoryActivityTopPct";
+    const historyChatSplitStorageKey = "meshDashboardHistoryChatMainPct";
     const layoutViewStorageKey = "meshDashboardLayoutView";
     const chatChannelStorageKey = "meshDashboardChatChannel";
     const chatNotificationScopeStorageKey = "meshDashboardChatNotificationScopeV1";
@@ -214,6 +215,10 @@
     const chatFeedMaxEntries = 320;
     const chatChangeNoticeMaxEntries = 120;
     const chatChangeSummaryMaxRows = 8;
+    const chatChangeAutoDismissVisibleMs = 2200;
+    const chatChangeAutoDismissFadeMs = 480;
+    const chatChangeAutoDismissMinVisibleRatio = 0.68;
+    const historyNotificationMaxRows = 180;
     const chatPerfEmaAlpha = 0.2;
     const metricTickerWindowMs = 60 * 60 * 1000;
     const metricTickerMaxPoints = 240;
@@ -2107,6 +2112,7 @@
     let savedNodePanePct = 50;
     let savedNodeMainPct = 56;
     let historyActivityTopPct = 50;
+    let historyChatMainPct = 72;
     let consoleAutoscroll = true;
     let consoleCommandHistory = [];
     let consoleCommandHistoryCursor = -1;
@@ -2219,6 +2225,8 @@
     const favoriteFreshnessByNodeId = new Map();
     let favoriteFreshnessHydrated = false;
     let chatChangeFocusTimer = null;
+    const chatChangeAutoDismissTimers = new Map();
+    const chatChangeAutoDismissInFlightKeys = new Set();
     let chatPerfEnabled = false;
     const chatPerfStats = {{
       samples: 0,
@@ -5016,6 +5024,7 @@
       chatStickToBottom = true;
       scroller.addEventListener("scroll", () => {{
         chatStickToBottom = isNearBottom(scroller);
+        syncChatChangeAutoDismiss();
       }});
     }}
 
@@ -8336,6 +8345,10 @@
       return Math.max(30, Math.min(76, value));
     }}
 
+    function clampHistoryChatMainPct(value) {{
+      return Math.max(42, Math.min(86, value));
+    }}
+
     function applySplitState() {{
       const layout = document.querySelector(".layout");
       if (!(layout instanceof HTMLElement)) return;
@@ -8367,6 +8380,12 @@
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
       layout.style.setProperty("--history-activity-top-pct", `${{historyActivityTopPct}}%`);
+    }}
+
+    function applyHistoryChatSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--history-chat-main-pct", `${{historyChatMainPct}}%`);
     }}
 
     function loadSplitState() {{
@@ -8450,6 +8469,20 @@
       }} catch (_err) {{
       }}
       applyHistoryActivitySplitState();
+    }}
+
+    function loadHistoryChatSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(historyChatSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            historyChatMainPct = clampHistoryChatMainPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyHistoryChatSplitState();
     }}
 
 
@@ -8807,6 +8840,13 @@
       }}
     }}
 
+    function persistHistoryChatSplitState() {{
+      try {{
+        window.localStorage.setItem(historyChatSplitStorageKey, String(historyChatMainPct));
+      }} catch (_err) {{
+      }}
+    }}
+
     function chatMessageKey(msg) {{
       if (!msg || typeof msg !== "object") return "";
       const msgId = Number(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
@@ -9014,6 +9054,7 @@
       }};
       hydrateChannel("all");
       hydrateChannel("direct");
+      renderHistoryNotificationLog();
     }}
 
     function trackChatChangeNotice(entry) {{
@@ -9042,6 +9083,7 @@
       persistChatChangeNotices();
       // Title badge should include missed reaction updates too.
       syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
     }}
 
     function chatChangeAcknowledgedKeySetForChannel(channelKey) {{
@@ -9068,6 +9110,12 @@
       }}
       persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
+      if (latestState && activeLayoutView === "chat") {{
+        renderChat(latestState);
+      }} else {{
+        syncChatChangeAutoDismiss();
+      }}
     }}
 
     function chatChangeUnacknowledgedCountForChannel(channelKey) {{
@@ -9092,6 +9140,137 @@
       return !!(notice && notice.selfRelevant === true);
     }}
 
+    function chatFeedVisibilityRatio(item, scroller) {{
+      if (!(item instanceof HTMLElement) || !(scroller instanceof HTMLElement)) return 0;
+      const itemRect = item.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const itemHeight = Math.max(1, itemRect.height);
+      const visibleTop = Math.max(itemRect.top, scrollerRect.top);
+      const visibleBottom = Math.min(itemRect.bottom, scrollerRect.bottom);
+      const visiblePx = Math.max(0, visibleBottom - visibleTop);
+      return Math.max(0, Math.min(1, visiblePx / itemHeight));
+    }}
+
+    function clearChatChangeAutoDismissTimer(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key) return;
+      const timerId = chatChangeAutoDismissTimers.get(key);
+      if (typeof timerId === "number") {{
+        clearTimeout(timerId);
+      }}
+      chatChangeAutoDismissTimers.delete(key);
+    }}
+
+    function clearAllChatChangeAutoDismissTimers() {{
+      for (const key of Array.from(chatChangeAutoDismissTimers.keys())) {{
+        clearChatChangeAutoDismissTimer(key);
+      }}
+    }}
+
+    function acknowledgeChatChangeNoticesByFocusKey(focusKey, channelKey = activeChatChannel) {{
+      const targetFocus = String(focusKey || "").trim();
+      if (!targetFocus) return false;
+      const channels = channelKey == null
+        ? ["all", "direct"]
+        : [normalizeChatChannel(channelKey)];
+      let changed = false;
+      for (const channel of channels) {{
+        const list = chatChangeNoticesByChannel[channel];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[channel];
+        if (!Array.isArray(list) || !(ackSet instanceof Set)) continue;
+        for (const notice of list) {{
+          if (!noticeMatchesNotificationScope(notice)) continue;
+          const noticeFocus = String((notice && (notice.focusKey || notice.key)) || "").trim();
+          if (!noticeFocus || noticeFocus !== targetFocus) continue;
+          const noticeKey = String((notice && notice.key) || "").trim();
+          if (!noticeKey || ackSet.has(noticeKey)) continue;
+          ackSet.add(noticeKey);
+          changed = true;
+        }}
+      }}
+      if (changed) {{
+        persistChatChangeNotices();
+        syncDocumentUnreadTitle(chatUnreadCount);
+        renderHistoryNotificationLog();
+        setChatRailUnread(chatUnreadCount);
+      }}
+      return changed;
+    }}
+
+    function dismissChatChangeMarkerWithFade(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key || chatChangeAutoDismissInFlightKeys.has(key)) return;
+      chatChangeAutoDismissInFlightKeys.add(key);
+      const item = findChatFeedItemByMessageKey(key);
+      if (item instanceof HTMLElement) {{
+        item.classList.add("change-marker-fading");
+      }}
+      window.setTimeout(() => {{
+        const changed = acknowledgeChatChangeNoticesByFocusKey(key, activeChatChannel);
+        chatChangeAutoDismissInFlightKeys.delete(key);
+        if (!changed && item instanceof HTMLElement) {{
+          item.classList.remove("change-marker-fading");
+        }}
+        if (changed && latestState && activeLayoutView === "chat") {{
+          renderChat(latestState);
+        }}
+      }}, chatChangeAutoDismissFadeMs);
+    }}
+
+    function scheduleChatChangeAutoDismiss(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key || chatChangeAutoDismissInFlightKeys.has(key) || chatChangeAutoDismissTimers.has(key)) {{
+        return;
+      }}
+      const timerId = window.setTimeout(() => {{
+        chatChangeAutoDismissTimers.delete(key);
+        if (activeLayoutView !== "chat" || document.hidden || !tabHasFocus) {{
+          return;
+        }}
+        const scroller = getChatScroller();
+        const item = findChatFeedItemByMessageKey(key);
+        if (!(scroller instanceof HTMLElement) || !(item instanceof HTMLElement)) {{
+          return;
+        }}
+        const ratio = chatFeedVisibilityRatio(item, scroller);
+        if (ratio < chatChangeAutoDismissMinVisibleRatio) {{
+          return;
+        }}
+        dismissChatChangeMarkerWithFade(key);
+      }}, chatChangeAutoDismissVisibleMs);
+      chatChangeAutoDismissTimers.set(key, timerId);
+    }}
+
+    function syncChatChangeAutoDismiss() {{
+      if (activeLayoutView !== "chat" || document.hidden || !tabHasFocus) {{
+        clearAllChatChangeAutoDismissTimers();
+        return;
+      }}
+      const scroller = getChatScroller();
+      if (!(scroller instanceof HTMLElement)) {{
+        clearAllChatChangeAutoDismissTimers();
+        return;
+      }}
+      const activeKeys = new Set();
+      for (const item of document.querySelectorAll("#chat-feed .chat-feed-item.has-change-marker")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        const focusKey = String(item.dataset.messageKey || "").trim();
+        if (!focusKey) continue;
+        activeKeys.add(focusKey);
+        const ratio = chatFeedVisibilityRatio(item, scroller);
+        if (ratio >= chatChangeAutoDismissMinVisibleRatio) {{
+          scheduleChatChangeAutoDismiss(focusKey);
+        }} else {{
+          clearChatChangeAutoDismissTimer(focusKey);
+        }}
+      }}
+      for (const key of Array.from(chatChangeAutoDismissTimers.keys())) {{
+        if (!activeKeys.has(key)) {{
+          clearChatChangeAutoDismissTimer(key);
+        }}
+      }}
+    }}
+
     function clearChatChangeNotices(channelKey = null) {{
       const clearOne = (key) => {{
         const normalized = normalizeChatChannel(key);
@@ -9111,13 +9290,17 @@
       if (channelKey == null) {{
         clearOne("all");
         clearOne("direct");
+        clearAllChatChangeAutoDismissTimers();
         persistChatChangeNotices();
         syncDocumentUnreadTitle(chatUnreadCount);
+        renderHistoryNotificationLog();
         return;
       }}
       clearOne(channelKey);
+      clearAllChatChangeAutoDismissTimers();
       persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
     }}
 
     function chatChangeNoticesForChannel(channelKey) {{
@@ -9129,7 +9312,12 @@
 
     function chatChangeFocusKeysForChannel(channelKey) {{
       const keys = new Set();
+      const ackSet = chatChangeAcknowledgedKeySetForChannel(channelKey);
       for (const notice of chatChangeNoticesForChannel(channelKey)) {{
+        const noticeKey = String((notice && notice.key) || "").trim();
+        if (ackSet instanceof Set && noticeKey && ackSet.has(noticeKey)) {{
+          continue;
+        }}
         const focusKey = String((notice && (notice.focusKey || notice.key)) || "").trim();
         if (focusKey) {{
           keys.add(focusKey);
@@ -9767,6 +9955,8 @@
         // Entering Chat should clear any stale rail badge regardless of which
         // sub-channel (Everyone vs Peer-to-peer) previously accumulated it.
         clearChatUnread();
+      }} else {{
+        clearAllChatChangeAutoDismissTimers();
       }}
       syncChatRailUnread();
       if (typeof window.meshRefreshWheelHints === "function") {{
@@ -10167,6 +10357,51 @@
           splitter.classList.remove("active");
           document.body.classList.remove("resizing-panels-y");
           persistHistoryActivitySplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindHistoryChatSplitter() {{
+      const splitter = document.getElementById("history-chat-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".history-chat-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "history") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampHistoryChatMainPct((relativeY / rect.height) * 100);
+          historyChatMainPct = pct;
+          applyHistoryChatSplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistHistoryChatSplitState();
           splitter.removeEventListener("pointermove", onMove);
           splitter.removeEventListener("pointerup", onUp);
           splitter.removeEventListener("pointercancel", onUp);
@@ -16132,6 +16367,105 @@
           ? `Showing ${{rows.length}} most recent saved chat messages.`
           : "No saved chat history yet.";
       }}
+      renderHistoryNotificationLog();
+    }}
+
+    function collectHistoryNotificationRows() {{
+      const rows = [];
+      const appendChannel = (channelKey) => {{
+        const normalizedChannel = normalizeChatChannel(channelKey);
+        const notices = Array.isArray(chatChangeNoticesByChannel[normalizedChannel])
+          ? chatChangeNoticesByChannel[normalizedChannel]
+          : [];
+        const ackSet = chatChangeAcknowledgedKeySetForChannel(normalizedChannel);
+        for (const notice of notices) {{
+          const normalized = normalizeChatChangeNotice(notice);
+          if (!normalized) continue;
+          rows.push({{
+            key: normalized.key,
+            channel: normalizedChannel,
+            sender: normalized.sender,
+            preview: normalized.preview,
+            kind: normalized.kind,
+            unix: normalized.unix,
+            seen: ackSet instanceof Set ? ackSet.has(normalized.key) : false,
+          }});
+        }}
+      }};
+      appendChannel("all");
+      appendChannel("direct");
+      rows.sort((a, b) => {{
+        const aUnix = Number(a && a.unix);
+        const bUnix = Number(b && b.unix);
+        const safeA = Number.isFinite(aUnix) ? aUnix : 0;
+        const safeB = Number.isFinite(bUnix) ? bUnix : 0;
+        if (safeB !== safeA) return safeB - safeA;
+        const aKey = String(a && a.key ? a.key : "");
+        const bKey = String(b && b.key ? b.key : "");
+        return bKey.localeCompare(aKey);
+      }});
+      return rows.slice(0, historyNotificationMaxRows);
+    }}
+
+    function renderHistoryNotificationLog(nowUnix = Math.floor(Date.now() / 1000)) {{
+      const host = document.getElementById("history-notification-list");
+      if (!(host instanceof HTMLElement)) return;
+      const caption = document.getElementById("history-notification-caption");
+      const rows = collectHistoryNotificationRows();
+      if (caption instanceof HTMLElement) {{
+        caption.textContent = rows.length
+          ? `Showing ${{rows.length}} recent notification events from this browser log.`
+          : "No saved notification history yet in this browser.";
+      }}
+      if (!rows.length) {{
+        host.innerHTML = '<div class="history-notification-empty">No notification history yet in this browser.</div>';
+        return;
+      }}
+      host.innerHTML = rows.map((row) => {{
+        const channelKey = normalizeChatChannel(row && row.channel ? row.channel : "all");
+        const channelLabel = channelKey === "direct" ? "Peer-to-peer" : "Everyone";
+        const kindRaw = String(row && row.kind ? row.kind : "").trim().toLowerCase();
+        const kind = kindRaw === "reaction"
+          ? "reaction"
+          : (kindRaw === "status" ? "status" : "message");
+        const kindLabel = kind === "reaction"
+          ? "Reaction"
+          : (kind === "status" ? "Status" : "Message");
+        const isSeen = row && row.seen === true;
+        const statusLabel = isSeen ? "Seen" : "New";
+        const unixRaw = Number(row && row.unix);
+        const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+        const when = unix ? savedDetailAge(unix, nowUnix) : "just now";
+        const whenAbs = unix ? formatConsoleListTime(unix) : "n/a";
+        const sender = String(row && row.sender ? row.sender : "Unknown node");
+        const preview = String(row && row.preview ? row.preview : "update");
+        return `<div class="history-notification-item ${{isSeen ? "is-seen" : "is-new"}}" title="${{escAttr(`${{channelLabel}} | ${{kindLabel}} | ${{whenAbs}}`)}}">
+          <div class="history-notification-meta">
+            <span class="history-notification-pill status-${{isSeen ? "seen" : "new"}}">${{statusLabel}}</span>
+            <span class="history-notification-pill kind-${{kind}}">${{kindLabel}}</span>
+            <span class="history-notification-pill">${{escAttr(channelLabel)}}</span>
+          </div>
+          <div class="history-notification-text"><strong>${{escAttr(sender)}}</strong>: ${{escAttr(preview)}}</div>
+          <div class="history-notification-time" title="${{escAttr(whenAbs)}}">${{escAttr(when)}}</div>
+        </div>`;
+      }}).join("");
+    }}
+
+    function bindHistoryNotificationControls() {{
+      const clearBtn = document.getElementById("history-notification-clear-btn");
+      if (!(clearBtn instanceof HTMLButtonElement) || clearBtn.dataset.bound === "1") return;
+      clearBtn.dataset.bound = "1";
+      clearBtn.addEventListener("click", (ev) => {{
+        ev.preventDefault();
+        clearChatChangeNotices();
+        clearChatFeedChangeFocus();
+        renderChatChangeSummary();
+        if (latestState) {{
+          renderChat(latestState);
+        }} else {{
+          renderHistoryNotificationLog();
+        }}
+      }});
     }}
 
     function renderNodeHistoryOverview(history, node) {{
@@ -17340,6 +17674,7 @@
       bindChatReactionControls();
       bindChatRetryControls();
       bindChatChangeSummaryControls();
+      syncChatChangeAutoDismiss();
       renderChatPeerAddPanel(state);
       highlightNodeSelection();
       if (pendingSelectionScroll) {{
@@ -17348,6 +17683,7 @@
         requestAnimationFrame(() => {{
           chatScroller.scrollTop = chatScroller.scrollHeight;
           chatStickToBottom = true;
+          syncChatChangeAutoDismiss();
         }});
       }}
       const chatRenderElapsedMs = (
@@ -18221,6 +18557,7 @@
     loadSavedNodeSplitState();
     loadSavedNodeHistorySplitState();
     loadHistoryActivitySplitState();
+    loadHistoryChatSplitState();
     loadNodesTableColPcts();
     loadSignalHeatDevKnobs();
     loadSignalHeatmapModePreference();
@@ -18249,6 +18586,7 @@
     bindSavedNodeSplitter();
     bindSavedNodeHistorySplitter();
     bindHistoryActivitySplitter();
+    bindHistoryChatSplitter();
     bindFavoriteMenuControls();
     bindFavoriteToggleControls();
     bindFavoritesControls();
@@ -18265,6 +18603,7 @@
     bindChatPeerControls();
     bindChatNotificationScopeControl();
     bindChatChangeSummaryControls();
+    bindHistoryNotificationControls();
     renderChatChangeSummary();
     bindChatSettingsMenuControls();
     bindThemeToggle();
@@ -18313,6 +18652,7 @@
       if (document.hidden) {{
         tabHasFocus = false;
         chatChangeCatchupArmed = true;
+        clearAllChatChangeAutoDismissTimers();
         return;
       }}
       tabHasFocus = (typeof document.hasFocus === "function") ? !!document.hasFocus() : true;
@@ -18321,6 +18661,7 @@
     window.addEventListener("blur", () => {{
       tabHasFocus = false;
       chatChangeCatchupArmed = true;
+      clearAllChatChangeAutoDismissTimers();
     }});
     window.addEventListener("focus", () => {{
       tabHasFocus = true;

@@ -974,6 +974,7 @@
       --saved-node-pane-pct: 50%;
       --saved-node-main-pct: 56%;
       --history-activity-top-pct: 50%;
+      --history-chat-main-pct: 72%;
       display: grid;
       gap: 8px;
       padding: 0;
@@ -2491,6 +2492,157 @@
       min-height: 0;
       max-height: none;
     }}
+    .history-chat-stack {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      gap: 0;
+    }}
+    .history-chat-main-scroll {{
+      min-height: 0;
+    }}
+    .history-chat-splitter {{
+      display: none;
+      position: relative;
+      border-radius: 8px;
+      border: 1px solid #d1e0cb;
+      background: linear-gradient(90deg, #f4faf3, #edf5ea);
+      cursor: row-resize;
+      touch-action: none;
+      user-select: none;
+      min-height: 6px;
+      flex: 0 0 var(--splitter-size);
+      margin: 8px 0;
+    }}
+    .history-chat-splitter::before {{
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+      background: #b8cab9;
+      border-radius: 1px;
+    }}
+    .history-chat-splitter:hover::before,
+    .history-chat-splitter.active::before {{
+      background: #2f855a;
+    }}
+    .history-notification-section {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-height: 0;
+    }}
+    .history-notification-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }}
+    .history-notification-clear-btn {{
+      border: 1px solid #b8d0bf;
+      background: #ffffff;
+      color: #28533c;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      line-height: 1.3;
+      cursor: pointer;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }}
+    .history-notification-clear-btn:hover {{
+      background: #eaf5ed;
+      border-color: #94b7a0;
+    }}
+    .history-notification-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      overflow: auto;
+      padding-right: 2px;
+    }}
+    .history-notification-empty {{
+      border: 1px dashed #c5d7ca;
+      border-radius: 8px;
+      padding: 10px 9px;
+      color: #4f6a5b;
+      font-size: 11px;
+      line-height: 1.35;
+      text-align: center;
+      background: #fbfefb;
+    }}
+    .history-notification-item {{
+      border: 1px solid #d3e3d6;
+      background: #fbfefb;
+      color: #214836;
+      border-radius: 8px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      line-height: 1.3;
+    }}
+    .history-notification-item.is-new {{
+      box-shadow: inset 2px 0 0 #2f855a;
+    }}
+    .history-notification-meta {{
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 10px;
+      color: #5e7a69;
+      line-height: 1.2;
+    }}
+    .history-notification-pill {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid #afc9b7;
+      background: #e6f3ea;
+      color: #2f6448;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.32px;
+      padding: 1px 6px;
+      line-height: 1.2;
+    }}
+    .history-notification-pill.status-new {{
+      background: #d7f0de;
+      border-color: #84b696;
+      color: #205238;
+    }}
+    .history-notification-pill.kind-reaction {{
+      background: #f4e8cb;
+      border-color: #c2a46b;
+      color: #6a4e14;
+    }}
+    .history-notification-pill.kind-status {{
+      background: #dceaf6;
+      border-color: #90b6d8;
+      color: #244f73;
+    }}
+    .history-notification-text {{
+      font-size: 11px;
+      color: #244734;
+      line-height: 1.35;
+      word-break: break-word;
+    }}
+    .history-notification-time {{
+      font-size: 10px;
+      color: #5d7666;
+      line-height: 1.25;
+    }}
     .nodes {{
       grid-column: 1 / span 3;
       grid-row: 4;
@@ -2968,6 +3120,16 @@
     }}
     .layout.view-history .history-activity-main-scroll {{
       flex: 0 0 var(--history-activity-top-pct);
+    }}
+    .layout.view-history .history-chat-splitter {{
+      display: block;
+    }}
+    .layout.view-history .history-chat-main-scroll {{
+      flex: 0 0 var(--history-chat-main-pct);
+    }}
+    .layout.view-history .history-notification-section {{
+      flex: 1 1 auto;
+      min-height: 88px;
     }}
     .layout.view-history .history-chat {{
       display: flex;
@@ -4252,6 +4414,11 @@
     .chat-feed-item.has-change-marker {{
       background: #f9fcf8;
       box-shadow: inset 2px 0 0 #c9962c;
+      transition: background-color 0.48s ease, box-shadow 0.48s ease;
+    }}
+    .chat-feed-item.change-marker-fading.has-change-marker:not(.selected-node) {{
+      background: transparent;
+      box-shadow: inset 2px 0 0 transparent;
     }}
     .chat-feed-item.change-focus {{
       outline: 1px solid #d1a74a;
@@ -4324,6 +4491,14 @@
       font-weight: 700;
       white-space: nowrap;
       text-transform: uppercase;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      transition: opacity 0.48s ease, transform 0.48s ease, filter 0.48s ease;
+    }}
+    .chat-feed-item.change-marker-fading .chat-feed-new-pill {{
+      opacity: 0;
+      transform: translateY(-1px) scale(0.93);
+      filter: saturate(0.5);
     }}
     .chat-reply-btn {{
       border: 1px solid #bfd6c3;
@@ -6184,10 +6359,17 @@
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
     }}
+    [data-theme="dark"] .history-chat-splitter {{
+      border-color: var(--ui-border);
+      background: linear-gradient(90deg, #1a2430, #16202c);
+    }}
     [data-theme="dark"] .saved-node-history-splitter::before {{
       background: #44566a;
     }}
     [data-theme="dark"] .history-activity-splitter::before {{
+      background: #44566a;
+    }}
+    [data-theme="dark"] .history-chat-splitter::before {{
       background: #44566a;
     }}
     [data-theme="dark"] .saved-node-history-splitter:hover::before,
@@ -6196,6 +6378,10 @@
     }}
     [data-theme="dark"] .history-activity-splitter:hover::before,
     [data-theme="dark"] .history-activity-splitter.active::before {{
+      background: #79c0ff;
+    }}
+    [data-theme="dark"] .history-chat-splitter:hover::before,
+    [data-theme="dark"] .history-chat-splitter.active::before {{
       background: #79c0ff;
     }}
     [data-theme="dark"] .saved-map-splitter {{
@@ -6891,6 +7077,60 @@
       border-color: #2a4638;
       color: #b8d9c8;
     }}
+    [data-theme="dark"] .history-notification-section {{
+      border-top-color: #2a4638;
+    }}
+    [data-theme="dark"] .history-notification-clear-btn {{
+      background: #162820;
+      border-color: #3a5a49;
+      color: #c6e8d5;
+    }}
+    [data-theme="dark"] .history-notification-clear-btn:hover {{
+      background: #1d3228;
+      border-color: #4e7962;
+    }}
+    [data-theme="dark"] .history-notification-empty {{
+      background: #13241b;
+      border-color: #2a4638;
+      color: #b8d9c8;
+    }}
+    [data-theme="dark"] .history-notification-item {{
+      background: #13241b;
+      border-color: #2a4638;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .history-notification-item.is-new {{
+      box-shadow: inset 2px 0 0 #79c0ff;
+    }}
+    [data-theme="dark"] .history-notification-meta {{
+      color: #9ab7a7;
+    }}
+    [data-theme="dark"] .history-notification-pill {{
+      background: #183126;
+      border-color: #3d6a56;
+      color: #a6d4be;
+    }}
+    [data-theme="dark"] .history-notification-pill.status-new {{
+      background: #173228;
+      border-color: #3f7a60;
+      color: #8cd7b2;
+    }}
+    [data-theme="dark"] .history-notification-pill.kind-reaction {{
+      background: #352c16;
+      border-color: #776033;
+      color: #e7cf93;
+    }}
+    [data-theme="dark"] .history-notification-pill.kind-status {{
+      background: #162734;
+      border-color: #355970;
+      color: #9ac7e6;
+    }}
+    [data-theme="dark"] .history-notification-text {{
+      color: #d7ece0;
+    }}
+    [data-theme="dark"] .history-notification-time {{
+      color: #9ab7a7;
+    }}
     [data-theme="dark"] .chat-feed-item.has-change-marker {{
       background: rgba(201, 150, 44, 0.08);
       box-shadow: inset 2px 0 0 #c9962c;
@@ -7018,7 +7258,13 @@
       .history-activity-splitter {{
         display: none !important;
       }}
+      .history-chat-splitter {{
+        display: none !important;
+      }}
       .layout.view-history .history-activity-main-scroll {{
+        flex: 1 1 auto;
+      }}
+      .layout.view-history .history-chat-main-scroll {{
         flex: 1 1 auto;
       }}
       .layout.view-saved .saved-node-main-scroll {{

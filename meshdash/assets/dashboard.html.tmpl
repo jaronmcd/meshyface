@@ -856,15 +856,25 @@
       <h2>Chat History</h2>
       <div class="body">
         <div id="history-chat-caption" class="history-caption">Recent saved chat messages.</div>
-        <div class="scroll">
-          <table id="history-chat-table">
-            <thead>
-              <tr>
-                <th>Captured</th><th>From</th><th>To</th><th>Message</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="history-chat-stack">
+          <div class="scroll history-chat-main-scroll">
+            <table id="history-chat-table">
+              <thead>
+                <tr>
+                  <th>Captured</th><th>From</th><th>To</th><th>Message</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="history-chat-splitter" class="history-chat-splitter" title="Drag to resize chat and notification history panels"></div>
+          <div class="history-notification-section">
+            <div class="history-notification-head">
+              <div id="history-notification-caption" class="history-caption">Recent notification history from this browser.</div>
+              <button id="history-notification-clear-btn" class="history-notification-clear-btn" type="button" title="Clear saved notification history">Clear</button>
+            </div>
+            <div id="history-notification-list" class="history-notification-list" aria-live="polite"></div>
+          </div>
         </div>
       </div>
     </section>
