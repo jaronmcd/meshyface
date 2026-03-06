@@ -192,6 +192,7 @@
     const layoutViewStorageKey = "meshDashboardLayoutView";
     const chatChannelStorageKey = "meshDashboardChatChannel";
     const chatNotificationScopeStorageKey = "meshDashboardChatNotificationScopeV1";
+    const chatChangeLogStorageKey = "meshDashboardChatChangeLogV1";
     const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
     const channelsUiModeStorageKey = "meshDashboardChannelsUiModeV1";
     const chatDirectPeersStorageKey = "meshDashboardDirectPeersV1";
@@ -8886,6 +8887,135 @@
       return cleanFallback;
     }}
 
+    function normalizeChatChangeNotice(raw, fallbackKey = "") {{
+      const source = (raw && typeof raw === "object") ? raw : {{}};
+      const key = String(source.key || fallbackKey || "").trim();
+      if (!key) return null;
+      const focusKey = String(source.focusKey || key).trim() || key;
+      const targetView = normalizeLayoutView(source.targetView || source.view || "chat");
+      const sender = String(source.sender || "Unknown node").replace(/\\s+/g, " ").trim() || "Unknown node";
+      const kindRaw = String(source.kind || "").trim().toLowerCase();
+      const kind = kindRaw === "reaction"
+        ? "reaction"
+        : (kindRaw === "status" ? "status" : "message");
+      const previewRaw = compactChatChangePreview(source.preview, 96);
+      const preview = previewRaw || (
+        kind === "reaction"
+          ? "reaction update"
+          : (kind === "status" ? "status update" : "(no text)")
+      );
+      const unixRaw = Number(source.unix);
+      const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+      return {{
+        key,
+        focusKey,
+        targetView,
+        sender,
+        preview,
+        kind,
+        selfRelevant: source.selfRelevant === true,
+        unix,
+      }};
+    }}
+
+    function persistChatChangeNotices() {{
+      const encodeChannel = (channelKey) => {{
+        const notices = chatChangeNoticesByChannel[channelKey];
+        const encoded = [];
+        const keySet = new Set();
+        if (Array.isArray(notices)) {{
+          for (const notice of notices) {{
+            const normalized = normalizeChatChangeNotice(notice);
+            if (!normalized || keySet.has(normalized.key)) continue;
+            encoded.push(normalized);
+            keySet.add(normalized.key);
+          }}
+        }}
+        if (encoded.length > chatChangeNoticeMaxEntries) {{
+          encoded.splice(0, encoded.length - chatChangeNoticeMaxEntries);
+          keySet.clear();
+          for (const notice of encoded) {{
+            keySet.add(notice.key);
+          }}
+        }}
+        const acknowledged = [];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[channelKey];
+        if (ackSet instanceof Set) {{
+          for (const rawKey of ackSet) {{
+            const key = String(rawKey || "").trim();
+            if (!key || !keySet.has(key)) continue;
+            acknowledged.push(key);
+          }}
+        }}
+        return {{
+          notices: encoded,
+          acknowledged,
+        }};
+      }};
+      const payload = {{
+        version: 1,
+        channels: {{
+          all: encodeChannel("all"),
+          direct: encodeChannel("direct"),
+        }},
+      }};
+      try {{
+        window.localStorage.setItem(chatChangeLogStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadChatChangeNotices() {{
+      let payload = null;
+      try {{
+        const raw = window.localStorage.getItem(chatChangeLogStorageKey);
+        payload = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+        payload = null;
+      }}
+      const channels = (payload && typeof payload === "object" && payload.channels && typeof payload.channels === "object")
+        ? payload.channels
+        : null;
+      const hydrateChannel = (channelKey) => {{
+        const normalizedKey = normalizeChatChannel(channelKey);
+        const list = chatChangeNoticesByChannel[normalizedKey];
+        const keySet = chatChangeNoticeKeysByChannel[normalizedKey];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[normalizedKey];
+        if (!Array.isArray(list) || !(keySet instanceof Set) || !(ackSet instanceof Set)) return;
+        list.length = 0;
+        keySet.clear();
+        ackSet.clear();
+        const channelPayload = channels && typeof channels[normalizedKey] === "object"
+          ? channels[normalizedKey]
+          : null;
+        const rawNotices = Array.isArray(channelPayload && channelPayload.notices)
+          ? channelPayload.notices
+          : [];
+        for (const rawNotice of rawNotices) {{
+          const normalized = normalizeChatChangeNotice(rawNotice);
+          if (!normalized || keySet.has(normalized.key)) continue;
+          list.push(normalized);
+          keySet.add(normalized.key);
+        }}
+        while (list.length > chatChangeNoticeMaxEntries) {{
+          const dropped = list.shift();
+          if (dropped && dropped.key) {{
+            keySet.delete(String(dropped.key));
+          }}
+        }}
+        const rawAck = Array.isArray(channelPayload && channelPayload.acknowledged)
+          ? channelPayload.acknowledged
+          : [];
+        for (const rawAckKey of rawAck) {{
+          const ackKey = String(rawAckKey || "").trim();
+          if (!ackKey || !keySet.has(ackKey)) continue;
+          ackSet.add(ackKey);
+        }}
+      }};
+      hydrateChannel("all");
+      hydrateChannel("direct");
+    }}
+
     function trackChatChangeNotice(entry) {{
       if (!entry || typeof entry !== "object") return;
       const channel = normalizeChatChannel(entry.channel);
@@ -8896,25 +9026,9 @@
       const ackSet = chatChangeAcknowledgedKeysByChannel[channel];
       if (!(keySet instanceof Set) || !Array.isArray(list)) return;
       if (keySet.has(key)) return;
-      const sender = String(entry.sender || "Unknown node").replace(/\\s+/g, " ").trim() || "Unknown node";
-      const previewRaw = compactChatChangePreview(entry.preview, 96);
-      const kind = entry.kind === "reaction" ? "reaction" : "message";
-      const preview = previewRaw || (kind === "reaction" ? "reaction update" : "(no text)");
-      const focusKey = String(entry.focusKey || key).trim() || key;
-      const targetView = normalizeLayoutView(entry.targetView || entry.view || "chat");
-      const unixRaw = Number(entry.unix);
-      const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
-      const selfRelevant = entry.selfRelevant === true;
-      list.push({{
-        key,
-        focusKey,
-        targetView,
-        sender,
-        preview,
-        kind,
-        selfRelevant,
-        unix,
-      }});
+      const normalized = normalizeChatChangeNotice(entry, key);
+      if (!normalized) return;
+      list.push(normalized);
       keySet.add(key);
       while (list.length > chatChangeNoticeMaxEntries) {{
         const dropped = list.shift();
@@ -8925,6 +9039,7 @@
           }}
         }}
       }}
+      persistChatChangeNotices();
       // Title badge should include missed reaction updates too.
       syncDocumentUnreadTitle(chatUnreadCount);
     }}
@@ -8951,6 +9066,7 @@
       }} else {{
         markOne(channelKey);
       }}
+      persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
     }}
 
@@ -8995,10 +9111,12 @@
       if (channelKey == null) {{
         clearOne("all");
         clearOne("direct");
+        persistChatChangeNotices();
         syncDocumentUnreadTitle(chatUnreadCount);
         return;
       }}
       clearOne(channelKey);
+      persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
     }}
 
@@ -9130,7 +9248,7 @@
       const headline = `${{count}} update${{count === 1 ? "" : "s"}} while you were away (${{scopeLabel}})`;
       panel.innerHTML = `<div class="chat-change-head">
         <div class="chat-change-title">${{escAttr(headline)}}</div>
-        <button type="button" id="chat-change-clear-btn" class="chat-change-clear-btn">Mark seen</button>
+        <button type="button" id="chat-change-clear-btn" class="chat-change-clear-btn" title="Clear notification history in this view">Clear</button>
       </div>
       <div class="chat-change-list">${{rows}}</div>`;
       panel.hidden = !chatChangeMenuOpen;
@@ -9211,13 +9329,15 @@
         btn.addEventListener("click", (ev) => {{
           ev.preventDefault();
           ev.stopPropagation();
-          setChatChangeMenuOpen(!chatChangeMenuOpen);
-          if (chatChangeMenuOpen) {{
+          markChatChangeAlertsAcknowledged();
+          const nextOpen = !chatChangeMenuOpen;
+          setChatChangeMenuOpen(nextOpen);
+          if (nextOpen) {{
             setChatSettingsMenuOpen(false);
             setFavoriteMenuOpen(false);
-            // Opening the bell acknowledges current alerts without clearing history.
-            markChatChangeAlertsAcknowledged();
-            renderChatChangeSummary();
+          }}
+          renderChatChangeSummary();
+          if (nextOpen) {{
             bindChatChangeSummaryControls();
           }}
         }});
@@ -18111,6 +18231,7 @@
     loadManualDirectPeers();
     loadChatChannel();
     loadChatNotificationScope();
+    loadChatChangeNotices();
     loadMeshChannelIndex();
     loadChannelsUiMode();
     applyChannelsUiMode();
@@ -18144,6 +18265,7 @@
     bindChatPeerControls();
     bindChatNotificationScopeControl();
     bindChatChangeSummaryControls();
+    renderChatChangeSummary();
     bindChatSettingsMenuControls();
     bindThemeToggle();
     bindSummaryTickerExpandControl();
