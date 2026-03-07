@@ -148,15 +148,18 @@ def test_build_dashboard_runtime_context_wires_runtime_dependencies():
         "meshtastic.receive",
         "meshtastic.connection.established",
         "meshtastic.connection.lost",
+        "meshtastic.receive",
     ]
     subscribe_methods = [callback.__func__.__name__ for callback, _topic in calls["subscribe"]]
     assert subscribe_methods == [
         "on_receive",
         "on_connection_established",
         "on_connection_lost",
+        "on_receive",
     ]
-    for callback, _topic in calls["subscribe"]:
+    for callback, _topic in calls["subscribe"][:3]:
         assert callback.__self__ is context.tracker
+    assert calls["subscribe"][3][0].__self__ is not context.tracker
     assert context.tracker.bootstrap_iface is iface
 
     seeded_tracker, seeded_iface, seed_kwargs = calls["seed_tracker_if_empty"]

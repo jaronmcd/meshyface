@@ -58,6 +58,9 @@ from .history_profile import (
     build_profiled_history_db_path,
     resolve_history_profile_key,
 )
+from .bot_responder import (
+    build_mesh_response_bot_from_env as _build_mesh_response_bot_from_env,
+)
 
 
 @dataclass(frozen=True)
@@ -229,6 +232,22 @@ def build_dashboard_runtime_context(
             )
 
         setattr(loaders.state_fn, "apply_channel_settings_fn", _apply_channel_settings_fn)
+
+    # Optional: attach chat response bot hook (server-side, radio-wide behavior).
+    try:
+        response_bot = _build_mesh_response_bot_from_env(
+            send_chat_fn=loaders.send_chat_fn,
+            get_local_node_id_fn=get_local_node_id_fn,
+        )
+    except Exception:
+        response_bot = None
+
+    if response_bot is not None:
+        subscribe_fn(response_bot.on_receive, "meshtastic.receive")
+        try:
+            setattr(loaders.state_fn, "bot_responder", response_bot)
+        except Exception:
+            pass
 
     return DashboardRuntimeContext(
         target=target,

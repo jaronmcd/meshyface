@@ -251,6 +251,35 @@ Important knobs:
 - Direct peer-to-peer text messages request mesh ACK and now show delivery state (`Pending`, `Delivered`, `Failed`, `Timed out`) in chat.
 - Failed direct sends can be retried from the message row using `Retry`.
 
+## Response Bot Basics
+
+The dashboard can now run a server-side chat responder bot (radio-wide behavior).
+It listens for incoming text commands and replies on mesh via the same send pipeline.
+
+Built-in commands:
+
+- `cmd` / `help`
+- `whoami`
+- `whois <id|name>`
+- `whohas <id|name>`
+- `ping [target]`
+- `lheard`
+
+Environment controls:
+
+- `MESH_DASH_BOT_ENABLED=0|1` (default: `1`)
+- `MESH_DASH_BOT_REPLY_BROADCAST=0|1` (default: `0`)
+  - `0`: reply direct when request was direct, broadcast when request was broadcast
+  - `1`: always broadcast replies
+- `MESH_DASH_BOT_CUSTOM_COMMANDS` JSON object for custom commands, for example:
+
+```bash
+export MESH_DASH_BOT_CUSTOM_COMMANDS='{"status":"status local={local_id} from={from_id} hops={hops}","site":"meshface online"}'
+```
+
+Custom template fields:
+`{command}`, `{args}`, `{from_id}`, `{to_id}`, `{local_id}`, `{hops}`, `{rx_time}`.
+
 ## Channels (beginner-friendly docs)
 
 Meshtastic uses the word “channel” in *multiple* ways (frequency slot vs message channel index). This dashboard exposes both.
