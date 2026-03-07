@@ -202,6 +202,7 @@
     const botRequestLogStorageKey = "meshDashboardBotRequestLogV1";
     const chatChangeLogStorageKey = "meshDashboardChatChangeLogV1";
     const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
+    const meshChannelSendIndexStorageKey = "meshDashboardMeshChannelSendIndexV1";
     const channelsUiModeStorageKey = "meshDashboardChannelsUiModeV1";
     const chatDirectPeersStorageKey = "meshDashboardDirectPeersV1";
     const chatPerfStorageKey = "meshDashboardChatPerfMetricsV1";
@@ -2194,6 +2195,7 @@
     let queuedComposerSend = false;
     let queuedComposerFocus = false;
     let activeMeshChannelIndex = 0;
+    let activeMeshSendChannelIndex = 0;
     let meshChannelOptions = [];
     let meshChannelOptionsSignature = "";
     let meshChannelOptionsFetchedAt = 0;
@@ -5632,7 +5634,7 @@
 
       const leftSub = document.getElementById("chat-left-sub");
       if (leftSub) {{
-        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • Msg Ch: ${{meshChannelLabelForIndex(activeMeshChannelIndex, {{ verbose: true }})}} • ${{chatOnlineCount}} online, ${{chatWarnCount}} aging, ${{chatStaleCount}} stale`;
+        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • View Ch: ${{currentMeshChannelViewLabel()}} • Send Ch: ${{currentMeshChannelSendLabel()}} • ${{chatOnlineCount}} online, ${{chatWarnCount}} aging, ${{chatStaleCount}} stale`;
       }}
       const caption = document.getElementById("chat-caption");
       if (caption) {{
@@ -5640,7 +5642,7 @@
           (state.summary && state.summary.modem_preset) ? state.summary.modem_preset : "",
           "unknown"
         );
-        caption.textContent = `LoRa preset: ${{preset}}. Scope: ${{channelLabel(activeChatChannel)}}. Msg Ch: ${{meshChannelLabelForIndex(activeMeshChannelIndex, {{ verbose: true }})}}. ${{chatOnlineCount}} online, ${{chatWarnCount}} aging, ${{chatStaleCount}} stale. Msg Ch = encryption group (not frequency slot).`;
+        caption.textContent = `LoRa preset: ${{preset}}. Scope: ${{channelLabel(activeChatChannel)}}. View Ch: ${{currentMeshChannelViewLabel()}}. Send Ch: ${{currentMeshChannelSendLabel()}}. ${{chatOnlineCount}} online, ${{chatWarnCount}} aging, ${{chatStaleCount}} stale. Message channels are encryption groups, not frequency slots.`;
       }}
 
       // Saved nodes list freshness.
@@ -6933,6 +6935,14 @@
       return `Ch ${{idx}}`;
     }}
 
+    function meshChannelSendOptionLabel(opt) {{
+      if (!opt || typeof opt !== "object") return "";
+      const idx = Number(opt.index);
+      if (!Number.isInteger(idx) || idx < 0) return "";
+      const name = typeof opt.name === "string" ? opt.name.trim() : "";
+      return name || `Public ${{idx}}`;
+    }}
+
     function meshChannelLabelForIndex(rawIndex, {{ verbose = false, compact = false, allowAll = true }} = {{}}) {{
       const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
       if (idx === meshChannelAllIndex) {{
@@ -6951,12 +6961,27 @@
       return normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }});
     }}
 
+    function activeMeshChannelSendIndex() {{
+      return normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+    }}
+
+    function currentMeshChannelViewLabel() {{
+      return meshChannelLabelForIndex(activeMeshChannelIndex, {{ verbose: true }});
+    }}
+
+    function currentMeshChannelSendLabel() {{
+      const idx = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      const match = Array.isArray(meshChannelOptions)
+        ? meshChannelOptions.find((opt) => Number(opt && opt.index) === idx)
+        : null;
+      return meshChannelSendOptionLabel(match ? {{ ...match, index: idx }} : {{ index: idx }});
+    }}
+
     function meshChannelSendContext() {{
-      const activeIdx = activeMeshChannelFilterIndex();
-      const sendIndex = activeIdx >= 0 ? activeIdx : 0;
+      const sendIndex = activeMeshChannelSendIndex();
       return {{
         sendIndex,
-        allSelected: activeIdx === meshChannelAllIndex,
+        sendLabel: currentMeshChannelSendLabel(),
       }};
     }}
 
@@ -7037,6 +7062,14 @@
       }});
     }}
 
+    function buildMeshChannelSendOptionsFromLocalState(localState) {{
+      const collected = collectMeshChannelOptionsFromLocalState(localState, {{
+        includeFallback: false,
+      }}).filter((opt) => !(opt && opt.disabled));
+      if (collected.length) return collected;
+      return [{{ index: 0, name: "", role: "", disabled: false }}];
+    }}
+
     function renderMeshChannelSelect(options) {{
       const select = document.getElementById("mesh-channel-select");
       if (!(select instanceof HTMLSelectElement)) return;
@@ -7046,7 +7079,7 @@
       const allOption = document.createElement("option");
       allOption.value = String(meshChannelAllIndex);
       allOption.textContent = "All channels (view)";
-      allOption.title = "Show chat from all mesh channels. Outgoing sends use Ch 0 while this is selected.";
+      allOption.title = "Show chat from all configured mesh channels.";
       select.appendChild(allOption);
       for (const opt of normalized) {{
         const idx = normalizeMeshChannelIndex(opt && opt.index);
@@ -7076,6 +7109,42 @@
       }} catch (_err) {{}}
     }}
 
+    function renderMeshChannelSendSelect(options, {{ preserveCurrent = false }} = {{}}) {{
+      const select = document.getElementById("chat-send-channel-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+
+      const normalized = Array.isArray(options) ? options.slice() : [];
+      const desiredIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      if (preserveCurrent && !normalized.some((opt) => normalizeMeshChannelIndex(opt && opt.index) === desiredIndex)) {{
+        normalized.unshift({{ index: desiredIndex, name: "", role: "", disabled: false }});
+      }}
+      select.innerHTML = "";
+      for (const opt of normalized) {{
+        const idx = normalizeMeshChannelIndex(opt && opt.index);
+        const label = meshChannelSendOptionLabel({{ ...opt, index: idx }}) || `Public ${{idx}}`;
+        const optionEl = document.createElement("option");
+        optionEl.value = String(idx);
+        optionEl.textContent = label;
+        optionEl.disabled = !!(opt && opt.disabled);
+        optionEl.title = `${{label}} • Ch ${{idx}}`;
+        select.appendChild(optionEl);
+      }}
+
+      const desired = String(desiredIndex);
+      const desiredOpt = Array.from(select.options).find((o) => o.value === desired && !o.disabled);
+      if (desiredOpt) {{
+        select.value = desired;
+        return;
+      }}
+      const firstEnabled = Array.from(select.options).find((o) => !o.disabled);
+      const nextValue = firstEnabled ? firstEnabled.value : "0";
+      select.value = nextValue;
+      activeMeshSendChannelIndex = normalizeMeshChannelIndex(nextValue);
+      try {{
+        window.localStorage.setItem(meshChannelSendIndexStorageKey, String(activeMeshSendChannelIndex));
+      }} catch (_err) {{}}
+    }}
+
     async function hydrateMeshChannelOptions(force = false) {{
       const nowMs = Date.now();
       const ttlMs = 60000;
@@ -7099,6 +7168,7 @@
       const options = buildMeshChannelOptionsFromLocalState(localState);
       meshChannelOptions = options;
       renderMeshChannelSelect(options);
+      renderMeshChannelSendSelect(buildMeshChannelSendOptionsFromLocalState(localState));
       return options;
     }}
 
@@ -7149,15 +7219,44 @@
       }}
     }}
 
+    function applyMeshSendChannelIndex(rawIndex, persist = true) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      const changed = idx !== activeMeshSendChannelIndex;
+      activeMeshSendChannelIndex = idx;
+
+      const select = document.getElementById("chat-send-channel-select");
+      if (select instanceof HTMLSelectElement) {{
+        select.value = String(activeMeshSendChannelIndex);
+      }}
+
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(meshChannelSendIndexStorageKey, String(activeMeshSendChannelIndex));
+        }} catch (_err) {{}}
+      }}
+
+      if (changed && latestState && activeLayoutView === "chat") {{
+        renderChat(latestState);
+      }}
+    }}
+
     function loadMeshChannelIndex() {{
       let preferred = 0;
+      let preferredSend = null;
       try {{
         preferred = normalizeMeshChannelIndex(
           window.localStorage.getItem(meshChannelIndexStorageKey) || "0",
           {{ allowAll: true }}
         );
+        const storedSend = window.localStorage.getItem(meshChannelSendIndexStorageKey);
+        if (storedSend != null && String(storedSend).trim() !== "") {{
+          preferredSend = normalizeMeshChannelIndex(storedSend);
+        }}
       }} catch (_err) {{}}
       activeMeshChannelIndex = preferred;
+      activeMeshSendChannelIndex = preferredSend == null
+        ? normalizeMeshChannelIndex(preferred)
+        : normalizeMeshChannelIndex(preferredSend);
     }}
 
     function bindMeshChannelControl() {{
@@ -7173,9 +7272,23 @@
       const fallback = buildMeshChannelOptionsFromLocalState({{ channels: [] }});
       meshChannelOptions = fallback;
       renderMeshChannelSelect(fallback);
+      renderMeshChannelSendSelect(buildMeshChannelSendOptionsFromLocalState(null), {{ preserveCurrent: true }});
       select.value = String(activeMeshChannelIndex);
 
       void hydrateMeshChannelOptions(false);
+    }}
+
+    function bindMeshChannelSendControl() {{
+      const select = document.getElementById("chat-send-channel-select");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+
+      select.addEventListener("change", () => {{
+        applyMeshSendChannelIndex(select.value, true);
+      }});
+
+      renderMeshChannelSendSelect(buildMeshChannelSendOptionsFromLocalState(null), {{ preserveCurrent: true }});
+      select.value = String(activeMeshChannelSendIndex());
     }}
 
 
@@ -8013,6 +8126,7 @@
       const btn = document.getElementById("chat-send-btn");
       const emojiBtn = document.getElementById("chat-emoji-btn");
       const replyClearBtn = document.getElementById("chat-reply-clear-btn");
+      const sendChannelSelect = document.getElementById("chat-send-channel-select");
       const input = document.getElementById("chat-input");
       if (btn instanceof HTMLButtonElement) {{
         btn.disabled = chatSendInFlight;
@@ -8023,6 +8137,9 @@
       }}
       if (replyClearBtn instanceof HTMLButtonElement) {{
         replyClearBtn.disabled = chatSendInFlight;
+      }}
+      if (sendChannelSelect instanceof HTMLSelectElement) {{
+        sendChannelSelect.disabled = chatSendInFlight;
       }}
       if (input instanceof HTMLInputElement) {{
         input.disabled = chatSendInFlight;
@@ -8144,15 +8261,13 @@
         const replied = Number.isInteger(replyId) && replyId > 0;
         clearChatReplyTarget();
         if (destination === "^all") {{
-          const allNote = sendCtx.allSelected ? " (All channels view selected)" : "";
-          setChatSendStatus(`${{replied ? "Reply sent" : "Sent"}} to Everyone on Ch ${{sendCtx.sendIndex}} at ${{payload.sent_at || "now"}}${{allNote}}`);
+          setChatSendStatus(`${{replied ? "Reply sent" : "Sent"}} to Everyone on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
         }} else {{
           const awaitingAck = payload.ack_requested === true && normalizeDeliveryState(payload.delivery_state) === "pending";
-          const allNote = sendCtx.allSelected ? " (All channels view selected)" : "";
           if (awaitingAck) {{
-            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on Ch ${{sendCtx.sendIndex}} at ${{payload.sent_at || "now"}} (awaiting ACK)${{allNote}}`);
+            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}} (awaiting ACK)`);
           }} else {{
-            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on Ch ${{sendCtx.sendIndex}} at ${{payload.sent_at || "now"}}${{allNote}}`);
+            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
           }}
         }}
       }}
@@ -8195,8 +8310,7 @@
         null
       );
       if (payload && payload.ok) {{
-        const allNote = sendCtx.allSelected ? " (All channels view selected)" : "";
-        setChatSendStatus(`Reacted ${{cleanEmoji}} on Ch ${{sendCtx.sendIndex}} at ${{payload.sent_at || "now"}}${{allNote}}`);
+        setChatSendStatus(`Reacted ${{cleanEmoji}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
       }}
     }}
 
@@ -19739,7 +19853,7 @@
       }}
       const leftSub = document.getElementById("chat-left-sub");
       if (leftSub) {{
-        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • Msg Ch: ${{meshChannelLabelForIndex(activeMeshChannelIndex, {{ verbose: true }})}} • ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale`;
+        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • View Ch: ${{currentMeshChannelViewLabel()}} • Send Ch: ${{currentMeshChannelSendLabel()}} • ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale`;
       }}
 
       renderChatReplyContext();
@@ -19780,7 +19894,7 @@
         const perfSuffix = chatPerfEnabled
           ? ` Render: ${{chatPerfStats.lastMs.toFixed(1)}}ms (ema ${{chatPerfStats.emaMs.toFixed(1)}}ms, rows ${{chatPerfStats.lastFeedCount}}/${{chatPerfStats.lastRosterCount}}).`
           : "";
-        caption.textContent = `LoRa preset: ${{preset}}. Scope: ${{channelLabel(activeChatChannel)}}.${{directTargetText}} Msg Ch: ${{meshChannelLabelForIndex(activeMeshChannelIndex, {{ verbose: true }})}}. ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale.${{perfSuffix}} Msg Ch = encryption group (not frequency slot).`;
+        caption.textContent = `LoRa preset: ${{preset}}. Scope: ${{channelLabel(activeChatChannel)}}.${{directTargetText}} View Ch: ${{currentMeshChannelViewLabel()}}. Send Ch: ${{currentMeshChannelSendLabel()}}. ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale.${{perfSuffix}} Message channels are encryption groups, not frequency slots.`;
         if (chatPerfEnabled) {{
           caption.title = `Chat render avg ${{chatPerfStats.avgMs.toFixed(1)}}ms, max ${{chatPerfStats.maxMs.toFixed(1)}}ms, samples ${{chatPerfStats.samples}}`;
         }} else {{
@@ -21088,6 +21202,7 @@
     bindWeeklySummaryMetricControl();
     bindThemePresetSelector();
     bindMeshChannelControl();
+    bindMeshChannelSendControl();
     bindSignalHeatDevApi();
     bindMapPacketLinesControl();
     bindSignalHeatmapControl();

@@ -5566,8 +5566,70 @@
     .chat-composer-input-row {{
       display: flex;
       align-items: stretch;
+      flex-wrap: wrap;
       gap: 6px;
       min-height: 0;
+    }}
+    .chat-send-channel-wrap {{
+      position: relative;
+      flex: 0 1 156px;
+      min-width: 96px;
+      max-width: 196px;
+      border: 1px solid #9cc9ad;
+      border-radius: 8px;
+      background: #e3f4ea;
+      color: #184a32;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 24px 0 10px;
+      height: 27px;
+      box-sizing: border-box;
+      white-space: nowrap;
+      cursor: pointer;
+    }}
+    .chat-send-channel-wrap::after {{
+      content: "▾";
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-52%);
+      font-size: 10px;
+      line-height: 1;
+      opacity: 0.76;
+      pointer-events: none;
+    }}
+    .chat-send-channel-wrap:hover {{
+      background: #d7ecdf;
+    }}
+    .chat-send-channel-wrap:focus-within {{
+      border-color: #82b797;
+      box-shadow: 0 0 0 1px rgba(130, 183, 151, 0.28);
+    }}
+    .chat-send-channel-select {{
+      flex: 1 1 100%;
+      min-width: 0;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 600;
+      padding: 0;
+      cursor: pointer;
+      appearance: none;
+      outline: none;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }}
+    .chat-send-channel-select:disabled {{
+      cursor: default;
+      opacity: 0.7;
+    }}
+    .chat-send-channel-select option {{
+      color: #13241a;
+      background: #f8fcfa;
     }}
     .chat-reply-context {{
       flex: 1 1 auto;
@@ -6377,6 +6439,7 @@
     [data-theme="dark"] .chat-compose-shell,
     [data-theme="dark"] .chat-left-bottom-bar,
     [data-theme="dark"] .chat-reply-context,
+    [data-theme="dark"] .chat-send-channel-wrap,
     [data-theme="dark"] #chat-send-btn,
     [data-theme="dark"] #chat-emoji-btn,
     [data-theme="dark"] .chat-emoji-panel,
@@ -6609,10 +6672,12 @@
     [data-theme="dark"] .chat-reply-btn,
     [data-theme="dark"] .chat-react-btn,
     [data-theme="dark"] .chat-retry-btn,
+    [data-theme="dark"] .chat-send-channel-wrap,
     [data-theme="dark"] #chat-send-btn,
     [data-theme="dark"] #chat-emoji-btn,
     [data-theme="dark"] .list-search-input,
-    [data-theme="dark"] #chat-input {{
+    [data-theme="dark"] #chat-input,
+    [data-theme="dark"] .chat-send-channel-select {{
       background: #07140d;
       border-color: #2b8a59;
       color: #c6ffdb;
@@ -6812,6 +6877,7 @@
     [data-theme="dark"] .chat-reaction-popover-avatar,
     [data-theme="dark"] .chat-composer,
     [data-theme="dark"] .chat-reply-context,
+    [data-theme="dark"] .chat-send-channel-wrap,
     [data-theme="dark"] #chat-send-btn,
     [data-theme="dark"] #chat-emoji-btn,
     [data-theme="dark"] .chat-emoji-panel,
@@ -7315,12 +7381,34 @@
       transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
     }}
     [data-theme="dark"] .list-search-input,
-    [data-theme="dark"] #chat-input {{
+    [data-theme="dark"] #chat-input,
+    [data-theme="dark"] .chat-send-channel-select {{
       background: #07140d;
       border-color: #2b8a59;
       color: #c6ffdb;
       font-size: 11px;
       padding: 5px 7px;
+    }}
+    [data-theme="dark"] .chat-send-channel-wrap {{
+      border-color: #2b8a59;
+      background: #07140d;
+      color: #c6ffdb;
+    }}
+    [data-theme="dark"] .chat-send-channel-select {{
+      background: transparent;
+      border-color: transparent;
+      color: inherit;
+    }}
+    [data-theme="dark"] .chat-send-channel-wrap:hover {{
+      background: #0b1e13;
+      border-color: #35a76d;
+    }}
+    [data-theme="dark"] .chat-send-channel-wrap:focus-within {{
+      border-color: var(--ui-accent);
+      box-shadow: 0 0 0 1px rgba(122, 190, 255, 0.2);
+    }}
+    [data-theme="dark"] .chat-send-channel-select {{
+      padding: 0;
     }}
     [data-theme="dark"] .list-search-input::placeholder,
     [data-theme="dark"] #chat-input::placeholder {{
