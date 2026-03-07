@@ -27,7 +27,13 @@ class HistoryViewStore(Protocol):
 
 
 def empty_node_history(node_id: str) -> dict[str, object]:
-    return {"node_id": str(node_id or ""), "points": [], "positions": [], "summary": {}}
+    return {
+        "node_id": str(node_id or ""),
+        "points": [],
+        "positions": [],
+        "name_history": [],
+        "summary": {},
+    }
 
 
 def empty_online_activity(window_hours: int) -> dict[str, object]:

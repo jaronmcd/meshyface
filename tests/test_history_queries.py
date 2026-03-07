@@ -89,8 +89,22 @@ def test_fetch_history_and_aggregate_rows_from_metrics_tables():
         conn.execute(
             "INSERT INTO node_capabilities(node_id, last_seen_unix, has_position, last_position_unix, last_hops, battery_level, battery_updated_unix) VALUES('!b', 130, 0, NULL, NULL, NULL, NULL)"
         )
+        conn.execute(
+            """
+            INSERT INTO packets(created_unix, summary_json, packet_json)
+            VALUES(135, '{"from":"!a","to":"^all","rx_time_unix":135,"portnum":"NODEINFO_APP"}',
+                        '{"fromId":"!a","toId":"^all","rxTime":135,"decoded":{"portnum":"NODEINFO_APP","user":{"id":"!a","shortName":"Alpha","longName":"Alpha One"}}}')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO packets(created_unix, summary_json, packet_json)
+            VALUES(40, '{"from":"!a","to":"^all","rx_time_unix":40,"portnum":"NODEINFO_APP"}',
+                       '{"fromId":"!a","toId":"^all","rxTime":40,"decoded":{"portnum":"NODEINFO_APP","user":{"id":"!a","shortName":"Old","longName":"Old Alpha"}}}')
+            """
+        )
 
-        metric_rows, position_rows = fetch_node_history_rows(
+        metric_rows, position_rows, packet_rows = fetch_node_history_rows(
             conn, node_id="!a", cutoff=70, limit=10
         )
         hour_rows, distinct_nodes = fetch_online_activity_rows(conn, cutoff=0)
@@ -99,6 +113,8 @@ def test_fetch_history_and_aggregate_rows_from_metrics_tables():
 
         assert [r[0] for r in metric_rows] == [120]
         assert [r[0] for r in position_rows] == [125]
+        assert len(packet_rows) == 1
+        assert packet_rows[0][0] == 135
         assert hour_rows == [(0, 2)]
         assert distinct_nodes == 2
         assert sorted((r[0], r[1], r[2]) for r in saved_rows) == [

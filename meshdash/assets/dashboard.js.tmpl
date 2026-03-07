@@ -14969,6 +14969,44 @@
       </section>`;
     }}
 
+    function savedDetailNameHistorySectionHtml(entries, {{
+      loading = false,
+      maxRows = 12,
+    }} = {{}}) {{
+      const safeEntries = Array.isArray(entries) ? entries : [];
+      const safeMaxRows = Math.max(1, Math.trunc(Number(maxRows) || 12));
+      let bodyHtml = "";
+      if (loading && safeEntries.length === 0) {{
+        bodyHtml = '<div class="saved-node-name-history-empty">Name history is loading...</div>';
+      }} else if (safeEntries.length === 0) {{
+        bodyHtml = '<div class="saved-node-name-history-empty">No saved name updates yet.</div>';
+      }} else {{
+        const shown = safeEntries.slice(-safeMaxRows).reverse();
+        bodyHtml = `<ul class="saved-node-name-history-list">${{shown.map((entry) => {{
+          const shortName = savedDetailText(entry && entry.short_name, "n/a");
+          const longName = savedDetailText(entry && entry.long_name, "n/a");
+          const when = savedDetailText(entry && entry.time);
+          const source = savedDetailText(entry && entry.source_portnum);
+          return `<li class="saved-node-name-history-item">
+            <div class="saved-node-name-history-main">
+              <div class="saved-node-name-history-short">${{escAttr(shortName)}}</div>
+              <div class="saved-node-name-history-long">${{escAttr(longName)}}</div>
+            </div>
+            <div class="saved-node-name-history-meta">${{escAttr(when)}}</div>
+            <div class="saved-node-name-history-meta">${{escAttr(source)}}</div>
+          </li>`;
+        }}).join("")}}</ul>`;
+      }}
+      const note = safeEntries.length > safeMaxRows
+        ? `Showing newest ${{safeMaxRows}} of ${{safeEntries.length}} saved name updates.`
+        : "Newest first.";
+      return `<section class="saved-node-section">
+        <h3 class="saved-node-section-title">Name History</h3>
+        ${{bodyHtml}}
+        <div class="saved-node-note">${{escAttr(note)}}</div>
+      </section>`;
+    }}
+
     function computeSavedChatStats(nodeId, messages) {{
       const stats = {{
         touches: 0,
@@ -15231,6 +15269,7 @@
       const historySummary = (history && typeof history.summary === "object") ? history.summary : {{}};
       const historyPoints = Array.isArray(history && history.points) ? history.points : [];
       const historyPositions = Array.isArray(history && history.positions) ? history.positions : [];
+      const historyNameEntries = Array.isArray(history && history.name_history) ? history.name_history : [];
       const historyLoading = loadingId === nodeId && !history;
       const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
       const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
@@ -15407,6 +15446,9 @@
         ["GPS Capable", positionCapable],
         ["Last Position Ping", savedDetailText((caps && caps.last_position_time) || (latestTrail && latestTrail.time))],
       ]);
+      const nameHistorySection = savedDetailNameHistorySectionHtml(historyNameEntries, {{
+        loading: historyLoading,
+      }});
 
       const historySection = savedDetailSectionHtml("History", [
         ["Window", historyWindowText],
@@ -15465,6 +15507,7 @@
           <div class="saved-node-main-scroll">
             <div class="saved-node-sections">
               ${{nodeSection}}
+              ${{nameHistorySection}}
               ${{historySection}}
               ${{locationSection}}
               ${{chatSection}}

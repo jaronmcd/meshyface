@@ -32,7 +32,7 @@ def fetch_node_history_rows(
     node_id: str,
     cutoff: int,
     limit: int,
-) -> tuple[SqlRows, SqlRows]:
+) -> tuple[SqlRows, SqlRows, SqlRows]:
     metric_rows = conn.execute(
         """
         SELECT bucket_unix, packet_count,
@@ -57,7 +57,23 @@ def fetch_node_history_rows(
         """,
         (node_id, cutoff, limit),
     ).fetchall()
-    return metric_rows, position_rows
+    clean_node_id = str(node_id or "").strip()
+    escaped_node_id = clean_node_id.replace("\\", "\\\\").replace('"', '\\"')
+    from_pattern = f'%"from":"{escaped_node_id}"%'
+    to_pattern = f'%"to":"{escaped_node_id}"%'
+    packet_limit = max(250, min(20000, int(limit) * 4))
+    packet_rows = conn.execute(
+        """
+        SELECT created_unix, summary_json, packet_json
+        FROM packets
+        WHERE created_unix >= ?
+          AND (summary_json LIKE ? OR summary_json LIKE ?)
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (cutoff, from_pattern, to_pattern, packet_limit),
+    ).fetchall()
+    return metric_rows, position_rows, packet_rows
 
 
 def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRows, int]:

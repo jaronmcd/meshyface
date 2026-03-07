@@ -5,6 +5,9 @@ from .helpers import format_epoch as _format_epoch
 from .history_node_metrics import (
     build_metric_history_points as _build_metric_history_points_helper,
 )
+from .history_node_names import (
+    build_name_history_points as _build_name_history_points_helper,
+)
 from .history_node_positions import (
     build_position_history_points as _build_position_history_points_helper,
 )
@@ -16,6 +19,7 @@ def build_node_history_payload(
     window_hours: int,
     metric_rows: Iterable[tuple[object, ...]],
     position_rows: Iterable[tuple[object, ...]],
+    packet_rows: Iterable[tuple[object, ...]],
 ) -> dict[str, object]:
     clean_node_id = str(node_id or "").strip()
     hours = max(1, int(window_hours))
@@ -25,6 +29,7 @@ def build_node_history_payload(
             "window_hours": hours,
             "points": [],
             "positions": [],
+            "name_history": [],
             "summary": {},
         }
 
@@ -56,12 +61,17 @@ def build_node_history_payload(
     positions = position_data["positions"]
     trail_start = position_data["trail_start"]
     trail_end = position_data["trail_end"]
+    name_history = _build_name_history_points_helper(
+        node_id=clean_node_id,
+        packet_rows=packet_rows,
+    )
 
     return {
         "node_id": clean_node_id,
         "window_hours": hours,
         "points": points,
         "positions": positions,
+        "name_history": name_history,
         "summary": {
             "total_packets": total_packets,
             "points": len(points),

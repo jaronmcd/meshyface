@@ -1891,6 +1891,63 @@
       color: #5d7467;
       line-height: 1.25;
     }}
+    .saved-node-name-history-list {{
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }}
+    .saved-node-name-history-item {{
+      border: 1px solid #deeadf;
+      border-radius: 8px;
+      background: #f6fcf7;
+      padding: 6px 7px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .saved-node-name-history-main {{
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }}
+    .saved-node-name-history-short {{
+      color: #183926;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .saved-node-name-history-long {{
+      color: #50685a;
+      font-size: 11px;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .saved-node-name-history-meta {{
+      color: #5a7264;
+      font-size: 10px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }}
+    .saved-node-name-history-empty {{
+      border: 1px dashed #c6d8cc;
+      border-radius: 8px;
+      background: #f7fcf8;
+      color: #446355;
+      font-size: 11px;
+      line-height: 1.3;
+      padding: 8px;
+    }}
     #map {{
       width: 100%;
       height: 100%;
@@ -6342,6 +6399,22 @@
     }}
     [data-theme="dark"] .saved-node-stat-v {{
       color: #e6eef8;
+    }}
+    [data-theme="dark"] .saved-node-name-history-item {{
+      border-color: var(--ui-border);
+      background: #101722;
+    }}
+    [data-theme="dark"] .saved-node-name-history-short {{
+      color: #e6eef8;
+    }}
+    [data-theme="dark"] .saved-node-name-history-long,
+    [data-theme="dark"] .saved-node-name-history-meta {{
+      color: #9db3c8;
+    }}
+    [data-theme="dark"] .saved-node-name-history-empty {{
+      border-color: var(--ui-border);
+      background: #121b24;
+      color: #a9bfd3;
     }}
     [data-theme="dark"] .overview-item {{
       border-color: var(--ui-border);

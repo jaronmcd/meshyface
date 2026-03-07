@@ -34,7 +34,7 @@ class FetchNodeHistoryRowsFn(Protocol):
         node_id: str,
         cutoff: int,
         limit: int,
-    ) -> tuple[HistoryRows, HistoryRows]: ...
+    ) -> tuple[HistoryRows, HistoryRows, HistoryRows]: ...
 
 
 class BuildNodeHistoryPayloadFn(Protocol):
@@ -45,6 +45,7 @@ class BuildNodeHistoryPayloadFn(Protocol):
         window_hours: int,
         metric_rows: Iterable[HistoryRow],
         position_rows: Iterable[HistoryRow],
+        packet_rows: Iterable[HistoryRow],
     ) -> HistoryPayload: ...
 
 

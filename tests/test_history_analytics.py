@@ -7,12 +7,14 @@ def test_build_node_history_payload_handles_empty_node_id():
         window_hours=72,
         metric_rows=[],
         position_rows=[],
+        packet_rows=[],
     )
     assert payload == {
         "node_id": "",
         "window_hours": 72,
         "points": [],
         "positions": [],
+        "name_history": [],
         "summary": {},
     }
 
@@ -27,12 +29,25 @@ def test_build_node_history_payload_aggregates_rows_and_positions():
         (120, 44.97, -93.25, 245.0, 7),
         (130, 0.0, 0.0, 0.0, 0),
     ]
+    packet_rows_desc = [
+        (
+            220,
+            '{"from":"!abcd1234","rx_time_unix":220,"portnum":"NODEINFO_APP"}',
+            '{"fromId":"!abcd1234","rxTime":220,"decoded":{"portnum":"NODEINFO_APP","user":{"id":"!abcd1234","shortName":"N1","longName":"Node One"}}}',
+        ),
+        (
+            240,
+            '{"from":"!abcd1234","rx_time_unix":240,"portnum":"NODEINFO_APP"}',
+            '{"fromId":"!abcd1234","rxTime":240,"decoded":{"portnum":"NODEINFO_APP","user":{"id":"!abcd1234","shortName":"N2","longName":"Node Two"}}}',
+        ),
+    ]
 
     payload = build_node_history_payload(
         node_id="!abcd1234",
         window_hours=6,
         metric_rows=metric_rows_desc,
         position_rows=position_rows_desc,
+        packet_rows=packet_rows_desc,
     )
 
     assert payload["node_id"] == "!abcd1234"
@@ -44,6 +59,9 @@ def test_build_node_history_payload_aggregates_rows_and_positions():
     assert payload["points"][1]["bucket_unix"] == 200
     assert payload["positions"][0]["time_unix"] == 120
     assert payload["positions"][1]["time_unix"] == 210
+    assert len(payload["name_history"]) == 2
+    assert payload["name_history"][0]["short_name"] == "N1"
+    assert payload["name_history"][1]["short_name"] == "N2"
 
 
 def test_build_online_activity_payload_builds_hourly_profile_and_summary():

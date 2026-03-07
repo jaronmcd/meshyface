@@ -31,6 +31,7 @@ def test_empty_history_payload_shapes():
     assert node_empty["node_id"] == "!abc123"
     assert node_empty["points"] == []
     assert node_empty["positions"] == []
+    assert node_empty["name_history"] == []
 
     online_empty = empty_online_activity(12)
     assert online_empty["window_hours"] == 12
