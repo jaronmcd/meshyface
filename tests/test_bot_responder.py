@@ -74,6 +74,7 @@ def test_ping_targeted_to_local_suffix_replies_with_pong():
     assert sent[0]["channel_index"] == 0
     assert "pong" in str(sent[0]["text"]).lower()
     assert "hops=" in str(sent[0]["text"]).lower()
+    assert "6.0s" in str(sent[0]["text"]).lower()
 
 
 def test_ping_targeted_to_other_suffix_is_ignored():
@@ -194,6 +195,77 @@ def test_bot_logs_requests_when_responses_disabled():
     assert row["responded"] is False
 
 
+def test_bot_settings_expose_managed_command_catalog():
+    bot = MeshResponseBot(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={"status": "ok"},
+        game_enabled=True,
+        now_unix_fn=lambda: 1710001240.0,
+    )
+
+    settings = bot.bot_settings()
+    commands = settings["commands"]
+    names = {row["name"] for row in commands}
+
+    assert "ping" in names
+    assert "zork" in names
+    assert "status" in names
+    ping = next(row for row in commands if row["name"] == "ping")
+    assert ping["enabled"] is True
+
+
+def test_ping_command_can_be_disabled_without_disabling_bot():
+    iface = _FakeIface()
+    sent = []
+
+    def _send_chat(**kwargs):
+        sent.append(kwargs)
+        return {"ok": True}
+
+    bot = MeshResponseBot(
+        send_chat_fn=_send_chat,
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={},
+        now_unix_fn=lambda: 1710001240.0,
+    )
+    bot.configure(command_settings={"ping": False})
+    bot.on_receive(_base_packet("ping 9b7c"), iface)
+
+    assert sent == []
+    history = bot.recent_requests()
+    assert len(history) == 1
+    assert history[0]["command_head"] == "ping"
+    assert history[0]["command_enabled"] is False
+    settings = bot.bot_settings()
+    ping = next(row for row in settings["commands"] if row["name"] == "ping")
+    assert ping["enabled"] is False
+
+
+def test_ping_formats_long_round_trip_as_human_readable_duration():
+    iface = _FakeIface()
+    sent = []
+
+    def _send_chat(**kwargs):
+        sent.append(kwargs)
+        return {"ok": True}
+
+    bot = MeshResponseBot(
+        send_chat_fn=_send_chat,
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={},
+        now_unix_fn=lambda: 1710001240.0,
+    )
+    packet = _base_packet("ping 9b7c")
+    packet["rxTime"] = 1709995707
+    bot.on_receive(packet, iface)
+
+    assert len(sent) == 1
+    text = str(sent[0]["text"]).lower()
+    assert "pong" in text
+    assert "1h 32m 13s" in text
+
+
 def test_zork_game_starts_only_for_direct_messages():
     iface = _FakeIface()
     sent = []
@@ -275,3 +347,17 @@ def test_build_bot_from_env_can_enable_game_mode():
     )
     assert bot is not None
     assert bot.game_enabled is True
+
+
+def test_build_bot_from_env_can_disable_specific_command():
+    bot = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={"MESH_DASH_BOT_DISABLED_COMMANDS": "ping,whois"},
+    )
+    assert bot is not None
+    settings = bot.bot_settings()
+    ping = next(row for row in settings["commands"] if row["name"] == "ping")
+    whois = next(row for row in settings["commands"] if row["name"] == "whois")
+    assert ping["enabled"] is False
+    assert whois["enabled"] is False

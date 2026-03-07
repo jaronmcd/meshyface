@@ -2250,8 +2250,19 @@
       display: grid;
       grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
       gap: 12px;
+      height: 100%;
       min-height: 0;
       flex: 1 1 auto;
+      align-items: stretch;
+      overflow: hidden;
+    }}
+    .bots-sidebar-stack {{
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }}
     .bots-panel {{
       border: 1px solid #d7e5d2;
@@ -2262,6 +2273,13 @@
       gap: 10px;
       min-height: 0;
       padding: 10px;
+    }}
+    .bots-commands-panel {{
+      flex: 1 1 auto;
+      overflow: hidden;
+    }}
+    .bots-assistant-panel {{
+      flex: 0 0 auto;
     }}
     .bots-panel h3 {{
       margin: 0;
@@ -2328,6 +2346,11 @@
       flex-direction: column;
       gap: 4px;
     }}
+    .bots-managed-commands-card {{
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }}
     .bots .chat-bot-cheatsheet-title {{
       font-size: 10px;
       color: #4f6758;
@@ -2354,8 +2377,64 @@
       padding: 1px 5px;
       white-space: nowrap;
     }}
+    .bots-command-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }}
+    .bots-command-item {{
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #f8fcf7;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+    }}
+    .bots-command-copy {{
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }}
+    .bots-command-usage {{
+      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
+      font-size: 11px;
+      color: #1f4e35;
+      word-break: break-word;
+    }}
+    .bots-command-description {{
+      font-size: 11px;
+      line-height: 1.35;
+      color: #4f6758;
+    }}
+    .bots-command-kind {{
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      color: #315844;
+      border: 1px solid #c7d9cb;
+      border-radius: 999px;
+      background: #edf6ef;
+      padding: 2px 6px;
+      white-space: nowrap;
+    }}
+    .bots-command-toggle {{
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: #2f855a;
+      cursor: pointer;
+    }}
     .bots-history-panel {{
       min-height: 0;
+      overflow: hidden;
     }}
     .bots-history-head {{
       display: flex;
@@ -2379,11 +2458,16 @@
       border-radius: 8px;
       background: #ffffff;
       flex: 1 1 auto;
-      min-height: 180px;
+      max-height: none;
+      min-height: 120px;
+      overflow: auto;
       padding: 6px;
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }}
+    .bots-history-reference-card {{
+      flex: 0 0 auto;
     }}
     .bots-history-empty {{
       border: 1px dashed #cfe0d2;
@@ -7571,6 +7655,21 @@
       background: #1b2f3e;
       border-color: #35556d;
       color: #dbeeff;
+    }}
+    [data-theme="dark"] .bots-command-item {{
+      background: #13241b;
+      border-color: #2a4638;
+    }}
+    [data-theme="dark"] .bots-command-usage {{
+      color: #cfeee0;
+    }}
+    [data-theme="dark"] .bots-command-description {{
+      color: #9ec8b3;
+    }}
+    [data-theme="dark"] .bots-command-kind {{
+      background: #1a3124;
+      border-color: #355343;
+      color: #c7e8d6;
     }}
     [data-theme="dark"] .bots-history-stats {{
       color: #9ec8b3;

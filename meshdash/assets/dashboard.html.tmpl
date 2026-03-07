@@ -693,55 +693,53 @@
       <h2>Bots</h2>
       <div class="body">
         <div class="bots-grid">
-          <div class="bots-panel">
-            <h3>Whois Quick Action</h3>
-            <label class="chat-bot-toggle-wrap bots-master-toggle" for="chat-bot-commands-enabled" title="Master switch for browser quick actions. Turn off to disable Whois helper controls and local bot-history matching in this browser.">
-              <input id="chat-bot-commands-enabled" type="checkbox" />
-              <span>Master: Quick Actions Enabled</span>
-            </label>
-            <div class="bots-master-note">
-              Turn off to disable quick-action helpers in this browser. Manual chat commands still send normally.
+          <div class="bots-sidebar-stack">
+            <div class="bots-panel bots-commands-panel">
+              <h3>Bot Commands</h3>
+              <label class="chat-bot-toggle-wrap bots-master-toggle" for="bots-command-master-enabled" title="Master switch for backend bot responses on this node. Turn off to silence all bot replies while keeping individual command settings intact.">
+                <input id="bots-command-master-enabled" type="checkbox" />
+                <span>Enable Bot Responses</span>
+              </label>
+              <div class="bots-master-note">
+                Turn off to stop all backend bot replies on this node. Individual command toggles are preserved and take effect again when you re-enable responses.
+              </div>
+              <div class="chat-bot-cheatsheet bots-managed-commands-card" aria-label="Managed bot commands">
+                <div class="chat-bot-cheatsheet-title">Managed bot commands</div>
+                <div class="settings-help-note">
+                  Toggle backend bot commands live here. Direct message <code>zork</code> to this node to start the adventure when that command is enabled.
+                </div>
+                <div id="bots-command-list" class="bots-command-list" aria-live="polite"></div>
+              </div>
             </div>
-            <label class="chat-bot-toggle-wrap" for="chat-bot-game-enabled" title="Enable text-adventure game replies for direct peer-to-peer messages. Send 'zork' in a direct chat to start.">
-              <input id="chat-bot-game-enabled" type="checkbox" />
-              <span>Enable Zork game bot (peer-to-peer)</span>
-            </label>
-            <div class="settings-help-note">
-              Direct message <code>zork</code> to this node to start. Commands: <code>look</code>, <code>n/s/e/w</code>, <code>take</code>, <code>inventory</code>, <code>quit</code>.
-            </div>
-            <div class="settings-help-note">
-              Keep quick bot actions and result tracking in one place.
-            </div>
-            <label class="chat-bot-toggle-wrap" for="chat-bot-whois-enabled" title="Show Whois helper action in chat rows">
-              <input id="chat-bot-whois-enabled" type="checkbox" />
-              <span>Enable Whois quick action</span>
-            </label>
-            <label class="chat-change-scope-wrap bots-whois-prefix-wrap" for="chat-bot-whois-prefix" title="Whois command prefix used when drafting">
-              <span class="chat-change-scope-label">Whois command</span>
-              <select id="chat-bot-whois-prefix" class="chat-change-scope-select" aria-label="Whois command prefix">
-                <option value="whois">whois (recommended)</option>
-                <option value="!whois">!whois</option>
-                <option value="#whois">#whois</option>
-              </select>
-            </label>
-            <label class="chat-bot-toggle-wrap" for="chat-bot-whois-thread-reply" title="When enabled, Whois drafts reply to the selected chat packet">
-              <input id="chat-bot-whois-thread-reply" type="checkbox" />
-              <span>Attach Whois as reply</span>
-            </label>
-            <label class="chat-bot-toggle-wrap" for="chat-bot-history-enabled" title="Persist bot command history and match replies to requests">
-              <input id="chat-bot-history-enabled" type="checkbox" />
-              <span>Track bot request history</span>
-            </label>
-            <div class="chat-bot-cheatsheet" aria-label="Common mesh bot commands">
-              <div class="chat-bot-cheatsheet-title">Common bot commands (network dependent)</div>
-              <div class="chat-bot-cheatsheet-row"><code>cmd</code><span>show available bot commands</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>help</code><span>basic usage/help menu</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>whoami</code><span>show your local node identity</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>whois a39c</code><span>lookup node by ID suffix</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>ping a39c</code><span>measure reply latency + hop path</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>wx 55112</code><span>weather (if supported)</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>lheard</code><span>recently heard node list</span></div>
-              <div class="chat-bot-cheatsheet-row"><code>zork</code><span>start peer-to-peer text adventure</span></div>
+            <div class="bots-panel bots-assistant-panel">
+              <h3>Bot Assistant</h3>
+              <label class="chat-bot-toggle-wrap bots-master-toggle" for="chat-bot-commands-enabled" title="Master switch for browser-side bot helpers. Turn off to disable Whois helper controls and local bot-history matching in this browser.">
+                <input id="chat-bot-commands-enabled" type="checkbox" />
+                <span>Enable Bot Assistant</span>
+              </label>
+              <div class="bots-master-note">
+                Browser-side helpers only. Turn off to disable Whois drafting and local bot-history matching in this browser. Manual chat commands still send normally.
+              </div>
+              <label class="chat-bot-toggle-wrap" for="chat-bot-whois-enabled" title="Show Whois helper action in chat rows">
+                <input id="chat-bot-whois-enabled" type="checkbox" />
+                <span>Enable Whois quick action</span>
+              </label>
+              <label class="chat-change-scope-wrap bots-whois-prefix-wrap" for="chat-bot-whois-prefix" title="Whois command prefix used when drafting">
+                <span class="chat-change-scope-label">Whois command</span>
+                <select id="chat-bot-whois-prefix" class="chat-change-scope-select" aria-label="Whois command prefix">
+                  <option value="whois">whois (recommended)</option>
+                  <option value="!whois">!whois</option>
+                  <option value="#whois">#whois</option>
+                </select>
+              </label>
+              <label class="chat-bot-toggle-wrap" for="chat-bot-whois-thread-reply" title="When enabled, Whois drafts reply to the selected chat packet">
+                <input id="chat-bot-whois-thread-reply" type="checkbox" />
+                <span>Attach Whois as reply</span>
+              </label>
+              <label class="chat-bot-toggle-wrap" for="chat-bot-history-enabled" title="Persist bot command history and match replies to requests">
+                <input id="chat-bot-history-enabled" type="checkbox" />
+                <span>Track bot request history</span>
+              </label>
             </div>
           </div>
           <div class="bots-panel bots-history-panel">
@@ -755,6 +753,17 @@
               <span>Responded <strong id="bots-history-responded">0</strong></span>
             </div>
             <div id="bots-history-list" class="scroll bots-history-list" aria-live="polite"></div>
+            <div class="chat-bot-cheatsheet bots-history-reference-card" aria-label="Common mesh bot commands">
+              <div class="chat-bot-cheatsheet-title">Common bot commands (network dependent)</div>
+              <div class="chat-bot-cheatsheet-row"><code>cmd</code><span>show available bot commands</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>help</code><span>basic usage/help menu</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>whoami</code><span>show your local node identity</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>whois a39c</code><span>lookup node by ID suffix</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>ping a39c</code><span>measure reply latency + hop path</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>wx 55112</code><span>weather (if supported)</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>lheard</code><span>recently heard node list</span></div>
+              <div class="chat-bot-cheatsheet-row"><code>zork</code><span>start peer-to-peer text adventure</span></div>
+            </div>
           </div>
         </div>
       </div>

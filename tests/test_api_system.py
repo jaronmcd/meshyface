@@ -274,6 +274,9 @@ def test_handle_state_get_injects_backend_bot_settings_when_available():
             "log_enabled": True,
             "game_enabled": False,
             "active_game_sessions": 0,
+            "commands": [
+                {"name": "ping", "usage": "ping [target]", "description": "measure reply latency", "kind": "builtin", "enabled": True}
+            ],
         },
     )
 
@@ -288,6 +291,7 @@ def test_handle_state_get_injects_backend_bot_settings_when_available():
     assert settings["enabled"] is True
     assert settings["game_enabled"] is False
     assert settings["active_game_sessions"] == 0
+    assert settings["commands"][0]["name"] == "ping"
 
 
 def test_handle_state_get_etag_includes_bot_request_marker():

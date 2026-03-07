@@ -40,7 +40,12 @@ def handle_bot_settings_post(
 
     raw = handler.rfile.read(content_length)
     request = parse_bot_settings_request_fn(raw)
-    if request.enabled is None and request.log_enabled is None and request.game_enabled is None:
+    if (
+        request.enabled is None
+        and request.log_enabled is None
+        and request.game_enabled is None
+        and request.command_settings is None
+    ):
         write_json_response_fn(
             handler,
             status_code=400,
@@ -66,4 +71,3 @@ def handle_bot_settings_post(
         return
 
     write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
-

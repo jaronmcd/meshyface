@@ -99,12 +99,23 @@ def _bot_request_etag_marker(rows: object) -> str:
 def _bot_settings_etag_marker(settings: object) -> str:
     if not isinstance(settings, dict):
         return "none"
+    commands = settings.get("commands")
+    command_marker_parts = []
+    if isinstance(commands, list):
+        for row in commands:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get("name") or "").strip().lower()
+            if not name:
+                continue
+            command_marker_parts.append(f"{name}:{'1' if bool(row.get('enabled')) else '0'}")
     return "|".join(
         [
             "1" if bool(settings.get("enabled")) else "0",
             "1" if bool(settings.get("log_enabled")) else "0",
             "1" if bool(settings.get("game_enabled")) else "0",
             str(settings.get("active_game_sessions") or 0),
+            ",".join(command_marker_parts),
         ]
     )
 

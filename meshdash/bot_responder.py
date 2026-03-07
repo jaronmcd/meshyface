@@ -4,80 +4,19 @@ import threading
 import time
 from typing import Callable, Optional
 
+from .bot_commands import (
+    MANAGED_BOT_COMMAND_SPECS,
+    STANDARD_BOT_COMMANDS as _STANDARD_BOT_COMMANDS,
+    build_custom_bot_command_spec,
+    normalize_bot_command_name,
+)
+from .games.zork import ZorkGame
 from .helpers import to_int as _to_int
 
-STANDARD_BOT_COMMANDS = (
-    "cmd",
-    "help",
-    "whoami",
-    "whois",
-    "whohas",
-    "ping",
-    "lheard",
-)
+STANDARD_BOT_COMMANDS = _STANDARD_BOT_COMMANDS
 
 _RECENT_PACKET_TTL_SECONDS = 180
 _RECENT_PACKET_MAX = 1024
-_GAME_SESSION_TTL_SECONDS = 45 * 60
-
-_GAME_ROOMS = {
-    "trailhead": {
-        "name": "Trailhead",
-        "desc": "Rain. A bunker door is north.",
-        "exits": {"north": "foyer"},
-        "item": None,
-    },
-    "foyer": {
-        "name": "Foyer",
-        "desc": "Dusty lobby. A brass key glints.",
-        "exits": {"south": "trailhead", "east": "workshop", "west": "gate"},
-        "item": "key",
-    },
-    "workshop": {
-        "name": "Workshop",
-        "desc": "Old radios and a storm lamp.",
-        "exits": {"west": "foyer"},
-        "item": "lamp",
-    },
-    "gate": {
-        "name": "Gate",
-        "desc": "A steel gate blocks the vault.",
-        "exits": {"east": "foyer", "north": "vault"},
-        "item": None,
-    },
-    "vault": {
-        "name": "Vault",
-        "desc": "A lockbox hums beside a beacon.",
-        "exits": {"south": "gate"},
-        "item": "beacon",
-    },
-}
-
-_GAME_VERB_HEADS = {
-    "zork",
-    "!zork",
-    "#zork",
-    "help",
-    "look",
-    "l",
-    "inventory",
-    "inv",
-    "i",
-    "north",
-    "n",
-    "south",
-    "s",
-    "east",
-    "e",
-    "west",
-    "w",
-    "take",
-    "get",
-    "open",
-    "quit",
-    "exit",
-    "restart",
-}
 
 
 def _parse_bool_token(value: object, default: bool) -> bool:
@@ -119,18 +58,7 @@ def _node_suffix(node_id: object) -> str:
 
 
 def _normalize_command_name(value: object) -> str:
-    text = str(value or "").strip().lower()
-    if not text:
-        return ""
-    if text.startswith("!") or text.startswith("#"):
-        text = text[1:]
-    if not text:
-        return ""
-    out = []
-    for ch in text:
-        if ("a" <= ch <= "z") or ("0" <= ch <= "9") or ch in ("_", "-"):
-            out.append(ch)
-    return "".join(out)
+    return normalize_bot_command_name(value)
 
 
 def _format_node_id_from_num(raw_num: object) -> str:
@@ -238,6 +166,28 @@ def _node_age_label(last_heard: object, now_unix: int) -> str:
     return f"{delta // 86400}d"
 
 
+def _format_latency_label(latency_ms: int) -> str:
+    value = max(0, int(latency_ms))
+    if value < 1000:
+        return f"{value}ms"
+    if value < 10000:
+        return f"{value / 1000:.1f}s"
+    total_seconds = value // 1000
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds or not parts:
+        parts.append(f"{seconds}s")
+    return " ".join(parts[:3])
+
+
 def _format_short_node_label(node: dict[str, object], now_unix: int) -> str:
     node_id = str(node.get("id") or "").strip() or "unknown"
     short_name = str(node.get("short_name") or "").strip()
@@ -315,6 +265,7 @@ class MeshResponseBot:
         send_chat_fn: Callable[..., dict[str, object]],
         get_local_node_id_fn: Callable[[object], str],
         custom_commands: Optional[dict[str, str]] = None,
+        disabled_commands: Optional[list[str]] = None,
         enabled: bool = True,
         log_enabled: bool = True,
         game_enabled: bool = False,
@@ -333,10 +284,26 @@ class MeshResponseBot:
             for name, template in (custom_commands or {}).items()
             if _normalize_command_name(name) and str(template or "").strip()
         }
+        self._game = ZorkGame()
+        raw_disabled_commands = {
+            _normalize_command_name(value) for value in (disabled_commands or [])
+        }
+        known_commands = {
+            _normalize_command_name(getattr(spec, "name", ""))
+            for spec in list(MANAGED_BOT_COMMAND_SPECS)
+            + [build_custom_bot_command_spec(name) for name in self._custom_commands.keys()]
+            if _normalize_command_name(getattr(spec, "name", ""))
+        }
+        self._disabled_commands = {
+            name
+            for name in raw_disabled_commands
+            if name and name != "zork" and name in known_commands
+        }
+        if "zork" in raw_disabled_commands:
+            self._game_enabled = False
         self._recent_packet_ids: dict[str, int] = {}
         self._request_log: list[dict[str, object]] = []
         self._request_seq = 0
-        self._game_sessions: dict[str, dict[str, object]] = {}
         self._lock = threading.Lock()
 
     @property
@@ -351,12 +318,85 @@ class MeshResponseBot:
     def game_enabled(self) -> bool:
         return self._game_enabled
 
+    def _managed_command_specs_locked(self) -> list[object]:
+        specs = list(MANAGED_BOT_COMMAND_SPECS)
+        for name in sorted(self._custom_commands.keys()):
+            specs.append(build_custom_bot_command_spec(name))
+        return specs
+
+    def _managed_command_names_locked(self) -> set[str]:
+        return {
+            _normalize_command_name(getattr(spec, "name", ""))
+            for spec in self._managed_command_specs_locked()
+            if _normalize_command_name(getattr(spec, "name", ""))
+        }
+
+    def _command_enabled_locked(self, command: str) -> bool:
+        clean = _normalize_command_name(command)
+        if not clean:
+            return False
+        if clean == "zork":
+            return bool(self._game_enabled)
+        return clean not in self._disabled_commands
+
+    def _managed_command_rows_locked(self) -> list[dict[str, object]]:
+        out: list[dict[str, object]] = []
+        for spec in self._managed_command_specs_locked():
+            name = _normalize_command_name(getattr(spec, "name", ""))
+            if not name:
+                continue
+            out.append(
+                {
+                    "name": name,
+                    "usage": str(getattr(spec, "usage", "") or name).strip() or name,
+                    "description": str(getattr(spec, "description", "") or "").strip(),
+                    "kind": str(getattr(spec, "kind", "") or "builtin").strip().lower(),
+                    "enabled": self._command_enabled_locked(name),
+                }
+            )
+        return out
+
+    def _enabled_command_usage_tokens(self) -> list[str]:
+        with self._lock:
+            rows = self._managed_command_rows_locked()
+        return [
+            str(row.get("usage") or "").strip()
+            for row in rows
+            if bool(row.get("enabled")) and str(row.get("usage") or "").strip()
+        ]
+
+    def _apply_command_settings_locked(self, command_settings: dict[str, bool]) -> None:
+        known_commands = self._managed_command_names_locked()
+        unknown_commands = sorted(
+            name
+            for name in (_normalize_command_name(key) for key in command_settings.keys())
+            if name and name not in known_commands
+        )
+        if unknown_commands:
+            raise ValueError(f"Unknown bot command: {unknown_commands[0]}")
+        for raw_name, raw_enabled in command_settings.items():
+            name = _normalize_command_name(raw_name)
+            enabled = bool(raw_enabled)
+            if not name:
+                continue
+            if name == "zork":
+                self._game_enabled = enabled
+                if not self._game_enabled:
+                    self._game.clear_sessions()
+                continue
+            if enabled:
+                self._disabled_commands.discard(name)
+            else:
+                self._disabled_commands.add(name)
+
     def _bot_settings_locked(self) -> dict[str, object]:
         return {
             "enabled": bool(self._enabled),
             "log_enabled": bool(self._log_enabled),
             "game_enabled": bool(self._game_enabled),
-            "active_game_sessions": len(self._game_sessions),
+            "active_game_sessions": self._game.active_session_count(),
+            "disabled_commands": sorted(self._disabled_commands),
+            "commands": self._managed_command_rows_locked(),
         }
 
     def bot_settings(self) -> dict[str, object]:
@@ -369,6 +409,7 @@ class MeshResponseBot:
         enabled: Optional[bool] = None,
         log_enabled: Optional[bool] = None,
         game_enabled: Optional[bool] = None,
+        command_settings: Optional[dict[str, bool]] = None,
     ) -> dict[str, object]:
         with self._lock:
             if enabled is not None:
@@ -378,7 +419,9 @@ class MeshResponseBot:
             if game_enabled is not None:
                 self._game_enabled = bool(game_enabled)
                 if not self._game_enabled:
-                    self._game_sessions.clear()
+                    self._game.clear_sessions()
+            if command_settings:
+                self._apply_command_settings_locked(command_settings)
             out = self._bot_settings_locked()
         out["ok"] = True
         return out
@@ -473,184 +516,6 @@ class MeshResponseBot:
             break
         return local_node_id, aliases, nodes
 
-    def _game_room_summary(self, room_id: str, session: dict[str, object]) -> str:
-        room = _GAME_ROOMS.get(room_id) or _GAME_ROOMS["trailhead"]
-        exits_map = room.get("exits") if isinstance(room, dict) else {}
-        exits = []
-        if isinstance(exits_map, dict):
-            for direction, target in exits_map.items():
-                if str(target) == "vault" and "gate_unlocked" not in set(session.get("flags") or []):
-                    continue
-                exits.append(str(direction))
-        exits_text = "/".join(exits) if exits else "none"
-        item = str(room.get("item") or "").strip().lower()
-        inventory = {str(value).strip().lower() for value in (session.get("inventory") or [])}
-        item_text = ""
-        if item and item not in inventory:
-            item_text = f" Item: {item}."
-        return f"{room.get('name')}: {room.get('desc')} Exits {exits_text}.{item_text}"
-
-    def _game_prune_sessions(self, now_unix: int) -> None:
-        stale_before = now_unix - _GAME_SESSION_TTL_SECONDS
-        for peer_id, session in list(self._game_sessions.items()):
-            updated_unix = _to_int(session.get("updated_unix")) or 0
-            if updated_unix and updated_unix >= stale_before:
-                continue
-            self._game_sessions.pop(peer_id, None)
-
-    def _game_start_session(self, from_id: str, now_unix: int) -> dict[str, object]:
-        peer_id = _normalize_node_id(from_id).lower()
-        session = {
-            "peer_id": peer_id,
-            "room": "trailhead",
-            "inventory": [],
-            "flags": [],
-            "moves": 0,
-            "started_unix": now_unix,
-            "updated_unix": now_unix,
-        }
-        self._game_sessions[peer_id] = session
-        return session
-
-    def _is_direct_to_local(self, to_id: str, local_node_id: str) -> bool:
-        clean_to = _normalize_node_id(to_id).lower()
-        clean_local = _normalize_node_id(local_node_id).lower()
-        if not clean_to.startswith("!"):
-            return False
-        if not clean_local.startswith("!"):
-            return False
-        return clean_to == clean_local
-
-    def _game_try_handle_message(
-        self,
-        *,
-        text: str,
-        from_id: str,
-        to_id: str,
-        local_node_id: str,
-        now_unix: int,
-    ) -> tuple[bool, Optional[str], str]:
-        raw = str(text or "").strip()
-        if not raw:
-            return False, None, ""
-        parts = [part for part in raw.split() if part]
-        if not parts:
-            return False, None, ""
-        head_raw = str(parts[0]).strip().lower()
-        if head_raw not in _GAME_VERB_HEADS:
-            return False, None, ""
-        if not self._is_direct_to_local(to_id, local_node_id):
-            return False, None, ""
-
-        peer_id = _normalize_node_id(from_id).lower()
-        if not peer_id.startswith("!"):
-            return False, None, ""
-        with self._lock:
-            self._game_prune_sessions(now_unix)
-            session = self._game_sessions.get(peer_id)
-            if head_raw in ("zork", "!zork", "#zork", "restart"):
-                if not self._game_enabled:
-                    return True, None, "zork"
-                session = self._game_start_session(from_id, now_unix)
-                summary = self._game_room_summary(str(session.get("room") or "trailhead"), session)
-                return True, f"zork: session started. {summary}", "zork"
-
-            if session is None:
-                return False, None, ""
-            if not self._game_enabled:
-                return True, None, "zork"
-
-            room_id = str(session.get("room") or "trailhead")
-            inventory = {str(value).strip().lower() for value in (session.get("inventory") or [])}
-            flags = {str(value).strip().lower() for value in (session.get("flags") or [])}
-            args = [str(value).strip().lower() for value in parts[1:] if str(value).strip()]
-            moved = False
-            feedback = ""
-
-            if head_raw in ("help",):
-                feedback = "zork help: look, n/s/e/w, take <item>, open gate, inventory, quit."
-            elif head_raw in ("look", "l"):
-                feedback = self._game_room_summary(room_id, session)
-            elif head_raw in ("inventory", "inv", "i"):
-                if inventory:
-                    feedback = f"inventory: {', '.join(sorted(inventory))}"
-                else:
-                    feedback = "inventory: empty"
-            elif head_raw in ("quit", "exit"):
-                self._game_sessions.pop(peer_id, None)
-                return True, "zork: session ended. Send 'zork' to start again.", "zork"
-            elif head_raw in ("open",):
-                target = args[0] if args else ""
-                if target in ("gate", "door"):
-                    if room_id != "gate":
-                        feedback = "zork: no gate here."
-                    elif "key" in inventory:
-                        flags.add("gate_unlocked")
-                        feedback = "zork: gate unlocked. Path north is open."
-                    else:
-                        feedback = "zork: locked. You need a key."
-                else:
-                    feedback = "zork: try 'open gate'."
-            elif head_raw in ("take", "get"):
-                room = _GAME_ROOMS.get(room_id) or {}
-                item = str(room.get("item") or "").strip().lower()
-                wanted = args[0] if args else item
-                if not item:
-                    feedback = "zork: nothing to take."
-                elif wanted and wanted != item:
-                    feedback = f"zork: no {wanted} here."
-                elif item in inventory:
-                    feedback = f"zork: you already have {item}."
-                else:
-                    inventory.add(item)
-                    if item == "beacon":
-                        feedback = "zork: you secured the beacon. Victory."
-                    else:
-                        feedback = f"zork: took {item}."
-            elif head_raw in ("north", "n", "south", "s", "east", "e", "west", "w"):
-                direction_map = {
-                    "north": "north",
-                    "n": "north",
-                    "south": "south",
-                    "s": "south",
-                    "east": "east",
-                    "e": "east",
-                    "west": "west",
-                    "w": "west",
-                }
-                direction = direction_map.get(head_raw, "")
-                room = _GAME_ROOMS.get(room_id) or {}
-                exits = room.get("exits") if isinstance(room, dict) else {}
-                target = ""
-                if isinstance(exits, dict):
-                    target = str(exits.get(direction) or "").strip().lower()
-                if not target:
-                    feedback = f"zork: can't go {direction}."
-                elif target == "vault" and "gate_unlocked" not in flags:
-                    feedback = "zork: gate is locked. Try 'open gate'."
-                elif target not in _GAME_ROOMS:
-                    feedback = f"zork: path {direction} is blocked."
-                else:
-                    room_id = target
-                    moved = True
-            else:
-                feedback = "zork: unknown action. Try 'help'."
-
-            session["room"] = room_id
-            session["inventory"] = sorted(inventory)
-            session["flags"] = sorted(flags)
-            session["updated_unix"] = now_unix
-            session["moves"] = int(_to_int(session.get("moves")) or 0) + 1
-            self._game_sessions[peer_id] = session
-
-            if moved:
-                return True, self._game_room_summary(room_id, session), "zork"
-            if feedback:
-                if head_raw in ("look", "l", "help", "inventory", "inv", "i"):
-                    return True, feedback, "zork"
-                return True, f"{feedback} {self._game_room_summary(room_id, session)}", "zork"
-            return True, self._game_room_summary(room_id, session), "zork"
-
     def _parse_command(self, text: str) -> tuple[str, list[str]] | None:
         raw = str(text or "").strip()
         if not raw:
@@ -676,10 +541,10 @@ class MeshResponseBot:
     ) -> Optional[str]:
         now_unix = int(self._now_unix_fn())
         if command in ("cmd", "help"):
-            custom_names = sorted(name for name in self._custom_commands.keys() if name)
-            custom_tail = f" | custom: {', '.join(custom_names)}" if custom_names else ""
-            zork_tail = " zork (p2p adventure)" if self._game_enabled else ""
-            return f"cmds: help whoami whois <id> whohas <name> ping [target] lheard{zork_tail}{custom_tail}"
+            tokens = self._enabled_command_usage_tokens()
+            if not tokens:
+                return "cmds: none enabled"
+            return f"cmds: {' '.join(tokens)}"
 
         if command == "whoami":
             if not local_node_id:
@@ -741,13 +606,14 @@ class MeshResponseBot:
                 return None
             tx_ms = int(self._now_unix_fn() * 1000)
             latency_ms = max(0, tx_ms - int(received_ms))
+            latency_text = _format_latency_label(latency_ms)
             hops = _packet_hops(packet)
             hops_text = f"{hops}" if hops is not None else "n/a"
             rx_unix = _to_int(packet.get("rxTime"))
             tx_unix = int(tx_ms / 1000)
             rx_text = _safe_strftime(rx_unix if rx_unix is not None else tx_unix)
             tx_text = _safe_strftime(tx_unix)
-            return f"pong {latency_ms}ms hops={hops_text} rx={rx_text} tx={tx_text}"
+            return f"pong {latency_text} hops={hops_text} rx={rx_text} tx={tx_text}"
 
         return None
 
@@ -851,16 +717,19 @@ class MeshResponseBot:
         channel_index = _to_int(packet.get("channel"))
         if channel_index is None or channel_index < 0:
             channel_index = 0
-        game_handled, game_reply_text, game_command = self._game_try_handle_message(
-            text=text,
-            from_id=from_id,
-            to_id=to_id,
-            local_node_id=local_node_id,
-            now_unix=now_unix,
-        )
+        with self._lock:
+            game_handled, game_reply_text, game_command = self._game.try_handle_message(
+                text=text,
+                from_id=from_id,
+                to_id=to_id,
+                local_node_id=local_node_id,
+                now_unix=now_unix,
+                enabled=self._game_enabled,
+            )
         if game_handled:
             command = game_command or "zork"
             args = [part for part in str(text or "").split()[1:] if part]
+            command_enabled = bool(self._game_enabled)
             reply_text = game_reply_text
         else:
             parsed = self._parse_command(text)
@@ -869,17 +738,21 @@ class MeshResponseBot:
             command, args = parsed
             if command not in STANDARD_BOT_COMMANDS and command not in self._custom_commands:
                 return
-            reply_text = self._build_reply(
-                command=command,
-                args=args,
-                from_id=from_id,
-                to_id=to_id,
-                local_node_id=local_node_id,
-                local_aliases=local_aliases,
-                nodes=nodes,
-                packet=packet,
-                received_ms=received_ms,
-            )
+            with self._lock:
+                command_enabled = self._command_enabled_locked(command)
+            reply_text = None
+            if command_enabled:
+                reply_text = self._build_reply(
+                    command=command,
+                    args=args,
+                    from_id=from_id,
+                    to_id=to_id,
+                    local_node_id=local_node_id,
+                    local_aliases=local_aliases,
+                    nodes=nodes,
+                    packet=packet,
+                    received_ms=received_ms,
+                )
         request_id = f"mesh-{_normalize_node_id(from_id) or 'unknown'}-{packet_id if packet_id is not None else received_unix}-{command}"
         request_entry = {
             "id": request_id,
@@ -887,6 +760,7 @@ class MeshResponseBot:
             "command": text,
             "command_head": command,
             "command_args": " ".join(args),
+            "command_enabled": bool(command_enabled),
             "from_id": _normalize_node_id(from_id),
             "to_id": _normalize_node_id(to_id) or "^all",
             "channel_index": channel_index,
@@ -981,6 +855,28 @@ def _load_custom_commands_from_env(env: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def _load_disabled_commands_from_env(env: dict[str, str]) -> list[str]:
+    raw = str(env.get("MESH_DASH_BOT_DISABLED_COMMANDS") or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            parsed = None
+        if isinstance(parsed, list):
+            return [
+                name
+                for name in (_normalize_command_name(value) for value in parsed)
+                if name
+            ]
+    return [
+        name
+        for name in (_normalize_command_name(value) for value in raw.replace(";", ",").split(","))
+        if name
+    ]
+
+
 def build_mesh_response_bot_from_env(
     *,
     send_chat_fn: Callable[..., dict[str, object]],
@@ -996,10 +892,12 @@ def build_mesh_response_bot_from_env(
         return None
     reply_broadcast = _parse_bool_token(env_map.get("MESH_DASH_BOT_REPLY_BROADCAST"), False)
     custom_commands = _load_custom_commands_from_env(env_map)
+    disabled_commands = _load_disabled_commands_from_env(env_map)
     return MeshResponseBot(
         send_chat_fn=send_chat_fn,
         get_local_node_id_fn=get_local_node_id_fn,
         custom_commands=custom_commands,
+        disabled_commands=disabled_commands,
         enabled=respond_enabled,
         log_enabled=log_enabled,
         game_enabled=game_enabled,
