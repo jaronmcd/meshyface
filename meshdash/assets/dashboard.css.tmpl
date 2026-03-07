@@ -5738,65 +5738,37 @@
       min-height: 0;
     }}
     .chat-send-channel-wrap {{
-      position: relative;
       flex: 0 1 156px;
       min-width: 96px;
       max-width: 196px;
-      border: 1px solid #9cc9ad;
+      height: 27px;
+      z-index: 48;
+      padding-left: 7px;
+      gap: 4px;
       border-radius: 8px;
       background: #e3f4ea;
-      color: #184a32;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 24px 0 10px;
-      height: 27px;
-      box-sizing: border-box;
-      white-space: nowrap;
-      cursor: pointer;
-    }}
-    .chat-send-channel-wrap::after {{
-      content: "▾";
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-52%);
-      font-size: 10px;
-      line-height: 1;
-      opacity: 0.76;
-      pointer-events: none;
+      border: 1px solid #9cc9ad;
     }}
     .chat-send-channel-wrap:hover {{
       background: #d7ecdf;
     }}
-    .chat-send-channel-wrap:focus-within {{
-      border-color: #82b797;
-      box-shadow: 0 0 0 1px rgba(130, 183, 151, 0.28);
-    }}
     .chat-send-channel-select {{
-      flex: 1 1 100%;
+      display: none;
+    }}
+    .chat-send-channel-menu-btn {{
       min-width: 0;
       width: 100%;
-      border: none;
-      background: transparent;
-      color: inherit;
-      font-size: 11px;
-      line-height: 1.2;
-      font-weight: 600;
-      padding: 0;
-      cursor: pointer;
-      appearance: none;
-      outline: none;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+      justify-content: flex-start;
+      text-align: left;
+      padding-left: 4px;
     }}
-    .chat-send-channel-select:disabled {{
-      cursor: default;
-      opacity: 0.7;
-    }}
-    .chat-send-channel-select option {{
-      color: #13241a;
-      background: #f8fcfa;
+    .chat-send-channel-menu {{
+      top: auto;
+      bottom: calc(100% + 6px);
+      left: 0;
+      right: auto;
+      min-width: max(100%, 180px);
+      z-index: 70;
     }}
     .chat-reply-context {{
       flex: 1 1 auto;
