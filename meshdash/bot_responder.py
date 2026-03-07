@@ -885,7 +885,7 @@ def build_mesh_response_bot_from_env(
     now_unix_fn: Callable[[], float] = time.time,
 ) -> Optional[MeshResponseBot]:
     env_map = env if isinstance(env, dict) else dict(os.environ)
-    respond_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_ENABLED"), True)
+    respond_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_ENABLED"), False)
     log_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_LOG_ENABLED"), True)
     game_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_GAME_ENABLED"), False)
     if not respond_enabled and not log_enabled:

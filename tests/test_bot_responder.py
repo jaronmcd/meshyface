@@ -154,6 +154,17 @@ def test_build_bot_from_env_can_disable_bot():
     assert bot.log_enabled is True
 
 
+def test_build_bot_from_env_defaults_bot_responses_to_disabled():
+    bot = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={},
+    )
+    assert bot is not None
+    assert bot.enabled is False
+    assert bot.log_enabled is True
+
+
 def test_build_bot_from_env_can_disable_bot_and_logging():
     bot = build_mesh_response_bot_from_env(
         send_chat_fn=lambda **_kwargs: {"ok": True},
@@ -346,6 +357,7 @@ def test_build_bot_from_env_can_enable_game_mode():
         env={"MESH_DASH_BOT_GAME_ENABLED": "1"},
     )
     assert bot is not None
+    assert bot.enabled is False
     assert bot.game_enabled is True
 
 
