@@ -20249,6 +20249,7 @@
       }};
 
       const rawMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const rawPackets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
       const computeMessageEndpoints = (msg) => {{
         const fromId = resolveMessageNodeId(msg && msg.from);
         const toId = resolveMessageNodeId((msg && msg.to) || (msg && msg.destination));
@@ -20257,6 +20258,7 @@
       let derived = null;
       if (chatDerivedCache
         && chatDerivedCache.rawMessagesRef === rawMessages
+        && chatDerivedCache.rawPacketsRef === rawPackets
         && chatDerivedCache.nodesRef === nodes
         && chatDerivedCache.historyCapsRef === historyCapsObj
         && chatDerivedCache.localNodeId === localNodeId
@@ -20271,6 +20273,7 @@
         const channelCountsLocal = {{ all: 0, direct: 0 }};
         const channelMessagesLocal = {{ all: [], direct: [] }};
         const directMessagesByPeerLocal = new Map();
+        const packetSummaryByIdLocal = new Map();
 
         const endpointsForBuild = (msg) => {{
           if (!msg || typeof msg !== "object") return {{ fromId: "", toId: "" }};
@@ -20280,6 +20283,24 @@
           messageEndpointsLocal.set(msg, resolved);
           return resolved;
         }};
+
+        for (const entry of rawPackets) {{
+          const summary = (entry && entry.summary && typeof entry.summary === "object")
+            ? entry.summary
+            : {{}};
+          const packet = (entry && entry.packet && typeof entry.packet === "object")
+            ? entry.packet
+            : {{}};
+          const packetId = parsePositiveMessageId(
+            summary.packet_id
+            ?? summary.message_id
+            ?? packet.id
+            ?? packet.packet_id
+            ?? packet.message_id
+          );
+          if (!packetId) continue;
+          packetSummaryByIdLocal.set(String(packetId), entry);
+        }}
 
         for (const msg of rawMessages) {{
           if (!messageMatchesActiveMeshChannel(msg)) {{
@@ -20353,6 +20374,7 @@
 
         derived = {{
           rawMessagesRef: rawMessages,
+          rawPacketsRef: rawPackets,
           nodesRef: nodes,
           historyCapsRef: historyCapsObj,
           localNodeId,
@@ -20360,6 +20382,7 @@
           reactionBuckets: reactionBucketsLocal,
           baseMessages: baseMessagesLocal,
           messageIndex: messageIndexLocal,
+          packetSummaryById: packetSummaryByIdLocal,
           messageEndpoints: messageEndpointsLocal,
           channelCounts: channelCountsLocal,
           channelMessages: channelMessagesLocal,
@@ -20370,6 +20393,7 @@
       const reactionBuckets = derived.reactionBuckets;
       const baseMessages = derived.baseMessages;
       const messageIndex = derived.messageIndex;
+      const packetSummaryById = derived.packetSummaryById;
       const messageEndpoints = derived.messageEndpoints;
       const channelCounts = derived.channelCounts;
       const channelMessages = derived.channelMessages;
@@ -20508,9 +20532,56 @@
               <span class="chat-reply-inline-text">${{escAttr(parentText)}}</span>
             </div>`;
           }} else {{
-            replyPreview = `<div class="chat-reply-inline missing" title="Reply to packet #${{replyToId}}">
-              <span class="chat-reply-inline-label">Replying to packet #${{replyToId}}</span>
-            </div>`;
+            const parentPacketEntry = packetSummaryById.get(String(replyToId));
+            if (parentPacketEntry && typeof parentPacketEntry === "object") {{
+              const parentSummary = (parentPacketEntry.summary && typeof parentPacketEntry.summary === "object")
+                ? parentPacketEntry.summary
+                : {{}};
+              const parentPacket = (parentPacketEntry.packet && typeof parentPacketEntry.packet === "object")
+                ? parentPacketEntry.packet
+                : {{}};
+              const parentDecoded = (parentPacket.decoded && typeof parentPacket.decoded === "object")
+                ? parentPacket.decoded
+                : {{}};
+              const parentEndpoints = packetEndpointIds(parentPacketEntry);
+              const parentUnix = latestUnixTimestamp(
+                parentSummary.rx_time_unix,
+                parentSummary.captured_at,
+                parentSummary.rx_time,
+                parentPacketEntry && (parentPacketEntry.captured_at || parentPacketEntry.rx_time),
+              );
+              const parentFromMeta = chatEndpointParts(parentEndpoints.fromId, parentUnix);
+              const parentSenderLabel = parentFromMeta.label || `packet #${{replyToId}}`;
+              const parentText = compactInlineMessage(
+                parentSummary.decoded_text ?? parentDecoded.text ?? "",
+                110
+              );
+              const parentChannelIndex = explicitPacketChannelIndex(parentPacketEntry);
+              const metaParts = [`Packet #${{replyToId}}`];
+              if (Number.isInteger(parentChannelIndex) && parentChannelIndex >= 0) {{
+                metaParts.push(meshChannelViewMenuLabel(parentChannelIndex));
+              }}
+              const parentTimeRaw = String(parentSummary.rx_time || parentSummary.captured_at || "").trim();
+              if (parentTimeRaw) {{
+                metaParts.push(formatLocalChatTime(parentUnix, parentTimeRaw, nowUnix));
+              }}
+              if (!parentText) {{
+                metaParts.push("original text not retained");
+              }}
+              const parentTextMarkup = parentText
+                ? `<span class="chat-reply-inline-text">${{escAttr(parentText)}}</span>`
+                : "";
+              replyPreview = `<div class="chat-reply-inline missing" title="Reply to packet #${{replyToId}}">
+                <span class="chat-reply-inline-label">Replying to ${{escAttr(parentSenderLabel)}}</span>
+                ${{parentTextMarkup}}
+                <span class="chat-reply-inline-meta">${{escAttr(metaParts.join(" • "))}}</span>
+              </div>`;
+            }} else {{
+              replyPreview = `<div class="chat-reply-inline missing" title="Reply to packet #${{replyToId}}">
+                <span class="chat-reply-inline-label">Replying to packet #${{replyToId}}</span>
+                <span class="chat-reply-inline-meta">Original packet not retained locally.</span>
+              </div>`;
+            }}
           }}
         }}
         const messageReactions = messageId ? reactionBuckets.get(String(messageId)) : null;
