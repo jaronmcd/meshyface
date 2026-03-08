@@ -2169,6 +2169,7 @@
     let consoleCommandDraft = "";
     let consoleRunningCommand = null;
     let consoleLiveModeActive = false;
+    let consoleLiveVerbosity = 0;
     let consoleEventCounter = 0;
     let fitDone = false;
     let mapBootstrapFocusDone = false;
@@ -13186,22 +13187,35 @@
       }});
       registerConsoleCommand({{
         name: "live",
-        usage: "live",
-        description: "Stream live packet lines until Ctrl+C.",
-        run: () => {{
+        usage: "live [-v|-vv|-vvv|-vvvv]",
+        description: "Stream live packet lines until Ctrl+C with optional extra detail.",
+        run: (ctx) => {{
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const verbosityTokens = args.filter((token) => /^-v{1,4}$/i.test(String(token || "").trim()));
+          const invalidArgs = args.filter((token) => !/^-v{1,4}$/i.test(String(token || "").trim()));
+          if (invalidArgs.length) {{
+            return `[live] unknown argument(s): ${{invalidArgs.join(", ")}}`;
+          }}
+          const verbosity = verbosityTokens.reduce((max, token) => {{
+            const count = String(token || "").trim().length - 1;
+            return Math.max(max, Math.min(4, Math.max(0, count)));
+          }}, 0);
           if (consoleLiveModeActive) {{
             return "[live] already running. Press Ctrl+C to stop.";
           }}
+          consoleLiveVerbosity = verbosity;
           consoleLiveModeActive = true;
           startConsoleRunningCommand("live", (reason, emitStatus) => {{
             consoleLiveModeActive = false;
+            consoleLiveVerbosity = 0;
             if (emitStatus) {{
               appendConsoleEventLine(`[live] stopped (${{String(reason || "done")}}).`);
             }}
             renderConsoleBuffer(true);
           }});
           renderConsole((latestState && latestState.traffic) || {{}});
-          return "[live] streaming packet traffic. Press Ctrl+C to stop.";
+          const verbosityLabel = verbosity > 0 ? ` verbosity=-${{"v".repeat(verbosity)}}` : "";
+          return `[live] streaming packet traffic.${{verbosityLabel}} Press Ctrl+C to stop.`;
         }},
       }});
       registerConsoleCommand({{
@@ -13294,7 +13308,7 @@
       }});
     }}
 
-    function formatConsoleLine(entry) {{
+    function formatConsoleLine(entry, verbosity = 0) {{
       const s = entry.summary || {{}};
       const packet = entry && entry.packet && typeof entry.packet === "object"
         ? entry.packet
@@ -13358,6 +13372,15 @@
           return "";
         }}
       }})();
+      const summaryPreview = (() => {{
+        try {{
+          const cleaned = sanitizeConsolePreviewValue(s);
+          const json = JSON.stringify(cleaned || {{}});
+          return compactConsoleFragment(json);
+        }} catch (_err) {{
+          return "";
+        }}
+      }})();
       const parts = [
         `${{s.from || "n/a"}} -> ${{s.to || "n/a"}}`,
         `port=${{s.portnum || "n/a"}}`,
@@ -13368,8 +13391,58 @@
       if (channel !== "") parts.push(`ch=${{channel}}`);
       if (packetId !== "") parts.push(`id=${{packetId}}`);
       if (textSnippet) parts.push(`text=\"${{textSnippet.replace(/\"/g, "'")}}\"`);
-      if (packetPreview) parts.push(`pkt=${{packetPreview}}`);
-      return parts.join(" ");
+      const lines = [parts.join(" ")];
+      if (verbosity >= 1 && packetPreview) {{
+        lines.push(`  pkt=${{packetPreview}}`);
+      }}
+      if (verbosity >= 2 && summaryPreview) {{
+        lines.push(`  summary=${{summaryPreview}}`);
+        const rawPayload = String(s.payload_hex ?? packet.payload ?? "").trim();
+        const routeParts = [];
+        if (s.hop_start != null) routeParts.push(`hop_start=${{s.hop_start}}`);
+        if (s.hop_limit != null) routeParts.push(`hop_limit=${{s.hop_limit}}`);
+        if (s.priority != null) routeParts.push(`priority=${{s.priority}}`);
+        if (s.want_ack != null) routeParts.push(`want_ack=${{s.want_ack}}`);
+        if (routeParts.length) {{
+          lines.push(`  route=${{routeParts.join(" ")}}`);
+        }}
+        if (rawPayload) {{
+          lines.push(`  payload=${{compactConsoleFragment(rawPayload, 220)}}`);
+        }}
+      }}
+      if (verbosity >= 3) {{
+        let prettyJson = "";
+        try {{
+          prettyJson = JSON.stringify(sanitizeConsolePreviewValue(entry ?? {{}}), null, 2) || "";
+        }} catch (_err) {{
+          try {{
+            prettyJson = JSON.stringify(sanitizeConsolePreviewValue(s ?? {{}}), null, 2) || "";
+          }} catch (_err2) {{
+            prettyJson = "";
+          }}
+        }}
+        if (prettyJson) {{
+          lines.push("  json=");
+          for (const jsonLine of String(prettyJson).split("\n")) {{
+            lines.push(`    ${{jsonLine}}`);
+          }}
+        }}
+      }}
+      if (verbosity >= 4) {{
+        let rawJson = "";
+        try {{
+          rawJson = JSON.stringify(entry ?? {{}}, null, 2) || "";
+        }} catch (_err) {{
+          rawJson = "";
+        }}
+        if (rawJson) {{
+          lines.push("  raw=");
+          for (const jsonLine of String(rawJson).split("\n")) {{
+            lines.push(`    ${{jsonLine}}`);
+          }}
+        }}
+      }}
+      return lines;
     }}
 
     function formatConsoleTimestamp(msValue) {{
@@ -13545,7 +13618,7 @@
       }}
       syncConsoleCommandInputState();
       if (!consoleLines.length) {{
-        appendConsoleEventLine("[console] type \"help\" for commands. Start live stream with \"live\".");
+        appendConsoleEventLine("[console] type \"help\" for commands. Start live stream with \"live\", \"live -v\", \"live -vv\", \"live -vvv\", or \"live -vvvv\".");
       }}
     }}
 
@@ -13559,7 +13632,11 @@
           const packetMs = Number.isFinite(packetUnix) && packetUnix > 0
             ? packetUnix * 1000
             : Date.now();
-          appendConsoleLine(key, formatConsoleLine(entry), packetMs);
+          const lines = formatConsoleLine(entry, consoleLiveVerbosity);
+          const lineList = Array.isArray(lines) ? lines : [String(lines == null ? "" : lines)];
+          lineList.forEach((line, index) => {{
+            appendConsoleLine(`${{key}}|${{index}}`, line, packetMs);
+          }});
         }}
       }}
       renderConsoleBuffer();

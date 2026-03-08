@@ -73,8 +73,10 @@ def test_ping_targeted_to_local_suffix_replies_with_pong():
     assert sent[0]["reply_id"] == 1001
     assert sent[0]["channel_index"] == 0
     assert "pong" in str(sent[0]["text"]).lower()
-    assert "hops=" in str(sent[0]["text"]).lower()
+    assert "hop " in str(sent[0]["text"]).lower()
     assert "6.0s" in str(sent[0]["text"]).lower()
+    assert "rx=" not in str(sent[0]["text"]).lower()
+    assert "tx=" not in str(sent[0]["text"]).lower()
 
 
 def test_ping_targeted_to_other_suffix_is_ignored():

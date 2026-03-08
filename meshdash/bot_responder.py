@@ -675,12 +675,8 @@ class MeshResponseBot:
             latency_ms = max(0, tx_ms - int(received_ms))
             latency_text = _format_latency_label(latency_ms)
             hops = _packet_hops(packet)
-            hops_text = f"{hops}" if hops is not None else "n/a"
-            rx_unix = _to_int(packet.get("rxTime"))
-            tx_unix = int(tx_ms / 1000)
-            rx_text = _safe_strftime(rx_unix if rx_unix is not None else tx_unix)
-            tx_text = _safe_strftime(tx_unix)
-            return f"pong {latency_text} hops={hops_text} rx={rx_text} tx={tx_text}"
+            hop_text = f"hop {hops}" if hops is not None else "hop n/a"
+            return f"pong {latency_text} {hop_text}"
 
         return None
 
