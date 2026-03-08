@@ -13,6 +13,11 @@ from .bot_commands import (
 )
 from .bot_apps.base import BotApp
 from .bot_apps.registry import build_builtin_bot_apps
+from .bot_settings_store import (
+    DEFAULT_BOT_SETTINGS_FILE,
+    load_persisted_bot_settings,
+    save_persisted_bot_settings,
+)
 from .helpers import to_int as _to_int
 
 STANDARD_BOT_COMMANDS = _STANDARD_BOT_COMMANDS
@@ -272,6 +277,7 @@ class MeshResponseBot:
         log_enabled: bool = True,
         game_enabled: bool = False,
         reply_broadcast: bool = False,
+        settings_path: Optional[str] = None,
         now_unix_fn: Callable[[], float] = time.time,
     ) -> None:
         self._send_chat_fn = send_chat_fn
@@ -279,6 +285,7 @@ class MeshResponseBot:
         self._enabled = bool(enabled)
         self._log_enabled = bool(log_enabled)
         self._reply_broadcast = bool(reply_broadcast)
+        self._settings_path = str(settings_path).strip() if settings_path else None
         self._now_unix_fn = now_unix_fn
         self._custom_commands = {
             _normalize_command_name(name): str(template or "").strip()
@@ -468,6 +475,14 @@ class MeshResponseBot:
             "commands": self._managed_command_rows_locked(),
         }
 
+    def _persistable_bot_settings_locked(self) -> dict[str, object]:
+        return {
+            "enabled": bool(self._enabled),
+            "log_enabled": bool(self._log_enabled),
+            "game_enabled": bool(self._bot_app_enabled.get("zork")),
+            "disabled_commands": sorted(self._disabled_commands),
+        }
+
     def bot_settings(self) -> dict[str, object]:
         with self._lock:
             return dict(self._bot_settings_locked())
@@ -490,7 +505,11 @@ class MeshResponseBot:
             if command_settings:
                 self._apply_command_settings_locked(command_settings)
             out = self._bot_settings_locked()
+            persist_payload = self._persistable_bot_settings_locked()
+        persist_error = save_persisted_bot_settings(self._settings_path, persist_payload)
         out["ok"] = True
+        if persist_error:
+            out["persist_error"] = persist_error
         return out
 
     def _remember_packet_id(self, from_id: str, packet_id: Optional[int]) -> bool:
@@ -983,6 +1002,16 @@ def _default_disabled_commands() -> list[str]:
     ]
 
 
+def _resolve_bot_settings_path(env: Optional[dict[str, str]]) -> Optional[str]:
+    if isinstance(env, dict):
+        if "MESH_DASH_BOT_SETTINGS_FILE" in env:
+            clean = str(env.get("MESH_DASH_BOT_SETTINGS_FILE") or "").strip()
+            return clean or None
+        return None
+    raw = str(os.environ.get("MESH_DASH_BOT_SETTINGS_FILE") or "").strip()
+    return raw or DEFAULT_BOT_SETTINGS_FILE
+
+
 def build_mesh_response_bot_from_env(
     *,
     send_chat_fn: Callable[..., dict[str, object]],
@@ -991,15 +1020,35 @@ def build_mesh_response_bot_from_env(
     now_unix_fn: Callable[[], float] = time.time,
 ) -> Optional[MeshResponseBot]:
     env_map = env if isinstance(env, dict) else dict(os.environ)
-    respond_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_ENABLED"), False)
-    log_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_LOG_ENABLED"), True)
-    game_enabled = _parse_bool_token(env_map.get("MESH_DASH_BOT_GAME_ENABLED"), True)
+    settings_path = _resolve_bot_settings_path(env)
+    persisted = load_persisted_bot_settings(settings_path)
+    respond_enabled = (
+        _parse_bool_token(env_map.get("MESH_DASH_BOT_ENABLED"), False)
+        if "MESH_DASH_BOT_ENABLED" in env_map
+        else bool(persisted.get("enabled", False))
+    )
+    log_enabled = (
+        _parse_bool_token(env_map.get("MESH_DASH_BOT_LOG_ENABLED"), True)
+        if "MESH_DASH_BOT_LOG_ENABLED" in env_map
+        else bool(persisted.get("log_enabled", True))
+    )
+    game_enabled = (
+        _parse_bool_token(env_map.get("MESH_DASH_BOT_GAME_ENABLED"), True)
+        if "MESH_DASH_BOT_GAME_ENABLED" in env_map
+        else bool(persisted.get("game_enabled", True))
+    )
     if not respond_enabled and not log_enabled:
         return None
     reply_broadcast = _parse_bool_token(env_map.get("MESH_DASH_BOT_REPLY_BROADCAST"), False)
     custom_commands = _load_custom_commands_from_env(env_map)
     if "MESH_DASH_BOT_DISABLED_COMMANDS" in env_map:
         disabled_commands = _load_disabled_commands_from_env(env_map)
+    elif isinstance(persisted.get("disabled_commands"), list):
+        disabled_commands = [
+            name
+            for name in (_normalize_command_name(value) for value in persisted.get("disabled_commands", []))
+            if name
+        ]
     else:
         disabled_commands = _default_disabled_commands()
     return MeshResponseBot(
@@ -1011,6 +1060,7 @@ def build_mesh_response_bot_from_env(
         log_enabled=log_enabled,
         game_enabled=game_enabled,
         reply_broadcast=reply_broadcast,
+        settings_path=settings_path,
         now_unix_fn=now_unix_fn,
     )
 

@@ -1,3 +1,5 @@
+import json
+
 from meshdash.bot_responder import MeshResponseBot, build_mesh_response_bot_from_env
 
 
@@ -396,3 +398,75 @@ def test_build_bot_from_env_empty_disabled_commands_enables_full_catalog():
     assert rows["zork"]["enabled"] is True
     assert rows["cmd"]["enabled"] is True
     assert rows["whois"]["enabled"] is True
+
+
+def test_bot_settings_are_persisted_and_loaded_from_file(tmp_path):
+    settings_path = tmp_path / "bot_settings.json"
+
+    bot = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={"MESH_DASH_BOT_SETTINGS_FILE": str(settings_path)},
+    )
+    assert bot is not None
+
+    saved = bot.configure(
+        enabled=True,
+        game_enabled=False,
+        command_settings={"whois": True},
+    )
+    assert saved["ok"] is True
+    assert settings_path.exists()
+
+    payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert payload["enabled"] is True
+    assert payload["game_enabled"] is False
+    assert "whois" not in payload["disabled_commands"]
+    assert "cmd" in payload["disabled_commands"]
+
+    loaded = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={"MESH_DASH_BOT_SETTINGS_FILE": str(settings_path)},
+    )
+    assert loaded is not None
+    assert loaded.enabled is True
+    assert loaded.game_enabled is False
+
+    rows = {row["name"]: row for row in loaded.bot_settings()["commands"]}
+    assert rows["ping"]["enabled"] is True
+    assert rows["zork"]["enabled"] is False
+    assert rows["whois"]["enabled"] is True
+    assert rows["cmd"]["enabled"] is False
+
+
+def test_explicit_env_bot_settings_override_persisted_file(tmp_path):
+    settings_path = tmp_path / "bot_settings.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "log_enabled": True,
+                "game_enabled": False,
+                "disabled_commands": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    bot = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={
+            "MESH_DASH_BOT_SETTINGS_FILE": str(settings_path),
+            "MESH_DASH_BOT_ENABLED": "0",
+            "MESH_DASH_BOT_DISABLED_COMMANDS": "ping",
+        },
+    )
+    assert bot is not None
+    assert bot.enabled is False
+    settings = bot.bot_settings()
+    rows = {row["name"]: row for row in settings["commands"]}
+    assert rows["ping"]["enabled"] is False
+    assert rows["whois"]["enabled"] is True
+    assert rows["zork"]["enabled"] is False
