@@ -1,13 +1,13 @@
 # Ideas Backlog
 
-- hand off zork
-- make ping reply with name
-- zork in chat kicks off a PM with the firm prompt, do we have or need a timeout?
+
+- who does ch 0 say private?
+- move channel config to channels, give setting tabs
 - fix deselected channel notifaction
 - put channels in tabs w/ notifaction totalss (N)
 - quick reply popups, with hops, top 5 emojie, etc?
-- give setting tabs
 
+- zork in chat kicks off a PM with the firm prompt, do we have or need a timeout?
 
 - Ability to send a direct message by manually entering a Node ID (when only the Node ID is known).
 - Ability to add a favorite by manually entering a Node ID.
