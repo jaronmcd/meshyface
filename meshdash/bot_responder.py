@@ -34,7 +34,7 @@ _NATURAL_PING_PREFIXES = (
 )
 _CHAT_TOO_LONG_RE = re.compile(r"Message is too long \((\d+) bytes\)\. Limit is (\d+) bytes\.")
 _REPLY_PACKET_TEXT_RESERVE_BYTES = 20
-_DEFAULT_SEGMENT_DELAY_SECONDS = 0.35
+_DEFAULT_SEGMENT_DELAY_SECONDS = 1.5
 
 
 def _parse_bool_token(value: object, default: bool) -> bool:
