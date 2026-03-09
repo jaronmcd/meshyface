@@ -5150,6 +5150,9 @@
         chatStickToBottom = isNearBottom(scroller);
         syncChatChangeAutoDismiss();
       }});
+      scroller.addEventListener("mouseup", () => {{
+        void copyChatSelectionToClipboard();
+      }});
     }}
 
     function bytesToGiB(value) {{
@@ -13463,11 +13466,10 @@
       return false;
     }}
 
-    async function copyConsoleSelectionToClipboard() {{
-      const pre = document.getElementById("live-console");
-      if (!(pre instanceof HTMLElement)) return false;
+    async function copySelectionToClipboardWithin(element) {{
+      if (!(element instanceof HTMLElement)) return false;
       const selection = window.getSelection ? window.getSelection() : null;
-      if (!selectionIntersectsElement(selection, pre)) return false;
+      if (!selectionIntersectsElement(selection, element)) return false;
       const text = String(selection ? selection.toString() : "").trim();
       if (!text) return false;
       try {{
@@ -13480,6 +13482,16 @@
       }} catch (_err) {{
         return false;
       }}
+    }}
+
+    async function copyConsoleSelectionToClipboard() {{
+      const pre = document.getElementById("live-console");
+      return copySelectionToClipboardWithin(pre instanceof HTMLElement ? pre : null);
+    }}
+
+    async function copyChatSelectionToClipboard() {{
+      const feed = document.getElementById("chat-feed");
+      return copySelectionToClipboardWithin(feed instanceof HTMLElement ? feed : null);
     }}
 
     function startConsoleRunningCommand(name, onStop = null) {{

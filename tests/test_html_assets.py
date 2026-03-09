@@ -52,9 +52,11 @@ def test_build_dashboard_js_injects_runtime_values():
     assert "const promptLabel = runningName" in js
     assert "const terminalScreen = document.getElementById(\"console-terminal-screen\");" in js
     assert "async function copyConsoleSelectionToClipboard()" in js
+    assert "async function copyChatSelectionToClipboard()" in js
     assert "navigator.clipboard.writeText(text);" in js
     assert "selection.removeAllRanges();" in js
     assert "pre.addEventListener(\"mouseup\", () => {" in js
+    assert "void copyChatSelectionToClipboard();" in js
     assert "function bindHistoryChatRowClicks()" in js
     assert "\"from-node-id\": fromNodeId" in js
     assert "className: isSelectableNodeId(fromNodeId) ? \"history-node-clickable\" : \"\"" in js
