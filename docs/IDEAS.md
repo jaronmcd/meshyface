@@ -1,11 +1,11 @@
 # Ideas Backlog
 
-- make our chats look differant
-- why does ch 0 say private?
+
 - move channel config to channels, give setting tabs
 - fix deselected channel notifaction
 - put channels in tabs w/ notifaction totalss (N)
 - quick reply popups, with hops, top 5 emojie, etc?
+- make our chats look differant
 
 - zork in chat kicks off a PM with the firm prompt, do we have or need a timeout?
 
