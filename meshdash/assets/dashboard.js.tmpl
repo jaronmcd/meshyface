@@ -203,6 +203,7 @@
     const chatBotHistoryEnabledStorageKey = "meshDashboardBotHistoryEnabledV1";
     const botRequestLogStorageKey = "meshDashboardBotRequestLogV1";
     const botTrafficSnifferCommandsStorageKey = "meshDashboardBotTrafficSnifferCommandsV1";
+    const reversiStateStorageKey = "meshDashboardReversiStateV1";
     const chatChangeLogStorageKey = "meshDashboardChatChangeLogV1";
     const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
     const meshChannelSendIndexStorageKey = "meshDashboardMeshChannelSendIndexV1";
@@ -2119,7 +2120,18 @@
       "encription-traffic-table": {{ index: 2, dir: "desc" }},
     }};
     const wheelActivationLeaseMs = 1400;
-    const knownLayoutViews = new Set(["chat", "bots", "history", "network", "saved", "packets", "channels", "encription", "data", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "bots", "games", "history", "network", "saved", "packets", "channels", "encription", "data", "console", "settings"]);
+    const reversiBoardSize = 8;
+    const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
+    const reversiDirections = Object.freeze([
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],            [0, 1],
+      [1, -1],  [1, 0],   [1, 1],
+    ]);
+    const reversiProtocolVersion = "rv1";
+    const reversiMaxSeenNetworkMessages = 2400;
+    const reversiInviteMaxRows = 6;
+    const reversiInviteStaleSeconds = 15 * 60;
     const knownChatChannels = new Set(["all", "direct"]);
     const meshChannelAllIndex = -1;
     const meshChannelColorPalette = [
@@ -2255,6 +2267,25 @@
     let favoriteMenuOpen = false;
     let selfRadioMenuOpen = false;
     let activeLayoutView = "chat";
+    let activeGameId = "reversi";
+    let reversiState = null;
+    let reversiLegalMoves = [];
+    let reversiLegalMoveMap = new Map();
+    let reversiPeerId = "";
+    let reversiPendingInvites = [];
+    let reversiSeenNetworkMessageKeys = new Set();
+    let reversiSeenNetworkMessageOrder = [];
+    let reversiLink = {{
+      mode: "local",
+      role: "",
+      session_id: "",
+      peer_id: "",
+      local_color: reversiPiece.black,
+      remote_color: reversiPiece.white,
+      local_move_seq: 0,
+      remote_move_seq: 0,
+      status: "Local hotseat mode.",
+    }};
     let activeChatChannel = "all";
     let chatNotificationScope = "all";
     let chatWhoisQuickActionEnabled = true;
@@ -7605,6 +7636,997 @@
       }}
     }}
 
+    function reversiOpponent(player) {{
+      return Number(player) === reversiPiece.white ? reversiPiece.black : reversiPiece.white;
+    }}
+
+    function reversiPlayerLabel(player) {{
+      return Number(player) === reversiPiece.white ? "White" : "Black";
+    }}
+
+    function reversiCellLabel(row, col) {{
+      const file = String.fromCharCode(65 + Math.max(0, Math.min(7, Math.trunc(Number(col) || 0))));
+      const rank = Math.max(1, Math.min(8, Math.trunc(Number(row) || 0) + 1));
+      return `${{file}}${{rank}}`;
+    }}
+
+    function createReversiLinkState(overrides = {{}}) {{
+      const mode = String(overrides.mode || "local").trim().toLowerCase();
+      const role = String(overrides.role || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(overrides.peer_id ?? overrides.peerId ?? "");
+      return {{
+        mode: mode === "connected" || mode === "pending_host" ? mode : "local",
+        role: role === "host" || role === "guest" ? role : "",
+        session_id: String(overrides.session_id ?? overrides.sessionId ?? "").trim().toLowerCase(),
+        peer_id: isCanonicalNodeId(peerId) ? peerId : "",
+        local_color: Number(overrides.local_color) === reversiPiece.white ? reversiPiece.white : reversiPiece.black,
+        remote_color: Number(overrides.remote_color) === reversiPiece.black ? reversiPiece.black : reversiPiece.white,
+        local_move_seq: Math.max(0, Math.trunc(Number(overrides.local_move_seq) || 0)),
+        remote_move_seq: Math.max(0, Math.trunc(Number(overrides.remote_move_seq) || 0)),
+        status: String(overrides.status || "Local hotseat mode.").trim().slice(0, 220) || "Local hotseat mode.",
+      }};
+    }}
+
+    function updateReversiLinkStatus(statusText) {{
+      if (!reversiLink || typeof reversiLink !== "object") {{
+        reversiLink = createReversiLinkState();
+      }}
+      reversiLink.status = String(statusText || "").trim().slice(0, 220) || "Local hotseat mode.";
+    }}
+
+    function resetReversiNetworkLink(
+      statusText = "Local hotseat mode.",
+      {{ keepPeer = true }} = {{}}
+    ) {{
+      const preservedPeer = keepPeer ? normalizeNodeId(reversiLink && reversiLink.peer_id) : "";
+      reversiLink = createReversiLinkState({{
+        status: statusText,
+        peer_id: preservedPeer,
+      }});
+      if (isCanonicalNodeId(preservedPeer)) {{
+        reversiPeerId = preservedPeer;
+      }}
+    }}
+
+    function reversiIsNetworkLinked() {{
+      return !!(
+        reversiLink
+        && reversiLink.mode === "connected"
+        && isCanonicalNodeId(reversiLink.peer_id)
+        && String(reversiLink.session_id || "").trim()
+      );
+    }}
+
+    function generateReversiSessionId() {{
+      const now = Date.now().toString(36);
+      const rand = Math.random().toString(36).slice(2, 8);
+      return `${{now}}${{rand}}`.slice(0, 16);
+    }}
+
+    function encodeReversiProtocolMessage(type, ...fields) {{
+      const cleanType = String(type || "").trim().toLowerCase();
+      if (!cleanType) return "";
+      const encoded = [reversiProtocolVersion, cleanType];
+      for (const field of fields) {{
+        encoded.push(
+          String(field == null ? "" : field)
+            .trim()
+            .replace(/\|/g, "")
+        );
+      }}
+      return encoded.join("|");
+    }}
+
+    function parseReversiProtocolMessage(text) {{
+      const raw = String(text || "").trim();
+      if (!raw) return null;
+      if (!raw.startsWith(`${{reversiProtocolVersion}}|`)) return null;
+      const parts = raw.split("|").map((part) => String(part || "").trim());
+      if (parts.length < 2) return null;
+      const type = String(parts[1] || "").trim().toLowerCase();
+      if (!type) return null;
+      return {{
+        raw,
+        type,
+        parts,
+      }};
+    }}
+
+    function rememberReversiNetworkMessage(key) {{
+      const clean = String(key || "").trim();
+      if (!clean || reversiSeenNetworkMessageKeys.has(clean)) return false;
+      reversiSeenNetworkMessageKeys.add(clean);
+      reversiSeenNetworkMessageOrder.push(clean);
+      if (reversiSeenNetworkMessageOrder.length > reversiMaxSeenNetworkMessages) {{
+        while (reversiSeenNetworkMessageOrder.length > Math.floor(reversiMaxSeenNetworkMessages * 0.72)) {{
+          const stale = reversiSeenNetworkMessageOrder.shift();
+          if (stale) reversiSeenNetworkMessageKeys.delete(stale);
+        }}
+      }}
+      return true;
+    }}
+
+    function reversiInviteKey(fromId, sessionId) {{
+      return `${{normalizeNodeId(fromId)}}|${{String(sessionId || "").trim().toLowerCase()}}`;
+    }}
+
+    function registerReversiPendingInvite({{
+      from_id = "",
+      session_id = "",
+      received_unix = Math.floor(Date.now() / 1000),
+    }} = {{}}) {{
+      const fromId = normalizeNodeId(from_id);
+      const sessionId = String(session_id || "").trim().toLowerCase();
+      if (!isCanonicalNodeId(fromId) || !sessionId) return;
+      const nextRows = [];
+      const targetKey = reversiInviteKey(fromId, sessionId);
+      let replaced = false;
+      for (const row of (Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [])) {{
+        if (!row || typeof row !== "object") continue;
+        const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+        const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+        if (!isCanonicalNodeId(rowFrom) || !rowSession) continue;
+        const rowKey = reversiInviteKey(rowFrom, rowSession);
+        if (rowKey === targetKey) {{
+          nextRows.push({{
+            from_id: fromId,
+            session_id: sessionId,
+            received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+          }});
+          replaced = true;
+          continue;
+        }}
+        nextRows.push({{
+          from_id: rowFrom,
+          session_id: rowSession,
+          received_unix: Math.max(0, Math.trunc(Number(row.received_unix ?? row.receivedUnix) || 0)),
+        }});
+      }}
+      if (!replaced) {{
+        nextRows.push({{
+          from_id: fromId,
+          session_id: sessionId,
+          received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+        }});
+      }}
+      const nowUnix = Math.floor(Date.now() / 1000);
+      nextRows.sort((a, b) => (Number(b.received_unix) || 0) - (Number(a.received_unix) || 0));
+      reversiPendingInvites = nextRows
+        .filter((row) => (nowUnix - (Number(row.received_unix) || 0)) <= reversiInviteStaleSeconds)
+        .slice(0, reversiInviteMaxRows);
+      if (!isCanonicalNodeId(reversiPeerId)) {{
+        reversiPeerId = fromId;
+      }}
+    }}
+
+    function removeReversiPendingInvite(fromId, sessionId = "") {{
+      const cleanFrom = normalizeNodeId(fromId);
+      const cleanSession = String(sessionId || "").trim().toLowerCase();
+      reversiPendingInvites = (Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [])
+        .filter((row) => {{
+          if (!row || typeof row !== "object") return false;
+          const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+          const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+          if (!isCanonicalNodeId(rowFrom) || !rowSession) return false;
+          if (rowFrom !== cleanFrom) return true;
+          if (!cleanSession) return false;
+          return rowSession !== cleanSession;
+        }});
+    }}
+
+    function reversiPendingInviteChoice() {{
+      const rows = Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [];
+      if (rows.length < 1) return null;
+      const selectedPeer = normalizeNodeId(reversiPeerId);
+      if (isCanonicalNodeId(selectedPeer)) {{
+        const preferred = rows.find((row) => normalizeNodeId(row && row.from_id) === selectedPeer);
+        if (preferred) return preferred;
+      }}
+      return rows[0] || null;
+    }}
+
+    async function sendReversiProtocolMessage(
+      type,
+      fields = [],
+      {{
+        destination_id = "",
+        channel_index = null,
+      }} = {{}}
+    ) {{
+      const destinationId = normalizeNodeId(destination_id);
+      if (!isCanonicalNodeId(destinationId)) {{
+        updateReversiLinkStatus("Pick a valid peer node ID first.");
+        return false;
+      }}
+      const encoded = encodeReversiProtocolMessage(type, ...(Array.isArray(fields) ? fields : []));
+      if (!encoded) {{
+        updateReversiLinkStatus("Could not encode Reversi network payload.");
+        return false;
+      }}
+      const channelIndex = normalizeMeshChannelIndex(
+        channel_index == null ? activeMeshSendChannelIndex : channel_index
+      );
+      const payload = await sendChatPayload(
+        {{
+          text: encoded,
+          destination: destinationId,
+          channel_index: channelIndex,
+        }},
+        null
+      );
+      if (!payload || payload.ok !== true) {{
+        updateReversiLinkStatus("Failed to send Reversi network payload.");
+        return false;
+      }}
+      return true;
+    }}
+
+    function createEmptyReversiBoard() {{
+      return Array.from({{ length: reversiBoardSize }}, () => (
+        Array.from({{ length: reversiBoardSize }}, () => reversiPiece.empty)
+      ));
+    }}
+
+    function cloneReversiBoard(board) {{
+      if (!Array.isArray(board)) return createEmptyReversiBoard();
+      return board.map((row) => (
+        Array.isArray(row)
+          ? row.map((cell) => {{
+              const value = Math.trunc(Number(cell) || 0);
+              return value === reversiPiece.black || value === reversiPiece.white ? value : reversiPiece.empty;
+            }})
+          : Array.from({{ length: reversiBoardSize }}, () => reversiPiece.empty)
+      ));
+    }}
+
+    function createInitialReversiBoard() {{
+      const board = createEmptyReversiBoard();
+      board[3][3] = reversiPiece.white;
+      board[3][4] = reversiPiece.black;
+      board[4][3] = reversiPiece.black;
+      board[4][4] = reversiPiece.white;
+      return board;
+    }}
+
+    function inReversiBounds(row, col) {{
+      const r = Math.trunc(Number(row) || 0);
+      const c = Math.trunc(Number(col) || 0);
+      return r >= 0 && r < reversiBoardSize && c >= 0 && c < reversiBoardSize;
+    }}
+
+    function collectReversiFlips(board, row, col, player) {{
+      if (!inReversiBounds(row, col)) return [];
+      const activePlayer = Number(player) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      if (Number(board[row][col] || 0) !== reversiPiece.empty) return [];
+      const enemy = reversiOpponent(activePlayer);
+      const allFlips = [];
+      for (const [dr, dc] of reversiDirections) {{
+        let r = row + dr;
+        let c = col + dc;
+        const directional = [];
+        while (inReversiBounds(r, c) && Number(board[r][c] || 0) === enemy) {{
+          directional.push([r, c]);
+          r += dr;
+          c += dc;
+        }}
+        if (directional.length < 1) continue;
+        if (!inReversiBounds(r, c)) continue;
+        if (Number(board[r][c] || 0) !== activePlayer) continue;
+        allFlips.push(...directional);
+      }}
+      return allFlips;
+    }}
+
+    function collectReversiLegalMoves(board, player) {{
+      const activePlayer = Number(player) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      const moves = [];
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          if (Number(board[row][col] || 0) !== reversiPiece.empty) continue;
+          const flips = collectReversiFlips(board, row, col, activePlayer);
+          if (flips.length < 1) continue;
+          moves.push({{ row, col, flips }});
+        }}
+      }}
+      return moves;
+    }}
+
+    function rebuildReversiLegalMap(moves) {{
+      const map = new Map();
+      for (const move of (Array.isArray(moves) ? moves : [])) {{
+        if (!move || typeof move !== "object") continue;
+        const row = Math.trunc(Number(move.row) || 0);
+        const col = Math.trunc(Number(move.col) || 0);
+        if (!inReversiBounds(row, col)) continue;
+        map.set(`${{row}},${{col}}`, Array.isArray(move.flips) ? move.flips : []);
+      }}
+      return map;
+    }}
+
+    function countReversiPieces(board) {{
+      let black = 0;
+      let white = 0;
+      for (const row of (Array.isArray(board) ? board : [])) {{
+        if (!Array.isArray(row)) continue;
+        for (const cell of row) {{
+          const value = Number(cell) || 0;
+          if (value === reversiPiece.black) {{
+            black += 1;
+          }} else if (value === reversiPiece.white) {{
+            white += 1;
+          }}
+        }}
+      }}
+      return {{ black, white }};
+    }}
+
+    function createNewReversiState() {{
+      const board = createInitialReversiBoard();
+      return {{
+        board,
+        current_player: reversiPiece.black,
+        move_count: 0,
+        last_move: null,
+        game_over: false,
+        winner: reversiPiece.empty,
+        pass_count: 0,
+        notice: "Black to move.",
+      }};
+    }}
+
+    function normalizeReversiState(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+      const boardRaw = raw.board;
+      if (!Array.isArray(boardRaw) || boardRaw.length !== reversiBoardSize) return null;
+      const board = createEmptyReversiBoard();
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        const sourceRow = boardRaw[row];
+        if (!Array.isArray(sourceRow) || sourceRow.length !== reversiBoardSize) return null;
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          const value = Math.trunc(Number(sourceRow[col]) || 0);
+          board[row][col] = (
+            value === reversiPiece.black || value === reversiPiece.white
+          ) ? value : reversiPiece.empty;
+        }}
+      }}
+      const currentRaw = Math.trunc(Number(raw.current_player ?? raw.currentPlayer) || reversiPiece.black);
+      const winnerRaw = Math.trunc(Number(raw.winner) || reversiPiece.empty);
+      const lastMoveRaw = Array.isArray(raw.last_move ?? raw.lastMove) ? (raw.last_move ?? raw.lastMove) : null;
+      const lastMove = (
+        lastMoveRaw
+        && lastMoveRaw.length >= 2
+        && inReversiBounds(lastMoveRaw[0], lastMoveRaw[1])
+      )
+        ? [Math.trunc(Number(lastMoveRaw[0]) || 0), Math.trunc(Number(lastMoveRaw[1]) || 0)]
+        : null;
+      return {{
+        board,
+        current_player: currentRaw === reversiPiece.white ? reversiPiece.white : reversiPiece.black,
+        move_count: Math.max(0, Math.trunc(Number(raw.move_count ?? raw.moveCount) || 0)),
+        last_move: lastMove,
+        game_over: parseBoolToken(raw.game_over ?? raw.gameOver, false),
+        winner: (
+          winnerRaw === reversiPiece.black
+          || winnerRaw === reversiPiece.white
+          || winnerRaw === reversiPiece.empty
+        ) ? winnerRaw : reversiPiece.empty,
+        pass_count: Math.max(0, Math.trunc(Number(raw.pass_count ?? raw.passCount) || 0)),
+        notice: String(raw.notice || "").trim().slice(0, 220),
+      }};
+    }}
+
+    function persistReversiState() {{
+      if (!reversiState || typeof reversiState !== "object") return;
+      try {{
+        window.localStorage.setItem(
+          reversiStateStorageKey,
+          JSON.stringify({{
+            board: reversiState.board,
+            current_player: reversiState.current_player,
+            move_count: reversiState.move_count,
+            last_move: reversiState.last_move,
+            game_over: reversiState.game_over,
+            winner: reversiState.winner,
+            pass_count: reversiState.pass_count,
+            notice: reversiState.notice,
+          }})
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function refreshReversiDerivedState({{ autoPass = false }} = {{}}) {{
+      if (!reversiState || typeof reversiState !== "object") {{
+        reversiState = createNewReversiState();
+      }}
+      const board = cloneReversiBoard(reversiState.board);
+      reversiState.board = board;
+      if (reversiState.game_over) {{
+        reversiLegalMoves = [];
+        reversiLegalMoveMap = new Map();
+        return;
+      }}
+      const active = Number(reversiState.current_player) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      let legalMoves = collectReversiLegalMoves(board, active);
+      if (legalMoves.length === 0 && autoPass) {{
+        const nextPlayer = reversiOpponent(active);
+        const nextMoves = collectReversiLegalMoves(board, nextPlayer);
+        if (nextMoves.length > 0) {{
+          reversiState.current_player = nextPlayer;
+          reversiState.pass_count = Math.max(1, Math.trunc(Number(reversiState.pass_count) || 0) + 1);
+          reversiState.notice = `${{reversiPlayerLabel(active)}} has no legal moves. Turn passes to ${{reversiPlayerLabel(nextPlayer)}}.`;
+          legalMoves = nextMoves;
+        }} else {{
+          reversiState.game_over = true;
+          reversiState.pass_count = Math.max(2, Math.trunc(Number(reversiState.pass_count) || 0) + 1);
+          const counts = countReversiPieces(board);
+          if (counts.black === counts.white) {{
+            reversiState.winner = reversiPiece.empty;
+            reversiState.notice = `Game over: draw at ${{counts.black}}-${{counts.white}}.`;
+          }} else if (counts.black > counts.white) {{
+            reversiState.winner = reversiPiece.black;
+            reversiState.notice = `Game over: Black wins ${{counts.black}}-${{counts.white}}.`;
+          }} else {{
+            reversiState.winner = reversiPiece.white;
+            reversiState.notice = `Game over: White wins ${{counts.white}}-${{counts.black}}.`;
+          }}
+          legalMoves = [];
+        }}
+      }} else {{
+        reversiState.current_player = active;
+        reversiState.pass_count = 0;
+      }}
+      reversiLegalMoves = legalMoves;
+      reversiLegalMoveMap = rebuildReversiLegalMap(legalMoves);
+    }}
+
+    function loadReversiState() {{
+      let parsed = null;
+      try {{
+        const raw = window.localStorage.getItem(reversiStateStorageKey);
+        parsed = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+        parsed = null;
+      }}
+      reversiState = normalizeReversiState(parsed) || createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+    }}
+
+    function reversiNodeLabel(nodeId, state = latestState) {{
+      const clean = normalizeNodeId(nodeId || "");
+      if (!isCanonicalNodeId(clean)) return clean || "unknown";
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const node = nodes.find((row) => normalizeNodeId(row && row.id) === clean) || null;
+      const preferred = preferredNodeName(node);
+      if (preferred) return preferred;
+      return nodeNameCache.get(clean) || clean;
+    }}
+
+    function reversiProtocolMessageText(msg) {{
+      if (!msg || typeof msg !== "object") return "";
+      return String(msg.text ?? msg.decoded_text ?? msg.payload_text ?? "").trim();
+    }}
+
+    function reversiProtocolMessageUnix(msg) {{
+      return latestUnixTimestamp(
+        msg && msg.rx_time,
+        msg && msg.captured_at,
+        msg && msg.sent_at,
+        msg && msg.created_at
+      ) || Math.floor(Date.now() / 1000);
+    }}
+
+    function reversiProtocolMessageKey(msg, parsed) {{
+      const messageId = messageIdOfChatPacket(msg);
+      if (messageId) return `msg:${{messageId}}`;
+      const fromId = normalizeNodeId(msg && msg.from || "");
+      const toId = normalizeNodeId(msg && (msg.to || msg.destination) || "");
+      return [
+        "raw",
+        fromId,
+        toId,
+        String(msg && msg.rx_time || ""),
+        String(parsed && parsed.raw || ""),
+      ].join("|");
+    }}
+
+    function syncReversiNetworkState(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : null;
+      if (!safeState) return;
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      if (!isCanonicalNodeId(localNodeId)) return;
+      const traffic = safeState.traffic && typeof safeState.traffic === "object"
+        ? safeState.traffic
+        : {{}};
+      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (msg.local_echo === true || msg.localEcho === true) continue;
+        const parsed = parseReversiProtocolMessage(reversiProtocolMessageText(msg));
+        if (!parsed) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        const toId = normalizeNodeId(msg.to || msg.destination || "");
+        if (!isCanonicalNodeId(fromId) || fromId === localNodeId) continue;
+        if (toId && toId !== localNodeId) continue;
+        const dedupeKey = reversiProtocolMessageKey(msg, parsed);
+        if (!rememberReversiNetworkMessage(dedupeKey)) continue;
+
+        if (parsed.type === "invite") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          if (!sessionId) continue;
+          registerReversiPendingInvite({{
+            from_id: fromId,
+            session_id: sessionId,
+            received_unix: reversiProtocolMessageUnix(msg),
+          }});
+          updateReversiLinkStatus(
+            `Invite available from ${{reversiNodeLabel(fromId, safeState)}}. Choose peer and click Accept Invite.`
+          );
+          continue;
+        }}
+
+        if (parsed.type === "accept") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          if (!sessionId) continue;
+          if (
+            reversiLink.mode === "pending_host"
+            && reversiLink.role === "host"
+            && reversiLink.session_id === sessionId
+            && normalizeNodeId(reversiLink.peer_id) === fromId
+          ) {{
+            reversiLink.mode = "connected";
+            reversiLink.status = `Connected to ${{reversiNodeLabel(fromId, safeState)}}. You are Black.`;
+          }}
+          continue;
+        }}
+
+        if (parsed.type === "leave") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          if (!sessionId) continue;
+          if (reversiIsNetworkLinked() && reversiLink.session_id === sessionId && normalizeNodeId(reversiLink.peer_id) === fromId) {{
+            resetReversiNetworkLink(`Peer ${{reversiNodeLabel(fromId, safeState)}} ended the match.`, {{ keepPeer: true }});
+          }}
+          continue;
+        }}
+
+        if (parsed.type === "move") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const seq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
+          const row = Math.trunc(Number(parsed.parts[4]) || -1);
+          const col = Math.trunc(Number(parsed.parts[5]) || -1);
+          if (!sessionId || !inReversiBounds(row, col) || seq <= 0) continue;
+          if (!reversiIsNetworkLinked()) continue;
+          if (reversiLink.session_id !== sessionId) continue;
+          if (normalizeNodeId(reversiLink.peer_id) !== fromId) continue;
+          if (seq <= Math.max(0, Math.trunc(Number(reversiLink.remote_move_seq) || 0))) continue;
+          const applied = applyReversiMove(row, col, {{ source: "remote", suppress_outbound: true }});
+          if (!applied) continue;
+          reversiLink.remote_move_seq = seq;
+          reversiLink.status = `${{reversiNodeLabel(fromId, safeState)}} played ${{reversiCellLabel(row, col)}}.`;
+        }}
+      }}
+      const nowUnix = Math.floor(Date.now() / 1000);
+      reversiPendingInvites = (Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [])
+        .filter((row) => (nowUnix - (Number(row && row.received_unix) || 0)) <= reversiInviteStaleSeconds)
+        .slice(0, reversiInviteMaxRows);
+    }}
+
+    function startNewReversiGame() {{
+      if (reversiLink.mode === "connected" || reversiLink.mode === "pending_host") {{
+        resetReversiNetworkLink("Started a fresh local game. Peer link closed.", {{ keepPeer: true }});
+      }}
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+    }}
+
+    async function sendReversiMoveToPeer(row, col) {{
+      if (!reversiIsNetworkLinked()) return false;
+      const seq = Math.max(0, Math.trunc(Number(reversiLink.local_move_seq) || 0)) + 1;
+      const sent = await sendReversiProtocolMessage(
+        "move",
+        [reversiLink.session_id, seq, row, col],
+        {{ destination_id: reversiLink.peer_id }}
+      );
+      if (!sent) {{
+        updateReversiLinkStatus("Move applied locally, but network send failed.");
+        return false;
+      }}
+      reversiLink.local_move_seq = seq;
+      return true;
+    }}
+
+    function applyReversiMove(rowRaw, colRaw, options = {{}}) {{
+      if (!reversiState || typeof reversiState !== "object") return false;
+      if (reversiState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      if (!inReversiBounds(row, col)) return false;
+      if (source !== "remote" && reversiLink.mode === "pending_host") {{
+        updateReversiLinkStatus("Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") {{
+          renderGamesView(latestState);
+        }}
+        return false;
+      }}
+      if (reversiIsNetworkLinked()) {{
+        const currentPlayer = Number(reversiState.current_player) === reversiPiece.white
+          ? reversiPiece.white
+          : reversiPiece.black;
+        const expectedPlayer = source === "remote"
+          ? reversiLink.remote_color
+          : reversiLink.local_color;
+        if (currentPlayer !== expectedPlayer) {{
+          if (source !== "remote") {{
+            updateReversiLinkStatus(
+              `Waiting for ${{reversiNodeLabel(reversiLink.peer_id)}} to move.`
+            );
+            if (activeLayoutView === "games") {{
+              renderGamesView(latestState);
+            }}
+          }}
+          return false;
+        }}
+      }}
+      const moveKey = `${{row}},${{col}}`;
+      const flips = reversiLegalMoveMap.get(moveKey);
+      if (!Array.isArray(flips) || flips.length < 1) return false;
+      const player = Number(reversiState.current_player) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      reversiState.board[row][col] = player;
+      for (const [flipRow, flipCol] of flips) {{
+        if (!inReversiBounds(flipRow, flipCol)) continue;
+        reversiState.board[flipRow][flipCol] = player;
+      }}
+      reversiState.last_move = [row, col];
+      reversiState.move_count = Math.max(0, Math.trunc(Number(reversiState.move_count) || 0)) + 1;
+      reversiState.current_player = reversiOpponent(player);
+      reversiState.notice = `${{reversiPlayerLabel(player)}} played ${{reversiCellLabel(row, col)}} and flipped ${{flips.length}} disc${{flips.length === 1 ? "" : "s"}}.`;
+      reversiState.game_over = false;
+      reversiState.winner = reversiPiece.empty;
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      if (source !== "remote" && reversiIsNetworkLinked() && !suppressOutbound) {{
+        void sendReversiMoveToPeer(row, col);
+      }}
+      if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+      return true;
+    }}
+
+    function renderReversiBoard() {{
+      const boardEl = document.getElementById("reversi-board");
+      if (!(boardEl instanceof HTMLElement)) return;
+      const board = (
+        reversiState
+        && reversiState.board
+        && Array.isArray(reversiState.board)
+      ) ? reversiState.board : createInitialReversiBoard();
+      const lastMove = Array.isArray(reversiState && reversiState.last_move) ? reversiState.last_move : null;
+      const gameOver = !!(reversiState && reversiState.game_over);
+      const html = [];
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          const value = Number(board[row] && board[row][col]) || reversiPiece.empty;
+          const moveKey = `${{row}},${{col}}`;
+          const isLegal = !gameOver && reversiLegalMoveMap.has(moveKey);
+          const isLastMove = !!(lastMove && Number(lastMove[0]) === row && Number(lastMove[1]) === col);
+          const classes = ["reversi-cell"];
+          if (isLastMove) classes.push("is-last");
+          const pieceHtml = value === reversiPiece.black
+            ? '<span class="reversi-disc disc-black" aria-hidden="true"></span>'
+            : (
+              value === reversiPiece.white
+                ? '<span class="reversi-disc disc-white" aria-hidden="true"></span>'
+                : (isLegal ? '<span class="reversi-hint" aria-hidden="true"></span>' : "")
+            );
+          const stateText = value === reversiPiece.black
+            ? "black disc"
+            : (value === reversiPiece.white ? "white disc" : "empty");
+          const clickText = isLegal ? `legal move for ${{reversiPlayerLabel(reversiState && reversiState.current_player)}}` : stateText;
+          const title = `${{reversiCellLabel(row, col)}} • ${{clickText}}`;
+          const disabledAttr = isLegal ? "" : " disabled";
+          html.push(
+            `<button class="${{escAttr(classes.join(" "))}}" type="button" data-row="${{row}}" data-col="${{col}}" title="${{escAttr(title)}}"${{disabledAttr}}>${{pieceHtml}}</button>`
+          );
+        }}
+      }}
+      boardEl.innerHTML = html.join("");
+    }}
+
+    function renderReversiStatus() {{
+      const statusEl = document.getElementById("reversi-status-text");
+      const turnEl = document.getElementById("reversi-turn-pill");
+      const blackEl = document.getElementById("reversi-black-count");
+      const whiteEl = document.getElementById("reversi-white-count");
+      const moveEl = document.getElementById("reversi-move-count");
+      const legalEl = document.getElementById("reversi-legal-count");
+      const state = reversiState && typeof reversiState === "object" ? reversiState : createNewReversiState();
+      const counts = countReversiPieces(state.board);
+      const isOver = !!state.game_over;
+      const turnLabel = isOver ? "Game Over" : reversiPlayerLabel(state.current_player);
+      if (statusEl instanceof HTMLElement) {{
+        const fallback = isOver
+          ? (
+            state.winner === reversiPiece.empty
+              ? `Game over: draw at ${{counts.black}}-${{counts.white}}.`
+              : `Game over: ${{reversiPlayerLabel(state.winner)}} wins.`
+          )
+          : `${{reversiPlayerLabel(state.current_player)}} to move.`;
+        statusEl.textContent = String(state.notice || fallback);
+      }}
+      if (turnEl instanceof HTMLElement) {{
+        turnEl.textContent = turnLabel;
+        turnEl.classList.remove("is-black", "is-white", "is-over");
+        if (isOver) {{
+          turnEl.classList.add("is-over");
+        }} else if (Number(state.current_player) === reversiPiece.white) {{
+          turnEl.classList.add("is-white");
+        }} else {{
+          turnEl.classList.add("is-black");
+        }}
+      }}
+      if (blackEl instanceof HTMLElement) blackEl.textContent = String(counts.black);
+      if (whiteEl instanceof HTMLElement) whiteEl.textContent = String(counts.white);
+      if (moveEl instanceof HTMLElement) moveEl.textContent = String(Math.max(0, Math.trunc(Number(state.move_count) || 0)));
+      if (legalEl instanceof HTMLElement) legalEl.textContent = String(isOver ? 0 : reversiLegalMoves.length);
+    }}
+
+    function reversiPeerOptions(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const seen = new Set();
+      const rows = [];
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isCanonicalNodeId(nodeId)) continue;
+        if (nodeId === localNodeId) continue;
+        if (seen.has(nodeId)) continue;
+        seen.add(nodeId);
+        const label = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        rows.push({{
+          id: nodeId,
+          label,
+        }});
+      }}
+      rows.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
+      return rows;
+    }}
+
+    function renderReversiPeerSelect(state = latestState) {{
+      const select = document.getElementById("reversi-peer-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const options = reversiPeerOptions(state);
+      const current = isCanonicalNodeId(reversiPeerId) ? reversiPeerId : "";
+      const next = ['<option value="">Select peer…</option>'];
+      for (const row of options) {{
+        const selectedAttr = row.id === current ? " selected" : "";
+        next.push(
+          `<option value="${{escAttr(row.id)}}"${{selectedAttr}}>${{escAttr(row.label)}} (${{escAttr(row.id)}})</option>`
+        );
+      }}
+      select.innerHTML = next.join("");
+      if (current && options.some((row) => row.id === current)) {{
+        select.value = current;
+      }} else if (!current) {{
+        select.value = "";
+      }}
+    }}
+
+    function renderReversiInviteList(state = latestState) {{
+      const listEl = document.getElementById("reversi-invite-list");
+      if (!(listEl instanceof HTMLElement)) return;
+      const invites = Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [];
+      if (invites.length < 1) {{
+        listEl.innerHTML = '<div class="reversi-invite-empty">No pending invites.</div>';
+        return;
+      }}
+      const rows = invites.map((invite) => {{
+        const fromId = normalizeNodeId(invite && invite.from_id || "");
+        const sessionId = String(invite && invite.session_id || "").trim().toLowerCase();
+        const whenUnix = Math.max(0, Math.trunc(Number(invite && invite.received_unix) || 0));
+        return `<div class="reversi-invite-item" title="${{escAttr(fromId)}}">
+          <div class="reversi-invite-main">${{escAttr(reversiNodeLabel(fromId, state))}}</div>
+          <div class="reversi-invite-meta">${{escAttr(fromId)}} • ${{escAttr(formatLocalChatTime(whenUnix, "now"))}} • session ${{escAttr(sessionId)}}</div>
+        </div>`;
+      }});
+      listEl.innerHTML = rows.join("");
+    }}
+
+    function renderReversiLinkUi(state = latestState) {{
+      renderReversiPeerSelect(state);
+      renderReversiInviteList(state);
+      const statusEl = document.getElementById("reversi-link-status");
+      if (statusEl instanceof HTMLElement) {{
+        statusEl.textContent = String(reversiLink && reversiLink.status || "Local hotseat mode.");
+      }}
+      const hostBtn = document.getElementById("reversi-host-btn");
+      const acceptBtn = document.getElementById("reversi-accept-btn");
+      const disconnectBtn = document.getElementById("reversi-disconnect-btn");
+      const peerReady = isCanonicalNodeId(reversiPeerId);
+      const pendingInvite = reversiPendingInviteChoice();
+      if (hostBtn instanceof HTMLButtonElement) {{
+        hostBtn.disabled = !peerReady || (reversiLink.mode === "pending_host" && reversiLink.peer_id === reversiPeerId);
+      }}
+      if (acceptBtn instanceof HTMLButtonElement) {{
+        acceptBtn.disabled = !(pendingInvite && isCanonicalNodeId(pendingInvite.from_id));
+      }}
+      if (disconnectBtn instanceof HTMLButtonElement) {{
+        disconnectBtn.disabled = !(reversiLink.mode === "connected" || reversiLink.mode === "pending_host");
+      }}
+    }}
+
+    async function hostReversiMatch() {{
+      const peerId = normalizeNodeId(reversiPeerId);
+      if (!isCanonicalNodeId(peerId)) {{
+        updateReversiLinkStatus("Select a peer before hosting.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const sessionId = generateReversiSessionId();
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      reversiLink = createReversiLinkState({{
+        mode: "pending_host",
+        role: "host",
+        session_id: sessionId,
+        peer_id: peerId,
+        local_color: reversiPiece.black,
+        remote_color: reversiPiece.white,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Invite sent to ${{reversiNodeLabel(peerId)}}. Waiting for accept...`,
+      }});
+      const sent = await sendReversiProtocolMessage(
+        "invite",
+        [sessionId, normalizeNodeId(resolveLocalNodeId(latestState) || "")],
+        {{ destination_id: peerId }}
+      );
+      if (!sent) {{
+        reversiLink.mode = "local";
+        reversiLink.role = "";
+        reversiLink.session_id = "";
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function acceptReversiInvite() {{
+      const invite = reversiPendingInviteChoice();
+      if (!invite) {{
+        updateReversiLinkStatus("No pending invite to accept.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const peerId = normalizeNodeId(invite.from_id || "");
+      const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      if (!isCanonicalNodeId(peerId) || !sessionId) {{
+        updateReversiLinkStatus("Invite details are invalid.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      reversiPeerId = peerId;
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      reversiLink = createReversiLinkState({{
+        mode: "connected",
+        role: "guest",
+        session_id: sessionId,
+        peer_id: peerId,
+        local_color: reversiPiece.white,
+        remote_color: reversiPiece.black,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Connected to ${{reversiNodeLabel(peerId)}}. You are White.`,
+      }});
+      removeReversiPendingInvite(peerId, sessionId);
+      await sendReversiProtocolMessage(
+        "accept",
+        [sessionId],
+        {{ destination_id: peerId }}
+      );
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function disconnectReversiMatch() {{
+      const linked = reversiIsNetworkLinked() || reversiLink.mode === "pending_host";
+      if (linked && isCanonicalNodeId(reversiLink.peer_id) && String(reversiLink.session_id || "").trim()) {{
+        await sendReversiProtocolMessage(
+          "leave",
+          [reversiLink.session_id],
+          {{ destination_id: reversiLink.peer_id }}
+        );
+      }}
+      resetReversiNetworkLink("Disconnected. Local hotseat mode.", {{ keepPeer: true }});
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function renderGamesView(_state = latestState) {{
+      syncReversiNetworkState(_state);
+      const reversiBtn = document.getElementById("games-select-reversi-btn");
+      if (reversiBtn instanceof HTMLButtonElement) {{
+        reversiBtn.classList.toggle("is-active", activeGameId === "reversi");
+      }}
+      renderReversiLinkUi(_state);
+      renderReversiBoard();
+      renderReversiStatus();
+    }}
+
+    function bindGamesControls() {{
+      const reversiBtn = document.getElementById("games-select-reversi-btn");
+      if (reversiBtn instanceof HTMLButtonElement && reversiBtn.dataset.bound !== "1") {{
+        reversiBtn.dataset.bound = "1";
+        reversiBtn.addEventListener("click", () => {{
+          activeGameId = "reversi";
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+        }});
+      }}
+      const peerSelect = document.getElementById("reversi-peer-select");
+      if (peerSelect instanceof HTMLSelectElement && peerSelect.dataset.bound !== "1") {{
+        peerSelect.dataset.bound = "1";
+        peerSelect.addEventListener("change", () => {{
+          reversiPeerId = normalizeNodeId(peerSelect.value || "");
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }});
+      }}
+      const hostBtn = document.getElementById("reversi-host-btn");
+      if (hostBtn instanceof HTMLButtonElement && hostBtn.dataset.bound !== "1") {{
+        hostBtn.dataset.bound = "1";
+        hostBtn.addEventListener("click", () => {{
+          void hostReversiMatch();
+        }});
+      }}
+      const acceptBtn = document.getElementById("reversi-accept-btn");
+      if (acceptBtn instanceof HTMLButtonElement && acceptBtn.dataset.bound !== "1") {{
+        acceptBtn.dataset.bound = "1";
+        acceptBtn.addEventListener("click", () => {{
+          void acceptReversiInvite();
+        }});
+      }}
+      const disconnectBtn = document.getElementById("reversi-disconnect-btn");
+      if (disconnectBtn instanceof HTMLButtonElement && disconnectBtn.dataset.bound !== "1") {{
+        disconnectBtn.dataset.bound = "1";
+        disconnectBtn.addEventListener("click", () => {{
+          void disconnectReversiMatch();
+        }});
+      }}
+      const newGameBtn = document.getElementById("reversi-new-game-btn");
+      if (newGameBtn instanceof HTMLButtonElement && newGameBtn.dataset.bound !== "1") {{
+        newGameBtn.dataset.bound = "1";
+        newGameBtn.addEventListener("click", () => {{
+          startNewReversiGame();
+        }});
+      }}
+      const boardEl = document.getElementById("reversi-board");
+      if (boardEl instanceof HTMLElement && boardEl.dataset.bound !== "1") {{
+        boardEl.dataset.bound = "1";
+        boardEl.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const button = target.closest("button.reversi-cell");
+          if (!(button instanceof HTMLButtonElement)) return;
+          const row = Math.trunc(Number(button.dataset.row) || 0);
+          const col = Math.trunc(Number(button.dataset.col) || 0);
+          applyReversiMove(row, col);
+        }});
+      }}
+    }}
+
     function bindChatNotificationScopeControl() {{
       const select = document.getElementById("chat-change-scope");
       if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
@@ -12830,6 +13852,9 @@
         if (next === "bots") {{
           renderBotsView(latestState);
         }}
+        if (next === "games") {{
+          renderGamesView(latestState);
+        }}
         if (next === "history") {{
           renderHistoryChat(latestState.traffic || {{}});
           setMapDataMode("activity");
@@ -12871,6 +13896,8 @@
         void ensureChannelsViewLocalStateHydrated(false);
       }} else if (next === "bots") {{
         renderBotsView(latestState);
+      }} else if (next === "games") {{
+        renderGamesView(latestState);
       }} else if (next === "encription") {{
         renderEncription({{}});
       }}
@@ -12886,7 +13913,7 @@
       renderFavoriteMenuNodeSearchDropdown(latestState);
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "bots" || next === "history" || next === "network" || next === "saved" || next === "channels") {{
+      if (next === "chat" || next === "bots" || next === "games" || next === "history" || next === "network" || next === "saved" || next === "channels") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -15102,6 +16129,8 @@
           renderFavorites(safeState);
         }} else if (activeLayoutView === "bots") {{
           renderBotsView(safeState);
+        }} else if (activeLayoutView === "games") {{
+          renderGamesView(safeState);
         }}
       }}
 
@@ -23806,6 +24835,7 @@
           applyServerBotSettingsFromState(latestState);
           syncBackendBotRequestHistory(latestState);
           syncBotRequestHistoryWithMessages(traffic304.recent_chat || [], latestState);
+          syncReversiNetworkState(latestState);
           renderSummary(latestState);
           if (mapVisible304) {{
             renderMap(nodes304, traffic304.edges || [], cachedHistory304);
@@ -23828,6 +24858,9 @@
           }}
           if (activeLayoutView === "bots") {{
             renderBotsView(latestState);
+          }}
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
           }}
           if (activeLayoutView === "saved") {{
             const loadingId304 = (activeLayoutView === "saved" && historyRelevant304 && !cachedHistory304)
@@ -23867,6 +24900,7 @@
         }}
         pruneSelfFromManualDirectPeers(state);
         syncBotRequestHistoryWithMessages((state.traffic || {{}}).recent_chat || [], state);
+        syncReversiNetworkState(state);
         renderSelfRadioPill(state);
         if (!summaryMetricsHydrated && !summaryMetricsHydrateInFlight) {{
           summaryMetricsHydrateInFlight = hydrateSummaryMetricTickers()
@@ -23941,6 +24975,11 @@
           renderChat(state);
         }} else if (activeLayoutView === "bots") {{
           renderBotsView(state);
+        }} else if (activeLayoutView === "games") {{
+          renderGamesView(state);
+          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          renderChatChangeSummary();
+          bindChatChangeSummaryControls();
         }} else {{
           syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
           renderChatChangeSummary();
@@ -24015,6 +25054,7 @@
     loadChatPerfPreference();
     loadConsoleFontSizePreference();
     loadConsoleSessionState();
+    loadReversiState();
     loadLayoutView();
     loadManualDirectPeers();
     loadChatChannel();
@@ -24066,6 +25106,7 @@
     bindBotCommandCatalogControls();
     bindBotHistoryControls();
     bindBotsReviewControls();
+    bindGamesControls();
     bindChatChangeSummaryControls();
     bindHistoryNotificationControls();
     renderChatChangeSummary();

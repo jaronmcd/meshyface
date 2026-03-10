@@ -2261,6 +2261,13 @@
       flex-direction: column;
       min-height: 0;
     }}
+    .games {{
+      grid-column: 1 / span 3;
+      grid-row: 2 / 9;
+      display: none;
+      flex-direction: column;
+      min-height: 0;
+    }}
     .settings-card-head {{
       display: flex;
       align-items: baseline;
@@ -2463,6 +2470,303 @@
       display: flex;
       flex-direction: column;
       padding: 10px;
+    }}
+    .games .body {{
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+    }}
+    .games-shell {{
+      display: grid;
+      grid-template-columns: minmax(220px, 290px) minmax(0, 1fr);
+      gap: 12px;
+      min-height: 0;
+      height: 100%;
+      flex: 1 1 auto;
+    }}
+    .games-sidebar {{
+      border: 1px solid #d7e5d2;
+      border-radius: 10px;
+      background: #f8fcf7;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }}
+    .games-library-label {{
+      font-size: 10px;
+      color: #4f6758;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }}
+    .games-library-btn {{
+      border: 1px solid #bfd4c3;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #254837;
+      padding: 7px 9px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }}
+    .games-library-btn.is-active {{
+      border-color: #2f855a;
+      background: #ecf8f0;
+      color: #1f5c3d;
+    }}
+    .games-mode-note {{
+      font-size: 11px;
+      line-height: 1.35;
+      color: #4f6758;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 7px 8px;
+    }}
+    .games-peer-wrap {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }}
+    .games-peer-select {{
+      border: 1px solid #c8d7c4;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 12px;
+      background: #ffffff;
+      color: #254837;
+      min-width: 0;
+      width: 100%;
+    }}
+    .games-peer-select:focus-visible {{
+      outline: 2px solid #3ea269;
+      outline-offset: 1px;
+      border-color: #4c8f67;
+    }}
+    .reversi-link-actions {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }}
+    .reversi-link-btn {{
+      padding-left: 8px;
+      padding-right: 8px;
+      white-space: nowrap;
+    }}
+    .reversi-link-status {{
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #2c4f3f;
+      font-size: 11px;
+      line-height: 1.35;
+      padding: 7px 8px;
+      min-height: 36px;
+    }}
+    .reversi-invite-wrap {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }}
+    .reversi-invite-list {{
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 46px;
+      max-height: 146px;
+      overflow: auto;
+    }}
+    .reversi-invite-empty {{
+      border: 1px dashed #c8d7c4;
+      border-radius: 6px;
+      background: #f8fcf7;
+      color: #597263;
+      font-size: 10px;
+      line-height: 1.3;
+      padding: 6px 7px;
+    }}
+    .reversi-invite-item {{
+      border: 1px solid #d7e5d2;
+      border-radius: 6px;
+      background: #f8fcf7;
+      padding: 6px 7px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }}
+    .reversi-invite-main {{
+      font-size: 11px;
+      color: #214434;
+      line-height: 1.25;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .reversi-invite-meta {{
+      font-size: 10px;
+      color: #597263;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .games-main {{
+      border: 1px solid #d7e5d2;
+      border-radius: 10px;
+      background: #f8fcf7;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 10px;
+    }}
+    .reversi-status-text {{
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #2c4f3f;
+      font-size: 11px;
+      line-height: 1.35;
+      padding: 8px;
+      min-height: 40px;
+    }}
+    .reversi-turn-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }}
+    .reversi-turn-pill {{
+      border: 1px solid #bfd4c3;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #274935;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }}
+    .reversi-turn-pill.is-black {{
+      border-color: #1f2b33;
+      background: #2b3944;
+      color: #f5f8fb;
+    }}
+    .reversi-turn-pill.is-white {{
+      border-color: #c7d5e0;
+      background: #f5f9fd;
+      color: #26404f;
+    }}
+    .reversi-turn-pill.is-over {{
+      border-color: #4c8e67;
+      background: #e9f7ee;
+      color: #1f5e3f;
+    }}
+    .reversi-score-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }}
+    .reversi-score-card {{
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 7px 8px;
+      min-width: 0;
+    }}
+    .reversi-score-card .label {{
+      display: block;
+      color: #4f6758;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+    }}
+    .reversi-score-card strong {{
+      display: block;
+      margin-top: 2px;
+      color: #183926;
+      font-size: 16px;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }}
+    .reversi-board {{
+      --reversi-cell-size: clamp(38px, 5.8vw, 64px);
+      display: grid;
+      grid-template-columns: repeat(8, var(--reversi-cell-size));
+      grid-template-rows: repeat(8, var(--reversi-cell-size));
+      gap: 6px;
+      border: 1px solid #166145;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #115137, #0f4631);
+      padding: 8px;
+      box-shadow: inset 0 0 0 1px rgba(10, 33, 22, 0.28);
+    }}
+    .reversi-cell {{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #2e7a59;
+      border-radius: 8px;
+      background: #2f855a;
+      cursor: pointer;
+      margin: 0;
+      padding: 0;
+      width: var(--reversi-cell-size);
+      height: var(--reversi-cell-size);
+    }}
+    .reversi-cell:hover {{
+      background: #378f63;
+      border-color: #3e9569;
+    }}
+    .reversi-cell:disabled {{
+      cursor: default;
+      opacity: 1;
+    }}
+    .reversi-cell:focus-visible {{
+      outline: 2px solid #b9f1d1;
+      outline-offset: 1px;
+    }}
+    .reversi-cell.is-last {{
+      box-shadow: inset 0 0 0 2px rgba(255, 224, 121, 0.88);
+    }}
+    .reversi-disc {{
+      display: block;
+      width: calc(var(--reversi-cell-size) * 0.72);
+      height: calc(var(--reversi-cell-size) * 0.72);
+      border-radius: 999px;
+      box-shadow: inset 0 -2px 7px rgba(0, 0, 0, 0.22);
+    }}
+    .reversi-disc.disc-black {{
+      background: radial-gradient(circle at 30% 24%, #4b5b67 0%, #202d36 48%, #141c22 100%);
+      border: 1px solid #172028;
+    }}
+    .reversi-disc.disc-white {{
+      background: radial-gradient(circle at 30% 24%, #ffffff 0%, #edf3f8 52%, #d6e0e9 100%);
+      border: 1px solid #a8bccd;
+    }}
+    .reversi-hint {{
+      width: calc(var(--reversi-cell-size) * 0.19);
+      height: calc(var(--reversi-cell-size) * 0.19);
+      border-radius: 999px;
+      background: rgba(223, 247, 234, 0.92);
+      border: 1px solid rgba(159, 214, 184, 0.92);
+      box-shadow: 0 0 0 1px rgba(23, 74, 50, 0.3);
     }}
     .bots-grid {{
       display: grid;
@@ -4434,6 +4738,46 @@
     .layout.view-bots .hsplitter[data-target="top"],
     .layout.view-bots .hsplitter[data-target="mid"],
     .layout.view-bots .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+
+    .layout.view-games {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-games .games {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      min-height: 0;
+      max-height: 100%;
+    }}
+    .layout.view-games .games .body {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }}
+    .layout.view-games .chat,
+    .layout.view-games .settings,
+    .layout.view-games .bots,
+    .layout.view-games .nodes,
+    .layout.view-games .map,
+    .layout.view-games .map-data,
+    .layout.view-games .favorites,
+    .layout.view-games .history-chat,
+    .layout.view-games .channels-view,
+    .layout.view-games .packets,
+    .layout.view-games .encription,
+    .layout.view-games .raw,
+    .layout.view-games .console,
+    .layout.view-games .summary,
+    .layout.view-games .splitter,
+    .layout.view-games .hsplitter[data-target="top"],
+    .layout.view-games .hsplitter[data-target="mid"],
+    .layout.view-games .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
@@ -9199,6 +9543,101 @@
     [data-theme="dark"] .bots-history-response strong {{
       color: #dbeeff;
     }}
+    [data-theme="dark"] .games-sidebar,
+    [data-theme="dark"] .games-main {{
+      background: #13241b;
+      border-color: #2a4638;
+    }}
+    [data-theme="dark"] .games-library-label {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .games-library-btn {{
+      border-color: #3b5b4a;
+      background: #0f1d16;
+      color: #c8e8d6;
+    }}
+    [data-theme="dark"] .games-library-btn.is-active {{
+      border-color: #2f855a;
+      background: #173526;
+      color: #9ce3ba;
+    }}
+    [data-theme="dark"] .games-mode-note,
+    [data-theme="dark"] .reversi-status-text,
+    [data-theme="dark"] .reversi-score-card,
+    [data-theme="dark"] .reversi-link-status,
+    [data-theme="dark"] .reversi-invite-list {{
+      background: #0f1d16;
+      border-color: #2a4638;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .games-peer-select {{
+      border-color: #2a4638;
+      background: #0f1d16;
+      color: #d8f3e4;
+    }}
+    [data-theme="dark"] .games-peer-select:focus-visible {{
+      border-color: #5ba67a;
+      outline-color: #5abf8a;
+    }}
+    [data-theme="dark"] .reversi-invite-empty {{
+      border-color: #355343;
+      background: #13241b;
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .reversi-invite-item {{
+      border-color: #2a4638;
+      background: #13241b;
+    }}
+    [data-theme="dark"] .reversi-invite-main {{
+      color: #cfeee0;
+    }}
+    [data-theme="dark"] .reversi-invite-meta {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .reversi-score-card .label {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .reversi-score-card strong {{
+      color: #d8f3e4;
+    }}
+    [data-theme="dark"] .reversi-turn-pill {{
+      border-color: #2a4638;
+      background: #13241b;
+      color: #c7e8d6;
+    }}
+    [data-theme="dark"] .reversi-turn-pill.is-black {{
+      border-color: #506273;
+      background: #334351;
+      color: #f3f8ff;
+    }}
+    [data-theme="dark"] .reversi-turn-pill.is-white {{
+      border-color: #627484;
+      background: #d9e6f0;
+      color: #243745;
+    }}
+    [data-theme="dark"] .reversi-turn-pill.is-over {{
+      border-color: #2f855a;
+      background: #173526;
+      color: #9ce3ba;
+    }}
+    [data-theme="dark"] .reversi-board {{
+      border-color: #2a6a4c;
+      background: linear-gradient(180deg, #113a2b, #102d23);
+      box-shadow: inset 0 0 0 1px rgba(2, 10, 7, 0.42);
+    }}
+    [data-theme="dark"] .reversi-cell {{
+      border-color: #2f7858;
+      background: #215940;
+    }}
+    [data-theme="dark"] .reversi-cell:hover {{
+      background: #28684b;
+      border-color: #32835f;
+    }}
+    [data-theme="dark"] .reversi-hint {{
+      background: rgba(179, 240, 207, 0.95);
+      border-color: rgba(109, 184, 146, 0.92);
+      box-shadow: 0 0 0 1px rgba(11, 38, 26, 0.45);
+    }}
     [data-theme="dark"] .bots-sniffer-filter-label {{
       color: #afc8ba;
     }}
@@ -9540,8 +9979,18 @@
         height: auto;
         min-height: 0;
       }}
+      .layout.view-games {{
+        height: auto;
+        min-height: 0;
+      }}
       .bots-grid {{
         grid-template-columns: minmax(0, 1fr);
+      }}
+      .games-shell {{
+        grid-template-columns: minmax(0, 1fr);
+      }}
+      .reversi-link-actions {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }}
       .encription-panels {{
         grid-template-columns: 1fr;
@@ -9550,7 +9999,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .games, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}
@@ -9580,6 +10029,12 @@
       }}
       .chat-left-panel {{
         max-height: 180px;
+      }}
+      .reversi-board {{
+        --reversi-cell-size: clamp(34px, 9vw, 52px);
+      }}
+      .reversi-link-actions {{
+        grid-template-columns: minmax(0, 1fr);
       }}
       .rail-btn {{
         min-width: 68px;

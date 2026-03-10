@@ -4,6 +4,7 @@
 - chess
 - poker game, blackjack
 - bot activity show as (1)
+- at the base level, report to other users the version of meshyface
 - move channel config to channels, give setting tabs
 - fix deselected channel notifaction
 - put channels in tabs w/ notifaction totalss (N)
