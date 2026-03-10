@@ -14111,11 +14111,43 @@
         appendConsoleEventLine(`[console] unknown command: ${{parsed.command}} (try "help")`);
         return;
       }}
+      const parseVerbosityArgs = (rawArgs) => {{
+        const source = Array.isArray(rawArgs) ? rawArgs : [];
+        const cleaned = [];
+        let verbosity = 0;
+        for (const token of source) {{
+          const text = String(token == null ? "" : token).trim();
+          const match = text.match(/^-v{1,4}$/i);
+          if (match) {{
+            const level = Math.max(0, Math.min(4, text.length - 1));
+            verbosity = Math.max(verbosity, level);
+            continue;
+          }}
+          cleaned.push(token);
+        }}
+        return {{ args: cleaned, verbosity }};
+      }};
+      const parsedArgs = Array.isArray(parsed.args) ? parsed.args : [];
+      const supportsVerbosity = !!commandDef.supportsVerbosity;
+      let commandArgs = parsedArgs;
+      let commandVerbosity = 0;
+      if (supportsVerbosity) {{
+        const parsedVerbosity = parseVerbosityArgs(parsedArgs);
+        commandArgs = parsedVerbosity.args;
+        commandVerbosity = parsedVerbosity.verbosity;
+      }} else {{
+        const hasVerbosityToken = parsedArgs.some((token) => /^-v{1,4}$/i.test(String(token == null ? "" : token).trim()));
+        if (hasVerbosityToken) {{
+          appendConsoleEventLine(`[${{parsed.command}}] -v is only supported for utility commands.`);
+          return;
+        }}
+      }}
       try {{
         const result = await commandDef.run({{
           line,
           command: parsed.command,
-          args: parsed.args,
+          args: commandArgs,
+          verbosity: commandVerbosity,
           options: parsed.options,
           comparisons: parsed.comparisons,
           state: latestState,
@@ -14162,6 +14194,7 @@
         name,
         usage: String(commandDef.usage || name).trim() || name,
         description: String(commandDef.description || "").trim(),
+        supportsVerbosity: !!commandDef.supportsVerbosity,
         run,
       }});
     }}
@@ -14230,6 +14263,9 @@
           .map((port) => String(port == null ? "" : port).trim())
           .filter((port) => !!port)
           .sort((a, b) => a.localeCompare(b));
+        const lat = Number(node.lat);
+        const lon = Number(node.lon);
+        const hasGps = isValidMapCoord(lat, lon);
         rows.push({{
           id: nodeId,
           name: nodeName,
@@ -14237,6 +14273,7 @@
           hops: Number.isFinite(hopsNum) ? Math.trunc(hopsNum) : null,
           lastSeenUnix: Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : null,
           ports,
+          hasGps,
           raw: node,
         }});
       }}
@@ -14257,6 +14294,7 @@
         name: "help",
         usage: "help",
         description: "Show available console commands.",
+        supportsVerbosity: true,
         run: () => {{
           const defs = Array.from(consoleCommandRegistry.values())
             .sort((a, b) => a.name.localeCompare(b.name));
@@ -14273,6 +14311,7 @@
         name: "clear",
         usage: "clear",
         description: "Clear console output.",
+        supportsVerbosity: true,
         run: () => {{
           clearConsoleOutput({{ renderNow: false }});
           return "[console] cleared.";
@@ -14282,17 +14321,16 @@
         name: "live",
         usage: "live [-v|-vv|-vvv|-vvvv]",
         description: "Stream live packet lines until Ctrl+C with optional extra detail.",
+        supportsVerbosity: true,
         run: (ctx) => {{
           const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
-          const verbosityTokens = args.filter((token) => /^-v{1,4}$/i.test(String(token || "").trim()));
-          const invalidArgs = args.filter((token) => !/^-v{1,4}$/i.test(String(token || "").trim()));
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const invalidArgs = args
+            .map((token) => String(token == null ? "" : token).trim())
+            .filter((token) => !!token);
           if (invalidArgs.length) {{
             return `[live] unknown argument(s): ${{invalidArgs.join(", ")}}`;
           }}
-          const verbosity = verbosityTokens.reduce((max, token) => {{
-            const count = String(token || "").trim().length - 1;
-            return Math.max(max, Math.min(4, Math.max(0, count)));
-          }}, 0);
           if (consoleLiveModeActive) {{
             return "[live] already running. Press Ctrl+C to stop.";
           }}
@@ -14313,19 +14351,51 @@
       }});
       registerConsoleCommand({{
         name: "list",
-        usage: "list [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
+        usage: "list [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
         description: "List nodes from current state with wildcard filters.",
+        supportsVerbosity: true,
         run: (ctx) => {{
           const options = (ctx && ctx.options && typeof ctx.options === "object")
             ? ctx.options
             : {{}};
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
           const comparisons = Array.isArray(ctx && ctx.comparisons) ? ctx.comparisons : [];
-          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
-          const freePattern = normalizeWildcardPattern(args[0] || "");
+          const rawArgs = Array.isArray(ctx && ctx.args) ? ctx.args : [];
           const idPattern = normalizeWildcardPattern(options.id || "");
           const namePattern = normalizeWildcardPattern(options.name || "");
           const statusPattern = normalizeWildcardPattern(options.status || "");
           const portPattern = normalizeWildcardPattern(options.port ?? options.p ?? "");
+          const parseBoolFilter = (rawValue) => {{
+            if (typeof rawValue === "boolean") return rawValue;
+            const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+            if (!clean) return null;
+            if (["1", "true", "yes", "y", "on", "gps", "with"].includes(clean)) return true;
+            if (["0", "false", "no", "n", "off", "none", "without", "nogps", "no-gps"].includes(clean)) return false;
+            return null;
+          }};
+          let gpsFilter = null;
+          if (Object.prototype.hasOwnProperty.call(options, "gps")) {{
+            gpsFilter = parseBoolFilter(options.gps);
+            if (gpsFilter == null) {{
+              return `[list] invalid gps value: ${{String(options.gps)}}`;
+            }}
+          }}
+          const args = [];
+          for (const arg of rawArgs) {{
+            const clean = String(arg || "").trim().toLowerCase();
+            if (!Object.prototype.hasOwnProperty.call(options, "gps")) {{
+              if (clean === "gps") {{
+                gpsFilter = true;
+                continue;
+              }}
+              if (clean === "nogps" || clean === "no-gps") {{
+                gpsFilter = false;
+                continue;
+              }}
+            }}
+            args.push(arg);
+          }}
+          const freePattern = normalizeWildcardPattern(args[0] || "");
           const hopsComparators = [];
           const pushHopsComparator = (op, rawValue) => {{
             const numeric = Number(rawValue);
@@ -14366,6 +14436,7 @@
                 && row.ports.some((portValue) => wildcardMatches(portPattern, portValue));
               if (!hasPortMatch) return false;
             }}
+            if (gpsFilter != null && Boolean(row.hasGps) !== gpsFilter) return false;
             if (hopsComparators.length) {{
               const hopsValue = Number(row.hops);
               if (!Number.isFinite(hopsValue)) return false;
@@ -14387,9 +14458,25 @@
           for (const row of show) {{
             const hopsLabel = row.hops == null ? "n/a" : String(row.hops);
             const portsLabel = formatConsolePortSummary(row.ports, 3);
+            const gpsLabel = row.hasGps ? "yes" : "no";
+            const lat = Number(row && row.raw && row.raw.lat);
+            const lon = Number(row && row.raw && row.raw.lon);
+            const posLabel = row.hasGps
+              ? `${{lat.toFixed(5)}},${{lon.toFixed(5)}}`
+              : "n/a";
             lines.push(
-              `${{row.id}} | ${{row.name}} | status=${{row.status}} | hops=${{hopsLabel}} | ports=${{portsLabel}} | last=${{formatConsoleListTime(row.lastSeenUnix)}}`
+              `${{row.id}} | ${{row.name}} | status=${{row.status}} | gps=${{gpsLabel}} | hops=${{hopsLabel}} | ports=${{portsLabel}} | last=${{formatConsoleListTime(row.lastSeenUnix)}}${{verbosity > 0 ? ` | pos=${{posLabel}}` : ""}}`
             );
+            if (verbosity >= 2) {{
+              const altitude = Number(row && row.raw && row.raw.altitude);
+              const battery = Number(row && row.raw && row.raw.battery_level);
+              const detail = [];
+              if (Number.isFinite(altitude)) detail.push(`alt=${{Math.trunc(altitude)}}m`);
+              if (Number.isFinite(battery)) detail.push(`batt=${{Math.round(battery)}}%`);
+              if (detail.length) {{
+                lines.push(`  details: ${{detail.join(" | ")}}`);
+              }}
+            }}
           }}
           if (!show.length) {{
             lines.push("[list] no matches. Try list * or list name=*pattern*");
