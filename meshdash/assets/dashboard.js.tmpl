@@ -4371,11 +4371,19 @@
       // live_packet_count is monotonic within a runtime session. If it moves
       // backward, assume a tracker/runtime reset and restart ticker history so
       // scales don't stay anchored to the previous session.
-      if (nextLiveTotal + 1 < latestLiveTotal) {{
+      if (hasLiveCounterReset(latestLiveTotal, nextLiveTotal)) {{
         metricTickerSeries.clear();
         return true;
       }}
       return false;
+    }}
+
+    function hasLiveCounterReset(previousTotal, currentTotal) {{
+      if (!resetTickerScaleOnRestart) return false;
+      const prev = Number(previousTotal);
+      const next = Number(currentTotal);
+      if (!Number.isFinite(prev) || !Number.isFinite(next)) return false;
+      return next + 1 < prev;
     }}
 
     function sliceSummaryPointsAfterLiveCounterReset(points) {{
@@ -4388,7 +4396,7 @@
       for (let i = 0; i < rows.length; i += 1) {{
         const currentTotal = Number(rows[i] && rows[i].live_packet_count);
         if (!Number.isFinite(currentTotal)) continue;
-        if (Number.isFinite(previousTotal) && (currentTotal + 1 < previousTotal)) {{
+        if (hasLiveCounterReset(previousTotal, currentTotal)) {{
           // Keep the newest segment when the monotonic live counter rolls over.
           resetStartIndex = i;
         }}
@@ -20298,6 +20306,23 @@
       return `${{mon}}/${{day}} ${{timeLabel}}`;
     }}
 
+    function buildLinearAxisTicks(minValue, maxValue, tickCount = 5) {{
+      const lo = Number(minValue);
+      const hi = Number(maxValue);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
+      const count = Math.max(2, Math.min(7, Math.trunc(Number(tickCount) || 5)));
+      if (Math.abs(hi - lo) < 1e-9) {{
+        return [{{ ratio: 0, value: hi }}, {{ ratio: 1, value: lo }}];
+      }}
+      const ticks = [];
+      for (let i = 0; i < count; i += 1) {{
+        const ratio = i / Math.max(1, count - 1);
+        const value = hi - ((hi - lo) * ratio);
+        ticks.push({{ ratio, value }});
+      }}
+      return ticks;
+    }}
+
     function setTimelineMessage(timelineId, message) {{
       const timeline = document.getElementById(String(timelineId || "").trim());
       if (!(timeline instanceof HTMLElement)) return;
@@ -20337,7 +20362,7 @@
       const endUnix = valid[valid.length - 1];
       const spanCrossesDay = Math.floor(startUnix / 86400) !== Math.floor(endUnix / 86400);
 
-      const maxTicks = 5;
+      const maxTicks = 7;
       const desired = Math.max(2, Math.min(maxTicks, total));
       const indexSet = new Set();
       for (let i = 0; i < desired; i += 1) {{
@@ -20675,17 +20700,23 @@
             label: "#1f6f53",
           }};
 
-      const midY = padTop + (plotH / 2);
+      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisLines = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const axisLabels = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(tick.value, 0)}}</text>`;
+      }}).join("");
 
       svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
       svg.innerHTML = `
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
         <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{height - padBottom}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
         <path d="${{path}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="2.3"></path>
-        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(maxVal, 0)}}</text>
-        <text x="${{padLeft - 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(minVal, 0)}}</text>
+        ${{axisLabels}}
       `;
       renderTimeline(
         chartState.timelineId,
@@ -20863,13 +20894,22 @@
         const def = seriesDefs[s];
         const values = [];
         const points = [];
+        let pendingBreak = false;
         for (let i = 0; i < plotRows.length; i += 1) {{
+          if (plotRows[i] && plotRows[i].breakBefore) {{
+            pendingBreak = true;
+          }}
           const rawValue = def.readValue(plotRows[i]);
           if (rawValue === null || rawValue === undefined) continue;
           const value = Number(rawValue);
           if (!Number.isFinite(value)) continue;
           values.push(value);
-          points.push({{ idx: i, value }});
+          points.push({{
+            idx: i,
+            value,
+            breakBefore: pendingBreak,
+          }});
+          pendingBreak = false;
         }}
         if (!points.length) continue;
         seriesEntries.push({{
@@ -20962,10 +21002,14 @@
         const pointsXY = entry.points.map((point) => {{
           const x = padLeft + ((Math.max(0, point.idx) / Math.max(1, n - 1)) * plotW);
           const y = padTop + ((maxVal - point.value) / (maxVal - minVal)) * plotH;
-          return {{ x, y }};
+          return {{
+            x,
+            y,
+            breakBefore: !!point.breakBefore,
+          }};
         }});
         const path = pointsXY.map((pt, idx) => (
-          `${{idx === 0 ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
+          `${{idx === 0 || pt.breakBefore ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
         )).join(" ");
         return {{
           ...entry,
@@ -20976,7 +21020,16 @@
           path,
         }};
       }});
-      const midY = padTop + (plotH / 2);
+      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisLabelColor = enrichSeries[0] ? enrichSeries[0].labelColor : chartPalette.label;
+      const axisLines = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const axisLabels = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(tick.value, metricMeta.decimals)}}</text>`;
+      }}).join("");
       const legendX = Math.max(padLeft + 8, width - padRight - 260);
       const legendItems = enrichSeries.slice(0, 5).map((entry, index) => {{
         const y = padTop + 8 + (index * 14);
@@ -20988,16 +21041,13 @@
       const paths = enrichSeries.map((entry) => (
         `<path d="${{entry.path}}" fill="none" stroke="${{entry.stroke}}" stroke-width="${{entry.widthPx.toFixed(1)}}"${{entry.dashAttr}}></path>`
       )).join("");
-      const axisLabelColor = enrichSeries[0] ? enrichSeries[0].labelColor : chartPalette.label;
       svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
       svg.innerHTML = `
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
         <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{height - padBottom}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
         ${{paths}}
-        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(maxVal, metricMeta.decimals)}}</text>
-        <text x="${{padLeft - 4}}" y="${{height - padBottom}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(minVal, metricMeta.decimals)}}</text>
+        ${{axisLabels}}
         ${{legendItems}}
       `;
       renderTimeline(
@@ -21022,14 +21072,50 @@
       const linksMetric = metricKey === "links";
       let prevPacketBucketUnix = null;
       let prevPacketTotal = null;
+      let prevLiveCounter = null;
+      let packetPendingBreak = false;
+      const continuitySeries = new Set(["known_nodes", "saved_nodes", "position_nodes", "real_edge_count"]);
+      const continuityStateBySeries = new Map();
+      const continuityAdjustedValue = (seriesKey, rawValue, resetBreak) => {{
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric)) return null;
+        if (!continuitySeries.has(seriesKey)) return numeric;
+        let state = continuityStateBySeries.get(seriesKey);
+        if (!(state && typeof state === "object")) {{
+          state = {{ offset: 0, lastAdjusted: null }};
+          continuityStateBySeries.set(seriesKey, state);
+        }}
+        if (
+          resetBreak
+          && Number.isFinite(state.lastAdjusted)
+          && (numeric + 1 < Number(state.lastAdjusted))
+        ) {{
+          // Re-anchor continuity at reset without compounding prior offsets.
+          state.offset = Number(state.lastAdjusted) - numeric;
+        }}
+        const adjusted = numeric + Number(state.offset || 0);
+        state.lastAdjusted = adjusted;
+        return adjusted;
+      }};
       for (const point of points) {{
         if (!point || typeof point !== "object") continue;
         const bucketUnix = Number(point.bucket_unix);
         const bucketText = String(point.bucket_time || "").trim();
+        const liveCounter = Number(point.live_packet_count);
+        const resetBreak = hasLiveCounterReset(prevLiveCounter, liveCounter);
+        if (Number.isFinite(liveCounter)) {{
+          prevLiveCounter = liveCounter;
+        }}
         if (packetRateMetric) {{
-          const packetTotal = Number(point.live_packet_count);
+          const packetTotal = liveCounter;
           if (!Number.isFinite(bucketUnix) || !Number.isFinite(packetTotal) || bucketUnix <= 0) continue;
           if (Number.isFinite(prevPacketBucketUnix) && Number.isFinite(prevPacketTotal) && bucketUnix > prevPacketBucketUnix) {{
+            if (hasLiveCounterReset(prevPacketTotal, packetTotal)) {{
+              packetPendingBreak = true;
+              prevPacketBucketUnix = bucketUnix;
+              prevPacketTotal = packetTotal;
+              continue;
+            }}
             const spanMinutes = Math.max(1 / 60, (bucketUnix - prevPacketBucketUnix) / 60);
             const packetRate = Math.max(0, (packetTotal - prevPacketTotal) / spanMinutes);
             rows.push({{
@@ -21037,14 +21123,16 @@
               totalValue: packetTotal,
               bucketText,
               bucketUnix,
+              breakBefore: packetPendingBreak,
             }});
+            packetPendingBreak = false;
           }}
           prevPacketBucketUnix = bucketUnix;
           prevPacketTotal = packetTotal;
           continue;
         }}
         if (linksMetric) {{
-          const value = Number(point.real_edge_count);
+          const value = continuityAdjustedValue("real_edge_count", point.real_edge_count, resetBreak);
           if (!Number.isFinite(value)) continue;
           rows.push({{
             value,
@@ -21057,9 +21145,12 @@
           continue;
         }}
         const onlineValue = Number(point.online_node_count);
-        const knownValue = Number(point.node_count);
-        const savedValue = Number(point.saved_node_count);
-        const positionValue = Number(point.nodes_with_position);
+        const knownRawValue = Number(point.node_count);
+        const savedRawValue = Number(point.saved_node_count);
+        const positionRawValue = Number(point.nodes_with_position);
+        const knownValue = continuityAdjustedValue("known_nodes", knownRawValue, resetBreak);
+        const savedValue = continuityAdjustedValue("saved_nodes", savedRawValue, resetBreak);
+        const positionValue = continuityAdjustedValue("position_nodes", positionRawValue, resetBreak);
         const primaryValue = Number.isFinite(onlineValue) ? onlineValue : knownValue;
         if (!Number.isFinite(primaryValue)) continue;
         const seriesValues = {{}};
@@ -21070,9 +21161,9 @@
         rows.push({{
           value: primaryValue,
           series: seriesValues,
-          knownNodeCount: Number.isFinite(knownValue) ? knownValue : null,
-          savedNodeCount: Number.isFinite(savedValue) ? savedValue : null,
-          positionNodeCount: Number.isFinite(positionValue) ? positionValue : null,
+          knownNodeCount: Number.isFinite(knownRawValue) ? knownRawValue : null,
+          savedNodeCount: Number.isFinite(savedRawValue) ? savedRawValue : null,
+          positionNodeCount: Number.isFinite(positionRawValue) ? positionRawValue : null,
           bucketText,
           bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
         }});
@@ -21119,6 +21210,9 @@
       const delta = lastValue - firstValue;
       const values = chartRows.map((row) => Number(row.value)).filter((value) => Number.isFinite(value));
       const avg = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+      const averageDecimals = metricKey === "nodes" || metricKey === "links"
+        ? Math.max(1, Number(metricMeta.decimals) || 0)
+        : metricMeta.decimals;
       const windowHours = Number(payload.window_hours);
       const startLabel = chartRows[0].bucketText || "";
       const endLabel = chartRows[chartRows.length - 1].bucketText || "";
@@ -21141,7 +21235,7 @@
         ["Samples", String(chartRows.length)],
         ["Latest", formatMetricValue(lastValue, metricMeta.decimals)],
         ["Delta", formatMetricValue(delta, metricMeta.decimals)],
-        ["Average", formatMetricValue(avg, metricMeta.decimals)],
+        ["Average", formatMetricValue(avg, averageDecimals)],
         ["Peak", formatMetricValue(Math.max(...values), metricMeta.decimals)],
         ["Range", `${{startLabel || "n/a"}} to ${{endLabel || "n/a"}}`],
       ];
