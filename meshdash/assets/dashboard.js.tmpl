@@ -25729,6 +25729,20 @@
       return `${{mon}}/${{day}} ${{timeLabel}}`;
     }}
 
+    function timelineDayKey(unixTs) {{
+      if (!Number.isFinite(unixTs)) return "";
+      const dt = new Date(unixTs * 1000);
+      if (Number.isNaN(dt.getTime())) return "";
+      return `${{dt.getFullYear()}}-${{dt.getMonth() + 1}}-${{dt.getDate()}}`;
+    }}
+
+    function formatTimelineDayLabel(unixTs) {{
+      if (!Number.isFinite(unixTs)) return "";
+      const dt = new Date(unixTs * 1000);
+      if (Number.isNaN(dt.getTime())) return "";
+      return `${{dt.getMonth() + 1}}/${{dt.getDate()}}`;
+    }}
+
     function buildLinearAxisTicks(minValue, maxValue, tickCount = 5) {{
       const lo = Number(minValue);
       const hi = Number(maxValue);
@@ -25772,8 +25786,13 @@
         ? resolveUnix
         : ((row) => timelinePointUnix(row));
       const timestamps = rows.map((row) => pointUnixResolver(row));
-      const valid = timestamps.filter((ts) => Number.isFinite(ts));
-      if (!valid.length) {{
+      const validPoints = [];
+      for (let idx = 0; idx < timestamps.length; idx += 1) {{
+        const unixTs = Number(timestamps[idx]);
+        if (!Number.isFinite(unixTs)) continue;
+        validPoints.push({{ idx, unixTs }});
+      }}
+      if (!validPoints.length) {{
         setTimelineMessage(timelineId, "Timeline unavailable (missing timestamps).");
         return;
       }}
@@ -25781,20 +25800,17 @@
       const axisStartPct = Math.max(0, Math.min(100, (padLeft / width) * 100));
       const axisEndPct = Math.max(axisStartPct, Math.min(100, ((width - padRight) / width) * 100));
       const axisWidthPct = axisEndPct - axisStartPct;
-      const startUnix = valid[0];
-      const endUnix = valid[valid.length - 1];
+      const firstValid = validPoints[0];
+      const lastValid = validPoints[validPoints.length - 1];
+      const startUnix = firstValid.unixTs;
+      const endUnix = lastValid.unixTs;
       const spanCrossesDay = Math.floor(startUnix / 86400) !== Math.floor(endUnix / 86400);
+      const spanSeconds = Math.max(1, endUnix - startUnix);
 
-      const maxTicks = 7;
-      const desired = Math.max(2, Math.min(maxTicks, total));
-      const indexSet = new Set();
-      for (let i = 0; i < desired; i += 1) {{
-        const idx = Math.round((i * (total - 1)) / Math.max(1, desired - 1));
-        indexSet.add(Math.max(0, Math.min(total - 1, idx)));
-      }}
-      indexSet.add(0);
-      indexSet.add(total - 1);
-      const indices = Array.from(indexSet).sort((a, b) => a - b);
+      const unixToLeftPct = (unixTs) => {{
+        const ratio = Math.max(0, Math.min(1, (Number(unixTs) - startUnix) / spanSeconds));
+        return axisStartPct + (ratio * axisWidthPct);
+      }};
 
       timeline.innerHTML = "";
       const track = document.createElement("div");
@@ -25803,30 +25819,123 @@
       track.style.right = `${{(100 - axisEndPct).toFixed(3)}}%`;
       timeline.appendChild(track);
 
-      for (let i = 0; i < indices.length; i += 1) {{
-        const idx = indices[i];
-        const pointUnix = timestamps[idx];
-        const ratio = (total <= 1) ? 0 : (idx / (total - 1));
-        const leftPct = axisStartPct + (ratio * axisWidthPct);
+      const dailyMode = spanSeconds >= (36 * 3600);
+      const majorStepCandidates = dailyMode
+        ? [86400]
+        : [300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
+      const majorLabelLimit = dailyMode ? 8 : 9;
+      let majorStep = majorStepCandidates[majorStepCandidates.length - 1];
+      for (let i = 0; i < majorStepCandidates.length; i += 1) {{
+        const step = majorStepCandidates[i];
+        if (((spanSeconds / step) + 1) <= majorLabelLimit) {{
+          majorStep = step;
+          break;
+        }}
+      }}
+
+      let minorStep = dailyMode
+        ? 21600
+        : (majorStep >= 86400
+          ? 21600
+          : (majorStep >= 21600 ? 3600 : (majorStep >= 3600 ? 900 : Math.max(60, Math.floor(majorStep / 4)))));
+      const maxMinorTicks = 120;
+      while ((spanSeconds / minorStep) > maxMinorTicks) {{
+        minorStep *= 2;
+      }}
+
+      const majorEpsilon = Math.max(1, Math.floor(majorStep / 40));
+      const nearMajorTick = (unixTs) => {{
+        const rem = ((Number(unixTs) % majorStep) + majorStep) % majorStep;
+        return rem <= majorEpsilon || (majorStep - rem) <= majorEpsilon;
+      }};
+
+      const renderTick = (unixTs, options = {{}}) => {{
+        const opts = options && typeof options === "object" ? options : {{}};
+        const leftPct = unixToLeftPct(unixTs);
         const mark = document.createElement("div");
         mark.className = "signal-timeline-mark";
-        if (i === 0) mark.classList.add("edge-start");
-        if (i === indices.length - 1) mark.classList.add("edge-end");
+        if (opts.minor) mark.classList.add("signal-timeline-mark-minor");
+        if (opts.major) mark.classList.add("signal-timeline-mark-major");
+        if (opts.edgeStart) mark.classList.add("edge-start");
+        if (opts.edgeEnd) mark.classList.add("edge-end");
         mark.style.left = `${{leftPct.toFixed(3)}}%`;
 
         const tick = document.createElement("div");
         tick.className = "signal-timeline-tick";
+        if (opts.minor) tick.classList.add("signal-timeline-tick-minor");
+        if (opts.major) tick.classList.add("signal-timeline-tick-major");
         mark.appendChild(tick);
 
-        const label = document.createElement("div");
-        label.className = "signal-timeline-label";
-        const includeDate = spanCrossesDay && (i === 0 || i === indices.length - 1);
-        label.textContent = formatTimelineLabel(pointUnix, includeDate);
-        if (Number.isFinite(pointUnix)) {{
-          label.title = new Date(pointUnix * 1000).toLocaleString();
+        const labelText = String(opts.label || "").trim();
+        if (labelText) {{
+          const label = document.createElement("div");
+          label.className = "signal-timeline-label";
+          if (opts.major) label.classList.add("signal-timeline-label-major");
+          label.textContent = labelText;
+          mark.appendChild(label);
         }}
-        mark.appendChild(label);
+        if (Number.isFinite(Number(unixTs))) {{
+          mark.title = new Date(Number(unixTs) * 1000).toLocaleString();
+        }}
         timeline.appendChild(mark);
+      }};
+
+      const firstMinor = Math.ceil(startUnix / minorStep) * minorStep;
+      for (let unixTs = firstMinor; unixTs <= endUnix; unixTs += minorStep) {{
+        if (nearMajorTick(unixTs)) continue;
+        renderTick(unixTs, {{ minor: true }});
+      }}
+
+      const majorTicks = [];
+      const addMajorTick = (unixTs) => {{
+        const value = Number(unixTs);
+        if (!Number.isFinite(value)) return;
+        for (let i = 0; i < majorTicks.length; i += 1) {{
+          if (Math.abs(majorTicks[i] - value) <= majorEpsilon) return;
+        }}
+        majorTicks.push(value);
+      }};
+      const firstMajor = Math.ceil(startUnix / majorStep) * majorStep;
+      for (let unixTs = firstMajor; unixTs <= endUnix; unixTs += majorStep) {{
+        addMajorTick(unixTs);
+      }}
+      addMajorTick(startUnix);
+      addMajorTick(endUnix);
+      majorTicks.sort((a, b) => a - b);
+      const renderedDayKeys = new Set();
+
+      for (let i = 0; i < majorTicks.length; i += 1) {{
+        const unixTs = majorTicks[i];
+        const edgeStart = Math.abs(unixTs - startUnix) <= majorEpsilon;
+        const edgeEnd = Math.abs(unixTs - endUnix) <= majorEpsilon;
+        let label = "";
+        if (dailyMode) {{
+          const dayKey = timelineDayKey(unixTs);
+          if (dayKey && !renderedDayKeys.has(dayKey)) {{
+            renderedDayKeys.add(dayKey);
+            label = formatTimelineDayLabel(unixTs);
+          }}
+        }} else if (edgeStart || edgeEnd) {{
+          label = formatTimelineLabel(unixTs, spanCrossesDay || spanSeconds >= (12 * 3600));
+        }} else {{
+          const dt = new Date(unixTs * 1000);
+          if (
+            spanCrossesDay
+            && majorStep >= 21600
+            && dt.getHours() === 0
+            && dt.getMinutes() === 0
+          ) {{
+            label = formatTimelineDayLabel(unixTs);
+          }} else {{
+            label = formatTimelineLabel(unixTs, false);
+          }}
+        }}
+        renderTick(unixTs, {{
+          major: true,
+          edgeStart,
+          edgeEnd,
+          label,
+        }});
       }}
     }}
 
@@ -26411,6 +26520,26 @@
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
       const n = plotRows.length;
+      const dayBoundaries = [];
+      if (n > 1) {{
+        let lastDayKey = "";
+        for (let i = 0; i < plotRows.length; i += 1) {{
+          const unixTs = timelinePointUnix(plotRows[i], "bucketUnix", ["bucketText"]);
+          const dayKey = timelineDayKey(unixTs);
+          if (!dayKey) continue;
+          if (!lastDayKey) {{
+            lastDayKey = dayKey;
+            continue;
+          }}
+          if (dayKey !== lastDayKey) {{
+            dayBoundaries.push({{
+              idx: i,
+              unixTs,
+            }});
+            lastDayKey = dayKey;
+          }}
+        }}
+      }}
       const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
       const chartPalette = darkTheme
         ? {{
@@ -26504,6 +26633,10 @@
         const y = padTop + (tick.ratio * plotH);
         return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(tick.value, metricMeta.decimals)}}</text>`;
       }}).join("");
+      const dayGuideLines = dayBoundaries.map((boundary) => {{
+        const x = padLeft + ((Math.max(0, boundary.idx) / Math.max(1, n - 1)) * plotW);
+        return `<line x1="${{x.toFixed(2)}}" y1="${{padTop}}" x2="${{x.toFixed(2)}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1" stroke-dasharray="2 3" stroke-opacity="${{darkTheme ? "0.45" : "0.65"}}"></line>`;
+      }}).join("");
       const legendX = Math.max(padLeft + 8, width - padRight - 260);
       const legendItems = enrichSeries.slice(0, 5).map((entry, index) => {{
         const y = padTop + 8 + (index * 14);
@@ -26523,6 +26656,7 @@
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
         <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
         ${{axisLines}}
+        ${{dayGuideLines}}
         ${{paths}}
         ${{axisLabels}}
         ${{legendItems}}

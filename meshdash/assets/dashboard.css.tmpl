@@ -4051,12 +4051,12 @@
     }}
     .signal-timeline {{
       position: relative;
-      height: 34px;
+      height: 44px;
       margin-top: 6px;
     }}
     .signal-timeline-track {{
       position: absolute;
-      top: 8px;
+      top: 10px;
       height: 1px;
       background: #c6d8cc;
       border-radius: 1px;
@@ -4077,16 +4077,30 @@
     .signal-timeline-tick {{
       width: 1px;
       height: 7px;
-      margin-top: 5px;
+      margin-top: 6px;
       background: #6d8577;
       border-radius: 1px;
     }}
+    .signal-timeline-tick-major {{
+      height: 9px;
+      background: #5b7668;
+    }}
+    .signal-timeline-tick-minor {{
+      height: 4px;
+      margin-top: 8px;
+      background: #9aafa2;
+      opacity: 0.66;
+    }}
     .signal-timeline-label {{
-      margin-top: 3px;
+      margin-top: 4px;
       font-size: 10px;
       color: #4f6759;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
+    }}
+    .signal-timeline-label-major {{
+      font-weight: 600;
+      color: #3f5a4b;
     }}
     .signal-timeline-empty {{
       position: absolute;
@@ -9104,9 +9118,19 @@
     [data-theme="dark"] .signal-timeline-tick {{
       background: #70879f;
     }}
+    [data-theme="dark"] .signal-timeline-tick-major {{
+      background: #8ea9c5;
+    }}
+    [data-theme="dark"] .signal-timeline-tick-minor {{
+      background: #5f758d;
+      opacity: 0.72;
+    }}
     [data-theme="dark"] .signal-timeline-label,
     [data-theme="dark"] .signal-timeline-empty {{
       color: #a4b7c9;
+    }}
+    [data-theme="dark"] .signal-timeline-label-major {{
+      color: #d6e6f7;
     }}
     [data-theme="dark"] .saved-node-details {{
       border-color: var(--ui-border);
