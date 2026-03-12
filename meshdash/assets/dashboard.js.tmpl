@@ -20920,6 +20920,7 @@
       const telemetryAirQualityIntervalInput = document.getElementById("settings-telemetry-air-quality-interval-secs");
       const telemetryPowerIntervalInput = document.getElementById("settings-telemetry-power-interval-secs");
       const telemetryHealthIntervalInput = document.getElementById("settings-telemetry-health-interval-secs");
+      const ledHeartbeatEnabledInput = document.getElementById("settings-led-heartbeat-enabled");
       const fixedLatInput = document.getElementById("settings-fixed-latitude");
       const fixedLonInput = document.getElementById("settings-fixed-longitude");
       const fixedAltInput = document.getElementById("settings-fixed-altitude");
@@ -21036,6 +21037,10 @@
         telemetryHealthIntervalInput,
         normalizeConfigSeconds(telemetryCfg && telemetryCfg.health_update_interval, 0, 0)
       );
+      setFormChecked(
+        ledHeartbeatEnabledInput,
+        !normalizeConfigBool(device && device.led_heartbeat_disabled, false)
+      );
 
       const fixedFromState = fixedPositionFromState(state);
       if (fixedFromState) {{
@@ -21136,6 +21141,7 @@
         "settings-apply-device-broadcast",
         "settings-apply-position",
         "settings-apply-telemetry",
+        "settings-apply-led-heartbeat",
         "settings-set-fixed-position",
         "settings-clear-fixed-position",
         "settings-reset",
@@ -22109,6 +22115,28 @@
       }}
     }}
 
+    async function applyLedHeartbeatSetting() {{
+      if (settingsApplyInFlight) return;
+      const ledHeartbeatEnabled = !!readCheckboxValue("settings-led-heartbeat-enabled");
+
+      const ok = await postRadioSettingsPayload(
+        {{
+          local: {{
+            device: {{
+              led_heartbeat_disabled: !ledHeartbeatEnabled,
+            }},
+          }},
+        }},
+        "Applying LED heartbeat setting…",
+        "LED heartbeat setting saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
     async function applySectionSettings(scope) {{
       const isLocal = scope === "local";
       const sectionId = isLocal ? "settings-local-section" : "settings-module-section";
@@ -22401,6 +22429,12 @@
       if (applyTelemetryBtn instanceof HTMLButtonElement) {{
         applyTelemetryBtn.addEventListener("click", () => {{
           void applyTelemetrySettings();
+        }});
+      }}
+      const applyLedHeartbeatBtn = document.getElementById("settings-apply-led-heartbeat");
+      if (applyLedHeartbeatBtn instanceof HTMLButtonElement) {{
+        applyLedHeartbeatBtn.addEventListener("click", () => {{
+          void applyLedHeartbeatSetting();
         }});
       }}
 
