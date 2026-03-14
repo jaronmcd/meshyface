@@ -1,7 +1,10 @@
 # Ideas Backlog
 
 
-- Wifi connection option like UART
+
+
+- limit public bot responce per user to 3, react 4th request with X, send pm saying they can continue testing peer to peer, no public reponce for 1 hour.
+- add location in responce based on neartest city on offline map based on GPS location
 
 - can we tag a "type help for list of commands" on the very first message when someone ism playing zork remote? But we don't want to add it to the zork game, just somehow tag it on the inital "white house" message
 
