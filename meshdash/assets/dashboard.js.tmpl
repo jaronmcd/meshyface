@@ -6178,6 +6178,104 @@
       return parts.join(" | ");
     }}
 
+    function indexMeshBotRequestsByMessageId(botRequestsRaw) {{
+      const requestByMessageId = new Map();
+      const responseByMessageId = new Map();
+      const rows = Array.isArray(botRequestsRaw) ? botRequestsRaw : [];
+      for (const rawRow of rows) {{
+        if (!rawRow || typeof rawRow !== "object") continue;
+        const source = String(rawRow.source || "").trim().toLowerCase();
+        if (source !== "mesh") continue;
+        const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
+        const responseMessageId = parsePositiveMessageId(
+          rawRow.response_message_id ?? rawRow.responseMessageId
+        );
+        if (requestMessageId) {{
+          requestByMessageId.set(String(requestMessageId), rawRow);
+        }}
+        if (responseMessageId) {{
+          responseByMessageId.set(String(responseMessageId), rawRow);
+        }}
+      }}
+      return {{ requestByMessageId, responseByMessageId }};
+    }}
+
+    function buildPacketSummaryAndRoutingAckMaps(rawPackets) {{
+      const packetSummaryById = new Map();
+      const deliveryAckByRequestId = new Map();
+      const entries = Array.isArray(rawPackets) ? rawPackets : [];
+      for (const entry of entries) {{
+        const summary = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const packet = (entry && entry.packet && typeof entry.packet === "object")
+          ? entry.packet
+          : {{}};
+        const decoded = (packet.decoded && typeof packet.decoded === "object")
+          ? packet.decoded
+          : {{}};
+        const packetId = parsePositiveMessageId(
+          summary.packet_id
+          ?? summary.message_id
+          ?? packet.id
+          ?? packet.packet_id
+          ?? packet.message_id
+        );
+        if (packetId) {{
+          packetSummaryById.set(String(packetId), entry);
+        }}
+
+        const portnum = String(summary.portnum ?? decoded.portnum ?? "").trim().toUpperCase();
+        if (portnum !== "ROUTING_APP") {{
+          continue;
+        }}
+        const routing = (decoded.routing && typeof decoded.routing === "object")
+          ? decoded.routing
+          : {{}};
+        const requestId = parsePositiveMessageId(
+          routing.requestId
+          ?? routing.request_id
+          ?? decoded.requestId
+          ?? decoded.request_id
+        );
+        if (!requestId) {{
+          continue;
+        }}
+        const ackMs = latestTimestampMs(
+          summary.rx_time_unix,
+          summary.rx_time,
+          summary.captured_at,
+          entry && (entry.captured_at || entry.rx_time),
+          packet.rxTime,
+        ) || 0;
+        const ackHops = hopCountOfChatPacket(summary) ?? hopCountOfChatPacket(packet);
+        const rxSnrRaw = Number(
+          summary.rx_snr
+          ?? summary.rxSnr
+          ?? packet.rx_snr
+          ?? packet.rxSnr
+        );
+        const rxRssiRaw = Number(
+          summary.rx_rssi
+          ?? summary.rxRssi
+          ?? packet.rx_rssi
+          ?? packet.rxRssi
+        );
+        const existingAck = deliveryAckByRequestId.get(String(requestId));
+        if (existingAck && Number(existingAck.rx_ms || 0) > ackMs) {{
+          continue;
+        }}
+        deliveryAckByRequestId.set(String(requestId), {{
+          request_id: requestId,
+          rx_ms: ackMs > 0 ? ackMs : null,
+          hops: Number.isInteger(ackHops) && ackHops >= 0 ? ackHops : null,
+          rx_snr: Number.isFinite(rxSnrRaw) ? rxSnrRaw : null,
+          rx_rssi: Number.isFinite(rxRssiRaw) ? Math.trunc(rxRssiRaw) : null,
+        }});
+      }}
+      return {{ packetSummaryById, deliveryAckByRequestId }};
+    }}
+
     function formatLatencyLabel(latencyMsRaw) {{
       const latencyMs = Number(latencyMsRaw);
       if (!Number.isFinite(latencyMs) || latencyMs < 0) return "n/a";
@@ -16983,6 +17081,24 @@
       return payload;
     }}
 
+    function chatAckOptionsFromButton(button) {{
+      if (!(button instanceof HTMLElement)) return null;
+      return {{
+        reply_id: Number(button.dataset.ackReplyId || ""),
+        text: button.dataset.ackText || "",
+        text_mode: button.dataset.ackTextMode || "",
+        destination: button.dataset.ackDestination || "^all",
+        channel_index: Number(button.dataset.ackChannel || ""),
+        target_label: button.dataset.ackTargetLabel || "",
+        source_id: button.dataset.ackSourceId || "",
+        source_label: button.dataset.ackSourceLabel || "",
+        received_unix: button.dataset.ackReceivedUnix || "",
+        hops: button.dataset.ackHopCount || "",
+        rx_snr: button.dataset.ackRxSnr || "",
+        rx_rssi: button.dataset.ackRxRssi || "",
+      }};
+    }}
+
     async function retryChatMessage(options) {{
       const text = String((options && options.text) || "").trim();
       if (!text) {{
@@ -27183,21 +27299,11 @@
           if (ackBtn) {{
             ev.preventDefault();
             ev.stopPropagation();
-            if (ackBtn instanceof HTMLElement) {{
-              void sendChatAck({{
-                reply_id: Number(ackBtn.dataset.ackReplyId || ""),
-                text: ackBtn.dataset.ackText || "",
-                text_mode: ackBtn.dataset.ackTextMode || "",
-                destination: ackBtn.dataset.ackDestination || "^all",
-                channel_index: Number(ackBtn.dataset.ackChannel || ""),
-                target_label: ackBtn.dataset.ackTargetLabel || "",
-                source_id: ackBtn.dataset.ackSourceId || "",
-                source_label: ackBtn.dataset.ackSourceLabel || "",
-                received_unix: ackBtn.dataset.ackReceivedUnix || "",
-                hops: ackBtn.dataset.ackHopCount || "",
-                rx_snr: ackBtn.dataset.ackRxSnr || "",
-                rx_rssi: ackBtn.dataset.ackRxRssi || "",
-              }});
+            const ackOptions = chatAckOptionsFromButton(
+              ackBtn instanceof HTMLElement ? ackBtn : null
+            );
+            if (ackOptions) {{
+              void sendChatAck(ackOptions);
             }}
             return;
           }}
@@ -32140,26 +32246,12 @@
         const channelCountsLocal = {{ all: 0, direct: 0 }};
         const channelMessagesLocal = {{ all: [], direct: [] }};
         const directMessagesByPeerLocal = new Map();
-        const packetSummaryByIdLocal = new Map();
-        const deliveryAckByRequestIdLocal = new Map();
-        const meshBotRequestByMessageIdLocal = new Map();
-        const meshBotResponseByMessageIdLocal = new Map();
-
-        for (const rawRow of botRequests) {{
-          if (!rawRow || typeof rawRow !== "object") continue;
-          const source = String(rawRow.source || "").trim().toLowerCase();
-          if (source !== "mesh") continue;
-          const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
-          const responseMessageId = parsePositiveMessageId(
-            rawRow.response_message_id ?? rawRow.responseMessageId
-          );
-          if (requestMessageId) {{
-            meshBotRequestByMessageIdLocal.set(String(requestMessageId), rawRow);
-          }}
-          if (responseMessageId) {{
-            meshBotResponseByMessageIdLocal.set(String(responseMessageId), rawRow);
-          }}
-        }}
+        const meshBotIndexes = indexMeshBotRequestsByMessageId(botRequests);
+        const meshBotRequestByMessageIdLocal = meshBotIndexes.requestByMessageId;
+        const meshBotResponseByMessageIdLocal = meshBotIndexes.responseByMessageId;
+        const packetMaps = buildPacketSummaryAndRoutingAckMaps(rawPackets);
+        const packetSummaryByIdLocal = packetMaps.packetSummaryById;
+        const deliveryAckByRequestIdLocal = packetMaps.deliveryAckByRequestId;
 
         const endpointsForBuild = (msg) => {{
           if (!msg || typeof msg !== "object") return {{ fromId: "", toId: "" }};
@@ -32169,76 +32261,6 @@
           messageEndpointsLocal.set(msg, resolved);
           return resolved;
         }};
-
-        for (const entry of rawPackets) {{
-          const summary = (entry && entry.summary && typeof entry.summary === "object")
-            ? entry.summary
-            : {{}};
-          const packet = (entry && entry.packet && typeof entry.packet === "object")
-            ? entry.packet
-            : {{}};
-          const decoded = (packet.decoded && typeof packet.decoded === "object")
-            ? packet.decoded
-            : {{}};
-          const packetId = parsePositiveMessageId(
-            summary.packet_id
-            ?? summary.message_id
-            ?? packet.id
-            ?? packet.packet_id
-            ?? packet.message_id
-          );
-          if (packetId) {{
-            packetSummaryByIdLocal.set(String(packetId), entry);
-          }}
-
-          const portnum = String(summary.portnum ?? decoded.portnum ?? "").trim().toUpperCase();
-          if (portnum !== "ROUTING_APP") {{
-            continue;
-          }}
-          const routing = (decoded.routing && typeof decoded.routing === "object")
-            ? decoded.routing
-            : {{}};
-          const requestId = parsePositiveMessageId(
-            routing.requestId
-            ?? routing.request_id
-            ?? decoded.requestId
-            ?? decoded.request_id
-          );
-          if (!requestId) {{
-            continue;
-          }}
-          const ackMs = latestTimestampMs(
-            summary.rx_time_unix,
-            summary.rx_time,
-            summary.captured_at,
-            entry && (entry.captured_at || entry.rx_time),
-            packet.rxTime,
-          ) || 0;
-          const ackHops = hopCountOfChatPacket(summary) ?? hopCountOfChatPacket(packet);
-          const rxSnrRaw = Number(
-            summary.rx_snr
-            ?? summary.rxSnr
-            ?? packet.rx_snr
-            ?? packet.rxSnr
-          );
-          const rxRssiRaw = Number(
-            summary.rx_rssi
-            ?? summary.rxRssi
-            ?? packet.rx_rssi
-            ?? packet.rxRssi
-          );
-          const existingAck = deliveryAckByRequestIdLocal.get(String(requestId));
-          if (existingAck && Number(existingAck.rx_ms || 0) > ackMs) {{
-            continue;
-          }}
-          deliveryAckByRequestIdLocal.set(String(requestId), {{
-            request_id: requestId,
-            rx_ms: ackMs > 0 ? ackMs : null,
-            hops: Number.isInteger(ackHops) && ackHops >= 0 ? ackHops : null,
-            rx_snr: Number.isFinite(rxSnrRaw) ? rxSnrRaw : null,
-            rx_rssi: Number.isFinite(rxRssiRaw) ? Math.trunc(rxRssiRaw) : null,
-          }});
-        }}
 
         for (const msg of rawMessages) {{
           const msgChannelKey = classifyMessageChannel(msg) === "direct" ? "direct" : "all";
