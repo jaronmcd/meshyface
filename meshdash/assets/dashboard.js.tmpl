@@ -2522,6 +2522,7 @@
       status: "Local hotseat mode.",
     }};
     let activeChatChannel = "all";
+    let chatDirectActivePeerId = "";
     let chatNotificationScope = "all";
     let chatWhoisQuickActionEnabled = true;
     let chatWhoisQuickActionPrefix = "whois";
@@ -8053,16 +8054,7 @@
       if (usersTitle) {{
         usersTitle.textContent = activeChatChannel === "direct" ? "Users (Peer-to-peer)" : "Users (Everyone)";
       }}
-      const input = document.getElementById("chat-input");
-      if (input instanceof HTMLInputElement) {{
-        if (activeChatChannel === "direct") {{
-          input.placeholder = isSelectableNodeId(selectedNodeId)
-            ? `Direct message to ${{selectedNodeId}}...`
-            : "Select a user to direct message...";
-        }} else {{
-          input.placeholder = "Message the room (^all)...";
-        }}
-      }}
+      updateChatInputPlaceholder();
       if (activeChatChannel !== "direct") {{
         chatPeerAddPanelOpen = false;
       }}
@@ -8076,6 +8068,28 @@
         renderChat(latestState);
       }}
       requestImmediatePoll(0);
+    }}
+
+    function resolvedDirectPeerForComposer() {{
+      const selected = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      if (isCanonicalNodeId(selected)) {{
+        return selected;
+      }}
+      const activePeer = normalizeNodeId(chatDirectActivePeerId || "");
+      return isCanonicalNodeId(activePeer) ? activePeer : "";
+    }}
+
+    function updateChatInputPlaceholder() {{
+      const input = document.getElementById("chat-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      if (activeChatChannel !== "direct") {{
+        input.placeholder = "Message the room (^all)...";
+        return;
+      }}
+      const directPeer = resolvedDirectPeerForComposer();
+      input.placeholder = isCanonicalNodeId(directPeer)
+        ? `Direct message to ${{directPeer}}...`
+        : "Select a user to direct message...";
     }}
 
     function loadChatChannel() {{
@@ -17964,14 +17978,15 @@
       }}
       let destination = "^all";
       if (activeChatChannel === "direct") {{
-        if (!isSelectableNodeId(selectedNodeId)) {{
+        const directPeer = resolvedDirectPeerForComposer();
+        if (!isCanonicalNodeId(directPeer)) {{
           setChatSendStatus("Select a user before sending a peer-to-peer message.", true);
           if (hadFocus) {{
             restoreChatInputFocus(input);
           }}
           return;
         }}
-        destination = selectedNodeId;
+        destination = directPeer;
         if (isSelfNodeId(destination)) {{
           setChatSendStatus("Cannot send peer-to-peer message to your own radio.", true);
           if (hadFocus) {{
@@ -18032,8 +18047,11 @@
       }}
       let destination = "^all";
       const sendCtx = meshChannelSendContext();
-      if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)) {{
-        destination = selectedNodeId;
+      if (activeChatChannel === "direct") {{
+        const directPeer = resolvedDirectPeerForComposer();
+        if (isCanonicalNodeId(directPeer)) {{
+          destination = directPeer;
+        }}
         if (isSelfNodeId(destination)) {{
           setChatSendStatus("Cannot react in peer-to-peer mode to your own radio.", true);
           return;
@@ -20956,8 +20974,16 @@
         const kind = normalizeChatMessageKind(msg, isReaction);
         const msgId = messageIdOfChatPacket(msg);
         const meshChannelIndex = messageMeshChannelIndex(msg);
-        const fromId = normalizeNodeId(msg && msg.from ? msg.from : "");
-        const toId = normalizeNodeId(msg && (msg.to || msg.destination) ? (msg.to || msg.destination) : "");
+        const fromId = normalizeNodeId(
+          msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)
+            ? (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)
+            : ""
+        );
+        const toId = normalizeNodeId(
+          msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)
+            ? (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)
+            : ""
+        );
         const replyIdRaw = Number(msg && (msg.reply_id ?? msg.replyId));
         const replyId = Number.isInteger(replyIdRaw) && replyIdRaw > 0
           ? Math.trunc(replyIdRaw)
@@ -20987,11 +21013,9 @@
         );
         const peerNodeId = channel === "direct"
           ? normalizeNodeId(
-            botPeerNodeId || (
-              senderIsSelf
-              ? (toId || fromId || "")
+            senderIsSelf
+              ? (toId || botPeerNodeId || fromId || "")
               : (fromId || toId || "")
-            )
           )
           : "";
         entries.push({{
@@ -21017,11 +21041,13 @@
       if (!entry || typeof entry !== "object") return false;
       if (document.hidden || !tabHasFocus) return false;
       if (activeLayoutView !== "chat") return false;
-      const activeMeshIdx = activeMeshChannelFilterIndex();
-      const entryMeshIdx = normalizeMeshChannelIndex(entry.meshChannelIndex);
-      if (activeMeshIdx !== meshChannelAllIndex && entryMeshIdx !== activeMeshIdx) return false;
       const entryChannel = normalizeChatChannel(entry.channel || entry.targetChatChannel || "all");
       if (entryChannel !== activeChatChannel) return false;
+      if (entryChannel !== "direct") {{
+        const activeMeshIdx = activeMeshChannelFilterIndex();
+        const entryMeshIdx = normalizeMeshChannelIndex(entry.meshChannelIndex);
+        if (activeMeshIdx !== meshChannelAllIndex && entryMeshIdx !== activeMeshIdx) return false;
+      }}
       if (entryChannel !== "direct") return true;
       const selectedPeerId = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
       const entryPeerId = normalizeNodeId(entry.peerNodeId || "");
@@ -21257,7 +21283,7 @@
     function clearVisibleChatUnread(channelKey = activeChatChannel) {{
       const key = normalizeChatChannel(channelKey);
       const activeIdx = activeMeshChannelFilterIndex();
-      if (activeIdx === meshChannelAllIndex) {{
+      if (key === "direct" || activeIdx === meshChannelAllIndex) {{
         chatUnreadByMeshChannel[key] = Object.create(null);
       }} else {{
         setChatMeshChannelUnread(key, activeIdx, 0);
@@ -32646,6 +32672,7 @@
       ) ? window.performance.now() : 0;
       const traffic = state.traffic || {{}};
       const s = state.summary || {{}};
+      const botRequests = Array.isArray(state.bot_requests) ? state.bot_requests : [];
       const chatScroller = getChatScroller();
       const shouldStickBottom = !!(chatScroller && (chatStickToBottom || isNearBottom(chatScroller)));
       const nodes = Array.isArray(state.nodes) ? state.nodes : [];
@@ -32992,8 +33019,12 @@
       const rawMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
       const rawPackets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
       const computeMessageEndpoints = (msg) => {{
-        const fromId = resolveMessageNodeId(msg && msg.from);
-        const toId = resolveMessageNodeId((msg && msg.to) || (msg && msg.destination));
+        const fromId = resolveMessageNodeId(
+          (msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)) || ""
+        );
+        const toId = resolveMessageNodeId(
+          (msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)) || ""
+        );
         return {{ fromId, toId }};
       }};
       let derived = null;
@@ -33015,6 +33046,24 @@
         const channelMessagesLocal = {{ all: [], direct: [] }};
         const directMessagesByPeerLocal = new Map();
         const packetSummaryByIdLocal = new Map();
+        const meshBotRequestByMessageIdLocal = new Map();
+        const meshBotResponseByMessageIdLocal = new Map();
+
+        for (const rawRow of botRequests) {{
+          if (!rawRow || typeof rawRow !== "object") continue;
+          const source = String(rawRow.source || "").trim().toLowerCase();
+          if (source !== "mesh") continue;
+          const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
+          const responseMessageId = parsePositiveMessageId(
+            rawRow.response_message_id ?? rawRow.responseMessageId
+          );
+          if (requestMessageId) {{
+            meshBotRequestByMessageIdLocal.set(String(requestMessageId), rawRow);
+          }}
+          if (responseMessageId) {{
+            meshBotResponseByMessageIdLocal.set(String(responseMessageId), rawRow);
+          }}
+        }}
 
         const endpointsForBuild = (msg) => {{
           if (!msg || typeof msg !== "object") return {{ fromId: "", toId: "" }};
@@ -33044,7 +33093,11 @@
         }}
 
         for (const msg of rawMessages) {{
-          if (!messageMatchesActiveMeshChannel(msg)) {{
+          const msgChannelKey = classifyMessageChannel(msg) === "direct" ? "direct" : "all";
+          if (
+            !messageMatchesActiveMeshChannel(msg)
+            && !(activeChatChannel === "direct" && msgChannelKey === "direct")
+          ) {{
             continue;
           }}
           if (isFileTransferProtocolMessage(msg)) {{
@@ -33099,7 +33152,7 @@
 
           baseMessagesLocal.push(msg);
           const endpoints = endpointsForBuild(msg);
-          const key = classifyMessageChannel(msg) === "direct" ? "direct" : "all";
+          const key = msgChannelKey;
           channelCountsLocal[key] += 1;
           channelMessagesLocal[key].push(msg);
           if (key === "direct") {{
@@ -33107,6 +33160,36 @@
             if (isCanonicalNodeId(endpoints.fromId)) peers.push(endpoints.fromId);
             if (isCanonicalNodeId(endpoints.toId) && endpoints.toId !== endpoints.fromId) {{
               peers.push(endpoints.toId);
+            }}
+            if (peers.length === 0) {{
+              const msgId = messageIdOf(msg);
+              const botRequestRow = msgId != null
+                ? meshBotRequestByMessageIdLocal.get(String(msgId)) || null
+                : null;
+              const botResponseRow = msgId != null
+                ? meshBotResponseByMessageIdLocal.get(String(msgId)) || null
+                : null;
+              const botRow = botResponseRow || botRequestRow;
+              if (botRow && typeof botRow === "object") {{
+                const candidateRaw = [
+                  botRow.response_to,
+                  botRow.responseTo,
+                  botRow.to_id,
+                  botRow.toId,
+                  botRow.from_id,
+                  botRow.fromId,
+                  botRow.response_from,
+                  botRow.responseFrom,
+                ];
+                for (const value of candidateRaw) {{
+                  const candidate = normalizeNodeId(value || "");
+                  if (!isCanonicalNodeId(candidate)) continue;
+                  if (isCanonicalNodeId(localNodeId) && candidate === localNodeId) continue;
+                  if (!peers.includes(candidate)) {{
+                    peers.push(candidate);
+                  }}
+                }}
+              }}
             }}
             for (const peerId of peers) {{
               let bucket = directMessagesByPeerLocal.get(peerId);
@@ -33187,9 +33270,56 @@
         }}
       }}
 
-      const directSelectedId = (
-        activeChatChannel === "direct" && isCanonicalNodeId(selectedNodeId)
+      const explicitDirectSelectedId = (
+        activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)
       ) ? normalizeNodeId(selectedNodeId) : "";
+      const hasDirectBucketForPeer = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isCanonicalNodeId(peerId)) return false;
+        const bucket = directMessagesByPeer.get(peerId);
+        return Array.isArray(bucket) && bucket.length > 0;
+      }};
+      const noticeSuggestedDirectPeerId = (() => {{
+        if (activeChatChannel !== "direct") return "";
+        const notices = chatChangeNoticesForChannel("direct");
+        for (let idx = notices.length - 1; idx >= 0; idx -= 1) {{
+          const peerId = normalizeNodeId(notices[idx] && notices[idx].peerNodeId);
+          if (!hasDirectBucketForPeer(peerId)) continue;
+          return peerId;
+        }}
+        return "";
+      }})();
+      const fallbackDirectSelectedId = (() => {{
+        if (activeChatChannel !== "direct") return "";
+        if (hasDirectBucketForPeer(explicitDirectSelectedId)) return "";
+        let bestPeerId = "";
+        let bestUnix = -1;
+        for (const [peerIdRaw, bucketRaw] of directMessagesByPeer.entries()) {{
+          const peerId = normalizeNodeId(peerIdRaw || "");
+          if (!isCanonicalNodeId(peerId)) continue;
+          const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
+          if (bucket.length <= 0) continue;
+          const latestMsg = bucket[bucket.length - 1];
+          const unix = latestUnixTimestamp(latestMsg && latestMsg.rx_time, latestMsg && latestMsg.captured_at);
+          const score = Number.isFinite(unix) ? unix : 0;
+          if (!bestPeerId || score > bestUnix) {{
+            bestPeerId = peerId;
+            bestUnix = score;
+          }}
+        }}
+        return bestPeerId;
+      }})();
+      const directSelectedId = (
+        hasDirectBucketForPeer(explicitDirectSelectedId)
+          ? explicitDirectSelectedId
+          : (
+              noticeSuggestedDirectPeerId
+              || fallbackDirectSelectedId
+              || (isCanonicalNodeId(explicitDirectSelectedId) ? explicitDirectSelectedId : "")
+            )
+      );
+      chatDirectActivePeerId = isCanonicalNodeId(directSelectedId) ? directSelectedId : "";
+      updateChatInputPlaceholder();
       const activeChannelMessages = (
         activeChatChannel === "direct" ? channelMessages.direct : channelMessages.all
       );

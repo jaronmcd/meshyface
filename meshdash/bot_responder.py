@@ -51,6 +51,7 @@ _PUBLIC_PING_DIRECT_HANDOFF_TEXT = (
 )
 _BOT_CITY_HINT_MAX_DISTANCE_KM = 120.0
 _REQUESTER_POSITION_MAX_AGE_SECONDS = 24 * 3600
+_ZORK_START_HELP_HINT = "type help for list of commands."
 
 
 def _parse_bool_token(value: object, default: bool) -> bool:
@@ -704,6 +705,32 @@ def _segment_reply_text(text: object, max_bytes: int) -> list[str]:
             return [f"{index}/{total} {chunk}" for index, chunk in enumerate(chunks, start=1)]
         digits = next_digits
     return [_truncate_text_to_bytes(raw, limit)]
+
+
+def _tag_zork_start_reply(reply_text: object, *, app_name: str) -> Optional[str]:
+    if str(app_name or "").strip().lower() != "zork":
+        if isinstance(reply_text, str):
+            return reply_text
+        return str(reply_text).strip() if reply_text is not None else None
+    if not isinstance(reply_text, str):
+        return str(reply_text).strip() if reply_text is not None else None
+    text = reply_text.strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    marker = "zork: session started."
+    marker_index = lowered.find(marker)
+    if marker_index < 0:
+        return text
+    if _ZORK_START_HELP_HINT in lowered:
+        return text
+    marker_end = marker_index + len(marker)
+    head = text[:marker_end].rstrip()
+    tail = text[marker_end:].lstrip()
+    tip = f"Tip: {_ZORK_START_HELP_HINT}"
+    if tail:
+        return f"{head} {tail} {tip}"
+    return f"{head} {tip}"
 
 
 class MeshResponseBot:
@@ -1594,7 +1621,10 @@ class MeshResponseBot:
             else:
                 args = [str(part) for part in raw_args if str(part)]
             command_enabled = bool(self._command_enabled_locked(command))
-            reply_text = getattr(result, "reply_text", None)
+            reply_text = _tag_zork_start_reply(
+                getattr(result, "reply_text", None),
+                app_name=app_name,
+            )
         else:
             parsed = self._parse_command(text)
             if parsed is None:

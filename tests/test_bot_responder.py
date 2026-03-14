@@ -66,6 +66,16 @@ def _segment_marker(text: object) -> tuple[int | None, int | None, str]:
     return (None, None, raw)
 
 
+def _joined_segment_text(rows: list[dict[str, object]]) -> str:
+    parts: list[str] = []
+    for row in rows:
+        _part, _total, body = _segment_marker(row.get("text"))
+        clean = str(body or "").strip()
+        if clean:
+            parts.append(clean)
+    return " ".join(parts)
+
+
 def test_ping_targeted_to_local_suffix_replies_with_human_readable_reply():
     iface = _FakeIface()
     sent = []
@@ -857,9 +867,11 @@ def test_zork_game_starts_only_for_direct_messages():
     bot.on_receive(_base_packet("zork", packet_id=2001, to_id="^all"), iface)
     bot.on_receive(_base_packet("zork", packet_id=2002, to_id="!02ed9b7c"), iface)
 
-    assert len(sent) == 1
-    assert sent[0]["destination"] == "!49b5dff0"
-    assert "zork" in str(sent[0]["text"]).lower()
+    assert len(sent) >= 1
+    assert all(row["destination"] == "!49b5dff0" for row in sent)
+    text = _joined_segment_text(sent).lower()
+    assert "zork" in text
+    assert "type help for list of commands" in text
 
 
 def test_zork_game_can_start_from_public_chat_when_public_handoff_is_enabled():
@@ -880,10 +892,14 @@ def test_zork_game_can_start_from_public_chat_when_public_handoff_is_enabled():
     )
     bot.on_receive(_base_packet("zork", packet_id=2051, to_id="^all"), iface)
 
-    assert len(sent) == 1
-    assert sent[0]["destination"] == "!49b5dff0"
+    assert len(sent) >= 1
+    assert all(row["destination"] == "!49b5dff0" for row in sent)
     assert sent[0]["reply_id"] == 2051
-    assert "zork: session started." in str(sent[0]["text"]).lower()
+    text = _joined_segment_text(sent).lower()
+    assert "zork: session started." in text
+    assert "west of house" in text
+    assert "type help for list of commands" in text
+    assert text.index("west of house") < text.index("type help for list of commands")
     history = bot.recent_requests()
     assert len(history) == 1
     assert history[0]["to_id"] == "^all"
@@ -908,9 +924,13 @@ def test_zork_game_session_replies_to_followup_commands():
     bot.on_receive(_base_packet("zork", packet_id=2101, to_id="!02ed9b7c"), iface)
     bot.on_receive(_base_packet("look", packet_id=2102, to_id="!02ed9b7c"), iface)
 
-    assert len(sent) == 2
-    assert sent[1]["destination"] == "!49b5dff0"
-    assert "west of house" in str(sent[1]["text"]).lower()
+    assert len(sent) >= 2
+    assert sent[-1]["destination"] == "!49b5dff0"
+    start_text = _joined_segment_text(sent[:-1]).lower()
+    look_text = str(sent[-1]["text"]).lower()
+    assert "type help for list of commands" in start_text
+    assert "type help for list of commands" not in look_text
+    assert "west of house" in look_text
     history = bot.recent_requests()
     assert len(history) == 2
     assert all(str(row.get("command_head") or "") == "zork" for row in history)
@@ -1067,11 +1087,13 @@ def test_zork_leaflet_reply_segments_are_paced_with_configured_delay():
     bot.on_receive(_base_packet("zork", packet_id=2601, to_id="!02ed9b7c"), iface)
     bot.on_receive(_base_packet("open mailbox", packet_id=2602, to_id="!02ed9b7c"), iface)
     sent_before_leaflet = len(sent)
+    sleep_before_leaflet = len(sleep_calls)
     bot.on_receive(_base_packet("read leaflet", packet_id=2603, to_id="!02ed9b7c"), iface)
 
     leaflet_segments = sent[sent_before_leaflet:]
+    leaflet_sleep_calls = sleep_calls[sleep_before_leaflet:]
     assert len(leaflet_segments) >= 2
-    assert sleep_calls == [0.25] * (len(leaflet_segments) - 1)
+    assert leaflet_sleep_calls == [0.25] * (len(leaflet_segments) - 1)
 
 
 def test_segmented_direct_reply_retries_unacked_parts():
