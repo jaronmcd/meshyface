@@ -1,6 +1,9 @@
 import json
 from dataclasses import dataclass, field
 
+from .config import SENSITIVE_FIELD_NAMES
+from .helpers_security import is_sensitive_key
+
 
 @dataclass(frozen=True)
 class RadioSettingsRequest:
@@ -31,6 +34,14 @@ class RadioSettingsRequest:
     actions: dict[str, bool] = field(default_factory=dict)
 
 
+def _is_redacted_secret_placeholder(key: str | None, value: object) -> bool:
+    if not key or not isinstance(value, str):
+        return False
+    if value.strip().lower() != "<redacted>":
+        return False
+    return is_sensitive_key(key, SENSITIVE_FIELD_NAMES)
+
+
 def _coerce_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -43,7 +54,9 @@ def _coerce_bool(value: object) -> bool:
     return bool(value)
 
 
-def _clean_update_value(value: object) -> object | None:
+def _clean_update_value(value: object, *, parent_key: str | None = None) -> object | None:
+    if _is_redacted_secret_placeholder(parent_key, value):
+        return None
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, list):
@@ -55,7 +68,7 @@ def _clean_update_value(value: object) -> object | None:
         for k, v in value.items():
             if not isinstance(k, str):
                 continue
-            clean_v = _clean_update_value(v)
+            clean_v = _clean_update_value(v, parent_key=k)
             if clean_v is not None:
                 clean_obj[k] = clean_v
             elif v is None:
@@ -73,7 +86,7 @@ def _clean_update_object(payload: object, *, field_name: str) -> dict[str, objec
     for key, value in payload.items():
         if not isinstance(key, str):
             continue
-        clean_value = _clean_update_value(value)
+        clean_value = _clean_update_value(value, parent_key=key)
         if clean_value is not None:
             clean_obj[key] = clean_value
         elif value is None:

@@ -107,6 +107,58 @@ def test_parse_radio_settings_request_supports_top_level_reset_alias():
     }
 
 
+def test_parse_radio_settings_request_ignores_redacted_secret_placeholders():
+    request = parse_radio_settings_request(
+        b"""
+        {
+          "local": {
+            "network": {
+              "wifi_enabled": true,
+              "wifi_ssid": "The LAN Before Time",
+              "wifi_psk": "<redacted>",
+              "ntp_server": "meshtastic.pool.ntp.org"
+            }
+          },
+          "module": {
+            "mqtt": {
+              "enabled": true,
+              "username": "meshdev",
+              "password": "<redacted>",
+              "map_report_settings": {
+                "proxy_password": "<redacted>",
+                "position_precision": 0
+              }
+            }
+          }
+        }
+        """
+    )
+
+    assert request.local == {
+        "network": {
+            "wifi_enabled": True,
+            "wifi_ssid": "The LAN Before Time",
+            "ntp_server": "meshtastic.pool.ntp.org",
+        }
+    }
+    assert request.module == {
+        "mqtt": {
+            "enabled": True,
+            "username": "meshdev",
+            "map_report_settings": {
+                "position_precision": 0,
+            },
+        }
+    }
+
+
+def test_parse_radio_settings_request_keeps_redacted_literal_for_non_secret_fields():
+    request = parse_radio_settings_request(
+        b'{"local":{"device":{"tzdef":"<redacted>"}}}'
+    )
+    assert request.local == {"device": {"tzdef": "<redacted>"}}
+
+
 def test_parse_radio_settings_request_rejects_invalid_json():
     with pytest.raises(ValueError, match="Invalid JSON"):
         parse_radio_settings_request(b"{not-json}")
