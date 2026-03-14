@@ -2385,6 +2385,7 @@
     let consoleLiveLayers = null;
     let consoleEventCounter = 0;
     let consoleGrepRunCounter = 0;
+    let consoleRenderDeferred = false;
     let fitDone = false;
     let mapBootstrapFocusDone = false;
     let pendingMapHistoryFocus = false;
@@ -20719,6 +20720,11 @@
       consoleCursorBlinkTimer = window.setInterval(() => {{
         consoleCursorVisible = !consoleCursorVisible;
         if (activeLayoutView === "console") {{
+          const pre = document.getElementById("live-console");
+          if (pre instanceof HTMLElement && hasConsoleSelectionWithin(pre)) {{
+            consoleRenderDeferred = true;
+            return;
+          }}
           renderConsoleBuffer(false);
         }}
       }}, 530);
@@ -20837,6 +20843,11 @@
     function renderConsoleBuffer(forceScroll = false) {{
       const pre = document.getElementById("live-console");
       if (!(pre instanceof HTMLElement)) return;
+      if (!forceScroll && hasConsoleSelectionWithin(pre)) {{
+        consoleRenderDeferred = true;
+        return;
+      }}
+      consoleRenderDeferred = false;
       const filterExpr = parseConsoleFilterExpression(consoleFilterText);
       const filtered = filterConsoleLinesWithContext(consoleLines, filterExpr);
       const visibleLines = filtered.lines;
@@ -21389,6 +21400,14 @@
       return false;
     }}
 
+    function hasConsoleSelectionWithin(element) {{
+      if (!(element instanceof HTMLElement)) return false;
+      const selection = window.getSelection ? window.getSelection() : null;
+      if (!selectionIntersectsElement(selection, element)) return false;
+      const text = String(selection ? selection.toString() : "");
+      return text.length > 0;
+    }}
+
     async function copySelectionToClipboardWithin(element) {{
       if (!(element instanceof HTMLElement)) return false;
       const selection = window.getSelection ? window.getSelection() : null;
@@ -21400,7 +21419,6 @@
           return false;
         }}
         await navigator.clipboard.writeText(text);
-        selection.removeAllRanges();
         return true;
       }} catch (_err) {{
         return false;
@@ -22766,6 +22784,9 @@
         }});
         pre.addEventListener("mouseup", () => {{
           void copyConsoleSelectionToClipboard();
+          if (consoleRenderDeferred) {{
+            renderConsoleBuffer(false);
+          }}
         }});
       }}
       const terminalScreen = document.getElementById("console-terminal-screen");
@@ -22816,6 +22837,17 @@
         }});
         input.addEventListener("keydown", (ev) => {{
           if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && String(ev.key || "").toLowerCase() === "c") {{
+            const pre = document.getElementById("live-console");
+            const selection = window.getSelection ? window.getSelection() : null;
+            const hasConsoleSelection = selectionIntersectsElement(
+              selection,
+              pre instanceof HTMLElement ? pre : null
+            ) && String(selection ? selection.toString() : "").trim();
+            if (!consoleRunningCommand && !consoleInteractiveSession && hasConsoleSelection) {{
+              ev.preventDefault();
+              void copyConsoleSelectionToClipboard();
+              return;
+            }}
             if (consoleRunningCommand || consoleInteractiveSession) {{
               ev.preventDefault();
               appendConsoleEventLine("^C");

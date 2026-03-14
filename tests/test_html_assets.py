@@ -83,7 +83,8 @@ def test_build_dashboard_js_injects_runtime_values():
     assert "async function copyConsoleSelectionToClipboard()" in js
     assert "async function copyChatSelectionToClipboard()" in js
     assert "navigator.clipboard.writeText(text);" in js
-    assert "selection.removeAllRanges();" in js
+    assert "selection.removeAllRanges();" not in js
+    assert "if (!consoleRunningCommand && !consoleInteractiveSession && hasConsoleSelection) {" in js
     assert "pre.addEventListener(\"mouseup\", () => {" in js
     assert "void copyChatSelectionToClipboard();" in js
     assert "function bindHistoryChatRowClicks()" in js
