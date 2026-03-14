@@ -358,6 +358,18 @@
       text-align: right;
       flex: 1 1 auto;
     }}
+    .topbar .summary-ticker-item#summary-ticker-node {{
+      grid-template-rows: auto auto auto;
+      row-gap: 2px;
+    }}
+    .topbar .summary-ticker-item#summary-ticker-node .metric-ticker {{
+      grid-column: 1 / span 2;
+      grid-row: 3;
+      justify-self: stretch;
+    }}
+    .topbar .summary-ticker-item#summary-ticker-node .metric-ticker-chart {{
+      width: 64px;
+    }}
     .topbar .summary-ticker-item .value.wifi-ticker-value {{
       grid-column: 1;
       grid-row: 2;

@@ -330,7 +330,7 @@
       {{ id: "channel_util", defaultLabel: "Channel Util", metric: true }},
       {{ id: "battery", defaultLabel: "Battery", metric: true }},
       {{ id: "wifi", defaultLabel: "Wi-Fi", metric: true }},
-      {{ id: "node", defaultLabel: "Node", metric: false }},
+      {{ id: "node", defaultLabel: "Link", metric: true }},
       {{ id: "gps", defaultLabel: "GPS", metric: false }},
       {{ id: "system", defaultLabel: "System", metric: false }},
       {{ id: "time", defaultLabel: "Time", metric: false }},
@@ -6576,6 +6576,18 @@
           : (caps && (caps.air_util_tx ?? caps.airUtilTx))
       );
       const airUtilTx = Number.isFinite(airUtilTxRaw) ? Math.max(0, airUtilTxRaw) : null;
+      const snrRaw = Number(
+        (localNode && localNode.snr != null)
+          ? localNode.snr
+          : (caps && (caps.last_snr ?? caps.snr))
+      );
+      const snrDb = Number.isFinite(snrRaw) ? snrRaw : null;
+      const rssiRaw = Number(
+        (localNode && localNode.rssi != null)
+          ? localNode.rssi
+          : (caps && (caps.last_rssi ?? caps.rssi))
+      );
+      const rssiDbm = Number.isFinite(rssiRaw) ? Math.trunc(rssiRaw) : null;
 
       const lat = Number(localNode && localNode.lat);
       const lon = Number(localNode && localNode.lon);
@@ -6598,6 +6610,8 @@
         hops,
         channelUtil,
         airUtilTx,
+        snrDb,
+        rssiDbm,
         lat,
         lon,
         gpsFix,
@@ -6607,6 +6621,47 @@
         presetText,
         nodeName,
       }};
+    }}
+
+    function resolveLatestRadioSignalSnapshot(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const traffic = safeState.traffic && typeof safeState.traffic === "object"
+        ? safeState.traffic
+        : {{}};
+      const packets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
+      let latest = null;
+      for (const packet of packets) {{
+        const summary = (packet && typeof packet.summary === "object") ? packet.summary : packet;
+        const snrRaw = Number(
+          (summary && (summary.rx_snr ?? summary.rxSnr)) ?? (packet && (packet.rx_snr ?? packet.rxSnr))
+        );
+        const rssiRaw = Number(
+          (summary && (summary.rx_rssi ?? summary.rxRssi)) ?? (packet && (packet.rx_rssi ?? packet.rxRssi))
+        );
+        const snrDb = Number.isFinite(snrRaw) ? snrRaw : null;
+        const rssiDbm = Number.isFinite(rssiRaw) ? Math.trunc(rssiRaw) : null;
+        if (!Number.isFinite(snrDb) && !Number.isFinite(rssiDbm)) continue;
+
+        const seenUnix = latestUnixTimestamp(
+          summary && summary.captured_at,
+          summary && summary.rx_time,
+          summary && summary.time,
+          packet && packet.captured_at,
+          packet && packet.rx_time,
+          packet && packet.time,
+        );
+        if (!latest) {{
+          latest = {{ snrDb, rssiDbm, seenUnix }};
+          continue;
+        }}
+        const currentSeen = Number(latest.seenUnix);
+        const nextSeen = Number(seenUnix);
+        if (!Number.isFinite(nextSeen) || nextSeen <= 0) continue;
+        if (!Number.isFinite(currentSeen) || nextSeen >= currentSeen) {{
+          latest = {{ snrDb, rssiDbm, seenUnix: nextSeen }};
+        }}
+      }}
+      return latest || {{ snrDb: null, rssiDbm: null, seenUnix: null }};
     }}
 
     function buildChannelUtilTickerSummary(state = latestState) {{
@@ -6861,18 +6916,54 @@
     function buildNodeTickerSummary(state = latestState) {{
       const telemetry = resolveLocalNodeTelemetry(state);
       const localId = telemetry.localId;
+      const latestSignal = resolveLatestRadioSignalSnapshot(state);
+      const snrDbRaw = Number(
+        (latestSignal && latestSignal.snrDb != null)
+          ? latestSignal.snrDb
+          : telemetry.snrDb
+      );
+      const snrDb = Number.isFinite(snrDbRaw)
+        ? Math.round(snrDbRaw * 10) / 10
+        : null;
+      const rssiDbmRaw = Number(
+        (latestSignal && latestSignal.rssiDbm != null)
+          ? latestSignal.rssiDbm
+          : telemetry.rssiDbm
+      );
+      const rssiDbm = Number.isFinite(rssiDbmRaw) ? Math.trunc(rssiDbmRaw) : null;
       const hopsText = Number.isFinite(telemetry.hops) ? String(telemetry.hops) : "n/a";
+      const routeText = Number.isFinite(telemetry.hops)
+        ? (telemetry.hops <= 0 ? "direct" : `${{telemetry.hops}}-hop`)
+        : "n/a";
+      const seenUnix = latestUnixTimestamp(
+        latestSignal && latestSignal.seenUnix,
+        telemetry && telemetry.lastSeenUnix
+      );
+      const seenText = Number.isFinite(seenUnix)
+        ? savedDetailAge(seenUnix, Math.floor(Date.now() / 1000))
+        : telemetry.lastSeenText;
+      const snrText = Number.isFinite(snrDb)
+        ? `${{formatTickerNumber(snrDb, 1)}}dB`
+        : "n/a";
+      const rssiText = Number.isFinite(rssiDbm)
+        ? `${{rssiDbm}}dBm`
+        : "n/a";
       const rows = [
+        {{ key: "SNR", value: snrText }},
+        {{ key: "RSSI", value: rssiText }},
+        {{ key: "Route", value: routeText }},
         {{ key: "Hops", value: hopsText }},
-        {{ key: "Seen", value: telemetry.lastSeenText }},
+        {{ key: "Seen", value: seenText }},
       ];
       const rowsHtml = rows
         .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
         .join("");
 
       const compactParts = [];
+      compactParts.push(`RSSI ${{rssiText}}`);
+      compactParts.push(`SNR ${{snrText}}`);
       compactParts.push(`Hops ${{hopsText}}`);
-      compactParts.push(`Seen ${{telemetry.lastSeenText}}`);
+      compactParts.push(`Seen ${{seenText}}`);
       const text = compactParts.join(" · ");
 
       const titleParts = [];
@@ -6881,10 +6972,13 @@
       }} else {{
         titleParts.push(`node ${{telemetry.nodeName}}`);
       }}
+      titleParts.push(`rssi ${{rssiText}}`);
+      titleParts.push(`snr ${{snrText}}`);
       if (Number.isFinite(telemetry.hops)) {{
         titleParts.push(`hops ${{telemetry.hops}}`);
       }}
-      titleParts.push(`last seen ${{telemetry.lastSeenText}}`);
+      titleParts.push(`route ${{routeText}}`);
+      titleParts.push(`last seen ${{seenText}}`);
       titleParts.push(`LoRa preset ${{telemetry.presetText}}`);
 
       return {{
@@ -6892,6 +6986,8 @@
         rows,
         rows_html: rowsHtml,
         title: titleParts.join(" | "),
+        snr_db: snrDb,
+        rssi_dbm: rssiDbm,
       }};
     }}
 
@@ -28341,6 +28437,7 @@
       const showChannelUtilTrend = tickerTrendEnabled("channel_util");
       const showBatteryTrend = tickerTrendEnabled("battery");
       const showWifiTrend = tickerTrendEnabled("wifi");
+      const showNodeTrend = tickerTrendEnabled("node");
       const batteryTrendWindowMs = batteryTrendWindowHours() * 60 * 60 * 1000;
       setText("m-battery", batteryDisplayText);
       const batteryMetricValueEl = document.getElementById("m-battery");
@@ -28459,6 +28556,35 @@
           nodeTickerEl.textContent = nodeTicker && nodeTicker.text ? String(nodeTicker.text) : "n/a";
         }}
         nodeTickerEl.title = nodeTicker.title || "Node summary unavailable";
+      }}
+      const nodeRssi = Number(nodeTicker && nodeTicker.rssi_dbm);
+      const nodeSnr = Number(nodeTicker && nodeTicker.snr_db);
+      const nodeSignalValue = Number.isFinite(nodeRssi) ? nodeRssi : nodeSnr;
+      const nodeSignalMetricKey = Number.isFinite(nodeRssi) ? "node_rssi_dbm" : "node_snr_db";
+      const nodeSignalUnit = Number.isFinite(nodeRssi) ? "dBm" : "dB";
+      const nodeSignalDigits = Number.isFinite(nodeRssi) ? 0 : 1;
+      if (Number.isFinite(nodeSignalValue)) {{
+        updateMetricTicker(nodeSignalMetricKey, nodeSignalValue, {{
+          containerId: "ticker-node-signal",
+          deltaId: "ticker-delta-node-signal",
+          rateId: "ticker-rate-node-signal",
+          chartId: "ticker-chart-node-signal",
+          digits: nodeSignalDigits,
+          rateDigits: 1,
+          flatThreshold: 0.4,
+          valueUnit: nodeSignalUnit,
+          windowMs: 2 * 60 * 60 * 1000,
+          maxPoints: 240,
+        }});
+        const nodeMetricTicker = document.getElementById("ticker-node-signal");
+        if (nodeMetricTicker instanceof HTMLElement && !showNodeTrend) {{
+          nodeMetricTicker.hidden = true;
+        }}
+      }} else {{
+        const nodeMetricTicker = document.getElementById("ticker-node-signal");
+        if (nodeMetricTicker instanceof HTMLElement) {{
+          nodeMetricTicker.hidden = true;
+        }}
       }}
       const gpsTicker = buildGpsTickerSummary(state);
       const gpsTickerEl = document.getElementById("m-gps-ticker");
