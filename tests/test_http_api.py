@@ -38,9 +38,25 @@ def _run_post(handler_cls, path: str, body: dict):
 
 
 def test_http_api_state_and_history_endpoints():
+    def _state():
+        return {"ok": True, "nodes": 3}
+
+    setattr(
+        _state,
+        "search_history_packets_fn",
+        lambda query_text, **kwargs: {
+            "ok": True,
+            "query": query_text,
+            "entries": [],
+            "matches": 0,
+            "returned_matches": 0,
+            "kwargs": kwargs,
+        },
+    )
+
     handler_cls = make_http_handler(
         html_text="<html>ok</html>",
-        state_fn=lambda: {"ok": True, "nodes": 3},
+        state_fn=_state,
         node_history_fn=lambda node_id, hours, points: {
             "node_id": node_id,
             "hours": hours,
@@ -80,6 +96,19 @@ def test_http_api_state_and_history_endpoints():
     summary = json.loads(data.decode("utf-8"))
     assert summary["window_hours"] == 6
     assert summary["points"][0]["bucket_unix"] == 60
+
+    sent, data = _run_get(
+        handler_cls,
+        "/api/history/search?q=!3369d0b8&before=1&after=1&scope=both&scan=300",
+    )
+    assert sent["status"] == 200
+    search_payload = json.loads(data.decode("utf-8"))
+    assert search_payload["ok"] is True
+    assert search_payload["query"] == "!3369d0b8"
+    assert search_payload["kwargs"]["before"] == 1
+    assert search_payload["kwargs"]["after"] == 1
+    assert search_payload["kwargs"]["scope"] == "both"
+    assert search_payload["kwargs"]["scan_limit"] == 300
 
 
 def test_http_api_chat_send_success_and_disabled():

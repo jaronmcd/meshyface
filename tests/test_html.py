@@ -87,6 +87,8 @@ def test_render_html_includes_console_text_size_control():
     assert 'id="console-terminal-screen"' in html
     assert 'id="console-command-input"' in html
     assert 'id="console-timestamps"' in html
+    assert 'id="console-filter-input"' in html
+    assert 'placeholder="Filter console text (e.g. ack -C2)..."' in html
     assert 'id="console-font-size-select"' in html
 
 

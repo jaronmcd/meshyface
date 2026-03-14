@@ -2370,6 +2370,7 @@
     let historyChatMainPct = 72;
     let consoleAutoscroll = true;
     let consoleShowTimestamps = false;
+    let consoleFilterText = "";
     let consoleFontSize = "md";
     let consoleCommandHistory = [];
     let consoleCommandHistoryCursor = -1;
@@ -2383,6 +2384,7 @@
     let consoleLiveVerbosity = 0;
     let consoleLiveLayers = null;
     let consoleEventCounter = 0;
+    let consoleGrepRunCounter = 0;
     let fitDone = false;
     let mapBootstrapFocusDone = false;
     let pendingMapHistoryFocus = false;
@@ -20722,10 +20724,126 @@
       }}, 530);
     }}
 
+    function parseConsoleFilterExpression(rawFilterText) {{
+      let raw = String(rawFilterText == null ? "" : rawFilterText).trim();
+      if (!raw) {{
+        return {{
+          needle: "",
+          before: 0,
+          after: 0,
+        }};
+      }}
+      let before = 0;
+      let after = 0;
+      const clamp = (value) => Math.max(0, Math.min(50, Math.trunc(Number(value) || 0)));
+      raw = raw.replace(/(^|\s)-([cCabB])\s*(\d+)\b/g, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "c") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "a") {{
+          after = Math.max(after, count);
+        }} else if (mode === "b") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      raw = raw.replace(/(^|\s)--(context|after-context|before-context)\s*=?\s*(\d+)\b/gi, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "context") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "after-context") {{
+          after = Math.max(after, count);
+        }} else if (mode === "before-context") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      return {{
+        needle: raw.trim(),
+        before,
+        after,
+      }};
+    }}
+
+    function filterConsoleLinesWithContext(lines, filterExpr) {{
+      const source = Array.isArray(lines) ? lines : [];
+      const parsed = (filterExpr && typeof filterExpr === "object") ? filterExpr : {{
+        needle: "",
+        before: 0,
+        after: 0,
+      }};
+      const needle = String(parsed.needle == null ? "" : parsed.needle).trim().toLowerCase();
+      const before = Math.max(0, Math.trunc(Number(parsed.before) || 0));
+      const after = Math.max(0, Math.trunc(Number(parsed.after) || 0));
+      if (!needle) {{
+        return {{
+          lines: source.slice(),
+          active: false,
+          needle: "",
+        }};
+      }}
+      const matchIndexes = [];
+      for (let i = 0; i < source.length; i += 1) {{
+        const lineText = String(source[i] == null ? "" : source[i]).toLowerCase();
+        if (lineText.includes(needle)) {{
+          matchIndexes.push(i);
+        }}
+      }}
+      if (!matchIndexes.length) {{
+        return {{
+          lines: [],
+          active: true,
+          needle,
+        }};
+      }}
+      if (before < 1 && after < 1) {{
+        return {{
+          lines: matchIndexes.map((index) => source[index]),
+          active: true,
+          needle,
+        }};
+      }}
+      const ranges = [];
+      for (const idx of matchIndexes) {{
+        const start = Math.max(0, idx - before);
+        const end = Math.min(source.length - 1, idx + after);
+        if (!ranges.length || start > ranges[ranges.length - 1].end + 1) {{
+          ranges.push({{ start, end }});
+        }} else {{
+          ranges[ranges.length - 1].end = Math.max(ranges[ranges.length - 1].end, end);
+        }}
+      }}
+      const out = [];
+      for (let r = 0; r < ranges.length; r += 1) {{
+        if (r > 0) {{
+          out.push("[filter] --");
+        }}
+        const range = ranges[r];
+        for (let i = range.start; i <= range.end; i += 1) {{
+          out.push(source[i]);
+        }}
+      }}
+      return {{
+        lines: out,
+        active: true,
+        needle,
+      }};
+    }}
+
     function renderConsoleBuffer(forceScroll = false) {{
       const pre = document.getElementById("live-console");
       if (!(pre instanceof HTMLElement)) return;
-      const rendered = consoleLines.map((line) => escAttr(String(line == null ? "" : line)));
+      const filterExpr = parseConsoleFilterExpression(consoleFilterText);
+      const filtered = filterConsoleLinesWithContext(consoleLines, filterExpr);
+      const visibleLines = filtered.lines;
+      const rendered = visibleLines.map((line) => escAttr(String(line == null ? "" : line)));
+      if (filtered.active && visibleLines.length < 1) {{
+        rendered.push(escAttr(`[filter] no matches for "${{filtered.needle}}"`));
+      }}
       rendered.push(formatConsolePromptInputLine(consolePromptLabel, consoleCommandInputValue()));
       pre.innerHTML = rendered.join("\n");
       if (consoleAutoscroll || forceScroll) {{
@@ -20856,6 +20974,7 @@
           commandHistory: consoleCommandHistory.slice(-consoleCommandHistoryMax),
           autoscroll: !!consoleAutoscroll,
           timestamps: !!consoleShowTimestamps,
+          filterText: String(consoleFilterText || "").slice(0, 120),
           interactiveSession,
           eventCounter: Math.max(0, Math.trunc(Number(consoleEventCounter) || 0)),
         }};
@@ -20897,6 +21016,7 @@
         consoleCommandDraft = "";
         consoleAutoscroll = payload.autoscroll !== false;
         consoleShowTimestamps = payload.timestamps === true;
+        consoleFilterText = String(payload.filterText ?? payload.filter ?? "").slice(0, 120);
         consoleInteractiveSession = normalizeConsoleInteractiveSession(payload.interactiveSession);
         consoleEventCounter = Math.max(0, Math.trunc(Number(payload.eventCounter) || 0));
       }} catch (_err) {{
@@ -21201,6 +21321,56 @@
       }}
       consoleCursorVisible = true;
       renderConsoleBuffer(false);
+    }}
+
+    function insertTextIntoConsoleCommandInput(text, inputEl = null) {{
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      const rawText = String(text == null ? "" : text);
+      if (!rawText) return false;
+      const normalizedText = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const current = String(input.value || "");
+      const startRaw = Number(input.selectionStart);
+      const endRaw = Number(input.selectionEnd);
+      const start = Number.isFinite(startRaw)
+        ? Math.max(0, Math.min(current.length, Math.trunc(startRaw)))
+        : current.length;
+      const end = Number.isFinite(endRaw)
+        ? Math.max(start, Math.min(current.length, Math.trunc(endRaw)))
+        : start;
+      input.value = `${{current.slice(0, start)}}${{normalizedText}}${{current.slice(end)}}`;
+      const nextCaret = start + normalizedText.length;
+      try {{
+        input.setSelectionRange(nextCaret, nextCaret);
+      }} catch (_err) {{
+      }}
+      consoleCommandHistoryCursor = -1;
+      consoleCommandDraft = "";
+      renderConsoleBuffer(false);
+      return true;
+    }}
+
+    function handleConsolePasteEvent(ev) {{
+      if (!ev || activeLayoutView !== "console") return false;
+      const target = ev.target;
+      if (target instanceof HTMLTextAreaElement) return false;
+      if (
+        target instanceof HTMLInputElement
+        && target.id
+        && target.id !== "console-command-input"
+      ) {{
+        return false;
+      }}
+      const clipboardData = ev.clipboardData;
+      const pastedText = clipboardData && typeof clipboardData.getData === "function"
+        ? clipboardData.getData("text/plain")
+        : "";
+      if (!pastedText) return false;
+      focusConsoleCommandInput(false);
+      const input = consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      ev.preventDefault();
+      return insertTextIntoConsoleCommandInput(pastedText, input);
     }}
 
     function selectionIntersectsElement(selection, element) {{
@@ -21782,6 +21952,161 @@
         }},
       }});
       registerConsoleCommand({{
+        name: "grep",
+        usage: "grep <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [scan=<n>]",
+        description: "Search retained history packets (non-live) with grep-style context windows.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const parseBoundedIntOption = (rawValue, min, max, optionLabel) => {{
+            if (rawValue == null) return {{ ok: true, value: null }};
+            const rawText = String(rawValue).trim();
+            if (!rawText) return {{ ok: true, value: null }};
+            const numeric = Number(rawText);
+            if (!Number.isFinite(numeric)) {{
+              return {{ ok: false, value: null, error: `[grep] invalid ${{optionLabel}} value: ${{rawText}}` }};
+            }}
+            const clean = Math.trunc(numeric);
+            if (clean < min || clean > max) {{
+              return {{ ok: false, value: null, error: `[grep] ${{optionLabel}} must be between ${{min}} and ${{max}}.` }};
+            }}
+            return {{ ok: true, value: clean }};
+          }};
+
+          const rawQuery = args.join(" ").trim();
+          const parsedFilterExpr = parseConsoleFilterExpression(rawQuery);
+          const queryText = String(parsedFilterExpr.needle || "").trim();
+          if (!queryText) {{
+            return '[grep] missing search text. Example: grep "!3369d0b8" -C2';
+          }}
+
+          let before = Math.max(0, Math.trunc(Number(parsedFilterExpr.before) || 0));
+          let after = Math.max(0, Math.trunc(Number(parsedFilterExpr.after) || 0));
+
+          const contextParsed = parseBoundedIntOption(
+            options.context ?? options.c,
+            0,
+            30,
+            "context",
+          );
+          if (!contextParsed.ok) return contextParsed.error;
+          if (contextParsed.value != null) {{
+            before = Math.max(before, contextParsed.value);
+            after = Math.max(after, contextParsed.value);
+          }}
+
+          const beforeParsed = parseBoundedIntOption(options.before ?? options.b, 0, 30, "before");
+          if (!beforeParsed.ok) return beforeParsed.error;
+          if (beforeParsed.value != null) {{
+            before = Math.max(before, beforeParsed.value);
+          }}
+
+          const afterParsed = parseBoundedIntOption(options.after ?? options.a, 0, 30, "after");
+          if (!afterParsed.ok) return afterParsed.error;
+          if (afterParsed.value != null) {{
+            after = Math.max(after, afterParsed.value);
+          }}
+
+          const limitParsed = parseBoundedIntOption(options.limit ?? options.n, 1, 500, "limit");
+          if (!limitParsed.ok) return limitParsed.error;
+          const limit = limitParsed.value == null ? 120 : limitParsed.value;
+
+          const scanParsed = parseBoundedIntOption(options.scan ?? options.scan_limit, 1, 50000, "scan");
+          if (!scanParsed.ok) return scanParsed.error;
+          const scanLimit = scanParsed.value == null ? 0 : scanParsed.value;
+
+          const scopeRaw = String(options.scope ?? options.s ?? "both").trim().toLowerCase();
+          const scope = scopeRaw || "both";
+          if (!["both", "summary", "packet"].includes(scope)) {{
+            return `[grep] invalid scope: ${{scope}} (use both|summary|packet)`;
+          }}
+
+          const payload = await fetchConsoleHistorySearch({{
+            queryText,
+            limit,
+            before,
+            after,
+            scope,
+            scanLimit,
+          }});
+          if (!(payload && payload.ok)) {{
+            const msg = String((payload && payload.error) || "history search failed");
+            return `[grep] ${{msg}}`;
+          }}
+
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+          const totalMatchesRaw = Number(payload.matches);
+          const shownMatchesRaw = Number(payload.returned_matches);
+          const scannedPacketsRaw = Number(payload.scanned_packets);
+          const totalMatches = Number.isFinite(totalMatchesRaw) ? Math.max(0, Math.trunc(totalMatchesRaw)) : 0;
+          const shownMatches = Number.isFinite(shownMatchesRaw) ? Math.max(0, Math.trunc(shownMatchesRaw)) : totalMatches;
+          const scannedPackets = Number.isFinite(scannedPacketsRaw) ? Math.max(0, Math.trunc(scannedPacketsRaw)) : 0;
+          const queryLabel = String(payload.query || queryText);
+          const scopeLabel = String(payload.scope || scope);
+          if (totalMatches < 1 || entries.length < 1) {{
+            return `[grep] no matches for "${{queryLabel}}" (scope=${{scopeLabel}}, scanned=${{scannedPackets}}).`;
+          }}
+
+          appendConsoleEventLine(
+            `[grep] query="${{queryLabel}}" scope=${{scopeLabel}} matches=${{totalMatches}} showing=${{shownMatches}} scanned=${{scannedPackets}}`
+          );
+          consoleGrepRunCounter += 1;
+          const runId = consoleGrepRunCounter;
+          let fallbackLineCounter = 0;
+          for (const entry of entries) {{
+            if (entry && entry.separator === true) {{
+              appendConsoleEventLine("[grep] --");
+              continue;
+            }}
+            if (!entry || typeof entry !== "object") continue;
+            const summary = (entry.summary && typeof entry.summary === "object")
+              ? entry.summary
+              : {{}};
+            const packet = (entry.packet && typeof entry.packet === "object")
+              ? entry.packet
+              : {{}};
+            const isMatch = entry.match === true;
+            const packetLines = formatConsoleLine({{ summary, packet }}, verbosity);
+            const lineList = Array.isArray(packetLines)
+              ? packetLines
+              : [String(packetLines == null ? "" : packetLines)];
+            const packetUnix = latestUnixTimestamp(
+              summary.captured_at,
+              summary.rx_time,
+              entry.created_unix,
+            );
+            const packetMs = Number.isFinite(packetUnix) && packetUnix > 0
+              ? packetUnix * 1000
+              : Date.now();
+            const packetRowId = Number(entry.packet_row_id);
+            const packetKey = Number.isFinite(packetRowId)
+              ? Math.trunc(packetRowId)
+              : `scan-${{fallbackLineCounter}}`;
+            for (let i = 0; i < lineList.length; i += 1) {{
+              const lineRaw = String(lineList[i] == null ? "" : lineList[i]);
+              const prefix = i === 0 ? (isMatch ? "> " : "  ") : "  ";
+              fallbackLineCounter += 1;
+              appendConsoleLine(
+                `grep|${{runId}}|${{packetKey}}|${{i}}|${{fallbackLineCounter}}`,
+                `${{prefix}}${{lineRaw}}`,
+                packetMs,
+              );
+            }}
+          }}
+          if (totalMatches > shownMatches) {{
+            appendConsoleEventLine(
+              `[grep] truncated to latest ${{shownMatches}} match(es). Use limit=<n> up to 500.`
+            );
+          }}
+          renderConsoleBuffer(true);
+          return "";
+        }},
+      }});
+      registerConsoleCommand({{
         name: "list",
         usage: "list [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
         description: "List nodes from current state with wildcard filters.",
@@ -22007,6 +22332,9 @@
       const packetId = packet.id ?? packet.packet_id ?? packet.message_id ?? s.packet_id ?? "";
       const channel = packet.channel ?? s.channel ?? "";
       const channelLabel = channel === "" ? "n/a" : String(channel);
+      const fromValue = String(
+        s.from ?? packet.from ?? packet.fromId ?? ""
+      ).trim();
       const toValue = String(
         s.to ?? packet.to ?? packet.toId ?? ""
       ).trim();
@@ -22158,6 +22486,7 @@
           const l3Parts = [
             "l3",
             `scope=${{scopeLabel}}`,
+            `from=${{fromValue || "n/a"}}`,
             `to=${{toValue || "n/a"}}`,
             `ch=${{channelLabel}}`,
           ];
@@ -22381,6 +22710,31 @@
           }});
         }}
       }}
+      const filterInput = document.getElementById("console-filter-input");
+      if (filterInput instanceof HTMLInputElement) {{
+        filterInput.value = String(consoleFilterText || "");
+        if (filterInput.dataset.bound !== "1") {{
+          filterInput.dataset.bound = "1";
+          filterInput.addEventListener("input", () => {{
+            consoleFilterText = String(filterInput.value || "").slice(0, 120);
+            if (filterInput.value !== consoleFilterText) {{
+              filterInput.value = consoleFilterText;
+            }}
+            persistConsoleSessionState();
+            renderConsoleBuffer(false);
+          }});
+          filterInput.addEventListener("keydown", (ev) => {{
+            if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+              if (!filterInput.value) return;
+              ev.preventDefault();
+              filterInput.value = "";
+              consoleFilterText = "";
+              persistConsoleSessionState();
+              renderConsoleBuffer(false);
+            }}
+          }});
+        }}
+      }}
       const fontSizeSelect = document.getElementById("console-font-size-select");
       if (fontSizeSelect instanceof HTMLSelectElement) {{
         fontSizeSelect.value = normalizeConsoleFontSize(consoleFontSize);
@@ -22429,6 +22783,9 @@
           if (hasConsoleSelection) return;
           focusConsoleCommandInput(false);
         }});
+        terminalScreen.addEventListener("paste", (ev) => {{
+          handleConsolePasteEvent(ev);
+        }});
       }}
       applyConsoleFontSizePreference();
       const input = consoleCommandInputElement();
@@ -22454,6 +22811,9 @@
         input.addEventListener("keyup", rerenderForCaretMove);
         input.addEventListener("click", rerenderForCaretMove);
         input.addEventListener("mouseup", rerenderForCaretMove);
+        input.addEventListener("paste", (ev) => {{
+          handleConsolePasteEvent(ev);
+        }});
         input.addEventListener("keydown", (ev) => {{
           if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && String(ev.key || "").toLowerCase() === "c") {{
             if (consoleRunningCommand || consoleInteractiveSession) {{
@@ -30572,6 +30932,37 @@
       const data = await resp.json();
       summaryMetricsCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
       return data;
+    }}
+
+    async function fetchConsoleHistorySearch(opts = null) {{
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const queryText = String(options.queryText ?? options.query ?? "").trim();
+      const params = new URLSearchParams();
+      params.set("q", queryText);
+      const limit = Number(options.limit);
+      const before = Number(options.before);
+      const after = Number(options.after);
+      const scanLimit = Number(options.scanLimit);
+      const scope = String(options.scope || "").trim().toLowerCase();
+      if (Number.isFinite(limit) && limit > 0) {{
+        params.set("limit", String(Math.trunc(limit)));
+      }}
+      if (Number.isFinite(before) && before >= 0) {{
+        params.set("before", String(Math.trunc(before)));
+      }}
+      if (Number.isFinite(after) && after >= 0) {{
+        params.set("after", String(Math.trunc(after)));
+      }}
+      if (Number.isFinite(scanLimit) && scanLimit > 0) {{
+        params.set("scan", String(Math.trunc(scanLimit)));
+      }}
+      if (scope) {{
+        params.set("scope", scope);
+      }}
+      const resp = await fetch(`/api/history/search?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`history search API ${{resp.status}}`);
+      const payload = await resp.json();
+      return (payload && typeof payload === "object") ? payload : {{}};
     }}
 
     function hydrateTickerSeriesFromSummaryMetrics(historyPayload) {{

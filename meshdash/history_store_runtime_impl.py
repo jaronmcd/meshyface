@@ -25,6 +25,7 @@ from .history_store_nodes import (
 )
 from .history_store_packets import (
     load_recent_packets as _load_recent_packets_helper,
+    search_packets as _search_packets_helper,
     save_packet as _save_packet_helper,
 )
 from .history_store_summary import (
@@ -72,6 +73,26 @@ class HistoryStore:
 
     def load_recent_packets(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_packets_helper(self, limit)
+
+    def search_packets(
+        self,
+        needle: str,
+        *,
+        limit: int | None = None,
+        before: int | None = None,
+        after: int | None = None,
+        scope: str | None = None,
+        scan_limit: int | None = None,
+    ) -> dict[str, object]:
+        return _search_packets_helper(
+            self,
+            needle,
+            limit=limit,
+            before=before,
+            after=after,
+            scope=scope,
+            scan_limit=scan_limit,
+        )
 
     def load_recent_chat(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_chat_helper(self, limit)

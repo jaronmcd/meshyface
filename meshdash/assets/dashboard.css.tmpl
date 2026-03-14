@@ -8207,6 +8207,10 @@
       color: #294735;
       white-space: nowrap;
     }}
+    .console-filter-label {{
+      color: #294735;
+      white-space: nowrap;
+    }}
     .console-select {{
       border: 1px solid #c2d8c7;
       background: #f0f8f2;
@@ -8216,6 +8220,17 @@
       padding: 4px 8px;
       cursor: pointer;
       font-family: inherit;
+    }}
+    .console-filter-input {{
+      border: 1px solid #c2d8c7;
+      background: #f0f8f2;
+      color: #1e5e40;
+      border-radius: 6px;
+      font-size: 11px;
+      padding: 4px 8px;
+      font-family: inherit;
+      min-width: 140px;
+      width: min(34vw, 260px);
     }}
     .console-terminal-screen {{
       position: relative;
@@ -8908,7 +8923,15 @@
     [data-theme="dark"] .console-select-label {{
       color: #a8c6b6;
     }}
+    [data-theme="dark"] .console-filter-label {{
+      color: #a8c6b6;
+    }}
     [data-theme="dark"] .console-select {{
+      background: #22352b;
+      border-color: #3e5e4d;
+      color: #d9ece2;
+    }}
+    [data-theme="dark"] .console-filter-input {{
       background: #22352b;
       border-color: #3e5e4d;
       color: #d9ece2;

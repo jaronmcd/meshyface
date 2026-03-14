@@ -347,6 +347,37 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
+    search_history_packets_fn = getattr(history_store, "search_packets", None)
+    if callable(search_history_packets_fn):
+        def _search_history_packets(
+            query_text,
+            *,
+            limit=None,
+            before=None,
+            after=None,
+            scope=None,
+            scan_limit=None,
+        ):
+            return search_history_packets_fn(
+                query_text,
+                limit=limit,
+                before=before,
+                after=after,
+                scope=scope,
+                scan_limit=scan_limit,
+            )
+
+        try:
+            setattr(loaders.state_fn, "search_history_packets_fn", _search_history_packets)
+        except Exception:
+            pass
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(state_lite_fn, "search_history_packets_fn", _search_history_packets)
+            except Exception:
+                pass
+
     return DashboardRuntimeContext(
         target=target,
         iface=iface,

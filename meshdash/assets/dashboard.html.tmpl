@@ -2157,6 +2157,16 @@
           <button id="console-clear-btn" type="button">Clear</button>
           <label><input id="console-autoscroll" type="checkbox" checked /> Auto-scroll</label>
           <label><input id="console-timestamps" type="checkbox" /> Timestamps</label>
+          <label class="console-filter-label" for="console-filter-input">Search</label>
+          <input
+            id="console-filter-input"
+            class="console-filter-input"
+            type="search"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="Filter console text (e.g. ack -C2)..."
+            aria-label="Filter console text"
+          />
           <label class="console-select-label" for="console-font-size-select">Text size</label>
           <select id="console-font-size-select" class="console-select" aria-label="Console text size">
             <option value="sm">Small</option>

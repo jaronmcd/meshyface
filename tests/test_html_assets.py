@@ -8,6 +8,7 @@ def test_build_dashboard_css_includes_theme_tokens_and_core_selectors():
     assert ".topbar" in css
     assert ".workspace-shell" in css
     assert ".console-select" in css
+    assert ".console-filter-input" in css
     assert ".console-terminal-screen" in css
     assert ".console-command-input-proxy" in css
     assert ".self-radio-menu" in css
@@ -53,13 +54,26 @@ def test_build_dashboard_js_injects_runtime_values():
     assert "window.localStorage.setItem(consoleFontSizeStorageKey" in js
     assert "let consolePromptLabel = \"$\";" in js
     assert "let consoleShowTimestamps = false;" in js
+    assert "let consoleFilterText = \"\";" in js
     assert "let consoleLiveLayers = null;" in js
+    assert "let consoleGrepRunCounter = 0;" in js
     assert "function parseConsoleLiveLayerSelection(ctx)" in js
+    assert "async function fetchConsoleHistorySearch(opts = null)" in js
+    assert "name: \"grep\"," in js
+    assert "usage: \"grep <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [scan=<n>]\"" in js
     assert "const timestampsToggle = document.getElementById(\"console-timestamps\");" in js
     assert "timestampsToggle.checked = true;" in js
+    assert "const filterInput = document.getElementById(\"console-filter-input\");" in js
+    assert "consoleFilterText = String(payload.filterText ?? payload.filter ?? \"\").slice(0, 120);" in js
+    assert "filterText: String(consoleFilterText || \"\").slice(0, 120)," in js
+    assert "function parseConsoleFilterExpression(rawFilterText)" in js
+    assert "function filterConsoleLinesWithContext(lines, filterExpr)" in js
+    assert "raw = raw.replace(/(^|\\s)-([cCabB])\\s*(\\d+)\\b/g" in js
+    assert "out.push(\"[filter] --\");" in js
     assert "const scopeLabel = toValue ? (isBroadcastTarget ? \"^all\" : \"p2p\") : \"n/a\";" in js
     assert "l3Parts = [" in js
     assert "`scope=${scopeLabel}`" in js
+    assert "`from=${fromValue || \"n/a\"}`" in js
     assert "`ch=${channelLabel}`" in js
     assert "function bindSelfRadioMenuControls()" in js
     assert "const copyBtn = document.getElementById(\"self-radio-copy-id-btn\");" in js

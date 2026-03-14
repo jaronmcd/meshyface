@@ -11,6 +11,27 @@ def fetch_recent_packet_rows(conn: SqlConnection, limit: int) -> SqlRows:
     ).fetchall()
 
 
+def fetch_packet_search_rows(conn: SqlConnection, limit: int) -> SqlRows:
+    clean_limit = int(limit)
+    if clean_limit <= 0:
+        return conn.execute(
+            "SELECT id, created_unix, summary_json, packet_json FROM packets ORDER BY id ASC"
+        ).fetchall()
+    return conn.execute(
+        """
+        SELECT id, created_unix, summary_json, packet_json
+        FROM (
+          SELECT id, created_unix, summary_json, packet_json
+          FROM packets
+          ORDER BY id DESC
+          LIMIT ?
+        )
+        ORDER BY id ASC
+        """,
+        (clean_limit,),
+    ).fetchall()
+
+
 def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
         """

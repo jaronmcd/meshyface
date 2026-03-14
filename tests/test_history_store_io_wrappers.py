@@ -19,6 +19,7 @@ from meshdash.history_store_nodes import (
 )
 from meshdash.history_store_packets import (
     load_recent_packets as load_recent_packets_domain,
+    search_packets as search_packets_domain,
     save_packet as save_packet_domain,
 )
 from meshdash.history_store_summary import (
@@ -178,6 +179,53 @@ def test_history_store_domain_summary_metrics_round_trip(tmp_path):
         assert latest["nodes_with_position"] == 9
         assert latest["live_packet_count"] == 77
         assert latest["real_edge_count"] == 5
+    finally:
+        store.close()
+
+
+def test_history_store_domain_packet_search_supports_scope_and_context(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!a", "to": "^all", "text": "alpha"},
+                "packet": {"id": 1},
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!b", "to": "^all", "text": "needle-hit"},
+                "packet": {"id": 2},
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!c", "to": "^all", "text": "omega"},
+                "packet": {"id": 3},
+            },
+        )
+
+        payload = search_packets_domain(
+            store,
+            "needle-hit",
+            limit=5,
+            before=1,
+            after=1,
+            scope="summary",
+        )
+
+        assert payload["matches"] == 1
+        assert payload["returned_matches"] == 1
+        assert payload["scope"] == "summary"
+        entries = payload["entries"]
+        assert len(entries) == 3
+        assert entries[0]["match"] is False
+        assert entries[1]["match"] is True
+        assert entries[2]["match"] is False
+        assert entries[1]["summary"]["text"] == "needle-hit"
     finally:
         store.close()
 
@@ -425,4 +473,82 @@ def test_load_recent_packets_uses_read_lock_when_read_connection_present(monkeyp
     assert rows == [{"ok": True}]
     assert calls["conn"] is store._read_conn
     assert calls["limit"] == 6
+    assert store._read_lock.enter_count == 1
+
+
+def test_search_packets_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_fetch_packet_search_rows(conn, limit):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [
+            (
+                10,
+                1_700_000_000,
+                '{"text":"hello needle"}',
+                '{"decoded":{"text":"hello needle"}}',
+            ),
+        ]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_packet_search_rows_helper",
+        _fake_fetch_packet_search_rows,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    payload = search_packets_domain(store, "needle", limit=10, before=0, after=0, scan_limit=100)
+
+    assert payload["matches"] == 1
+    assert payload["returned_matches"] == 1
+    assert len(payload["entries"]) == 1
+    assert calls["conn"] is store._conn
+    assert calls["limit"] == 100
+    assert store._lock.enter_count == 1
+
+
+def test_search_packets_uses_read_lock_when_read_connection_present(monkeypatch):
+    calls = {}
+
+    def _fake_fetch_packet_search_rows(conn, limit):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [
+            (
+                11,
+                1_700_000_010,
+                '{"text":"needle in summary"}',
+                '{"decoded":{"text":"needle"}}',
+            ),
+        ]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_packet_search_rows_helper",
+        _fake_fetch_packet_search_rows,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _FailLock()
+            self._read_lock = _CountingLock()
+            self._read_conn = object()
+
+    store = _Store()
+    payload = search_packets_domain(store, "needle", limit=10, before=0, after=0, scan_limit=90)
+
+    assert payload["matches"] == 1
+    assert payload["returned_matches"] == 1
+    assert len(payload["entries"]) == 1
+    assert calls["conn"] is store._read_conn
+    assert calls["limit"] == 90
     assert store._read_lock.enter_count == 1

@@ -4,6 +4,7 @@ from meshdash.history_queries import (
     fetch_connection_rows,
     fetch_node_capability_rows,
     fetch_node_history_rows,
+    fetch_packet_search_rows,
     fetch_node_saved_count_rows,
     fetch_online_activity_rows,
     fetch_summary_metrics_rows,
@@ -66,6 +67,36 @@ def test_fetch_recent_packet_and_chat_rows_apply_limit_and_newest_order():
 
         assert packet_rows == [('{"a":3}', '{"p":3}'), ('{"a":2}', '{"p":2}')]
         assert chat_rows == [('{"m":2}',)]
+    finally:
+        conn.close()
+
+
+def test_fetch_packet_search_rows_returns_chronological_rows_with_optional_limit():
+    conn = sqlite3.connect(":memory:")
+    try:
+        initialize_history_schema(conn)
+        conn.execute(
+            "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(1, '{\"k\":\"a\"}', '{\"p\":1}')"
+        )
+        conn.execute(
+            "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(2, '{\"k\":\"b\"}', '{\"p\":2}')"
+        )
+        conn.execute(
+            "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(3, '{\"k\":\"c\"}', '{\"p\":3}')"
+        )
+
+        all_rows = fetch_packet_search_rows(conn, limit=0)
+        limited_rows = fetch_packet_search_rows(conn, limit=2)
+
+        assert [row[2] for row in all_rows] == [
+            '{"k":"a"}',
+            '{"k":"b"}',
+            '{"k":"c"}',
+        ]
+        assert [row[2] for row in limited_rows] == [
+            '{"k":"b"}',
+            '{"k":"c"}',
+        ]
     finally:
         conn.close()
 
