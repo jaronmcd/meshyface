@@ -53,6 +53,14 @@ def test_build_dashboard_js_injects_runtime_values():
     assert "window.localStorage.setItem(consoleFontSizeStorageKey" in js
     assert "let consolePromptLabel = \"$\";" in js
     assert "let consoleShowTimestamps = false;" in js
+    assert "let consoleLiveLayers = null;" in js
+    assert "function parseConsoleLiveLayerSelection(ctx)" in js
+    assert "const timestampsToggle = document.getElementById(\"console-timestamps\");" in js
+    assert "timestampsToggle.checked = true;" in js
+    assert "const scopeLabel = toValue ? (isBroadcastTarget ? \"^all\" : \"p2p\") : \"n/a\";" in js
+    assert "l3Parts = [" in js
+    assert "`scope=${scopeLabel}`" in js
+    assert "`ch=${channelLabel}`" in js
     assert "function bindSelfRadioMenuControls()" in js
     assert "const copyBtn = document.getElementById(\"self-radio-copy-id-btn\");" in js
     assert "bindSelfRadioMenuControls();" in js

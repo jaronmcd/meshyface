@@ -2381,6 +2381,7 @@
     let consoleInteractiveSession = null;
     let consoleLiveModeActive = false;
     let consoleLiveVerbosity = 0;
+    let consoleLiveLayers = null;
     let consoleEventCounter = 0;
     let fitDone = false;
     let mapBootstrapFocusDone = false;
@@ -21609,6 +21610,104 @@
       return rows;
     }}
 
+    function parseConsoleLiveLayerCsv(rawValue) {{
+      const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+      if (!clean) {{
+        return {{ layers: [], error: "" }};
+      }}
+      const tokens = clean
+        .split(/[,\s]+/)
+        .map((token) => String(token == null ? "" : token).trim())
+        .filter((token) => !!token);
+      if (!tokens.length) {{
+        return {{ layers: [], error: "" }};
+      }}
+      const layers = [];
+      for (const token of tokens) {{
+        const match = token.match(/^l?([123])$/i);
+        if (!match) {{
+          return {{ layers: [], error: token }};
+        }}
+        layers.push(Number(match[1]));
+      }}
+      return {{ layers, error: "" }};
+    }}
+
+    function parseConsoleLiveLayerSelection(ctx) {{
+      const rawArgs = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const options = (ctx && ctx.options && typeof ctx.options === "object") ? ctx.options : {{}};
+      const selectedLayers = new Set();
+      const unknownArgs = [];
+      const unknownOptions = [];
+
+      for (const arg of rawArgs) {{
+        const clean = String(arg == null ? "" : arg).trim();
+        if (!clean) continue;
+        const shortMatch = clean.match(/^-l([123])$/i);
+        if (shortMatch) {{
+          selectedLayers.add(Number(shortMatch[1]));
+          continue;
+        }}
+        unknownArgs.push(clean);
+      }}
+
+      const parseBoolLike = (rawValue) => {{
+        if (rawValue === true) return true;
+        if (rawValue === false) return false;
+        const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+        if (!clean || clean === "1" || clean === "true" || clean === "yes" || clean === "on") return true;
+        if (clean === "0" || clean === "false" || clean === "no" || clean === "off") return false;
+        return null;
+      }};
+
+      const addUnknownOption = (key, rawValue) => {{
+        const valueText = String(rawValue == null ? "" : rawValue).trim();
+        unknownOptions.push(valueText ? `${{key}}=${{valueText}}` : key);
+      }};
+
+      for (const [rawKey, rawValue] of Object.entries(options)) {{
+        const key = String(rawKey == null ? "" : rawKey).trim().toLowerCase();
+        if (!key) continue;
+        if (key === "layer" || key === "layers") {{
+          const parsedLayers = parseConsoleLiveLayerCsv(rawValue);
+          if (parsedLayers.error) {{
+            addUnknownOption(key, rawValue);
+            continue;
+          }}
+          for (const layer of parsedLayers.layers) {{
+            selectedLayers.add(layer);
+          }}
+          continue;
+        }}
+        if (key === "l1" || key === "l2" || key === "l3") {{
+          const enabled = parseBoolLike(rawValue);
+          if (enabled == null) {{
+            addUnknownOption(key, rawValue);
+            continue;
+          }}
+          if (enabled) {{
+            selectedLayers.add(Number(key.slice(1)));
+          }}
+          continue;
+        }}
+        addUnknownOption(key, rawValue);
+      }}
+
+      return {{
+        layers: selectedLayers.size ? selectedLayers : null,
+        unknownArgs,
+        unknownOptions,
+      }};
+    }}
+
+    function formatConsoleLiveLayerLabel(layers) {{
+      if (!(layers instanceof Set) || layers.size < 1) return "";
+      const ordered = [1, 2, 3]
+        .filter((layer) => layers.has(layer))
+        .map((layer) => `l${{layer}}`);
+      return ordered.length ? ` layers=${{ordered.join(",")}}` : "";
+    }}
+
     function ensureConsoleCommandsRegistered() {{
       if (consoleCommandRegistry.size > 0) return;
       registerConsoleCommand({{
@@ -21640,26 +21739,37 @@
       }});
       registerConsoleCommand({{
         name: "live",
-        usage: "live [-v|-vv|-vvv|-vvvv]",
-        description: "Stream live packet lines until Ctrl+C with optional extra detail.",
+        usage: "live [-v|-vv|-vvv|-vvvv] [-l1] [-l2] [-l3] [--layer=1,2,3]",
+        description: "Stream live packet lines until Ctrl+C with optional verbosity and layer filters.",
         supportsVerbosity: true,
         run: (ctx) => {{
-          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
           const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
-          const invalidArgs = args
-            .map((token) => String(token == null ? "" : token).trim())
-            .filter((token) => !!token);
-          if (invalidArgs.length) {{
-            return `[live] unknown argument(s): ${{invalidArgs.join(", ")}}`;
+          const layerSelection = parseConsoleLiveLayerSelection(ctx);
+          if (layerSelection.unknownArgs.length) {{
+            return `[live] unknown argument(s): ${{layerSelection.unknownArgs.join(", ")}}`;
+          }}
+          if (layerSelection.unknownOptions.length) {{
+            const optionLabel = layerSelection.unknownOptions
+              .map((token) => `--${{String(token || "").trim()}}`)
+              .join(", ");
+            return `[live] unknown option(s): ${{optionLabel}}`;
           }}
           if (consoleLiveModeActive) {{
             return "[live] already running. Press Ctrl+C to stop.";
           }}
+          consoleShowTimestamps = true;
+          const timestampsToggle = document.getElementById("console-timestamps");
+          if (timestampsToggle instanceof HTMLInputElement) {{
+            timestampsToggle.checked = true;
+          }}
+          persistConsoleSessionState();
           consoleLiveVerbosity = verbosity;
+          consoleLiveLayers = layerSelection.layers;
           consoleLiveModeActive = true;
           startConsoleRunningCommand("live", (reason, emitStatus) => {{
             consoleLiveModeActive = false;
             consoleLiveVerbosity = 0;
+            consoleLiveLayers = null;
             if (emitStatus) {{
               appendConsoleEventLine(`[live] stopped (${{String(reason || "done")}}).`);
             }}
@@ -21667,7 +21777,8 @@
           }});
           renderConsole((latestState && latestState.traffic) || {{}});
           const verbosityLabel = verbosity > 0 ? ` verbosity=-${{"v".repeat(verbosity)}}` : "";
-          return `[live] streaming packet traffic.${{verbosityLabel}} Press Ctrl+C to stop.`;
+          const layerLabel = formatConsoleLiveLayerLabel(layerSelection.layers);
+          return `[live] streaming packet traffic.${{verbosityLabel}}${{layerLabel}} Press Ctrl+C to stop.`;
         }},
       }});
       registerConsoleCommand({{
@@ -21895,10 +22006,35 @@
         : "n/a";
       const packetId = packet.id ?? packet.packet_id ?? packet.message_id ?? s.packet_id ?? "";
       const channel = packet.channel ?? s.channel ?? "";
+      const channelLabel = channel === "" ? "n/a" : String(channel);
+      const toValue = String(
+        s.to ?? packet.to ?? packet.toId ?? ""
+      ).trim();
+      const toLower = toValue.toLowerCase();
+      const isBroadcastTarget = (
+        toLower === "^all"
+        || toLower === "all"
+        || toLower === "broadcast"
+        || toLower === "!ffffffff"
+        || toLower === "ffffffff"
+        || toLower === "0xffffffff"
+        || toLower === "4294967295"
+      );
+      const scopeLabel = toValue ? (isBroadcastTarget ? "^all" : "p2p") : "n/a";
       const textSnippetRaw = String(
         s.text ?? s.decoded_text ?? s.payload_text ?? packet.text ?? ""
       ).trim();
       const textSnippet = textSnippetRaw ? compactInlineMessage(textSnippetRaw, 88) : "";
+      const emojiGlyph = String(s.emoji ?? packet.emoji ?? "").trim();
+      const replyIdNum = Number(s.reply_id ?? packet.reply_id ?? packet.replyId ?? NaN);
+      const replyId = Number.isFinite(replyIdNum) && replyIdNum > 0 ? Math.trunc(replyIdNum) : null;
+      const rawPayload = String(s.payload_hex ?? packet.payload ?? "").trim();
+      const routeParts = [];
+      if (s.hop_start != null) routeParts.push(`hop_start=${{s.hop_start}}`);
+      if (s.hop_limit != null) routeParts.push(`hop_limit=${{s.hop_limit}}`);
+      if (s.priority != null) routeParts.push(`priority=${{s.priority}}`);
+      if (s.want_ack != null) routeParts.push(`want_ack=${{s.want_ack}}`);
+
       const sanitizeConsolePreviewValue = (value, depth = 0) => {{
         if (depth > 4) return "[depth-limit]";
         if (Array.isArray(value)) {{
@@ -21958,6 +22094,95 @@
           return "";
         }}
       }})();
+      const pushJsonBlock = (lines, label, value, sanitize = false) => {{
+        let raw = "";
+        try {{
+          const source = sanitize ? sanitizeConsolePreviewValue(value ?? {{}}) : (value ?? {{}});
+          raw = JSON.stringify(source, null, 2) || "";
+        }} catch (_err) {{
+          raw = "";
+        }}
+        if (!raw) return;
+        lines.push(`  ${{label}}=`);
+        for (const jsonLine of String(raw).split("\n")) {{
+          lines.push(`    ${{jsonLine}}`);
+        }}
+      }};
+
+      const selectedLayers = (consoleLiveLayers instanceof Set && consoleLiveLayers.size)
+        ? new Set([1, 2, 3].filter((layer) => consoleLiveLayers.has(layer)))
+        : null;
+      if (selectedLayers) {{
+        const lines = [];
+        if (selectedLayers.has(1)) {{
+          const l1Parts = [
+            "l1",
+            `${{s.from || "n/a"}} -> ${{s.to || "n/a"}}`,
+            `snr=${{s.rx_snr ?? "n/a"}}`,
+            `rssi=${{s.rx_rssi ?? "n/a"}}`,
+            `hops=${{hops}}`,
+          ];
+          if (channel !== "") l1Parts.push(`ch=${{channel}}`);
+          if (packetId !== "") l1Parts.push(`id=${{packetId}}`);
+          lines.push(l1Parts.join(" "));
+          if (verbosity >= 1 && packetPreview) {{
+            lines.push(`  l1.pkt=${{packetPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            pushJsonBlock(lines, "l1.json", packet, true);
+          }}
+          if (verbosity >= 4) {{
+            pushJsonBlock(lines, "l1.raw", packet, false);
+          }}
+        }}
+        if (selectedLayers.has(2)) {{
+          const l2Parts = [
+            "l2",
+            `port=${{s.portnum || "n/a"}}`,
+          ];
+          if (s.want_ack != null) l2Parts.push(`want_ack=${{s.want_ack}}`);
+          if (s.priority != null) l2Parts.push(`priority=${{s.priority}}`);
+          if (replyId != null) l2Parts.push(`reply=${{replyId}}`);
+          lines.push(l2Parts.join(" "));
+          if (routeParts.length) {{
+            lines.push(`  l2.route=${{routeParts.join(" ")}}`);
+          }}
+          if (verbosity >= 1 && summaryPreview) {{
+            lines.push(`  l2.summary=${{summaryPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            pushJsonBlock(lines, "l2.json", s, true);
+          }}
+        }}
+        if (selectedLayers.has(3)) {{
+          const l3Parts = [
+            "l3",
+            `scope=${{scopeLabel}}`,
+            `to=${{toValue || "n/a"}}`,
+            `ch=${{channelLabel}}`,
+          ];
+          if (textSnippet) {{
+            l3Parts.push(`text=\"${{textSnippet.replace(/\"/g, "'")}}\"`);
+          }} else {{
+            l3Parts.push("text=n/a");
+          }}
+          if (emojiGlyph) l3Parts.push(`emoji=${{emojiGlyph}}`);
+          if (replyId != null) l3Parts.push(`reply=${{replyId}}`);
+          lines.push(l3Parts.join(" "));
+          if (rawPayload) {{
+            lines.push(`  l3.payload=${{compactConsoleFragment(rawPayload, 220)}}`);
+          }}
+          if (verbosity >= 2 && summaryPreview) {{
+            lines.push(`  l3.summary=${{summaryPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            const decoded = (packet && typeof packet.decoded === "object") ? packet.decoded : {{}};
+            pushJsonBlock(lines, "l3.json", decoded, true);
+          }}
+        }}
+        return lines;
+      }}
+
       const parts = [
         `${{s.from || "n/a"}} -> ${{s.to || "n/a"}}`,
         `port=${{s.portnum || "n/a"}}`,
@@ -21974,12 +22199,6 @@
       }}
       if (verbosity >= 2 && summaryPreview) {{
         lines.push(`  summary=${{summaryPreview}}`);
-        const rawPayload = String(s.payload_hex ?? packet.payload ?? "").trim();
-        const routeParts = [];
-        if (s.hop_start != null) routeParts.push(`hop_start=${{s.hop_start}}`);
-        if (s.hop_limit != null) routeParts.push(`hop_limit=${{s.hop_limit}}`);
-        if (s.priority != null) routeParts.push(`priority=${{s.priority}}`);
-        if (s.want_ack != null) routeParts.push(`want_ack=${{s.want_ack}}`);
         if (routeParts.length) {{
           lines.push(`  route=${{routeParts.join(" ")}}`);
         }}
@@ -22280,6 +22499,11 @@
     function renderConsole(traffic) {{
       if (consoleLiveModeActive) {{
         const packets = Array.isArray(traffic && traffic.recent_packets) ? traffic.recent_packets : [];
+        const verbosityLevel = Math.max(0, Math.min(4, Number(consoleLiveVerbosity) || 0));
+        const layerSignature = formatConsoleLiveLayerLabel(consoleLiveLayers)
+          .replace(/\s+/g, "")
+          .toLowerCase();
+        const viewSignature = `v${{verbosityLevel}}|${{layerSignature || "legacy"}}`;
         for (const entry of packets) {{
           const key = packetConsoleKey(entry);
           const summary = entry && entry.summary && typeof entry.summary === "object" ? entry.summary : {{}};
@@ -22290,7 +22514,7 @@
           const lines = formatConsoleLine(entry, consoleLiveVerbosity);
           const lineList = Array.isArray(lines) ? lines : [String(lines == null ? "" : lines)];
           lineList.forEach((line, index) => {{
-            appendConsoleLine(`${{key}}|${{index}}`, line, packetMs);
+            appendConsoleLine(`${{key}}|${{viewSignature}}|${{index}}`, line, packetMs);
           }});
         }}
       }}
