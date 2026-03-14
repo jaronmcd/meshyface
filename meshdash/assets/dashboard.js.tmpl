@@ -2299,8 +2299,9 @@
     const fileTransferProtocolPrefix = "MF_FILE_V1";
     const fileTransferChatMaxBytes = 220;
     const fileTransferMaxFileBytes = 12 * 1024;
-    const fileTransferChunkBytes = 96;
+    const fileTransferChunkBytes = 64;
     const fileTransferDestinationStorageKey = "meshDashboardFileTransferDestinationV1";
+    const fileTransferInterFrameDelayMs = 260;
     const fileTransferAckResendIntervalMs = 1500;
     const fileTransferAckPeriodicRefreshMs = 5000;
     const fileTransferAckPeriodicRefreshMax = 6;
@@ -2387,6 +2388,7 @@
     const fileTransferDownloadUrlByKey = new Map();
     const fileTransferOutgoingByToken = new Map();
     const fileTransferAckSentState = new Map();
+    const fileTransferAckMissingChannelWarnByKey = new Map();
     const fileTransferConsoleLines = [];
     let fileTransferMaintenanceInFlight = false;
     let fileTransferMaintenanceQueued = false;
@@ -14423,6 +14425,14 @@
       return count;
     }}
 
+    function waitFileTransferFrameGap() {{
+      const delayMs = Math.max(0, Math.trunc(Number(fileTransferInterFrameDelayMs) || 0));
+      if (delayMs <= 0) return Promise.resolve();
+      return new Promise((resolve) => {{
+        window.setTimeout(resolve, delayMs);
+      }});
+    }}
+
     function formatFileTransferSize(rawBytes) {{
       const bytes = Number(rawBytes);
       if (!Number.isFinite(bytes) || bytes < 0) return "n/a";
@@ -14632,11 +14642,17 @@
       return out;
     }}
 
-    function messageMeshChannelIndex(msg) {{
-      if (!msg || typeof msg !== "object") return 0;
+    function explicitMessageMeshChannelIndex(msg) {{
+      if (!msg || typeof msg !== "object") return null;
       const raw = msg.channel_index ?? msg.channelIndex ?? msg.channel;
+      if (raw == null || raw === "") return null;
       const num = Number(raw);
-      return Number.isInteger(num) && num >= 0 ? num : 0;
+      return Number.isInteger(num) && num >= 0 ? Math.trunc(num) : null;
+    }}
+
+    function messageMeshChannelIndex(msg) {{
+      const explicit = explicitMessageMeshChannelIndex(msg);
+      return Number.isInteger(explicit) && explicit >= 0 ? explicit : 0;
     }}
 
     function messageMatchesActiveMeshChannel(msg) {{
@@ -14969,8 +14985,12 @@
         appendFileTransferConsole(
           `Metadata sent for ${{fileTransferShortTransferId(transferId)}} (${{chunkFrames.length}} chunk${{chunkFrames.length === 1 ? "" : "s"}}).`
         );
+        await waitFileTransferFrameGap();
         for (let i = 0; i < chunkFrames.length; i += 1) {{
           await sendFileTransferFrameText(chunkFrames[i], destination, sendCtx.sendIndex);
+          if (i + 1 < chunkFrames.length) {{
+            await waitFileTransferFrameGap();
+          }}
           if ((i + 1) % 5 === 0 || i + 1 === chunkFrames.length) {{
             setFileTransferStatus(`Sending "${normalizeFileTransferName(file.name)}": chunk ${{i + 1}}/${{chunkFrames.length}}`);
             appendFileTransferConsole(
@@ -15127,6 +15147,36 @@
       return `${{id}}|${{to}}|${{ch}}`;
     }}
 
+    function fileTransferExplicitChannelIndex(rawIndex) {{
+      if (rawIndex == null || rawIndex === "") return null;
+      const num = Number(rawIndex);
+      return Number.isInteger(num) && num >= 0 ? Math.trunc(num) : null;
+    }}
+
+    function findOutgoingFileTransferSession(transferId, destination, channelIndex = null) {{
+      const id = String(transferId || "").trim().toLowerCase();
+      const to = normalizeNodeId(destination || "");
+      if (!id || !isCanonicalNodeId(to)) return null;
+      const explicitChannel = fileTransferExplicitChannelIndex(channelIndex);
+      if (explicitChannel != null) {{
+        const exactToken = fileTransferOutgoingTokenFor(id, to, explicitChannel);
+        const exactSession = fileTransferOutgoingByToken.get(exactToken);
+        if (exactSession && typeof exactSession === "object") {{
+          return exactSession;
+        }}
+      }}
+      let fallback = null;
+      for (const session of fileTransferOutgoingByToken.values()) {{
+        if (!session || typeof session !== "object") continue;
+        if (String(session.transferId || "") !== id) continue;
+        if (normalizeNodeId(session.destination || "") !== to) continue;
+        if (!fallback || Number(session.createdAtMs || 0) > Number(fallback.createdAtMs || 0)) {{
+          fallback = session;
+        }}
+      }}
+      return fallback;
+    }}
+
     function registerOutgoingFileTransferSession(payload) {{
       const session = (payload && typeof payload === "object") ? payload : {{}};
       const token = fileTransferOutgoingTokenFor(
@@ -15217,19 +15267,27 @@
           to: endpoints.toId || "",
           rx_time: summary.rx_time ?? entry.rx_time ?? "",
           captured_at: summary.captured_at ?? entry.captured_at ?? "",
-          channel: Number.isInteger(packetChannelIndex) && packetChannelIndex >= 0 ? packetChannelIndex : 0,
+          channel: Number.isInteger(packetChannelIndex) && packetChannelIndex >= 0 ? packetChannelIndex : null,
         }});
       }}
 
       for (const msg of fileTransferMessages) {{
         if (!msg || typeof msg !== "object") continue;
-        if (respectActiveChannel && !messageMatchesActiveMeshChannel(msg)) continue;
+        const activeIdx = activeMeshChannelFilterIndex();
+        const msgChannelIndex = explicitMessageMeshChannelIndex(msg);
+        if (respectActiveChannel && activeIdx !== meshChannelAllIndex) {{
+          if (!Number.isInteger(msgChannelIndex) || msgChannelIndex < 0 || msgChannelIndex !== activeIdx) {{
+            continue;
+          }}
+        }}
         const frame = parseFileTransferFrameText(msg.text);
         if (!frame) continue;
         const fromId = normalizeNodeId(msg.from || "");
         const toId = normalizeNodeId(msg.to || msg.destination || "");
         const msgUnix = latestUnixTimestamp(msg.rx_time, msg.captured_at);
-        const msgChannelIndex = normalizeMeshChannelIndex(messageMeshChannelIndex(msg));
+        const explicitChannelIndex = Number.isInteger(msgChannelIndex) && msgChannelIndex >= 0
+          ? Math.trunc(msgChannelIndex)
+          : null;
 
         if (frame.kind === "ack") {{
           const transferKey = fileTransferKeyOf(toId, fromId, frame.transferId);
@@ -15243,7 +15301,7 @@
             transferId: frame.transferId,
             originalSenderId: toId,
             originalReceiverId: fromId,
-            channelIndex: msgChannelIndex,
+            channelIndex: explicitChannelIndex,
             receivedCount,
             totalChunks: Math.max(1, Math.trunc(Number(frame.totalChunks) || 1)),
             bitmap: frame.bitmap,
@@ -15266,7 +15324,7 @@
             transferId: frame.transferId,
             fromId,
             toId,
-            channelIndex: msgChannelIndex,
+            channelIndex: explicitChannelIndex,
             firstUnix: null,
             latestUnix: null,
             fileName: "",
@@ -15284,7 +15342,9 @@
           transfer.firstUnix = msgUnix;
         }}
         transfer.latestUnix = latestUnixTimestamp(transfer.latestUnix, msgUnix);
-        transfer.channelIndex = msgChannelIndex;
+        if (Number.isInteger(explicitChannelIndex) && explicitChannelIndex >= 0) {{
+          transfer.channelIndex = explicitChannelIndex;
+        }}
 
         if (frame.kind === "meta") {{
           transfer.fileName = normalizeFileTransferName(frame.fileName || transfer.fileName || "mesh-file.bin");
@@ -15399,12 +15459,12 @@
           )
           : 0;
         const deliveryPct = Math.max(0, Math.min(100, Math.round((ackedChunks / Math.max(expectedChunks, 1)) * 100)));
-        const outgoingToken = fileTransferOutgoingTokenFor(
-          transfer.transferId,
-          transfer.toId,
-          transfer.channelIndex
-        );
-        const outgoingSession = outgoing ? (fileTransferOutgoingByToken.get(outgoingToken) || null) : null;
+        const outgoingSession = outgoing
+          ? findOutgoingFileTransferSession(transfer.transferId, transfer.toId, transfer.channelIndex)
+          : null;
+        const transferChannelIndex = fileTransferExplicitChannelIndex(transfer.channelIndex);
+        const sessionChannelIndex = fileTransferExplicitChannelIndex(outgoingSession && outgoingSession.channelIndex);
+        const resolvedChannelIndex = transferChannelIndex != null ? transferChannelIndex : sessionChannelIndex;
         let delivered = outgoing
           ? !!(ack && ack.complete && ackedChunks >= expectedChunks)
           : complete;
@@ -15458,7 +15518,9 @@
           return `${{formatFileTransferSize(observedBytes)}} / ${{formatFileTransferSize(declaredBytes)}}`;
         }})();
         const fileName = normalizeFileTransferName(transfer.fileName || `file-${{transfer.transferId}}.bin`);
-        const channelLabel = meshChannelLabelForIndex(transfer.channelIndex, {{ allowAll: false }});
+        const channelLabel = resolvedChannelIndex == null
+          ? "Unknown"
+          : meshChannelLabelForIndex(resolvedChannelIndex, {{ allowAll: false }});
         const sortUnix = Number(transfer.latestUnix || transfer.firstUnix || 0);
         rows.push({{
           key: transfer.key,
@@ -15476,7 +15538,7 @@
           progressSort,
           sizeLabel,
           sizeSort: declaredBytes != null ? declaredBytes : observedBytes,
-          channelIndex: normalizeMeshChannelIndex(transfer.channelIndex),
+          channelIndex: resolvedChannelIndex,
           channelLabel,
           delivered,
           outgoingRetrying,
@@ -15511,7 +15573,7 @@
       if (!session || !(ackByTransferKey instanceof Map)) return null;
       const senderId = normalizeNodeId(localNodeId || session.senderId || "");
       const expectedReceiver = normalizeNodeId(session.destination || "");
-      const expectedChannel = normalizeMeshChannelIndex(session.channelIndex);
+      const expectedChannel = fileTransferExplicitChannelIndex(session.channelIndex);
       if (!isCanonicalNodeId(expectedReceiver)) return null;
       const directKey = isCanonicalNodeId(senderId)
         ? fileTransferKeyOf(senderId, expectedReceiver, session.transferId)
@@ -15524,7 +15586,8 @@
         if (!ack || typeof ack !== "object") continue;
         if (String(ack.transferId || "") !== String(session.transferId || "")) continue;
         if (normalizeNodeId(ack.originalReceiverId || "") !== expectedReceiver) continue;
-        if (normalizeMeshChannelIndex(ack.channelIndex) !== expectedChannel) continue;
+        const ackChannel = fileTransferExplicitChannelIndex(ack.channelIndex);
+        if (expectedChannel != null && ackChannel != null && ackChannel !== expectedChannel) continue;
         if (isCanonicalNodeId(senderId) && normalizeNodeId(ack.originalSenderId || "") !== senderId) continue;
         if (!fallback || Number(ack.latestUnix || 0) > Number(fallback.latestUnix || 0)) {{
           fallback = ack;
@@ -15576,6 +15639,19 @@
         if (lastSentAtMs > 0 && (nowMs - lastSentAtMs) < fileTransferMaintenanceCooldownMs) {{
           continue;
         }}
+        const ackChannelIndex = fileTransferExplicitChannelIndex(transfer.channelIndex);
+        if (ackChannelIndex == null) {{
+          const lastWarnMs = Number(fileTransferAckMissingChannelWarnByKey.get(transfer.key) || 0);
+          if ((nowMs - lastWarnMs) > (15 * 1000)) {{
+            fileTransferAckMissingChannelWarnByKey.set(transfer.key, nowMs);
+            appendFileTransferConsole(
+              `ACK pending for ${{fileTransferShortTransferId(transfer.transferId)}} from ${{senderId}}: channel unknown, waiting for an explicit channel index.`,
+              {{ level: "warn" }}
+            );
+          }}
+          continue;
+        }}
+        fileTransferAckMissingChannelWarnByKey.delete(transfer.key);
         const frame = buildFileTransferAckFrame(
           transfer.transferId,
           receivedCount,
@@ -15586,7 +15662,7 @@
           continue;
         }}
         try {{
-          await sendFileTransferFrameText(frame, senderId, transfer.channelIndex);
+          await sendFileTransferFrameText(frame, senderId, ackChannelIndex);
           const sentAtMs = Date.now();
           const nextPeriodicRefreshCount = signatureChanged
             ? 0
@@ -15714,7 +15790,8 @@
           continue;
         }}
         let sentCount = 0;
-        for (const frame of framesToSend) {{
+        for (let frameIdx = 0; frameIdx < framesToSend.length; frameIdx += 1) {{
+          const frame = framesToSend[frameIdx];
           try {{
             await sendFileTransferFrameText(
               frame,
@@ -15722,6 +15799,9 @@
               session.channelIndex
             );
             sentCount += 1;
+            if (frameIdx + 1 < framesToSend.length) {{
+              await waitFileTransferFrameGap();
+            }}
           }} catch (_err) {{
             break;
           }}
@@ -15923,7 +16003,7 @@
         const nameSub = `id:${{compactInlineMessage(String((row && row.transferId) || ""), 24)}}`;
         const directionClass = String(row && row.directionClass ? row.directionClass : "other");
         const directionLabel = String(row && row.directionLabel ? row.directionLabel : "Seen");
-        const channelLabel = String(row && row.channelLabel ? row.channelLabel : "Ch 0");
+        const channelLabel = String(row && row.channelLabel ? row.channelLabel : "Unknown");
         const actionLabel = row && row.canDownload
           ? "Download"
           : (row && row.outgoingRetrying ? "Retrying" : "Waiting");
@@ -15931,15 +16011,19 @@
         const actionTitle = row && row.canDownload
           ? `Download ${{row.downloadName || row.fileName || "file"}}`
           : "Waiting for all chunks";
-        const channelBadge = meshChannelBadgeHtml(
-          Number(row && row.channelIndex),
-          channelLabel,
-          {{
-            allowAll: false,
-            extraClass: "compact",
-            title: channelLabel,
-          }}
-        );
+        const channelIndexRaw = Number(row && row.channelIndex);
+        const hasChannelIndex = Number.isInteger(channelIndexRaw) && channelIndexRaw >= 0;
+        const channelBadge = hasChannelIndex
+          ? meshChannelBadgeHtml(
+            channelIndexRaw,
+            channelLabel,
+            {{
+              allowAll: false,
+              extraClass: "compact",
+              title: channelLabel,
+            }}
+          )
+          : `<span class="mesh-channel-badge compact" style="${{escAttr(meshChannelBadgeStyle(meshChannelAllIndex, {{ allowAll: true }}))}}" title="Channel unavailable from packet metadata">Unknown</span>`;
         return `<tr>
           <td data-sort="${{escAttr(unix)}}">${{escAttr(when)}}</td>
           <td data-sort="${{escAttr(directionLabel)}}"><span class="files-transfer-dir ${{escAttr(directionClass)}}">${{escAttr(directionLabel)}}</span></td>
@@ -15952,7 +16036,7 @@
           </td>
           <td data-sort="${{escAttr(row.progressSort ?? 0)}}">${{escAttr(row.progressLabel || "n/a")}}</td>
           <td data-sort="${{escAttr(row.sizeSort ?? 0)}}">${{escAttr(row.sizeLabel || "n/a")}}</td>
-          <td data-sort="${{escAttr(row.channelIndex ?? 0)}}">${{channelBadge}}</td>
+          <td data-sort="${{escAttr(hasChannelIndex ? channelIndexRaw : -1)}}">${{channelBadge}}</td>
           <td data-sort="${{escAttr(row.canDownload ? 1 : 0)}}">
             <button
               type="button"
