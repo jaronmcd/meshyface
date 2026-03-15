@@ -24,18 +24,18 @@
           .join(" | ");
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
         const textCompact = compactInlineMessage(msg.text || "", 140);
-        const hopNum = Number(msg.hops);
-        const hasHop = Number.isFinite(hopNum) && hopNum >= 0;
+        const hopNum = nonNegativeIntegerOrNull(msg.hops);
+        const hasHop = hopNum != null;
         const meshIdx = messageMeshChannelIndex(msg);
         const hasMeshTint = Number.isInteger(meshIdx) && meshIdx >= 0;
         const meshTintClass = hasMeshTint ? " channel-tinted" : "";
         const meshTintStyle = hasMeshTint
           ? ` style="${{escAttr(meshChannelTintStyle(meshIdx, {{ allowAll: false }}))}}"`
           : "";
-        const hopStart = Number(msg.hop_start ?? msg.hopStart);
-        const hopLimit = Number(msg.hop_limit ?? msg.hopLimit);
+        const hopStart = optionalFiniteNumber(msg.hop_start ?? msg.hopStart);
+        const hopLimit = optionalFiniteNumber(msg.hop_limit ?? msg.hopLimit);
         const hopLabel = hasHop
-          ? `${{Math.trunc(hopNum)}} hop${{Math.trunc(hopNum) === 1 ? "" : "s"}}`
+          ? `${{hopNum}} hop${{hopNum === 1 ? "" : "s"}}`
           : "";
         const hopTitle = (
           Number.isFinite(hopStart) && Number.isFinite(hopLimit)

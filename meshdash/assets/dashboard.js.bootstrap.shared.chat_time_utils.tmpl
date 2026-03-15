@@ -80,6 +80,22 @@
       return Math.trunc(num);
     }}
 
+    function optionalFiniteNumber(value) {{
+      if (value == null) return null;
+      if (typeof value === "string" && !value.trim()) return null;
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      return num;
+    }}
+
+    function nonNegativeIntegerOrNull(value) {{
+      const num = optionalFiniteNumber(value);
+      if (num == null) return null;
+      const truncated = Math.trunc(num);
+      if (truncated < 0) return null;
+      return truncated;
+    }}
+
     function messageIdOfChatPacket(msg) {{
       if (!msg || typeof msg !== "object") return null;
       return parsePositiveMessageId(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
@@ -92,13 +108,11 @@
 
     function hopCountOfChatPacket(msg) {{
       if (!msg || typeof msg !== "object") return null;
-      const direct = Number(msg.hops);
-      if (Number.isFinite(direct) && direct >= 0) {{
-        return Math.trunc(direct);
-      }}
-      const hopStart = Number(msg.hop_start ?? msg.hopStart);
-      const hopLimit = Number(msg.hop_limit ?? msg.hopLimit);
-      if (Number.isFinite(hopStart) && Number.isFinite(hopLimit)) {{
+      const direct = nonNegativeIntegerOrNull(msg.hops);
+      if (direct != null) return direct;
+      const hopStart = optionalFiniteNumber(msg.hop_start ?? msg.hopStart);
+      const hopLimit = optionalFiniteNumber(msg.hop_limit ?? msg.hopLimit);
+      if (hopStart != null && hopLimit != null) {{
         const derived = Math.trunc(hopStart) - Math.trunc(hopLimit);
         if (derived >= 0) return derived;
       }}
@@ -246,4 +260,3 @@
       }}
       return null;
     }}
-

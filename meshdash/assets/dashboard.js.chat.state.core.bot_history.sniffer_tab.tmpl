@@ -39,8 +39,8 @@
               title: meshChannelLabelForIndex(entry.channel_index, {{ verbose: true, allowAll: false }}),
             }})
           : `<span>${{escAttr(channelLabel)}}</span>`;
-        const hops = Number(entry.hops);
-        const hopText = Number.isInteger(hops) && hops >= 0 ? `${{hops}} hop${{hops === 1 ? "" : "s"}}` : "hops n/a";
+        const hops = nonNegativeIntegerOrNull(entry.hops);
+        const hopText = hops == null ? "hops n/a" : `${{hops}} hop${{hops === 1 ? "" : "s"}}`;
         return `<article class="bots-history-item">
           <div class="bots-history-item-head">
             <span class="bots-history-command">${{escAttr(entry.command)}}</span>
@@ -57,4 +57,3 @@
       }});
       listEl.innerHTML = rows.join("");
     }}
-

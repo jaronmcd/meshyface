@@ -46,8 +46,8 @@
     }}
 
     function formatHopCountLabel(hops, fallback = "hops n/a") {{
-      const hopCount = Number(hops);
-      if (Number.isInteger(hopCount) && hopCount >= 0) {{
+      const hopCount = nonNegativeIntegerOrNull(hops);
+      if (hopCount != null) {{
         return `${{hopCount}} hop${{hopCount === 1 ? "" : "s"}}`;
       }}
       return String(fallback || "").trim() || "hops n/a";
@@ -441,4 +441,3 @@
       if (distanceLabel) return `${{place}} (${{distanceLabel}})`;
       return place;
     }}
-

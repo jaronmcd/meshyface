@@ -31,10 +31,7 @@
       const responseMessageId = parsePositiveMessageId(raw.response_message_id ?? raw.responseMessageId);
       const responseMs = parseDashboardTimeToMs(raw.response_ms ?? raw.responseMs ?? raw.response_at ?? raw.responseAt);
       const responseUnix = parseDashboardTimeToUnix(raw.response_unix ?? raw.responseUnix ?? raw.response_at ?? raw.responseAt);
-      const responseHopsRaw = Number(raw.response_hops ?? raw.responseHops);
-      const responseHops = (Number.isFinite(responseHopsRaw) && responseHopsRaw >= 0)
-        ? Math.trunc(responseHopsRaw)
-        : null;
+      const responseHops = nonNegativeIntegerOrNull(raw.response_hops ?? raw.responseHops);
       const respondEnabled = parseBoolToken(raw.respond_enabled ?? raw.respondEnabled, true);
       const responded = parseBoolToken(raw.responded, !!responseMessageId);
       const responseError = String(raw.response_error ?? raw.responseError ?? "").trim();
