@@ -1,0 +1,307 @@
+    function bindChatNotificationScopeControl() {{
+      const select = document.getElementById("chat-change-scope");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+      syncChatNotificationScopeControl();
+      select.addEventListener("change", () => {{
+        applyChatNotificationScope(select.value, true);
+      }});
+    }}
+
+    // Meshtastic has its own notion of "channels" (0..N) which are distinct from this UI's
+    // chat scopes (Everyone vs Peer-to-peer).
+    //
+    // We expose a lightweight selector so outgoing chat packets can be sent on a user-chosen
+    // channel index. Default is channel 0.
+
+    function requestImmediatePoll(delayMs = 0) {{
+      const waitMs = Math.max(0, Math.trunc(Number(delayMs) || 0));
+      if (chatImmediatePollTimer !== null) {{
+        clearTimeout(chatImmediatePollTimer);
+        chatImmediatePollTimer = null;
+      }}
+      chatImmediatePollTimer = window.setTimeout(() => {{
+        chatImmediatePollTimer = null;
+        if (document.hidden) return;
+        if (typeof pollOnce === "function") {{
+          void pollOnce();
+          return;
+        }}
+        void poll();
+      }}, waitMs);
+    }}
+
+    function persistManualDirectPeers() {{
+      try {{
+        const ids = Array.from(manualDirectPeerIds)
+          .map((entry) => normalizeNodeId(entry))
+          .filter((entry) => isCanonicalNodeId(entry))
+          .sort((a, b) => a.localeCompare(b));
+        window.localStorage.setItem(chatDirectPeersStorageKey, JSON.stringify(ids));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadManualDirectPeers() {{
+      manualDirectPeerIds.clear();
+      try {{
+        const raw = window.localStorage.getItem(chatDirectPeersStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          const nodeId = normalizeNodeId(entry);
+          if (!isCanonicalNodeId(nodeId)) continue;
+          manualDirectPeerIds.add(nodeId);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function addManualDirectPeer(rawNodeId, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const shouldSelect = opts.select !== false;
+      const nodeId = normalizeNodeId(rawNodeId);
+      if (!nodeId) {{
+        return {{ ok: false, error: "Enter a node ID to add." }};
+      }}
+      if (!isCanonicalNodeId(nodeId)) {{
+        return {{ ok: false, error: "Use a node ID like !49b54790." }};
+      }}
+      if (isSelfNodeId(nodeId)) {{
+        return {{ ok: false, error: "Cannot add your own radio to peer-to-peer list." }};
+      }}
+      const added = !manualDirectPeerIds.has(nodeId);
+      manualDirectPeerIds.add(nodeId);
+      persistManualDirectPeers();
+      if (shouldSelect) {{
+        selectNode(nodeId, true, false);
+      }} else if (latestState) {{
+        renderChat(latestState);
+      }}
+      return {{ ok: true, added, id: nodeId }};
+    }}
+
+    function removeManualDirectPeer(rawNodeId) {{
+      const nodeId = normalizeNodeId(rawNodeId);
+      if (!isCanonicalNodeId(nodeId)) return false;
+      if (!manualDirectPeerIds.delete(nodeId)) return false;
+      persistManualDirectPeers();
+      if (selectedNodeId && normalizeNodeId(selectedNodeId) === nodeId) {{
+        clearNodeSelection();
+      }} else if (latestState) {{
+        renderChat(latestState);
+      }}
+      return true;
+    }}
+
+    function detectedPeerCandidates(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const selfId = resolveLocalNodeId(safeState);
+      const unique = new Map();
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (isCanonicalNodeId(selfId) && nodeId === selfId) continue;
+        if (!isCanonicalNodeId(nodeId) || unique.has(nodeId)) continue;
+        const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        const lastSeenUnix = nodeLastHeardUnix(node);
+        unique.set(nodeId, {{ id: nodeId, name, lastSeenUnix }});
+      }}
+      return Array.from(unique.values()).sort((a, b) => {{
+        const aSeen = Number(a.lastSeenUnix) || 0;
+        const bSeen = Number(b.lastSeenUnix) || 0;
+        if (aSeen !== bSeen) return bSeen - aSeen;
+        const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+        if (nameDiff !== 0) return nameDiff;
+        return String(a.id || "").localeCompare(String(b.id || ""));
+      }});
+    }}
+
+    function renderChatPeerAddPanel(state = latestState) {{
+      const toggleBtn = document.getElementById("chat-peer-add-toggle-btn");
+      const panel = document.getElementById("chat-peer-add-panel");
+      const detectedSelect = document.getElementById("chat-peer-detected-select");
+      const detectedAddBtn = document.getElementById("chat-peer-add-detected-btn");
+      const manualInput = document.getElementById("chat-peer-manual-input");
+      const manualAddBtn = document.getElementById("chat-peer-add-manual-btn");
+      const savedList = document.getElementById("chat-peer-saved-list");
+      const directMode = activeChatChannel === "direct";
+      if (toggleBtn instanceof HTMLButtonElement) {{
+        toggleBtn.hidden = !directMode;
+        toggleBtn.setAttribute("aria-expanded", directMode && chatPeerAddPanelOpen ? "true" : "false");
+      }}
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !(directMode && chatPeerAddPanelOpen);
+      }}
+
+      const candidates = detectedPeerCandidates(state);
+      if (detectedSelect instanceof HTMLSelectElement) {{
+        const previousValue = normalizeNodeId(detectedSelect.value || "");
+        const options = ['<option value="">Detected nodes...</option>'];
+        for (const entry of candidates) {{
+          const savedSuffix = manualDirectPeerIds.has(entry.id) ? " (saved)" : "";
+          const label = `${{entry.name}} (${{entry.id}})${{savedSuffix}}`;
+          options.push(`<option value="${{escAttr(entry.id)}}">${{escAttr(label)}}</option>`);
+        }}
+        detectedSelect.innerHTML = options.join("");
+        if (previousValue && candidates.some((entry) => entry.id === previousValue)) {{
+          detectedSelect.value = previousValue;
+        }} else if (isCanonicalNodeId(selectedNodeId) && candidates.some((entry) => entry.id === selectedNodeId)) {{
+          detectedSelect.value = normalizeNodeId(selectedNodeId);
+        }} else {{
+          detectedSelect.value = "";
+        }}
+        detectedSelect.disabled = !directMode || candidates.length === 0;
+      }}
+      if (detectedAddBtn instanceof HTMLButtonElement) {{
+        const hasChoice = detectedSelect instanceof HTMLSelectElement
+          && isCanonicalNodeId(detectedSelect.value || "");
+        detectedAddBtn.disabled = !directMode || !hasChoice;
+      }}
+      if (manualInput instanceof HTMLInputElement) {{
+        manualInput.disabled = !directMode;
+      }}
+      if (manualAddBtn instanceof HTMLButtonElement) {{
+        manualAddBtn.disabled = !directMode;
+      }}
+
+      if (savedList instanceof HTMLElement) {{
+        const safeState = (state && typeof state === "object") ? state : {{}};
+        const selfId = resolveLocalNodeId(safeState);
+        const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+        const nodesById = new Map(
+          nodes.map((node) => [normalizeNodeId(node && node.id), node])
+        );
+        const savedPeers = Array.from(manualDirectPeerIds)
+          .map((entry) => normalizeNodeId(entry))
+          .filter((entry) => isCanonicalNodeId(entry))
+          .filter((entry) => !(isCanonicalNodeId(selfId) && entry === selfId))
+          .map((entry) => {{
+            const node = nodesById.get(entry);
+            const name = preferredNodeName(node) || nodeNameCache.get(entry) || entry;
+            return {{ id: entry, name }};
+          }})
+          .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
+        if (savedPeers.length === 0) {{
+          savedList.innerHTML = '<div class="chat-peer-saved-empty">No saved peers yet.</div>';
+        }} else {{
+          savedList.innerHTML = savedPeers.map((entry) => (
+            `<div class="chat-peer-saved-item">
+              <span class="chat-peer-saved-main">
+                <span class="chat-peer-saved-name">${{escAttr(entry.name)}}</span>
+                <span class="chat-peer-saved-id">${{escAttr(entry.id)}}</span>
+              </span>
+              <button type="button" class="chat-peer-saved-remove-btn" data-node-id="${{escAttr(entry.id)}}" title="Remove ${{escAttr(entry.id)}} from peer-to-peer list" aria-label="Remove ${{escAttr(entry.id)}} from peer-to-peer list">&times;</button>
+            </div>`
+          )).join("");
+        }}
+      }}
+    }}
+
+    function bindChatPeerControls() {{
+      const toggleBtn = document.getElementById("chat-peer-add-toggle-btn");
+      const detectedSelect = document.getElementById("chat-peer-detected-select");
+      const detectedAddBtn = document.getElementById("chat-peer-add-detected-btn");
+      const manualInput = document.getElementById("chat-peer-manual-input");
+      const manualAddBtn = document.getElementById("chat-peer-add-manual-btn");
+      const savedList = document.getElementById("chat-peer-saved-list");
+
+      if (toggleBtn instanceof HTMLButtonElement && toggleBtn.dataset.bound !== "1") {{
+        toggleBtn.dataset.bound = "1";
+        toggleBtn.addEventListener("click", () => {{
+          if (activeChatChannel !== "direct") return;
+          chatPeerAddPanelOpen = !chatPeerAddPanelOpen;
+          renderChatPeerAddPanel(latestState);
+          if (chatPeerAddPanelOpen && manualInput instanceof HTMLInputElement) {{
+            manualInput.focus({{ preventScroll: true }});
+          }}
+        }});
+      }}
+
+      if (detectedAddBtn instanceof HTMLButtonElement && detectedAddBtn.dataset.bound !== "1") {{
+        detectedAddBtn.dataset.bound = "1";
+        detectedAddBtn.addEventListener("click", () => {{
+          const chosenId = normalizeNodeId(
+            detectedSelect instanceof HTMLSelectElement ? detectedSelect.value : ""
+          );
+          const result = addManualDirectPeer(chosenId, {{ select: true }});
+          if (!result.ok) {{
+            setChatSendStatus(result.error || "Unable to add peer.", true);
+            return;
+          }}
+          setChatSendStatus(
+            result.added
+              ? `Peer ${{result.id}} added to peer-to-peer list.`
+              : `Peer ${{result.id}} is already in your peer-to-peer list.`
+          );
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      if (detectedSelect instanceof HTMLSelectElement && detectedSelect.dataset.bound !== "1") {{
+        detectedSelect.dataset.bound = "1";
+        detectedSelect.addEventListener("change", () => {{
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      const submitManualPeer = () => {{
+        const raw = manualInput instanceof HTMLInputElement ? manualInput.value : "";
+        const result = addManualDirectPeer(raw, {{ select: true }});
+        if (!result.ok) {{
+          setChatSendStatus(result.error || "Unable to add peer.", true);
+          if (manualInput instanceof HTMLInputElement) {{
+            manualInput.focus({{ preventScroll: true }});
+          }}
+          return;
+        }}
+        if (manualInput instanceof HTMLInputElement) {{
+          manualInput.value = "";
+          manualInput.focus({{ preventScroll: true }});
+        }}
+        setChatSendStatus(
+          result.added
+            ? `Peer ${{result.id}} added to peer-to-peer list.`
+            : `Peer ${{result.id}} is already in your peer-to-peer list.`
+        );
+        renderChatPeerAddPanel(latestState);
+      }};
+
+      if (manualAddBtn instanceof HTMLButtonElement && manualAddBtn.dataset.bound !== "1") {{
+        manualAddBtn.dataset.bound = "1";
+        manualAddBtn.addEventListener("click", () => {{
+          submitManualPeer();
+        }});
+      }}
+
+      if (manualInput instanceof HTMLInputElement && manualInput.dataset.bound !== "1") {{
+        manualInput.dataset.bound = "1";
+        manualInput.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Enter") return;
+          ev.preventDefault();
+          submitManualPeer();
+        }});
+      }}
+
+      if (savedList instanceof HTMLElement && savedList.dataset.bound !== "1") {{
+        savedList.dataset.bound = "1";
+        savedList.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const removeBtn = target.closest(".chat-peer-saved-remove-btn");
+          if (!(removeBtn instanceof HTMLButtonElement)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nodeId = normalizeNodeId(removeBtn.dataset.nodeId || "");
+          if (!isCanonicalNodeId(nodeId)) return;
+          const removed = removeManualDirectPeer(nodeId);
+          if (!removed) return;
+          setChatSendStatus(`Peer ${{nodeId}} removed from peer-to-peer list.`);
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      renderChatPeerAddPanel(latestState);
+    }}
+

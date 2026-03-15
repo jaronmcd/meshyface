@@ -1,0 +1,308 @@
+    function classifyMessageChannel(msg) {{
+      if (!msg || typeof msg !== "object") return "all";
+      const toId = normalizeNodeId(msg.to || msg.destination || "");
+      if (!toId || toId === "^all" || toId === "all" || toId === "broadcast") {{
+        return "all";
+      }}
+      if (typeof msg.scope === "string" && msg.scope.trim()) {{
+        return normalizeChatChannel(msg.scope);
+      }}
+      return "direct";
+    }}
+
+    async function sendChatPayload(body, successMessage) {{
+      if (chatSendInFlight) return null;
+      setChatSendBusy(true);
+      setChatSendStatus("Sending...");
+      try {{
+        const resp = await fetch("/api/chat/send", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(body || {{}}),
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || !payload.ok) {{
+          const msg = payload && payload.error ? payload.error : `send failed (${{resp.status}})`;
+          throw new Error(msg);
+        }}
+        setChatSendStatus(successMessage || `Sent at ${{payload.sent_at || "now"}}`);
+        await poll();
+        return payload;
+      }} catch (err) {{
+        setChatSendStatus(`Send error: ${{err.message || err}}`, true);
+        return null;
+      }} finally {{
+        setChatSendBusy(false);
+        flushQueuedComposerSend();
+      }}
+    }}
+
+    async function postStandaloneZorkCommand(text, sessionId = "") {{
+      const body = {{
+        text: String(text == null ? "" : text),
+      }};
+      const cleanSessionId = String(sessionId == null ? "" : sessionId).trim();
+      if (cleanSessionId) {{
+        body.session_id = cleanSessionId;
+      }}
+      const resp = await fetch("/api/games/zork", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(body),
+      }});
+      const payload = await resp.json().catch(() => ({{}}));
+      if (!resp.ok || !payload.ok) {{
+        const msg = payload && payload.error ? payload.error : `standalone zork failed (${{resp.status}})`;
+        throw new Error(msg);
+      }}
+      return payload;
+    }}
+
+    function restoreChatInputFocus(input) {{
+      if (!(input instanceof HTMLInputElement)) return;
+      window.requestAnimationFrame(() => {{
+        if (input.disabled) return;
+        input.focus({{ preventScroll: true }});
+        const tail = input.value.length;
+        input.setSelectionRange(tail, tail);
+      }});
+    }}
+
+    function flushQueuedComposerSend() {{
+      if (!queuedComposerSend || chatSendInFlight) return;
+      const input = document.getElementById("chat-input");
+      const hasText = input instanceof HTMLInputElement && String(input.value || "").trim().length > 0;
+      const preserveFocus = !!queuedComposerFocus;
+      queuedComposerSend = false;
+      queuedComposerFocus = false;
+      if (!hasText) return;
+      window.setTimeout(() => {{
+        void sendChatMessage({{ preserveFocus }});
+      }}, 0);
+    }}
+
+    async function sendChatMessage(options = null) {{
+      const input = document.getElementById("chat-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      const preserveFocus = !!(options && options.preserveFocus);
+      const hadFocus = preserveFocus && document.activeElement === input;
+      if (chatSendInFlight) {{
+        const queuedText = String(input.value || "").trim();
+        if (queuedText) {{
+          queuedComposerSend = true;
+          if (preserveFocus || document.activeElement === input) {{
+            queuedComposerFocus = true;
+          }}
+          setChatSendStatus("Send in progress. Queued your message...");
+        }}
+        return;
+      }}
+      const text = input.value.trim();
+      if (!text) {{
+        setChatSendStatus("Enter a message before sending.", true);
+        if (hadFocus) {{
+          restoreChatInputFocus(input);
+        }}
+        return;
+      }}
+      let destination = "^all";
+      if (activeChatChannel === "direct") {{
+        const directPeer = resolvedDirectPeerForComposer();
+        if (!isCanonicalNodeId(directPeer)) {{
+          setChatSendStatus("Select a user before sending a peer-to-peer message.", true);
+          if (hadFocus) {{
+            restoreChatInputFocus(input);
+          }}
+          return;
+        }}
+        destination = directPeer;
+        if (isSelfNodeId(destination)) {{
+          setChatSendStatus("Cannot send peer-to-peer message to your own radio.", true);
+          if (hadFocus) {{
+            restoreChatInputFocus(input);
+          }}
+          return;
+        }}
+      }}
+      const replyId = Number(chatReplyTargetId);
+      const sendCtx = meshChannelSendContext();
+      const requestBody = {{
+        text,
+        destination,
+        channel_index: sendCtx.sendIndex,
+      }};
+      if (Number.isInteger(replyId) && replyId > 0) {{
+        requestBody.reply_id = replyId;
+      }}
+      const payload = await sendChatPayload(
+        requestBody,
+        null
+      );
+      if (payload && payload.ok) {{
+        recordBotRequestHistoryFromSend(requestBody, payload);
+        input.value = "";
+        const replied = Number.isInteger(replyId) && replyId > 0;
+        clearChatReplyTarget();
+        if (destination === "^all") {{
+          setChatSendStatus(`${{replied ? "Reply sent" : "Sent"}} to Everyone on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
+        }} else {{
+          const awaitingAck = payload.ack_requested === true && normalizeDeliveryState(payload.delivery_state) === "pending";
+          if (awaitingAck) {{
+            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}} (awaiting ACK)`);
+          }} else {{
+            setChatSendStatus(`${{replied ? "Reply sent direct" : "Sent direct"}} to ${{destination}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
+          }}
+        }}
+      }}
+      if (hadFocus) {{
+        restoreChatInputFocus(input);
+      }}
+    }}
+
+    async function sendChatReaction(replyId, emoji) {{
+      const replyNum = Number(replyId);
+      const cleanEmoji = String(emoji || "").trim();
+      if (!Number.isInteger(replyNum) || replyNum <= 0) {{
+        setChatSendStatus("Cannot react: target message id is missing.", true);
+        return;
+      }}
+      if (!cleanEmoji) {{
+        setChatSendStatus("Choose an emoji reaction.", true);
+        return;
+      }}
+      if (!isReactionCompatibleEmoji(cleanEmoji)) {{
+        setChatSendStatus("Choose a single-codepoint emoji for reactions.", true);
+        return;
+      }}
+      let destination = "^all";
+      const sendCtx = meshChannelSendContext();
+      if (activeChatChannel === "direct") {{
+        const directPeer = resolvedDirectPeerForComposer();
+        if (isCanonicalNodeId(directPeer)) {{
+          destination = directPeer;
+        }}
+        if (isSelfNodeId(destination)) {{
+          setChatSendStatus("Cannot react in peer-to-peer mode to your own radio.", true);
+          return;
+        }}
+      }}
+      const payload = await sendChatPayload(
+        {{
+          destination,
+          channel_index: sendCtx.sendIndex,
+          reply_id: replyNum,
+          emoji: cleanEmoji,
+        }},
+        null
+      );
+      if (payload && payload.ok) {{
+        setChatSendStatus(`Reacted ${{cleanEmoji}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
+      }}
+    }}
+
+    async function sendChatAck(options = null) {{
+      if (chatSendInFlight) return null;
+      const replyId = Number(options && options.reply_id);
+      if (!Number.isInteger(replyId) || replyId <= 0) {{
+        setChatSendStatus("Cannot ACK: target message id is missing.", true);
+        return null;
+      }}
+      const textMode = String((options && options.text_mode) || "").trim().toLowerCase();
+      let text = String((options && options.text) || "").trim();
+      if (textMode === "pong") {{
+        try {{
+          const pongText = await buildPongStyleAckReplyText(options, latestState);
+          if (pongText) {{
+            text = String(pongText).trim();
+          }}
+        }} catch (_err) {{
+          // Fall back to the pre-baked ACK text if pong-style generation fails.
+        }}
+      }}
+      if (!text) {{
+        setChatSendStatus("Cannot ACK: message details are unavailable.", true);
+        return null;
+      }}
+      let destination = normalizeNodeId((options && options.destination) || "^all");
+      if (!destination) destination = "^all";
+      if (destination !== "^all" && !isCanonicalNodeId(destination)) {{
+        setChatSendStatus("Cannot ACK: destination is unavailable.", true);
+        return null;
+      }}
+      const channelRaw = Number(options && options.channel_index);
+      const channelIndex = Number.isInteger(channelRaw) && channelRaw >= 0 ? channelRaw : 0;
+      const targetLabel = String((options && options.target_label) || "").trim()
+        || (destination === "^all" ? "Everyone" : destination);
+      const payload = await sendChatPayload(
+        {{
+          text,
+          destination,
+          channel_index: channelIndex,
+          reply_id: replyId,
+        }},
+        null
+      );
+      if (payload && payload.ok) {{
+        setChatSendStatus(`ACK sent to ${{targetLabel}} on ${{meshChannelLabelForIndex(channelIndex)}} at ${{payload.sent_at || "now"}}`);
+      }}
+      return payload;
+    }}
+
+    function chatAckOptionsFromButton(button) {{
+      if (!(button instanceof HTMLElement)) return null;
+      return {{
+        reply_id: Number(button.dataset.ackReplyId || ""),
+        text: button.dataset.ackText || "",
+        text_mode: button.dataset.ackTextMode || "",
+        destination: button.dataset.ackDestination || "^all",
+        channel_index: Number(button.dataset.ackChannel || ""),
+        target_label: button.dataset.ackTargetLabel || "",
+        source_id: button.dataset.ackSourceId || "",
+        source_label: button.dataset.ackSourceLabel || "",
+        received_unix: button.dataset.ackReceivedUnix || "",
+        hops: button.dataset.ackHopCount || "",
+        rx_snr: button.dataset.ackRxSnr || "",
+        rx_rssi: button.dataset.ackRxRssi || "",
+      }};
+    }}
+
+    async function retryChatMessage(options) {{
+      const text = String((options && options.text) || "").trim();
+      if (!text) {{
+        setChatSendStatus("Cannot retry: message text is empty.", true);
+        return;
+      }}
+
+      let destination = String((options && options.destination) || "^all").trim() || "^all";
+      if (destination.toLowerCase() === "all" || destination.toLowerCase() === "broadcast") {{
+        destination = "^all";
+      }}
+      if (!(destination === "^all" || destination.startsWith("!"))) {{
+        setChatSendStatus("Cannot retry: destination is invalid.", true);
+        return;
+      }}
+
+      const channelRaw = Number(options && options.channel_index);
+      const channelIndex = Number.isInteger(channelRaw) && channelRaw >= 0 ? channelRaw : 0;
+      const replyRaw = Number(options && options.reply_id);
+      const retryOfRaw = Number(options && options.retry_of);
+
+      const body = {{
+        text,
+        destination,
+        channel_index: channelIndex,
+      }};
+      if (Number.isInteger(replyRaw) && replyRaw > 0) {{
+        body.reply_id = replyRaw;
+      }}
+      if (Number.isInteger(retryOfRaw) && retryOfRaw > 0) {{
+        body.retry_of = retryOfRaw;
+      }}
+
+      const payload = await sendChatPayload(body, null);
+      if (payload && payload.ok) {{
+        const destLabel = destination === "^all" ? "Everyone" : destination;
+        setChatSendStatus(`Retried to ${{destLabel}} at ${{payload.sent_at || "now"}}`);
+      }}
+    }}
+

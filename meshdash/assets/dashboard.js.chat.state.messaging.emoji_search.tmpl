@@ -1,0 +1,478 @@
+    function normalizeChatEmojiGroup(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (!clean || clean === "all") return "all";
+      return chatEmojiGroupsById.has(clean) ? clean : "all";
+    }}
+
+    function normalizeChatEmojiSearchQuery(raw) {{
+      const lowered = String(raw || "").trim().toLowerCase();
+      if (!lowered) return "";
+      const noShortcodeColons = lowered.replace(/(^:+|:+$)/g, " ");
+      return noShortcodeColons
+        .replace(/[_-]+/g, " ")
+        .replace(/[^a-z0-9+ ]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }}
+
+    function stemChatEmojiSearchToken(rawToken) {{
+      const token = String(rawToken || "").trim().toLowerCase();
+      if (!token) return "";
+      if (token.endsWith("ies") && token.length > 4) {{
+        return `${{token.slice(0, -3)}}y`;
+      }}
+      if (token.endsWith("ing") && token.length > 5) {{
+        return token.slice(0, -3);
+      }}
+      if (token.endsWith("ed") && token.length > 4) {{
+        return token.slice(0, -2);
+      }}
+      if (token.endsWith("es") && token.length > 4) {{
+        return token.slice(0, -2);
+      }}
+      if (token.endsWith("s") && token.length > 3) {{
+        return token.slice(0, -1);
+      }}
+      return token;
+    }}
+
+    function tokenizeChatEmojiSearchQuery(rawQuery) {{
+      const normalized = normalizeChatEmojiSearchQuery(rawQuery);
+      if (!normalized) return [];
+      const seen = new Set();
+      const out = [];
+      for (const rawToken of normalized.split(/\s+/g)) {{
+        const token = String(rawToken || "").trim();
+        if (!token) continue;
+        if (!seen.has(token)) {{
+          seen.add(token);
+          out.push(token);
+        }}
+        const stemmed = stemChatEmojiSearchToken(token);
+        if (stemmed && !seen.has(stemmed)) {{
+          seen.add(stemmed);
+          out.push(stemmed);
+        }}
+      }}
+      return out;
+    }}
+
+    function tokenizeChatEmojiSearchAliasParts(queryParts) {{
+      const base = Array.isArray(queryParts) ? queryParts : [];
+      if (!base.length) return [];
+      const seen = new Set(base);
+      const out = [];
+      for (const token of base) {{
+        const aliasText = String(chatEmojiQueryKeywordAliases[token] || "").trim();
+        if (!aliasText) continue;
+        for (const aliasToken of tokenizeChatEmojiSearchQuery(aliasText)) {{
+          if (!aliasToken || seen.has(aliasToken)) continue;
+          seen.add(aliasToken);
+          out.push(aliasToken);
+        }}
+      }}
+      return out;
+    }}
+
+    function collectChatEmojiCodepointAliasParts(rawEmoji) {{
+      const text = String(rawEmoji || "").trim();
+      if (!text) return [];
+      const out = [];
+      const seen = new Set();
+      for (const ch of text) {{
+        const cp = ch.codePointAt(0);
+        if (!Number.isInteger(cp)) continue;
+        if (chatEmojiCodepointIgnoredSet.has(cp)) continue;
+        if (cp >= 0xe0020 && cp <= 0xe007f) continue;
+        const key = cp.toString(16);
+        const keywords = String(chatEmojiCodepointKeywordMap[key] || "").trim();
+        if (!keywords) continue;
+        for (const part of tokenizeChatEmojiSearchQuery(keywords)) {{
+          if (!part || seen.has(part)) continue;
+          seen.add(part);
+          out.push(part);
+        }}
+      }}
+      return out;
+    }}
+
+    function boundedLevenshteinDistance(aRaw, bRaw, maxDistance = 2) {{
+      const a = String(aRaw || "");
+      const b = String(bRaw || "");
+      if (a === b) return 0;
+      if (!a || !b) {{
+        return Math.max(a.length, b.length);
+      }}
+      const aLen = a.length;
+      const bLen = b.length;
+      if (Math.abs(aLen - bLen) > maxDistance) {{
+        return maxDistance + 1;
+      }}
+      let prev = new Array(bLen + 1).fill(0);
+      let curr = new Array(bLen + 1).fill(0);
+      for (let j = 0; j <= bLen; j += 1) {{
+        prev[j] = j;
+      }}
+      for (let i = 1; i <= aLen; i += 1) {{
+        curr[0] = i;
+        for (let j = 1; j <= bLen; j += 1) {{
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          curr[j] = Math.min(
+            prev[j] + 1,
+            curr[j - 1] + 1,
+            prev[j - 1] + cost
+          );
+        }}
+        const swap = prev;
+        prev = curr;
+        curr = swap;
+      }}
+      return prev[bLen];
+    }}
+
+    function scoreChatEmojiPartMatch(part, tokens, searchText, allowFuzzy = false) {{
+      if (!part) return 0;
+      let best = 0;
+      for (const token of tokens) {{
+        if (!token) continue;
+        if (token === part) {{
+          best = Math.max(best, 460);
+          continue;
+        }}
+        if (token.startsWith(part)) {{
+          best = Math.max(best, 320);
+          continue;
+        }}
+        if (token.includes(part)) {{
+          best = Math.max(best, 180);
+        }}
+      }}
+      if (best > 0) {{
+        return best;
+      }}
+      if (searchText.includes(part)) {{
+        return 120;
+      }}
+      if (!allowFuzzy || part.length < 4) {{
+        return 0;
+      }}
+
+      const maxDistance = part.length >= 8 ? 2 : 1;
+      let closest = maxDistance + 1;
+      for (const token of tokens) {{
+        if (!token || token.length < 3) continue;
+        const distance = boundedLevenshteinDistance(part, token, maxDistance);
+        if (distance < closest) {{
+          closest = distance;
+        }}
+        if (closest === 0) {{
+          break;
+        }}
+      }}
+      if (closest > maxDistance) {{
+        return 0;
+      }}
+      return closest <= 1 ? 90 : 52;
+    }}
+
+    function scoreChatEmojiSearchMatch(emoji, queryText, queryParts, allowFuzzy = false) {{
+      const tokens = chatEmojiSearchTokensByEmoji.get(emoji) || [];
+      if (!tokens.length) {{
+        return 0;
+      }}
+      const searchText = String(chatEmojiSearchMetaByEmoji.get(emoji) || "");
+      let score = 0;
+      for (const part of queryParts) {{
+        const partScore = scoreChatEmojiPartMatch(part, tokens, searchText, allowFuzzy);
+        if (partScore <= 0) {{
+          return 0;
+        }}
+        score += partScore;
+      }}
+      if (queryText && searchText.includes(queryText)) {{
+        score += 35;
+      }}
+      return score;
+    }}
+
+    function rankChatEmojiSearchMatches(rawQuery, queryParts, allowFuzzy = false) {{
+      const queryText = normalizeChatEmojiSearchQuery(rawQuery);
+      const ranked = [];
+      const seen = new Set();
+      for (const emoji of chatEmojiAllChoices) {{
+        if (seen.has(emoji)) continue;
+        seen.add(emoji);
+        const score = scoreChatEmojiSearchMatch(
+          emoji,
+          queryText,
+          queryParts,
+          allowFuzzy,
+        );
+        if (score <= 0) {{
+          continue;
+        }}
+        ranked.push({{
+          emoji,
+          score,
+          order: Number(chatEmojiChoiceOrder.get(emoji) || 0),
+        }});
+      }}
+      ranked.sort((a, b) => (b.score - a.score) || (a.order - b.order));
+      return ranked.map((entry) => entry.emoji);
+    }}
+
+    function rankChatEmojiSearchMatchesAnyPart(rawQuery, queryParts, allowFuzzy = false) {{
+      const queryText = normalizeChatEmojiSearchQuery(rawQuery);
+      const ranked = [];
+      const seen = new Set();
+      for (const emoji of chatEmojiAllChoices) {{
+        if (seen.has(emoji)) continue;
+        seen.add(emoji);
+        const tokens = chatEmojiSearchTokensByEmoji.get(emoji) || [];
+        if (!tokens.length) continue;
+        const searchText = String(chatEmojiSearchMetaByEmoji.get(emoji) || "");
+        let matchedParts = 0;
+        let score = 0;
+        for (const part of queryParts) {{
+          const partScore = scoreChatEmojiPartMatch(part, tokens, searchText, allowFuzzy);
+          if (partScore <= 0) continue;
+          matchedParts += 1;
+          score += partScore;
+        }}
+        if (matchedParts <= 0) {{
+          continue;
+        }}
+        if (queryText && searchText.includes(queryText)) {{
+          score += 28;
+        }}
+        score += matchedParts * 24;
+        ranked.push({{
+          emoji,
+          score,
+          matchedParts,
+          order: Number(chatEmojiChoiceOrder.get(emoji) || 0),
+        }});
+      }}
+      ranked.sort((a, b) => (
+        (b.score - a.score)
+        || (b.matchedParts - a.matchedParts)
+        || (a.order - b.order)
+      ));
+      return ranked.map((entry) => entry.emoji);
+    }}
+
+    const reactionEmojiIgnoredCodepoints = new Set([0xFE0E, 0xFE0F]);
+
+    function reactionEmojiCodepoint(rawEmoji) {{
+      const text = String(rawEmoji == null ? "" : rawEmoji).trim();
+      if (!text) return null;
+      let baseCodepoint = null;
+      for (const ch of text) {{
+        const cp = ch.codePointAt(0);
+        if (!Number.isInteger(cp)) continue;
+        if (reactionEmojiIgnoredCodepoints.has(cp)) continue;
+        if (baseCodepoint !== null) {{
+          return null;
+        }}
+        baseCodepoint = cp;
+      }}
+      return Number.isInteger(baseCodepoint) && baseCodepoint > 0 ? baseCodepoint : null;
+    }}
+
+    function isReactionCompatibleEmoji(rawEmoji) {{
+      return Number.isInteger(reactionEmojiCodepoint(rawEmoji));
+    }}
+
+    function reactionCompatibleEmojiChoices(rawChoices) {{
+      const list = Array.isArray(rawChoices) ? rawChoices : [];
+      const deduped = [];
+      const seen = new Set();
+      for (const emoji of list) {{
+        const clean = String(emoji || "").trim();
+        if (!clean || seen.has(clean)) continue;
+        seen.add(clean);
+        if (!isReactionCompatibleEmoji(clean)) continue;
+        deduped.push(clean);
+      }}
+      return deduped;
+    }}
+
+    function chatEmojiChoicesForGroup(groupId) {{
+      const key = normalizeChatEmojiGroup(groupId);
+      if (key === "all") return chatEmojiAllChoices;
+      const group = chatEmojiGroupsById.get(key);
+      if (group && Array.isArray(group.emojis)) {{
+        return group.emojis;
+      }}
+      return chatEmojiAllChoices;
+    }}
+
+    function chatEmojiChoicesForSearch(rawQuery) {{
+      const rawText = String(rawQuery || "").trim();
+      if (rawText && chatEmojiChoiceSet.has(rawText)) {{
+        return [rawText];
+      }}
+      const query = normalizeChatEmojiSearchQuery(rawQuery);
+      if (!query) return [];
+      const cached = chatEmojiSearchCache.get(query);
+      if (Array.isArray(cached)) {{
+        return cached;
+      }}
+
+      const parts = tokenizeChatEmojiSearchQuery(query);
+      if (!parts.length) return [];
+      const aliasParts = tokenizeChatEmojiSearchAliasParts(parts);
+      let matches = rankChatEmojiSearchMatches(query, parts, false);
+      if (!matches.length) {{
+        matches = rankChatEmojiSearchMatches(query, parts, true);
+      }}
+      if (!matches.length) {{
+        const fallbackParts = aliasParts.length ? parts.concat(aliasParts) : parts;
+        matches = rankChatEmojiSearchMatchesAnyPart(query, fallbackParts, false);
+      }}
+      if (!matches.length) {{
+        const fallbackParts = aliasParts.length ? parts.concat(aliasParts) : parts;
+        matches = rankChatEmojiSearchMatchesAnyPart(query, fallbackParts, true);
+      }}
+      chatEmojiSearchCache.set(query, matches);
+      return matches;
+    }}
+
+    function buildChatEmojiNode(emoji, extraClass = "") {{
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = extraClass ? `chat-emoji-item ${{extraClass}}` : "chat-emoji-item";
+      btn.setAttribute("data-emoji", emoji);
+      btn.setAttribute("title", emoji);
+      btn.textContent = emoji;
+      return btn;
+    }}
+
+    function chatEmojiNodesForGroup(groupId) {{
+      const key = normalizeChatEmojiGroup(groupId);
+      const cached = chatEmojiNodesByGroup.get(key);
+      if (Array.isArray(cached)) {{
+        return cached;
+      }}
+      const nodes = [];
+      for (const emoji of chatEmojiChoicesForGroup(key)) {{
+        nodes.push(buildChatEmojiNode(emoji));
+      }}
+      chatEmojiNodesByGroup.set(key, nodes);
+      return nodes;
+    }}
+
+    function chatEmojiUsageEntries() {{
+      const enforceChoiceSet = chatEmojiChoiceSet.size > 0;
+      return Array.from(chatEmojiUsageCounts.entries())
+        .filter(([emoji, count]) => (
+          (!enforceChoiceSet || chatEmojiChoiceSet.has(emoji))
+          && Number.isFinite(count)
+          && count > 0
+        ))
+        .sort((a, b) => (b[1] - a[1]) || String(a[0]).localeCompare(String(b[0])));
+    }}
+
+    function chatEmojiTopChoices() {{
+      const picked = [];
+      const used = new Set();
+      for (const [emoji] of chatEmojiUsageEntries()) {{
+        if (used.has(emoji)) continue;
+        used.add(emoji);
+        picked.push(emoji);
+        if (picked.length >= chatEmojiTopUsageCount) {{
+          return picked;
+        }}
+      }}
+      for (const emoji of chatEmojiPopularDefaults) {{
+        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji)) continue;
+        used.add(emoji);
+        picked.push(emoji);
+        if (picked.length >= chatEmojiTopUsageCount) {{
+          break;
+        }}
+      }}
+      return picked;
+    }}
+
+    function persistChatEmojiUsage() {{
+      try {{
+        const entries = chatEmojiUsageEntries().slice(0, chatEmojiUsagePersistMax);
+        const payload = {{}};
+        for (const [emoji, count] of entries) {{
+          payload[emoji] = count;
+        }}
+        window.localStorage.setItem(chatEmojiUsageStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadChatEmojiUsage() {{
+      const next = new Map();
+      const enforceChoiceSet = chatEmojiChoiceSet.size > 0;
+      try {{
+        const raw = window.localStorage.getItem(chatEmojiUsageStorageKey);
+        if (raw) {{
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {{
+            for (const [emojiRaw, countRaw] of Object.entries(parsed)) {{
+              const emoji = String(emojiRaw || "").trim();
+              const count = Math.floor(Number(countRaw));
+              if (!emoji || (enforceChoiceSet && !chatEmojiChoiceSet.has(emoji)) || !Number.isFinite(count) || count <= 0) {{
+                continue;
+              }}
+              next.set(emoji, count);
+            }}
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      chatEmojiUsageCounts = next;
+    }}
+
+    function noteChatEmojiUsage(rawEmoji) {{
+      const emoji = String(rawEmoji || "").trim();
+      if (!emoji) return;
+      if (chatEmojiChoiceSet.size > 0 && !chatEmojiChoiceSet.has(emoji)) return;
+      const nextCount = (chatEmojiUsageCounts.get(emoji) || 0) + 1;
+      chatEmojiUsageCounts.set(emoji, nextCount);
+      persistChatEmojiUsage();
+    }}
+
+    function persistChatEmojiPickerState() {{
+      try {{
+        window.localStorage.setItem(
+          chatEmojiPickerStateStorageKey,
+          JSON.stringify({{
+            group: chatEmojiPickerGroup,
+          }})
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadChatEmojiPickerState() {{
+      let preferredGroup = chatEmojiDefaultGroup;
+      try {{
+        const raw = window.localStorage.getItem(chatEmojiPickerStateStorageKey);
+        if (raw) {{
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {{
+            const storedGroup = String(parsed.group || "").trim();
+            if (storedGroup) {{
+              if (chatEmojiGroupsById.size <= 0) {{
+                preferredGroup = String(storedGroup || "").trim().toLowerCase() || chatEmojiDefaultGroup;
+              }} else {{
+                const normalized = normalizeChatEmojiGroup(storedGroup);
+                preferredGroup = (
+                  normalized === "all" && storedGroup.toLowerCase() !== "all"
+                ) ? chatEmojiDefaultGroup : normalized;
+              }}
+            }}
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      chatEmojiPickerGroup = preferredGroup;
+    }}
+
