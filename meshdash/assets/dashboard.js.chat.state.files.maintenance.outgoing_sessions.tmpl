@@ -1,0 +1,244 @@
+    async function maintainOutgoingFileTransferSessions(state = latestState) {{
+      if (!(state && typeof state === "object")) return;
+      if (fileTransferOutgoingByToken.size <= 0) return;
+      const frameState = collectFileTransferFrames(state, {{ respectActiveChannel: false }});
+      const ackByTransferKey = frameState.ackByTransferKey;
+      const localNodeId = normalizeNodeId(frameState.localNodeId || "");
+      const nowMs = Date.now();
+      for (const [token, session] of fileTransferOutgoingByToken.entries()) {{
+        if (!session || typeof session !== "object") {{
+          fileTransferOutgoingByToken.delete(token);
+          continue;
+        }}
+        if (session.delivered || session.failed) {{
+          continue;
+        }}
+        const ack = findAckForOutgoingSession(session, ackByTransferKey, localNodeId);
+        if (ack) {{
+          const ackChannelIndex = fileTransferExplicitChannelIndex(ack.channelIndex);
+          const sendChannelIndex = fileTransferExplicitChannelIndex(session.channelIndex);
+          if (ackChannelIndex != null && sendChannelIndex != null && ackChannelIndex !== sendChannelIndex) {{
+            const priorLoggedAckChannel = fileTransferExplicitChannelIndex(session.lastAckChannelIndex);
+            if (priorLoggedAckChannel !== ackChannelIndex) {{
+              appendFileTransferConsole(
+                `ACK for ${{fileTransferShortTransferId(session.transferId)}} arrived on ${{meshChannelLabelForIndex(ackChannelIndex, {{ allowAll: false }})}} (send channel was ${{meshChannelLabelForIndex(sendChannelIndex, {{ allowAll: false }})}}).`
+              );
+            }}
+          }}
+          session.lastAckChannelIndex = ackChannelIndex;
+          const priorAckedChunks = Math.max(
+            0,
+            Math.min(
+              session.totalChunks,
+              Math.trunc(Number(session.ackedChunks) || 0)
+            )
+          );
+          const ackedChunksObserved = Math.max(
+            0,
+            Math.min(
+              session.totalChunks,
+              Math.max(
+                Number(ack.receivedCount || 0),
+                (ack.receivedSet instanceof Set ? ack.receivedSet.size : 0)
+              )
+            )
+          );
+          const ackedChunks = Math.max(priorAckedChunks, ackedChunksObserved);
+          session.ackedChunks = ackedChunks;
+          session.lastAckUnix = ack.latestUnix || session.lastAckUnix || null;
+          if (ackedChunks > priorAckedChunks) {{
+            session.retriesSinceProgress = 0;
+            session.lastAckProgressAtMs = nowMs;
+            appendFileTransferConsole(
+              `ACK progress for ${{fileTransferShortTransferId(session.transferId)}} from ${{session.destination}}: ${{ackedChunks}}/${{session.totalChunks}}.`
+            );
+          }}
+          if (ackedChunks >= session.totalChunks) {{
+            session.delivered = true;
+            session.deliveredAtMs = nowMs;
+            appendFileTransferConsole(
+              `Delivered ${{fileTransferShortTransferId(session.transferId)}} to ${{session.destination}} (${{session.totalChunks}}/${{session.totalChunks}} acked).`
+            );
+            continue;
+          }}
+        }}
+
+        const stallRetryAttempts = Math.max(
+          0,
+          Math.trunc(Number(session.retriesSinceProgress) || Number(session.retryAttempts) || 0)
+        );
+        const lastProgressAtMs = Math.max(0, Math.trunc(Number(session.lastAckProgressAtMs) || 0));
+        const lastSendAtMs = Number(session.lastSendAtMs) || Number(session.createdAtMs) || 0;
+        const maxedRetries = stallRetryAttempts >= session.maxRetries;
+        let retryCapped = false;
+        if (maxedRetries) {{
+          // After the aggressive retry budget is exhausted, continue low-rate recovery retries.
+          // Only fail once we have both exhausted retries and seen sustained no-progress.
+          const finalAckGraceMs = Math.max(fileTransferAckWaitBeforeRetryMs, fileTransferAckFinalGraceMs);
+          const waitingForLateAck = lastSendAtMs > 0 && (nowMs - lastSendAtMs) < finalAckGraceMs;
+          const progressAnchorMs = lastProgressAtMs > 0
+            ? lastProgressAtMs
+            : Math.max(0, Math.trunc(Number(session.createdAtMs) || 0));
+          const stalledTooLong = progressAnchorMs > 0 && (nowMs - progressAnchorMs) >= fileTransferAckProgressStallFailMs;
+          if (!waitingForLateAck && stalledTooLong) {{
+            session.failed = true;
+            session.failedAtMs = nowMs;
+            appendFileTransferConsole(
+              `Delivery failed for ${{fileTransferShortTransferId(session.transferId)}} to ${{session.destination}} after ${{stallRetryAttempts}}/${{session.maxRetries}} retries without ACK progress.`,
+              {{ level: "error" }}
+            );
+            continue;
+          }}
+          retryCapped = true;
+        }}
+
+        const lastRetryAtMs = Number(session.lastRetryAtMs) || 0;
+        const noAckYet = !ack;
+        const receivedSet = ack && ack.receivedSet instanceof Set
+          ? ack.receivedSet
+          : new Set();
+        const missingIndexes = noAckYet
+          ? Array.from({{ length: session.totalChunks }}, (_value, idx) => idx)
+          : fileTransferMissingChunkIndexes(session.totalChunks, receivedSet);
+        if (!missingIndexes.length) {{
+          continue;
+        }}
+        const endgame = !noAckYet
+          && missingIndexes.length > 0
+          && missingIndexes.length <= fileTransferEndgameMissingChunkThreshold;
+        let retryIntervalMs = fileTransferAckResendIntervalMs;
+        if (noAckYet) {{
+          retryIntervalMs = Math.max(fileTransferAckWaitBeforeRetryMs, fileTransferAckResendIntervalMs);
+        }} else {{
+          const missingCount = missingIndexes.length;
+          if (missingCount >= 30) {{
+            retryIntervalMs = 28000;
+          }} else if (missingCount >= 20) {{
+            retryIntervalMs = 20000;
+          }} else if (missingCount >= 12) {{
+            retryIntervalMs = 14000;
+          }} else if (missingCount >= 8) {{
+            retryIntervalMs = 9000;
+          }} else if (missingCount >= 5) {{
+            retryIntervalMs = 5500;
+          }} else {{
+            retryIntervalMs = fileTransferEndgameResendIntervalMs;
+          }}
+          const backoffSteps = Math.max(0, stallRetryAttempts - 1);
+          if (backoffSteps > 0) {{
+            retryIntervalMs = Math.round(retryIntervalMs * Math.pow(1.15, backoffSteps));
+          }}
+          const maxIntervalMs = endgame ? 7000 : 45000;
+          retryIntervalMs = Math.max(900, Math.min(maxIntervalMs, retryIntervalMs));
+        }}
+        if (retryCapped) {{
+          retryIntervalMs = Math.max(retryIntervalMs, fileTransferRetryRecoveryIntervalMs);
+        }}
+        if (noAckYet && (nowMs - lastSendAtMs) < fileTransferAckWaitBeforeRetryMs) {{
+          continue;
+        }}
+        if (!noAckYet && (nowMs - lastRetryAtMs) < retryIntervalMs) {{
+          continue;
+        }}
+        if (!noAckYet && (nowMs - lastSendAtMs) < fileTransferMaintenanceCooldownMs) {{
+          continue;
+        }}
+        const framesToSend = [];
+        const includeMeta = !!session.metaFrame && (noAckYet || (!endgame && (stallRetryAttempts % 4 === 0)));
+        if (includeMeta) {{
+          framesToSend.push(session.metaFrame);
+        }}
+        let retryMissingIndexes = missingIndexes.slice();
+        if (!noAckYet && missingIndexes.length > 0) {{
+          let burstSize = missingIndexes.length;
+          if (endgame) {{
+            burstSize = Math.max(1, Math.min(2, missingIndexes.length));
+          }} else if (missingIndexes.length >= 20) {{
+            burstSize = 14;
+          }} else if (missingIndexes.length >= 12) {{
+            burstSize = 10;
+          }} else if (missingIndexes.length >= 8) {{
+            burstSize = 8;
+          }}
+          if (missingIndexes.length > burstSize) {{
+            const cursorRaw = Math.max(0, Math.trunc(Number(session.retryChunkCursor) || 0));
+            const selected = [];
+            for (let idxPos = 0; idxPos < burstSize; idxPos += 1) {{
+              const pick = missingIndexes[(cursorRaw + idxPos) % missingIndexes.length];
+              if (!selected.includes(pick)) {{
+                selected.push(pick);
+              }}
+            }}
+            retryMissingIndexes = selected;
+            session.retryChunkCursor = (cursorRaw + burstSize) % missingIndexes.length;
+          }} else {{
+            session.retryChunkCursor = 0;
+          }}
+        }} else {{
+          session.retryChunkCursor = 0;
+        }}
+        const duplicateSends = endgame
+          ? Math.max(1, Math.min(4, fileTransferEndgameDuplicateSends + (retryMissingIndexes.length <= 2 ? 1 : 0)))
+          : 1;
+        for (const chunkIdx of retryMissingIndexes) {{
+          const frame = session.chunkFrames[chunkIdx];
+          if (typeof frame === "string" && frame.trim()) {{
+            if (endgame) {{
+              for (let copyIdx = 0; copyIdx < duplicateSends; copyIdx += 1) {{
+                framesToSend.push(frame.trim());
+              }}
+            }} else {{
+              framesToSend.push(frame.trim());
+            }}
+          }}
+        }}
+        if (!framesToSend.length) {{
+          continue;
+        }}
+        let sentCount = 0;
+        let firstSendError = "";
+        for (let frameIdx = 0; frameIdx < framesToSend.length; frameIdx += 1) {{
+          const frame = framesToSend[frameIdx];
+          try {{
+            await sendFileTransferFrameText(
+              frame,
+              session.destination,
+              session.channelIndex
+            );
+            sentCount += 1;
+            if (frameIdx + 1 < framesToSend.length) {{
+              await waitFileTransferFrameGap();
+            }}
+          }} catch (err) {{
+            firstSendError = err instanceof Error ? err.message : String(err || "send failed");
+            break;
+          }}
+        }}
+        if (sentCount > 0) {{
+          session.retryAttempts = Math.max(0, Math.trunc(Number(session.retryAttempts) || 0)) + 1;
+          session.retriesSinceProgress = Math.max(0, Math.trunc(Number(session.retriesSinceProgress) || 0)) + 1;
+          session.lastRetryAtMs = nowMs;
+          session.lastSendAtMs = Date.now();
+          const activeRetries = Math.max(0, Math.trunc(Number(session.retriesSinceProgress) || 0));
+          const intervalSec = (retryIntervalMs / 1000).toFixed(retryIntervalMs < 10000 ? 1 : 0);
+          const endgameLabel = endgame
+            ? ` (endgame, ${{missingIndexes.length}} missing chunk${{missingIndexes.length === 1 ? "" : "s"}}, ~${{intervalSec}}s cadence)`
+            : "";
+          appendFileTransferConsole(
+            `Retry ${{activeRetries}}/${{session.maxRetries}} for ${{fileTransferShortTransferId(session.transferId)}}: resent ${{sentCount}} frame${{sentCount === 1 ? "" : "s"}} to ${{session.destination}}${{endgameLabel}}.`,
+            {{ level: "warn" }}
+          );
+        }} else if (firstSendError) {{
+          const lastRetryErrorAtMs = Math.max(0, Math.trunc(Number(session.lastRetryErrorAtMs) || 0));
+          if ((nowMs - lastRetryErrorAtMs) >= fileTransferRetryErrorLogIntervalMs) {{
+            session.lastRetryErrorAtMs = nowMs;
+            appendFileTransferConsole(
+              `Retry send failed for ${{fileTransferShortTransferId(session.transferId)}} to ${{session.destination}}: ${{firstSendError}}.`,
+              {{ level: "warn" }}
+            );
+          }}
+        }}
+      }}
+      pruneOutgoingFileTransferSessions(nowMs);
+    }}
+
