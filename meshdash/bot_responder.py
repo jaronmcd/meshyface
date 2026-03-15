@@ -70,6 +70,8 @@ _DEFAULT_JOKE_LINES = (
     "I told a bot to chill. It replied, 'Current temperature already sampled.'",
     "Why did the signal cross the hill? Better line of sight.",
 )
+_DEFAULT_JOKE_DELAY_PUNCHLINE_ENABLED = False
+_DEFAULT_JOKE_PUNCHLINE_DELAY_SECONDS = 15.0
 _REPLY_PACKET_TEXT_RESERVE_BYTES = 20
 _DEFAULT_SEGMENT_DELAY_SECONDS = 1.5
 _DEFAULT_SEGMENT_RETRY_COUNT = 0
@@ -230,6 +232,21 @@ def _normalize_joke_lines(value: object) -> list[str]:
     return [str(line).strip() for line in _DEFAULT_JOKE_LINES if str(line).strip()]
 
 
+def _split_joke_prompt_and_punchline(text: object) -> tuple[str, str] | None:
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    marker = raw.find("?")
+    if marker < 0:
+        return None
+    prompt = raw[: marker + 1].strip()
+    punchline = raw[marker + 1 :].strip()
+    punchline = punchline.lstrip("-:;,.! ")
+    if not prompt or not punchline:
+        return None
+    return prompt, punchline
+
+
 def _bot_city_hint(local_node: Optional[dict[str, object]]) -> str:
     # Compatibility shim: tests monkeypatch bot_responder._nearest_city_for_coords.
     previous_lookup = _bot_nodes._nearest_city_for_coords
@@ -254,6 +271,8 @@ class MeshResponseBot:
         game_public_start_enabled: bool = False,
         joke_triggers: Optional[list[str]] = None,
         joke_lines: Optional[list[str]] = None,
+        joke_delay_punchline_enabled: bool = _DEFAULT_JOKE_DELAY_PUNCHLINE_ENABLED,
+        joke_punchline_delay_seconds: float = _DEFAULT_JOKE_PUNCHLINE_DELAY_SECONDS,
         reply_broadcast: bool = False,
         settings_path: Optional[str] = None,
         chat_max_bytes: int = DEFAULT_CHAT_MAX_BYTES,
@@ -263,6 +282,7 @@ class MeshResponseBot:
         delivery_state_lookup_fn: Optional[Callable[[int], Optional[str]]] = None,
         sleep_fn: Callable[[float], None] = time.sleep,
         now_unix_fn: Callable[[], float] = time.time,
+        timer_factory: Optional[Callable[[float, Callable[[], None]], object]] = None,
     ) -> None:
         self._send_chat_fn = send_chat_fn
         self._get_local_node_id_fn = get_local_node_id_fn
@@ -280,8 +300,16 @@ class MeshResponseBot:
         self._game_public_start_enabled = bool(game_public_start_enabled)
         self._joke_trigger_phrases = _normalize_joke_triggers(joke_triggers)
         self._joke_lines = _normalize_joke_lines(joke_lines)
+        self._joke_delay_punchline_enabled = bool(joke_delay_punchline_enabled)
+        self._joke_punchline_delay_seconds = _parse_nonnegative_float_token(
+            joke_punchline_delay_seconds,
+            _DEFAULT_JOKE_PUNCHLINE_DELAY_SECONDS,
+        )
         self._joke_cycle: list[str] = []
+        self._pending_joke_punchlines: dict[str, dict[str, object]] = {}
+        self._pending_joke_seq = 0
         self._rng = random.Random()
+        self._timer_factory = timer_factory
         self._custom_commands = {
             _normalize_command_name(name): str(template or "").strip()
             for name, template in (custom_commands or {}).items()
@@ -414,13 +442,22 @@ class MeshResponseBot:
         *,
         triggers: Optional[list[str]] = None,
         lines: Optional[list[str]] = None,
+        delay_punchline_enabled: Optional[bool] = None,
     ) -> None:
+        clear_pending = False
         if triggers is not None:
             self._joke_trigger_phrases = _normalize_joke_triggers(triggers)
             self._joke_cycle = []
+            clear_pending = True
         if lines is not None:
             self._joke_lines = _normalize_joke_lines(lines)
             self._joke_cycle = []
+            clear_pending = True
+        if delay_punchline_enabled is not None:
+            self._joke_delay_punchline_enabled = bool(delay_punchline_enabled)
+            clear_pending = True
+        if clear_pending:
+            self._clear_pending_joke_punchlines_locked()
 
     def _next_joke_line_locked(self) -> str:
         if not self._joke_cycle:
@@ -430,6 +467,221 @@ class MeshResponseBot:
         if not self._joke_cycle:
             return "I tried to tell a joke, but my punchline got dropped in transit."
         return self._joke_cycle.pop()
+
+    def _clear_pending_joke_punchlines_locked(self) -> None:
+        pending_rows = list(self._pending_joke_punchlines.values())
+        self._pending_joke_punchlines.clear()
+        for row in pending_rows:
+            timer = row.get("timer")
+            if timer is not None and hasattr(timer, "cancel"):
+                try:
+                    timer.cancel()
+                except Exception:
+                    continue
+
+    def _build_timer(self, delay_seconds: float, callback: Callable[[], None]) -> object:
+        if callable(self._timer_factory):
+            timer = self._timer_factory(delay_seconds, callback)
+        else:
+            timer = threading.Timer(delay_seconds, callback)
+        try:
+            setattr(timer, "daemon", True)
+        except Exception:
+            pass
+        return timer
+
+    def _queue_delayed_joke_punchline(
+        self,
+        *,
+        destination: str,
+        channel_index: int,
+        reply_id: Optional[int],
+        punchline: str,
+        request_id: str,
+        from_id: str,
+    ) -> None:
+        clean_punchline = str(punchline or "").strip()
+        delay_seconds = max(0.0, float(self._joke_punchline_delay_seconds))
+        if not clean_punchline or delay_seconds <= 0:
+            return
+        entry_id = ""
+        with self._lock:
+            self._pending_joke_seq += 1
+            entry_id = f"joke-{int(self._now_unix_fn())}-{self._pending_joke_seq}"
+            self._pending_joke_punchlines[entry_id] = {
+                "id": entry_id,
+                "destination": _normalize_node_id(destination) or destination,
+                "from_id": _normalize_node_id(from_id) or from_id,
+                "channel_index": int(channel_index),
+                "reply_id": _to_int(reply_id),
+                "request_id": str(request_id or ""),
+                "punchline": clean_punchline,
+                "timer": None,
+            }
+        timer = self._build_timer(
+            delay_seconds,
+            lambda: self._deliver_pending_joke_punchline(
+                entry_id=entry_id,
+                reply_id=None,
+                reason="timeout",
+            ),
+        )
+        with self._lock:
+            entry = self._pending_joke_punchlines.get(entry_id)
+            if not isinstance(entry, dict):
+                return
+            entry["timer"] = timer
+        if hasattr(timer, "start"):
+            try:
+                timer.start()
+            except Exception:
+                with self._lock:
+                    self._pending_joke_punchlines.pop(entry_id, None)
+
+    def _append_request_response(
+        self,
+        request_id: str,
+        *,
+        response_text: str = "",
+        response_error: str = "",
+        response_message_id: Optional[int] = None,
+        response_unix: Optional[int] = None,
+        response_from: str = "",
+        response_to: str = "",
+    ) -> None:
+        if not self._log_enabled or not request_id:
+            return
+        with self._lock:
+            for row in reversed(self._request_log):
+                if str(row.get("id") or "") != request_id:
+                    continue
+                if response_text:
+                    existing_text = str(row.get("response_text") or "").strip()
+                    clean_text = str(response_text).strip()
+                    if clean_text:
+                        row["response_text"] = (
+                            f"{existing_text}\n{clean_text}" if existing_text else clean_text
+                        )
+                        row["responded"] = True
+                if response_error:
+                    existing_error = str(row.get("response_error") or "").strip()
+                    clean_error = str(response_error).strip()
+                    if clean_error:
+                        row["response_error"] = (
+                            f"{existing_error}; {clean_error}" if existing_error else clean_error
+                        )
+                if response_message_id is not None:
+                    row["response_message_id"] = response_message_id
+                if response_unix is not None:
+                    row["response_unix"] = response_unix
+                if response_from:
+                    row["response_from"] = response_from
+                if response_to:
+                    row["response_to"] = response_to
+                break
+
+    def _deliver_pending_joke_punchline(
+        self,
+        *,
+        entry_id: str,
+        reply_id: Optional[int],
+        reason: str,
+    ) -> bool:
+        if not self._enabled:
+            with self._lock:
+                entry = self._pending_joke_punchlines.pop(entry_id, None)
+            if isinstance(entry, dict):
+                timer = entry.get("timer")
+                if timer is not None and hasattr(timer, "cancel"):
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+            return False
+        with self._lock:
+            entry = self._pending_joke_punchlines.pop(entry_id, None)
+        if not isinstance(entry, dict):
+            return False
+        timer = entry.get("timer")
+        if timer is not None and hasattr(timer, "cancel"):
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        destination = _normalize_node_id(entry.get("destination")) or str(entry.get("destination") or "")
+        channel_index = _to_int(entry.get("channel_index"))
+        channel_index = channel_index if channel_index is not None and channel_index >= 0 else 0
+        fallback_reply_id = _to_int(entry.get("reply_id"))
+        reply_id_to_use = _to_int(reply_id)
+        if reply_id_to_use is None or reply_id_to_use <= 0:
+            reply_id_to_use = fallback_reply_id if fallback_reply_id and fallback_reply_id > 0 else None
+        punchline = str(entry.get("punchline") or "").strip()
+        request_id = str(entry.get("request_id") or "").strip()
+        try:
+            response_segments, response_payloads = self._send_reply_text(
+                text=punchline,
+                destination=destination,
+                channel_index=channel_index,
+                reply_id=reply_id_to_use,
+            )
+            response_payload = response_payloads[-1] if response_payloads else {}
+            response_message_id = _to_int(
+                response_payload.get("message_id") if isinstance(response_payload, dict) else None
+            )
+            response_unix = _to_int(
+                response_payload.get("sent_at") if isinstance(response_payload, dict) else None
+            )
+            self._append_request_response(
+                request_id,
+                response_text="\n".join(response_segments),
+                response_message_id=response_message_id,
+                response_unix=response_unix if response_unix and response_unix > 0 else int(self._now_unix_fn()),
+                response_to=destination,
+            )
+            return True
+        except Exception as exc:
+            self._append_request_response(
+                request_id,
+                response_error=f"delayed joke {reason}: {exc}",
+            )
+            return False
+
+    def _maybe_deliver_pending_joke_from_message(
+        self,
+        *,
+        from_id: str,
+        to_id: str,
+        channel_index: int,
+        packet_id: Optional[int],
+    ) -> bool:
+        clean_from_id = _normalize_node_id(from_id)
+        clean_to_id = _normalize_node_id(to_id)
+        pending_id = ""
+        with self._lock:
+            for entry_id, entry in self._pending_joke_punchlines.items():
+                if not isinstance(entry, dict):
+                    continue
+                pending_destination = _normalize_node_id(entry.get("destination"))
+                pending_channel = _to_int(entry.get("channel_index"))
+                if pending_channel is None or pending_channel < 0:
+                    pending_channel = 0
+                if pending_channel != channel_index:
+                    continue
+                if pending_destination == "^all":
+                    if clean_to_id != "^all":
+                        continue
+                    pending_id = str(entry_id)
+                    break
+                if pending_destination and pending_destination == clean_from_id:
+                    pending_id = str(entry_id)
+                    break
+        if not pending_id:
+            return False
+        return self._deliver_pending_joke_punchline(
+            entry_id=pending_id,
+            reply_id=packet_id,
+            reason="reply",
+        )
 
     def _command_enabled_locked(self, command: str) -> bool:
         clean = _normalize_command_name(command)
@@ -495,6 +747,7 @@ class MeshResponseBot:
             "game_public_start_enabled": bool(self._game_public_start_enabled),
             "joke_triggers": list(self._joke_trigger_phrases),
             "joke_lines": list(self._joke_lines),
+            "joke_delay_punchline_enabled": bool(self._joke_delay_punchline_enabled),
             "active_game_sessions": self._active_game_sessions_locked(),
             "disabled_commands": sorted(self._disabled_commands),
             "commands": self._managed_command_rows_locked(),
@@ -508,6 +761,7 @@ class MeshResponseBot:
             "game_public_start_enabled": bool(self._game_public_start_enabled),
             "joke_triggers": list(self._joke_trigger_phrases),
             "joke_lines": list(self._joke_lines),
+            "joke_delay_punchline_enabled": bool(self._joke_delay_punchline_enabled),
             "disabled_commands": sorted(self._disabled_commands),
         }
 
@@ -525,6 +779,7 @@ class MeshResponseBot:
         command_settings: Optional[dict[str, bool]] = None,
         joke_triggers: Optional[list[str]] = None,
         joke_lines: Optional[list[str]] = None,
+        joke_delay_punchline_enabled: Optional[bool] = None,
     ) -> dict[str, object]:
         with self._lock:
             if enabled is not None:
@@ -537,10 +792,15 @@ class MeshResponseBot:
                 self._game_public_start_enabled = bool(game_public_start_enabled)
             if command_settings:
                 self._apply_command_settings_locked(command_settings)
-            if joke_triggers is not None or joke_lines is not None:
+            if (
+                joke_triggers is not None
+                or joke_lines is not None
+                or joke_delay_punchline_enabled is not None
+            ):
                 self._set_joke_settings_locked(
                     triggers=joke_triggers,
                     lines=joke_lines,
+                    delay_punchline_enabled=joke_delay_punchline_enabled,
                 )
             out = self._bot_settings_locked()
             persist_payload = self._persistable_bot_settings_locked()
@@ -1146,6 +1406,12 @@ class MeshResponseBot:
         channel_index = _to_int(packet.get("channel"))
         if channel_index is None or channel_index < 0:
             channel_index = 0
+        self._maybe_deliver_pending_joke_from_message(
+            from_id=from_id,
+            to_id=to_id,
+            channel_index=channel_index,
+            packet_id=packet_id,
+        )
         app_result = None
         with self._lock:
             for app_name, app in self._prioritized_bot_apps_locked(from_id):
@@ -1247,6 +1513,14 @@ class MeshResponseBot:
             destination = from_id
         else:
             destination = "^all" if self._reply_broadcast or to_id == "^all" else from_id
+        delayed_joke_punchline = ""
+        if command == "joke":
+            with self._lock:
+                delay_punchline_enabled = bool(self._joke_delay_punchline_enabled)
+            if delay_punchline_enabled:
+                split_joke = _split_joke_prompt_and_punchline(reply_text)
+                if split_joke is not None:
+                    reply_text, delayed_joke_punchline = split_joke
         is_public_ping = bool(command == "ping" and destination == "^all")
         if is_public_ping:
             ping_action = self._public_ping_action(from_id=from_id, now_unix=int(self._now_unix_fn()))
@@ -1288,6 +1562,15 @@ class MeshResponseBot:
             response_to = _normalize_node_id(destination) or destination
             if is_public_ping:
                 self._mark_public_ping_reply_sent(from_id=from_id, now_unix=int(self._now_unix_fn()))
+            if delayed_joke_punchline:
+                self._queue_delayed_joke_punchline(
+                    destination=destination,
+                    channel_index=channel_index,
+                    reply_id=reply_id,
+                    punchline=delayed_joke_punchline,
+                    request_id=request_id,
+                    from_id=from_id,
+                )
             self._update_request(
                 request_id,
                 responded=True,
@@ -1408,6 +1691,19 @@ def build_mesh_response_bot_from_env(
         if "MESH_DASH_BOT_GAME_PUBLIC_START_ENABLED" in env_map
         else bool(persisted.get("game_public_start_enabled", False))
     )
+    joke_delay_punchline_enabled = (
+        _parse_bool_token(
+            env_map.get("MESH_DASH_BOT_JOKE_DELAY_PUNCHLINE"),
+            _DEFAULT_JOKE_DELAY_PUNCHLINE_ENABLED,
+        )
+        if "MESH_DASH_BOT_JOKE_DELAY_PUNCHLINE" in env_map
+        else bool(
+            persisted.get(
+                "joke_delay_punchline_enabled",
+                _DEFAULT_JOKE_DELAY_PUNCHLINE_ENABLED,
+            )
+        )
+    )
     if not respond_enabled and not log_enabled:
         return None
     reply_broadcast = _parse_bool_token(env_map.get("MESH_DASH_BOT_REPLY_BROADCAST"), False)
@@ -1451,6 +1747,7 @@ def build_mesh_response_bot_from_env(
         game_public_start_enabled=game_public_start_enabled,
         joke_triggers=joke_triggers,
         joke_lines=joke_lines,
+        joke_delay_punchline_enabled=joke_delay_punchline_enabled,
         reply_broadcast=reply_broadcast,
         settings_path=settings_path,
         chat_max_bytes=chat_max_bytes,

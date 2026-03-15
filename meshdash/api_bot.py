@@ -48,6 +48,7 @@ def handle_bot_settings_post(
         and request.command_settings is None
         and request.joke_triggers is None
         and request.joke_lines is None
+        and request.joke_delay_punchline_enabled is None
     ):
         write_json_response_fn(
             handler,

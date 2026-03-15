@@ -308,6 +308,11 @@ def build_dashboard_runtime_context(
                 command_settings=getattr(request, "command_settings", None),
                 joke_triggers=getattr(request, "joke_triggers", None),
                 joke_lines=getattr(request, "joke_lines", None),
+                joke_delay_punchline_enabled=getattr(
+                    request,
+                    "joke_delay_punchline_enabled",
+                    None,
+                ),
             )
         try:
             setattr(loaders.state_fn, "bot_request_history_fn", response_bot.recent_requests)

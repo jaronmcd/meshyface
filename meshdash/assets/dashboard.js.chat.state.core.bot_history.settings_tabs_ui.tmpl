@@ -11,6 +11,7 @@
       const publicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
       const publicStartNote = document.getElementById("bots-command-selected-public-start-note");
       const jokeConfigWrap = document.getElementById("bots-command-joke-config-wrap");
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
       const jokeTriggersInput = document.getElementById("bots-command-joke-triggers");
       const jokeLinesInput = document.getElementById("bots-command-joke-lines");
       if (!(listEl instanceof HTMLElement)) return;
@@ -113,6 +114,11 @@
       }}
       if (jokeConfigWrap instanceof HTMLElement) {{
         jokeConfigWrap.hidden = !selectedIsJoke;
+      }}
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement) {{
+        jokeDelayPunchlineInput.checked = selectedIsJoke
+          ? !!serverBotSettings.joke_delay_punchline_enabled
+          : false;
       }}
       if (jokeTriggersInput instanceof HTMLTextAreaElement) {{
         jokeTriggersInput.value = selectedIsJoke && Array.isArray(serverBotSettings.joke_triggers)

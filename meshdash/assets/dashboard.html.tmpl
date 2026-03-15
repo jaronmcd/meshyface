@@ -1533,6 +1533,15 @@
                       A public <code>zork</code> gets a direct game start reply. Follow-up moves still belong in peer-to-peer chat.
                     </div>
                     <div id="bots-command-joke-config-wrap" class="bots-command-config-section" hidden>
+                      <label
+                        class="chat-bot-toggle-wrap bots-command-config-toggle"
+                        for="bots-command-joke-delay-punchline-enabled"
+                        title="When enabled, jokes that contain a question mark pause before the punchline to let people answer."
+                      >
+                        <input id="bots-command-joke-delay-punchline-enabled" type="checkbox" />
+                        <span>Delay punchline</span>
+                      </label>
+                      <div class="bots-setting-note">Question jokes pause up to 15 seconds for replies, then the punchline posts automatically.</div>
                       <label class="bots-command-config-label" for="bots-command-joke-triggers">Joke triggers</label>
                       <textarea
                         id="bots-command-joke-triggers"

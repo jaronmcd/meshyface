@@ -76,6 +76,36 @@ def _joined_segment_text(rows: list[dict[str, object]]) -> str:
     return " ".join(parts)
 
 
+class _FakeTimer:
+    def __init__(self, delay_seconds, callback):
+        self.delay_seconds = float(delay_seconds)
+        self._callback = callback
+        self.cancelled = False
+        self.started = False
+        self.daemon = False
+
+    def start(self):
+        self.started = True
+
+    def cancel(self):
+        self.cancelled = True
+
+    def fire(self):
+        if self.cancelled:
+            return
+        self._callback()
+
+
+class _FakeTimerFactory:
+    def __init__(self):
+        self.timers = []
+
+    def __call__(self, delay_seconds, callback):
+        timer = _FakeTimer(delay_seconds, callback)
+        self.timers.append(timer)
+        return timer
+
+
 def test_ping_targeted_to_local_suffix_replies_with_human_readable_reply():
     iface = _FakeIface()
     sent = []
@@ -285,6 +315,71 @@ def test_joke_command_can_be_disabled_without_disabling_bot():
     assert len(history) == 1
     assert history[0]["command_head"] == "joke"
     assert history[0]["command_enabled"] is False
+
+
+def test_joke_delay_punchline_waits_for_reply_before_sending_punchline():
+    iface = _FakeIface()
+    sent = []
+    fake_timers = _FakeTimerFactory()
+
+    def _send_chat(**kwargs):
+        sent.append(kwargs)
+        return {"ok": True}
+
+    bot = MeshResponseBot(
+        send_chat_fn=_send_chat,
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={},
+        joke_lines=["Why did the packet cross the mesh? Better line of sight."],
+        joke_delay_punchline_enabled=True,
+        timer_factory=fake_timers,
+        now_unix_fn=lambda: 1710001240.0,
+    )
+    bot.on_receive(_base_packet("joke", packet_id=1301), iface)
+
+    assert len(sent) == 1
+    assert str(sent[0]["text"]).strip() == "Why did the packet cross the mesh?"
+    assert len(fake_timers.timers) == 1
+    assert fake_timers.timers[0].started is True
+    assert fake_timers.timers[0].cancelled is False
+
+    bot.on_receive(_base_packet("no clue", packet_id=1302), iface)
+
+    assert len(sent) == 2
+    assert str(sent[1]["text"]).strip() == "Better line of sight."
+    assert sent[1]["reply_id"] == 1302
+    assert fake_timers.timers[0].cancelled is True
+
+
+def test_joke_delay_punchline_sends_timeout_punchline_after_delay():
+    iface = _FakeIface()
+    sent = []
+    fake_timers = _FakeTimerFactory()
+
+    def _send_chat(**kwargs):
+        sent.append(kwargs)
+        return {"ok": True}
+
+    bot = MeshResponseBot(
+        send_chat_fn=_send_chat,
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={},
+        joke_lines=["Why was the telemetry calm? It had stable readings."],
+        joke_delay_punchline_enabled=True,
+        timer_factory=fake_timers,
+        now_unix_fn=lambda: 1710001240.0,
+    )
+    bot.on_receive(_base_packet("joke", packet_id=1401), iface)
+
+    assert len(sent) == 1
+    assert str(sent[0]["text"]).strip() == "Why was the telemetry calm?"
+    assert len(fake_timers.timers) == 1
+
+    fake_timers.timers[0].fire()
+
+    assert len(sent) == 2
+    assert str(sent[1]["text"]).strip() == "It had stable readings."
+    assert sent[1]["reply_id"] == 1401
 
 
 def test_direct_ping_replies_direct_with_reply_id():
@@ -892,6 +987,7 @@ def test_build_bot_from_env_defaults_bot_responses_to_disabled():
     settings = bot.bot_settings()
     enabled_names = [row["name"] for row in settings["commands"] if row["enabled"]]
     assert enabled_names == ["ping", "joke", "zork"]
+    assert settings["joke_delay_punchline_enabled"] is False
 
 
 def test_build_bot_from_env_can_disable_bot_and_logging():
@@ -1431,6 +1527,7 @@ def test_bot_settings_are_persisted_and_loaded_from_file(tmp_path):
     assert payload["enabled"] is True
     assert payload["game_enabled"] is False
     assert payload["game_public_start_enabled"] is False
+    assert payload["joke_delay_punchline_enabled"] is False
     assert payload["joke_triggers"] == ["tell me a joke", "make me laugh"]
     assert payload["joke_lines"] == ["line 1", "line 2"]
     assert "whois" not in payload["disabled_commands"]
@@ -1453,6 +1550,7 @@ def test_bot_settings_are_persisted_and_loaded_from_file(tmp_path):
     loaded_settings = loaded.bot_settings()
     assert loaded_settings["joke_triggers"] == ["tell me a joke", "make me laugh"]
     assert loaded_settings["joke_lines"] == ["line 1", "line 2"]
+    assert loaded_settings["joke_delay_punchline_enabled"] is False
 
 
 def test_public_game_start_setting_is_persisted_and_loaded_from_file(tmp_path):
@@ -1469,6 +1567,7 @@ def test_public_game_start_setting_is_persisted_and_loaded_from_file(tmp_path):
         enabled=True,
         game_enabled=True,
         game_public_start_enabled=True,
+        joke_delay_punchline_enabled=True,
     )
     assert saved["ok"] is True
     assert settings_path.exists()
@@ -1476,6 +1575,7 @@ def test_public_game_start_setting_is_persisted_and_loaded_from_file(tmp_path):
     payload = json.loads(settings_path.read_text(encoding="utf-8"))
     assert payload["game_enabled"] is True
     assert payload["game_public_start_enabled"] is True
+    assert payload["joke_delay_punchline_enabled"] is True
 
     loaded = build_mesh_response_bot_from_env(
         send_chat_fn=lambda **_kwargs: {"ok": True},
@@ -1485,6 +1585,7 @@ def test_public_game_start_setting_is_persisted_and_loaded_from_file(tmp_path):
     assert loaded is not None
     assert loaded.game_enabled is True
     assert loaded.game_public_start_enabled is True
+    assert loaded.bot_settings()["joke_delay_punchline_enabled"] is True
 
 
 def test_explicit_env_bot_settings_override_persisted_file(tmp_path):

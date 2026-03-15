@@ -90,6 +90,7 @@ class BotSettingsRequest:
     command_settings: Optional[dict[str, bool]] = None
     joke_triggers: Optional[list[str]] = None
     joke_lines: Optional[list[str]] = None
+    joke_delay_punchline_enabled: Optional[bool] = None
 
 
 def parse_bot_settings_request(raw_body: bytes) -> BotSettingsRequest:
@@ -123,5 +124,11 @@ def parse_bot_settings_request(raw_body: bytes) -> BotSettingsRequest:
             split_commas=False,
             max_items=600,
             max_item_chars=240,
+        ),
+        joke_delay_punchline_enabled=_parse_optional_bool_token(
+            payload.get(
+                "joke_delay_punchline_enabled",
+                payload.get("jokeDelayPunchlineEnabled"),
+            )
         ),
     )

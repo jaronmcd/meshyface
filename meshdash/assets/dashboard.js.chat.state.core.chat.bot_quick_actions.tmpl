@@ -69,6 +69,7 @@
           game_public_start_enabled: false,
           joke_triggers: [],
           joke_lines: [],
+          joke_delay_punchline_enabled: false,
           active_game_sessions: 0,
           commands: [],
           disabled_commands: [],
@@ -111,6 +112,10 @@
         joke_lines: normalizeBotSettingsTextList(
           raw.joke_lines ?? raw.jokeLines,
           {{ splitCommas: false }}
+        ),
+        joke_delay_punchline_enabled: parseBoolToken(
+          raw.joke_delay_punchline_enabled ?? raw.jokeDelayPunchlineEnabled,
+          false
         ),
         active_game_sessions: Number.isFinite(sessionsRaw) && sessionsRaw >= 0 ? Math.trunc(sessionsRaw) : 0,
         commands,
@@ -172,6 +177,7 @@
       const masterInput = document.getElementById("bots-command-master-enabled");
       const commandEnabledInput = document.getElementById("bots-command-selected-enabled");
       const publicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
       const jokeTriggersInput = document.getElementById("bots-command-joke-triggers");
       const jokeLinesInput = document.getElementById("bots-command-joke-lines");
       const jokeSaveBtn = document.getElementById("bots-command-joke-save-btn");
@@ -272,6 +278,19 @@
           jokeTriggersInput.title = "Saving joke settings...";
         }} else {{
           jokeTriggersInput.title = "Delimited trigger phrases. One per line (or comma separated).";
+        }}
+      }}
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement) {{
+        jokeDelayPunchlineInput.checked = !!serverBotSettings.joke_delay_punchline_enabled;
+        jokeDelayPunchlineInput.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+        if (!available) {{
+          jokeDelayPunchlineInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsJoke) {{
+          jokeDelayPunchlineInput.title = "Select the joke command to edit this setting.";
+        }} else if (botSettingsSaveInFlight) {{
+          jokeDelayPunchlineInput.title = "Saving joke settings...";
+        }} else {{
+          jokeDelayPunchlineInput.title = "Pause question jokes to let people answer before posting the punchline.";
         }}
       }}
       if (jokeLinesInput instanceof HTMLTextAreaElement) {{
@@ -401,6 +420,7 @@
       if (commandName !== "joke") return false;
       const triggersInput = document.getElementById("bots-command-joke-triggers");
       const linesInput = document.getElementById("bots-command-joke-lines");
+      const delayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
       const triggers = normalizeBotSettingsTextList(
         triggersInput instanceof HTMLTextAreaElement ? triggersInput.value : "",
         {{ splitCommas: true }}
@@ -412,6 +432,11 @@
       const ok = await saveServerBotSettingsPatch({{
         joke_triggers: triggers,
         joke_lines: jokeLines,
+        joke_delay_punchline_enabled: !!(
+          delayPunchlineInput instanceof HTMLInputElement
+          ? delayPunchlineInput.checked
+          : false
+        ),
       }});
       if (!ok) {{
         renderBotsView(latestState);
@@ -484,6 +509,14 @@
       if (jokeSaveBtn instanceof HTMLButtonElement && jokeSaveBtn.dataset.bound !== "1") {{
         jokeSaveBtn.dataset.bound = "1";
         jokeSaveBtn.addEventListener("click", async () => {{
+          await saveSelectedJokeBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement && jokeDelayPunchlineInput.dataset.bound !== "1") {{
+        jokeDelayPunchlineInput.dataset.bound = "1";
+        jokeDelayPunchlineInput.addEventListener("change", async () => {{
           await saveSelectedJokeBotSettings();
           syncChatWhoisQuickActionControls();
         }});

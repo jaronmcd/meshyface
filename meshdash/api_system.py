@@ -117,6 +117,7 @@ def _bot_settings_etag_marker(settings: object) -> str:
             "1" if bool(settings.get("log_enabled")) else "0",
             "1" if bool(settings.get("game_enabled")) else "0",
             "1" if bool(settings.get("game_public_start_enabled")) else "0",
+            "1" if bool(settings.get("joke_delay_punchline_enabled")) else "0",
             str(settings.get("active_game_sessions") or 0),
             str(len(joke_triggers) if isinstance(joke_triggers, list) else 0),
             str(len(joke_lines) if isinstance(joke_lines, list) else 0),

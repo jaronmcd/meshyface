@@ -129,6 +129,14 @@ def load_persisted_bot_settings(settings_path: Optional[str]) -> dict[str, objec
     )
     if joke_lines is not None:
         out["joke_lines"] = joke_lines
+    joke_delay_punchline_enabled = _parse_optional_bool_token(
+        payload.get(
+            "joke_delay_punchline_enabled",
+            payload.get("jokeDelayPunchlineEnabled"),
+        )
+    )
+    if joke_delay_punchline_enabled is not None:
+        out["joke_delay_punchline_enabled"] = joke_delay_punchline_enabled
     return out
 
 
@@ -170,6 +178,9 @@ def save_persisted_bot_settings(
             )
             if item
         ],
+        "joke_delay_punchline_enabled": bool(
+            settings.get("joke_delay_punchline_enabled")
+        ),
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
