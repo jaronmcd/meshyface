@@ -1,0 +1,1594 @@
+    function formatMetricValue(value, decimals = 2, suffix = "") {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return "n/a";
+      return `${{num.toFixed(decimals)}}${{suffix}}`;
+    }}
+
+    function clampUnit(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      if (num < 0) return 0;
+      if (num > 1) return 1;
+      return num;
+    }}
+
+    function signalZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeSignalZoomWindow(totalPoints) {{
+      const minSpan = signalZoomMinSpan(totalPoints);
+      let start = clampUnit(signalChartZoomStart);
+      let end = clampUnit(signalChartZoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      signalChartZoomStart = clampUnit(start);
+      signalChartZoomEnd = clampUnit(end);
+    }}
+
+    function resetSignalChartZoom(nodeId = "") {{
+      signalChartZoomNodeId = normalizeNodeId(nodeId || "");
+      signalChartZoomStart = 0;
+      signalChartZoomEnd = 1;
+      signalChartPointerDrag = null;
+    }}
+
+    function setSignalChartZoomWindow(start, end, totalPoints) {{
+      const prevStart = signalChartZoomStart;
+      const prevEnd = signalChartZoomEnd;
+      signalChartZoomStart = start;
+      signalChartZoomEnd = end;
+      normalizeSignalZoomWindow(totalPoints);
+      return Math.abs(signalChartZoomStart - prevStart) > 1e-6
+        || Math.abs(signalChartZoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function getSignalChartAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((signalChartLayout.padLeft / signalChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((signalChartLayout.width - signalChartLayout.padRight) / signalChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleSignalRows(rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeSignalZoomWindow(total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(signalChartZoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(signalChartZoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      const visible = allRows.slice(startIndex, endIndex + 1);
+      return {{
+        rows: visible,
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function rerenderSignalChartFromCache() {{
+      if (!Array.isArray(signalChartPoints)) return;
+      renderSignalChart(signalChartPoints);
+    }}
+
+    function bindSignalChartZoom() {{
+      const svg = document.getElementById("signal-chart");
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, signalChartZoomEnd - signalChartZoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = signalZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = signalChartZoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || signalChartPoints.length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        signalChartPointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: signalChartZoomStart,
+          startZoomEnd: signalChartZoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!signalChartPointerDrag || signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getSignalChartAxisBounds(svg);
+        const deltaRatio = (ev.clientX - signalChartPointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = signalChartPointerDrag.startZoomEnd - signalChartPointerDrag.startZoomStart;
+        const nextStart = signalChartPointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = signalChartPointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!signalChartPointerDrag) return;
+        if (ev && signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        signalChartPointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+    }}
+
+    function historyTrendZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, historyTrendZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeHistoryTrendZoomWindow(chartState, totalPoints) {{
+      if (!chartState || typeof chartState !== "object") return;
+      const minSpan = historyTrendZoomMinSpan(totalPoints);
+      let start = clampUnit(chartState.zoomStart);
+      let end = clampUnit(chartState.zoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      chartState.zoomStart = clampUnit(start);
+      chartState.zoomEnd = clampUnit(end);
+    }}
+
+    function setHistoryTrendZoomWindow(chartState, start, end, totalPoints) {{
+      if (!chartState || typeof chartState !== "object") return false;
+      const prevStart = chartState.zoomStart;
+      const prevEnd = chartState.zoomEnd;
+      chartState.zoomStart = start;
+      chartState.zoomEnd = end;
+      normalizeHistoryTrendZoomWindow(chartState, totalPoints);
+      return Math.abs(chartState.zoomStart - prevStart) > 1e-6
+        || Math.abs(chartState.zoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function resetHistoryTrendZoom(chartState) {{
+      if (!chartState || typeof chartState !== "object") return;
+      chartState.zoomStart = 0;
+      chartState.zoomEnd = 1;
+      chartState.pointerDrag = null;
+    }}
+
+    function getHistoryTrendAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((historyTrendChartLayout.padLeft / historyTrendChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((historyTrendChartLayout.width - historyTrendChartLayout.padRight) / historyTrendChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleHistoryTrendRows(chartState, rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeHistoryTrendZoomWindow(chartState, total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(chartState.zoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(chartState.zoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, historyTrendZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      return {{
+        rows: allRows.slice(startIndex, endIndex + 1),
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function bindHistoryTrendChartZoom(chartState, rerenderFn, chartLabel = "Trend chart") {{
+      if (!chartState || typeof chartState !== "object") return;
+      const svg = document.getElementById(chartState.svgId);
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = Array.isArray(chartState.points) ? chartState.points.length : 0;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getHistoryTrendAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, chartState.zoomEnd - chartState.zoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = historyTrendZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = chartState.zoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setHistoryTrendZoomWindow(chartState, nextStart, nextEnd, total)) {{
+          rerenderFn();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setHistoryTrendZoomWindow(chartState, 0, 1, (chartState.points || []).length || 2)) {{
+          rerenderFn();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || (chartState.points || []).length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getHistoryTrendAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        chartState.pointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: chartState.zoomStart,
+          startZoomEnd: chartState.zoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!chartState.pointerDrag || chartState.pointerDrag.pointerId !== ev.pointerId) return;
+        const total = (chartState.points || []).length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getHistoryTrendAxisBounds(svg);
+        const deltaRatio = (ev.clientX - chartState.pointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = chartState.pointerDrag.startZoomEnd - chartState.pointerDrag.startZoomStart;
+        const nextStart = chartState.pointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = chartState.pointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setHistoryTrendZoomWindow(chartState, nextStart, nextEnd, total)) {{
+          rerenderFn();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!chartState.pointerDrag) return;
+        if (ev && chartState.pointerDrag.pointerId !== ev.pointerId) return;
+        chartState.pointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setHistoryTrendZoomWindow(chartState, 0, 1, (chartState.points || []).length || 2)) {{
+          rerenderFn();
+        }}
+      }});
+
+      svg.setAttribute(
+        "title",
+        `${{chartLabel}}. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+      );
+    }}
+
+    function setHistoryTrendChartTitle(svg, chartLabel, zoomed) {{
+      if (!(svg instanceof SVGElement)) return;
+      svg.classList.toggle("zoomed", !!zoomed);
+      svg.setAttribute(
+        "title",
+        zoomed
+          ? `${{chartLabel}} zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+          : `${{chartLabel}}. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+      );
+    }}
+
+    function timelinePointUnix(
+      point,
+      bucketUnixKey = "bucket_unix",
+      bucketTextKeys = ["bucket_time", "bucket_local"]
+    ) {{
+      const direct = Number(point && point[bucketUnixKey]);
+      if (Number.isFinite(direct) && direct > 0) {{
+        return Math.trunc(direct);
+      }}
+      let stamp = "";
+      for (const key of bucketTextKeys) {{
+        const value = String((point && point[key]) || "").trim();
+        if (value) {{
+          stamp = value;
+          break;
+        }}
+      }}
+      if (!stamp) return null;
+      const normalized = stamp.includes("T")
+        ? stamp
+        : stamp.replace(" ", "T");
+      const parsed = Date.parse(normalized);
+      if (Number.isFinite(parsed)) {{
+        return Math.trunc(parsed / 1000);
+      }}
+      return null;
+    }}
+
+    function formatTimelineLabel(unixTs, includeDate) {{
+      if (!Number.isFinite(unixTs)) return "";
+      const dt = new Date(unixTs * 1000);
+      if (Number.isNaN(dt.getTime())) return "";
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mm = String(dt.getMinutes()).padStart(2, "0");
+      const timeLabel = `${{hh}}:${{mm}}`;
+      if (!includeDate) return timeLabel;
+      const mon = String(dt.getMonth() + 1).padStart(2, "0");
+      const day = String(dt.getDate()).padStart(2, "0");
+      return `${{mon}}/${{day}} ${{timeLabel}}`;
+    }}
+
+    function timelineDayKey(unixTs) {{
+      if (!Number.isFinite(unixTs)) return "";
+      const dt = new Date(unixTs * 1000);
+      if (Number.isNaN(dt.getTime())) return "";
+      return `${{dt.getFullYear()}}-${{dt.getMonth() + 1}}-${{dt.getDate()}}`;
+    }}
+
+    function formatTimelineDayLabel(unixTs) {{
+      if (!Number.isFinite(unixTs)) return "";
+      const dt = new Date(unixTs * 1000);
+      if (Number.isNaN(dt.getTime())) return "";
+      return `${{dt.getMonth() + 1}}/${{dt.getDate()}}`;
+    }}
+
+    function buildLinearAxisTicks(minValue, maxValue, tickCount = 5) {{
+      const lo = Number(minValue);
+      const hi = Number(maxValue);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
+      const count = Math.max(2, Math.min(7, Math.trunc(Number(tickCount) || 5)));
+      if (Math.abs(hi - lo) < 1e-9) {{
+        return [{{ ratio: 0, value: hi }}, {{ ratio: 1, value: lo }}];
+      }}
+      const ticks = [];
+      for (let i = 0; i < count; i += 1) {{
+        const ratio = i / Math.max(1, count - 1);
+        const value = hi - ((hi - lo) * ratio);
+        ticks.push({{ ratio, value }});
+      }}
+      return ticks;
+    }}
+
+    function setTimelineMessage(timelineId, message) {{
+      const timeline = document.getElementById(String(timelineId || "").trim());
+      if (!(timeline instanceof HTMLElement)) return;
+      timeline.innerHTML = "";
+      const text = String(message || "").trim();
+      if (!text) return;
+      const note = document.createElement("div");
+      note.className = "signal-timeline-empty";
+      note.textContent = text;
+      timeline.appendChild(note);
+    }}
+
+    function renderTimeline(timelineId, rows, padLeft, padRight, width, resolveUnix) {{
+      const timeline = document.getElementById(String(timelineId || "").trim());
+      if (!(timeline instanceof HTMLElement)) return;
+
+      const total = Array.isArray(rows) ? rows.length : 0;
+      if (!total) {{
+        setTimelineMessage(timelineId, "Timeline available when history points are present.");
+        return;
+      }}
+
+      const pointUnixResolver = typeof resolveUnix === "function"
+        ? resolveUnix
+        : ((row) => timelinePointUnix(row));
+      const timestamps = rows.map((row) => pointUnixResolver(row));
+      const validPoints = [];
+      for (let idx = 0; idx < timestamps.length; idx += 1) {{
+        const unixTs = Number(timestamps[idx]);
+        if (!Number.isFinite(unixTs)) continue;
+        validPoints.push({{ idx, unixTs }});
+      }}
+      if (!validPoints.length) {{
+        setTimelineMessage(timelineId, "Timeline unavailable (missing timestamps).");
+        return;
+      }}
+
+      const axisStartPct = Math.max(0, Math.min(100, (padLeft / width) * 100));
+      const axisEndPct = Math.max(axisStartPct, Math.min(100, ((width - padRight) / width) * 100));
+      const axisWidthPct = axisEndPct - axisStartPct;
+      const firstValid = validPoints[0];
+      const lastValid = validPoints[validPoints.length - 1];
+      const startUnix = firstValid.unixTs;
+      const endUnix = lastValid.unixTs;
+      const spanCrossesDay = Math.floor(startUnix / 86400) !== Math.floor(endUnix / 86400);
+      const spanSeconds = Math.max(1, endUnix - startUnix);
+
+      const unixToLeftPct = (unixTs) => {{
+        const ratio = Math.max(0, Math.min(1, (Number(unixTs) - startUnix) / spanSeconds));
+        return axisStartPct + (ratio * axisWidthPct);
+      }};
+
+      timeline.innerHTML = "";
+      const track = document.createElement("div");
+      track.className = "signal-timeline-track";
+      track.style.left = `${{axisStartPct.toFixed(3)}}%`;
+      track.style.right = `${{(100 - axisEndPct).toFixed(3)}}%`;
+      timeline.appendChild(track);
+
+      const dailyMode = spanSeconds >= (36 * 3600);
+      const majorStepCandidates = dailyMode
+        ? [86400]
+        : [300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
+      const majorLabelLimit = dailyMode ? 8 : 9;
+      let majorStep = majorStepCandidates[majorStepCandidates.length - 1];
+      for (let i = 0; i < majorStepCandidates.length; i += 1) {{
+        const step = majorStepCandidates[i];
+        if (((spanSeconds / step) + 1) <= majorLabelLimit) {{
+          majorStep = step;
+          break;
+        }}
+      }}
+
+      let minorStep = dailyMode
+        ? 21600
+        : (majorStep >= 86400
+          ? 21600
+          : (majorStep >= 21600 ? 3600 : (majorStep >= 3600 ? 900 : Math.max(60, Math.floor(majorStep / 4)))));
+      const maxMinorTicks = 120;
+      while ((spanSeconds / minorStep) > maxMinorTicks) {{
+        minorStep *= 2;
+      }}
+
+      const majorEpsilon = Math.max(1, Math.floor(majorStep / 40));
+      const nearMajorTick = (unixTs) => {{
+        const rem = ((Number(unixTs) % majorStep) + majorStep) % majorStep;
+        return rem <= majorEpsilon || (majorStep - rem) <= majorEpsilon;
+      }};
+
+      const renderTick = (unixTs, options = {{}}) => {{
+        const opts = options && typeof options === "object" ? options : {{}};
+        const leftPct = unixToLeftPct(unixTs);
+        const mark = document.createElement("div");
+        mark.className = "signal-timeline-mark";
+        if (opts.minor) mark.classList.add("signal-timeline-mark-minor");
+        if (opts.major) mark.classList.add("signal-timeline-mark-major");
+        if (opts.edgeStart) mark.classList.add("edge-start");
+        if (opts.edgeEnd) mark.classList.add("edge-end");
+        mark.style.left = `${{leftPct.toFixed(3)}}%`;
+
+        const tick = document.createElement("div");
+        tick.className = "signal-timeline-tick";
+        if (opts.minor) tick.classList.add("signal-timeline-tick-minor");
+        if (opts.major) tick.classList.add("signal-timeline-tick-major");
+        mark.appendChild(tick);
+
+        const labelText = String(opts.label || "").trim();
+        if (labelText) {{
+          const label = document.createElement("div");
+          label.className = "signal-timeline-label";
+          if (opts.major) label.classList.add("signal-timeline-label-major");
+          label.textContent = labelText;
+          mark.appendChild(label);
+        }}
+        if (Number.isFinite(Number(unixTs))) {{
+          mark.title = new Date(Number(unixTs) * 1000).toLocaleString();
+        }}
+        timeline.appendChild(mark);
+      }};
+
+      const firstMinor = Math.ceil(startUnix / minorStep) * minorStep;
+      for (let unixTs = firstMinor; unixTs <= endUnix; unixTs += minorStep) {{
+        if (nearMajorTick(unixTs)) continue;
+        renderTick(unixTs, {{ minor: true }});
+      }}
+
+      const majorTicks = [];
+      const addMajorTick = (unixTs) => {{
+        const value = Number(unixTs);
+        if (!Number.isFinite(value)) return;
+        for (let i = 0; i < majorTicks.length; i += 1) {{
+          if (Math.abs(majorTicks[i] - value) <= majorEpsilon) return;
+        }}
+        majorTicks.push(value);
+      }};
+      const firstMajor = Math.ceil(startUnix / majorStep) * majorStep;
+      for (let unixTs = firstMajor; unixTs <= endUnix; unixTs += majorStep) {{
+        addMajorTick(unixTs);
+      }}
+      addMajorTick(startUnix);
+      addMajorTick(endUnix);
+      majorTicks.sort((a, b) => a - b);
+      const renderedDayKeys = new Set();
+
+      for (let i = 0; i < majorTicks.length; i += 1) {{
+        const unixTs = majorTicks[i];
+        const edgeStart = Math.abs(unixTs - startUnix) <= majorEpsilon;
+        const edgeEnd = Math.abs(unixTs - endUnix) <= majorEpsilon;
+        let label = "";
+        if (dailyMode) {{
+          const dayKey = timelineDayKey(unixTs);
+          if (dayKey && !renderedDayKeys.has(dayKey)) {{
+            renderedDayKeys.add(dayKey);
+            label = formatTimelineDayLabel(unixTs);
+          }}
+        }} else if (edgeStart || edgeEnd) {{
+          label = formatTimelineLabel(unixTs, spanCrossesDay || spanSeconds >= (12 * 3600));
+        }} else {{
+          const dt = new Date(unixTs * 1000);
+          if (
+            spanCrossesDay
+            && majorStep >= 21600
+            && dt.getHours() === 0
+            && dt.getMinutes() === 0
+          ) {{
+            label = formatTimelineDayLabel(unixTs);
+          }} else {{
+            label = formatTimelineLabel(unixTs, false);
+          }}
+        }}
+        renderTick(unixTs, {{
+          major: true,
+          edgeStart,
+          edgeEnd,
+          label,
+        }});
+      }}
+    }}
+
+    function setSignalTimelineMessage(message) {{
+      setTimelineMessage("signal-timeline", message);
+    }}
+
+    function signalPointUnix(point) {{
+      return timelinePointUnix(point, "bucket_unix", ["bucket_time", "bucket_local"]);
+    }}
+
+    function renderSignalTimeline(rows, padLeft, padRight, width) {{
+      renderTimeline("signal-timeline", rows, padLeft, padRight, width, (row) => signalPointUnix(row));
+    }}
+
+    function renderSignalChart(points) {{
+      const svg = document.getElementById("signal-chart");
+      const empty = document.getElementById("signal-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
+
+      bindSignalChartZoom();
+
+      const rows = Array.isArray(points) ? points : [];
+      signalChartPoints = rows;
+      const currentNodeId = normalizeNodeId(selectedNodeId || "");
+      if (currentNodeId !== signalChartZoomNodeId) {{
+        resetSignalChartZoom(currentNodeId);
+      }}
+      const visible = getVisibleSignalRows(rows);
+      const plotRows = visible.rows;
+
+      const width = signalChartLayout.width;
+      const height = signalChartLayout.height;
+      const padLeft = signalChartLayout.padLeft;
+      const padRight = signalChartLayout.padRight;
+      const padTop = signalChartLayout.padTop;
+      const padBottom = signalChartLayout.padBottom;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      svg.classList.toggle("zoomed", visible.zoomed);
+      svg.setAttribute(
+        "title",
+        visible.zoomed
+          ? "Signal chart zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset."
+          : "Signal chart. Wheel to zoom, drag to pan, double-click or Esc to reset."
+      );
+
+      const snrVals = plotRows.map((p) => Number(p.avg_snr)).filter((v) => Number.isFinite(v));
+      const rssiVals = plotRows.map((p) => Number(p.avg_rssi)).filter((v) => Number.isFinite(v));
+      if (snrVals.length === 0 && rssiVals.length === 0) {{
+        svg.innerHTML = "";
+        empty.hidden = false;
+        empty.textContent = "No historical signal points yet for this node.";
+        renderSignalTimeline(plotRows, padLeft, padRight, width);
+        return;
+      }}
+      empty.hidden = true;
+
+      const withSpread = (vals, fallbackMin, fallbackMax) => {{
+        if (!vals.length) return [fallbackMin, fallbackMax];
+        let lo = Math.min(...vals);
+        let hi = Math.max(...vals);
+        if (Math.abs(hi - lo) < 0.001) {{
+          lo -= 1;
+          hi += 1;
+        }}
+        return [lo, hi];
+      }};
+
+      const [snrMin, snrMax] = withSpread(snrVals, -20, 20);
+      const [rssiMin, rssiMax] = withSpread(rssiVals, -130, -60);
+      const xAt = (idx, total) => (
+        padLeft + ((Math.max(0, idx) / Math.max(1, total - 1)) * plotW)
+      );
+      const yFrom = (value, minVal, maxVal) => (
+        padTop + ((maxVal - value) / (maxVal - minVal)) * plotH
+      );
+
+      const buildPath = (metricKey, minVal, maxVal) => {{
+        const n = plotRows.length;
+        let d = "";
+        let started = false;
+        for (let i = 0; i < n; i += 1) {{
+          const raw = Number(plotRows[i][metricKey]);
+          if (!Number.isFinite(raw)) continue;
+          const x = xAt(i, n);
+          const y = yFrom(raw, minVal, maxVal);
+          d += `${{started ? " L " : "M "}}${{x.toFixed(2)}} ${{y.toFixed(2)}}`;
+          started = true;
+        }}
+        return d;
+      }};
+
+      const snrPath = buildPath("avg_snr", snrMin, snrMax);
+      const rssiPath = buildPath("avg_rssi", rssiMin, rssiMax);
+      const midY = padTop + (plotH / 2);
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const chartPalette = darkTheme
+        ? {{
+            grid: "#324152",
+            snr: "#58c878",
+            rssi: "#79c0ff",
+            snrLabel: "#88e8a5",
+            rssiLabel: "#a4d0ff",
+          }}
+        : {{
+            grid: "#dce8df",
+            snr: "#1f6f53",
+            rssi: "#265d7b",
+            snrLabel: "#1f6f53",
+            rssiLabel: "#265d7b",
+          }};
+
+      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
+        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{width - padRight}}" y1="${{padTop}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{snrPath ? `<path d="${{snrPath}}" fill="none" stroke="${{chartPalette.snr}}" stroke-width="2"></path>` : ""}}
+        ${{rssiPath ? `<path d="${{rssiPath}}" fill="none" stroke="${{chartPalette.rssi}}" stroke-width="2"></path>` : ""}}
+        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{chartPalette.snrLabel}}">${{formatMetricValue(snrMax, 1)}}</text>
+        <text x="${{padLeft - 4}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="end" fill="${{chartPalette.snrLabel}}">${{formatMetricValue(snrMin, 1)}}</text>
+        <text x="${{width - padRight + 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMax, 0)}}</text>
+        <text x="${{width - padRight + 4}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="start" fill="${{chartPalette.rssiLabel}}">${{formatMetricValue(rssiMin, 0)}}</text>
+      `;
+      renderSignalTimeline(plotRows, padLeft, padRight, width);
+    }}
+
+    function rerenderOnlineActivityChartFromCache() {{
+      const chartState = historyTrendCharts.online;
+      const points = chartState && Array.isArray(chartState.points) ? chartState.points : [];
+      renderOnlineActivityChart(points);
+    }}
+
+    function rerenderWeeklySummaryChartFromCache() {{
+      const chartState = historyTrendCharts.weekly;
+      const rows = chartState && Array.isArray(chartState.points) ? chartState.points : [];
+      const metricKey = normalizeWeeklySummaryMetric(weeklySummaryMetric);
+      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, weeklySummaryNodeSeriesEnabled);
+      const emptyMessage = metricKey === "packets"
+        ? "Need at least two saved samples to estimate packets/min."
+        : "No weekly summary history yet.";
+      renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage);
+    }}
+
+    function renderOnlineActivityLoading() {{
+      setMapDataMode("activity");
+      historyTrendCharts.online.points = [];
+      historyTrendCharts.online.pointerDrag = null;
+      const caption = document.getElementById("online-activity-caption");
+      if (caption) {{
+        caption.textContent = "Loading online-node activity history...";
+      }}
+      const overview = document.getElementById("online-activity-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("online-activity-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("online-activity-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Loading historical online activity...";
+      }}
+      setTimelineMessage("online-activity-timeline", "Loading timeline...");
+    }}
+
+    function renderOnlineActivityError(message) {{
+      setMapDataMode("activity");
+      historyTrendCharts.online.points = [];
+      resetHistoryTrendZoom(historyTrendCharts.online);
+      const caption = document.getElementById("online-activity-caption");
+      if (caption) {{
+        caption.textContent = `Online activity error: ${{message || "unknown error"}}`;
+      }}
+      const overview = document.getElementById("online-activity-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("online-activity-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("online-activity-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Unable to load online-activity history.";
+      }}
+      setTimelineMessage("online-activity-timeline", "Timeline unavailable due to online-activity error.");
+    }}
+
+    function renderOnlineActivityChart(points) {{
+      const svg = document.getElementById("online-activity-chart");
+      const empty = document.getElementById("online-activity-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
+
+      const chartState = historyTrendCharts.online;
+      bindHistoryTrendChartZoom(
+        chartState,
+        () => rerenderOnlineActivityChartFromCache(),
+        "Online activity chart"
+      );
+
+      const rows = Array.isArray(points) ? points : [];
+      chartState.points = rows;
+      const visible = getVisibleHistoryTrendRows(chartState, rows);
+      const plotRows = visible.rows;
+      setHistoryTrendChartTitle(svg, "Online activity chart", visible.zoomed);
+
+      const values = plotRows.map((p) => Number(p.online_nodes)).filter((v) => Number.isFinite(v));
+      if (values.length === 0) {{
+        svg.innerHTML = "";
+        empty.hidden = false;
+        empty.textContent = "No historical online-activity points yet.";
+        renderTimeline(
+          chartState.timelineId,
+          plotRows,
+          historyTrendChartLayout.padLeft,
+          historyTrendChartLayout.padRight,
+          historyTrendChartLayout.width,
+          (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
+        );
+        return;
+      }}
+      empty.hidden = true;
+
+      const width = historyTrendChartLayout.width;
+      const height = historyTrendChartLayout.height;
+      const padLeft = historyTrendChartLayout.padLeft;
+      const padRight = historyTrendChartLayout.padRight;
+      const padTop = historyTrendChartLayout.padTop;
+      const padBottom = historyTrendChartLayout.padBottom;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      let minVal = Math.min(0, ...values);
+      let maxVal = Math.max(...values);
+      if ((maxVal - minVal) < 1) {{
+        maxVal = minVal + 1;
+      }}
+
+      const xAt = (idx, total) => (
+        padLeft + ((Math.max(0, idx) / Math.max(1, total - 1)) * plotW)
+      );
+      const yFrom = (value, minValue, maxValue) => (
+        padTop + ((maxValue - value) / (maxValue - minValue)) * plotH
+      );
+
+      const n = plotRows.length;
+      const pointsXY = [];
+      for (let i = 0; i < n; i += 1) {{
+        const raw = Number(plotRows[i].online_nodes);
+        if (!Number.isFinite(raw)) continue;
+        pointsXY.push({{
+          x: xAt(i, n),
+          y: yFrom(raw, minVal, maxVal),
+        }});
+      }}
+      if (!pointsXY.length) {{
+        svg.innerHTML = "";
+        empty.hidden = false;
+        empty.textContent = "No historical online-activity points yet.";
+        renderTimeline(
+          chartState.timelineId,
+          plotRows,
+          padLeft,
+          padRight,
+          width,
+          (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
+        );
+        return;
+      }}
+
+      const path = pointsXY.map((pt, idx) => (
+        `${{idx === 0 ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
+      )).join(" ");
+
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const chartPalette = darkTheme
+        ? {{
+            grid: "#324152",
+            line: "#79c0ff",
+            label: "#a4d0ff",
+          }}
+        : {{
+            grid: "#dce8df",
+            line: "#1f6f53",
+            label: "#1f6f53",
+          }};
+
+      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisLines = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const axisLabels = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(tick.value, 0)}}</text>`;
+      }}).join("");
+
+      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
+        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
+        <path d="${{path}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="2.3"></path>
+        ${{axisLabels}}
+      `;
+      renderTimeline(
+        chartState.timelineId,
+        plotRows,
+        padLeft,
+        padRight,
+        width,
+        (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
+      );
+    }}
+
+    function renderOnlineActivityOverview(activity) {{
+      const summary = activity.summary || {{}};
+      const target = document.getElementById("online-activity-overview");
+      if (!target) return;
+      const profile = Array.isArray(activity.hourly_profile) ? activity.hourly_profile : [];
+      const topHours = profile
+        .filter((row) => Number.isFinite(Number(row.avg_online_nodes)))
+        .sort((a, b) => Number(b.avg_online_nodes) - Number(a.avg_online_nodes))
+        .slice(0, 3);
+      const topHoursText = topHours.length
+        ? topHours.map((row) => `${{row.label}} (${{formatMetricValue(row.avg_online_nodes, 1)}})`).join(", ")
+        : "n/a";
+      const bestHourLabel = summary.best_hour_label || "n/a";
+      const bestHourAvgText = Number.isFinite(Number(summary.best_hour_avg_online_nodes))
+        ? ` (${{formatMetricValue(summary.best_hour_avg_online_nodes, 1)}} avg)`
+        : "";
+      const items = [
+        ["Window", `${{activity.window_hours ?? nodeHistoryHours}}h (${{activity.timezone_label || "local"}})`],
+        ["Samples", `${{summary.sample_hours ?? (activity.points || []).length ?? 0}}`],
+        ["Distinct Nodes", `${{summary.distinct_nodes ?? 0}}`],
+        ["Peak Online", `${{summary.max_online_nodes ?? 0}}`],
+        ["Average Online", `${{formatMetricValue(summary.avg_online_nodes, 1)}}`],
+        ["Best Hour", `${{bestHourLabel}}${{bestHourAvgText}}`],
+        ["Top Hours", `${{topHoursText}}`],
+        ["Range", `${{summary.window_start || "n/a"}} to ${{summary.window_end || "n/a"}}`],
+      ];
+      target.innerHTML = items.map(([k, v]) => (
+        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+      )).join("");
+    }}
+
+    function renderOnlineActivity(activity) {{
+      setMapDataMode("activity");
+      const summary = activity.summary || {{}};
+      const bestHourLabel = summary.best_hour_label || null;
+      const bestHourAvgText = Number.isFinite(Number(summary.best_hour_avg_online_nodes))
+        ? `${{formatMetricValue(summary.best_hour_avg_online_nodes, 1)}} avg nodes`
+        : "n/a avg nodes";
+      const caption = document.getElementById("online-activity-caption");
+      if (caption) {{
+        if (bestHourLabel) {{
+          caption.textContent = `Last ${{activity.window_hours || nodeHistoryHours}}h. Most common online time: ${{bestHourLabel}} (${{activity.timezone_label || "local"}}), ${{bestHourAvgText}}.`;
+        }} else {{
+          caption.textContent = `Last ${{activity.window_hours || nodeHistoryHours}}h. No saved online-activity history yet.`;
+        }}
+      }}
+      renderOnlineActivityChart(activity.points || []);
+      renderOnlineActivityOverview(activity);
+    }}
+
+    function renderWeeklySummaryLoading() {{
+      historyTrendCharts.weekly.points = [];
+      historyTrendCharts.weekly.pointerDrag = null;
+      const caption = document.getElementById("weekly-summary-caption");
+      if (caption) {{
+        caption.textContent = "Loading weekly summary metrics...";
+      }}
+      const overview = document.getElementById("weekly-summary-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("weekly-summary-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("weekly-summary-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Loading weekly summary metrics...";
+      }}
+      setTimelineMessage("weekly-summary-timeline", "Loading timeline...");
+    }}
+
+    function renderWeeklySummaryError(message) {{
+      historyTrendCharts.weekly.points = [];
+      resetHistoryTrendZoom(historyTrendCharts.weekly);
+      const caption = document.getElementById("weekly-summary-caption");
+      if (caption) {{
+        caption.textContent = `Weekly summary error: ${{message || "unknown error"}}`;
+      }}
+      const overview = document.getElementById("weekly-summary-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("weekly-summary-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("weekly-summary-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Unable to load weekly summary metrics.";
+      }}
+      setTimelineMessage("weekly-summary-timeline", "Timeline unavailable due to weekly summary error.");
+    }}
+
+    function renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage) {{
+      const svg = document.getElementById("weekly-summary-chart");
+      const empty = document.getElementById("weekly-summary-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) {{
+        return false;
+      }}
+
+      const chartState = historyTrendCharts.weekly;
+      bindHistoryTrendChartZoom(
+        chartState,
+        () => rerenderWeeklySummaryChartFromCache(),
+        "Weekly trend chart"
+      );
+
+      const sourceRows = Array.isArray(rows) ? rows : [];
+      chartState.points = sourceRows;
+      const visible = getVisibleHistoryTrendRows(chartState, sourceRows);
+      const plotRows = visible.rows;
+      const chartLabel = `${{metricMeta.label}} trend chart`;
+      setHistoryTrendChartTitle(svg, chartLabel, visible.zoomed);
+
+      const fallbackMessage = String(emptyMessage || "No weekly summary history yet.").trim();
+      const seriesDefs = [];
+      if (metricMeta && Array.isArray(metricMeta.seriesOrder) && metricMeta.seriesOrder.length > 0) {{
+        const labels = (metricMeta.seriesLabels && typeof metricMeta.seriesLabels === "object")
+          ? metricMeta.seriesLabels
+          : {{}};
+        const styles = (metricMeta.seriesStyles && typeof metricMeta.seriesStyles === "object")
+          ? metricMeta.seriesStyles
+          : {{}};
+        for (const key of metricMeta.seriesOrder) {{
+          if (!key) continue;
+          const style = (styles && typeof styles[key] === "object") ? styles[key] : {{}};
+          seriesDefs.push({{
+            key: String(key),
+            label: String(labels[key] || key),
+            tone: String(style.tone || ""),
+            dashed: style.dashed === true,
+            width: Number(style.width),
+            color: String(style.color || "").trim(),
+            labelColor: String(style.labelColor || "").trim(),
+            readValue: (row) => row && row.series && row.series[key],
+          }});
+        }}
+      }} else {{
+        seriesDefs.push({{
+          key: "primary",
+          label: String(metricMeta && metricMeta.label ? metricMeta.label : "Series"),
+          tone: "line",
+          dashed: false,
+          width: 2.3,
+          readValue: (row) => row && row.value,
+        }});
+        seriesDefs.push({{
+          key: "compare",
+          label: String(metricMeta && metricMeta.compareLabel ? metricMeta.compareLabel : "Comparison"),
+          tone: "compare",
+          dashed: true,
+          width: 2.0,
+          readValue: (row) => row && row.compareValue,
+        }});
+      }}
+
+      const seriesEntries = [];
+      for (let s = 0; s < seriesDefs.length; s += 1) {{
+        const def = seriesDefs[s];
+        const values = [];
+        const points = [];
+        let pendingBreak = false;
+        for (let i = 0; i < plotRows.length; i += 1) {{
+          if (plotRows[i] && plotRows[i].breakBefore) {{
+            pendingBreak = true;
+          }}
+          const rawValue = def.readValue(plotRows[i]);
+          if (rawValue === null || rawValue === undefined) continue;
+          const value = Number(rawValue);
+          if (!Number.isFinite(value)) continue;
+          values.push(value);
+          points.push({{
+            idx: i,
+            value,
+            breakBefore: pendingBreak,
+          }});
+          pendingBreak = false;
+        }}
+        if (!points.length) continue;
+        seriesEntries.push({{
+          ...def,
+          index: s,
+          values,
+          points,
+        }});
+      }}
+
+      if (!seriesEntries.length) {{
+        svg.innerHTML = "";
+        empty.hidden = false;
+        empty.textContent = fallbackMessage;
+        renderTimeline(
+          chartState.timelineId,
+          plotRows,
+          historyTrendChartLayout.padLeft,
+          historyTrendChartLayout.padRight,
+          historyTrendChartLayout.width,
+          (row) => timelinePointUnix(row, "bucketUnix", ["bucketText"])
+        );
+        return false;
+      }}
+      empty.hidden = true;
+
+      const smoothingWindow = normalizeSmoothingWindow(
+        metricMeta && metricMeta.smoothingWindow,
+        plotRows.length
+      );
+      const trendWindow = normalizeSmoothingWindow(
+        smoothingWindow <= 1
+          ? 1
+          : Math.max(
+              smoothingWindow,
+              Math.round(Math.max(3, smoothingWindow) * 2.2)
+            ),
+        plotRows.length
+      );
+      const rawBucketWidthPx = 1.05;
+      const trendBucketWidthPx = 4.0;
+      const trendTension = 0.28;
+      const plottedSeriesEntries = seriesEntries.map((entry) => {{
+        const rawPoints = entry.points.map((point) => ({{ ...point }}));
+        const plottedPoints = smoothSeriesPointsWithBreaks(entry.points, trendWindow);
+        const rawValues = rawPoints
+          .map((point) => Number(point && point.value))
+          .filter((value) => Number.isFinite(value));
+        const plottedValues = plottedPoints
+          .map((point) => Number(point && point.value))
+          .filter((value) => Number.isFinite(value));
+        return {{
+          ...entry,
+          rawPoints,
+          rawValues,
+          plottedPoints,
+          plottedValues,
+        }};
+      }});
+
+      const allValues = plottedSeriesEntries.flatMap((entry) => (
+        entry.rawValues.concat(entry.plottedValues)
+      ));
+      let minVal = Math.min(...allValues);
+      let maxVal = Math.max(...allValues);
+      if ((maxVal - minVal) < 1e-6) {{
+        maxVal = minVal + 1;
+      }}
+
+      const width = historyTrendChartLayout.width;
+      const height = historyTrendChartLayout.height;
+      const padLeft = historyTrendChartLayout.padLeft;
+      const padRight = historyTrendChartLayout.padRight;
+      const padTop = historyTrendChartLayout.padTop;
+      const padBottom = historyTrendChartLayout.padBottom;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+      const n = plotRows.length;
+      const dayBoundaries = [];
+      if (n > 1) {{
+        let lastDayKey = "";
+        for (let i = 0; i < plotRows.length; i += 1) {{
+          const unixTs = timelinePointUnix(plotRows[i], "bucketUnix", ["bucketText"]);
+          const dayKey = timelineDayKey(unixTs);
+          if (!dayKey) continue;
+          if (!lastDayKey) {{
+            lastDayKey = dayKey;
+            continue;
+          }}
+          if (dayKey !== lastDayKey) {{
+            dayBoundaries.push({{
+              idx: i,
+              unixTs,
+            }});
+            lastDayKey = dayKey;
+          }}
+        }}
+      }}
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const chartPalette = darkTheme
+        ? {{
+            grid: "#324152",
+            line: "#58c878",
+            compare: "#79c0ff",
+            aux1: "#f3b36b",
+            aux2: "#6fcad8",
+            aux3: "#d0e18a",
+            label: "#9ce7b8",
+            compareLabel: "#a4d0ff",
+            aux1Label: "#f6c88e",
+            aux2Label: "#8ddde8",
+            aux3Label: "#dde8a8",
+          }}
+        : {{
+            grid: "#dce8df",
+            line: "#1f6f53",
+            compare: "#265d7b",
+            aux1: "#a95f27",
+            aux2: "#2f6e78",
+            aux3: "#6d7a2f",
+            label: "#1f6f53",
+            compareLabel: "#265d7b",
+            aux1Label: "#a95f27",
+            aux2Label: "#2f6e78",
+            aux3Label: "#6d7a2f",
+          }};
+      const toneFallbacks = ["line", "compare", "aux1", "aux2", "aux3"];
+      const toneStroke = (tone, index) => {{
+        const key = tone && chartPalette[tone] ? tone : toneFallbacks[index] || "compare";
+        return chartPalette[key] || chartPalette.compare;
+      }};
+      const toneLabel = (tone, index) => {{
+        const key = tone && chartPalette[`${{tone}}Label`] ? `${{tone}}Label` : `${{toneFallbacks[index] || "compare"}}Label`;
+        return chartPalette[key] || chartPalette.compareLabel;
+      }};
+      const buildLinearPath = (points) => (
+        points.map((pt, idx) => (
+          `${{idx === 0 || pt.breakBefore ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
+        )).join(" ")
+      );
+      const enrichSeries = plottedSeriesEntries.map((entry, index) => {{
+        const stroke = toneStroke(entry.tone, index);
+        const labelColor = toneLabel(entry.tone, index);
+        const resolvedStroke = entry.color || stroke;
+        const resolvedLabelColor = entry.labelColor || labelColor;
+        const widthPx = Number.isFinite(Number(entry.width))
+          ? Math.max(1.2, Number(entry.width))
+          : (index === 0 ? 2.3 : 2.0);
+        const dashText = entry.dashed ? "5 3" : "";
+        const dashAttr = dashText ? ` stroke-dasharray="${{dashText}}"` : "";
+        const toScreenPoint = (point) => {{
+          const x = padLeft + ((Math.max(0, point.idx) / Math.max(1, n - 1)) * plotW);
+          const y = padTop + ((maxVal - point.value) / (maxVal - minVal)) * plotH;
+          return {{
+            x,
+            y,
+            breakBefore: !!point.breakBefore,
+          }};
+        }};
+        const rawPointsXY = entry.rawPoints.map((point) => toScreenPoint(point));
+        const trendPointsXY = entry.plottedPoints.map((point) => toScreenPoint(point));
+        const rawPlotPoints = aggregatePointsByXPixels(rawPointsXY, rawBucketWidthPx);
+        const trendPlotPoints = aggregatePointsByXPixels(trendPointsXY, trendBucketWidthPx);
+        const rawPath = buildLinearPath(rawPlotPoints);
+        const trendLinearPath = buildLinearPath(trendPlotPoints);
+        const trendPath = buildSmoothSvgPath(trendPlotPoints, trendTension) || trendLinearPath;
+        const rawWidthPx = Math.max(0.8, widthPx * 0.58);
+        const rawOpacity = entry.dashed ? 0.16 : 0.2;
+        return {{
+          ...entry,
+          stroke: resolvedStroke,
+          labelColor: resolvedLabelColor,
+          widthPx,
+          rawWidthPx,
+          rawOpacity,
+          trendOpacity: 1,
+          dashAttr,
+          rawPath,
+          trendPath,
+        }};
+      }});
+      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisLabelColor = enrichSeries[0] ? enrichSeries[0].labelColor : chartPalette.label;
+      const axisLines = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const axisLabels = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(tick.value, metricMeta.decimals)}}</text>`;
+      }}).join("");
+      const dayGuideLines = dayBoundaries.map((boundary) => {{
+        const x = padLeft + ((Math.max(0, boundary.idx) / Math.max(1, n - 1)) * plotW);
+        return `<line x1="${{x.toFixed(2)}}" y1="${{padTop}}" x2="${{x.toFixed(2)}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1" stroke-dasharray="2 3" stroke-opacity="${{darkTheme ? "0.45" : "0.65"}}"></line>`;
+      }}).join("");
+      const legendX = Math.max(padLeft + 8, width - padRight - 260);
+      const legendItems = enrichSeries.slice(0, 5).map((entry, index) => {{
+        const y = padTop + 8 + (index * 14);
+        return `
+          <line x1="${{legendX}}" y1="${{y}}" x2="${{legendX + 22}}" y2="${{y}}" stroke="${{entry.stroke}}" stroke-width="${{entry.widthPx.toFixed(1)}}"${{entry.dashAttr}}></line>
+          <text x="${{legendX + 28}}" y="${{y + 3}}" font-size="10" fill="${{entry.labelColor}}">${{entry.label}}</text>
+        `;
+      }}).join("");
+      const paths = enrichSeries.map((entry) => (
+        `
+          <path d="${{entry.rawPath}}" fill="none" stroke="${{entry.stroke}}" stroke-width="${{entry.rawWidthPx.toFixed(1)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{entry.rawOpacity.toFixed(2)}}"></path>
+          <path d="${{entry.trendPath}}" fill="none" stroke="${{entry.stroke}}" stroke-width="${{entry.widthPx.toFixed(1)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{entry.trendOpacity.toFixed(2)}}"${{entry.dashAttr}}></path>
+        `
+      )).join("");
+      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
+        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
+        ${{dayGuideLines}}
+        ${{paths}}
+        ${{axisLabels}}
+        ${{legendItems}}
+      `;
+      renderTimeline(
+        chartState.timelineId,
+        plotRows,
+        padLeft,
+        padRight,
+        width,
+        (row) => timelinePointUnix(row, "bucketUnix", ["bucketText"])
+      );
+      return true;
+    }}
+
+    function renderWeeklySummary(summaryHistory) {{
+      const metricKey = normalizeWeeklySummaryMetric(weeklySummaryMetric);
+      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, weeklySummaryNodeSeriesEnabled);
+      const payload = (summaryHistory && typeof summaryHistory === "object") ? summaryHistory : {{}};
+      const points = Array.isArray(payload.points) ? payload.points : [];
+      const rows = [];
+      const packetRateMetric = metricKey === "packets";
+      const nodesMetric = metricKey === "nodes";
+      const linksMetric = metricKey === "links";
+      let prevPacketBucketUnix = null;
+      let prevPacketTotal = null;
+      let prevLiveCounter = null;
+      let packetPendingBreak = false;
+      const continuitySeries = new Set(["known_nodes", "saved_nodes", "position_nodes", "real_edge_count"]);
+      const continuityStateBySeries = new Map();
+      const continuityAdjustedValue = (seriesKey, rawValue, resetBreak) => {{
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric)) return null;
+        if (!continuitySeries.has(seriesKey)) return numeric;
+        let state = continuityStateBySeries.get(seriesKey);
+        if (!(state && typeof state === "object")) {{
+          state = {{ offset: 0, lastAdjusted: null }};
+          continuityStateBySeries.set(seriesKey, state);
+        }}
+        if (
+          resetBreak
+          && Number.isFinite(state.lastAdjusted)
+          && (numeric + 1 < Number(state.lastAdjusted))
+        ) {{
+          // Re-anchor continuity at reset without compounding prior offsets.
+          state.offset = Number(state.lastAdjusted) - numeric;
+        }}
+        const adjusted = numeric + Number(state.offset || 0);
+        state.lastAdjusted = adjusted;
+        return adjusted;
+      }};
+      for (const point of points) {{
+        if (!point || typeof point !== "object") continue;
+        const bucketUnix = Number(point.bucket_unix);
+        const bucketText = String(point.bucket_time || "").trim();
+        const liveCounter = Number(point.live_packet_count);
+        const resetBreak = hasLiveCounterReset(prevLiveCounter, liveCounter);
+        if (Number.isFinite(liveCounter)) {{
+          prevLiveCounter = liveCounter;
+        }}
+        if (packetRateMetric) {{
+          const packetTotal = liveCounter;
+          if (!Number.isFinite(bucketUnix) || !Number.isFinite(packetTotal) || bucketUnix <= 0) continue;
+          if (Number.isFinite(prevPacketBucketUnix) && Number.isFinite(prevPacketTotal) && bucketUnix > prevPacketBucketUnix) {{
+            if (hasLiveCounterReset(prevPacketTotal, packetTotal)) {{
+              packetPendingBreak = true;
+              prevPacketBucketUnix = bucketUnix;
+              prevPacketTotal = packetTotal;
+              continue;
+            }}
+            const spanMinutes = Math.max(1 / 60, (bucketUnix - prevPacketBucketUnix) / 60);
+            const packetRate = Math.max(0, (packetTotal - prevPacketTotal) / spanMinutes);
+            rows.push({{
+              value: packetRate,
+              totalValue: packetTotal,
+              bucketText,
+              bucketUnix,
+              breakBefore: packetPendingBreak,
+            }});
+            packetPendingBreak = false;
+          }}
+          prevPacketBucketUnix = bucketUnix;
+          prevPacketTotal = packetTotal;
+          continue;
+        }}
+        if (linksMetric) {{
+          const value = continuityAdjustedValue("real_edge_count", point.real_edge_count, resetBreak);
+          if (!Number.isFinite(value)) continue;
+          rows.push({{
+            value,
+            bucketText,
+            bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
+          }});
+          continue;
+        }}
+        if (!nodesMetric) {{
+          continue;
+        }}
+        const onlineValue = Number(point.online_node_count);
+        const knownRawValue = Number(point.node_count);
+        const savedRawValue = Number(point.saved_node_count);
+        const positionRawValue = Number(point.nodes_with_position);
+        const knownValue = continuityAdjustedValue("known_nodes", knownRawValue, resetBreak);
+        const savedValue = continuityAdjustedValue("saved_nodes", savedRawValue, resetBreak);
+        const positionValue = continuityAdjustedValue("position_nodes", positionRawValue, resetBreak);
+        const primaryValue = Number.isFinite(onlineValue) ? onlineValue : knownValue;
+        if (!Number.isFinite(primaryValue)) continue;
+        const seriesValues = {{}};
+        if (Number.isFinite(onlineValue)) seriesValues.online_nodes = onlineValue;
+        if (Number.isFinite(knownValue)) seriesValues.known_nodes = knownValue;
+        if (Number.isFinite(savedValue)) seriesValues.saved_nodes = savedValue;
+        if (Number.isFinite(positionValue)) seriesValues.position_nodes = positionValue;
+        rows.push({{
+          value: primaryValue,
+          series: seriesValues,
+          knownNodeCount: Number.isFinite(knownRawValue) ? knownRawValue : null,
+          savedNodeCount: Number.isFinite(savedRawValue) ? savedRawValue : null,
+          positionNodeCount: Number.isFinite(positionRawValue) ? positionRawValue : null,
+          bucketText,
+          bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
+        }});
+      }}
+      let chartRows = rows;
+      if (nodesMetric && rows.length > 0) {{
+        const firstPositiveIndex = rows.findIndex((row) => Number(row && row.value) > 0);
+        if (firstPositiveIndex > 0) {{
+          chartRows = rows.slice(firstPositiveIndex);
+        }}
+      }}
+
+      const caption = document.getElementById("weekly-summary-caption");
+      const overview = document.getElementById("weekly-summary-overview");
+      const svg = document.getElementById("weekly-summary-chart");
+      const empty = document.getElementById("weekly-summary-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
+      if (!(overview instanceof HTMLElement)) return;
+
+      const emptyMessage = packetRateMetric
+        ? "Need at least two saved samples to estimate packets/min."
+        : "No weekly summary history yet.";
+
+      if (chartRows.length === 0) {{
+        overview.innerHTML = "";
+        renderWeeklySummaryChartRows([], metricMeta, emptyMessage);
+        if (caption) {{
+          caption.textContent = `Weekly trend for ${{metricMeta.label}}. ${{emptyMessage}}`;
+        }}
+        return;
+      }}
+
+      const rendered = renderWeeklySummaryChartRows(chartRows, metricMeta, emptyMessage);
+      if (!rendered) {{
+        overview.innerHTML = "";
+        if (caption) {{
+          caption.textContent = `Weekly trend for ${{metricMeta.label}}. ${{emptyMessage}}`;
+        }}
+        return;
+      }}
+
+      const firstValue = Number(chartRows[0].value);
+      const lastValue = Number(chartRows[chartRows.length - 1].value);
+      const delta = lastValue - firstValue;
+      const values = chartRows.map((row) => Number(row.value)).filter((value) => Number.isFinite(value));
+      const avg = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+      const averageDecimals = metricKey === "nodes" || metricKey === "links"
+        ? Math.max(1, Number(metricMeta.decimals) || 0)
+        : metricMeta.decimals;
+      const windowHours = Number(payload.window_hours);
+      const startLabel = chartRows[0].bucketText || "";
+      const endLabel = chartRows[chartRows.length - 1].bucketText || "";
+      if (caption) {{
+        const selectedNodeSeriesLabels = Array.isArray(metricMeta && metricMeta.seriesOrder)
+          ? metricMeta.seriesOrder.map((seriesKey) => (
+            String((metricMeta.seriesLabels && metricMeta.seriesLabels[seriesKey]) || seriesKey)
+          ))
+          : [];
+        const compareNote = nodesMetric
+          ? (selectedNodeSeriesLabels.length > 1
+            ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
+            : ` Showing ${{selectedNodeSeriesLabels[0] || "Online Nodes"}} line.`)
+          : "";
+        caption.textContent = `Weekly trend for ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
+      }}
+      const items = [
+        ["Metric", metricMeta.label],
+        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : weeklySummaryHours}}h`],
+        ["Samples", String(chartRows.length)],
+        ["Latest", formatMetricValue(lastValue, metricMeta.decimals)],
+        ["Delta", formatMetricValue(delta, metricMeta.decimals)],
+        ["Average", formatMetricValue(avg, averageDecimals)],
+        ["Peak", formatMetricValue(Math.max(...values), metricMeta.decimals)],
+        ["Range", `${{startLabel || "n/a"}} to ${{endLabel || "n/a"}}`],
+      ];
+      if (packetRateMetric) {{
+        const latestTotal = Number(chartRows[chartRows.length - 1] && chartRows[chartRows.length - 1].totalValue);
+        if (Number.isFinite(latestTotal)) {{
+          items.push(["Total Packets", formatMetricValue(latestTotal, 0)]);
+        }}
+      }} else if (nodesMetric) {{
+        const latestRow = chartRows[chartRows.length - 1] || null;
+        const latestKnownNodes = Number(latestRow && latestRow.knownNodeCount);
+        const latestSavedNodes = Number(latestRow && latestRow.savedNodeCount);
+        const latestPositionNodes = Number(latestRow && latestRow.positionNodeCount);
+        if (Number.isFinite(latestKnownNodes)) {{
+          items.push(["Known Nodes (Radio)", formatMetricValue(latestKnownNodes, 0)]);
+        }}
+        if (Number.isFinite(latestSavedNodes)) {{
+          items.push(["Saved Nodes (DB)", formatMetricValue(latestSavedNodes, 0)]);
+        }}
+        if (Number.isFinite(latestPositionNodes)) {{
+          items.push(["Nodes With Position", formatMetricValue(latestPositionNodes, 0)]);
+        }}
+        if (Number.isFinite(latestSavedNodes) && Number.isFinite(latestKnownNodes)) {{
+          if (latestKnownNodes > 0) {{
+            const ratioPercent = (latestSavedNodes / latestKnownNodes) * 100;
+            items.push(["Saved / Known", `${{formatMetricValue(ratioPercent, 1)}}%`]);
+          }} else {{
+            items.push(["Saved / Known", "n/a"]);
+          }}
+        }}
+      }}
+      overview.innerHTML = items.map(([k, v]) => (
+        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+      )).join("");
+    }}
+

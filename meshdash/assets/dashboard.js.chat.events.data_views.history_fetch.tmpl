@@ -1,0 +1,596 @@
+    function resolveTrafficRenderContext(source, fallbackState = latestState) {{
+      const safeFallback = (fallbackState && typeof fallbackState === "object") ? fallbackState : {{}};
+      const safeSource = (source && typeof source === "object") ? source : {{}};
+      const sourceHasTraffic = !!(safeSource.traffic && typeof safeSource.traffic === "object");
+      const traffic = sourceHasTraffic
+        ? safeSource.traffic
+        : safeSource;
+      const nodes = sourceHasTraffic
+        ? (Array.isArray(safeSource.nodes) ? safeSource.nodes : [])
+        : (Array.isArray(safeFallback.nodes) ? safeFallback.nodes : []);
+      return {{
+        traffic: (traffic && typeof traffic === "object") ? traffic : {{}},
+        nodes,
+      }};
+    }}
+
+    function buildHistoryNodeIdentityResolver(nodes) {{
+      const rows = Array.isArray(nodes) ? nodes : [];
+      const nodesById = new Map(
+        rows
+          .map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
+          .filter(([nodeId]) => !!nodeId)
+      );
+      return (rawNodeId) => {{
+        const clean = normalizeNodeId(rawNodeId);
+        if (!clean) {{
+          return {{
+            sort: "n/a",
+            title: "n/a",
+            html: '<div class="history-node-cell"><span class="history-node-primary">n/a</span></div>',
+          }};
+        }}
+        if (clean === "^all") {{
+          return {{
+            sort: "^all",
+            title: "Broadcast / all nodes",
+            html: '<div class="history-node-cell"><span class="history-node-primary">All</span><span class="history-node-secondary">broadcast</span></div>',
+          }};
+        }}
+        if (clean === "local") {{
+          return {{
+            sort: "local",
+            title: "Local node",
+            html: '<div class="history-node-cell"><span class="history-node-primary">Local</span><span class="history-node-secondary">this node</span></div>',
+          }};
+        }}
+
+        const node = nodesById.get(clean);
+        const longName = String(node && node.long_name ? node.long_name : "").trim();
+        const shortName = String(node && node.short_name ? node.short_name : "").trim();
+        const cachedName = String(nodeNameCache.get(clean) || "").trim();
+        const primary = longName || cachedName || shortName || clean;
+        const secondaryParts = [];
+        if (shortName && shortName !== primary) {{
+          secondaryParts.push(shortName);
+        }}
+        if (clean && clean !== primary) {{
+          secondaryParts.push(clean);
+        }} else if (!secondaryParts.length && clean) {{
+          secondaryParts.push(clean);
+        }}
+        const secondary = secondaryParts.join(" • ");
+        const titleParts = [];
+        if (longName) titleParts.push(`Long: ${{longName}}`);
+        if (shortName) titleParts.push(`Short: ${{shortName}}`);
+        if (!longName && !shortName && cachedName && cachedName !== clean) {{
+          titleParts.push(`Name: ${{cachedName}}`);
+        }}
+        titleParts.push(`ID: ${{clean}}`);
+        return {{
+          sort: `${{primary}} ${{shortName}} ${{clean}}`.trim(),
+          title: titleParts.join(" | "),
+          html: `<div class="history-node-cell"><span class="history-node-primary">${{escAttr(primary)}}</span>${{secondary ? `<span class="history-node-secondary">${{escAttr(secondary)}}</span>` : ""}}</div>`,
+        }};
+      }};
+    }}
+
+    function renderHistoryMessageCell(entry, renderedText) {{
+      const kind = normalizeChatMessageKind(entry, entry && entry.is_reaction === true);
+      const textHtml = chatPlainTextToHtml(renderedText, true) || "&nbsp;";
+      if (kind !== "status") {{
+        return textHtml;
+      }}
+      const statusEvent = String(entry && entry.status_event ? entry.status_event : "").trim().toLowerCase();
+      const pillLabel = statusEvent === "name_change" ? "Name change" : "Status";
+      const pillClass = statusEvent === "name_change" ? " history-message-pill-name-change" : "";
+      return `<div class="history-message-cell"><span class="history-message-pill${{pillClass}}">${{escAttr(pillLabel)}}</span><span class="history-message-body">${{textHtml}}</span></div>`;
+    }}
+
+    function renderHistoryChat(source) {{
+      const context = resolveTrafficRenderContext(source);
+      const traffic = context.traffic;
+      const describeNode = buildHistoryNodeIdentityResolver(context.nodes);
+      const messages = Array.isArray(traffic && traffic.recent_chat) ? traffic.recent_chat : [];
+      const rows = messages.slice(0, 240).map((entry) => {{
+        const capturedAt = String((entry && (entry.captured_at || entry.rx_time)) || "n/a");
+        const fromId = String((entry && entry.from) || "n/a");
+        const toId = String((entry && entry.to) || "n/a");
+        const fromNodeId = normalizeNodeId(fromId);
+        const toNodeId = normalizeNodeId(toId);
+        const fromIdentity = describeNode(fromId);
+        const toIdentity = describeNode(toId);
+        const text = String((entry && entry.text) || "").trim();
+        const emoji = String((entry && entry.emoji) || "").trim();
+        const isReaction = entry && entry.is_reaction === true;
+        const renderedText = text
+          ? text
+          : (isReaction ? `Reaction ${{emoji || ""}}`.trim() : (emoji || "n/a"));
+        const rowSelectable = isSelectableNodeId(fromNodeId) || isSelectableNodeId(toNodeId);
+        const rowSelected = !!selectedNodeId && (
+          (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+          || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+        );
+        return {{
+          className: `${{rowSelectable ? "history-node-selectable" : ""}}${{rowSelected ? " selected-node" : ""}}`,
+          dataset: {{
+            "from-node-id": fromNodeId,
+            "to-node-id": toNodeId,
+          }},
+          cells: [
+            {{ sort: capturedAt, text: capturedAt }},
+            {{
+              sort: fromIdentity.sort,
+              html: fromIdentity.html,
+              title: fromIdentity.title,
+              className: isSelectableNodeId(fromNodeId) ? "history-node-clickable" : "",
+            }},
+            {{
+              sort: toIdentity.sort,
+              html: toIdentity.html,
+              title: toIdentity.title,
+              className: isSelectableNodeId(toNodeId) ? "history-node-clickable" : "",
+            }},
+            {{ sort: renderedText, html: renderHistoryMessageCell(entry, renderedText) }},
+          ],
+        }};
+      }});
+      renderSortableListboxTable("history-chat-table", rows, {{
+        emptyText: "No saved chat or derived status history yet.",
+        emptyColspan: 4,
+      }});
+      const caption = document.getElementById("history-chat-caption");
+      if (caption) {{
+        caption.textContent = rows.length
+          ? `Showing ${{rows.length}} most recent saved chat and derived status entries.`
+          : "No saved chat or derived status history yet.";
+      }}
+      renderHistoryNotificationLog();
+    }}
+
+    function collectHistoryNotificationRows() {{
+      return collectSystemNotificationRows();
+    }}
+
+    function renderHistoryNotificationLog(nowUnix = Math.floor(Date.now() / 1000)) {{
+      const host = document.getElementById("history-notification-list");
+      if (!(host instanceof HTMLElement)) return;
+      const caption = document.getElementById("history-notification-caption");
+      const rows = collectHistoryNotificationRows();
+      if (caption instanceof HTMLElement) {{
+        caption.textContent = rows.length
+          ? `Showing ${{rows.length}} recent inbound system notifications from this browser log.`
+          : "No saved system notification history yet in this browser.";
+      }}
+      if (!rows.length) {{
+        host.innerHTML = '<div class="history-notification-empty">No system notification history yet in this browser.</div>';
+        return;
+      }}
+      host.innerHTML = rows.map((row) => {{
+        const channelKey = normalizeChatChannel(row && row.channel ? row.channel : "all");
+        const channelLabel = channelKey === "direct" ? "Peer-to-peer" : "Everyone";
+        const kindRaw = String(row && row.kind ? row.kind : "").trim().toLowerCase();
+        const kind = kindRaw === "reaction"
+          ? "reaction"
+          : (kindRaw === "status" ? "status" : "message");
+        const kindLabel = kind === "reaction"
+          ? "Reaction"
+          : (kind === "status" ? "Status" : "Message");
+        const isSeen = row && row.seen === true;
+        const statusLabel = isSeen ? "Seen" : "New";
+        const unixRaw = Number(row && row.unix);
+        const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+        const when = unix ? savedDetailAge(unix, nowUnix) : "just now";
+        const whenAbs = unix ? formatConsoleListTime(unix) : "n/a";
+        const sender = String(row && row.sender ? row.sender : "Unknown node");
+        const preview = String(row && row.preview ? row.preview : "update");
+        return `<div class="history-notification-item ${{isSeen ? "is-seen" : "is-new"}}" title="${{escAttr(`${{channelLabel}} | ${{kindLabel}} | ${{whenAbs}}`)}}">
+          <div class="history-notification-meta">
+            <span class="history-notification-pill status-${{isSeen ? "seen" : "new"}}">${{statusLabel}}</span>
+            <span class="history-notification-pill kind-${{kind}}">${{kindLabel}}</span>
+            <span class="history-notification-pill">${{escAttr(channelLabel)}}</span>
+          </div>
+          <div class="history-notification-text"><strong>${{escAttr(sender)}}</strong>: ${{escAttr(preview)}}</div>
+          <div class="history-notification-time" title="${{escAttr(whenAbs)}}">${{escAttr(when)}}</div>
+        </div>`;
+      }}).join("");
+    }}
+
+    function bindHistoryNotificationControls() {{
+      const clearBtn = document.getElementById("history-notification-clear-btn");
+      if (!(clearBtn instanceof HTMLButtonElement) || clearBtn.dataset.bound === "1") return;
+      clearBtn.dataset.bound = "1";
+      clearBtn.addEventListener("click", (ev) => {{
+        ev.preventDefault();
+        clearChatChangeNotices();
+        clearChatFeedChangeFocus();
+        renderChatChangeSummary();
+        if (latestState) {{
+          renderChat(latestState);
+        }} else {{
+          renderHistoryNotificationLog();
+        }}
+      }});
+    }}
+
+    function renderNodeHistoryOverview(history, node) {{
+      const summary = history.summary || {{}};
+      const target = document.getElementById("node-history-overview");
+      if (!target) return;
+      const historyNodeId = normalizeNodeId(history.node_id || "");
+      const fallbackNodeId = resolveSavedViewNodeId(latestState);
+      const label = node ? nodeLabel(node) : (historyNodeId || fallbackNodeId || "node");
+      const items = [
+        ["Node", `${{label}}`],
+        ["Node ID", `${{historyNodeId || fallbackNodeId || "n/a"}}`],
+        ["Points", `${{summary.points ?? (history.points || []).length ?? 0}}`],
+        ["Trail Points", `${{summary.trail_points ?? (history.positions || []).length ?? 0}}`],
+        ["Packets", `${{summary.total_packets ?? 0}}`],
+        ["Window", `${{history.window_hours ?? nodeHistoryHours}}h`],
+        ["Last Seen", `${{summary.last_seen || "n/a"}}`],
+        ["Trail Range", `${{summary.trail_start || "n/a"}} to ${{summary.trail_end || "n/a"}}`],
+        ["SNR Range", `${{formatMetricValue(summary.snr_min, 1)}} to ${{formatMetricValue(summary.snr_max, 1)}} dB`],
+        ["RSSI Range", `${{formatMetricValue(summary.rssi_min, 0)}} to ${{formatMetricValue(summary.rssi_max, 0)}} dBm`],
+      ];
+      target.innerHTML = items.map(([k, v]) => (
+        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+      )).join("");
+    }}
+
+    function renderNodeHistory(history, nodes) {{
+      setMapDataMode("node");
+      const historyNodeId = normalizeNodeId(history.node_id || "");
+      const node = (nodes || []).find((entry) => normalizeNodeId(entry && entry.id) === historyNodeId)
+        || savedViewNodeFrom(nodes, latestState);
+      const caption = document.getElementById("node-history-caption");
+      if (caption) {{
+        const fallbackNodeId = resolveSavedViewNodeId(latestState);
+        const name = node ? nodeLabel(node) : (historyNodeId || fallbackNodeId || "node");
+        const span = history.summary || {{}};
+        const trailPoints = Number.isFinite(Number(span.trail_points))
+          ? Number(span.trail_points)
+          : (Array.isArray(history.positions) ? history.positions.length : 0);
+        const loc = (node && typeof node.lat === "number" && typeof node.lon === "number")
+          ? `Current location: ${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}.`
+          : "No current location available from live node state.";
+        caption.textContent = `${{name}} (${{historyNodeId || fallbackNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}, trail points: ${{trailPoints}}.`;
+      }}
+      renderSignalChart(history.points || []);
+      renderNodeHistoryOverview(history, node);
+      setHistoryTab(activeHistoryTab);
+    }}
+
+    async function fetchNodeHistory(nodeId, opts = null) {{
+      if (!isSelectableNodeId(nodeId)) return null;
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const force = options.force === true;
+      const signal = options.signal || undefined;
+      const cached = nodeHistoryCache.get(nodeId);
+      const nowMs = Date.now();
+      // Node history changes much slower than live state; avoid hammering the DB.
+      const ttlMs = Math.max(refreshMs * 2, 8000);
+      if (!force && cached && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
+        return cached.data;
+      }}
+      const url = `/api/history/node?node_id=${{encodeURIComponent(nodeId)}}&hours=${{nodeHistoryHours}}&points=${{nodeHistoryMaxPoints}}`;
+      const resp = await fetch(url, {{ cache: "no-store", signal }});
+      if (!resp.ok) throw new Error(`history API ${{resp.status}}`);
+      const data = await resp.json();
+      nodeHistoryCache.set(nodeId, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    function cachedNodeHistory(nodeId) {{
+      const clean = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(clean)) return null;
+      const cached = nodeHistoryCache.get(clean);
+      if (!cached || !cached.data) return null;
+      const dataId = normalizeNodeId(cached.data.node_id || "");
+      if (dataId && dataId !== clean) return null;
+      return cached.data;
+    }}
+
+    function abortNodeHistoryFetch() {{
+      if (nodeHistoryFetchAbort) {{
+        try {{
+          nodeHistoryFetchAbort.abort();
+        }} catch (_err) {{
+        }}
+      }}
+      nodeHistoryFetchAbort = null;
+      nodeHistoryFetchNodeId = "";
+    }}
+
+    function applyNodeHistoryToView(nodeHistory) {{
+      const state = latestState;
+      if (!state) return;
+      const nodes = state.nodes || [];
+      const traffic = (state.traffic || {{}});
+      const edges = traffic.edges || [];
+
+      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+        renderMap(nodes, edges, nodeHistory);
+      }}
+
+      if (activeLayoutView === "network" && pendingMapHistoryFocus) {{
+        const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
+        const selectionId = normalizeNodeId(selectedNodeId || "");
+        if (historyNodeId && selectionId && historyNodeId === selectionId) {{
+          focusSelectedNodeOnMap(nodeHistory);
+          pendingMapHistoryFocus = false;
+        }}
+      }}
+
+      // The signal plot lives in the map-data panel, rendered by renderTraffic.
+      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+        renderTraffic(traffic, nodes, nodeHistory);
+      }}
+
+      if (activeLayoutView === "saved") {{
+        renderSavedNodeDetails(state, nodeHistory);
+      }}
+    }}
+
+    async function refreshSelectedNodeHistory(force = false) {{
+      const nodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : normalizeNodeId(selectedNodeId || "");
+      if (!isSelectableNodeId(nodeId)) {{
+        abortNodeHistoryFetch();
+        return null;
+      }}
+      if (!(activeLayoutView === "saved" || activeLayoutView === "network")) {{
+        // No need to load node history unless the map views that can use it are visible.
+        abortNodeHistoryFetch();
+        return null;
+      }}
+      if (mapDataFocus === "activity") {{
+        // When showing online activity, keep node history idle.
+        abortNodeHistoryFetch();
+        return null;
+      }}
+
+      const nowMs = Date.now();
+      const ttlMs = Math.max(refreshMs * 2, 8000);
+      const cached = nodeHistoryCache.get(nodeId);
+      const cachedData = cached && cached.data ? cached.data : null;
+      const cacheFresh = !!cachedData && (nowMs - (cached.fetchedAt || 0)) < ttlMs;
+
+      if (!force && cacheFresh) {{
+        // Ensure the UI is actually showing the cached history (selection changes can
+        // switch the UI into a loading state without re-rendering the chart).
+        applyNodeHistoryToView(cachedData);
+        return cachedData;
+      }}
+
+      if (!force && nodeHistoryFetchAbort && nodeHistoryFetchNodeId === nodeId) {{
+        return null;
+      }}
+
+      abortNodeHistoryFetch();
+      nodeHistoryFetchSeq += 1;
+      const seq = nodeHistoryFetchSeq;
+      nodeHistoryFetchNodeId = nodeId;
+      nodeHistoryFetchAbort = new AbortController();
+      const signal = nodeHistoryFetchAbort.signal;
+
+      if (!cachedData && activeLayoutView === "saved") {{
+        renderNodeHistoryLoading(nodeId);
+      }}
+
+      try {{
+        const data = await fetchNodeHistory(nodeId, {{ force: true, signal }});
+        if (seq !== nodeHistoryFetchSeq) return null;
+        const activeNodeId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(latestState)
+          : normalizeNodeId(selectedNodeId || "");
+        if (activeNodeId !== nodeId) return null;
+        if (!(activeLayoutView === "saved" || activeLayoutView === "network")) return null;
+        if (mapDataFocus === "activity") return null;
+        applyNodeHistoryToView(data);
+        return data;
+      }} catch (err) {{
+        if (err && err.name === "AbortError") return null;
+        if (seq !== nodeHistoryFetchSeq) return null;
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        const caption = document.getElementById("node-history-caption");
+        if (caption && activeLayoutView === "saved") {{
+          caption.textContent = `History error for ${{nodeId}}: ${{msg}}`;
+        }}
+        return null;
+      }} finally {{
+        if (seq === nodeHistoryFetchSeq) {{
+          nodeHistoryFetchAbort = null;
+          nodeHistoryFetchNodeId = "";
+        }}
+      }}
+    }}
+
+    async function fetchOnlineActivity(hoursOverride = nodeHistoryHours) {{
+      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
+      const cacheKey = String(cleanHours);
+      const cached = onlineActivityCache.get(cacheKey);
+      const nowMs = Date.now();
+      // Online activity is an aggregate rollup; refresh less frequently.
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 5, 30000)) {{
+        return cached.data;
+      }}
+      const url = `/api/history/online?hours=${{encodeURIComponent(cleanHours)}}`;
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`online activity API ${{resp.status}}`);
+      const data = await resp.json();
+      onlineActivityCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    async function fetchSummaryMetrics(hoursOverride = nodeHistoryHours) {{
+      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
+      const cacheKey = String(cleanHours);
+      const cached = summaryMetricsCache.get(cacheKey);
+      const nowMs = Date.now();
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 10, 60000)) {{
+        return cached.data;
+      }}
+      const url = `/api/history/summary?hours=${{encodeURIComponent(cleanHours)}}`;
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`summary metrics API ${{resp.status}}`);
+      const data = await resp.json();
+      summaryMetricsCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    async function fetchConsoleHistorySearch(opts = null) {{
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const queryText = String(options.queryText ?? options.query ?? "").trim();
+      const params = new URLSearchParams();
+      params.set("q", queryText);
+      const limit = Number(options.limit);
+      const before = Number(options.before);
+      const after = Number(options.after);
+      const scanLimit = Number(options.scanLimit);
+      const scope = String(options.scope || "").trim().toLowerCase();
+      if (Number.isFinite(limit) && limit > 0) {{
+        params.set("limit", String(Math.trunc(limit)));
+      }}
+      if (Number.isFinite(before) && before >= 0) {{
+        params.set("before", String(Math.trunc(before)));
+      }}
+      if (Number.isFinite(after) && after >= 0) {{
+        params.set("after", String(Math.trunc(after)));
+      }}
+      if (Number.isFinite(scanLimit) && scanLimit > 0) {{
+        params.set("scan", String(Math.trunc(scanLimit)));
+      }}
+      if (scope) {{
+        params.set("scope", scope);
+      }}
+      const resp = await fetch(`/api/history/search?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`history search API ${{resp.status}}`);
+      const payload = await resp.json();
+      return (payload && typeof payload === "object") ? payload : {{}};
+    }}
+
+    function hydrateTickerSeriesFromSummaryMetrics(historyPayload) {{
+      const payload = (historyPayload && typeof historyPayload === "object") ? historyPayload : {{}};
+      const points = sliceSummaryPointsAfterLiveCounterReset(payload.points);
+      const byKey = new Map([
+        ["nodes", []],
+        ["online_nodes", []],
+        ["live_packets", []],
+        ["live_packets_per_min", []],
+        ["real_links", []],
+      ]);
+      for (const point of points) {{
+        if (!point || typeof point !== "object") continue;
+        const bucketUnix = Number(point.bucket_unix);
+        if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+        const bucketMs = Math.floor(bucketUnix) * 1000;
+        const nodeCount = Number(point.node_count);
+        const onlineCount = Number(point.online_node_count);
+        const livePackets = Number(point.live_packet_count);
+        const realLinks = Number(point.real_edge_count);
+        if (Number.isFinite(nodeCount)) {{
+          byKey.get("nodes").push({{ ms: bucketMs, value: nodeCount }});
+        }}
+        if (Number.isFinite(onlineCount)) {{
+          byKey.get("online_nodes").push({{ ms: bucketMs, value: onlineCount }});
+        }}
+        if (Number.isFinite(livePackets)) {{
+          byKey.get("live_packets").push({{ ms: bucketMs, value: livePackets }});
+        }}
+        if (Number.isFinite(realLinks)) {{
+          byKey.get("real_links").push({{ ms: bucketMs, value: realLinks }});
+        }}
+      }}
+
+      const livePacketTotals = byKey.get("live_packets") || [];
+      const livePacketRates = derivePacketsPerMinuteSeriesFromTotals(livePacketTotals);
+      if (livePacketRates.length > 0) {{
+        byKey.set("live_packets_per_min", livePacketRates);
+      }}
+
+      const cutoffMs = Date.now() - metricTickerWindowMs;
+      for (const [metricKey, series] of byKey.entries()) {{
+        if (!Array.isArray(series) || series.length === 0) continue;
+        series.sort((a, b) => Number(a.ms) - Number(b.ms));
+        trimMetricTickerPoints(series, cutoffMs);
+        metricTickerSeries.set(metricKey, series);
+      }}
+    }}
+
+    async function hydrateSummaryMetricTickers(hoursOverride = Math.max(2, Math.min(24, nodeHistoryHours))) {{
+      try {{
+        const data = await fetchSummaryMetrics(hoursOverride);
+        hydrateTickerSeriesFromSummaryMetrics(data);
+        summaryMetricsHydrated = true;
+        if (latestState) {{
+          renderSummary(latestState);
+        }}
+      }} catch (_err) {{
+        summaryMetricsHydrated = false;
+      }}
+    }}
+
+    async function refreshHistoryPanels(force = false) {{
+      if (activeLayoutView !== "history") return;
+      setMapDataMode("activity");
+      const weeklyKey = String(weeklySummaryHours);
+      if (force) {{
+        summaryMetricsCache.delete(weeklyKey);
+      }}
+      const cachedWeekly = summaryMetricsCache.get(weeklyKey);
+      if (cachedWeekly && cachedWeekly.data) {{
+        renderWeeklySummary(cachedWeekly.data);
+      }} else {{
+        renderWeeklySummaryLoading();
+      }}
+
+      try {{
+        const weekly = await fetchSummaryMetrics(weeklySummaryHours);
+        if (activeLayoutView !== "history") return;
+        renderWeeklySummary(weekly);
+      }} catch (reason) {{
+        if (activeLayoutView !== "history") return;
+        const message = reason instanceof Error ? reason.message : String(reason || "unknown error");
+        renderWeeklySummaryError(message);
+      }}
+    }}
+
+    function renderTraffic(traffic, nodes, nodeHistory) {{
+      if (mapDataFocus === "activity") {{
+        setMapDataMode("activity");
+        return;
+      }}
+
+      const savedNodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : "";
+      const showNodeHistory = activeLayoutView === "saved" && isSelectableNodeId(savedNodeId);
+      if (showNodeHistory) {{
+        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === savedNodeId) {{
+          renderNodeHistory(nodeHistory, nodes);
+        }} else {{
+          renderNodeHistoryLoading(savedNodeId);
+        }}
+        return;
+      }}
+
+      setMapDataMode("live");
+      const ports = (traffic.port_counts || []).slice(0, 30).map((item) => (
+        `<tr><td data-sort="${{escAttr(item.portnum ?? "")}}">${{item.portnum}}</td><td data-sort="${{escAttr(item.count ?? "")}}">${{item.count}}</td></tr>`
+      ));
+      fillTable("ports-table", ports);
+
+      const links = (traffic.edges || []).slice(0, 60).map((edge) => (
+        `<tr>
+          <td data-sort="${{escAttr(edge.from ?? "")}}">${{edge.from}}</td>
+          <td data-sort="${{escAttr(edge.to ?? "")}}">${{edge.to}}</td>
+          <td data-sort="${{escAttr(edge.lifetime_count ?? edge.count ?? 0)}}">${{edge.lifetime_count ?? edge.count ?? 0}}</td>
+          <td data-sort="${{escAttr(edge.avg_hops ?? "")}}">${{edge.avg_hops == null ? "n/a" : edge.avg_hops}}</td>
+          <td data-sort="${{escAttr(edge.confidence || (edge.is_real ? "confirmed" : "observed"))}}">${{edge.confidence || (edge.is_real ? "confirmed" : "observed")}}</td>
+          <td data-sort="${{escAttr(edge.last_rx_time ?? "")}}">${{edge.last_rx_time || "n/a"}}</td>
+        </tr>`
+      ));
+      fillTable("links-table", links);
+    }}
+
