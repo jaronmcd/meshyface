@@ -1,0 +1,259 @@
+    function packetConsoleKey(entry) {{
+      const summary = entry.summary || {{}};
+      let packetPart = "";
+      try {{
+        packetPart = JSON.stringify(entry.packet || {{}});
+      }} catch (_err) {{
+        packetPart = "";
+      }}
+      return [
+        summary.captured_at || "",
+        summary.from || "",
+        summary.to || "",
+        summary.portnum || "",
+        summary.rx_time || "",
+        String(summary.rx_snr ?? ""),
+        String(summary.rx_rssi ?? ""),
+        packetPart,
+      ].join("|");
+    }}
+
+    function consoleCommandInputElement() {{
+      const input = document.getElementById("console-command-input");
+      return input instanceof HTMLInputElement ? input : null;
+    }}
+
+    function consoleCommandInputValue() {{
+      const input = consoleCommandInputElement();
+      return input ? String(input.value || "") : "";
+    }}
+
+    function formatConsolePromptInputLine(promptLabel, draftValue) {{
+      const prompt = String(promptLabel == null ? "" : promptLabel).trim() || "$";
+      const draft = String(draftValue == null ? "" : draftValue);
+      const separator = /[$>]$/.test(prompt) ? "" : " ";
+      const promptWithSeparator = `${{prompt}}${{separator}}`;
+      const input = consoleCommandInputElement();
+      const focused = input instanceof HTMLInputElement && document.activeElement === input;
+      if (!(activeLayoutView === "console" && focused && consoleCursorVisible)) {{
+        return escAttr(`${{promptWithSeparator}}${{draft}}`);
+      }}
+      const rawCaretIndex = input instanceof HTMLInputElement ? input.selectionStart : draft.length;
+      const caretIndex = Math.max(
+        0,
+        Math.min(
+          draft.length,
+          Math.trunc(Number.isFinite(rawCaretIndex) ? rawCaretIndex : draft.length)
+        )
+      );
+      const beforeCaret = draft.slice(0, caretIndex);
+      const afterCaret = draft.slice(caretIndex);
+      return `${{escAttr(`${{promptWithSeparator}}${{beforeCaret}}`)}}<span class="console-caret" aria-hidden="true"></span>${{escAttr(afterCaret)}}`;
+    }}
+
+    function formatConsolePromptEchoLine(promptLabel, commandText) {{
+      const prompt = String(promptLabel == null ? "" : promptLabel).trim() || "$";
+      const body = String(commandText == null ? "" : commandText).trim();
+      if (!body) return prompt;
+      const separator = /[$>]$/.test(prompt) ? "" : " ";
+      return `${{prompt}}${{separator}}${{body}}`;
+    }}
+
+    function startConsoleCursorBlink() {{
+      if (consoleCursorBlinkTimer !== null) return;
+      consoleCursorBlinkTimer = window.setInterval(() => {{
+        consoleCursorVisible = !consoleCursorVisible;
+        if (activeLayoutView === "console") {{
+          const pre = document.getElementById("live-console");
+          if (pre instanceof HTMLElement && hasConsoleSelectionWithin(pre)) {{
+            consoleRenderDeferred = true;
+            return;
+          }}
+          renderConsoleBuffer(false);
+        }}
+      }}, 530);
+    }}
+
+    function parseConsoleFilterExpression(rawFilterText) {{
+      let raw = String(rawFilterText == null ? "" : rawFilterText).trim();
+      if (!raw) {{
+        return {{
+          needle: "",
+          before: 0,
+          after: 0,
+        }};
+      }}
+      let before = 0;
+      let after = 0;
+      const clamp = (value) => Math.max(0, Math.min(50, Math.trunc(Number(value) || 0)));
+      raw = raw.replace(/(^|\s)-([cCabB])\s*(\d+)\b/g, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "c") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "a") {{
+          after = Math.max(after, count);
+        }} else if (mode === "b") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      raw = raw.replace(/(^|\s)--(context|after-context|before-context)\s*=?\s*(\d+)\b/gi, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "context") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "after-context") {{
+          after = Math.max(after, count);
+        }} else if (mode === "before-context") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      return {{
+        needle: raw.trim(),
+        before,
+        after,
+      }};
+    }}
+
+    function filterConsoleLinesWithContext(lines, filterExpr) {{
+      const source = Array.isArray(lines) ? lines : [];
+      const parsed = (filterExpr && typeof filterExpr === "object") ? filterExpr : {{
+        needle: "",
+        before: 0,
+        after: 0,
+      }};
+      const needle = String(parsed.needle == null ? "" : parsed.needle).trim().toLowerCase();
+      const before = Math.max(0, Math.trunc(Number(parsed.before) || 0));
+      const after = Math.max(0, Math.trunc(Number(parsed.after) || 0));
+      if (!needle) {{
+        return {{
+          lines: source.slice(),
+          active: false,
+          needle: "",
+        }};
+      }}
+      const matchIndexes = [];
+      for (let i = 0; i < source.length; i += 1) {{
+        const lineText = String(source[i] == null ? "" : source[i]).toLowerCase();
+        if (lineText.includes(needle)) {{
+          matchIndexes.push(i);
+        }}
+      }}
+      if (!matchIndexes.length) {{
+        return {{
+          lines: [],
+          active: true,
+          needle,
+        }};
+      }}
+      if (before < 1 && after < 1) {{
+        return {{
+          lines: matchIndexes.map((index) => source[index]),
+          active: true,
+          needle,
+        }};
+      }}
+      const ranges = [];
+      for (const idx of matchIndexes) {{
+        const start = Math.max(0, idx - before);
+        const end = Math.min(source.length - 1, idx + after);
+        if (!ranges.length || start > ranges[ranges.length - 1].end + 1) {{
+          ranges.push({{ start, end }});
+        }} else {{
+          ranges[ranges.length - 1].end = Math.max(ranges[ranges.length - 1].end, end);
+        }}
+      }}
+      const out = [];
+      for (let r = 0; r < ranges.length; r += 1) {{
+        if (r > 0) {{
+          out.push("[filter] --");
+        }}
+        const range = ranges[r];
+        for (let i = range.start; i <= range.end; i += 1) {{
+          out.push(source[i]);
+        }}
+      }}
+      return {{
+        lines: out,
+        active: true,
+        needle,
+      }};
+    }}
+
+    function renderConsoleBuffer(forceScroll = false) {{
+      const pre = document.getElementById("live-console");
+      if (!(pre instanceof HTMLElement)) return;
+      if (!forceScroll && hasConsoleSelectionWithin(pre)) {{
+        consoleRenderDeferred = true;
+        return;
+      }}
+      consoleRenderDeferred = false;
+      const filterExpr = parseConsoleFilterExpression(consoleFilterText);
+      const filtered = filterConsoleLinesWithContext(consoleLines, filterExpr);
+      const visibleLines = filtered.lines;
+      const rendered = visibleLines.map((line) => escAttr(String(line == null ? "" : line)));
+      if (filtered.active && visibleLines.length < 1) {{
+        rendered.push(escAttr(`[filter] no matches for "${{filtered.needle}}"`));
+      }}
+      rendered.push(formatConsolePromptInputLine(consolePromptLabel, consoleCommandInputValue()));
+      pre.innerHTML = rendered.join("\n");
+      if (consoleAutoscroll || forceScroll) {{
+        pre.scrollLeft = 0;
+        pre.scrollTop = pre.scrollHeight;
+      }}
+    }}
+
+    function clearConsoleOutput({{ renderNow = true }} = {{}}) {{
+      consoleLines.length = 0;
+      consoleKeyQueue.length = 0;
+      consoleSeen.clear();
+      persistConsoleSessionState();
+      if (renderNow) {{
+        renderConsoleBuffer(true);
+      }}
+    }}
+
+    function appendConsoleEventLine(line, loggedAtMs = Date.now(), renderNow = true) {{
+      consoleEventCounter += 1;
+      const key = `event|${{Math.floor(Number(loggedAtMs) || Date.now())}}|${{consoleEventCounter}}`;
+      appendConsoleLine(key, line, loggedAtMs, renderNow);
+    }}
+
+    function normalizeConsoleFontSize(value) {{
+      const clean = String(value == null ? "" : value).trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(consoleFontSizePxByKey, clean) ? clean : "md";
+    }}
+
+    function persistConsoleFontSizePreference() {{
+      try {{
+        window.localStorage.setItem(consoleFontSizeStorageKey, normalizeConsoleFontSize(consoleFontSize));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadConsoleFontSizePreference() {{
+      try {{
+        consoleFontSize = normalizeConsoleFontSize(window.localStorage.getItem(consoleFontSizeStorageKey) || "md");
+      }} catch (_err) {{
+        consoleFontSize = "md";
+      }}
+    }}
+
+    function applyConsoleFontSizePreference() {{
+      const pre = document.getElementById("live-console");
+      const key = normalizeConsoleFontSize(consoleFontSize);
+      const px = Number(consoleFontSizePxByKey[key]) || 12;
+      if (pre instanceof HTMLElement) {{
+        pre.style.fontSize = `${{px}}px`;
+      }}
+      const input = consoleCommandInputElement();
+      if (input instanceof HTMLInputElement) {{
+        input.style.fontSize = `${{Math.max(8, px)}}px`;
+      }}
+      consoleFontSize = key;
+    }}
+

@@ -1,0 +1,328 @@
+    function syncConsoleCommandInputState(state = latestState) {{
+      const input = consoleCommandInputElement();
+      const runningName = consoleRunningCommand && consoleRunningCommand.name
+        ? String(consoleRunningCommand.name)
+        : "";
+      const interactiveName = consoleInteractiveSession && consoleInteractiveSession.name
+        ? String(consoleInteractiveSession.name)
+        : "";
+      const interactiveIsZork = isZorkConsoleInteractiveSession(consoleInteractiveSession);
+      const promptLabel = runningName
+        ? `${{runningName.replace(/[^a-z0-9_-]+/gi, "").slice(0, 10) || "busy"}}>`
+        : interactiveIsZork
+          ? ">"
+          : `[${{resolveConsolePromptHostLabel(state)}}]$`;
+      const placeholder = runningName
+        ? `ctrl+c to stop ${{runningName}}`
+        : interactiveIsZork
+          ? "enter zork command  /help for console"
+          : interactiveName
+            ? `enter ${{interactiveName}} command  /help for console`
+          : "enter command or type help";
+      consolePromptLabel = promptLabel;
+      if (input instanceof HTMLInputElement) {{
+        input.placeholder = placeholder;
+        input.setAttribute("title", placeholder);
+      }}
+      renderConsoleBuffer(false);
+      persistConsoleSessionState();
+    }}
+
+    function focusConsoleCommandInput(select = false) {{
+      const input = consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return;
+      try {{
+        input.focus({{ preventScroll: true }});
+      }} catch (_err) {{
+        input.focus();
+      }}
+      if (select) {{
+        input.select();
+      }} else {{
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }}
+      consoleCursorVisible = true;
+      renderConsoleBuffer(false);
+    }}
+
+    function insertTextIntoConsoleCommandInput(text, inputEl = null) {{
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      const rawText = String(text == null ? "" : text);
+      if (!rawText) return false;
+      const normalizedText = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const current = String(input.value || "");
+      const startRaw = Number(input.selectionStart);
+      const endRaw = Number(input.selectionEnd);
+      const start = Number.isFinite(startRaw)
+        ? Math.max(0, Math.min(current.length, Math.trunc(startRaw)))
+        : current.length;
+      const end = Number.isFinite(endRaw)
+        ? Math.max(start, Math.min(current.length, Math.trunc(endRaw)))
+        : start;
+      input.value = `${{current.slice(0, start)}}${{normalizedText}}${{current.slice(end)}}`;
+      const nextCaret = start + normalizedText.length;
+      try {{
+        input.setSelectionRange(nextCaret, nextCaret);
+      }} catch (_err) {{
+      }}
+      consoleCommandHistoryCursor = -1;
+      consoleCommandDraft = "";
+      renderConsoleBuffer(false);
+      return true;
+    }}
+
+    function handleConsolePasteEvent(ev) {{
+      if (!ev || activeLayoutView !== "console") return false;
+      const target = ev.target;
+      if (target instanceof HTMLTextAreaElement) return false;
+      if (
+        target instanceof HTMLInputElement
+        && target.id
+        && target.id !== "console-command-input"
+      ) {{
+        return false;
+      }}
+      const clipboardData = ev.clipboardData;
+      const pastedText = clipboardData && typeof clipboardData.getData === "function"
+        ? clipboardData.getData("text/plain")
+        : "";
+      if (!pastedText) return false;
+      focusConsoleCommandInput(false);
+      const input = consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      ev.preventDefault();
+      return insertTextIntoConsoleCommandInput(pastedText, input);
+    }}
+
+    function selectionIntersectsElement(selection, element) {{
+      if (!(element instanceof HTMLElement)) return false;
+      if (!selection || typeof selection.rangeCount !== "number" || selection.rangeCount < 1) {{
+        return false;
+      }}
+      try {{
+        const range = selection.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        if (container instanceof Node) {{
+          return element.contains(container);
+        }}
+      }} catch (_err) {{
+      }}
+      return false;
+    }}
+
+    function hasConsoleSelectionWithin(element) {{
+      if (!(element instanceof HTMLElement)) return false;
+      const selection = window.getSelection ? window.getSelection() : null;
+      if (!selectionIntersectsElement(selection, element)) return false;
+      const text = String(selection ? selection.toString() : "");
+      return text.length > 0;
+    }}
+
+    async function copySelectionToClipboardWithin(element) {{
+      if (!(element instanceof HTMLElement)) return false;
+      const selection = window.getSelection ? window.getSelection() : null;
+      if (!selectionIntersectsElement(selection, element)) return false;
+      const text = String(selection ? selection.toString() : "").trim();
+      if (!text) return false;
+      try {{
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {{
+          return false;
+        }}
+        await navigator.clipboard.writeText(text);
+        return true;
+      }} catch (_err) {{
+        return false;
+      }}
+    }}
+
+    async function copyConsoleSelectionToClipboard() {{
+      const pre = document.getElementById("live-console");
+      return copySelectionToClipboardWithin(pre instanceof HTMLElement ? pre : null);
+    }}
+
+    async function copyChatSelectionToClipboard() {{
+      const feed = document.getElementById("chat-feed");
+      return copySelectionToClipboardWithin(feed instanceof HTMLElement ? feed : null);
+    }}
+
+    function startConsoleRunningCommand(name, onStop = null) {{
+      const clean = String(name == null ? "" : name).trim().toLowerCase() || "command";
+      consoleRunningCommand = {{
+        name: clean,
+        stop: typeof onStop === "function" ? onStop : null,
+      }};
+      syncConsoleCommandInputState();
+    }}
+
+    function stopConsoleRunningCommand(reason = "stopped", emitStatus = true) {{
+      if (!consoleRunningCommand) return false;
+      const active = consoleRunningCommand;
+      consoleRunningCommand = null;
+      syncConsoleCommandInputState();
+      if (typeof active.stop === "function") {{
+        try {{
+          active.stop(reason, !!emitStatus);
+        }} catch (_err) {{
+        }}
+      }}
+      return true;
+    }}
+
+    function stopConsoleInteractiveSession(reason = "stopped", emitStatus = true) {{
+      if (!consoleInteractiveSession) return false;
+      const active = consoleInteractiveSession;
+      consoleInteractiveSession = null;
+      syncConsoleCommandInputState();
+      if (emitStatus) {{
+        const targetLabel = String(active.targetLabel || active.targetNodeId || "session");
+        appendConsoleEventLine(`[${{String(active.name || "session")}}] stopped (${{String(reason || "done")}}) with ${{targetLabel}}.`);
+      }}
+      return true;
+    }}
+
+    function preferredConsoleTargetLabel(nodeId, state = latestState) {{
+      const clean = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(clean)) return "";
+      const nodes = Array.isArray(state && state.nodes) ? state.nodes : [];
+      const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === clean) || null;
+      return preferredNodeName(node) || nodeNameCache.get(clean) || clean;
+    }}
+
+    function resolveConsoleGameTarget(ctx = null) {{
+      const state = (ctx && ctx.state && typeof ctx.state === "object") ? ctx.state : latestState;
+      const options = (ctx && ctx.options && typeof ctx.options === "object") ? ctx.options : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const rawTarget = String(options.node ?? options.id ?? options.peer ?? args[0] ?? "").trim();
+      let nodeId = normalizeNodeId(rawTarget || selectedNodeId || "");
+      if (!isSelectableNodeId(nodeId)) {{
+        return {{ ok: false, error: "Select a peer-to-peer user first or pass node=!xxxxxxxx." }};
+      }}
+      if (!isCanonicalNodeId(nodeId)) {{
+        return {{ ok: false, error: `Invalid peer target: ${{nodeId}}` }};
+      }}
+      if (isSelfNodeId(nodeId, state)) {{
+        return {{ ok: false, error: "Cannot start a console game session against your own radio." }};
+      }}
+      let channelIndex = activeMeshChannelSendIndex();
+      if (Object.prototype.hasOwnProperty.call(options, "channel")) {{
+        const parsedChannel = normalizeMeshChannelIndex(options.channel);
+        channelIndex = parsedChannel;
+      }}
+      const channelLabel = meshChannelLabelForIndex(channelIndex);
+      return {{
+        ok: true,
+        nodeId,
+        targetLabel: preferredConsoleTargetLabel(nodeId, state),
+        channelIndex,
+        channelLabel,
+      }};
+    }}
+
+    function consoleInteractiveChatKey(msg) {{
+      const base = chatMessageKey(msg);
+      if (base) return base;
+      return "";
+    }}
+
+    function consoleInteractiveChatTimestampMs(msg) {{
+      const unix = latestUnixTimestamp(
+        msg && (msg.rx_time ?? msg.rxTime),
+        msg && (msg.captured_at ?? msg.capturedAt),
+        msg && (msg.sent_at ?? msg.sentAt)
+      );
+      return Number.isFinite(unix) && unix > 0 ? unix * 1000 : Date.now();
+    }}
+
+    function consoleInteractiveChatText(msg) {{
+      return String(
+        (msg && (msg.text ?? msg.decoded_text ?? msg.payload_text)) || ""
+      ).replace(/\s+/g, " ").trim();
+    }}
+
+    function syncConsoleInteractiveSessionMessages(state = latestState) {{
+      const session = consoleInteractiveSession;
+      if (!session || !state || typeof state !== "object") return;
+      if (String(session.mode || "") !== "remote") return;
+      const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
+      const messages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const localNodeId = resolveLocalNodeId(state);
+      const targetNodeId = normalizeNodeId(session.targetNodeId || "");
+      if (!isCanonicalNodeId(localNodeId) || !isCanonicalNodeId(targetNodeId)) return;
+      for (const msg of messages) {{
+        if (!msg || typeof msg !== "object") continue;
+        const text = consoleInteractiveChatText(msg);
+        if (!text) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        const toId = normalizeNodeId((msg.to || msg.destination || ""));
+        const isTranscriptMessage = (
+          (fromId === targetNodeId && toId === localNodeId)
+          || (fromId === localNodeId && toId === targetNodeId)
+        );
+        if (!isTranscriptMessage) continue;
+        const key = consoleInteractiveChatKey(msg);
+        if (!key || session.seenKeys.has(key)) continue;
+        session.seenKeys.add(key);
+        const fromLabel = fromId === localNodeId
+          ? "you"
+          : (preferredConsoleTargetLabel(fromId, state) || fromId || "peer");
+        appendConsoleLine(
+          `interactive|${{String(session.name || "session")}}|${{key}}`,
+          `${{fromLabel}}: ${{text}}`,
+          consoleInteractiveChatTimestampMs(msg)
+        );
+      }}
+    }}
+
+    async function sendConsoleInteractiveSessionLine(rawLine) {{
+      const session = consoleInteractiveSession;
+      if (!session) {{
+        return "[console] no interactive session is active.";
+      }}
+      const text = String(rawLine == null ? "" : rawLine).trim();
+      if (!text) return "";
+      if (String(session.mode || "") === "standalone") {{
+        const payload = await postStandaloneZorkCommand(text, session.sessionId || "");
+        const nextSessionId = String(payload && payload.session_id ? payload.session_id : session.sessionId || "").trim();
+        if (nextSessionId) {{
+          session.sessionId = nextSessionId;
+          persistConsoleSessionState();
+        }}
+        const replyTextRaw = String(
+          payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
+            ? (payload.reply_text ?? "")
+            : ""
+        );
+        const replyText = normalizeStandaloneZorkReplyText(replyTextRaw);
+        if (replyText.trim()) {{
+          const receivedAtMs = Date.now();
+          appendConsoleLine(
+            `interactive|standalone|${{String(session.sessionId || "session")}}|${{receivedAtMs}}`,
+            replyText,
+            receivedAtMs,
+            true
+          );
+        }}
+        if (payload && payload.active_session === false) {{
+          stopConsoleInteractiveSession("game ended", false);
+        }}
+        return "";
+      }}
+      const body = {{
+        text,
+        destination: session.targetNodeId,
+        channel_index: session.channelIndex,
+      }};
+      const payload = await sendChatPayload(body, null);
+      if (!(payload && payload.ok)) {{
+        throw new Error("send failed");
+      }}
+      const messageId = messageIdOfChatPacket(payload || {{}});
+      if (messageId) {{
+        session.seenKeys.add(`id:${{messageId}}`);
+      }}
+      requestImmediatePoll(80);
+      return "";
+    }}
+
