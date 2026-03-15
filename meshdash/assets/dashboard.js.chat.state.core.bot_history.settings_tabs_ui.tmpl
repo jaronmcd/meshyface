@@ -110,28 +110,13 @@
     }}
 
     function syncBotsReviewTabUi() {{
-      const historyBtn = document.getElementById("bots-tab-history-btn");
-      const snifferBtn = document.getElementById("bots-tab-sniffer-btn");
       const historyPanel = document.getElementById("bots-history-tab-panel");
-      const snifferPanel = document.getElementById("bots-sniffer-tab-panel");
       const clearBtn = document.getElementById("bots-history-clear-btn");
-      const historyActive = activeBotsReviewTab !== "sniffer";
-      if (historyBtn instanceof HTMLButtonElement) {{
-        historyBtn.classList.toggle("is-active", historyActive);
-        historyBtn.setAttribute("aria-selected", historyActive ? "true" : "false");
-      }}
-      if (snifferBtn instanceof HTMLButtonElement) {{
-        snifferBtn.classList.toggle("is-active", !historyActive);
-        snifferBtn.setAttribute("aria-selected", historyActive ? "false" : "true");
-      }}
+      activeBotsReviewTab = "history";
       if (historyPanel instanceof HTMLElement) {{
-        historyPanel.hidden = !historyActive;
-      }}
-      if (snifferPanel instanceof HTMLElement) {{
-        snifferPanel.hidden = historyActive;
+        historyPanel.hidden = false;
       }}
       if (clearBtn instanceof HTMLButtonElement) {{
-        clearBtn.hidden = !historyActive;
+        clearBtn.hidden = false;
       }}
     }}
-

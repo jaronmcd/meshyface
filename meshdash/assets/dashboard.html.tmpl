@@ -1536,71 +1536,22 @@
                 </div>
               </div>
             </div>
-            <div class="bots-panel bots-assistant-panel">
-              <h3>Bot Assistant</h3>
-              <label class="chat-bot-toggle-wrap bots-master-toggle" for="chat-bot-commands-enabled" title="Master switch for browser-side bot helpers. Turn off to disable Whois helper controls and local bot-history matching in this browser.">
-                <input id="chat-bot-commands-enabled" type="checkbox" />
-                <span>Enable Bot Assistant</span>
-              </label>
-              <label class="chat-bot-toggle-wrap" for="chat-bot-whois-enabled" title="Show Whois helper action in chat rows">
-                <input id="chat-bot-whois-enabled" type="checkbox" />
-                <span>Enable Whois quick action</span>
-              </label>
-              <label class="chat-change-scope-wrap bots-whois-prefix-wrap" for="chat-bot-whois-prefix" title="Whois command prefix used when drafting">
-                <span class="chat-change-scope-label">Whois command</span>
-                <select id="chat-bot-whois-prefix" class="chat-change-scope-select" aria-label="Whois command prefix">
-                  <option value="whois">whois (recommended)</option>
-                  <option value="!whois">!whois</option>
-                  <option value="#whois">#whois</option>
-                </select>
-              </label>
-              <label class="chat-bot-toggle-wrap" for="chat-bot-whois-thread-reply" title="When enabled, Whois drafts reply to the selected chat packet">
-                <input id="chat-bot-whois-thread-reply" type="checkbox" />
-                <span>Attach Whois as reply</span>
-              </label>
-              <label class="chat-bot-toggle-wrap" for="chat-bot-history-enabled" title="Persist bot command history and match replies to requests">
-                <input id="chat-bot-history-enabled" type="checkbox" />
-                <span>Track bot request history</span>
-              </label>
-            </div>
           </div>
           <div id="bots-main-splitter" class="bots-main-splitter" title="Drag to resize bot controls and bot review"></div>
           <div class="bots-panel bots-history-panel">
             <div class="bots-history-head">
               <div class="bots-review-head-copy">
-                <h3>Bot Review</h3>
-                <div class="bots-review-tabs" role="tablist" aria-label="Bot review views">
-                  <button id="bots-tab-history-btn" class="bots-review-tab is-active" type="button" role="tab" aria-selected="true">Request History</button>
-                  <button id="bots-tab-sniffer-btn" class="bots-review-tab" type="button" role="tab" aria-selected="false">Traffic Sniffer</button>
-                </div>
+                <h3>Bot History</h3>
               </div>
               <button id="bots-history-clear-btn" class="btn btn-secondary bots-history-clear-btn" type="button">Clear History</button>
             </div>
-            <div id="bots-history-tab-panel" class="bots-tab-panel" role="tabpanel" aria-labelledby="bots-tab-history-btn">
+            <div id="bots-history-tab-panel" class="bots-tab-panel" role="region" aria-label="Bot history">
               <div class="bots-history-stats">
                 <span>Total <strong id="bots-history-total">0</strong></span>
                 <span>Pending <strong id="bots-history-pending">0</strong></span>
                 <span>Responded <strong id="bots-history-responded">0</strong></span>
               </div>
               <div id="bots-history-list" class="scroll bots-history-list" aria-live="polite"></div>
-            </div>
-            <div id="bots-sniffer-tab-panel" class="bots-tab-panel" role="tabpanel" aria-labelledby="bots-tab-sniffer-btn" hidden>
-              <div class="bots-sniffer-controls">
-                <label class="bots-sniffer-filter-wrap" for="bots-sniffer-command-input">
-                  <span class="bots-sniffer-filter-label">Tracked Commands</span>
-                  <input id="bots-sniffer-command-input" class="bots-sniffer-command-input" type="text" placeholder="cmd, whois, ping, wx, zork" autocomplete="off" />
-                </label>
-                <div class="bots-sniffer-actions">
-                  <button id="bots-sniffer-apply-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Apply</button>
-                  <button id="bots-sniffer-reset-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Defaults</button>
-                </div>
-              </div>
-              <div class="bots-history-stats">
-                <span>Total <strong id="bots-sniffer-total">0</strong></span>
-                <span>Senders <strong id="bots-sniffer-senders">0</strong></span>
-                <span>Commands <strong id="bots-sniffer-commands">0</strong></span>
-              </div>
-              <div id="bots-sniffer-list" class="scroll bots-history-list" aria-live="polite"></div>
             </div>
           </div>
         </div>

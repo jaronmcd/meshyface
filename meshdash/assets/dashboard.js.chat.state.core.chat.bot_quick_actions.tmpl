@@ -270,43 +270,13 @@
     }}
 
     function loadChatWhoisQuickActionConfig() {{
-      const config = {{}};
-      try {{
-        config.enabled = parseBoolToken(window.localStorage.getItem(chatWhoisQuickActionEnabledStorageKey), true);
-      }} catch (_err) {{
-        config.enabled = true;
-      }}
-      try {{
-        config.prefix = normalizeWhoisCommandPrefix(
-          window.localStorage.getItem(chatWhoisQuickActionPrefixStorageKey) || "whois"
-        );
-      }} catch (_err) {{
-        config.prefix = "whois";
-      }}
-      try {{
-        config.threadReply = parseBoolToken(
-          window.localStorage.getItem(chatWhoisQuickActionThreadReplyStorageKey),
-          true
-        );
-      }} catch (_err) {{
-        config.threadReply = true;
-      }}
-      try {{
-        config.commandsEnabled = parseBoolToken(
-          window.localStorage.getItem(chatBotCommandsEnabledStorageKey),
-          true
-        );
-      }} catch (_err) {{
-        config.commandsEnabled = true;
-      }}
-      try {{
-        config.historyEnabled = parseBoolToken(
-          window.localStorage.getItem(chatBotHistoryEnabledStorageKey),
-          true
-        );
-      }} catch (_err) {{
-        config.historyEnabled = true;
-      }}
+      const config = {{
+        enabled: false,
+        prefix: "whois",
+        threadReply: true,
+        commandsEnabled: true,
+        historyEnabled: true,
+      }};
       applyChatWhoisQuickActionConfig(config, false);
     }}
 
@@ -410,4 +380,3 @@
         }});
       }}
     }}
-

@@ -10,7 +10,7 @@
               ev.preventDefault();
               ev.stopPropagation();
               if (!chatBotCommandsEnabled) {{
-                setChatSendStatus("Whois quick action is disabled. Enable Bot Assistant in Bots view.", true);
+                setChatSendStatus("Whois quick action is unavailable.", true);
                 return;
               }}
               const whoisTargetId = normalizeNodeId(

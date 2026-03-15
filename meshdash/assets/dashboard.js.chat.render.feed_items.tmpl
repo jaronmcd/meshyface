@@ -202,16 +202,7 @@
         const ackButton = canAck
           ? `<button type="button" class="chat-ack-btn" data-ack-reply-id="${{escAttr(messageId)}}" data-ack-text="${{escAttr(ackText)}}" data-ack-text-mode="pong" data-ack-destination="${{escAttr(ackDestination)}}" data-ack-channel="${{escAttr(meshIdx)}}" data-ack-target-label="${{escAttr(ackTargetLabel)}}" data-ack-source-id="${{escAttr(sourceNode)}}" data-ack-source-label="${{escAttr(fromMeta.label || "")}}" data-ack-received-unix="${{escAttr(ackReceivedUnix)}}" data-ack-hop-count="${{escAttr(ackHopCount)}}" data-ack-rx-snr="${{escAttr(rxSnr == null ? "" : rxSnr)}}" data-ack-rx-rssi="${{escAttr(rxRssi == null ? "" : rxRssi)}}" title="Quick ACK reply (pong-style): ${{escAttr(ackText)}}">Ack</button>`
           : "";
-        const whoisTargetId = normalizeNodeId(sourceNode);
-        const whoisSuffix = nodeIdSuffixForWhois(whoisTargetId);
-        const whoisCommand = buildWhoisCommandForNode(whoisTargetId);
-        const showWhoisButton = chatBotCommandsEnabled
-          && chatWhoisQuickActionEnabled
-          && isCanonicalNodeId(whoisTargetId)
-          && !!whoisSuffix;
-        const whoisButton = showWhoisButton
-          ? `<button type="button" class="chat-whois-btn" data-whois-target-id="${{escAttr(whoisTargetId)}}" title="Prepare ${{escAttr(whoisCommand)}} for ${{escAttr(whoisTargetId)}}">Whois</button>`
-          : "";
+        const whoisButton = "";
         const hasReactions = reactionGroups.length > 0;
         const reactButton = messageId
           ? `<button type="button" class="chat-react-btn${{hasReactions ? " has-reactions" : ""}}" data-reply-id="${{escAttr(messageId)}}" title="Add reaction" aria-label="Add reaction">+</button>`

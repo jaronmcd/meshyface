@@ -3,7 +3,6 @@
       renderManagedBotCommandList();
       syncChatWhoisQuickActionControls();
       syncBotsReviewTabUi();
-      renderBotTrafficSnifferTab(state);
       const listEl = document.getElementById("bots-history-list");
       const totalEl = document.getElementById("bots-history-total");
       const pendingEl = document.getElementById("bots-history-pending");
@@ -22,17 +21,9 @@
       if (respondedEl instanceof HTMLElement) respondedEl.textContent = String(responded);
 
       if (entries.length === 0) {{
-        listEl.innerHTML = chatBotHistoryEnabled
-          ? '<div class="bots-history-empty">No tracked bot requests yet. Send a <code>whois</code> or <code>ping</code> command, or wait for mesh bot traffic.</div>'
-          : '<div class="bots-history-empty">Bot request history tracking is disabled.</div>';
+        listEl.innerHTML = '<div class="bots-history-empty">No tracked bot requests yet. Send a <code>whois</code> or <code>ping</code> command, or wait for mesh bot traffic.</div>';
         return;
       }}
-      const commandsDisabledNotice = !chatBotCommandsEnabled
-        ? '<div class="bots-history-empty">Quick actions are disabled for this browser. You can still type commands manually in chat; backend-observed mesh requests still appear here when available.</div>'
-        : "";
-      const disabledNotice = !chatBotHistoryEnabled
-        ? '<div class="bots-history-empty">Tracking is disabled. Existing history is shown read-only; new requests and matches will not be recorded.</div>'
-        : "";
 
       const nodeLabel = buildBotNodeLabelResolver(state);
 
@@ -94,7 +85,7 @@
           ${{responseBlock}}
         </article>`;
       }});
-      listEl.innerHTML = `${{commandsDisabledNotice}}${{disabledNotice}}${{rows.join("")}}`;
+      listEl.innerHTML = rows.join("");
     }}
 
     function bindBotHistoryControls() {{
@@ -115,37 +106,6 @@
         historyBtn.addEventListener("click", () => {{
           activeBotsReviewTab = "history";
           syncBotsReviewTabUi();
-        }});
-      }}
-      const snifferBtn = document.getElementById("bots-tab-sniffer-btn");
-      if (snifferBtn instanceof HTMLButtonElement && snifferBtn.dataset.bound !== "1") {{
-        snifferBtn.dataset.bound = "1";
-        snifferBtn.addEventListener("click", () => {{
-          activeBotsReviewTab = "sniffer";
-          syncBotsReviewTabUi();
-        }});
-      }}
-      const applyBtn = document.getElementById("bots-sniffer-apply-btn");
-      const input = document.getElementById("bots-sniffer-command-input");
-      if (applyBtn instanceof HTMLButtonElement && applyBtn.dataset.bound !== "1") {{
-        applyBtn.dataset.bound = "1";
-        applyBtn.addEventListener("click", () => {{
-          applyBotTrafficSnifferCommandHeads(input instanceof HTMLInputElement ? input.value : "");
-        }});
-      }}
-      if (input instanceof HTMLInputElement && input.dataset.bound !== "1") {{
-        input.dataset.bound = "1";
-        input.addEventListener("keydown", (event) => {{
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          applyBotTrafficSnifferCommandHeads(input.value);
-        }});
-      }}
-      const resetBtn = document.getElementById("bots-sniffer-reset-btn");
-      if (resetBtn instanceof HTMLButtonElement && resetBtn.dataset.bound !== "1") {{
-        resetBtn.dataset.bound = "1";
-        resetBtn.addEventListener("click", () => {{
-          applyBotTrafficSnifferCommandHeads(defaultBotTrafficSnifferCommandHeads);
         }});
       }}
     }}
