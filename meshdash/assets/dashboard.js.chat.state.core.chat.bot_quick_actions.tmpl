@@ -1,0 +1,413 @@
+    function normalizeWhoisCommandPrefix(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return knownWhoisCommandPrefixes.has(clean) ? clean : "whois";
+    }}
+
+    function nodeIdSuffixForWhois(nodeId) {{
+      const clean = String(nodeId || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (!clean) return "";
+      return clean.slice(-4);
+    }}
+
+    function buildWhoisCommandForNode(nodeId, prefixValue = chatWhoisQuickActionPrefix) {{
+      const prefix = normalizeWhoisCommandPrefix(prefixValue);
+      const suffix = nodeIdSuffixForWhois(nodeId);
+      if (!suffix) return prefix;
+      return `${{prefix}} ${{suffix}}`;
+    }}
+
+    function normalizeServerBotCommand(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+      const name = String(raw.name || raw.command || "").trim().toLowerCase();
+      if (!name) return null;
+      const usage = String(raw.usage || name).trim() || name;
+      const description = String(raw.description || "").trim();
+      const kindRaw = String(raw.kind || "builtin").trim().toLowerCase();
+      const kind = kindRaw === "custom"
+        ? "custom"
+        : (kindRaw === "game" ? "game" : "builtin");
+      return {{
+        name,
+        usage,
+        description,
+        kind,
+        enabled: parseBoolToken(raw.enabled, true),
+      }};
+    }}
+
+    function normalizeServerBotSettings(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {{
+        return {{
+          available: false,
+          enabled: true,
+          log_enabled: true,
+          game_enabled: false,
+          game_public_start_enabled: false,
+          active_game_sessions: 0,
+          commands: [],
+          disabled_commands: [],
+        }};
+      }}
+      const sessionsRaw = Number(raw.active_game_sessions ?? raw.activeGameSessions ?? 0);
+      const commandsRaw = Array.isArray(raw.commands) ? raw.commands : [];
+      const commands = [];
+      const seen = new Set();
+      for (const row of commandsRaw) {{
+        const normalized = normalizeServerBotCommand(row);
+        if (!normalized || seen.has(normalized.name)) continue;
+        commands.push(normalized);
+        seen.add(normalized.name);
+      }}
+      const disabledRaw = Array.isArray(raw.disabled_commands ?? raw.disabledCommands)
+        ? (raw.disabled_commands ?? raw.disabledCommands)
+        : [];
+      const disabledCommands = [];
+      const disabledSeen = new Set();
+      for (const value of disabledRaw) {{
+        const clean = String(value || "").trim().toLowerCase();
+        if (!clean || disabledSeen.has(clean)) continue;
+        disabledCommands.push(clean);
+        disabledSeen.add(clean);
+      }}
+      return {{
+        available: true,
+        enabled: parseBoolToken(raw.enabled, true),
+        log_enabled: parseBoolToken(raw.log_enabled ?? raw.logEnabled, true),
+        game_enabled: parseBoolToken(raw.game_enabled ?? raw.gameEnabled, false),
+        game_public_start_enabled: parseBoolToken(
+          raw.game_public_start_enabled ?? raw.gamePublicStartEnabled,
+          false
+        ),
+        active_game_sessions: Number.isFinite(sessionsRaw) && sessionsRaw >= 0 ? Math.trunc(sessionsRaw) : 0,
+        commands,
+        disabled_commands: disabledCommands,
+      }};
+    }}
+
+    function applyServerBotSettingsFromState(state = latestState) {{
+      const normalized = normalizeServerBotSettings(state && state.bot_settings);
+      serverBotSettings = normalized;
+      return normalized.available;
+    }}
+
+    async function saveServerBotSettingsPatch(patch = {{}}, { quiet = false } = {{}}) {{
+      if (!patch || typeof patch !== "object") {{
+        return false;
+      }}
+      botSettingsSaveInFlight = true;
+      syncChatWhoisQuickActionControls();
+      try {{
+        const resp = await fetch(botSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(patch),
+        }});
+        const payload = await resp.json().catch(() => ({{ ok: false, error: `API ${{resp.status}}` }}));
+        if (!resp.ok || !payload || payload.ok === false) {{
+          const message = payload && payload.error ? payload.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        serverBotSettings = normalizeServerBotSettings(payload);
+        if (!quiet) {{
+          setChatSendStatus(
+            "Bot settings updated.",
+            false
+          );
+        }}
+        if (latestState && typeof latestState === "object") {{
+          latestState.bot_settings = {{ ...payload }};
+        }}
+        if (activeLayoutView === "bots") {{
+          renderBotsView(latestState);
+        }}
+        return true;
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        if (!quiet) {{
+          setChatSendStatus(`Failed to update bot settings: ${{msg}}`, true);
+        }}
+        appendConsoleLine(`bot-settings-save|${{Date.now()}}|${{msg}}`, `[bot settings] save failed: ${{msg}}`);
+      }} finally {{
+        botSettingsSaveInFlight = false;
+        syncChatWhoisQuickActionControls();
+      }}
+      return false;
+    }}
+
+    function syncChatWhoisQuickActionControls() {{
+      const masterInput = document.getElementById("bots-command-master-enabled");
+      const commandEnabledInput = document.getElementById("bots-command-selected-enabled");
+      const publicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      const enabledInput = document.getElementById("chat-bot-whois-enabled");
+      const prefixSelect = document.getElementById("chat-bot-whois-prefix");
+      const threadReplyInput = document.getElementById("chat-bot-whois-thread-reply");
+      const commandsInput = document.getElementById("chat-bot-commands-enabled");
+      const historyInput = document.getElementById("chat-bot-history-enabled");
+      const commandsEnabled = !!chatBotCommandsEnabled;
+      const enabled = commandsEnabled && !!chatWhoisQuickActionEnabled;
+      const prefix = normalizeWhoisCommandPrefix(chatWhoisQuickActionPrefix);
+      const zorkCommand = Array.isArray(serverBotSettings.commands)
+        ? serverBotSettings.commands.find((row) => String(row && row.name || "").trim().toLowerCase() === "zork")
+        : null;
+      const selectedCommandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      const selectedCommand = Array.isArray(serverBotSettings.commands)
+        ? serverBotSettings.commands.find((row) => String(row && row.name || "").trim().toLowerCase() === selectedCommandName)
+        : null;
+      const zorkEnabled = !!(zorkCommand && zorkCommand.enabled);
+      const selectedIsZork = !!(selectedCommand && selectedCommand.name === "zork");
+      const available = !!serverBotSettings.available;
+      if (enabledInput instanceof HTMLInputElement) {{
+        enabledInput.checked = !!chatWhoisQuickActionEnabled;
+        enabledInput.disabled = !commandsEnabled;
+      }}
+      if (prefixSelect instanceof HTMLSelectElement) {{
+        prefixSelect.value = prefix;
+        prefixSelect.disabled = !enabled;
+      }}
+      if (threadReplyInput instanceof HTMLInputElement) {{
+        threadReplyInput.checked = !!chatWhoisQuickActionThreadReply;
+        threadReplyInput.disabled = !enabled;
+      }}
+      if (commandsInput instanceof HTMLInputElement) {{
+        commandsInput.checked = commandsEnabled;
+      }}
+      if (historyInput instanceof HTMLInputElement) {{
+        historyInput.checked = !!chatBotHistoryEnabled;
+        historyInput.disabled = !commandsEnabled;
+      }}
+      if (masterInput instanceof HTMLInputElement) {{
+        masterInput.checked = !!serverBotSettings.enabled;
+        masterInput.disabled = !available || botSettingsSaveInFlight;
+        if (!available) {{
+          masterInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (botSettingsSaveInFlight) {{
+          masterInput.title = "Saving bot response setting...";
+        }} else {{
+          masterInput.title = "Enable or disable all backend bot responses on this node.";
+        }}
+      }}
+      if (commandEnabledInput instanceof HTMLInputElement) {{
+        commandEnabledInput.checked = !!(selectedCommand && selectedCommand.enabled);
+        commandEnabledInput.disabled = !available || !selectedCommand || botSettingsSaveInFlight;
+        if (!available) {{
+          commandEnabledInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedCommand) {{
+          commandEnabledInput.title = "Select a bot command to edit.";
+        }} else if (botSettingsSaveInFlight) {{
+          commandEnabledInput.title = "Saving bot command settings...";
+        }} else if (!serverBotSettings.enabled) {{
+          commandEnabledInput.title = "Bot responses are globally disabled. Per-command settings are preserved.";
+        }} else {{
+          commandEnabledInput.title = "Enable or disable this backend bot command.";
+        }}
+      }}
+      if (publicStartInput instanceof HTMLInputElement) {{
+        publicStartInput.checked = !!serverBotSettings.game_public_start_enabled;
+        publicStartInput.disabled = !available || botSettingsSaveInFlight || !selectedIsZork;
+        if (!available) {{
+          publicStartInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsZork) {{
+          publicStartInput.title = "Select the zork command to edit this setting.";
+        }} else if (botSettingsSaveInFlight) {{
+          publicStartInput.title = "Saving zork handoff setting...";
+        }} else if (!serverBotSettings.enabled) {{
+          publicStartInput.title = "Bot responses are globally disabled. This setting will apply when responses are enabled.";
+        }} else if (!zorkEnabled) {{
+          publicStartInput.title = "Zork is disabled. This setting is saved and will apply when the game command is enabled.";
+        }} else {{
+          publicStartInput.title = "When enabled, a public 'zork' message starts the game with a direct peer-to-peer reply. Follow-up commands still need to continue in direct chat.";
+        }}
+      }}
+    }}
+
+    function applyChatWhoisQuickActionConfig(config = {{}}, persist = true) {{
+      const nextEnabled = Object.prototype.hasOwnProperty.call(config, "enabled")
+        ? !!config.enabled
+        : !!chatWhoisQuickActionEnabled;
+      const nextPrefix = Object.prototype.hasOwnProperty.call(config, "prefix")
+        ? normalizeWhoisCommandPrefix(config.prefix)
+        : normalizeWhoisCommandPrefix(chatWhoisQuickActionPrefix);
+      const nextThreadReply = Object.prototype.hasOwnProperty.call(config, "threadReply")
+        ? !!config.threadReply
+        : !!chatWhoisQuickActionThreadReply;
+      const nextCommandsEnabled = Object.prototype.hasOwnProperty.call(config, "commandsEnabled")
+        ? !!config.commandsEnabled
+        : !!chatBotCommandsEnabled;
+      const nextHistoryEnabled = Object.prototype.hasOwnProperty.call(config, "historyEnabled")
+        ? !!config.historyEnabled
+        : !!chatBotHistoryEnabled;
+      const changed = (
+        chatWhoisQuickActionEnabled !== nextEnabled
+        || chatWhoisQuickActionPrefix !== nextPrefix
+        || chatWhoisQuickActionThreadReply !== nextThreadReply
+        || chatBotCommandsEnabled !== nextCommandsEnabled
+        || chatBotHistoryEnabled !== nextHistoryEnabled
+      );
+      chatWhoisQuickActionEnabled = nextEnabled;
+      chatWhoisQuickActionPrefix = nextPrefix;
+      chatWhoisQuickActionThreadReply = nextThreadReply;
+      chatBotCommandsEnabled = nextCommandsEnabled;
+      chatBotHistoryEnabled = nextHistoryEnabled;
+      syncChatWhoisQuickActionControls();
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatWhoisQuickActionEnabledStorageKey, nextEnabled ? "1" : "0");
+          window.localStorage.setItem(chatWhoisQuickActionPrefixStorageKey, nextPrefix);
+          window.localStorage.setItem(chatWhoisQuickActionThreadReplyStorageKey, nextThreadReply ? "1" : "0");
+          window.localStorage.setItem(chatBotCommandsEnabledStorageKey, nextCommandsEnabled ? "1" : "0");
+          window.localStorage.setItem(chatBotHistoryEnabledStorageKey, nextHistoryEnabled ? "1" : "0");
+        }} catch (_err) {{
+        }}
+      }}
+      if (changed && latestState) {{
+        if (activeLayoutView === "chat") {{
+          renderChat(latestState);
+        }}
+        if (activeLayoutView === "bots") {{
+          renderBotsView(latestState);
+        }}
+      }}
+    }}
+
+    function loadChatWhoisQuickActionConfig() {{
+      const config = {{}};
+      try {{
+        config.enabled = parseBoolToken(window.localStorage.getItem(chatWhoisQuickActionEnabledStorageKey), true);
+      }} catch (_err) {{
+        config.enabled = true;
+      }}
+      try {{
+        config.prefix = normalizeWhoisCommandPrefix(
+          window.localStorage.getItem(chatWhoisQuickActionPrefixStorageKey) || "whois"
+        );
+      }} catch (_err) {{
+        config.prefix = "whois";
+      }}
+      try {{
+        config.threadReply = parseBoolToken(
+          window.localStorage.getItem(chatWhoisQuickActionThreadReplyStorageKey),
+          true
+        );
+      }} catch (_err) {{
+        config.threadReply = true;
+      }}
+      try {{
+        config.commandsEnabled = parseBoolToken(
+          window.localStorage.getItem(chatBotCommandsEnabledStorageKey),
+          true
+        );
+      }} catch (_err) {{
+        config.commandsEnabled = true;
+      }}
+      try {{
+        config.historyEnabled = parseBoolToken(
+          window.localStorage.getItem(chatBotHistoryEnabledStorageKey),
+          true
+        );
+      }} catch (_err) {{
+        config.historyEnabled = true;
+      }}
+      applyChatWhoisQuickActionConfig(config, false);
+    }}
+
+    function bindChatWhoisQuickActionControls() {{
+      const enabledInput = document.getElementById("chat-bot-whois-enabled");
+      if (enabledInput instanceof HTMLInputElement && enabledInput.dataset.bound !== "1") {{
+        enabledInput.dataset.bound = "1";
+        enabledInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ enabled: enabledInput.checked }}, true);
+        }});
+      }}
+      const prefixSelect = document.getElementById("chat-bot-whois-prefix");
+      if (prefixSelect instanceof HTMLSelectElement && prefixSelect.dataset.bound !== "1") {{
+        prefixSelect.dataset.bound = "1";
+        prefixSelect.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ prefix: prefixSelect.value }}, true);
+        }});
+      }}
+      const threadReplyInput = document.getElementById("chat-bot-whois-thread-reply");
+      if (threadReplyInput instanceof HTMLInputElement && threadReplyInput.dataset.bound !== "1") {{
+        threadReplyInput.dataset.bound = "1";
+        threadReplyInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ threadReply: threadReplyInput.checked }}, true);
+        }});
+      }}
+      const commandsInput = document.getElementById("chat-bot-commands-enabled");
+      if (commandsInput instanceof HTMLInputElement && commandsInput.dataset.bound !== "1") {{
+        commandsInput.dataset.bound = "1";
+        commandsInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ commandsEnabled: commandsInput.checked }}, true);
+        }});
+      }}
+      const historyInput = document.getElementById("chat-bot-history-enabled");
+      if (historyInput instanceof HTMLInputElement && historyInput.dataset.bound !== "1") {{
+        historyInput.dataset.bound = "1";
+        historyInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ historyEnabled: historyInput.checked }}, true);
+        }});
+      }}
+      syncChatWhoisQuickActionControls();
+    }}
+
+    function bindBotCommandCatalogControls() {{
+      const masterInput = document.getElementById("bots-command-master-enabled");
+      if (masterInput instanceof HTMLInputElement && masterInput.dataset.bound !== "1") {{
+        masterInput.dataset.bound = "1";
+        masterInput.addEventListener("change", async () => {{
+          const nextValue = !!masterInput.checked;
+          const ok = await saveServerBotSettingsPatch({{ enabled: nextValue }});
+          if (!ok) {{
+            masterInput.checked = !!serverBotSettings.enabled;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const list = document.getElementById("bots-command-list");
+      if (list instanceof HTMLElement && list.dataset.bound !== "1") {{
+        list.dataset.bound = "1";
+        list.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".bots-command-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          const commandName = String(item.dataset.commandName || "").trim().toLowerCase();
+          if (!commandName) return;
+          activeBotCommandSettingsId = commandName;
+          renderManagedBotCommandList();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const selectedEnabledInput = document.getElementById("bots-command-selected-enabled");
+      if (selectedEnabledInput instanceof HTMLInputElement && selectedEnabledInput.dataset.bound !== "1") {{
+        selectedEnabledInput.dataset.bound = "1";
+        selectedEnabledInput.addEventListener("change", async () => {{
+          const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+          if (!commandName) return;
+          const ok = await saveServerBotSettingsPatch({{
+            command_settings: {{
+              [commandName]: !!selectedEnabledInput.checked,
+            }},
+          }});
+          if (!ok) {{
+            renderBotsView(latestState);
+            return;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const selectedPublicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      if (selectedPublicStartInput instanceof HTMLInputElement && selectedPublicStartInput.dataset.bound !== "1") {{
+        selectedPublicStartInput.dataset.bound = "1";
+        selectedPublicStartInput.addEventListener("change", async () => {{
+          const ok = await saveServerBotSettingsPatch({{
+            game_public_start_enabled: !!selectedPublicStartInput.checked,
+          }});
+          if (!ok) {{
+            renderBotsView(latestState);
+            return;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+    }}
+

@@ -1,0 +1,779 @@
+      const savedChip = document.getElementById("updated-freshness");
+      if (savedChip instanceof HTMLElement) {{
+        const savedNodeId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(latestState)
+          : "";
+        if (activeLayoutView === "saved" && isSelectableNodeId(savedNodeId)) {{
+          const node = nodesById.get(savedNodeId);
+          const caps = capsById.get(savedNodeId);
+          const chatTouch = latestChatTouchByNode.get(savedNodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+          const status = freshnessStatus(lastSeenUnix, nowUnix);
+          const key = normalizeFreshnessKey(status);
+          savedChip.textContent = key === "online"
+            ? "Fresh"
+            : (key === "warn" ? "Aging" : (key === "stale" ? "Stale" : "Unknown"));
+          applyFreshnessClass(savedChip, key);
+          savedChip.hidden = false;
+        }} else {{
+          savedChip.textContent = "";
+          savedChip.hidden = true;
+          applyFreshnessClass(savedChip, "unknown");
+        }}
+      }}
+    }}
+
+
+    function normalizeChatChannel(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (knownChatChannels.has(clean)) return clean;
+      if (clean.startsWith("room:")) {{
+        const slug = clean.slice(5).trim();
+        if (roomSlugRe.test(slug)) return `room:${{slug}}`;
+      }}
+      return "all";
+    }}
+
+    function channelLabel(key) {{
+      if (key === "direct") return "Peer-to-peer";
+      if (typeof key === "string" && key.startsWith("room:")) return `#${{key.slice(5)}}`;
+      return "Everyone";
+    }}
+
+    function normalizeDeliveryState(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      return knownDeliveryStates.has(clean) ? clean : "";
+    }}
+
+    function formatHopCountLabel(hops, fallback = "hops n/a") {{
+      const hopCount = Number(hops);
+      if (Number.isInteger(hopCount) && hopCount >= 0) {{
+        return `${{hopCount}} hop${{hopCount === 1 ? "" : "s"}}`;
+      }}
+      return String(fallback || "").trim() || "hops n/a";
+    }}
+
+    function computeRoundTripMs(sentMsRaw, responseMsRaw) {{
+      const sentMs = Number(sentMsRaw);
+      const responseMs = Number(responseMsRaw);
+      if (!Number.isFinite(sentMs) || sentMs <= 0) return null;
+      if (!Number.isFinite(responseMs) || responseMs <= 0) return null;
+      if (responseMs < sentMs) return null;
+      return Math.round(responseMs - sentMs);
+    }}
+
+    function buildResponseTelemetry(sentMsRaw, responseMsRaw, hopsRaw) {{
+      return {{
+        rttMs: computeRoundTripMs(sentMsRaw, responseMsRaw),
+        hopLabel: formatHopCountLabel(hopsRaw),
+      }};
+    }}
+
+    function buildResponseTelemetryMetaHtml(sentMsRaw, responseMsRaw, hopsRaw) {{
+      const telemetry = buildResponseTelemetry(sentMsRaw, responseMsRaw, hopsRaw);
+      return `<div class="bots-history-meta"><span>RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}</span><span>${{escAttr(telemetry.hopLabel)}}</span></div>`;
+    }}
+
+    function buildDeliveredAckDetail(msg, ackMeta = null) {{
+      if (!msg || typeof msg !== "object") return "";
+      const sentMs = latestTimestampMs(
+        msg.sent_at,
+        msg.created_at,
+        msg.captured_at,
+        msg.rx_time,
+        msg.time,
+      );
+      const ackInfo = (ackMeta && typeof ackMeta === "object") ? ackMeta : null;
+      const ackMs = (
+        parseDashboardTimeToMs(ackInfo && (ackInfo.rx_ms ?? ackInfo.rxMs))
+        || latestTimestampMs(
+          msg.delivery_updated_unix,
+          msg.delivery_updated_at,
+          msg.updated_at,
+          msg.updatedAt,
+        )
+      );
+      const telemetry = buildResponseTelemetry(sentMs, ackMs, ackInfo && (ackInfo.hops ?? ackInfo.hopCount));
+      const parts = [
+        `RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}`,
+        telemetry.hopLabel,
+      ];
+      const rxSnrRaw = Number(ackInfo && (ackInfo.rx_snr ?? ackInfo.rxSnr));
+      if (Number.isFinite(rxSnrRaw)) {{
+        parts.push(`snr ${{formatMetricValue(rxSnrRaw, 1)}} dB`);
+      }}
+      const rxRssiRaw = Number(ackInfo && (ackInfo.rx_rssi ?? ackInfo.rxRssi));
+      if (Number.isFinite(rxRssiRaw)) {{
+        parts.push(`rssi ${{formatMetricValue(rxRssiRaw, 0)}} dBm`);
+      }}
+      return parts.join(" | ");
+    }}
+
+    function indexMeshBotRequestsByMessageId(botRequestsRaw) {{
+      const requestByMessageId = new Map();
+      const responseByMessageId = new Map();
+      const rows = Array.isArray(botRequestsRaw) ? botRequestsRaw : [];
+      for (const rawRow of rows) {{
+        if (!rawRow || typeof rawRow !== "object") continue;
+        const source = String(rawRow.source || "").trim().toLowerCase();
+        if (source !== "mesh") continue;
+        const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
+        const responseMessageId = parsePositiveMessageId(
+          rawRow.response_message_id ?? rawRow.responseMessageId
+        );
+        if (requestMessageId) {{
+          requestByMessageId.set(String(requestMessageId), rawRow);
+        }}
+        if (responseMessageId) {{
+          responseByMessageId.set(String(responseMessageId), rawRow);
+        }}
+      }}
+      return {{ requestByMessageId, responseByMessageId }};
+    }}
+
+    function buildPacketSummaryAndRoutingAckMaps(rawPackets) {{
+      const packetSummaryById = new Map();
+      const deliveryAckByRequestId = new Map();
+      const entries = Array.isArray(rawPackets) ? rawPackets : [];
+      for (const entry of entries) {{
+        const summary = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const packet = (entry && entry.packet && typeof entry.packet === "object")
+          ? entry.packet
+          : {{}};
+        const decoded = (packet.decoded && typeof packet.decoded === "object")
+          ? packet.decoded
+          : {{}};
+        const packetId = parsePositiveMessageId(
+          summary.packet_id
+          ?? summary.message_id
+          ?? packet.id
+          ?? packet.packet_id
+          ?? packet.message_id
+        );
+        if (packetId) {{
+          packetSummaryById.set(String(packetId), entry);
+        }}
+
+        const portnum = String(summary.portnum ?? decoded.portnum ?? "").trim().toUpperCase();
+        if (portnum !== "ROUTING_APP") {{
+          continue;
+        }}
+        const routing = (decoded.routing && typeof decoded.routing === "object")
+          ? decoded.routing
+          : {{}};
+        const requestId = parsePositiveMessageId(
+          routing.requestId
+          ?? routing.request_id
+          ?? decoded.requestId
+          ?? decoded.request_id
+        );
+        if (!requestId) {{
+          continue;
+        }}
+        const ackMs = latestTimestampMs(
+          summary.rx_time_unix,
+          summary.rx_time,
+          summary.captured_at,
+          entry && (entry.captured_at || entry.rx_time),
+          packet.rxTime,
+        ) || 0;
+        const ackHops = hopCountOfChatPacket(summary) ?? hopCountOfChatPacket(packet);
+        const rxSnrRaw = Number(
+          summary.rx_snr
+          ?? summary.rxSnr
+          ?? packet.rx_snr
+          ?? packet.rxSnr
+        );
+        const rxRssiRaw = Number(
+          summary.rx_rssi
+          ?? summary.rxRssi
+          ?? packet.rx_rssi
+          ?? packet.rxRssi
+        );
+        const existingAck = deliveryAckByRequestId.get(String(requestId));
+        if (existingAck && Number(existingAck.rx_ms || 0) > ackMs) {{
+          continue;
+        }}
+        deliveryAckByRequestId.set(String(requestId), {{
+          request_id: requestId,
+          rx_ms: ackMs > 0 ? ackMs : null,
+          hops: Number.isInteger(ackHops) && ackHops >= 0 ? ackHops : null,
+          rx_snr: Number.isFinite(rxSnrRaw) ? rxSnrRaw : null,
+          rx_rssi: Number.isFinite(rxRssiRaw) ? Math.trunc(rxRssiRaw) : null,
+        }});
+      }}
+      return {{ packetSummaryById, deliveryAckByRequestId }};
+    }}
+
+    function formatLatencyLabel(latencyMsRaw) {{
+      const latencyMs = Number(latencyMsRaw);
+      if (!Number.isFinite(latencyMs) || latencyMs < 0) return "n/a";
+      const value = Math.max(0, Math.trunc(latencyMs));
+      if (value < 1000) return `${{value}}ms`;
+      if (value < 10000) return `${{(value / 1000).toFixed(1)}}s`;
+      const totalSeconds = Math.trunc(value / 1000);
+      const days = Math.trunc(totalSeconds / 86400);
+      const hours = Math.trunc((totalSeconds % 86400) / 3600);
+      const minutes = Math.trunc((totalSeconds % 3600) / 60);
+      const seconds = Math.trunc(totalSeconds % 60);
+      const parts = [];
+      if (days > 0) parts.push(`${{days}}d`);
+      if (hours > 0) parts.push(`${{hours}}h`);
+      if (minutes > 0) parts.push(`${{minutes}}m`);
+      if (seconds > 0 || parts.length === 0) parts.push(`${{seconds}}s`);
+      return parts.slice(0, 3).join(" ");
+    }}
+
+    function formatDistanceMiLabel(distanceKmRaw) {{
+      const distanceKm = Number(distanceKmRaw);
+      if (!Number.isFinite(distanceKm) || distanceKm < 0) return "";
+      const distanceMi = distanceKm * 0.621371;
+      if (distanceMi < 1) return "<1mi";
+      if (distanceMi < 10) return `${{distanceMi.toFixed(1)}}mi`;
+      return `${{Math.round(distanceMi)}}mi`;
+    }}
+
+    function formatSignalRssiLabel(valueRaw) {{
+      const value = Number(valueRaw);
+      if (!Number.isFinite(value)) return "";
+      return `${{Math.round(value)}}dBm`;
+    }}
+
+    function formatSignalSnrLabel(valueRaw) {{
+      const value = Number(valueRaw);
+      if (!Number.isFinite(value)) return "";
+      return `${{value.toFixed(1)}}dB`;
+    }}
+
+    function buildLinkSignalHintText(rssiRaw, snrRaw) {{
+      const parts = [];
+      const rssiLabel = formatSignalRssiLabel(rssiRaw);
+      if (rssiLabel) parts.push(rssiLabel);
+      const snrLabel = formatSignalSnrLabel(snrRaw);
+      if (snrLabel) parts.push(snrLabel);
+      if (parts.length === 0) return "";
+      return `link ${{parts.join(" / ")}} (last-hop)`;
+    }}
+
+    function haversineKm(latA, lonA, latB, lonB) {{
+      const earthRadiusKm = 6371.0;
+      const toRad = (value) => (Number(value) * Math.PI) / 180;
+      const latARad = toRad(latA);
+      const lonARad = toRad(lonA);
+      const latBRad = toRad(latB);
+      const lonBRad = toRad(lonB);
+      const dLat = latBRad - latARad;
+      const dLon = lonBRad - lonARad;
+      const hav = (
+        (Math.sin(dLat / 2) ** 2)
+        + (Math.cos(latARad) * Math.cos(latBRad) * (Math.sin(dLon / 2) ** 2))
+      );
+      return 2 * earthRadiusKm * Math.asin(Math.sqrt(Math.max(0, hav)));
+    }}
+
+    function nodeCoordsFromStateEntry(node) {{
+      if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+      const candidates = [
+        node,
+        node.position,
+        node.local_position,
+        node.localPosition,
+      ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+      for (const candidate of candidates) {{
+        const lat = coordinateValueFromSpecs(candidate, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]);
+        const lon = coordinateValueFromSpecs(candidate, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]);
+        if (!isValidLatLonRange(lat, lon)) continue;
+        if (Math.abs(Number(lat)) < 1e-9 && Math.abs(Number(lon)) < 1e-9) continue;
+        return {{ lat: Number(lat), lon: Number(lon) }};
+      }}
+      return null;
+    }}
+
+    function nodePositionUnix(node) {{
+      if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+      const roots = [
+        node,
+        node.position,
+        node.local_position,
+        node.localPosition,
+      ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+      const raw = firstNestedValue(roots, [
+        "position_unix",
+        "positionUnix",
+        "position_time",
+        "positionTime",
+        "last_position_unix",
+        "lastPositionUnix",
+        "timestamp",
+        "time",
+      ]);
+      return parseDashboardTimeToUnix(raw);
+    }}
+
+    function nodePositionIsRecent(node, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const positionUnix = Number(nodePositionUnix(node));
+      if (!Number.isFinite(positionUnix) || positionUnix <= 0) {{
+        // Some payloads do not expose per-position timestamps; keep coordinates usable.
+        return true;
+      }}
+      if (positionUnix > (nowUnix + 3600)) return false;
+      return (nowUnix - positionUnix) <= requesterPositionMaxAgeSeconds;
+    }}
+
+    function offlineAtlasCityRowsFromPayload(payload) {{
+      const layers = (payload && typeof payload === "object" && payload.layers && typeof payload.layers === "object")
+        ? payload.layers
+        : {{}};
+      const cities = normalizeOfflineAtlasCollection(layers.cities);
+      const features = Array.isArray(cities.features) ? cities.features : [];
+      const rows = [];
+      for (const feature of features) {{
+        const geometry = (feature && typeof feature.geometry === "object") ? feature.geometry : null;
+        const coordinates = Array.isArray(geometry && geometry.coordinates)
+          ? geometry.coordinates
+          : null;
+        if (!coordinates || coordinates.length < 2) continue;
+        const lon = Number(coordinates[0]);
+        const lat = Number(coordinates[1]);
+        if (!isValidLatLonRange(lat, lon)) continue;
+        const props = (feature && typeof feature.properties === "object") ? feature.properties : {{}};
+        const name = sanitizeOfflineLabel(props.name, "");
+        if (!name) continue;
+        const stateText = sanitizeOfflineLabel(
+          props.state || props.region || props.admin1 || props.adm1name,
+          ""
+        );
+        const countryText = sanitizeOfflineLabel(
+          props.country || props.admin0 || props.adm0name || props.iso_a2 || props.iso_a3,
+          ""
+        );
+        const populationRaw = Number(
+          props.population ?? props.pop_max ?? props.popMax ?? props.pop
+        );
+        rows.push({{
+          lat: Number(lat),
+          lon: Number(lon),
+          name,
+          state: stateText,
+          country: countryText,
+          population: Number.isFinite(populationRaw) ? populationRaw : 0,
+        }});
+      }}
+      return rows;
+    }}
+
+    async function loadOfflineAtlasCityRows() {{
+      if (Array.isArray(offlineAtlasCityRowsCache)) {{
+        return offlineAtlasCityRowsCache;
+      }}
+      if (offlineAtlasCityRowsPromise) {{
+        return offlineAtlasCityRowsPromise;
+      }}
+      offlineAtlasCityRowsPromise = (async () => {{
+        try {{
+          const payload = await fetchOfflineAtlasPayload();
+          const rows = payload ? offlineAtlasCityRowsFromPayload(payload) : [];
+          offlineAtlasCityRowsCache = Array.isArray(rows) ? rows : [];
+          return offlineAtlasCityRowsCache;
+        }} catch (_err) {{
+          offlineAtlasCityRowsCache = [];
+          return offlineAtlasCityRowsCache;
+        }} finally {{
+          offlineAtlasCityRowsPromise = null;
+        }}
+      }})();
+      return offlineAtlasCityRowsPromise;
+    }}
+
+    async function nearestOfflineCityHintFromCoords(latRaw, lonRaw, maxDistanceKm = botCityHintMaxDistanceKm) {{
+      const lat = Number(latRaw);
+      const lon = Number(lonRaw);
+      if (!isValidLatLonRange(lat, lon)) return "";
+      const rows = await loadOfflineAtlasCityRows();
+      if (!Array.isArray(rows) || rows.length === 0) return "";
+      const limitKm = Number(maxDistanceKm);
+      const maxDistance = Number.isFinite(limitKm) && limitKm > 0 ? limitKm : botCityHintMaxDistanceKm;
+      let best = null;
+      let bestDistanceKm = null;
+      for (const row of rows) {{
+        if (!row || typeof row !== "object") continue;
+        const cityLat = Number(row.lat);
+        const cityLon = Number(row.lon);
+        if (!isValidLatLonRange(cityLat, cityLon)) continue;
+        const distanceKm = haversineKm(lat, lon, cityLat, cityLon);
+        if (!Number.isFinite(distanceKm) || distanceKm < 0) continue;
+        if (best == null || bestDistanceKm == null || distanceKm < bestDistanceKm) {{
+          best = row;
+          bestDistanceKm = distanceKm;
+          continue;
+        }}
+        if (Math.abs(distanceKm - bestDistanceKm) < 0.01) {{
+          const candidatePop = Number(row.population) || 0;
+          const bestPop = Number(best.population) || 0;
+          if (candidatePop > bestPop) {{
+            best = row;
+            bestDistanceKm = distanceKm;
+          }}
+        }}
+      }}
+      if (!best || !Number.isFinite(bestDistanceKm) || bestDistanceKm > maxDistance) return "";
+      const cityName = sanitizeOfflineLabel(best.name, "");
+      if (!cityName) return "";
+      const stateName = sanitizeOfflineLabel(best.state, "");
+      const countryName = sanitizeOfflineLabel(best.country, "");
+      const place = stateName
+        ? `${{cityName}}, ${{stateName}}`
+        : (countryName ? `${{cityName}}, ${{countryName}}` : cityName);
+      const distanceLabel = formatDistanceMiLabel(bestDistanceKm);
+      if (distanceLabel) return `${{place}} (${{distanceLabel}})`;
+      return place;
+    }}
+
+    async function buildPongStyleAckReplyText(options = null, state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const sourceId = normalizeNodeId((options && options.source_id) || "");
+      const sourceNode = nodes.find((node) => normalizeNodeId(node && node.id) === sourceId) || null;
+
+      const receivedMs = parseDashboardTimeToMs(
+        options && (options.received_ms ?? options.received_unix ?? options.received_at)
+      );
+      const nowMs = Date.now();
+      const latencyMs = (Number.isFinite(receivedMs) && receivedMs > 0)
+        ? Math.max(0, nowMs - receivedMs)
+        : null;
+      const latencyText = formatLatencyLabel(latencyMs);
+      const hopText = formatHopCountLabel(options && options.hops, "hop count n/a");
+
+      const details = [];
+      const linkHint = buildLinkSignalHintText(
+        options && options.rx_rssi,
+        options && options.rx_snr
+      );
+      if (linkHint) {{
+        details.push(linkHint);
+      }}
+
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const localNode = nodes.find((node) => normalizeNodeId(node && node.id) === localNodeId) || null;
+      const localCoords = nodeCoordsFromStateEntry(localNode);
+      let botCityHint = "";
+      if (localCoords) {{
+        botCityHint = await nearestOfflineCityHintFromCoords(
+          localCoords.lat,
+          localCoords.lon,
+          botCityHintMaxDistanceKm
+        );
+      }}
+
+      let distanceHint = "";
+      const nowUnix = Math.floor(nowMs / 1000);
+      const requesterCoords = (
+        sourceNode && nodePositionIsRecent(sourceNode, nowUnix)
+          ? nodeCoordsFromStateEntry(sourceNode)
+          : null
+      );
+      if (localCoords && requesterCoords) {{
+        const distanceKm = haversineKm(
+          localCoords.lat,
+          localCoords.lon,
+          requesterCoords.lat,
+          requesterCoords.lon
+        );
+        distanceHint = formatDistanceMiLabel(distanceKm);
+      }}
+
+      if (botCityHint && distanceHint) {{
+        details.push(`bot near ${{botCityHint}}, about ${{distanceHint}} from you`);
+      }} else if (botCityHint) {{
+        details.push(`bot near ${{botCityHint}}`);
+      }} else if (distanceHint) {{
+        details.push(`about ${{distanceHint}} from you`);
+      }}
+
+      if (details.length === 0) {{
+        return `${{latencyText}} round trip, ${{hopText}}.`;
+      }}
+      return `${{latencyText}} round trip, ${{hopText}}, ${{details.join(", ")}}.`;
+    }}
+
+    function deliveryStateLabel(state) {{
+      const clean = normalizeDeliveryState(state);
+      if (clean === "pending") return "Pending";
+      if (clean === "acked") return "Delivered";
+      if (clean === "nak") return "Failed";
+      if (clean === "timeout") return "Timed out";
+      if (clean === "error") return "Error";
+      if (clean === "sent") return "Sent";
+      return "";
+    }}
+
+    function deliveryStateTitle(state, errorText = "", ackDetailText = "") {{
+      const clean = normalizeDeliveryState(state);
+      const detail = String(errorText || "").trim();
+      if (!clean) return "";
+      if (detail) return `${{deliveryStateLabel(clean)}}. ${{detail}}`;
+      if (clean === "pending") return "Awaiting mesh ACK";
+      if (clean === "acked") {{
+        const ackDetail = String(ackDetailText || "").trim();
+        return ackDetail ? `ACK received. ${{ackDetail}}` : "ACK received";
+      }}
+      if (clean === "nak") return "NAK received";
+      if (clean === "timeout") return "No ACK received before timeout";
+      if (clean === "error") return "Delivery status error";
+      return "Message sent";
+    }}
+
+    function isRetryableDeliveryState(state) {{
+      const clean = normalizeDeliveryState(state);
+      return clean === "nak" || clean === "timeout" || clean === "error";
+    }}
+
+    function reactionPopoverElement() {{
+      const popover = document.getElementById("chat-reaction-popover");
+      return popover instanceof HTMLElement ? popover : null;
+    }}
+
+    function clearReactionPopoverHideTimer() {{
+      if (chatReactionPopoverHideTimer !== null) {{
+        clearTimeout(chatReactionPopoverHideTimer);
+        chatReactionPopoverHideTimer = null;
+      }}
+    }}
+
+    function scheduleReactionPopoverHide(delayMs = 120) {{
+      clearReactionPopoverHideTimer();
+      chatReactionPopoverHideTimer = window.setTimeout(() => {{
+        closeReactionPopover(true);
+      }}, Math.max(0, Number(delayMs) || 0));
+    }}
+
+    function normalizeReactionName(value) {{
+      const clean = String(value == null ? "" : value).replace(/\\s+/g, " ").trim();
+      if (!clean) return "Unknown node";
+      return clean;
+    }}
+
+    function reactionNameInitials(value) {{
+      const clean = normalizeReactionName(value).replace(/[^A-Za-z0-9 ]+/g, " ").trim();
+      if (!clean) return "?";
+      const parts = clean.split(/\\s+/).filter(Boolean);
+      if (parts.length <= 1) {{
+        return parts[0].slice(0, 2).toUpperCase();
+      }}
+      return `${{parts[0][0] || ""}}${{parts[1][0] || ""}}`.toUpperCase() || "?";
+    }}
+
+    function parseReactionChipNames(chip) {{
+      if (!(chip instanceof HTMLButtonElement)) return [];
+      const raw = String(chip.dataset.reactors || "").trim();
+      if (!raw) return [];
+      try {{
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => normalizeReactionName(item))
+          .filter((name, idx, arr) => !!name && arr.indexOf(name) === idx);
+      }} catch (_err) {{
+        return [];
+      }}
+    }}
+
+    function parseReactionSummaryGroups(button) {{
+      if (!(button instanceof HTMLButtonElement)) return [];
+      const raw = String(button.dataset.reactionSummary || "").trim();
+      if (!raw) return [];
+      try {{
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => {{
+            if (!item || typeof item !== "object") return null;
+            const emoji = String(item.emoji || "").trim();
+            const count = Number(item.count || 0);
+            const names = Array.isArray(item.names)
+              ? item.names
+                  .map((name) => normalizeReactionName(name))
+                  .filter((name, idx, arr) => !!name && arr.indexOf(name) === idx)
+              : [];
+            if (!emoji || !Number.isFinite(count) || count <= 0) return null;
+            return {{
+              emoji,
+              count: Math.trunc(count),
+              names,
+            }};
+          }})
+          .filter((item) => !!item);
+      }} catch (_err) {{
+        return [];
+      }}
+    }}
+
+    function positionReactionPopover(anchor, popover) {{
+      if (!(anchor instanceof HTMLElement) || !(popover instanceof HTMLElement) || popover.hidden) {{
+        return;
+      }}
+      const anchorRect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const width = popover.offsetWidth || 240;
+      const height = popover.offsetHeight || 140;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
+
+      let left = anchorRect.left + (anchorRect.width / 2) - (width / 2);
+      if (left < margin) left = margin;
+      if ((left + width) > (viewportWidth - margin)) {{
+        left = Math.max(margin, viewportWidth - width - margin);
+      }}
+
+      let top = anchorRect.top - height - 10;
+      if (top < margin) {{
+        top = anchorRect.bottom + 10;
+      }}
+      if ((top + height) > (viewportHeight - margin)) {{
+        top = Math.max(margin, viewportHeight - height - margin);
+      }}
+
+      popover.style.left = `${{Math.round(left)}}px`;
+      popover.style.top = `${{Math.round(top)}}px`;
+    }}
+
+    function openReactionPopoverForChip(chip) {{
+      if (!(chip instanceof HTMLButtonElement)) return;
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+
+      const emoji = String(chip.dataset.emoji || "").trim() || "🙂";
+      const names = parseReactionChipNames(chip);
+      const rawCount = Number(chip.dataset.reactorCount || "");
+      const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.trunc(rawCount) : names.length;
+      const shownNames = names.slice(0, reactionPopoverMaxNames);
+      const listRows = shownNames.map((name) => (
+        `<div class="chat-reaction-popover-row">
+          <span class="chat-reaction-popover-avatar">${{escAttr(reactionNameInitials(name))}}</span>
+          <span class="chat-reaction-popover-name">${{escAttr(name)}}</span>
+        </div>`
+      )).join("");
+      const unknownCount = Math.max(0, count - shownNames.length);
+
+      popover.innerHTML = `
+        <div class="chat-reaction-popover-head">
+          <span><span class="chat-reaction-popover-emoji">${{escAttr(emoji)}}</span> Reactions</span>
+          <span class="chat-reaction-popover-count">${{count}}</span>
+        </div>
+        <div class="chat-reaction-popover-list">
+          ${{listRows || `<div class="chat-reaction-popover-row"><span class="chat-reaction-popover-name">No named reactors yet</span></div>`}}
+        </div>
+        ${{unknownCount > 0 ? `<div class="chat-reaction-popover-more">+${{unknownCount}} more</div>` : ""}}
+      `;
+      popover.hidden = false;
+      chatReactionPopoverAnchor = chip;
+      positionReactionPopover(chip, popover);
+    }}
+
+    function openReactionPopoverForSummary(button) {{
+      if (!(button instanceof HTMLButtonElement)) return;
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+
+      const groups = parseReactionSummaryGroups(button);
+      if (!groups.length) return;
+      const total = groups.reduce((sum, group) => sum + Math.max(0, Number(group.count || 0)), 0);
+      const listRows = groups.map((group) => {{
+        const shownNames = group.names.slice(0, 4);
+        const shownText = shownNames.length ? shownNames.join(", ") : "No named reactors yet";
+        const remaining = Math.max(0, group.count - shownNames.length);
+        const detail = remaining > 0 ? `${{shownText}} +${{remaining}}` : shownText;
+        return `<div class="chat-reaction-popover-row">
+          <span class="chat-reaction-popover-emoji">${{escAttr(group.emoji)}}</span>
+          <span class="chat-reaction-popover-name">${{escAttr(`${{group.count}} • ${{detail}}`)}}</span>
+        </div>`;
+      }}).join("");
+
+      popover.innerHTML = `
+        <div class="chat-reaction-popover-head">
+          <span>Reactions</span>
+          <span class="chat-reaction-popover-count">${{total}}</span>
+        </div>
+        <div class="chat-reaction-popover-list">
+          ${{listRows}}
+        </div>
+      `;
+      popover.hidden = false;
+      chatReactionPopoverAnchor = button;
+      positionReactionPopover(button, popover);
+    }}
+
+    function closeReactionPopover(force = false) {{
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+      if (!force && popover.hidden) return;
+      clearReactionPopoverHideTimer();
+      popover.hidden = true;
+      popover.innerHTML = "";
+      chatReactionPopoverAnchor = null;
+    }}
+
+    function bindReactionPopover() {{
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement) || popover.dataset.bound === "1") return;
+      popover.dataset.bound = "1";
+
+      popover.addEventListener("pointerenter", () => {{
+        clearReactionPopoverHideTimer();
+      }});
+      popover.addEventListener("pointerleave", () => {{
+        scheduleReactionPopoverHide(120);
+      }});
+
+      document.addEventListener("pointerdown", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        if (target.closest(".chat-reaction-chip") || target.closest(".chat-reaction-summary") || target.closest("#chat-reaction-popover")) {{
+          return;
+        }}
+        closeReactionPopover(true);
+      }});
+
+      document.addEventListener("keydown", (ev) => {{
+        if (ev.key === "Escape") {{
+          closeReactionPopover(true);
+        }}
+      }});
+
+      window.addEventListener("resize", () => {{
+        const el = reactionPopoverElement();
+        if (!(el instanceof HTMLElement) || el.hidden) return;
+        if (!(chatReactionPopoverAnchor instanceof HTMLElement)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        positionReactionPopover(chatReactionPopoverAnchor, el);
+      }});
+      window.addEventListener("scroll", () => {{
+        const el = reactionPopoverElement();
+        if (!(el instanceof HTMLElement) || el.hidden) return;
+        if (!(chatReactionPopoverAnchor instanceof HTMLElement)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        positionReactionPopover(chatReactionPopoverAnchor, el);
+      }}, true);
+    }}
+

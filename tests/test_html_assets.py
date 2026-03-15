@@ -132,7 +132,7 @@ def test_dashboard_js_template_order_guards_known_unsafe_splice_points():
     # logical seam; inserting
     # templates between them can break JS scope continuity and blank the UI.
     shared_idx = parts.index("dashboard.js.bootstrap.shared.tmpl")
-    assert parts[shared_idx + 1] == "dashboard.js.chat.state.core.chat.tmpl"
+    assert parts[shared_idx + 1] == "dashboard.js.chat.state.core.chat.delivery_reactions.tmpl"
 
     # The shared UI helpers must stay on a safe boundary that we validated.
     bindings_idx = parts.index("dashboard.js.chat.events.bindings.tmpl")

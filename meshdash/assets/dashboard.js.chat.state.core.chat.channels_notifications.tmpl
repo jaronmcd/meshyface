@@ -1,0 +1,175 @@
+    function compactInlineMessage(value, maxLen = 88) {{
+      const text = String(value == null ? "" : value).replace(/\\s+/g, " ").trim();
+      if (!text) return "(no text)";
+      if (text.length <= maxLen) return text;
+      return `${{text.slice(0, Math.max(8, maxLen - 1)).trimEnd()}}…`;
+    }}
+
+    function renderChatReplyContext() {{
+      const context = document.getElementById("chat-reply-context");
+      const top = document.querySelector(".chat-composer-top");
+      const label = document.getElementById("chat-reply-label");
+      if (!(context instanceof HTMLElement) || !(label instanceof HTMLElement)) return;
+      const replyId = Number(chatReplyTargetId);
+      if (!Number.isInteger(replyId) || replyId <= 0) {{
+        context.hidden = true;
+        if (top instanceof HTMLElement) {{
+          top.classList.remove("has-reply");
+        }}
+        label.textContent = "";
+        return;
+      }}
+      const fromName = String(chatReplyTargetName || "Unknown node").trim() || "Unknown node";
+      const snippet = compactInlineMessage(chatReplyTargetText, 96);
+      label.textContent = `Replying to ${{fromName}}: ${{snippet}}`;
+      context.hidden = false;
+      if (top instanceof HTMLElement) {{
+        top.classList.add("has-reply");
+      }}
+    }}
+
+    function clearChatReplyTarget() {{
+      chatReplyTargetId = null;
+      chatReplyTargetName = "";
+      chatReplyTargetText = "";
+      renderChatReplyContext();
+    }}
+
+    function setChatReplyTarget(replyId, fromName, text) {{
+      const parsed = Number(replyId);
+      if (!Number.isInteger(parsed) || parsed <= 0) {{
+        setChatSendStatus("Cannot reply: target message id is missing.", true);
+        return;
+      }}
+      chatReplyTargetId = parsed;
+      chatReplyTargetName = String(fromName || "Unknown node").trim() || "Unknown node";
+      chatReplyTargetText = String(text || "");
+      renderChatReplyContext();
+      const input = document.getElementById("chat-input");
+      if (input instanceof HTMLInputElement) {{
+        input.focus({{ preventScroll: true }});
+      }}
+      setChatSendStatus(`Reply target set: ${{chatReplyTargetName}}`, false);
+    }}
+
+    function applyChatChannel(channelKey, persist = true) {{
+      const nextChannel = normalizeChatChannel(channelKey);
+      const changed = activeChatChannel !== nextChannel;
+      activeChatChannel = nextChannel;
+      if (activeLayoutView === "chat" && !document.hidden && tabHasFocus) {{
+        clearVisibleChatUnread(activeChatChannel);
+      }}
+      syncMeshChannelViewControl();
+      syncTopbarChatContext(latestState);
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatChannelStorageKey, activeChatChannel);
+        }} catch (_err) {{
+        }}
+      }}
+      const usersTitle = document.getElementById("chat-users-title");
+      if (usersTitle) {{
+        usersTitle.textContent = activeChatChannel === "direct" ? "Users (Peer-to-peer)" : "Users (Everyone)";
+      }}
+      updateChatInputPlaceholder();
+      if (activeChatChannel !== "direct") {{
+        chatPeerAddPanelOpen = false;
+      }}
+      renderChatPeerAddPanel(latestState);
+      if (changed) {{
+        clearChatReplyTarget();
+      }} else {{
+        renderChatReplyContext();
+      }}
+      if (latestState) {{
+        renderChat(latestState);
+      }}
+      requestImmediatePoll(0);
+    }}
+
+    function resolvedDirectPeerForComposer() {{
+      const selected = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      if (isCanonicalNodeId(selected)) {{
+        return selected;
+      }}
+      const activePeer = normalizeNodeId(chatDirectActivePeerId || "");
+      return isCanonicalNodeId(activePeer) ? activePeer : "";
+    }}
+
+    function updateChatInputPlaceholder() {{
+      const input = document.getElementById("chat-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      if (activeChatChannel !== "direct") {{
+        input.placeholder = "Message the room (^all)...";
+        return;
+      }}
+      const directPeer = resolvedDirectPeerForComposer();
+      input.placeholder = isCanonicalNodeId(directPeer)
+        ? `Direct message to ${{directPeer}}...`
+        : "Select a user to direct message...";
+    }}
+
+    function loadChatChannel() {{
+      let preferred = "all";
+      try {{
+        preferred = normalizeChatChannel(window.localStorage.getItem(chatChannelStorageKey) || "all");
+      }} catch (_err) {{
+      }}
+      applyChatChannel(preferred, false);
+    }}
+
+    function normalizeChatNotificationScope(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return knownChatNotificationScopes.has(clean) ? clean : "all";
+    }}
+
+    function chatNotificationScopeLabel(scopeValue = chatNotificationScope) {{
+      const scope = normalizeChatNotificationScope(scopeValue);
+      return scope === "self" ? "Self only" : "All activity";
+    }}
+
+    function syncChatNotificationScopeControl() {{
+      const select = document.getElementById("chat-change-scope");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const scope = normalizeChatNotificationScope(chatNotificationScope);
+      if (select.value !== scope) {{
+        select.value = scope;
+      }}
+      if (scope === "self") {{
+        select.title = "Notify only for direct messages to you, replies to your messages, and reactions to your messages.";
+      }} else {{
+        select.title = "Notify for all chat activity.";
+      }}
+    }}
+
+    function applyChatNotificationScope(scopeValue, persist = true) {{
+      const scope = normalizeChatNotificationScope(scopeValue);
+      const changed = chatNotificationScope !== scope;
+      chatNotificationScope = scope;
+      syncChatNotificationScopeControl();
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatNotificationScopeStorageKey, scope);
+        }} catch (_err) {{
+        }}
+      }}
+      if (!changed) return;
+      // Avoid stale message-unread counters when switching scope modes.
+      clearChatUnread();
+      renderChatChangeSummary();
+      if (latestState) {{
+        renderChat(latestState);
+      }}
+    }}
+
+    function loadChatNotificationScope() {{
+      let preferred = "all";
+      try {{
+        preferred = normalizeChatNotificationScope(
+          window.localStorage.getItem(chatNotificationScopeStorageKey) || "all"
+        );
+      }} catch (_err) {{
+      }}
+      applyChatNotificationScope(preferred, false);
+    }}
+
