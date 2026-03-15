@@ -1,0 +1,356 @@
+    function meshChannelSendSelectElements() {{
+      const ids = ["chat-send-channel-select", "files-send-channel-select"];
+      const out = [];
+      for (const id of ids) {{
+        const el = document.getElementById(id);
+        if (el instanceof HTMLSelectElement) {{
+          out.push(el);
+        }}
+      }}
+      return out;
+    }}
+
+    function syncMeshChannelSendControl() {{
+      const dot = document.getElementById("chat-send-channel-dot");
+      const wrap = document.querySelector(".chat-send-channel-wrap");
+      const composeShell = document.querySelector(".chat-compose-shell");
+      const input = document.getElementById("chat-input");
+      const filesDot = document.getElementById("files-send-channel-dot");
+      const filesSelect = document.getElementById("files-send-channel-select");
+      const filesHint = document.getElementById("files-send-channel-hint");
+      const meta = meshChannelColorMeta(activeMeshSendChannelIndex, {{ allowAll: false }});
+      const rgb = hexColorRgbTriplet(meta.fill);
+      const sendLabel = currentMeshChannelSendLabel();
+      if (wrap instanceof HTMLElement) {{
+        wrap.style.setProperty("--chat-send-channel-fill", meta.fill);
+        wrap.style.setProperty("--chat-send-channel-rgb", rgb);
+      }}
+      if (composeShell instanceof HTMLElement) {{
+        composeShell.style.setProperty("--chat-send-channel-fill", meta.fill);
+        composeShell.style.setProperty("--chat-send-channel-rgb", rgb);
+      }}
+      if (input instanceof HTMLElement) {{
+        input.style.setProperty("--chat-send-channel-fill", meta.fill);
+        input.style.setProperty("--chat-send-channel-rgb", rgb);
+      }}
+      if (dot instanceof HTMLElement) {{
+        dot.classList.remove("is-all");
+        dot.style.setProperty("--channel-dot-fill", meta.fill);
+        dot.title = meta.title;
+        dot.setAttribute("aria-label", meta.title);
+      }}
+      if (filesDot instanceof HTMLElement) {{
+        filesDot.classList.remove("is-all");
+        filesDot.style.setProperty("--channel-dot-fill", meta.fill);
+        filesDot.title = meta.title;
+        filesDot.setAttribute("aria-label", meta.title);
+      }}
+      if (filesSelect instanceof HTMLSelectElement) {{
+        filesSelect.value = String(activeMeshSendChannelIndex);
+        filesSelect.title = `Outgoing file transfer channel: ${{sendLabel}}`;
+      }}
+      if (filesHint instanceof HTMLElement) {{
+        filesHint.textContent = `Files send on ${{sendLabel}}. Message channels are encryption groups, not frequency slots.`;
+      }}
+      const btn = document.getElementById("chat-send-channel-menu-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.innerHTML = `${{meshChannelPrimaryBadgeHtml(activeMeshSendChannelIndex)}}<span class="mesh-channel-menu-btn-label">${{escAttr(sendLabel)}}</span>`;
+        btn.title = meta.title === sendLabel ? meta.title : `${{meta.title}} • ${{sendLabel}}`;
+        const select = document.getElementById("chat-send-channel-select");
+        const disabled = select instanceof HTMLSelectElement ? !!select.disabled : false;
+        btn.disabled = disabled;
+        btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+      }}
+      syncMeshChannelMismatchWarning();
+    }}
+
+    function setMeshChannelSendMenuOpen(open) {{
+      meshChannelSendMenuOpen = !!open;
+      const panel = document.getElementById("chat-send-channel-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !meshChannelSendMenuOpen;
+      }}
+      const btn = document.getElementById("chat-send-channel-menu-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", meshChannelSendMenuOpen ? "true" : "false");
+      }}
+    }}
+
+    function collectMeshChannelOptionsFromLocalState(localState, options = {{}}) {{
+      const root = (localState && typeof localState === "object") ? localState : {{}};
+      const rawChannels = Array.isArray(root.channels) ? root.channels : [];
+      const byIndex = new Map();
+      const includeFallback = options.includeFallback !== false;
+      const fallbackCount = Math.max(1, Math.trunc(Number(options.fallbackCount) || 0));
+
+      for (let i = 0; i < rawChannels.length; i++) {{
+        const ch = rawChannels[i];
+        if (!ch || typeof ch !== "object") continue;
+
+        const idxRaw = ch.index ?? ch.channel_index ?? ch.channelIndex ?? i;
+        const idxNum = Math.trunc(Number(idxRaw));
+        const index = Number.isInteger(idxNum) && idxNum >= 0 ? idxNum : i;
+
+        const roleRaw = ch.role ?? ch.channel_role ?? ch.channelRole;
+        const role = typeof roleRaw === "string" ? roleRaw.trim() : (roleRaw != null ? String(roleRaw) : "");
+        const roleUpper = role.toUpperCase();
+        const roleNum = Number(role);
+        const disabled = (
+          roleUpper === "DISABLED"
+          || roleUpper === "CHANNEL_ROLE_DISABLED"
+          || (Number.isInteger(roleNum) && roleNum === 0)
+        );
+
+        const settings = (ch.settings && typeof ch.settings === "object") ? ch.settings
+          : (ch.channel_settings && typeof ch.channel_settings === "object") ? ch.channel_settings
+          : (ch.channelSettings && typeof ch.channelSettings === "object") ? ch.channelSettings
+          : null;
+        const nameRaw = (
+          settings && typeof settings.name === "string" ? settings.name
+          : settings && typeof settings.channel_name === "string" ? settings.channel_name
+          : settings && typeof settings.short_name === "string" ? settings.short_name
+          : typeof ch.name === "string" ? ch.name
+          : typeof ch.channel_name === "string" ? ch.channel_name
+          : ""
+        );
+        const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+        const pskRaw = (
+          settings && settings.psk != null ? settings.psk
+          : settings && settings.channel_psk != null ? settings.channel_psk
+          : ch.psk != null ? ch.psk
+          : ch.channel_psk != null ? ch.channel_psk
+          : null
+        );
+        const hasPsk = Array.isArray(pskRaw)
+          ? pskRaw.length > 0
+          : (pskRaw != null && String(pskRaw).trim() !== "");
+
+        const opt = {{ index, name, role, disabled, hasPsk }};
+        if (!byIndex.has(index)) {{
+          byIndex.set(index, opt);
+        }} else {{
+          const prev = byIndex.get(index);
+          if (prev && typeof prev === "object") {{
+            if (!prev.name && name) prev.name = name;
+            if (!prev.role && role) prev.role = role;
+            prev.hasPsk = prev.hasPsk === true || hasPsk === true;
+            prev.disabled = prev.disabled && disabled;
+          }}
+        }}
+      }}
+
+      if (includeFallback) {{
+        const fillCount = Math.max(fallbackCount, rawChannels.length || 0);
+        for (let i = 0; i < fillCount; i++) {{
+          if (!byIndex.has(i)) {{
+            byIndex.set(i, {{ index: i, name: "", role: "", disabled: false, hasPsk: false }});
+          }}
+        }}
+      }}
+
+      const collectedOptions = Array.from(byIndex.values())
+        .filter((opt) => opt && Number.isInteger(Number(opt.index)) && Number(opt.index) >= 0)
+        .sort((a, b) => Number(a.index) - Number(b.index));
+
+      if (collectedOptions.length) return collectedOptions;
+      if (!includeFallback) return [];
+      return [{{ index: 0, name: "", role: "", disabled: false, hasPsk: false }}];
+    }}
+
+    function buildMeshChannelOptionsFromLocalState(localState) {{
+      const hasLocalChannels = !!(localState && Array.isArray(localState.channels) && localState.channels.length);
+      const collected = collectMeshChannelOptionsFromLocalState(localState, {{
+        includeFallback: !hasLocalChannels,
+        fallbackCount: Math.max(8, (localState && Array.isArray(localState.channels)) ? localState.channels.length : 0),
+      }}).filter((opt) => !(opt && opt.disabled));
+      if (collected.length) return collected;
+      return [{{ index: 0, name: "", role: "", disabled: false, hasPsk: false }}];
+    }}
+
+    function buildMeshChannelSendOptionsFromLocalState(localState) {{
+      const hasLocalChannels = !!(localState && Array.isArray(localState.channels) && localState.channels.length);
+      const collected = collectMeshChannelOptionsFromLocalState(localState, {{
+        includeFallback: !hasLocalChannels,
+        fallbackCount: Math.max(8, (localState && Array.isArray(localState.channels)) ? localState.channels.length : 0),
+      }}).filter((opt) => !(opt && opt.disabled));
+      if (collected.length) return collected;
+      return [{{ index: 0, name: "", role: "", disabled: false, hasPsk: false }}];
+    }}
+
+    function renderMeshChannelSelect(options) {{
+      const select = document.getElementById("mesh-channel-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+
+      const normalized = Array.isArray(options) ? options : [];
+      select.innerHTML = "";
+      const allOption = document.createElement("option");
+      allOption.value = String(meshChannelAllIndex);
+      allOption.textContent = "All channels (view)";
+      allOption.title = "All channels view";
+      select.appendChild(allOption);
+      for (const opt of normalized) {{
+        const idx = normalizeMeshChannelIndex(opt && opt.index);
+        const plainLabel = meshChannelViewOptionLabel({{ ...opt, index: idx }}) || `Ch ${{idx}}`;
+        const optionEl = document.createElement("option");
+        optionEl.value = String(idx);
+        optionEl.textContent = plainLabel;
+        optionEl.disabled = !!(opt && opt.disabled);
+        if (opt && opt.role) {{
+          optionEl.title = String(opt.role);
+        }}
+        select.appendChild(optionEl);
+      }}
+
+      // Pick an enabled value.
+      const desired = String(normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }}));
+      const desiredOpt = Array.from(select.options).find((o) => o.value === desired && !o.disabled);
+      if (desiredOpt) {{
+        select.value = desired;
+        return;
+      }}
+      const firstEnabled = Array.from(select.options).find((o) => !o.disabled);
+      const nextValue = firstEnabled ? firstEnabled.value : "0";
+      select.value = nextValue;
+      activeMeshChannelIndex = normalizeMeshChannelIndex(nextValue, {{ allowAll: true }});
+      syncMeshChannelViewControl();
+      try {{
+        window.localStorage.setItem(meshChannelIndexStorageKey, String(activeMeshChannelIndex));
+      }} catch (_err) {{}}
+    }}
+
+    function renderMeshChannelSendSelect(options, {{ preserveCurrent = false }} = {{}}) {{
+      const selects = meshChannelSendSelectElements();
+      if (!selects.length) return;
+
+      const normalized = Array.isArray(options) ? options.slice() : [];
+      const desiredIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      if (preserveCurrent && !normalized.some((opt) => normalizeMeshChannelIndex(opt && opt.index) === desiredIndex)) {{
+        normalized.unshift({{ index: desiredIndex, name: "", role: "", disabled: false, hasPsk: false }});
+      }}
+      const fillSelect = (select) => {{
+        select.innerHTML = "";
+        for (const opt of normalized) {{
+          const idx = normalizeMeshChannelIndex(opt && opt.index);
+          const label = meshChannelSendOptionLabel({{ ...opt, index: idx }}) || `Ch ${{idx}}`;
+          const optionEl = document.createElement("option");
+          optionEl.value = String(idx);
+          optionEl.textContent = label;
+          optionEl.disabled = !!(opt && opt.disabled);
+          optionEl.title = `${{label}} • Ch ${{idx}}`;
+          select.appendChild(optionEl);
+        }}
+      }};
+      for (const select of selects) {{
+        fillSelect(select);
+      }}
+
+      const pickEnabledValue = (select, desiredValue) => {{
+        const desiredOpt = Array.from(select.options).find((o) => o.value === desiredValue && !o.disabled);
+        if (desiredOpt) return desiredValue;
+        const firstEnabled = Array.from(select.options).find((o) => !o.disabled);
+        return firstEnabled ? firstEnabled.value : "0";
+      }};
+
+      const desired = String(desiredIndex);
+      const resolvedValue = pickEnabledValue(selects[0], desired);
+      if (resolvedValue !== desired) {{
+        activeMeshSendChannelIndex = normalizeMeshChannelIndex(resolvedValue);
+        try {{
+          window.localStorage.setItem(meshChannelSendIndexStorageKey, String(activeMeshSendChannelIndex));
+        }} catch (_err) {{}}
+      }}
+      for (const select of selects) {{
+        select.value = pickEnabledValue(select, resolvedValue);
+      }}
+    }}
+
+    function renderMeshChannelSendMenu(options, {{ preserveCurrent = false }} = {{}}) {{
+      const panel = document.getElementById("chat-send-channel-menu");
+      if (!(panel instanceof HTMLElement)) return;
+
+      const normalized = Array.isArray(options) ? options.slice() : [];
+      const desiredIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      if (preserveCurrent && !normalized.some((opt) => normalizeMeshChannelIndex(opt && opt.index) === desiredIndex)) {{
+        normalized.unshift({{ index: desiredIndex, name: "", role: "", disabled: false, hasPsk: false }});
+      }}
+
+      panel.innerHTML = normalized.map((opt) => {{
+        const idx = normalizeMeshChannelIndex(opt && opt.index);
+        const label = meshChannelSendOptionLabel({{ ...opt, index: idx }}) || `Ch ${{idx}}`;
+        const active = desiredIndex === idx;
+        const meta = meshChannelColorMeta(idx, {{ allowAll: false }});
+        const primaryBadge = meshChannelPrimaryBadgeHtml(idx);
+        return `<button
+          type="button"
+          class="mesh-channel-menu-item${{active ? " active" : ""}}"
+          role="option"
+          aria-selected="${{active ? "true" : "false"}}"
+          data-mesh-send-channel-index="${{escAttr(idx)}}"
+          title="${{escAttr(meta.title === label ? meta.title : `${{meta.title}} • ${{label}}`)}}"
+        >
+          <span class="channel-color-dot" style="--channel-dot-fill: ${{meta.fill}};" aria-hidden="true"></span>
+          <span class="mesh-channel-menu-item-main">
+            <span class="mesh-channel-menu-item-title">${{primaryBadge}}<span>${{escAttr(label)}}</span></span>
+          </span>
+        </button>`;
+      }}).join("");
+    }}
+
+    async function hydrateMeshChannelOptions(force = false) {{
+      const nowMs = Date.now();
+      const ttlMs = 60000;
+
+      let localState = (settingsLocalStateCache && typeof settingsLocalStateCache === "object")
+        ? settingsLocalStateCache
+        : null;
+      const stale = !settingsLocalStateFetchedAt || (nowMs - settingsLocalStateFetchedAt) > ttlMs;
+      if (force || !localState || stale || !Array.isArray(localState.channels)) {{
+        try {{
+          const data = await fetchRawJson("/api/raw/local_state", rawDataCache.localState, ttlMs);
+          const obj = (data && typeof data === "object") ? data : null;
+          if (obj) {{
+            settingsLocalStateCache = obj;
+            settingsLocalStateFetchedAt = nowMs;
+            localState = obj;
+          }}
+        }} catch (_err) {{}}
+      }}
+
+      const options = buildMeshChannelOptionsFromLocalState(localState);
+      const sendOptions = buildMeshChannelSendOptionsFromLocalState(localState);
+      meshChannelOptions = options;
+      meshChannelSendOptions = sendOptions;
+      renderMeshChannelSelect(options);
+      renderMeshChannelPills(options);
+      renderMeshChannelSendSelect(sendOptions);
+      renderMeshChannelSendMenu(sendOptions, {{ preserveCurrent: true }});
+      syncMeshChannelSendControl();
+      return options;
+    }}
+
+    function ensureChannelsViewLocalStateHydrated(force = false) {{
+      if (channelsViewHydrateInFlight) {{
+        return channelsViewHydrateInFlight;
+      }}
+      const cached = settingsLocalStateCache && typeof settingsLocalStateCache === "object"
+        ? settingsLocalStateCache
+        : null;
+      const stale = !settingsLocalStateFetchedAt || (Date.now() - settingsLocalStateFetchedAt) > 60000;
+      const missingChannels = !(cached && Array.isArray(cached.channels));
+      if (!force && !missingChannels && !stale) {{
+        return Promise.resolve(cached);
+      }}
+      channelsViewHydrateInFlight = hydrateMeshChannelOptions(force)
+        .catch(() => null)
+        .then(() => {{
+          if (activeLayoutView === "channels") {{
+            renderChannelsView(latestState);
+          }}
+          return settingsLocalStateCache;
+        }})
+        .finally(() => {{
+          channelsViewHydrateInFlight = null;
+        }});
+      return channelsViewHydrateInFlight;
+    }}
+

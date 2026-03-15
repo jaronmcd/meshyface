@@ -1,0 +1,245 @@
+    function applyMeshChannelIndex(rawIndex, persist = true) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll: true }});
+      const changed = idx !== activeMeshChannelIndex;
+      const shouldFollowForSend = idx !== meshChannelAllIndex;
+      activeMeshChannelIndex = idx;
+      syncMeshChannelViewControl();
+
+      const select = document.getElementById("mesh-channel-select");
+      if (select instanceof HTMLSelectElement) {{
+        select.value = String(activeMeshChannelIndex);
+      }}
+      renderMeshChannelPills(meshChannelOptions);
+
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(meshChannelIndexStorageKey, String(activeMeshChannelIndex));
+        }} catch (_err) {{}}
+      }}
+
+      if (shouldFollowForSend) {{
+        applyMeshSendChannelIndex(idx, persist, false);
+      }}
+
+      if (activeLayoutView === "chat" && !document.hidden && tabHasFocus) {{
+        clearVisibleChatUnread(activeChatChannel);
+      }}
+
+      if ((changed || shouldFollowForSend) && latestState) {{
+        if (activeLayoutView === "chat") {{
+          renderChat(latestState);
+        }} else if (activeLayoutView === "files") {{
+          renderFilesView(latestState);
+        }}
+      }}
+    }}
+
+    function applyMeshSendChannelIndex(rawIndex, persist = true, rerenderChat = true) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      const changed = idx !== activeMeshSendChannelIndex;
+      activeMeshSendChannelIndex = idx;
+
+      for (const select of meshChannelSendSelectElements()) {{
+        select.value = String(activeMeshSendChannelIndex);
+      }}
+      syncMeshChannelSendControl();
+      renderMeshChannelSendMenu(meshChannelSendOptions, {{ preserveCurrent: true }});
+
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(meshChannelSendIndexStorageKey, String(activeMeshSendChannelIndex));
+        }} catch (_err) {{}}
+      }}
+
+      if (rerenderChat && changed && latestState && activeLayoutView === "chat") {{
+        renderChat(latestState);
+      }}
+    }}
+
+    function loadMeshChannelIndex() {{
+      let preferred = 0;
+      let preferredSend = null;
+      try {{
+        preferred = normalizeMeshChannelIndex(
+          window.localStorage.getItem(meshChannelIndexStorageKey) || "0",
+          {{ allowAll: true }}
+        );
+        const storedSend = window.localStorage.getItem(meshChannelSendIndexStorageKey);
+        if (storedSend != null && String(storedSend).trim() !== "") {{
+          preferredSend = normalizeMeshChannelIndex(storedSend);
+        }}
+      }} catch (_err) {{}}
+      activeMeshChannelIndex = preferred;
+      activeMeshSendChannelIndex = preferredSend == null
+        ? normalizeMeshChannelIndex(preferred)
+        : normalizeMeshChannelIndex(preferredSend);
+    }}
+
+    function bindMeshChannelControl() {{
+      const select = document.getElementById("mesh-channel-select");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+
+      select.addEventListener("change", () => {{
+        applyMeshChannelIndex(select.value, true);
+      }});
+
+      // Seed fast fallback so the control is usable before the radio query returns.
+      const fallback = buildMeshChannelOptionsFromLocalState({{ channels: [] }});
+      const sendFallback = buildMeshChannelSendOptionsFromLocalState(null);
+      meshChannelOptions = fallback;
+      meshChannelSendOptions = sendFallback;
+      renderMeshChannelSelect(fallback);
+      renderMeshChannelPills(fallback);
+      renderMeshChannelSendSelect(sendFallback, {{ preserveCurrent: true }});
+      renderMeshChannelSendMenu(sendFallback, {{ preserveCurrent: true }});
+      select.value = String(activeMeshChannelIndex);
+      syncMeshChannelViewControl();
+      syncMeshChannelSendControl();
+
+      void hydrateMeshChannelOptions(false);
+    }}
+
+    function bindMeshChannelMenuControl() {{
+      const panel = document.getElementById("mesh-channel-pill-strip");
+      if (!(panel instanceof HTMLElement) || panel.dataset.bound === "1") return;
+      panel.dataset.bound = "1";
+
+      panel.addEventListener("pointerdown", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".mesh-channel-pill");
+        if (!(item instanceof HTMLButtonElement)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        applyMeshChannelIndex(item.dataset.meshChannelIndex || meshChannelAllIndex, true);
+      }});
+
+      syncMeshChannelViewControl();
+      renderMeshChannelPills(meshChannelOptions);
+    }}
+
+    function bindMeshChannelSendMenuControl() {{
+      const btn = document.getElementById("chat-send-channel-menu-btn");
+      const panel = document.getElementById("chat-send-channel-menu");
+      if (!(btn instanceof HTMLButtonElement) || !(panel instanceof HTMLElement) || btn.dataset.bound === "1") return;
+      btn.dataset.bound = "1";
+
+      btn.addEventListener("click", (ev) => {{
+        ev.preventDefault();
+        if (btn.disabled) return;
+        setMeshChannelSendMenuOpen(!meshChannelSendMenuOpen);
+      }});
+
+      panel.addEventListener("pointerdown", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".mesh-channel-menu-item");
+        if (!(item instanceof HTMLButtonElement)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        applyMeshSendChannelIndex(item.dataset.meshSendChannelIndex || 0, true);
+        setMeshChannelSendMenuOpen(false);
+      }});
+
+      if (document.body.dataset.meshChannelSendMenuBound !== "1") {{
+        document.body.dataset.meshChannelSendMenuBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          if (target.closest("#chat-send-channel-menu-btn") || target.closest("#chat-send-channel-menu")) return;
+          setMeshChannelSendMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Escape") {{
+            setMeshChannelSendMenuOpen(false);
+          }}
+        }});
+      }}
+
+      syncMeshChannelSendControl();
+      renderMeshChannelSendMenu(meshChannelSendOptions, {{ preserveCurrent: true }});
+    }}
+
+    function bindMeshChannelSendControl() {{
+      const selects = meshChannelSendSelectElements();
+      if (!selects.length) return;
+      for (const select of selects) {{
+        if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") continue;
+        select.dataset.bound = "1";
+        select.addEventListener("change", () => {{
+          applyMeshSendChannelIndex(select.value, true);
+        }});
+      }}
+
+      renderMeshChannelSendSelect(
+        meshChannelSendOptions.length ? meshChannelSendOptions : buildMeshChannelSendOptionsFromLocalState(null),
+        {{ preserveCurrent: true }},
+      );
+      renderMeshChannelSendMenu(
+        meshChannelSendOptions.length ? meshChannelSendOptions : buildMeshChannelSendOptionsFromLocalState(null),
+        {{ preserveCurrent: true }},
+      );
+      syncMeshChannelSendControl();
+    }}
+
+
+    function normalizeChannelsUiMode(raw) {{
+      const text = String(raw == null ? "" : raw).trim().toLowerCase();
+      if (text === "advanced" || text === "1" || text === "true" || text === "on") return "advanced";
+      return "simple";
+    }}
+
+    function applyChannelsUiMode() {{
+      const root = document.body;
+      if (root) {{
+        root.classList.toggle("channels-advanced-ui", !!channelsUiAdvanced);
+      }}
+      const addOnlyBtn = document.getElementById("settings-channels-import-url-add-btn");
+      if (addOnlyBtn instanceof HTMLButtonElement) {{
+        addOnlyBtn.hidden = !channelsUiAdvanced;
+      }}
+    }}
+
+    function setChannelsUiAdvanced(enabled, persist = true) {{
+      channelsUiAdvanced = !!enabled;
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(
+            channelsUiModeStorageKey,
+            channelsUiAdvanced ? "advanced" : "simple"
+          );
+        }} catch (_err) {{}}
+      }}
+      applyChannelsUiMode();
+    }}
+
+    function setChannelsExperimentalEnabled(enabled, persist = true) {{
+      channelsExperimentalEnabled = !!enabled;
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(
+            channelsExperimentalStorageKey,
+            channelsExperimentalEnabled ? "1" : "0"
+          );
+        }} catch (_err) {{}}
+      }}
+    }}
+
+    function loadChannelsUiMode() {{
+      let stored = "simple";
+      try {{
+        stored = normalizeChannelsUiMode(window.localStorage.getItem(channelsUiModeStorageKey) || "simple");
+      }} catch (_err) {{}}
+      channelsUiAdvanced = stored === "advanced";
+    }}
+
+    function loadChannelsExperimentalPreference() {{
+      let stored = false;
+      try {{
+        stored = parseBoolToken(window.localStorage.getItem(channelsExperimentalStorageKey), false);
+      }} catch (_err) {{}}
+      channelsExperimentalEnabled = !!stored;
+    }}
+
+
