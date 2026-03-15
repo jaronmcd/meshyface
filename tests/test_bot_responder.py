@@ -1553,6 +1553,44 @@ def test_bot_settings_are_persisted_and_loaded_from_file(tmp_path):
     assert loaded_settings["joke_delay_punchline_enabled"] is False
 
 
+def test_configure_allows_explicit_empty_joke_lines():
+    bot = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={"MESH_DASH_BOT_ENABLED": "1"},
+    )
+    assert bot is not None
+
+    saved = bot.configure(joke_lines=[])
+    assert saved["ok"] is True
+    assert saved["joke_lines"] == []
+    assert bot.bot_settings()["joke_lines"] == []
+
+
+def test_empty_joke_lines_persist_and_reload_without_default_fallback(tmp_path):
+    settings_path = tmp_path / "bot_settings.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "log_enabled": True,
+                "game_enabled": False,
+                "disabled_commands": [],
+                "joke_lines": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = build_mesh_response_bot_from_env(
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        env={"MESH_DASH_BOT_SETTINGS_FILE": str(settings_path)},
+    )
+    assert loaded is not None
+    assert loaded.bot_settings()["joke_lines"] == []
+
+
 def test_public_game_start_setting_is_persisted_and_loaded_from_file(tmp_path):
     settings_path = tmp_path / "bot_settings.json"
 

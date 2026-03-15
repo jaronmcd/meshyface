@@ -263,7 +263,7 @@
         }}
       }}
       if (jokeTriggersInput instanceof HTMLTextAreaElement) {{
-        const value = Array.isArray(serverBotSettings.joke_triggers)
+        const value = selectedIsJoke && Array.isArray(serverBotSettings.joke_triggers)
           ? serverBotSettings.joke_triggers.join("\n")
           : "";
         if (document.activeElement !== jokeTriggersInput || !selectedIsJoke) {{
@@ -294,7 +294,7 @@
         }}
       }}
       if (jokeLinesInput instanceof HTMLTextAreaElement) {{
-        const value = Array.isArray(serverBotSettings.joke_lines)
+        const value = selectedIsJoke && Array.isArray(serverBotSettings.joke_lines)
           ? serverBotSettings.joke_lines.join("\n")
           : "";
         if (document.activeElement !== jokeLinesInput || !selectedIsJoke) {{

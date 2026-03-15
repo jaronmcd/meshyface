@@ -151,3 +151,25 @@ def test_handle_bot_settings_post_accepts_joke_delay_toggle_patch():
     assert calls["status_code"] == 200
     assert calls["payload_obj"]["joke_delay_punchline_enabled"] is True
     assert captured["request"].joke_delay_punchline_enabled is True
+
+
+def test_handle_bot_settings_post_uses_larger_content_length_cap_for_joke_lists():
+    calls = {}
+    observed = {}
+    body = b'{"joke_lines":["line one"]}'
+
+    def _validate(headers, *, to_int_fn, max_bytes):
+        observed["headers"] = headers
+        observed["max_bytes"] = max_bytes
+        return len(body)
+
+    handle_bot_settings_post(
+        _handler(body=body),
+        apply_bot_settings_fn=lambda _req: {"ok": True, "joke_lines": ["line one"]},
+        to_int_fn=lambda value: int(value) if value not in (None, "") else None,
+        validate_content_length_fn=_validate,
+        parse_bot_settings_request_fn=lambda _raw: BotSettingsRequest(joke_lines=["line one"]),
+        write_json_response_fn=lambda _handler, **kwargs: calls.update(kwargs),
+    )
+    assert calls["status_code"] == 200
+    assert observed["max_bytes"] == 256 * 1024

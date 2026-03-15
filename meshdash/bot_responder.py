@@ -209,6 +209,8 @@ def _normalize_joke_triggers(value: object) -> list[str]:
 
 
 def _normalize_joke_lines(value: object) -> list[str]:
+    if value is None:
+        return [str(line).strip() for line in _DEFAULT_JOKE_LINES if str(line).strip()]
     raw_items = _parse_phrase_items(value, split_commas=False)
     out: list[str] = []
     seen: set[str] = set()
@@ -229,6 +231,8 @@ def _normalize_joke_lines(value: object) -> list[str]:
             break
     if out:
         return out
+    if isinstance(value, list):
+        return []
     return [str(line).strip() for line in _DEFAULT_JOKE_LINES if str(line).strip()]
 
 

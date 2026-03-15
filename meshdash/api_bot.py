@@ -7,6 +7,8 @@ from .http_route_contracts import (
     WriteJsonResponseFn,
 )
 
+_MAX_BOT_SETTINGS_POST_BYTES = 256 * 1024
+
 
 def handle_bot_settings_post(
     handler: DashboardHttpHandler,
@@ -29,6 +31,7 @@ def handle_bot_settings_post(
         content_length = validate_content_length_fn(
             handler.headers,
             to_int_fn=to_int_fn,
+            max_bytes=_MAX_BOT_SETTINGS_POST_BYTES,
         )
     except ValueError:
         write_json_response_fn(
