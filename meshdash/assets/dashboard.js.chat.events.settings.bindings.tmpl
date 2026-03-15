@@ -1,0 +1,317 @@
+    function bindSettingsPanel() {{
+      const settingsCard = document.querySelector(".card.settings");
+      if (!(settingsCard instanceof HTMLElement) || settingsCard.dataset.bound === "1") return;
+      settingsCard.dataset.bound = "1";
+
+      for (const tabBtn of settingsCard.querySelectorAll(".settings-tab-btn[data-settings-tab]")) {{
+        if (!(tabBtn instanceof HTMLButtonElement)) continue;
+        tabBtn.addEventListener("click", () => {{
+          setActiveSettingsTab(tabBtn.dataset.settingsTab, true);
+        }});
+      }}
+      setActiveSettingsTab(activeSettingsTab, false);
+
+      settingsCard.addEventListener("input", (ev) => {{
+        const target = ev.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {{
+          if (target.id === "settings-local-section" || target.id === "settings-module-section") return;
+          if (isTickerSettingsControlId(target.id)) return;
+          markSettingsDirty();
+        }}
+        if (
+          target instanceof HTMLInputElement
+          && (
+            target.id === "settings-fixed-latitude"
+            || target.id === "settings-fixed-longitude"
+            || target.id === "settings-fixed-altitude"
+          )
+        ) {{
+          cacheSettingsFixedInputsIfValid();
+          if (
+            activeSettingsTab === "core"
+            && normalizeSettingsPositionSource(readSettingsPositionSourceSelection()) === "fixed"
+            && ensureSettingsFixedMap()
+          ) {{
+            syncSettingsFixedMapFromInputs({{ recenter: false }});
+          }}
+        }}
+      }});
+      settingsCard.addEventListener("change", (ev) => {{
+        const target = ev.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {{
+          if (target.id !== "settings-local-section" && target.id !== "settings-module-section") {{
+            if (!isTickerSettingsControlId(target.id)) {{
+              markSettingsDirty();
+            }}
+          }}
+        }}
+        if (
+          target instanceof HTMLInputElement
+          && (
+            target.id === "settings-fixed-latitude"
+            || target.id === "settings-fixed-longitude"
+            || target.id === "settings-fixed-altitude"
+          )
+        ) {{
+          cacheSettingsFixedInputsIfValid();
+          if (
+            activeSettingsTab === "core"
+            && normalizeSettingsPositionSource(readSettingsPositionSourceSelection()) === "fixed"
+            && ensureSettingsFixedMap()
+          ) {{
+            syncSettingsFixedMapFromInputs({{ recenter: true }});
+          }}
+        }}
+        if (target instanceof HTMLSelectElement && target.id === "settings-position-source") {{
+          syncSettingsPositionSourceUi({{
+            source: target.value,
+            recenter: activeLayoutView === "settings" && activeSettingsTab === "core",
+          }});
+        }}
+        if (target instanceof HTMLInputElement && target.id === "settings-lora-use-preset") {{
+          syncLoraManualFieldsDisabled();
+        }}
+        if (target instanceof HTMLSelectElement && target.id === "settings-local-section") {{
+          refreshLocalSettingsSectionEditor({{ local_state: settingsLocalStateFrom(latestState) || settingsLocalStateCache || {{}} }});
+        }}
+        if (target instanceof HTMLSelectElement && target.id === "settings-module-section") {{
+          refreshModuleSettingsSectionEditor({{ local_state: settingsLocalStateFrom(latestState) || settingsLocalStateCache || {{}} }});
+        }}
+      }});
+
+      const applyBtn = document.getElementById("settings-apply-lora");
+      if (applyBtn instanceof HTMLButtonElement) {{
+        applyBtn.addEventListener("click", () => {{
+          void applyLoraSettings();
+        }});
+      }}
+
+      const setTimeBtn = document.getElementById("settings-set-time");
+      if (setTimeBtn instanceof HTMLButtonElement) {{
+        setTimeBtn.addEventListener("click", () => {{
+          void setRadioTime();
+        }});
+      }}
+
+      const applyOwnerBtn = document.getElementById("settings-apply-owner");
+      if (applyOwnerBtn instanceof HTMLButtonElement) {{
+        applyOwnerBtn.addEventListener("click", () => {{
+          void applyOwnerSettings();
+        }});
+      }}
+
+      const applyDeviceRoleBtn = document.getElementById("settings-apply-device-role");
+      if (applyDeviceRoleBtn instanceof HTMLButtonElement) {{
+        applyDeviceRoleBtn.addEventListener("click", () => {{
+          void applyDeviceRoleSettings();
+        }});
+      }}
+      const applyDeviceBroadcastBtn = document.getElementById("settings-apply-device-broadcast");
+      if (applyDeviceBroadcastBtn instanceof HTMLButtonElement) {{
+        applyDeviceBroadcastBtn.addEventListener("click", () => {{
+          void applyDeviceBroadcastSettings();
+        }});
+      }}
+      const applyDeviceExtraBtn = document.getElementById("settings-apply-device-extra");
+      if (applyDeviceExtraBtn instanceof HTMLButtonElement) {{
+        applyDeviceExtraBtn.addEventListener("click", () => {{
+          void applyDeviceExtraSettings();
+        }});
+      }}
+      const applyPowerBtn = document.getElementById("settings-apply-power");
+      if (applyPowerBtn instanceof HTMLButtonElement) {{
+        applyPowerBtn.addEventListener("click", () => {{
+          void applyPowerSettings();
+        }});
+      }}
+      const applyDisplayBtn = document.getElementById("settings-apply-display");
+      if (applyDisplayBtn instanceof HTMLButtonElement) {{
+        applyDisplayBtn.addEventListener("click", () => {{
+          void applyDisplaySettings();
+        }});
+      }}
+      const applyNetworkBtn = document.getElementById("settings-apply-network");
+      if (applyNetworkBtn instanceof HTMLButtonElement) {{
+        applyNetworkBtn.addEventListener("click", () => {{
+          void applyNetworkSettings();
+        }});
+      }}
+      const applyBluetoothBtn = document.getElementById("settings-apply-bluetooth");
+      if (applyBluetoothBtn instanceof HTMLButtonElement) {{
+        applyBluetoothBtn.addEventListener("click", () => {{
+          void applyBluetoothSettings();
+        }});
+      }}
+      const applySecurityBtn = document.getElementById("settings-apply-security");
+      if (applySecurityBtn instanceof HTMLButtonElement) {{
+        applySecurityBtn.addEventListener("click", () => {{
+          void applySecuritySettings();
+        }});
+      }}
+      const applyMqttBtn = document.getElementById("settings-apply-mqtt");
+      if (applyMqttBtn instanceof HTMLButtonElement) {{
+        applyMqttBtn.addEventListener("click", () => {{
+          void applyMqttSettings();
+        }});
+      }}
+      const applySerialBtn = document.getElementById("settings-apply-serial");
+      if (applySerialBtn instanceof HTMLButtonElement) {{
+        applySerialBtn.addEventListener("click", () => {{
+          void applySerialSettings();
+        }});
+      }}
+      const applyExtNotifyBtn = document.getElementById("settings-apply-ext-notify");
+      if (applyExtNotifyBtn instanceof HTMLButtonElement) {{
+        applyExtNotifyBtn.addEventListener("click", () => {{
+          void applyExternalNotificationSettings();
+        }});
+      }}
+      const applyPositionBtn = document.getElementById("settings-apply-position");
+      if (applyPositionBtn instanceof HTMLButtonElement) {{
+        applyPositionBtn.addEventListener("click", () => {{
+          void applyPositionConfigSettings();
+        }});
+      }}
+      const applyTelemetryBtn = document.getElementById("settings-apply-telemetry");
+      if (applyTelemetryBtn instanceof HTMLButtonElement) {{
+        applyTelemetryBtn.addEventListener("click", () => {{
+          void applyTelemetrySettings();
+        }});
+      }}
+      const applyLedHeartbeatBtn = document.getElementById("settings-apply-led-heartbeat");
+      if (applyLedHeartbeatBtn instanceof HTMLButtonElement) {{
+        applyLedHeartbeatBtn.addEventListener("click", () => {{
+          void applyLedHeartbeatSetting();
+        }});
+      }}
+
+      const setFixedPositionBtn = document.getElementById("settings-set-fixed-position");
+      if (setFixedPositionBtn instanceof HTMLButtonElement) {{
+        setFixedPositionBtn.addEventListener("click", () => {{
+          void setFixedPosition();
+        }});
+      }}
+
+      const clearFixedPositionBtn = document.getElementById("settings-clear-fixed-position");
+      if (clearFixedPositionBtn instanceof HTMLButtonElement) {{
+        clearFixedPositionBtn.addEventListener("click", () => {{
+          void clearFixedPosition(readSettingsPositionSourceSelection());
+        }});
+      }}
+
+      const applyLocalBtn = document.getElementById("settings-apply-local");
+      if (applyLocalBtn instanceof HTMLButtonElement) {{
+        applyLocalBtn.addEventListener("click", () => {{
+          void applySectionSettings("local");
+        }});
+      }}
+
+      const applyModuleBtn = document.getElementById("settings-apply-module");
+      if (applyModuleBtn instanceof HTMLButtonElement) {{
+        applyModuleBtn.addEventListener("click", () => {{
+          void applySectionSettings("module");
+        }});
+      }}
+
+      const resetNodeDbBtn = document.getElementById("settings-reset-nodedb");
+      if (resetNodeDbBtn instanceof HTMLButtonElement) {{
+        resetNodeDbBtn.addEventListener("click", () => {{
+          void resetRadioNodeDb();
+        }});
+      }}
+
+      const resetDashboardDbBtn = document.getElementById("settings-reset-dashboard-db");
+      if (resetDashboardDbBtn instanceof HTMLButtonElement) {{
+        resetDashboardDbBtn.addEventListener("click", () => {{
+          void resetDashboardDb();
+        }});
+      }}
+
+      const regenerateNodeIdBtn = document.getElementById("settings-regenerate-node-id");
+      if (regenerateNodeIdBtn instanceof HTMLButtonElement) {{
+        regenerateNodeIdBtn.addEventListener("click", () => {{
+          void regenerateNodeId();
+        }});
+      }}
+
+      const resetBtn = document.getElementById("settings-reset");
+      if (resetBtn instanceof HTMLButtonElement) {{
+        resetBtn.addEventListener("click", () => {{
+          clearSettingsDirty();
+          settingsAutoFetchAttempted = true;
+          void fetchSettingsFromRadio();
+        }});
+      }}
+
+      const channelsFetchBtn = document.getElementById("channels-fetch-settings-btn");
+      if (channelsFetchBtn instanceof HTMLButtonElement) {{
+        channelsFetchBtn.addEventListener("click", () => {{
+          clearSettingsDirty();
+          settingsAutoFetchAttempted = true;
+          void fetchSettingsFromRadio();
+        }});
+      }}
+
+      const channelsExperimentalToggle = document.getElementById("settings-channels-experimental-toggle");
+      if (channelsExperimentalToggle instanceof HTMLInputElement) {{
+        channelsExperimentalToggle.checked = !!channelsExperimentalEnabled;
+        channelsExperimentalToggle.addEventListener("change", () => {{
+          setChannelsExperimentalEnabled(!!channelsExperimentalToggle.checked, true);
+        }});
+      }}
+
+      const exportUrlBtn = document.getElementById("settings-export-channel-url");
+      if (exportUrlBtn instanceof HTMLButtonElement) {{
+        exportUrlBtn.addEventListener("click", () => {{
+          void handleChannelExportUrl();
+        }});
+      }}
+
+      const channelsAdvToggle = document.getElementById("settings-channels-advanced-toggle");
+      if (channelsAdvToggle instanceof HTMLInputElement) {{
+        channelsAdvToggle.checked = !!channelsUiAdvanced;
+        channelsAdvToggle.addEventListener("change", () => {{
+          setChannelsUiAdvanced(!!channelsAdvToggle.checked, true);
+        }});
+      }}
+
+      const importUrlJoinBtn = document.getElementById("settings-channels-import-url-join-btn");
+      if (importUrlJoinBtn instanceof HTMLButtonElement) {{
+        importUrlJoinBtn.addEventListener("click", () => {{
+          void handleChannelImportUrl(false);
+        }});
+      }}
+
+      const importUrlAddBtn = document.getElementById("settings-channels-import-url-add-btn");
+      if (importUrlAddBtn instanceof HTMLButtonElement) {{
+        importUrlAddBtn.addEventListener("click", () => {{
+          void handleChannelImportUrl(true);
+        }});
+      }}
+
+      const createPrivateBtn = document.getElementById("settings-channels-create-private-btn");
+      if (createPrivateBtn instanceof HTMLButtonElement) {{
+        createPrivateBtn.addEventListener("click", () => {{
+          void handleCreatePrivateChannel();
+        }});
+      }}
+
+      const channelsTbody = document.getElementById("settings-channels-tbody");
+      if (channelsTbody instanceof HTMLElement) {{
+        channelsTbody.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (target instanceof HTMLButtonElement) {{
+            const action = String(target.dataset.channelAction || "");
+            const index = String(target.dataset.channelIndex || "");
+            if (!action || !index) return;
+            if (action === "save") {{
+              void handleChannelSave(index);
+            }} else if (action === "disable") {{
+              void handleChannelDisable(index);
+            }}
+          }}
+        }});
+      }}
+    }}
+
