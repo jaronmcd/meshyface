@@ -8,6 +8,7 @@ _DASHBOARD_JS_TEMPLATE_PARTS = (
     "dashboard.js.chat.state.games.tmpl",
     "dashboard.js.chat.state.messaging.tmpl",
     "dashboard.js.chat.events.core.tmpl",
+    "dashboard.js.chat.events.console.tmpl",
     "dashboard.js.chat.events.settings.tmpl",
     "dashboard.js.chat.events.map_selection.tmpl",
     "dashboard.js.chat.events.bindings.tmpl",

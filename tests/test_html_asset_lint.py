@@ -21,6 +21,7 @@ _TEMPLATE_FILES = (
     "dashboard.js.chat.state.messaging.tmpl",
     "dashboard.js.chat.events.tmpl",
     "dashboard.js.chat.events.core.tmpl",
+    "dashboard.js.chat.events.console.tmpl",
     "dashboard.js.chat.events.settings_map.tmpl",
     "dashboard.js.chat.events.settings.tmpl",
     "dashboard.js.chat.events.map_selection.tmpl",
