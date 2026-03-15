@@ -1,0 +1,519 @@
+    function invalidateStateSnapshotCache(delayMs = 20) {{
+      stateEtag = "";
+      forceStateReloadOnce = true;
+      requestImmediatePoll(delayMs);
+    }}
+
+    function patchOwnerNamesOnRecord(record, shortNameRaw, longNameRaw) {{
+      if (!record || typeof record !== "object") return false;
+      const user = (record.user && typeof record.user === "object") ? record.user : record;
+      const shortName = String(shortNameRaw || "").trim();
+      const longName = String(longNameRaw || "").trim();
+      let changed = false;
+
+      if (shortName) {{
+        if (String(user.shortName ?? "").trim() !== shortName) {{
+          user.shortName = shortName;
+          changed = true;
+        }}
+        if (String(user.short_name ?? "").trim() !== shortName) {{
+          user.short_name = shortName;
+          changed = true;
+        }}
+        if (String(record.short_name ?? "").trim() !== shortName) {{
+          record.short_name = shortName;
+          changed = true;
+        }}
+      }}
+
+      if (longName) {{
+        if (String(user.longName ?? "").trim() !== longName) {{
+          user.longName = longName;
+          changed = true;
+        }}
+        if (String(user.long_name ?? "").trim() !== longName) {{
+          user.long_name = longName;
+          changed = true;
+        }}
+        if (String(record.long_name ?? "").trim() !== longName) {{
+          record.long_name = longName;
+          changed = true;
+        }}
+      }}
+
+      return changed;
+    }}
+
+    function syncOwnerNameLocally(shortNameRaw, longNameRaw) {{
+      const shortName = String(shortNameRaw || "").trim();
+      const longName = String(longNameRaw || "").trim();
+      if (!shortName && !longName) return;
+
+      if (
+        !settingsLocalStateCache
+        && latestState
+        && typeof latestState === "object"
+        && latestState.local_state
+        && typeof latestState.local_state === "object"
+      ) {{
+        settingsLocalStateCache = latestState.local_state;
+      }}
+
+      let changed = false;
+      const patchRecord = (record) => {{
+        if (patchOwnerNamesOnRecord(record, shortName, longName)) {{
+          changed = true;
+        }}
+      }};
+
+      const cachedLocalInfo =
+        settingsLocalStateCache
+        && typeof settingsLocalStateCache === "object"
+        && settingsLocalStateCache.local_node_info
+        && typeof settingsLocalStateCache.local_node_info === "object"
+          ? settingsLocalStateCache.local_node_info
+          : null;
+      patchRecord(cachedLocalInfo);
+
+      const safeState = latestState && typeof latestState === "object" ? latestState : null;
+      const selfId = safeState ? resolveLocalNodeId(safeState) : "";
+      if (safeState) {{
+        const localState = safeState.local_state && typeof safeState.local_state === "object"
+          ? safeState.local_state
+          : null;
+        const localInfo = localState && localState.local_node_info && typeof localState.local_node_info === "object"
+          ? localState.local_node_info
+          : null;
+        patchRecord(localInfo);
+
+        if (isCanonicalNodeId(selfId) && Array.isArray(safeState.nodes)) {{
+          const selfNode = safeState.nodes.find((node) => normalizeNodeId(node && node.id) === selfId) || null;
+          patchRecord(selfNode);
+          const preferredName = longName || shortName;
+          if (preferredName && nodeNameCache.get(selfId) !== preferredName) {{
+            nodeNameCache.set(selfId, preferredName);
+            persistNodeNameCache();
+            changed = true;
+          }}
+        }}
+      }}
+
+      settingsLocalStateFetchedAt = Date.now();
+      if (!changed) return;
+
+      if (safeState) {{
+        renderSelfRadioPill(safeState);
+        if (activeLayoutView === "chat") {{
+          renderChat(safeState);
+        }} else if (activeLayoutView === "files") {{
+          renderFilesView(safeState);
+        }} else if (activeLayoutView === "history") {{
+          renderHistoryChat((safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}});
+        }} else if (activeLayoutView === "channels") {{
+          renderChannelsView(safeState);
+        }} else if (activeLayoutView === "network") {{
+          renderNodes(Array.isArray(safeState.nodes) ? safeState.nodes : []);
+        }} else if (activeLayoutView === "saved") {{
+          renderFavorites(safeState);
+        }} else if (activeLayoutView === "bots") {{
+          renderBotsView(safeState);
+        }} else if (activeLayoutView === "games") {{
+          renderGamesView(safeState);
+        }}
+      }}
+
+      if (activeLayoutView === "settings") {{
+        const settingsState =
+          settingsLocalStateCache && typeof settingsLocalStateCache === "object"
+            ? {{ local_state: settingsLocalStateCache }}
+            : safeState;
+        if (settingsState) {{
+          renderSettings(settingsState, true);
+        }}
+      }}
+    }}
+
+    function settingsLocalStateFrom(state) {{
+      const cachedState = settingsLocalStateCache && typeof settingsLocalStateCache === "object"
+        ? settingsLocalStateCache
+        : null;
+      if (cachedState && typeof cachedState === "object") return cachedState;
+      const localState = state && typeof state === "object" ? state.local_state : null;
+      return localState && typeof localState === "object" ? localState : null;
+    }}
+
+    function loraConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const lora = localConfig && typeof localConfig === "object" ? localConfig.lora : null;
+      return lora && typeof lora === "object" ? lora : null;
+    }}
+
+    function deviceConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const device = localConfig && typeof localConfig === "object" ? localConfig.device : null;
+      return device && typeof device === "object" ? device : null;
+    }}
+
+    function positionConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const position = localConfig && typeof localConfig === "object" ? localConfig.position : null;
+      return position && typeof position === "object" ? position : null;
+    }}
+
+    function telemetryConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const telemetry = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.telemetry : null;
+      return telemetry && typeof telemetry === "object" ? telemetry : null;
+    }}
+
+    function powerConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const power = localConfig && typeof localConfig === "object" ? localConfig.power : null;
+      return power && typeof power === "object" ? power : null;
+    }}
+
+    function displayConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const display = localConfig && typeof localConfig === "object" ? localConfig.display : null;
+      return display && typeof display === "object" ? display : null;
+    }}
+
+    function bluetoothConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const bluetooth = localConfig && typeof localConfig === "object" ? localConfig.bluetooth : null;
+      return bluetooth && typeof bluetooth === "object" ? bluetooth : null;
+    }}
+
+    function networkConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const network = localConfig && typeof localConfig === "object" ? localConfig.network : null;
+      return network && typeof network === "object" ? network : null;
+    }}
+
+    function securityConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const security = localConfig && typeof localConfig === "object" ? localConfig.security : null;
+      return security && typeof security === "object" ? security : null;
+    }}
+
+    function mqttConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const mqtt = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.mqtt : null;
+      return mqtt && typeof mqtt === "object" ? mqtt : null;
+    }}
+
+    function serialConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const serial = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.serial : null;
+      return serial && typeof serial === "object" ? serial : null;
+    }}
+
+    function externalNotificationConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const cfg = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.external_notification : null;
+      return cfg && typeof cfg === "object" ? cfg : null;
+    }}
+
+    function normalizeConfigBool(value, fallback = false) {{
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") return value !== 0;
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (!text) return !!fallback;
+      if (text === "1" || text === "true" || text === "yes" || text === "on") return true;
+      if (text === "0" || text === "false" || text === "no" || text === "off") return false;
+      return !!fallback;
+    }}
+
+    function normalizeConfigSeconds(value, fallback = 0, minimum = 0) {{
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return Math.max(minimum, Math.trunc(Number(fallback) || 0));
+      return Math.max(minimum, Math.trunc(parsed));
+    }}
+
+    function normalizeDeviceRole(value) {{
+      const text = String(value == null ? "" : value).trim().toUpperCase();
+      if (deviceRoleOptions.includes(text)) return text;
+      const maybeNum = Number(text);
+      if (Number.isInteger(maybeNum) && deviceRoleByNumber.has(maybeNum)) {{
+        return String(deviceRoleByNumber.get(maybeNum) || "CLIENT");
+      }}
+      return "CLIENT";
+    }}
+
+    function normalizeConfigEnum(value, options, byNumber, fallback) {{
+      const text = String(value == null ? "" : value).trim().toUpperCase();
+      if (Array.isArray(options) && options.includes(text)) return text;
+      const maybeNum = Number(text);
+      if (Number.isInteger(maybeNum) && byNumber instanceof Map && byNumber.has(maybeNum)) {{
+        return String(byNumber.get(maybeNum) || fallback);
+      }}
+      return String(fallback || (Array.isArray(options) && options.length ? options[0] : ""));
+    }}
+
+    function normalizeDeviceRebroadcastMode(value) {{
+      return normalizeConfigEnum(value, deviceRebroadcastModeOptions, deviceRebroadcastModeByNumber, "ALL");
+    }}
+
+    function normalizeDeviceBuzzerMode(value) {{
+      return normalizeConfigEnum(value, deviceBuzzerModeOptions, deviceBuzzerModeByNumber, "ALL_ENABLED");
+    }}
+
+    function normalizeDisplayUnits(value) {{
+      return normalizeConfigEnum(value, displayUnitsOptions, displayUnitsByNumber, "METRIC");
+    }}
+
+    function normalizeDisplayMode(value) {{
+      return normalizeConfigEnum(value, displayModeOptions, displayModeByNumber, "DEFAULT");
+    }}
+
+    function normalizeBluetoothPairingMode(value) {{
+      return normalizeConfigEnum(value, bluetoothPairingModeOptions, bluetoothPairingModeByNumber, "RANDOM_PIN");
+    }}
+
+    function normalizeNetworkAddressMode(value) {{
+      return normalizeConfigEnum(value, networkAddressModeOptions, networkAddressModeByNumber, "DHCP");
+    }}
+
+    function normalizeSerialMode(value) {{
+      return normalizeConfigEnum(value, serialModeOptions, serialModeByNumber, "DEFAULT");
+    }}
+
+    function normalizeSerialBaud(value) {{
+      return normalizeConfigEnum(value, serialBaudOptions, serialBaudByNumber, "BAUD_DEFAULT");
+    }}
+
+    function normalizeLoraFemLnaMode(value) {{
+      return normalizeConfigEnum(value, loraFemLnaModeOptions, loraFemLnaModeByNumber, "DISABLED");
+    }}
+
+    function localNodeUserFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localNodeInfo = localState && typeof localState === "object" ? localState.local_node_info : null;
+      const user = localNodeInfo && typeof localNodeInfo === "object" ? localNodeInfo.user : null;
+      if (!user || typeof user !== "object") {{
+        return null;
+      }}
+      const shortName = String(user.shortName ?? user.short_name ?? "").trim();
+      const longName = String(user.longName ?? user.long_name ?? "").trim();
+      return {{
+        short_name: shortName,
+        long_name: longName,
+      }};
+    }}
+
+    function configSectionMapFromState(state, scopeKey) {{
+      const localState = settingsLocalStateFrom(state);
+      const scope = localState && typeof localState === "object" ? localState[scopeKey] : null;
+      return scope && typeof scope === "object" ? scope : null;
+    }}
+
+    function sortedConfigSectionNames(scopeObj, excludedNames = []) {{
+      if (!scopeObj || typeof scopeObj !== "object") return [];
+      const excluded = new Set(excludedNames.map((name) => String(name || "").trim().toLowerCase()));
+      const names = [];
+      for (const [name, value] of Object.entries(scopeObj)) {{
+        if (!name || excluded.has(String(name).toLowerCase())) continue;
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        names.push(name);
+      }}
+      names.sort((a, b) => a.localeCompare(b));
+      return names;
+    }}
+
+    function syncSectionSelectOptions(selectId, names, placeholderText) {{
+      const select = document.getElementById(selectId);
+      if (!(select instanceof HTMLSelectElement)) return;
+      const previous = String(select.value || "");
+      select.innerHTML = "";
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = placeholderText;
+      select.appendChild(placeholder);
+      for (const name of names) {{
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      }}
+
+      if (previous && names.includes(previous)) {{
+        select.value = previous;
+        return;
+      }}
+      select.value = names.length ? names[0] : "";
+    }}
+
+    function syncSectionEditorFromState(state, scopeKey, selectId, textareaId, placeholderText, excludedNames = []) {{
+      const scopeObj = configSectionMapFromState(state, scopeKey);
+      const sectionNames = sortedConfigSectionNames(scopeObj, excludedNames);
+      syncSectionSelectOptions(selectId, sectionNames, placeholderText);
+
+      const select = document.getElementById(selectId);
+      const textarea = document.getElementById(textareaId);
+      if (!(select instanceof HTMLSelectElement) || !(textarea instanceof HTMLTextAreaElement)) return;
+
+      const sectionName = String(select.value || "");
+      const sectionData =
+        sectionName && scopeObj && typeof scopeObj === "object" && scopeObj[sectionName] && typeof scopeObj[sectionName] === "object"
+          ? scopeObj[sectionName]
+          : {{}};
+      let text = "{{}}";
+      try {{
+        text = JSON.stringify(sectionData, null, 2);
+      }} catch (_err) {{
+        text = "{{}}";
+      }}
+      setFormValue(textarea, text);
+    }}
+
+    function setFormValue(el, value) {{
+      if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement) && !(el instanceof HTMLTextAreaElement)) return;
+      const next = value == null ? "" : String(value);
+      if (el.value !== next) {{
+        el.value = next;
+      }}
+    }}
+
+    function setFormChecked(el, checked) {{
+      if (!(el instanceof HTMLInputElement) || el.type !== "checkbox") return;
+      const next = !!checked;
+      if (el.checked !== next) {{
+        el.checked = next;
+      }}
+    }}
+
+    function syncLoraManualFieldsDisabled() {{
+      const usePreset = document.getElementById("settings-lora-use-preset");
+      const enabled = !(usePreset instanceof HTMLInputElement) || !usePreset.checked;
+      for (const id of [
+        "settings-lora-bandwidth",
+        "settings-lora-spread-factor",
+        "settings-lora-coding-rate",
+        "settings-lora-frequency-offset",
+        "settings-lora-override-frequency",
+      ]) {{
+        const input = document.getElementById(id);
+        if (input instanceof HTMLInputElement) {{
+          input.disabled = !enabled;
+        }}
+      }}
+    }}
+
+    function refreshLocalSettingsSectionEditor(state) {{
+      syncSectionEditorFromState(
+        state,
+        "local_config",
+        "settings-local-section",
+        "settings-local-json",
+        "Select local section",
+        ["lora"]
+      );
+    }}
+
+    function refreshModuleSettingsSectionEditor(state) {{
+      syncSectionEditorFromState(
+        state,
+        "module_config",
+        "settings-module-section",
+        "settings-module-json",
+        "Select module section"
+      );
+    }}
+
+    function refreshSettingsSectionEditors(state) {{
+      refreshLocalSettingsSectionEditor(state);
+      refreshModuleSettingsSectionEditor(state);
+      try {{
+        renderChannelsTable(settingsLocalStateFrom(state) || {{}});
+      }} catch (_err) {{}}
+    }}
+
+    function normalizeSettingsTab(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (
+        key === "core"
+        || key === "device"
+        || key === "connectivity"
+        || key === "advanced"
+        || key === "tickers"
+      ) return key;
+      return "core";
+    }}
+
+    function loadSettingsTabPreference() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsTabStorageKey) || "";
+        if (raw) {{
+          activeSettingsTab = normalizeSettingsTab(raw);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsTabPreference() {{
+      try {{
+        window.localStorage.setItem(settingsTabStorageKey, activeSettingsTab);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function setActiveSettingsTab(tab, persist = true) {{
+      const next = normalizeSettingsTab(tab);
+      const prev = activeSettingsTab;
+      activeSettingsTab = next;
+      if (persist) {{
+        persistSettingsTabPreference();
+      }}
+
+      const tabButtons = document.querySelectorAll(".settings-tab-btn[data-settings-tab]");
+      for (const btn of tabButtons) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const isActive = normalizeSettingsTab(btn.dataset.settingsTab) === next;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+
+      const panels = document.querySelectorAll(".card.settings [data-settings-tab-panel]");
+      for (const panel of panels) {{
+        if (!(panel instanceof HTMLElement)) continue;
+        const panelTab = normalizeSettingsTab(panel.dataset.settingsTabPanel);
+        panel.hidden = panelTab !== next;
+      }}
+
+      if (persist && prev !== next) {{
+        const settingsBody = document.querySelector(".card.settings .body");
+        if (settingsBody instanceof HTMLElement) {{
+          settingsBody.scrollTop = 0;
+        }}
+      }}
+
+      if (next === "core") {{
+        syncSettingsPositionSourceUi({{
+          source: readSettingsPositionSourceSelection(),
+          recenter: activeLayoutView === "settings" && settingsFixedMapPanelVisible,
+        }});
+      }} else if (next === "tickers") {{
+        renderTickerSettingsUi();
+      }}
+    }}
+
+    function isValidLatLonRange(lat, lon) {{
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if (lat < -90 || lat > 90) return false;
+      if (lon < -180 || lon > 180) return false;
+      return true;
+    }}
+

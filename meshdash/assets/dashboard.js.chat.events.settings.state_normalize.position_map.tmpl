@@ -1,0 +1,505 @@
+    function normalizeSettingsPositionSource(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (key === "none" || key === "gps" || key === "fixed") return key;
+      return "gps";
+    }}
+
+    function loadSettingsPositionSourcePreference() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsPositionSourceStorageKey) || "";
+        if (raw) {{
+          settingsPositionSourcePref = normalizeSettingsPositionSource(raw);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSettingsFixedPositionCache() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsFixedPositionCacheStorageKey) || "";
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const candidate = fixedPositionCandidateFromObject(parsed);
+        settingsFixedPositionCache = candidate ? {{
+          lat: Number(candidate.lat),
+          lon: Number(candidate.lon),
+          alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+        }} : null;
+      }} catch (_err) {{
+        settingsFixedPositionCache = null;
+      }}
+    }}
+
+    function persistSettingsPositionSourcePreference() {{
+      try {{
+        window.localStorage.setItem(settingsPositionSourceStorageKey, settingsPositionSourcePref);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsFixedPositionCache(position) {{
+      const candidate = fixedPositionCandidateFromObject(position);
+      if (!candidate) return;
+      settingsFixedPositionCache = {{
+        lat: Number(candidate.lat),
+        lon: Number(candidate.lon),
+        alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+      }};
+      try {{
+        window.localStorage.setItem(
+          settingsFixedPositionCacheStorageKey,
+          JSON.stringify(settingsFixedPositionCache)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function clearSettingsFixedPositionCache() {{
+      settingsFixedPositionCache = null;
+      try {{
+        window.localStorage.removeItem(settingsFixedPositionCacheStorageKey);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function readSettingsPositionSourceSelection() {{
+      const select = document.getElementById("settings-position-source");
+      if (!(select instanceof HTMLSelectElement)) return "";
+      return normalizeSettingsPositionSource(select.value);
+    }}
+
+    function toFiniteNumberOrNull(value) {{
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }}
+
+    function coordinateValueFromSpecs(obj, specs) {{
+      if (!obj || typeof obj !== "object" || !Array.isArray(specs)) return null;
+      for (const spec of specs) {{
+        if (!spec || typeof spec !== "object") continue;
+        const key = String(spec.key || "").trim();
+        if (!key) continue;
+        const raw = obj[key];
+        if (raw == null || raw === "") continue;
+        const num = toFiniteNumberOrNull(raw);
+        if (!Number.isFinite(num)) continue;
+        const scale = Number(spec.scale);
+        if (Number.isFinite(scale) && scale > 0 && scale !== 1) {{
+          return num * scale;
+        }}
+        return num;
+      }}
+      return null;
+    }}
+
+    function fixedPositionCandidateFromObject(value) {{
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const obj = value;
+      const lat = coordinateValueFromSpecs(obj, [
+        {{ key: "lat" }},
+        {{ key: "latitude" }},
+        {{ key: "fixed_lat" }},
+        {{ key: "fixed_latitude" }},
+        {{ key: "fixedLatitude" }},
+        {{ key: "latitude_i", scale: 1e-7 }},
+        {{ key: "latitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lat_i", scale: 1e-7 }},
+        {{ key: "fixedLatitudeI", scale: 1e-7 }},
+      ]);
+      const lon = coordinateValueFromSpecs(obj, [
+        {{ key: "lon" }},
+        {{ key: "lng" }},
+        {{ key: "longitude" }},
+        {{ key: "fixed_lon" }},
+        {{ key: "fixed_longitude" }},
+        {{ key: "fixedLongitude" }},
+        {{ key: "longitude_i", scale: 1e-7 }},
+        {{ key: "longitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lon_i", scale: 1e-7 }},
+        {{ key: "fixedLongitudeI", scale: 1e-7 }},
+      ]);
+      if (!isValidLatLonRange(lat, lon)) return null;
+      const altRaw = toFiniteNumberOrNull(
+        obj.alt ?? obj.altitude ?? obj.altitude_m ?? obj.altitudeM ?? obj.fixed_altitude ?? obj.fixedAltitude
+      );
+      const alt = Number.isFinite(altRaw) ? Math.trunc(altRaw) : null;
+      return {{
+        lat: Number(lat),
+        lon: Number(lon),
+        alt,
+      }};
+    }}
+
+    function fixedPositionFromState(state = latestState) {{
+      const localState = settingsLocalStateFrom(state);
+      if (!localState || typeof localState !== "object") return null;
+      const localConfig = localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const moduleConfig = localState.module_config && typeof localState.module_config === "object"
+        ? localState.module_config
+        : null;
+      const localNodeInfo = localState.local_node_info && typeof localState.local_node_info === "object"
+        ? localState.local_node_info
+        : null;
+
+      const candidates = [
+        localState.local_position,
+        localState.localPosition,
+        localState.local_node_position,
+        localState.localNodePosition,
+        localState.position,
+        localState.fixed_position,
+        localState.fixedPosition,
+        localConfig && localConfig.fixed_position,
+        localConfig && localConfig.fixedPosition,
+        localConfig && localConfig.position,
+        localConfig && localConfig.position_config,
+        localNodeInfo && localNodeInfo.position,
+        moduleConfig && moduleConfig.position,
+        moduleConfig && moduleConfig.position_config,
+        moduleConfig && moduleConfig.positionConfig,
+      ];
+      for (const candidate of candidates) {{
+        const parsed = fixedPositionCandidateFromObject(candidate);
+        if (parsed) return parsed;
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {{
+          const nested = fixedPositionCandidateFromObject(
+            candidate.fixed_position ?? candidate.fixedPosition
+          );
+          if (nested) return nested;
+        }}
+      }}
+      return null;
+    }}
+
+    function radioPositionSourceFromState(state = latestState) {{
+      const localState = settingsLocalStateFrom(state);
+      if (!localState || typeof localState !== "object") return null;
+      const localConfig = localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const positionConfig = localConfig && localConfig.position && typeof localConfig.position === "object"
+        ? localConfig.position
+        : null;
+      if (!positionConfig) return null;
+
+      if (positionConfig.fixed_position === true) return "fixed";
+      if (positionConfig.gps_enabled === false) return "none";
+      if (positionConfig.gps_enabled === true) return "gps";
+      return null;
+    }}
+
+    function localNodePositionCandidate(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      if (!nodes.length) return null;
+
+      const localId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      if (!isCanonicalNodeId(localId)) return null;
+      for (const node of nodes) {{
+        if (normalizeNodeId(node && node.id) !== localId) continue;
+        const nodePos = node && node.position && typeof node.position === "object" ? node.position : null;
+        const lat = coordinateValueFromSpecs(node, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]) ?? coordinateValueFromSpecs(nodePos, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]);
+        const lon = coordinateValueFromSpecs(node, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]) ?? coordinateValueFromSpecs(nodePos, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]);
+        if (!isValidLatLonRange(lat, lon)) return null;
+        const altRaw = toFiniteNumberOrNull(node && (node.alt ?? node.altitude ?? node.altitudeM));
+        return {{
+          lat: Number(lat),
+          lon: Number(lon),
+          alt: Number.isFinite(altRaw) ? Math.trunc(altRaw) : null,
+        }};
+      }}
+      return null;
+    }}
+
+    function syncSettingsPositionSourceUi(options = {{}}) {{
+      const source = normalizeSettingsPositionSource(
+        options && typeof options === "object" && options.source != null
+          ? options.source
+          : settingsPositionSourcePref
+      );
+      const fixedMode = source === "fixed";
+      const recenter = fixedMode && !!(options && options.recenter);
+      const wasPanelVisible = settingsFixedMapPanelVisible;
+      settingsFixedMapPanelVisible = fixedMode;
+
+      settingsPositionSourcePref = source;
+      persistSettingsPositionSourcePreference();
+
+      const sourceSelect = document.getElementById("settings-position-source");
+      if (sourceSelect instanceof HTMLSelectElement && sourceSelect.value !== source) {{
+        sourceSelect.value = source;
+      }}
+
+      const fixedControls = document.getElementById("settings-fixed-controls");
+      if (fixedControls instanceof HTMLElement) {{
+        fixedControls.hidden = !fixedMode;
+      }}
+      const mapWrap = document.getElementById("settings-fixed-map-wrap");
+      if (mapWrap instanceof HTMLElement) {{
+        mapWrap.hidden = !fixedMode;
+      }}
+      const setFixedPositionBtn = document.getElementById("settings-set-fixed-position");
+      if (setFixedPositionBtn instanceof HTMLButtonElement) {{
+        setFixedPositionBtn.hidden = !fixedMode;
+      }}
+
+      const clearFixedPositionBtn = document.getElementById("settings-clear-fixed-position");
+      if (clearFixedPositionBtn instanceof HTMLButtonElement) {{
+        if (source === "fixed") {{
+          clearFixedPositionBtn.textContent = "Clear Fixed Position";
+          clearFixedPositionBtn.title = "Clear fixed GPS position on the radio";
+        }} else if (source === "none") {{
+          clearFixedPositionBtn.textContent = "Apply None Mode";
+          clearFixedPositionBtn.title = "Clear fixed position override and use None mode";
+        }} else {{
+          clearFixedPositionBtn.textContent = "Apply GPS Mode";
+          clearFixedPositionBtn.title = "Clear fixed position override and use GPS mode";
+        }}
+      }}
+
+      const modeNote = document.getElementById("settings-position-mode-note");
+      if (modeNote instanceof HTMLElement) {{
+        if (source === "fixed") {{
+          modeNote.textContent = "Fixed mode pins radio position to the coordinates below.";
+        }} else if (source === "none") {{
+          modeNote.textContent = "None mode keeps the fixed-position map hidden and clears fixed-position override when applied.";
+        }} else {{
+          modeNote.textContent = "GPS mode uses live GPS reported by the radio. Fixed-position map is hidden.";
+        }}
+      }}
+
+      if (!fixedMode || activeSettingsTab !== "core") return;
+      if (!ensureSettingsFixedMap()) return;
+      syncSettingsFixedMapFromInputs({{ recenter }});
+      if (activeLayoutView === "settings" && (!wasPanelVisible || recenter)) {{
+        requestSettingsFixedMapResizeStabilized();
+      }}
+    }}
+
+    function settingsMapBootstrapFocus(state = latestState) {{
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      if (isValidLatLonRange(lat, lon)) {{
+        return {{
+          lat,
+          lon,
+          zoom: 12,
+        }};
+      }}
+
+      const fixedKnown = fixedPositionFromState(state) || settingsFixedPositionCache || localNodePositionCandidate(state);
+      if (fixedKnown && isValidLatLonRange(fixedKnown.lat, fixedKnown.lon)) {{
+        return {{
+          lat: Number(fixedKnown.lat),
+          lon: Number(fixedKnown.lon),
+          zoom: 12,
+        }};
+      }}
+
+      const nodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+      const interest = mapBootstrapInterestNode(nodes, state);
+      const node = interest && interest.node ? interest.node : null;
+      const nodeLat = Number(node && node.lat);
+      const nodeLon = Number(node && node.lon);
+      if (isValidMapCoord(nodeLat, nodeLon)) {{
+        return {{
+          lat: nodeLat,
+          lon: nodeLon,
+          zoom: interest.source === "first-positioned" ? 8 : 10,
+        }};
+      }}
+
+      return {{
+        lat: settingsFixedMapDefaultCenter[0],
+        lon: settingsFixedMapDefaultCenter[1],
+        zoom: settingsFixedMapDefaultZoom,
+      }};
+    }}
+
+    function applySettingsFixedMapTiles(resolvedTheme = null) {{
+      if (!settingsFixedMap) return;
+      const activeTheme = String(
+        resolvedTheme || document.documentElement.getAttribute("data-theme") || ""
+      ).trim().toLowerCase();
+      const wantedDark = activeTheme === "dark";
+      if (!wantedDark) {{
+        settingsFixedMapDarkTileFallback = false;
+      }}
+      const nextTheme = (wantedDark && settingsFixedMapDarkTileFallback) ? "light" : (wantedDark ? "dark" : "light");
+      if (settingsFixedMapElement instanceof HTMLElement) {{
+        settingsFixedMapElement.classList.toggle(
+          "dark-fallback-tiles",
+          wantedDark && settingsFixedMapDarkTileFallback && nextTheme === "light"
+        );
+      }}
+      if (
+        settingsFixedMapTileLayer
+        && settingsFixedMapTileTheme === nextTheme
+        && settingsFixedMap.hasLayer(settingsFixedMapTileLayer)
+      ) {{
+        return;
+      }}
+
+      const cfg = mapTileConfigs[nextTheme] || mapTileConfigs.light;
+      if (settingsFixedMapTileLayer) {{
+        settingsFixedMapTileLayer.off();
+        settingsFixedMap.removeLayer(settingsFixedMapTileLayer);
+      }}
+      settingsFixedMapTileSession += 1;
+      const sessionId = settingsFixedMapTileSession;
+      settingsFixedMapTileLoads = 0;
+      settingsFixedMapTileErrors = 0;
+      const layerOptions = cfg && cfg.options && typeof cfg.options === "object"
+        ? Object.assign({{}}, cfg.options)
+        : {{}};
+      layerOptions.updateWhenZooming = false;
+      layerOptions.updateWhenIdle = true;
+      layerOptions.keepBuffer = 3;
+      layerOptions.crossOrigin = true;
+      settingsFixedMapTileLayer = L.tileLayer(cfg.url, layerOptions);
+      settingsFixedMapTileLayer.on("tileload", () => {{
+        if (sessionId !== settingsFixedMapTileSession) return;
+        settingsFixedMapTileLoads += 1;
+      }});
+      settingsFixedMapTileLayer.on("tileerror", () => {{
+        if (sessionId !== settingsFixedMapTileSession) return;
+        settingsFixedMapTileErrors += 1;
+        if (
+          wantedDark
+          && nextTheme === "dark"
+          && settingsFixedMapTileLoads <= 0
+          && settingsFixedMapTileErrors >= 2
+          && !settingsFixedMapDarkTileFallback
+        ) {{
+          settingsFixedMapDarkTileFallback = true;
+          applySettingsFixedMapTiles("dark");
+          requestSettingsFixedMapResizeStabilized();
+        }}
+      }});
+      settingsFixedMapTileLayer.addTo(settingsFixedMap);
+      settingsFixedMapTileTheme = nextTheme;
+    }}
+
+    function syncSettingsFixedMapFromInputs(options = {{}}) {{
+      if (!settingsFixedMap) return;
+      const recenter = !!(options && options.recenter);
+
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      if (isValidLatLonRange(lat, lon)) {{
+        const markerLat = Number(lat.toFixed(6));
+        const markerLon = Number(lon.toFixed(6));
+        const markerPoint = [markerLat, markerLon];
+        if (!settingsFixedMapMarker) {{
+          settingsFixedMapMarker = L.marker(markerPoint, {{ keyboard: false }});
+          settingsFixedMapMarker.addTo(settingsFixedMap);
+        }} else {{
+          settingsFixedMapMarker.setLatLng(markerPoint);
+        }}
+        settingsFixedMapMarker.bindTooltip(
+          `Fixed position: ${{markerLat.toFixed(6)}}, ${{markerLon.toFixed(6)}}`,
+          {{ direction: "top", opacity: 0.9 }}
+        );
+        if (recenter) {{
+          settingsFixedMap.setView(markerPoint, Math.max(settingsFixedMap.getZoom(), 12), {{ animate: false }});
+          settingsFixedMapAutoCenteredOnce = true;
+        }}
+        return;
+      }}
+
+      if (settingsFixedMapMarker) {{
+        if (settingsFixedMap.hasLayer(settingsFixedMapMarker)) {{
+          settingsFixedMap.removeLayer(settingsFixedMapMarker);
+        }}
+        settingsFixedMapMarker = null;
+      }}
+
+      if (recenter) {{
+        const focus = settingsMapBootstrapFocus(latestState);
+        settingsFixedMap.setView([focus.lat, focus.lon], focus.zoom, {{ animate: false }});
+      }}
+    }}
+
+    function ensureSettingsFixedMap() {{
+      if (!(settingsFixedMapElement instanceof HTMLElement)) return false;
+      if (!(window.L && typeof L.map === "function")) return false;
+
+      if (settingsFixedMap) {{
+        applySettingsFixedMapTiles();
+        syncSettingsFixedMapFromInputs({{ recenter: false }});
+        return true;
+      }}
+
+      settingsFixedMap = L.map("settings-fixed-map", {{
+        preferCanvas: true,
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false,
+        inertia: false,
+        scrollWheelZoom: true,
+      }}).setView(settingsFixedMapDefaultCenter, settingsFixedMapDefaultZoom);
+      applySettingsFixedMapTiles();
+
+      settingsFixedMap.on("zoomend", () => {{
+        requestSettingsFixedMapResize();
+      }});
+
+      settingsFixedMap.on("click", (ev) => {{
+        const point = ev && ev.latlng ? ev.latlng : null;
+        const latRaw = Number(point && point.lat);
+        const lonRaw = Number(point && point.lng);
+        if (!isValidLatLonRange(latRaw, lonRaw)) return;
+        const latText = latRaw.toFixed(6);
+        const lonText = lonRaw.toFixed(6);
+
+        const latInput = document.getElementById("settings-fixed-latitude");
+        const lonInput = document.getElementById("settings-fixed-longitude");
+        setFormValue(latInput, latText);
+        setFormValue(lonInput, lonText);
+        syncSettingsFixedMapFromInputs({{ recenter: false }});
+        persistSettingsFixedPositionCache({{
+          lat: Number(latText),
+          lon: Number(lonText),
+          alt: readNumberValue("settings-fixed-altitude"),
+        }});
+        markSettingsDirty(`Unsaved fixed GPS position (${{latText}}, ${{lonText}})`);
+      }});
+
+      const settingsMapContainer = settingsFixedMap.getContainer();
+      if (settingsMapContainer instanceof HTMLElement) {{
+        settingsMapContainer.addEventListener("wheel", (ev) => {{
+          ev.stopPropagation();
+        }}, {{ passive: true }});
+      }}
+
+      const focus = settingsMapBootstrapFocus(latestState);
+      settingsFixedMap.setView([focus.lat, focus.lon], focus.zoom, {{ animate: false }});
+      syncSettingsFixedMapFromInputs({{ recenter: false }});
+      requestSettingsFixedMapResizeStabilized();
+      return true;
+    }}
+

@@ -1,0 +1,406 @@
+    function renderSettings(state, force = false) {{
+      if (!force && settingsDirty) return;
+      refreshSettingsSectionEditors(state);
+
+      const lora = loraConfigFromState(state);
+      if (!lora) {{
+        if (!settingsDirty && !settingsFetchInFlight && !settingsAutoFetchAttempted) {{
+          settingsAutoFetchAttempted = true;
+          setText("settings-apply-status", "Fetching current radio settings…");
+          void fetchSettingsFromRadio();
+        }}
+        setText("settings-apply-status", "LoRa config is unavailable. Advanced section editors may still work.");
+      }}
+
+      const region = document.getElementById("settings-lora-region");
+      const preset = document.getElementById("settings-lora-modem-preset");
+      const usePreset = document.getElementById("settings-lora-use-preset");
+      const hop = document.getElementById("settings-lora-hop-limit");
+      const txPower = document.getElementById("settings-lora-tx-power");
+      const chanNum = document.getElementById("settings-lora-channel-num");
+      const txEnabled = document.getElementById("settings-lora-tx-enabled");
+      const bw = document.getElementById("settings-lora-bandwidth");
+      const sf = document.getElementById("settings-lora-spread-factor");
+      const cr = document.getElementById("settings-lora-coding-rate");
+      const freqOff = document.getElementById("settings-lora-frequency-offset");
+      const overrideFreq = document.getElementById("settings-lora-override-frequency");
+      const ignoreMqtt = document.getElementById("settings-lora-ignore-mqtt");
+      const okMqtt = document.getElementById("settings-lora-config-ok-to-mqtt");
+      const overrideDuty = document.getElementById("settings-lora-override-duty-cycle");
+      const boosted = document.getElementById("settings-lora-sx126x-rx-boosted-gain");
+      const paFan = document.getElementById("settings-lora-pa-fan-disabled");
+      const femLnaMode = document.getElementById("settings-lora-fem-lna-mode");
+      const ownerShortInput = document.getElementById("settings-owner-short-name");
+      const ownerLongInput = document.getElementById("settings-owner-long-name");
+      const deviceRoleSelect = document.getElementById("settings-device-role");
+      const deviceNodeBroadcastInput = document.getElementById("settings-device-node-broadcast-secs");
+      const deviceRebroadcastModeInput = document.getElementById("settings-device-rebroadcast-mode");
+      const deviceBuzzerModeInput = document.getElementById("settings-device-buzzer-mode");
+      const deviceDoubleTapInput = document.getElementById("settings-device-double-tap-button");
+      const deviceDisableTripleClickInput = document.getElementById("settings-device-disable-triple-click");
+      const deviceTzdefInput = document.getElementById("settings-device-tzdef");
+      const positionSmartEnabledInput = document.getElementById("settings-position-smart-enabled");
+      const positionBroadcastInput = document.getElementById("settings-position-broadcast-secs");
+      const positionGpsUpdateInput = document.getElementById("settings-position-gps-update-secs");
+      const telemetryDeviceEnabledInput = document.getElementById("settings-telemetry-device-enabled");
+      const telemetryEnvironmentEnabledInput = document.getElementById("settings-telemetry-environment-enabled");
+      const telemetryAirQualityEnabledInput = document.getElementById("settings-telemetry-air-quality-enabled");
+      const telemetryPowerEnabledInput = document.getElementById("settings-telemetry-power-enabled");
+      const telemetryHealthEnabledInput = document.getElementById("settings-telemetry-health-enabled");
+      const telemetryEnvironmentScreenEnabledInput = document.getElementById("settings-telemetry-environment-screen-enabled");
+      const telemetryEnvironmentFahrenheitInput = document.getElementById("settings-telemetry-environment-fahrenheit");
+      const telemetryPowerScreenEnabledInput = document.getElementById("settings-telemetry-power-screen-enabled");
+      const telemetryHealthScreenEnabledInput = document.getElementById("settings-telemetry-health-screen-enabled");
+      const telemetryAirQualityScreenEnabledInput = document.getElementById("settings-telemetry-air-quality-screen-enabled");
+      const telemetryDeviceIntervalInput = document.getElementById("settings-telemetry-device-interval-secs");
+      const telemetryEnvironmentIntervalInput = document.getElementById("settings-telemetry-environment-interval-secs");
+      const telemetryAirQualityIntervalInput = document.getElementById("settings-telemetry-air-quality-interval-secs");
+      const telemetryPowerIntervalInput = document.getElementById("settings-telemetry-power-interval-secs");
+      const telemetryHealthIntervalInput = document.getElementById("settings-telemetry-health-interval-secs");
+      const ledHeartbeatEnabledInput = document.getElementById("settings-led-heartbeat-enabled");
+      const fixedLatInput = document.getElementById("settings-fixed-latitude");
+      const fixedLonInput = document.getElementById("settings-fixed-longitude");
+      const fixedAltInput = document.getElementById("settings-fixed-altitude");
+      const powerSavingInput = document.getElementById("settings-power-saving-enabled");
+      const powerShutdownInput = document.getElementById("settings-power-on-battery-shutdown-secs");
+      const powerWaitBluetoothInput = document.getElementById("settings-power-wait-bluetooth-secs");
+      const powerSdsInput = document.getElementById("settings-power-sds-secs");
+      const powerLsInput = document.getElementById("settings-power-ls-secs");
+      const powerMinWakeInput = document.getElementById("settings-power-min-wake-secs");
+      const displayScreenOnInput = document.getElementById("settings-display-screen-on-secs");
+      const displayCarouselInput = document.getElementById("settings-display-auto-carousel-secs");
+      const displayUnitsInput = document.getElementById("settings-display-units");
+      const displayModeInput = document.getElementById("settings-display-mode");
+      const displayFlipInput = document.getElementById("settings-display-flip-screen");
+      const displayHeadingBoldInput = document.getElementById("settings-display-heading-bold");
+      const displayWakeInput = document.getElementById("settings-display-wake-on-tap");
+      const displayUse12hInput = document.getElementById("settings-display-use-12h-clock");
+      const displayUseLongNameInput = document.getElementById("settings-display-use-long-node-name");
+      const displayBubblesInput = document.getElementById("settings-display-enable-message-bubbles");
+      const bluetoothEnabledInput = document.getElementById("settings-bluetooth-enabled");
+      const bluetoothModeInput = document.getElementById("settings-bluetooth-mode");
+      const bluetoothFixedPinInput = document.getElementById("settings-bluetooth-fixed-pin");
+      const networkWifiEnabledInput = document.getElementById("settings-network-wifi-enabled");
+      const networkEthEnabledInput = document.getElementById("settings-network-eth-enabled");
+      const networkIpv6EnabledInput = document.getElementById("settings-network-ipv6-enabled");
+      const networkWifiSsidInput = document.getElementById("settings-network-wifi-ssid");
+      const networkWifiPskInput = document.getElementById("settings-network-wifi-psk");
+      const networkNtpInput = document.getElementById("settings-network-ntp-server");
+      const networkAddressModeInput = document.getElementById("settings-network-address-mode");
+      const networkRsyslogInput = document.getElementById("settings-network-rsyslog-server");
+      const securitySerialInput = document.getElementById("settings-security-serial-enabled");
+      const securityDebugApiInput = document.getElementById("settings-security-debug-log-api-enabled");
+      const securityAdminChannelInput = document.getElementById("settings-security-admin-channel-enabled");
+      const mqttEnabledInput = document.getElementById("settings-mqtt-enabled");
+      const mqttAddressInput = document.getElementById("settings-mqtt-address");
+      const mqttRootInput = document.getElementById("settings-mqtt-root");
+      const mqttUsernameInput = document.getElementById("settings-mqtt-username");
+      const mqttPasswordInput = document.getElementById("settings-mqtt-password");
+      const mqttEncryptionInput = document.getElementById("settings-mqtt-encryption-enabled");
+      const mqttJsonInput = document.getElementById("settings-mqtt-json-enabled");
+      const mqttTlsInput = document.getElementById("settings-mqtt-tls-enabled");
+      const mqttProxyInput = document.getElementById("settings-mqtt-proxy-to-client-enabled");
+      const mqttMapReportingInput = document.getElementById("settings-mqtt-map-reporting-enabled");
+      const mqttMapPublishInput = document.getElementById("settings-mqtt-map-publish-interval-secs");
+      const mqttMapPrecisionInput = document.getElementById("settings-mqtt-map-position-precision");
+      const mqttMapLocationInput = document.getElementById("settings-mqtt-map-report-location");
+      const serialEnabledInput = document.getElementById("settings-serial-enabled");
+      const serialEchoInput = document.getElementById("settings-serial-echo");
+      const serialOverrideConsoleInput = document.getElementById("settings-serial-override-console-port");
+      const serialModeInput = document.getElementById("settings-serial-mode");
+      const serialBaudInput = document.getElementById("settings-serial-baud");
+      const serialTimeoutInput = document.getElementById("settings-serial-timeout");
+      const extNotifyEnabledInput = document.getElementById("settings-ext-notify-enabled");
+      const extNotifyAlertMessageInput = document.getElementById("settings-ext-notify-alert-message");
+      const extNotifyAlertBellInput = document.getElementById("settings-ext-notify-alert-bell");
+      const extNotifyActiveInput = document.getElementById("settings-ext-notify-active-high");
+      const extNotifyUsePwmInput = document.getElementById("settings-ext-notify-use-pwm");
+      const extNotifyOutputMsInput = document.getElementById("settings-ext-notify-output-ms");
+      const extNotifyOutputPinInput = document.getElementById("settings-ext-notify-output-pin");
+      const extNotifyNagTimeoutInput = document.getElementById("settings-ext-notify-nag-timeout");
+
+      setFormValue(region, lora && lora.region != null ? lora.region : "UNSET");
+      setFormValue(preset, lora && lora.modem_preset != null ? lora.modem_preset : "LONG_FAST");
+      setFormChecked(usePreset, normalizeConfigBool(lora && lora.use_preset, false));
+      setFormValue(hop, normalizeConfigSeconds(lora && lora.hop_limit, 3, 1));
+      setFormValue(txPower, normalizeConfigSeconds(lora && lora.tx_power, 0, 0));
+      setFormValue(chanNum, normalizeConfigSeconds(lora && lora.channel_num, 0, 0));
+      setFormChecked(txEnabled, normalizeConfigBool(lora && lora.tx_enabled, true));
+      setFormValue(bw, normalizeConfigSeconds(lora && lora.bandwidth, 0, 0));
+      setFormValue(sf, normalizeConfigSeconds(lora && lora.spread_factor, 7, 0));
+      setFormValue(cr, normalizeConfigSeconds(lora && lora.coding_rate, 5, 0));
+      setFormValue(freqOff, lora && lora.frequency_offset != null ? lora.frequency_offset : "");
+      setFormValue(overrideFreq, lora && lora.override_frequency != null ? lora.override_frequency : "");
+      setFormChecked(ignoreMqtt, normalizeConfigBool(lora && lora.ignore_mqtt, false));
+      setFormChecked(okMqtt, normalizeConfigBool(lora && lora.config_ok_to_mqtt, false));
+      setFormChecked(overrideDuty, normalizeConfigBool(lora && lora.override_duty_cycle, false));
+      setFormChecked(boosted, normalizeConfigBool(lora && lora.sx126x_rx_boosted_gain, false));
+      setFormChecked(paFan, normalizeConfigBool(lora && lora.pa_fan_disabled, false));
+      setFormValue(femLnaMode, normalizeLoraFemLnaMode(lora && lora.fem_lna_mode));
+
+      const owner = localNodeUserFromState(state);
+      setFormValue(ownerShortInput, owner && owner.short_name ? owner.short_name : "");
+      setFormValue(ownerLongInput, owner && owner.long_name ? owner.long_name : "");
+
+      const device = deviceConfigFromState(state);
+      setFormValue(deviceRoleSelect, normalizeDeviceRole(device && device.role));
+      setFormValue(
+        deviceNodeBroadcastInput,
+        normalizeConfigSeconds(device && device.node_info_broadcast_secs, recommendedNodeBroadcastSecs, 60)
+      );
+      setFormChecked(ledHeartbeatEnabledInput, !normalizeConfigBool(device && device.led_heartbeat_disabled, false));
+      setFormValue(deviceRebroadcastModeInput, normalizeDeviceRebroadcastMode(device && device.rebroadcast_mode));
+      setFormValue(deviceBuzzerModeInput, normalizeDeviceBuzzerMode(device && device.buzzer_mode));
+      setFormChecked(deviceDoubleTapInput, normalizeConfigBool(device && device.double_tap_as_button_press, false));
+      setFormChecked(deviceDisableTripleClickInput, normalizeConfigBool(device && device.disable_triple_click, false));
+      setFormValue(deviceTzdefInput, device && device.tzdef != null ? device.tzdef : "");
+
+      const positionCfg = positionConfigFromState(state);
+      setFormChecked(
+        positionSmartEnabledInput,
+        normalizeConfigBool(positionCfg && positionCfg.position_broadcast_smart_enabled, false)
+      );
+      setFormValue(
+        positionBroadcastInput,
+        normalizeConfigSeconds(positionCfg && positionCfg.position_broadcast_secs, recommendedPositionBroadcastSecs, 60)
+      );
+      setFormValue(
+        positionGpsUpdateInput,
+        normalizeConfigSeconds(positionCfg && positionCfg.gps_update_interval, recommendedGpsUpdateSecs, 60)
+      );
+
+      const telemetryCfg = telemetryConfigFromState(state);
+      setFormChecked(
+        telemetryDeviceEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.device_telemetry_enabled, false)
+      );
+      setFormChecked(
+        telemetryEnvironmentEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.environment_measurement_enabled, false)
+      );
+      setFormChecked(
+        telemetryAirQualityEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.air_quality_enabled, false)
+      );
+      setFormChecked(
+        telemetryPowerEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.power_measurement_enabled, false)
+      );
+      setFormChecked(
+        telemetryHealthEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.health_measurement_enabled, false)
+      );
+      setFormChecked(
+        telemetryEnvironmentScreenEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.environment_screen_enabled, false)
+      );
+      setFormChecked(
+        telemetryEnvironmentFahrenheitInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.environment_display_fahrenheit, false)
+      );
+      setFormChecked(
+        telemetryPowerScreenEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.power_screen_enabled, false)
+      );
+      setFormChecked(
+        telemetryHealthScreenEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.health_screen_enabled, false)
+      );
+      setFormChecked(
+        telemetryAirQualityScreenEnabledInput,
+        normalizeConfigBool(telemetryCfg && telemetryCfg.air_quality_screen_enabled, false)
+      );
+      setFormValue(
+        telemetryDeviceIntervalInput,
+        normalizeConfigSeconds(telemetryCfg && telemetryCfg.device_update_interval, 0, 0)
+      );
+      setFormValue(
+        telemetryEnvironmentIntervalInput,
+        normalizeConfigSeconds(telemetryCfg && telemetryCfg.environment_update_interval, 0, 0)
+      );
+      setFormValue(
+        telemetryAirQualityIntervalInput,
+        normalizeConfigSeconds(telemetryCfg && telemetryCfg.air_quality_interval, 0, 0)
+      );
+      setFormValue(
+        telemetryPowerIntervalInput,
+        normalizeConfigSeconds(telemetryCfg && telemetryCfg.power_update_interval, 0, 0)
+      );
+      setFormValue(
+        telemetryHealthIntervalInput,
+        normalizeConfigSeconds(telemetryCfg && telemetryCfg.health_update_interval, 0, 0)
+      );
+
+      const powerCfg = powerConfigFromState(state);
+      setFormChecked(powerSavingInput, normalizeConfigBool(powerCfg && powerCfg.is_power_saving, false));
+      setFormValue(powerShutdownInput, normalizeConfigSeconds(powerCfg && powerCfg.on_battery_shutdown_after_secs, 0, 0));
+      setFormValue(powerWaitBluetoothInput, normalizeConfigSeconds(powerCfg && powerCfg.wait_bluetooth_secs, 0, 0));
+      setFormValue(powerSdsInput, normalizeConfigSeconds(powerCfg && powerCfg.sds_secs, 0, 0));
+      setFormValue(powerLsInput, normalizeConfigSeconds(powerCfg && powerCfg.ls_secs, 0, 0));
+      setFormValue(powerMinWakeInput, normalizeConfigSeconds(powerCfg && powerCfg.min_wake_secs, 0, 0));
+
+      const displayCfg = displayConfigFromState(state);
+      setFormValue(displayScreenOnInput, normalizeConfigSeconds(displayCfg && displayCfg.screen_on_secs, 60, 0));
+      setFormValue(displayCarouselInput, normalizeConfigSeconds(displayCfg && displayCfg.auto_screen_carousel_secs, 0, 0));
+      setFormValue(displayUnitsInput, normalizeDisplayUnits(displayCfg && displayCfg.units));
+      setFormValue(displayModeInput, normalizeDisplayMode(displayCfg && displayCfg.displaymode));
+      setFormChecked(displayFlipInput, normalizeConfigBool(displayCfg && displayCfg.flip_screen, false));
+      setFormChecked(displayHeadingBoldInput, normalizeConfigBool(displayCfg && displayCfg.heading_bold, false));
+      setFormChecked(displayWakeInput, normalizeConfigBool(displayCfg && displayCfg.wake_on_tap_or_motion, false));
+      setFormChecked(displayUse12hInput, normalizeConfigBool(displayCfg && displayCfg.use_12h_clock, false));
+      setFormChecked(displayUseLongNameInput, normalizeConfigBool(displayCfg && displayCfg.use_long_node_name, false));
+      setFormChecked(displayBubblesInput, normalizeConfigBool(displayCfg && displayCfg.enable_message_bubbles, false));
+
+      const bluetoothCfg = bluetoothConfigFromState(state);
+      setFormChecked(bluetoothEnabledInput, normalizeConfigBool(bluetoothCfg && bluetoothCfg.enabled, false));
+      setFormValue(bluetoothModeInput, normalizeBluetoothPairingMode(bluetoothCfg && bluetoothCfg.mode));
+      setFormValue(bluetoothFixedPinInput, normalizeConfigSeconds(bluetoothCfg && bluetoothCfg.fixed_pin, 0, 0));
+
+      const networkCfg = networkConfigFromState(state);
+      setFormChecked(networkWifiEnabledInput, normalizeConfigBool(networkCfg && networkCfg.wifi_enabled, false));
+      setFormChecked(networkEthEnabledInput, normalizeConfigBool(networkCfg && networkCfg.eth_enabled, false));
+      setFormChecked(networkIpv6EnabledInput, normalizeConfigBool(networkCfg && networkCfg.ipv6_enabled, false));
+      setFormValue(networkWifiSsidInput, networkCfg && networkCfg.wifi_ssid != null ? networkCfg.wifi_ssid : "");
+      setFormValue(networkWifiPskInput, networkCfg && networkCfg.wifi_psk != null ? networkCfg.wifi_psk : "");
+      setFormValue(networkNtpInput, networkCfg && networkCfg.ntp_server != null ? networkCfg.ntp_server : "");
+      setFormValue(networkAddressModeInput, normalizeNetworkAddressMode(networkCfg && networkCfg.address_mode));
+      setFormValue(networkRsyslogInput, networkCfg && networkCfg.rsyslog_server != null ? networkCfg.rsyslog_server : "");
+
+      const securityCfg = securityConfigFromState(state);
+      setFormChecked(securitySerialInput, normalizeConfigBool(securityCfg && securityCfg.serial_enabled, false));
+      setFormChecked(securityDebugApiInput, normalizeConfigBool(securityCfg && securityCfg.debug_log_api_enabled, false));
+      setFormChecked(securityAdminChannelInput, normalizeConfigBool(securityCfg && securityCfg.admin_channel_enabled, false));
+
+      const mqttCfg = mqttConfigFromState(state);
+      const mqttMapCfg = mqttCfg && mqttCfg.map_report_settings && typeof mqttCfg.map_report_settings === "object"
+        ? mqttCfg.map_report_settings
+        : null;
+      setFormChecked(mqttEnabledInput, normalizeConfigBool(mqttCfg && mqttCfg.enabled, false));
+      setFormValue(mqttAddressInput, mqttCfg && mqttCfg.address != null ? mqttCfg.address : "");
+      setFormValue(mqttRootInput, mqttCfg && mqttCfg.root != null ? mqttCfg.root : "");
+      setFormValue(mqttUsernameInput, mqttCfg && mqttCfg.username != null ? mqttCfg.username : "");
+      setFormValue(mqttPasswordInput, mqttCfg && mqttCfg.password != null ? mqttCfg.password : "");
+      setFormChecked(mqttEncryptionInput, normalizeConfigBool(mqttCfg && mqttCfg.encryption_enabled, false));
+      setFormChecked(mqttJsonInput, normalizeConfigBool(mqttCfg && mqttCfg.json_enabled, false));
+      setFormChecked(mqttTlsInput, normalizeConfigBool(mqttCfg && mqttCfg.tls_enabled, false));
+      setFormChecked(mqttProxyInput, normalizeConfigBool(mqttCfg && mqttCfg.proxy_to_client_enabled, false));
+      setFormChecked(mqttMapReportingInput, normalizeConfigBool(mqttCfg && mqttCfg.map_reporting_enabled, false));
+      setFormValue(mqttMapPublishInput, normalizeConfigSeconds(mqttMapCfg && mqttMapCfg.publish_interval_secs, 0, 0));
+      setFormValue(mqttMapPrecisionInput, normalizeConfigSeconds(mqttMapCfg && mqttMapCfg.position_precision, 0, 0));
+      setFormChecked(mqttMapLocationInput, normalizeConfigBool(mqttMapCfg && mqttMapCfg.should_report_location, false));
+
+      const serialCfg = serialConfigFromState(state);
+      setFormChecked(serialEnabledInput, normalizeConfigBool(serialCfg && serialCfg.enabled, false));
+      setFormChecked(serialEchoInput, normalizeConfigBool(serialCfg && serialCfg.echo, false));
+      setFormChecked(serialOverrideConsoleInput, normalizeConfigBool(serialCfg && serialCfg.override_console_serial_port, false));
+      setFormValue(serialModeInput, normalizeSerialMode(serialCfg && serialCfg.mode));
+      setFormValue(serialBaudInput, normalizeSerialBaud(serialCfg && serialCfg.baud));
+      setFormValue(serialTimeoutInput, normalizeConfigSeconds(serialCfg && serialCfg.timeout, 0, 0));
+
+      const extNotifyCfg = externalNotificationConfigFromState(state);
+      setFormChecked(extNotifyEnabledInput, normalizeConfigBool(extNotifyCfg && extNotifyCfg.enabled, false));
+      setFormChecked(extNotifyAlertMessageInput, normalizeConfigBool(extNotifyCfg && extNotifyCfg.alert_message, false));
+      setFormChecked(extNotifyAlertBellInput, normalizeConfigBool(extNotifyCfg && extNotifyCfg.alert_bell, false));
+      setFormChecked(extNotifyActiveInput, normalizeConfigBool(extNotifyCfg && extNotifyCfg.active, false));
+      setFormChecked(extNotifyUsePwmInput, normalizeConfigBool(extNotifyCfg && extNotifyCfg.use_pwm, false));
+      setFormValue(extNotifyOutputMsInput, normalizeConfigSeconds(extNotifyCfg && extNotifyCfg.output_ms, 0, 0));
+      setFormValue(extNotifyOutputPinInput, normalizeConfigSeconds(extNotifyCfg && extNotifyCfg.output, 0, 0));
+      setFormValue(extNotifyNagTimeoutInput, normalizeConfigSeconds(extNotifyCfg && extNotifyCfg.nag_timeout, 0, 0));
+
+      const fixedFromState = fixedPositionFromState(state);
+      if (fixedFromState) {{
+        persistSettingsFixedPositionCache(fixedFromState);
+      }}
+      const fixedFromLocalNode = localNodePositionCandidate(state);
+      const fixedForForm = fixedFromState || settingsFixedPositionCache || fixedFromLocalNode;
+      if (!fixedFromState && !settingsFixedPositionCache && fixedFromLocalNode) {{
+        persistSettingsFixedPositionCache(fixedFromLocalNode);
+      }}
+      if (fixedForForm) {{
+        setFormValue(fixedLatInput, Number(fixedForForm.lat).toFixed(6));
+        setFormValue(fixedLonInput, Number(fixedForForm.lon).toFixed(6));
+        if (Number.isFinite(Number(fixedForForm.alt))) {{
+          setFormValue(fixedAltInput, String(Math.trunc(Number(fixedForForm.alt))));
+        }}
+      }}
+      const sourceFromRadio = radioPositionSourceFromState(state);
+      const shouldAutoCenterFixed = (
+        activeLayoutView === "settings"
+        && !!fixedForForm
+        && !settingsFixedMapAutoCenteredOnce
+      );
+
+      syncLoraManualFieldsDisabled();
+      syncSettingsPositionSourceUi({{
+        source: sourceFromRadio || (fixedForForm ? "fixed" : settingsPositionSourcePref),
+        recenter: shouldAutoCenterFixed,
+      }});
+    }}
+
+    function markSettingsDirty(message = "Unsaved settings changes") {{
+      settingsDirty = true;
+      settingsDirtyAt = Date.now();
+      setSettingsStatusText(message);
+    }}
+
+    function clearSettingsDirty() {{
+      settingsDirty = false;
+      settingsDirtyAt = 0;
+    }}
+
+    function setSettingsStatusText(message) {{
+      setText("settings-apply-status", message);
+    }}
+
+    function setChannelsStatusText(message) {{
+      setText("channels-apply-status", message);
+    }}
+
+    function setSettingsAndChannelsStatusText(message) {{
+      setSettingsStatusText(message);
+      setChannelsStatusText(message);
+    }}
+
+    function readSelectValue(id) {{
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLSelectElement)) return null;
+      const value = String(el.value || "").trim();
+      return value.length ? value : null;
+    }}
+
+    function readCheckboxValue(id) {{
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLInputElement) || el.type !== "checkbox") return null;
+      return !!el.checked;
+    }}
+
+    function readNumberValue(id, allowFloat = false) {{
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLInputElement)) return null;
+      const raw = String(el.value || "").trim();
+      if (!raw) return null;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return null;
+      return allowFloat ? num : Math.trunc(num);
+    }}
+
+    function readTextValue(id) {{
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) return null;
+      const raw = String(el.value || "").trim();
+      return raw.length ? raw : null;
+    }}
+
+    function cacheSettingsFixedInputsIfValid() {{
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      if (!isValidLatLonRange(lat, lon)) return false;
+      const alt = readNumberValue("settings-fixed-altitude");
+      persistSettingsFixedPositionCache({{
+        lat: Number(lat),
+        lon: Number(lon),
+        alt,
+      }});
+      return true;
+    }}
+
