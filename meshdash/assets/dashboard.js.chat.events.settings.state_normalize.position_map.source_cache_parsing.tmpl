@@ -1,0 +1,132 @@
+    function normalizeSettingsPositionSource(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (key === "none" || key === "gps" || key === "fixed") return key;
+      return "gps";
+    }}
+
+    function loadSettingsPositionSourcePreference() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsPositionSourceStorageKey) || "";
+        if (raw) {{
+          settingsPositionSourcePref = normalizeSettingsPositionSource(raw);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSettingsFixedPositionCache() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsFixedPositionCacheStorageKey) || "";
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const candidate = fixedPositionCandidateFromObject(parsed);
+        settingsFixedPositionCache = candidate ? {{
+          lat: Number(candidate.lat),
+          lon: Number(candidate.lon),
+          alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+        }} : null;
+      }} catch (_err) {{
+        settingsFixedPositionCache = null;
+      }}
+    }}
+
+    function persistSettingsPositionSourcePreference() {{
+      try {{
+        window.localStorage.setItem(settingsPositionSourceStorageKey, settingsPositionSourcePref);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsFixedPositionCache(position) {{
+      const candidate = fixedPositionCandidateFromObject(position);
+      if (!candidate) return;
+      settingsFixedPositionCache = {{
+        lat: Number(candidate.lat),
+        lon: Number(candidate.lon),
+        alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+      }};
+      try {{
+        window.localStorage.setItem(
+          settingsFixedPositionCacheStorageKey,
+          JSON.stringify(settingsFixedPositionCache)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function clearSettingsFixedPositionCache() {{
+      settingsFixedPositionCache = null;
+      try {{
+        window.localStorage.removeItem(settingsFixedPositionCacheStorageKey);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function readSettingsPositionSourceSelection() {{
+      const select = document.getElementById("settings-position-source");
+      if (!(select instanceof HTMLSelectElement)) return "";
+      return normalizeSettingsPositionSource(select.value);
+    }}
+
+    function toFiniteNumberOrNull(value) {{
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }}
+
+    function coordinateValueFromSpecs(obj, specs) {{
+      if (!obj || typeof obj !== "object" || !Array.isArray(specs)) return null;
+      for (const spec of specs) {{
+        if (!spec || typeof spec !== "object") continue;
+        const key = String(spec.key || "").trim();
+        if (!key) continue;
+        const raw = obj[key];
+        if (raw == null || raw === "") continue;
+        const num = toFiniteNumberOrNull(raw);
+        if (!Number.isFinite(num)) continue;
+        const scale = Number(spec.scale);
+        if (Number.isFinite(scale) && scale > 0 && scale !== 1) {{
+          return num * scale;
+        }}
+        return num;
+      }}
+      return null;
+    }}
+
+    function fixedPositionCandidateFromObject(value) {{
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const obj = value;
+      const lat = coordinateValueFromSpecs(obj, [
+        {{ key: "lat" }},
+        {{ key: "latitude" }},
+        {{ key: "fixed_lat" }},
+        {{ key: "fixed_latitude" }},
+        {{ key: "fixedLatitude" }},
+        {{ key: "latitude_i", scale: 1e-7 }},
+        {{ key: "latitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lat_i", scale: 1e-7 }},
+        {{ key: "fixedLatitudeI", scale: 1e-7 }},
+      ]);
+      const lon = coordinateValueFromSpecs(obj, [
+        {{ key: "lon" }},
+        {{ key: "lng" }},
+        {{ key: "longitude" }},
+        {{ key: "fixed_lon" }},
+        {{ key: "fixed_longitude" }},
+        {{ key: "fixedLongitude" }},
+        {{ key: "longitude_i", scale: 1e-7 }},
+        {{ key: "longitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lon_i", scale: 1e-7 }},
+        {{ key: "fixedLongitudeI", scale: 1e-7 }},
+      ]);
+      if (!isValidLatLonRange(lat, lon)) return null;
+      const altRaw = toFiniteNumberOrNull(
+        obj.alt ?? obj.altitude ?? obj.altitude_m ?? obj.altitudeM ?? obj.fixed_altitude ?? obj.fixedAltitude
+      );
+      const alt = Number.isFinite(altRaw) ? Math.trunc(altRaw) : null;
+      return {{
+        lat: Number(lat),
+        lon: Number(lon),
+        alt,
+      }};
+    }}
+

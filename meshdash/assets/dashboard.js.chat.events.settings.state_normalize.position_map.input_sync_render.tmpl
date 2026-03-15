@@ -1,0 +1,99 @@
+    function syncSettingsFixedMapFromInputs(options = {{}}) {{
+      if (!settingsFixedMap) return;
+      const recenter = !!(options && options.recenter);
+
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      if (isValidLatLonRange(lat, lon)) {{
+        const markerLat = Number(lat.toFixed(6));
+        const markerLon = Number(lon.toFixed(6));
+        const markerPoint = [markerLat, markerLon];
+        if (!settingsFixedMapMarker) {{
+          settingsFixedMapMarker = L.marker(markerPoint, {{ keyboard: false }});
+          settingsFixedMapMarker.addTo(settingsFixedMap);
+        }} else {{
+          settingsFixedMapMarker.setLatLng(markerPoint);
+        }}
+        settingsFixedMapMarker.bindTooltip(
+          `Fixed position: ${{markerLat.toFixed(6)}}, ${{markerLon.toFixed(6)}}`,
+          {{ direction: "top", opacity: 0.9 }}
+        );
+        if (recenter) {{
+          settingsFixedMap.setView(markerPoint, Math.max(settingsFixedMap.getZoom(), 12), {{ animate: false }});
+          settingsFixedMapAutoCenteredOnce = true;
+        }}
+        return;
+      }}
+
+      if (settingsFixedMapMarker) {{
+        if (settingsFixedMap.hasLayer(settingsFixedMapMarker)) {{
+          settingsFixedMap.removeLayer(settingsFixedMapMarker);
+        }}
+        settingsFixedMapMarker = null;
+      }}
+
+      if (recenter) {{
+        const focus = settingsMapBootstrapFocus(latestState);
+        settingsFixedMap.setView([focus.lat, focus.lon], focus.zoom, {{ animate: false }});
+      }}
+    }}
+
+    function ensureSettingsFixedMap() {{
+      if (!(settingsFixedMapElement instanceof HTMLElement)) return false;
+      if (!(window.L && typeof L.map === "function")) return false;
+
+      if (settingsFixedMap) {{
+        applySettingsFixedMapTiles();
+        syncSettingsFixedMapFromInputs({{ recenter: false }});
+        return true;
+      }}
+
+      settingsFixedMap = L.map("settings-fixed-map", {{
+        preferCanvas: true,
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false,
+        inertia: false,
+        scrollWheelZoom: true,
+      }}).setView(settingsFixedMapDefaultCenter, settingsFixedMapDefaultZoom);
+      applySettingsFixedMapTiles();
+
+      settingsFixedMap.on("zoomend", () => {{
+        requestSettingsFixedMapResize();
+      }});
+
+      settingsFixedMap.on("click", (ev) => {{
+        const point = ev && ev.latlng ? ev.latlng : null;
+        const latRaw = Number(point && point.lat);
+        const lonRaw = Number(point && point.lng);
+        if (!isValidLatLonRange(latRaw, lonRaw)) return;
+        const latText = latRaw.toFixed(6);
+        const lonText = lonRaw.toFixed(6);
+
+        const latInput = document.getElementById("settings-fixed-latitude");
+        const lonInput = document.getElementById("settings-fixed-longitude");
+        setFormValue(latInput, latText);
+        setFormValue(lonInput, lonText);
+        syncSettingsFixedMapFromInputs({{ recenter: false }});
+        persistSettingsFixedPositionCache({{
+          lat: Number(latText),
+          lon: Number(lonText),
+          alt: readNumberValue("settings-fixed-altitude"),
+        }});
+        markSettingsDirty(`Unsaved fixed GPS position (${{latText}}, ${{lonText}})`);
+      }});
+
+      const settingsMapContainer = settingsFixedMap.getContainer();
+      if (settingsMapContainer instanceof HTMLElement) {{
+        settingsMapContainer.addEventListener("wheel", (ev) => {{
+          ev.stopPropagation();
+        }}, {{ passive: true }});
+      }}
+
+      const focus = settingsMapBootstrapFocus(latestState);
+      settingsFixedMap.setView([focus.lat, focus.lon], focus.zoom, {{ animate: false }});
+      syncSettingsFixedMapFromInputs({{ recenter: false }});
+      requestSettingsFixedMapResizeStabilized();
+      return true;
+    }}
+

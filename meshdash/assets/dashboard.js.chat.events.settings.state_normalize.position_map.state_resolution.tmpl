@@ -1,0 +1,105 @@
+    function fixedPositionFromState(state = latestState) {{
+      const localState = settingsLocalStateFrom(state);
+      if (!localState || typeof localState !== "object") return null;
+      const localConfig = localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const moduleConfig = localState.module_config && typeof localState.module_config === "object"
+        ? localState.module_config
+        : null;
+      const localNodeInfo = localState.local_node_info && typeof localState.local_node_info === "object"
+        ? localState.local_node_info
+        : null;
+
+      const candidates = [
+        localState.local_position,
+        localState.localPosition,
+        localState.local_node_position,
+        localState.localNodePosition,
+        localState.position,
+        localState.fixed_position,
+        localState.fixedPosition,
+        localConfig && localConfig.fixed_position,
+        localConfig && localConfig.fixedPosition,
+        localConfig && localConfig.position,
+        localConfig && localConfig.position_config,
+        localNodeInfo && localNodeInfo.position,
+        moduleConfig && moduleConfig.position,
+        moduleConfig && moduleConfig.position_config,
+        moduleConfig && moduleConfig.positionConfig,
+      ];
+      for (const candidate of candidates) {{
+        const parsed = fixedPositionCandidateFromObject(candidate);
+        if (parsed) return parsed;
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {{
+          const nested = fixedPositionCandidateFromObject(
+            candidate.fixed_position ?? candidate.fixedPosition
+          );
+          if (nested) return nested;
+        }}
+      }}
+      return null;
+    }}
+
+    function radioPositionSourceFromState(state = latestState) {{
+      const localState = settingsLocalStateFrom(state);
+      if (!localState || typeof localState !== "object") return null;
+      const localConfig = localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const positionConfig = localConfig && localConfig.position && typeof localConfig.position === "object"
+        ? localConfig.position
+        : null;
+      if (!positionConfig) return null;
+
+      if (positionConfig.fixed_position === true) return "fixed";
+      if (positionConfig.gps_enabled === false) return "none";
+      if (positionConfig.gps_enabled === true) return "gps";
+      return null;
+    }}
+
+    function localNodePositionCandidate(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      if (!nodes.length) return null;
+
+      const localId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      if (!isCanonicalNodeId(localId)) return null;
+      for (const node of nodes) {{
+        if (normalizeNodeId(node && node.id) !== localId) continue;
+        const nodePos = node && node.position && typeof node.position === "object" ? node.position : null;
+        const lat = coordinateValueFromSpecs(node, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]) ?? coordinateValueFromSpecs(nodePos, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]);
+        const lon = coordinateValueFromSpecs(node, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]) ?? coordinateValueFromSpecs(nodePos, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]);
+        if (!isValidLatLonRange(lat, lon)) return null;
+        const altRaw = toFiniteNumberOrNull(node && (node.alt ?? node.altitude ?? node.altitudeM));
+        return {{
+          lat: Number(lat),
+          lon: Number(lon),
+          alt: Number.isFinite(altRaw) ? Math.trunc(altRaw) : null,
+        }};
+      }}
+      return null;
+    }}
+
