@@ -1,0 +1,358 @@
+    async function fetchSettingsFromRadio() {{
+      if (settingsFetchInFlight) return;
+      settingsFetchInFlight = true;
+      setSettingsButtonsDisabled(true);
+      setSettingsAndChannelsStatusText("Fetching settings…");
+      try {{
+        const resp = await fetch("/api/raw/local_state", {{ cache: "no-store" }});
+        if (!resp.ok) throw new Error(`HTTP ${{resp.status}}`);
+        const data = await resp.json();
+        const obj = (data && typeof data === "object") ? data : {{}};
+        settingsLocalStateCache = obj;
+        settingsLocalStateFetchedAt = Date.now();
+        clearSettingsDirty();
+        renderSettings({{ local_state: obj }}, true);
+        try {{
+          renderChannelsView({{ ...(latestState && typeof latestState === "object" ? latestState : {{}}), local_state: obj }});
+        }} catch (_err) {{}}
+        void hydrateMeshChannelOptions(false);
+        setSettingsAndChannelsStatusText("Loaded current radio settings.");
+        appendConsoleLine(`settings|${{Date.now()}}|fetch`, "[settings] loaded current radio settings.");
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        setSettingsAndChannelsStatusText(`Fetch failed: ${{msg}}`);
+        appendConsoleLine(`settings|${{Date.now()}}|error`, `[settings] fetch failed: ${{msg}}`);
+      }} finally {{
+        setSettingsButtonsDisabled(false);
+        settingsFetchInFlight = false;
+      }}
+    }}
+
+    async function applyLoraSettings() {{
+      if (settingsApplyInFlight) return;
+
+      const payload = {{
+        lora: {{
+          region: readSelectValue("settings-lora-region"),
+          modem_preset: readSelectValue("settings-lora-modem-preset"),
+          use_preset: readCheckboxValue("settings-lora-use-preset"),
+          hop_limit: readNumberValue("settings-lora-hop-limit"),
+          tx_power: readNumberValue("settings-lora-tx-power"),
+          channel_num: readNumberValue("settings-lora-channel-num"),
+          tx_enabled: readCheckboxValue("settings-lora-tx-enabled"),
+          bandwidth: readNumberValue("settings-lora-bandwidth"),
+          spread_factor: readNumberValue("settings-lora-spread-factor"),
+          coding_rate: readNumberValue("settings-lora-coding-rate"),
+          frequency_offset: readNumberValue("settings-lora-frequency-offset"),
+          override_frequency: readNumberValue("settings-lora-override-frequency", true),
+          ignore_mqtt: readCheckboxValue("settings-lora-ignore-mqtt"),
+          config_ok_to_mqtt: readCheckboxValue("settings-lora-config-ok-to-mqtt"),
+          override_duty_cycle: readCheckboxValue("settings-lora-override-duty-cycle"),
+          sx126x_rx_boosted_gain: readCheckboxValue("settings-lora-sx126x-rx-boosted-gain"),
+          pa_fan_disabled: readCheckboxValue("settings-lora-pa-fan-disabled"),
+          fem_lna_mode: readSelectValue("settings-lora-fem-lna-mode"),
+        }},
+      }};
+
+      for (const [key, value] of Object.entries(payload.lora)) {{
+        if (value == null) delete payload.lora[key];
+      }}
+
+      if (!payload.lora.region || !payload.lora.modem_preset) {{
+        setText("settings-apply-status", "Region + modem preset are required.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying LoRa settings… (radio may reboot)",
+        "LoRa settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyOwnerSettings() {{
+      if (settingsApplyInFlight) return;
+
+      const shortInput = document.getElementById("settings-owner-short-name");
+      const longInput = document.getElementById("settings-owner-long-name");
+      const shortNameRaw = shortInput instanceof HTMLInputElement ? String(shortInput.value || "").trim() : "";
+      const longNameRaw = longInput instanceof HTMLInputElement ? String(longInput.value || "").trim() : "";
+      const shortName = shortNameRaw.slice(0, 4);
+
+      if (!shortName && !longNameRaw) {{
+        setText("settings-apply-status", "Enter a short or long node name.");
+        return;
+      }}
+
+      const payload = {{ owner: {{}} }};
+      if (shortName) payload.owner.short_name = shortName;
+      if (longNameRaw) payload.owner.long_name = longNameRaw;
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying node name…",
+        "node name saved"
+      );
+      if (ok) {{
+        syncOwnerNameLocally(shortName, longNameRaw);
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyDeviceRoleSettings() {{
+      if (settingsApplyInFlight) return;
+      const role = normalizeDeviceRole(readSelectValue("settings-device-role"));
+      if (!role) {{
+        setText("settings-apply-status", "Select a device role.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{ local: {{ device: {{ role }} }} }},
+        "Applying device role…",
+        `device role set to ${{role}}`
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyDeviceBroadcastSettings() {{
+      if (settingsApplyInFlight) return;
+      const nodeBroadcastSecs = readNumberValue("settings-device-node-broadcast-secs");
+      if (!Number.isFinite(nodeBroadcastSecs) || Number(nodeBroadcastSecs) < 60) {{
+        setText("settings-apply-status", "Node broadcast interval must be at least 60 seconds.");
+        return;
+      }}
+      if (
+        Number(nodeBroadcastSecs) < recommendedNodeBroadcastSecs
+        && !window.confirm("Node broadcast interval below 6 hours increases mesh chatter. Apply anyway?")
+      ) {{
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{ local: {{ device: {{ node_info_broadcast_secs: Math.trunc(Number(nodeBroadcastSecs)) }} }} }},
+        "Applying node broadcast interval…",
+        "device node broadcast interval saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyDeviceExtraSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          device: {{
+            rebroadcast_mode: readSelectValue("settings-device-rebroadcast-mode"),
+            buzzer_mode: readSelectValue("settings-device-buzzer-mode"),
+            double_tap_as_button_press: readCheckboxValue("settings-device-double-tap-button"),
+            disable_triple_click: readCheckboxValue("settings-device-disable-triple-click"),
+            tzdef: readTextValue("settings-device-tzdef"),
+          }},
+        }},
+      }};
+
+      for (const [key, value] of Object.entries(payload.local.device)) {{
+        if (value == null) delete payload.local.device[key];
+      }}
+      if (!Object.keys(payload.local.device).length) {{
+        setText("settings-apply-status", "No device behavior fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying device behavior settings…",
+        "device behavior settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyPowerSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          power: {{
+            is_power_saving: readCheckboxValue("settings-power-saving-enabled"),
+            on_battery_shutdown_after_secs: readNumberValue("settings-power-on-battery-shutdown-secs"),
+            wait_bluetooth_secs: readNumberValue("settings-power-wait-bluetooth-secs"),
+            sds_secs: readNumberValue("settings-power-sds-secs"),
+            ls_secs: readNumberValue("settings-power-ls-secs"),
+            min_wake_secs: readNumberValue("settings-power-min-wake-secs"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.local.power)) {{
+        if (value == null) delete payload.local.power[key];
+      }}
+      if (!Object.keys(payload.local.power).length) {{
+        setText("settings-apply-status", "No power fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying power settings…",
+        "power settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyDisplaySettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          display: {{
+            screen_on_secs: readNumberValue("settings-display-screen-on-secs"),
+            auto_screen_carousel_secs: readNumberValue("settings-display-auto-carousel-secs"),
+            units: readSelectValue("settings-display-units"),
+            displaymode: readSelectValue("settings-display-mode"),
+            flip_screen: readCheckboxValue("settings-display-flip-screen"),
+            heading_bold: readCheckboxValue("settings-display-heading-bold"),
+            wake_on_tap_or_motion: readCheckboxValue("settings-display-wake-on-tap"),
+            use_12h_clock: readCheckboxValue("settings-display-use-12h-clock"),
+            use_long_node_name: readCheckboxValue("settings-display-use-long-node-name"),
+            enable_message_bubbles: readCheckboxValue("settings-display-enable-message-bubbles"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.local.display)) {{
+        if (value == null) delete payload.local.display[key];
+      }}
+      if (!Object.keys(payload.local.display).length) {{
+        setText("settings-apply-status", "No display fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying display settings…",
+        "display settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyNetworkSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          network: {{
+            wifi_enabled: readCheckboxValue("settings-network-wifi-enabled"),
+            eth_enabled: readCheckboxValue("settings-network-eth-enabled"),
+            ipv6_enabled: readCheckboxValue("settings-network-ipv6-enabled"),
+            wifi_ssid: readTextValue("settings-network-wifi-ssid"),
+            wifi_psk: readTextValue("settings-network-wifi-psk"),
+            ntp_server: readTextValue("settings-network-ntp-server"),
+            address_mode: readSelectValue("settings-network-address-mode"),
+            rsyslog_server: readTextValue("settings-network-rsyslog-server"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.local.network)) {{
+        if (value == null) delete payload.local.network[key];
+      }}
+      if (!Object.keys(payload.local.network).length) {{
+        setText("settings-apply-status", "No network fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying network settings…",
+        "network settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyBluetoothSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          bluetooth: {{
+            enabled: readCheckboxValue("settings-bluetooth-enabled"),
+            mode: readSelectValue("settings-bluetooth-mode"),
+            fixed_pin: readNumberValue("settings-bluetooth-fixed-pin"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.local.bluetooth)) {{
+        if (value == null) delete payload.local.bluetooth[key];
+      }}
+      if (!Object.keys(payload.local.bluetooth).length) {{
+        setText("settings-apply-status", "No bluetooth fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying bluetooth settings…",
+        "bluetooth settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applySecuritySettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        local: {{
+          security: {{
+            serial_enabled: readCheckboxValue("settings-security-serial-enabled"),
+            debug_log_api_enabled: readCheckboxValue("settings-security-debug-log-api-enabled"),
+            admin_channel_enabled: readCheckboxValue("settings-security-admin-channel-enabled"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.local.security)) {{
+        if (value == null) delete payload.local.security[key];
+      }}
+      if (!Object.keys(payload.local.security).length) {{
+        setText("settings-apply-status", "No security fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying security settings…",
+        "security settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
