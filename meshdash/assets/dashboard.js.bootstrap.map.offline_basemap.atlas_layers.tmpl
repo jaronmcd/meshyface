@@ -1,0 +1,186 @@
+    function buildOfflineAtlasLayers(payload) {{
+      const layers = payload && typeof payload === "object" && payload.layers && typeof payload.layers === "object"
+        ? payload.layers
+        : {{}};
+      mapOfflineCityMarkers = [];
+      const countriesData = normalizeOfflineAtlasCollection(layers.countries);
+      const coastlineData = normalizeOfflineAtlasCollection(layers.coastline);
+      const bordersData = normalizeOfflineAtlasCollection(layers.borders);
+      const urbanData = normalizeOfflineAtlasCollection(layers.urban);
+      const statesData = normalizeOfflineAtlasCollection(layers.states);
+      const riversData = normalizeOfflineAtlasCollection(layers.rivers);
+      const lakesData = normalizeOfflineAtlasCollection(layers.lakes);
+      const citiesData = normalizeOfflineAtlasCollection(layers.cities);
+
+      mapOfflineCountriesLayer = L.geoJSON(countriesData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#3f5f84",
+          weight: 1.2,
+          opacity: 0.58,
+          fill: false,
+        }}),
+      }});
+      mapOfflineCoastlineLayer = L.geoJSON(coastlineData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#5f8cbc",
+          weight: 1.25,
+          opacity: 0.7,
+        }}),
+      }});
+      mapOfflineBordersLayer = L.geoJSON(bordersData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#6f8fb2",
+          weight: 0.95,
+          opacity: 0.55,
+          dashArray: "3 3",
+        }}),
+      }});
+      mapOfflineUrbanLayer = L.geoJSON(urbanData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#4f6f94",
+          weight: 0.6,
+          opacity: 0.42,
+          fillColor: "#5f81aa",
+          fillOpacity: 0.08,
+        }}),
+      }});
+      mapOfflineStatesLayer = L.geoJSON(statesData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#5b7da7",
+          weight: 1.15,
+          opacity: 0.75,
+          fill: false,
+        }}),
+      }});
+      mapOfflineRiversLayer = L.geoJSON(riversData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#6ca1d4",
+          weight: 1.5,
+          opacity: 0.78,
+        }}),
+      }});
+      mapOfflineLakesLayer = L.geoJSON(lakesData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        style: () => ({{
+          color: "#7aa7d3",
+          weight: 0.9,
+          opacity: 0.82,
+          fillColor: "#90b8df",
+          fillOpacity: 0.2,
+        }}),
+      }});
+      mapOfflineCitiesLayer = L.geoJSON(citiesData, {{
+        pane: mapOfflineGridPaneName,
+        interactive: false,
+        pointToLayer: (feature, latlng) => {{
+          const props = feature && feature.properties && typeof feature.properties === "object"
+            ? feature.properties
+            : {{}};
+          const name = sanitizeOfflineLabel(props.name, "City");
+          const rank = parseOfflineCityRank(props.scalerank, 9);
+          const weight = parseOfflineCityWeight(props.population, 0);
+          const marker = L.marker(latlng, {{
+            interactive: false,
+            keyboard: false,
+            pane: mapOfflineGridPaneName,
+            icon: L.divIcon({{
+              className: "offline-landmark-icon",
+              html: `<span>${{escAttr(name)}}</span>`,
+              iconSize: [0, 0],
+              iconAnchor: [0, 0],
+            }}),
+          }});
+          mapOfflineCityMarkers.push({{
+            marker,
+            rank,
+            weight,
+            latlng,
+            label: name,
+          }});
+          return marker;
+        }},
+      }});
+    }}
+
+    function addOfflineAtlasLayersToMap() {{
+      for (const layer of [
+        mapOfflineCountriesLayer,
+        mapOfflineCoastlineLayer,
+        mapOfflineBordersLayer,
+        mapOfflineUrbanLayer,
+        mapOfflineStatesLayer,
+        mapOfflineRiversLayer,
+        mapOfflineLakesLayer,
+        mapOfflineCitiesLayer,
+      ]) {{
+        if (layer && !map.hasLayer(layer)) {{
+          map.addLayer(layer);
+        }}
+      }}
+      syncOfflineCityVisibility();
+    }}
+
+    function removeOfflineAtlasLayersFromMap() {{
+      for (const layer of [
+        mapOfflineCountriesLayer,
+        mapOfflineCoastlineLayer,
+        mapOfflineBordersLayer,
+        mapOfflineUrbanLayer,
+        mapOfflineStatesLayer,
+        mapOfflineRiversLayer,
+        mapOfflineLakesLayer,
+        mapOfflineCitiesLayer,
+      ]) {{
+        if (layer && map.hasLayer(layer)) {{
+          map.removeLayer(layer);
+        }}
+      }}
+      mapOfflineCityMarkers = [];
+    }}
+
+    function shouldShowOfflineAtlas() {{
+      return mapBasemapMode === "offline" || mapOfflineFallbackActive;
+    }}
+
+    async function ensureOfflineAtlasLayers() {{
+      const shouldAttach = shouldShowOfflineAtlas();
+      if (
+        mapOfflineCountriesLayer
+        && mapOfflineCoastlineLayer
+        && mapOfflineBordersLayer
+        && mapOfflineUrbanLayer
+        && mapOfflineStatesLayer
+        && mapOfflineRiversLayer
+        && mapOfflineLakesLayer
+        && mapOfflineCitiesLayer
+      ) {{
+        if (shouldAttach) {{
+          addOfflineAtlasLayersToMap();
+        }}
+        return true;
+      }}
+      const payload = await fetchOfflineAtlasPayload();
+      if (!payload) {{
+        return false;
+      }}
+      buildOfflineAtlasLayers(payload);
+      // Guard against race conditions: atlas fetch may finish after mode switched back online.
+      if (shouldShowOfflineAtlas()) {{
+        addOfflineAtlasLayersToMap();
+      }}
+      return true;
+    }}
+

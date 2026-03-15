@@ -1,0 +1,276 @@
+    function clearMapTileProbeTimer() {{
+      if (mapTileProbeTimer !== null) {{
+        clearTimeout(mapTileProbeTimer);
+        mapTileProbeTimer = null;
+      }}
+    }}
+
+    function normalizeMapBasemapMode(raw) {{
+      return String(raw || "").trim().toLowerCase() === "offline" ? "offline" : "online";
+    }}
+
+    function activeMapTileTheme() {{
+      const activeTheme = String(document.documentElement.getAttribute("data-theme") || "").trim().toLowerCase();
+      return activeTheme === "dark" ? "dark" : "light";
+    }}
+
+    function persistMapBasemapMode() {{
+      try {{
+        window.localStorage.setItem(mapBasemapModeStorageKey, mapBasemapMode);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadMapBasemapModePreference() {{
+      let stored = "online";
+      try {{
+        stored = window.localStorage.getItem(mapBasemapModeStorageKey) || "online";
+      }} catch (_err) {{
+      }}
+      mapBasemapMode = normalizeMapBasemapMode(stored);
+    }}
+
+    function setMapBasemapStatus(status, detail = "") {{
+      const el = document.getElementById("map-basemap-status");
+      if (!(el instanceof HTMLElement)) {{
+        return;
+      }}
+      const manualOffline = mapBasemapMode === "offline";
+      const mode = manualOffline
+        ? "offline"
+        : (status === "online" || status === "offline" ? status : "loading");
+      el.classList.remove("status-online", "status-loading", "status-offline");
+      el.classList.add(`status-${{mode}}`);
+      if (manualOffline) {{
+        el.textContent = "Basemap: offline (forced)";
+      }} else if (mode === "online") {{
+        el.textContent = "Basemap: online";
+      }} else if (mode === "offline") {{
+        el.textContent = "Basemap: offline atlas";
+      }} else {{
+        el.textContent = "Basemap: checking...";
+      }}
+      if (el instanceof HTMLButtonElement) {{
+        el.setAttribute("aria-pressed", manualOffline ? "true" : "false");
+      }}
+      const titleText = String(detail || "").trim();
+      const toggleHint = manualOffline
+        ? "Click to switch back to online tiles."
+        : "Click to force offline atlas mode.";
+      if (titleText) {{
+        el.title = `${{titleText}} ${{toggleHint}}`;
+      }} else if (manualOffline) {{
+        el.title = `Offline mode is forced. Showing offline atlas (countries, coastline, borders, states, urban areas, rivers, lakes, cities). ${{toggleHint}}`;
+      }} else if (mode === "offline") {{
+        el.title = `Map tiles unavailable. Showing offline atlas (countries, coastline, borders, states, urban areas, rivers, lakes, cities). ${{toggleHint}}`;
+      }} else if (mode === "online") {{
+        el.title = `Map tiles loaded normally. ${{toggleHint}}`;
+      }} else {{
+        el.title = `Checking map tile availability. ${{toggleHint}}`;
+      }}
+    }}
+
+    function setMapBasemapMode(mode, persist = true, reason = "") {{
+      const next = normalizeMapBasemapMode(mode);
+      mapBasemapMode = next;
+      if (persist) {{
+        persistMapBasemapMode();
+      }}
+      if (next === "offline") {{
+        clearMapTileProbeTimer();
+        if (mapTileLayer && map.hasLayer(mapTileLayer)) {{
+          map.removeLayer(mapTileLayer);
+        }}
+        setMapOfflineFallbackState(true, reason || "Offline mode is forced by user.");
+        return;
+      }}
+
+      // In online mode we never want offline vectors lingering underneath tiles.
+      setMapOfflineFallbackState(false, "Online mode enabled.");
+      setMapBasemapStatus("loading", reason || "Online mode enabled. Loading map tiles...");
+      applyMapTiles(activeMapTileTheme());
+    }}
+
+    function bindMapBasemapToggleControl() {{
+      const btn = document.getElementById("map-basemap-status");
+      if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") {{
+        return;
+      }}
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {{
+        const nextMode = mapBasemapMode === "offline" ? "online" : "offline";
+        const reason = nextMode === "offline"
+          ? "Offline mode forced by user."
+          : "Online mode restored by user.";
+        setMapBasemapMode(nextMode, true, reason);
+      }});
+      setMapBasemapStatus(mapOfflineFallbackActive ? "offline" : "loading");
+    }}
+
+    function setMapOfflineFallbackState(enabled, reason = "") {{
+      const active = !!enabled;
+      if (active === mapOfflineFallbackActive) {{
+        if (active) {{
+          ensureMapOfflineGridPane();
+          void ensureOfflineAtlasLayers();
+        }}
+        if (active) {{
+          setMapBasemapStatus("offline", reason);
+        }} else if (mapTileLoadSuccesses > 0) {{
+          setMapBasemapStatus("online", reason);
+        }}
+        if (mapFrameElement instanceof HTMLElement) {{
+          mapFrameElement.classList.toggle("map-basemap-offline", active);
+        }}
+        return;
+      }}
+      mapOfflineFallbackActive = active;
+      if (active) {{
+        ensureMapOfflineGridPane();
+        void ensureOfflineAtlasLayers();
+        setMapBasemapStatus("offline", reason);
+      }} else {{
+        removeOfflineAtlasLayersFromMap();
+        if (mapTileLoadSuccesses > 0) {{
+          setMapBasemapStatus("online", reason);
+        }}
+      }}
+      if (mapFrameElement instanceof HTMLElement) {{
+        mapFrameElement.classList.toggle("map-basemap-offline", active);
+      }}
+    }}
+
+    function scheduleMapTileProbe(sessionId) {{
+      clearMapTileProbeTimer();
+      mapTileProbeTimer = window.setTimeout(() => {{
+        if (mapBasemapMode === "offline") {{
+          return;
+        }}
+        if (sessionId !== mapTileLoadSession) {{
+          return;
+        }}
+        if (mapTileLoadSuccesses > 0) {{
+          return;
+        }}
+        const offlineHint = typeof navigator !== "undefined" && navigator && navigator.onLine === false;
+        const reason = offlineHint
+          ? "Browser is offline. Showing offline atlas reference map."
+          : "Map tiles unavailable. Showing offline atlas reference map.";
+        setMapOfflineFallbackState(true, reason);
+      }}, 2500);
+    }}
+
+    function bindMapBasemapConnectivityHandlers() {{
+      if (document.body.dataset.mapBasemapConnectivityBound === "1") {{
+        return;
+      }}
+      document.body.dataset.mapBasemapConnectivityBound = "1";
+      window.addEventListener("offline", () => {{
+        if (mapBasemapMode === "offline") {{
+          setMapBasemapStatus("offline", "Offline mode is forced by user.");
+          return;
+        }}
+        if (mapTileLoadSuccesses <= 0) {{
+          setMapOfflineFallbackState(true, "Browser is offline. Showing offline atlas reference map.");
+        }} else {{
+          setMapBasemapStatus(
+            "loading",
+            "Browser is offline. Cached tiles may remain visible; offline atlas will show if tiles become unavailable."
+          );
+        }}
+      }});
+      window.addEventListener("online", () => {{
+        if (mapBasemapMode === "offline") {{
+          setMapBasemapStatus("offline", "Offline mode is forced by user.");
+          return;
+        }}
+        setMapBasemapStatus("loading", "Connection restored. Checking map tiles...");
+        if (mapTileLayer) {{
+          mapTileLoadSuccesses = 0;
+          mapTileLoadErrors = 0;
+          mapTileLayer.redraw();
+          scheduleMapTileProbe(mapTileLoadSession);
+        }}
+      }});
+    }}
+
+    function applyMapTiles(themeName) {{
+      const nextTheme = themeName === "dark" ? "dark" : "light";
+      if (mapTileLayer
+        && mapTileTheme === nextTheme
+        && mapBasemapMode !== "offline"
+        && map.hasLayer(mapTileLayer)) {{
+        return;
+      }}
+      const cfg = mapTileConfigs[nextTheme] || mapTileConfigs.light;
+      if (mapTileLayer) {{
+        mapTileLayer.off();
+        map.removeLayer(mapTileLayer);
+      }}
+      mapTileLoadSession += 1;
+      const sessionId = mapTileLoadSession;
+      mapTileLoadSuccesses = 0;
+      mapTileLoadErrors = 0;
+      setMapBasemapStatus("loading", "Checking map tile availability...");
+      const layerOptions = Object.assign({{}}, cfg.options || {{}}, {{
+        crossOrigin: true,
+      }});
+      mapTileLayer = L.tileLayer(cfg.url, layerOptions);
+      mapTileLayer.on("tileloadstart", () => {{
+        if (mapBasemapMode === "offline") {{
+          return;
+        }}
+        if (sessionId !== mapTileLoadSession) {{
+          return;
+        }}
+        if (mapTileLoadSuccesses <= 0) {{
+          setMapBasemapStatus("loading", "Loading map tiles...");
+        }}
+      }});
+      mapTileLayer.on("tileload", () => {{
+        if (mapBasemapMode === "offline") {{
+          return;
+        }}
+        if (sessionId !== mapTileLoadSession) {{
+          return;
+        }}
+        mapTileLoadSuccesses += 1;
+        mapTileLoadErrors = 0;
+        setMapOfflineFallbackState(false, "Map tiles loaded.");
+      }});
+      mapTileLayer.on("tileerror", () => {{
+        if (mapBasemapMode === "offline") {{
+          return;
+        }}
+        if (sessionId !== mapTileLoadSession) {{
+          return;
+        }}
+        mapTileLoadErrors += 1;
+        if (mapTileLoadSuccesses <= 0 && mapTileLoadErrors >= 2) {{
+          setMapOfflineFallbackState(true, "Tile requests failed. Showing offline atlas reference map.");
+        }} else if (mapTileLoadSuccesses <= 0) {{
+          setMapBasemapStatus("loading", `Retrying map tiles (${{mapTileLoadErrors}} errors)...`);
+        }}
+      }});
+      mapTileLayer.on("load", () => {{
+        if (mapBasemapMode === "offline") {{
+          return;
+        }}
+        if (sessionId !== mapTileLoadSession) {{
+          return;
+        }}
+        if (mapTileLoadSuccesses > 0) {{
+          setMapOfflineFallbackState(false, "Map tiles loaded.");
+        }} else if (mapTileLoadErrors > 0) {{
+          setMapOfflineFallbackState(true, "Map tile load cycle completed without valid tiles.");
+        }}
+      }});
+      if (mapBasemapMode === "offline") {{
+        setMapOfflineFallbackState(true, "Offline mode is forced by user.");
+      }} else {{
+        mapTileLayer.addTo(map);
+        scheduleMapTileProbe(sessionId);
+      }}
+      mapTileTheme = nextTheme;
+    }}
+
