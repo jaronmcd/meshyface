@@ -1,0 +1,395 @@
+    function renderNetworkTrailOverlay(nodeHistory, selectionId) {{
+      trailLayer.clearLayers();
+      const trailPoints = collectTrailPoints(nodeHistory, selectionId);
+      if (trailPoints.length >= 2) {{
+        const line = L.polyline(
+          trailPoints.map((point) => [point.lat, point.lon]),
+          {{
+            color: "#d06a1b",
+            opacity: 0.72,
+            weight: 3,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+        );
+        line.bindTooltip(`Selected node trail (${{trailPoints.length}} points)`, {{ sticky: true, opacity: 0.9 }});
+        line.addTo(trailLayer);
+      }}
+      if (trailPoints.length > 0) {{
+        const endPoint = trailPoints[trailPoints.length - 1];
+        for (let i = 0; i < trailPoints.length; i += 1) {{
+          const point = trailPoints[i];
+          const isLatestPoint = i === (trailPoints.length - 1);
+          const ratio = trailPoints.length <= 1 ? 1 : (i / (trailPoints.length - 1));
+          const marker = L.circleMarker([point.lat, point.lon], {{
+            radius: isLatestPoint ? 4.8 : (i === 0 ? 3.4 : 2.4),
+            color: isLatestPoint ? "#f97316" : "#2f855a",
+            fillColor: isLatestPoint ? "#f97316" : "#63d297",
+            fillOpacity: isLatestPoint ? 0.92 : (0.2 + (ratio * 0.45)),
+            weight: isLatestPoint ? 1.8 : 1,
+            bubblingMouseEvents: false,
+          }});
+          const pointTime = point.time || "n/a";
+          marker.bindTooltip(
+            isLatestPoint
+              ? `Selected trail newest point: ${{pointTime}}`
+              : `Selected trail point ${{i + 1}}/${{trailPoints.length}}: ${{pointTime}}`,
+            {{ sticky: true, opacity: 0.88 }}
+          );
+          marker.addTo(trailLayer);
+        }}
+
+        const latestHalo = L.circleMarker([endPoint.lat, endPoint.lon], {{
+          radius: 8,
+          color: "#f97316",
+          fillColor: "#f97316",
+          fillOpacity: 0.14,
+          weight: 2,
+          bubblingMouseEvents: false,
+        }});
+        latestHalo.bindTooltip(`Selected trail latest: ${{endPoint.time || "n/a"}}`, {{ sticky: true, opacity: 0.9 }});
+        latestHalo.addTo(trailLayer);
+      }}
+    }}
+
+    function renderMap(nodes, edges, nodeHistory = null) {{
+      ensureMapSizeSync();
+      const hideHeatmap = activeLayoutView === "saved";
+      const signatures = buildMapSignatures(nodes, edges, nodeHistory);
+      const signature = signatures.signature;
+      const graphSignature = signatures.graphSignature;
+      const savedSelectionMode = signatures.savedSelectionMode;
+      const networkSelectionMode = signatures.networkSelectionMode;
+      const selectionId = signatures.selection;
+
+      syncSignalHeatmapLayer(nodes, hideHeatmap);
+      refreshMapCardTitle();
+      updateMapPacketLinesControl();
+
+      if (savedSelectionMode) {{
+        if (signature === lastMapSignature && lastMapRenderMode === "saved") {{
+          ensureMapSizeSync();
+          updateMapSelection(false);
+          return;
+        }}
+
+        nodeLayer.clearLayers();
+        edgeLayer.clearLayers();
+        trailLayer.clearLayers();
+        nodeMarkers.clear();
+        nodeMarkerMeta.clear();
+        edgeLines.clear();
+        edgeLineMeta.clear();
+
+        const historyCapsById = new Map(
+          Object.entries((latestState && latestState.history_caps && typeof latestState.history_caps === "object") ? latestState.history_caps : {{}})
+            .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+            .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+        );
+        const nowUnix = Math.floor(Date.now() / 1000);
+        const selectedNode = savedViewNodeFrom(nodes, latestState);
+        const selectedNodeIdNormalized = normalizeNodeId((selectedNode && selectedNode.id) || "");
+        const hasSelectedPosition = !!selectedNode
+          && typeof selectedNode.lat === "number"
+          && typeof selectedNode.lon === "number";
+        const trailPoints = collectTrailPoints(nodeHistory, selectionId);
+
+        if (trailPoints.length >= 2) {{
+          const line = L.polyline(
+            trailPoints.map((point) => [point.lat, point.lon]),
+            {{
+              color: "#d06a1b",
+              opacity: 0.78,
+              weight: 4,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+          );
+          line.bindTooltip(`Location trail (${{trailPoints.length}} points)`, {{ sticky: true, opacity: 0.9 }});
+          line.addTo(trailLayer);
+        }}
+        if (trailPoints.length > 0) {{
+          const endPoint = trailPoints[trailPoints.length - 1];
+          for (let i = 0; i < trailPoints.length; i += 1) {{
+            const point = trailPoints[i];
+            const isLatestPoint = i === (trailPoints.length - 1);
+            const ratio = trailPoints.length <= 1 ? 1 : (i / (trailPoints.length - 1));
+            const marker = L.circleMarker([point.lat, point.lon], {{
+              radius: isLatestPoint ? 5.8 : (i === 0 ? 3.6 : 2.6),
+              color: isLatestPoint ? "#f97316" : "#2f855a",
+              fillColor: isLatestPoint ? "#f97316" : "#63d297",
+              fillOpacity: isLatestPoint ? 0.96 : (0.2 + (ratio * 0.5)),
+              weight: isLatestPoint ? 2 : 1,
+              bubblingMouseEvents: false,
+            }});
+            const pointTime = point.time || "n/a";
+            marker.bindTooltip(
+              isLatestPoint
+                ? `Newest trail point: ${{pointTime}}`
+                : `Trail point ${{i + 1}}/${{trailPoints.length}}: ${{pointTime}}`,
+              {{ sticky: true, opacity: 0.88 }}
+            );
+            marker.addTo(trailLayer);
+          }}
+
+          const latestHalo = L.circleMarker([endPoint.lat, endPoint.lon], {{
+            radius: 10,
+            color: "#f97316",
+            fillColor: "#f97316",
+            fillOpacity: 0.16,
+            weight: 2,
+            bubblingMouseEvents: false,
+          }});
+          latestHalo.bindTooltip(`Newest trail point: ${{endPoint.time || "n/a"}}`, {{ sticky: true, opacity: 0.9 }});
+          latestHalo.addTo(trailLayer);
+        }}
+
+        if (hasSelectedPosition) {{
+          const trailPointsCount = trailPoints.length;
+          const trailLast = trailPointsCount > 0
+            ? (trailPoints[trailPointsCount - 1].time || "n/a")
+            : "n/a";
+          const selectedCaps = historyCapsById.get(selectionId) || null;
+          const posBadge = resolveMapPositionBadge(selectedNode, selectedCaps, nowUnix);
+          const marker = L.circleMarker(
+            [selectedNode.lat, selectedNode.lon],
+            markerStyle(true)
+          );
+          marker.bindPopup(`
+            <b>${{nodeLabel(selectedNode)}}</b><br/>
+            ${{selectedNodeIdNormalized || selectedNode.id}}<br/>
+            Num: ${{selectedNode.num ?? "n/a"}}<br/>
+            SNR: ${{selectedNode.snr ?? "n/a"}}<br/>
+            RSSI: ${{selectedNode.rssi ?? "n/a"}}<br/>
+            Position: <span class="map-position-badge ${{posBadge.className}}" title="${{escAttr(posBadge.title)}}">${{escAttr(posBadge.label)}}</span><br/>
+            Last: ${{selectedNode.last_heard || "n/a"}}<br/>
+            Trail points: ${{trailPointsCount}}<br/>
+            Trail latest: ${{trailLast}}
+          `);
+          marker.on("click", () => {{
+            selectNode(normalizeNodeId(selectedNode.id || ""), false);
+          }});
+          marker.addTo(nodeLayer);
+          nodeMarkers.set(normalizeNodeId(selectedNode.id || ""), marker);
+          if (trailPoints.length > 1) {{
+            const trailBounds = L.latLngBounds(trailPoints.map((point) => [point.lat, point.lon]));
+            trailBounds.extend([selectedNode.lat, selectedNode.lon]);
+            if (trailBounds.isValid()) {{
+              map.fitBounds(trailBounds.pad(0.2), {{ animate: false, maxZoom: 16 }});
+            }}
+          }} else {{
+            map.setView([selectedNode.lat, selectedNode.lon], Math.max(map.getZoom(), 11), {{ animate: false }});
+          }}
+          marker.openPopup();
+        }} else if (trailPoints.length > 0) {{
+          const trailBounds = L.latLngBounds(trailPoints.map((point) => [point.lat, point.lon]));
+          if (trailBounds.isValid()) {{
+            map.fitBounds(trailBounds.pad(0.2), {{ animate: false, maxZoom: 16 }});
+          }}
+        }} else {{
+          map.closePopup();
+        }}
+
+        lastMapSignature = signature;
+        lastMapGraphSignature = "";
+        lastMapRenderMode = "saved";
+        requestMapResize();
+        return;
+      }}
+
+      const graphChanged = lastMapRenderMode !== "graph" || graphSignature !== lastMapGraphSignature;
+      if (!graphChanged && signature === lastMapSignature) {{
+        ensureMapSizeSync();
+        if (activeLayoutView === "network" && !fitDone) {{
+          // View-switch fast path: still run initial network auto-fit even when map data is unchanged.
+          const didFit = fitMapToMostNodes(nodes, {{ pad: 0.18, maxZoom: 13 }});
+          if (didFit) {{
+            fitDone = true;
+          }} else {{
+            requestMapResize();
+          }}
+        }}
+        updateMapSelection(false);
+        return;
+      }}
+
+      if (graphChanged) {{
+        const byId = Object.create(null);
+        for (const node of (nodes || [])) {{
+          byId[normalizeNodeId(node && node.id)] = node;
+        }}
+        const historyCapsById = new Map(
+          Object.entries((latestState && latestState.history_caps && typeof latestState.history_caps === "object") ? latestState.history_caps : {{}})
+            .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+            .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+        );
+        const nowUnix = Math.floor(Date.now() / 1000);
+        const seenNodeIds = new Set();
+
+        for (const node of (nodes || [])) {{
+          if (typeof node.lat !== "number" || typeof node.lon !== "number") continue;
+          const normalizedId = normalizeNodeId(node.id || "");
+          const isSelected = !!selectedNodeId && normalizedId === selectedNodeId;
+          const nodeCaps = historyCapsById.get(normalizedId) || null;
+          const posBadge = resolveMapPositionBadge(node, nodeCaps, nowUnix);
+          let markerHash = 2166136261;
+          markerHash = hashMixStr(markerHash, "network-node");
+          markerHash = hashMixStr(markerHash, normalizedId);
+          markerHash = hashMixInt(markerHash, Math.round(node.lat * 100000));
+          markerHash = hashMixInt(markerHash, Math.round(node.lon * 100000));
+          markerHash = hashMixInt(markerHash, isSelected ? 1 : 0);
+          markerHash = hashMixStr(markerHash, node && (node.num ?? ""));
+          markerHash = hashMixStr(markerHash, node && (node.snr ?? ""));
+          markerHash = hashMixStr(markerHash, node && (node.rssi ?? ""));
+          markerHash = hashMixStr(markerHash, node && (node.last_heard || ""));
+          markerHash = hashMixStr(markerHash, posBadge.className);
+          const existingMarker = nodeMarkers.get(normalizedId);
+          const prevMarkerHash = nodeMarkerMeta.get(normalizedId);
+          seenNodeIds.add(normalizedId);
+          if (existingMarker && prevMarkerHash === markerHash) {{
+            continue;
+          }}
+          if (existingMarker) {{
+            nodeLayer.removeLayer(existingMarker);
+            nodeMarkers.delete(normalizedId);
+          }}
+          const marker = L.circleMarker([node.lat, node.lon], markerStyle(isSelected));
+          marker.bindPopup(`
+            <b>${{nodeLabel(node)}}</b><br/>
+            ${{normalizedId || node.id}}<br/>
+            Num: ${{node.num ?? "n/a"}}<br/>
+            SNR: ${{node.snr ?? "n/a"}}<br/>
+            RSSI: ${{node.rssi ?? "n/a"}}<br/>
+            Position: <span class="map-position-badge ${{posBadge.className}}" title="${{escAttr(posBadge.title)}}">${{escAttr(posBadge.label)}}</span><br/>
+            Last: ${{node.last_heard || "n/a"}}
+          `);
+          marker.on("click", () => {{
+            selectNode(normalizedId, false);
+          }});
+          marker.addTo(nodeLayer);
+          nodeMarkers.set(normalizedId, marker);
+          nodeMarkerMeta.set(normalizedId, markerHash);
+        }}
+
+        for (const [nodeId, marker] of Array.from(nodeMarkers.entries())) {{
+          if (seenNodeIds.has(nodeId)) continue;
+          nodeLayer.removeLayer(marker);
+          nodeMarkers.delete(nodeId);
+          nodeMarkerMeta.delete(nodeId);
+        }}
+
+        if (activeLayoutView === "network" && mapPacketLinesEnabled) {{
+          const seenEdgeKeys = new Set();
+          const edgeKeyCounts = new Map();
+          for (const edge of (edges || [])) {{
+            const fromId = normalizeNodeId(edge && edge.from);
+            const toId = normalizeNodeId(edge && edge.to);
+            const src = byId[fromId];
+            const dst = byId[toId];
+            if (!src || !dst) continue;
+            if (typeof src.lat !== "number" || typeof src.lon !== "number") continue;
+            if (typeof dst.lat !== "number" || typeof dst.lon !== "number") continue;
+            const baseKey = `${{fromId}}>${{toId}}`;
+            const duplicateIdx = edgeKeyCounts.get(baseKey) || 0;
+            edgeKeyCounts.set(baseKey, duplicateIdx + 1);
+            const edgeKey = duplicateIdx === 0 ? baseKey : `${{baseKey}}#${{duplicateIdx}}`;
+            seenEdgeKeys.add(edgeKey);
+
+            const lifetimeCount = edge.lifetime_count ?? edge.count ?? 0;
+            const sessionCount = edge.session_count ?? edge.count ?? 0;
+            const isReal = !!edge.is_real;
+            let edgeHash = 2166136261;
+            edgeHash = hashMixStr(edgeHash, "network-edge");
+            edgeHash = hashMixStr(edgeHash, edgeKey);
+            edgeHash = hashMixInt(edgeHash, Math.round(src.lat * 100000));
+            edgeHash = hashMixInt(edgeHash, Math.round(src.lon * 100000));
+            edgeHash = hashMixInt(edgeHash, Math.round(dst.lat * 100000));
+            edgeHash = hashMixInt(edgeHash, Math.round(dst.lon * 100000));
+            edgeHash = hashMixInt(edgeHash, Number(lifetimeCount) || 0);
+            edgeHash = hashMixInt(edgeHash, Number(sessionCount) || 0);
+            edgeHash = hashMixInt(edgeHash, isReal ? 1 : 0);
+            edgeHash = hashMixStr(edgeHash, edge && (edge.confidence || ""));
+            edgeHash = hashMixStr(edgeHash, edge && (edge.first_rx_time || ""));
+            edgeHash = hashMixStr(edgeHash, edge && (edge.last_rx_time || ""));
+            edgeHash = hashMixStr(edgeHash, edge && (edge.avg_hops ?? ""));
+            edgeHash = hashMixStr(edgeHash, edge && (edge.last_hops ?? ""));
+            const ports = Array.isArray(edge && edge.portnums) ? edge.portnums : [];
+            for (const port of ports) {{
+              edgeHash = hashMixStr(edgeHash, port);
+            }}
+
+            const existingLine = edgeLines.get(edgeKey);
+            const prevEdgeHash = edgeLineMeta.get(edgeKey);
+            if (existingLine && prevEdgeHash === edgeHash) {{
+              continue;
+            }}
+            if (existingLine) {{
+              edgeLayer.removeLayer(existingLine);
+              edgeLines.delete(edgeKey);
+            }}
+
+            const hopsLabel = edge.avg_hops == null
+              ? "n/a"
+              : `avg ${{edge.avg_hops}}${{edge.last_hops == null ? "" : ` (last ${{edge.last_hops}})`}}`;
+            const line = L.polyline([[src.lat, src.lon], [dst.lat, dst.lon]], {{
+              color: isReal ? "#bf1f43" : "#b7791f",
+              dashArray: isReal ? null : "6 6",
+              opacity: isReal ? 0.74 : 0.52,
+              weight: Math.min(8, 2 + lifetimeCount),
+              bubblingMouseEvents: false,
+            }});
+            line.bindTooltip(`
+              <b>${{edge.from}} -> ${{edge.to}}</b><br/>
+              Status: ${{edge.confidence || (isReal ? "confirmed" : "observed")}}<br/>
+              Packets: ${{lifetimeCount}}<br/>
+              Hops: ${{hopsLabel}}
+            `, {{ sticky: true, opacity: 0.92 }});
+            line.bindPopup(`
+              <b>${{edge.from}} -> ${{edge.to}}</b><br/>
+              Status: ${{edge.confidence || (isReal ? "confirmed" : "observed")}}<br/>
+              Session packets: ${{sessionCount}}<br/>
+              Lifetime packets: ${{lifetimeCount}}<br/>
+              First: ${{edge.first_rx_time || "n/a"}}<br/>
+              Last: ${{edge.last_rx_time || "n/a"}}<br/>
+              Hops: ${{hopsLabel}}<br/>
+              Ports: ${{ports.join(", ") || "n/a"}}
+            `);
+            line.addTo(edgeLayer);
+            edgeLines.set(edgeKey, line);
+            edgeLineMeta.set(edgeKey, edgeHash);
+          }}
+
+          for (const [edgeKey, line] of Array.from(edgeLines.entries())) {{
+            if (seenEdgeKeys.has(edgeKey)) continue;
+            edgeLayer.removeLayer(line);
+            edgeLines.delete(edgeKey);
+            edgeLineMeta.delete(edgeKey);
+          }}
+        }} else {{
+          for (const [edgeKey, line] of Array.from(edgeLines.entries())) {{
+            edgeLayer.removeLayer(line);
+            edgeLines.delete(edgeKey);
+            edgeLineMeta.delete(edgeKey);
+          }}
+        }}
+      }}
+
+      if (networkSelectionMode) {{
+        renderNetworkTrailOverlay(nodeHistory, selectionId);
+      }} else {{
+        trailLayer.clearLayers();
+      }}
+
+      if (!fitDone) {{
+        // Network overview: fit to the densest footprint and ignore obvious outliers (e.g., 0,0 before GPS lock).
+        const didFit = fitMapToMostNodes(nodes, {{ pad: 0.18, maxZoom: 13 }});
+        if (didFit) {{
+          fitDone = true;
+        }}
+      }}
+      updateMapSelection(false);
+      lastMapSignature = signature;
+      lastMapGraphSignature = graphSignature;
+      lastMapRenderMode = "graph";
+    }}
+
