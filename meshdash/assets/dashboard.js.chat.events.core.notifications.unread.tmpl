@@ -339,7 +339,9 @@
       }}
       const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
       btn.textContent = unreadCount > 0 ? `Chat (${{unreadLabel}})` : "Chat";
-      btn.classList.toggle("has-unread", attentionCount > 0);
+      // Keep unread count in the label/title only; avoid unread highlight that
+      // can be mistaken for selected state in the rail.
+      btn.classList.remove("has-unread");
       const baseTitle = btn.dataset.baseTitle || "Teams-style chat workspace";
       const titleParts = [baseTitle];
       if (unreadCount > 0) {{
@@ -396,4 +398,3 @@
       }} catch (_err) {{
       }}
     }}
-
