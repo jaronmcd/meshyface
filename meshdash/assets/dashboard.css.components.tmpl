@@ -279,6 +279,20 @@
       padding: 4px;
       font-size: 15px;
     }}
+    .chat-emoji-top-grid.is-sortable .chat-emoji-top-item {{
+      cursor: grab;
+    }}
+    .chat-emoji-top-grid.dragging .chat-emoji-top-item {{
+      cursor: grabbing;
+    }}
+    .chat-emoji-top-grid .chat-emoji-top-item.dragging {{
+      opacity: 0.55;
+    }}
+    .chat-emoji-top-grid .chat-emoji-top-item.drag-over {{
+      border-color: #9abca9;
+      box-shadow: inset 0 0 0 1px #b6d1be;
+      background: #eef7f1;
+    }}
     .chat-emoji-top-empty {{
       grid-column: 1 / -1;
       border: 1px dashed #d1e0d4;
@@ -1449,6 +1463,11 @@
     }}
     [data-theme="dark"] .chat-emoji-top-label {{
       color: #aac8ba;
+    }}
+    [data-theme="dark"] .chat-emoji-top-grid .chat-emoji-top-item.drag-over {{
+      border-color: #5d7d6b;
+      box-shadow: inset 0 0 0 1px #7ea290;
+      background: #2a4336;
     }}
     [data-theme="dark"] .chat-emoji-react-toggle-btn {{
       background: #243a2f;
