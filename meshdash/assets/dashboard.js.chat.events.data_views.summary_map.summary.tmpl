@@ -3,6 +3,11 @@
     const envAggregateTickerRefreshMs = Math.max(120000, refreshMs * 40);
     const envAggregateTickerMaxPoints = (envAggregateTickerWindowHours * 60) + 8;
     const envAggregateTickerStaleSeconds = 30 * 60;
+    const envAggregateTickerSnapshotLookbackMinutes = 12;
+    const envAggregateTickerSnapshotLookbackMs = envAggregateTickerSnapshotLookbackMinutes * 60 * 1000;
+    const envAggregateTickerSnapshotMaxBucketWeight = 8;
+    const envAggregateTickerNodeConsensusLookbackMinutes = 30;
+    const envAggregateTickerNodeConsensusLookbackSeconds = envAggregateTickerNodeConsensusLookbackMinutes * 60;
     let envAggregateTickerSnapshots = new Map();
     let envAggregateTickerHydrated = false;
     let envAggregateTickerLastHydratedMs = 0;
@@ -320,10 +325,76 @@
         const latestMs = Number(latest && latest.ms);
         const latestValue = Number(latest && latest.value);
         if (!Number.isFinite(latestMs) || !Number.isFinite(latestValue)) continue;
+        const smoothingStartMs = latestMs - envAggregateTickerSnapshotLookbackMs;
+        const smoothingEntries = series
+          .map((entry) => {{
+            const ms = Number(entry && entry.ms);
+            const value = Number(entry && entry.value);
+            if (!Number.isFinite(ms) || !Number.isFinite(value)) return null;
+            if (ms < smoothingStartMs || ms > latestMs) return null;
+            return {{
+              ms,
+              value,
+              sampleCount: Math.max(0, Math.trunc(Number(sampleCountByMs.get(ms) || 0))),
+            }};
+          }})
+          .filter((entry) => entry && Number.isFinite(Number(entry.value)));
+        const smoothingValues = [];
+        for (const entry of smoothingEntries) {{
+          const value = Number(entry && entry.value);
+          if (!Number.isFinite(value)) continue;
+          const sampleCount = Math.max(1, Math.trunc(Number(entry && entry.sampleCount) || 0));
+          const weight = Math.max(1, Math.min(envAggregateTickerSnapshotMaxBucketWeight, sampleCount));
+          for (let idx = 0; idx < weight; idx += 1) {{
+            smoothingValues.push(value);
+          }}
+        }}
+        const smoothedValue = (
+          smoothingValues.length >= 2
+            ? robustEnvironmentAggregate(smoothingValues)
+            : latestValue
+        );
+        const latestUnix = Math.floor(latestMs / 1000);
+        const consensusStartUnix = latestUnix - envAggregateTickerNodeConsensusLookbackSeconds;
+        const consensusByNode = new Map();
+        for (const [rawBucketUnix, bucketNodeValues] of byBucket.entries()) {{
+          const bucketUnix = Math.trunc(Number(rawBucketUnix));
+          if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+          if (bucketUnix < consensusStartUnix || bucketUnix > latestUnix) continue;
+          if (!(bucketNodeValues instanceof Map)) continue;
+          for (const [rawNodeId, bucketEntry] of bucketNodeValues.entries()) {{
+            const nodeId = String(rawNodeId || "");
+            if (!nodeId) continue;
+            const value = Number(bucketEntry && bucketEntry.value);
+            if (!Number.isFinite(value)) continue;
+            const pool = consensusByNode.get(nodeId) || [];
+            pool.push(value);
+            consensusByNode.set(nodeId, pool);
+          }}
+        }}
+        const consensusNodeValues = [];
+        for (const pool of consensusByNode.values()) {{
+          const nodeAggregate = robustEnvironmentAggregate(pool);
+          if (!Number.isFinite(nodeAggregate)) continue;
+          consensusNodeValues.push(Number(nodeAggregate));
+        }}
+        const consensusValue = (
+          consensusNodeValues.length >= 2
+            ? robustEnvironmentAggregate(consensusNodeValues)
+            : null
+        );
+        const snapshotValue = Number(
+          Number.isFinite(consensusValue)
+            ? consensusValue
+            : smoothedValue
+        );
+        if (!Number.isFinite(snapshotValue)) continue;
         snapshots.set(def.id, {{
-          value: latestValue,
-          unix: Math.floor(latestMs / 1000),
+          value: snapshotValue,
+          unix: latestUnix,
           sampleCount: Math.max(0, Math.trunc(Number(sampleCountByMs.get(latestMs) || 0))),
+          smoothedBuckets: Math.max(0, smoothingEntries.length),
+          nodeConsensusNodes: Math.max(0, consensusNodeValues.length),
           points: series.length,
         }});
       }}
@@ -395,6 +466,8 @@
       setText(def.valueId, displayText);
       const sampleUnix = Math.trunc(Number(snapshot && snapshot.unix));
       const sampleCount = Math.max(0, Math.trunc(Number(snapshot && snapshot.sampleCount) || 0));
+      const smoothedBuckets = Math.max(0, Math.trunc(Number(snapshot && snapshot.smoothedBuckets) || 0));
+      const nodeConsensusNodes = Math.max(0, Math.trunc(Number(snapshot && snapshot.nodeConsensusNodes) || 0));
       const points = Math.max(0, Math.trunc(Number(snapshot && snapshot.points) || 0));
       const nowUnix = Math.floor(Date.now() / 1000);
       const ageSeconds = Number.isFinite(sampleUnix) && sampleUnix > 0
@@ -407,7 +480,7 @@
         const ageText = Number.isFinite(ageSeconds)
           ? (typeof savedDetailAge === "function" ? savedDetailAge(sampleUnix, nowUnix) : `${{ageSeconds}}s ago`)
           : "n/a";
-        valueEl.title = `${{def.label}} robust mesh aggregate. Last sample: ${{sampleTimeText}} (${{ageText}}). Nodes: ${{sampleCount}} | Buckets: ${{points}} | Window: ${{envAggregateTickerWindowHours}}h`;
+        valueEl.title = `${{def.label}} robust mesh aggregate. Last sample: ${{sampleTimeText}} (${{ageText}}). Latest-minute nodes: ${{sampleCount}} | Consensus nodes: ${{nodeConsensusNodes}} (${{envAggregateTickerNodeConsensusLookbackMinutes}}m) | Smoothed buckets: ${{smoothedBuckets}} (${{envAggregateTickerSnapshotLookbackMinutes}}m) | Buckets: ${{points}} | Window: ${{envAggregateTickerWindowHours}}h`;
       }}
 
       const isFresh = Number.isFinite(ageSeconds) ? ageSeconds <= envAggregateTickerStaleSeconds : true;
