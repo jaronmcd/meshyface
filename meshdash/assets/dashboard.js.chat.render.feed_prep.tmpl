@@ -168,9 +168,11 @@
 
         for (const msg of rawMessages) {{
           const msgChannelKey = classifyMessageChannel(msg) === "direct" ? "direct" : "all";
+          const includeDirectForPopout = !chatMainDirectModeEnabled && msgChannelKey === "direct";
           if (
             !messageMatchesActiveMeshChannel(msg)
             && !(activeChatChannel === "direct" && msgChannelKey === "direct")
+            && !includeDirectForPopout
           ) {{
             continue;
           }}
@@ -334,10 +336,13 @@
 
       const channelList = document.getElementById("chat-channel-list");
       if (channelList) {{
-        channelList.innerHTML = [
+        const channelEntries = [
           {{ key: "all", label: "Everyone", count: channelCounts.all }},
-          {{ key: "direct", label: "Peer-to-peer", count: channelCounts.direct }},
-        ].map((entry) => {{
+        ];
+        if (chatMainDirectModeEnabled) {{
+          channelEntries.push({{ key: "direct", label: "Peer-to-peer", count: channelCounts.direct }});
+        }}
+        channelList.innerHTML = channelEntries.map((entry) => {{
           const unread = Math.max(0, Number(chatUnreadByChannel[entry.key] || 0));
           const unreadLabel = unread > 99 ? "99+" : String(unread);
           const unreadFrom = String(chatUnreadLatestByChannel[entry.key] || "").trim();

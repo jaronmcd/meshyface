@@ -250,6 +250,11 @@
       const targetView = normalizeLayoutView(targetViewRaw || "chat");
       const focusKey = String(focusKeyRaw || "").trim();
       const targetChatChannel = normalizeChatChannel(chatChannelRaw || "all");
+      const mainChatChannel = (
+        !chatMainDirectModeEnabled && targetChatChannel === "direct"
+          ? "all"
+          : targetChatChannel
+      );
       const peerNodeId = normalizeNodeId(peerNodeIdRaw || "");
       const switchedView = activeLayoutView !== targetView;
       if (switchedView) {{
@@ -257,9 +262,23 @@
       }}
       const finalize = () => {{
         if (targetView === "chat") {{
-          applyChatChannel(targetChatChannel, true);
-          if (targetChatChannel === "direct" && isSelectableNodeId(peerNodeId)) {{
-            selectNode(peerNodeId, false, false);
+          applyChatChannel(mainChatChannel, true);
+          if (targetChatChannel === "direct") {{
+            if (!chatMainDirectModeEnabled) {{
+              if (isCanonicalNodeId(peerNodeId) && !isSelfNodeId(peerNodeId)) {{
+                peerDmActivePeerId = peerNodeId;
+                setPeerDmMenuOpen(false);
+                if (latestState) {{
+                  renderChat(latestState);
+                }}
+              }} else {{
+                setPeerDmMenuOpen(true);
+              }}
+              return;
+            }}
+            if (isSelectableNodeId(peerNodeId)) {{
+              selectNode(peerNodeId, false, false);
+            }}
           }}
           if (!focusChatNoticeByMessageKey(focusKey)) {{
             setChatSendStatus("Change is older than the visible chat window.", true);

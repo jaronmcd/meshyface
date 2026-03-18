@@ -58,7 +58,7 @@
             const replyId = Number(item.dataset.messageId || "");
             const replyName = item.dataset.replyName || "Unknown node";
             const replyText = item.dataset.replyText || "";
-            if (activeChatChannel === "direct" && item.classList.contains("chat-selectable")) {{
+            if (chatMainDirectModeEnabled && activeChatChannel === "direct" && item.classList.contains("chat-selectable")) {{
               selectNode(item.dataset.nodeId || "", false, false);
             }}
             setChatReplyTarget(replyId, replyName, replyText);

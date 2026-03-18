@@ -431,7 +431,7 @@
                 <span class="peer-dm-popout-id">${{escAttr(activePopoutPeerId)}}</span>
               </div>
               <div class="peer-dm-popout-actions">
-                <button type="button" id="peer-dm-popout-open-main-btn" class="peer-dm-popout-btn" title="Open this peer in main chat">Open main</button>
+                <button type="button" id="peer-dm-popout-open-main-btn" class="peer-dm-popout-btn" title="Focus this peer in the node list">Focus node</button>
                 <button type="button" id="peer-dm-popout-close-btn" class="peer-dm-popout-btn" title="Close this peer window">&times;</button>
               </div>
             </header>
@@ -448,7 +448,7 @@
               ev.preventDefault();
               setPeerDmMenuOpen(false);
               applyLayoutView("chat", true);
-              applyChatChannel("direct", true);
+              applyChatChannel("all", true);
               selectNode(activePopoutPeerId, true, false);
             }});
           }}

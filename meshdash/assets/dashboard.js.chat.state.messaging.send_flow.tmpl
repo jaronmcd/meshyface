@@ -117,7 +117,7 @@
         return;
       }}
       let destination = "^all";
-      if (activeChatChannel === "direct") {{
+      if (chatMainDirectModeEnabled && activeChatChannel === "direct") {{
         const directPeer = resolvedDirectPeerForComposer();
         if (!isCanonicalNodeId(directPeer)) {{
           setChatSendStatus("Select a user before sending a peer-to-peer message.", true);
@@ -202,7 +202,7 @@
       }}
       let destination = "^all";
       const sendCtx = meshChannelSendContext();
-      if (activeChatChannel === "direct") {{
+      if (chatMainDirectModeEnabled && activeChatChannel === "direct") {{
         const directPeer = resolvedDirectPeerForComposer();
         if (isCanonicalNodeId(directPeer)) {{
           destination = directPeer;

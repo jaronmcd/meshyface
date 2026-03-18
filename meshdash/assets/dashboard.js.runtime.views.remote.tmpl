@@ -90,7 +90,7 @@
           title: "Direct messages",
           status: directReady ? "ready" : "blocked",
           detail: directReady
-            ? "This node can be targeted from peer-to-peer chat."
+            ? "This node can be targeted from the message popup."
             : "This entry is not a direct-message target yet.",
         }},
         {{
@@ -162,8 +162,34 @@
       }}
       const directMode = !!(options && options.direct);
       selectNode(cleanNodeId, false, false);
-      applyChatChannel(directMode ? "direct" : "all", true);
       applyLayoutView("chat", true);
+      applyChatChannel("all", true);
+      if (directMode) {{
+        peerDmActivePeerId = cleanNodeId;
+        setPeerDmMenuOpen(false);
+        if (latestState) {{
+          renderChat(latestState);
+        }}
+        const popoutInput = document.getElementById("peer-dm-popout-input");
+        if (popoutInput instanceof HTMLInputElement) {{
+          popoutInput.value = command;
+          window.requestAnimationFrame(() => {{
+            popoutInput.focus({{ preventScroll: true }});
+            const tail = popoutInput.value.length;
+            popoutInput.setSelectionRange(tail, tail);
+          }});
+        }}
+        const statusText = String((options && options.statusText) || "").trim()
+          || `Staged "${{command}}" for the peer message popup. Press Enter to send.`;
+        const popoutStatus = document.getElementById("peer-dm-popout-status");
+        if (popoutStatus instanceof HTMLElement) {{
+          popoutStatus.textContent = statusText;
+          popoutStatus.classList.remove("is-error");
+          popoutStatus.hidden = false;
+        }}
+        setRemoteActionStatus(statusText, false);
+        return;
+      }}
       const chatInput = document.getElementById("chat-input");
       if (chatInput instanceof HTMLInputElement) {{
         chatInput.value = command;
@@ -174,7 +200,7 @@
         }});
       }}
       const statusText = String((options && options.statusText) || "").trim()
-        || `Staged "${{command}}" for ${{directMode ? "direct" : "channel"}} chat. Press Enter to send.`;
+        || `Staged "${{command}}" for channel chat. Press Enter to send.`;
       setChatSendStatus(statusText);
       setRemoteActionStatus(statusText, false);
     }}
@@ -250,14 +276,30 @@
         openDirectBtn.addEventListener("click", () => {{
           const nodeId = remoteViewSelectedNodeId();
           if (!isCanonicalNodeId(nodeId)) {{
-            setRemoteActionStatus("Select a node before opening direct chat.", true);
+            setRemoteActionStatus("Select a node before opening a message popup.", true);
             return;
           }}
           selectNode(nodeId, false, false);
-          applyChatChannel("direct", true);
           applyLayoutView("chat", true);
-          const statusText = `Direct chat ready for ${{nodeId}}.`;
-          setChatSendStatus(statusText);
+          applyChatChannel("all", true);
+          peerDmActivePeerId = nodeId;
+          setPeerDmMenuOpen(false);
+          if (latestState) {{
+            renderChat(latestState);
+          }}
+          const popoutInput = document.getElementById("peer-dm-popout-input");
+          if (popoutInput instanceof HTMLInputElement) {{
+            window.requestAnimationFrame(() => {{
+              popoutInput.focus({{ preventScroll: true }});
+            }});
+          }}
+          const statusText = `Direct message window ready for ${{nodeId}}.`;
+          const popoutStatus = document.getElementById("peer-dm-popout-status");
+          if (popoutStatus instanceof HTMLElement) {{
+            popoutStatus.textContent = statusText;
+            popoutStatus.classList.remove("is-error");
+            popoutStatus.hidden = false;
+          }}
           setRemoteActionStatus(statusText, false);
         }});
       }}
@@ -269,7 +311,7 @@
           const nodeId = remoteViewSelectedNodeId();
           stageRemoteChatCommand(nodeId, "ping", {{
             direct: true,
-            statusText: "Staged direct ping command. Press Enter to send.",
+            statusText: "Staged direct ping in the message popup. Press Enter to send.",
           }});
         }});
       }}
