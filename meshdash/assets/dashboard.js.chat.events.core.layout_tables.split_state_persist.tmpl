@@ -47,3 +47,9 @@
       }}
     }}
 
+    function persistChatPanelSplitState() {{
+      try {{
+        window.localStorage.setItem(chatPanelSplitStorageKey, String(chatPanelWidthPx));
+      }} catch (_err) {{
+      }}
+    }}

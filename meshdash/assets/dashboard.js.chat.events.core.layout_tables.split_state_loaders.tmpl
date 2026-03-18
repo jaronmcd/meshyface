@@ -45,6 +45,16 @@
       return Math.max(30, Math.min(70, value));
     }}
 
+    function clampChatPanelWidthPx(value, containerWidth = window.innerWidth) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 250;
+      const min = 190;
+      const width = Number(containerWidth);
+      const safeWidth = Number.isFinite(width) && width > 0 ? width : window.innerWidth;
+      const max = Math.max(260, Math.min(900, safeWidth - 220));
+      return Math.max(min, Math.min(max, Math.round(numeric)));
+    }}
+
     function applySplitState() {{
       const layout = document.querySelector(".layout");
       if (!(layout instanceof HTMLElement)) return;
@@ -94,6 +104,14 @@
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
       layout.style.setProperty("--bots-command-list-pct", `${{botsCommandListPct}}%`);
+    }}
+
+    function applyChatPanelSplitState() {{
+      const shell = document.querySelector(".workspace-shell");
+      if (!(shell instanceof HTMLElement)) return;
+      const rect = shell.getBoundingClientRect();
+      chatPanelWidthPx = clampChatPanelWidthPx(chatPanelWidthPx, rect.width);
+      shell.style.setProperty("--chat-panel-width", `${{chatPanelWidthPx}}px`);
     }}
 
     function loadSplitState() {{
@@ -221,4 +239,17 @@
       applyBotsCommandSplitState();
     }}
 
+    function loadChatPanelSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(chatPanelSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            chatPanelWidthPx = clampChatPanelWidthPx(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyChatPanelSplitState();
+    }}
 

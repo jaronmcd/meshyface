@@ -58,6 +58,9 @@
       if (chatLeftPanel instanceof HTMLElement) {{
         chatLeftPanel.hidden = false;
       }}
+      if (typeof applyChatPanelSplitState === "function") {{
+        applyChatPanelSplitState();
+      }}
       refreshMapCardTitle();
       const mapResetBtn = document.getElementById("map-reset-view-btn");
       if (mapResetBtn instanceof HTMLButtonElement) {{

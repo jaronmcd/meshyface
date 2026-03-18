@@ -990,11 +990,22 @@
       background: rgba(185, 231, 207, 0.18);
     }}
     [data-theme="dark"] .teams-rail,
+    [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card {{
       background: #17231c;
       border-color: #33483c;
       color: #dbece3;
+    }}
+    [data-theme="dark"] .chat-panel-splitter {{
+      background: linear-gradient(180deg, #1b2b22, #16241d);
+    }}
+    [data-theme="dark"] .chat-panel-splitter::before {{
+      background: #455b4f;
+    }}
+    [data-theme="dark"] .chat-panel-splitter:hover::before,
+    [data-theme="dark"] .chat-panel-splitter.active::before {{
+      background: #3fb950;
     }}
 
     [data-theme="dark"] .settings-card-head {{
@@ -1653,6 +1664,7 @@
       background: rgba(121, 255, 182, 0.16);
     }}
     [data-theme="dark"] .teams-rail,
+    [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card,
     [data-theme="dark"] .rail-btn,
@@ -1896,6 +1908,7 @@
       color: #cfe4f8;
     }}
     [data-theme="dark"] .teams-rail,
+    [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] .card,
     [data-theme="dark"] details,
@@ -3843,6 +3856,9 @@
       }}
       .workspace-shell.chat-panel-open {{
         grid-template-columns: 1fr;
+      }}
+      .chat-panel-splitter {{
+        display: none !important;
       }}
       .chat-left-panel {{
         position: static;

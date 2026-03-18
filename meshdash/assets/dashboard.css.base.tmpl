@@ -902,6 +902,7 @@
     .workspace-shell {{
       --rail-width: 72px;
       --chat-panel-width: 250px;
+      --chat-panel-splitter-size: 8px;
       display: grid;
       grid-template-columns: var(--rail-width) minmax(0, 1fr);
       gap: 8px;
@@ -914,7 +915,11 @@
       overflow: hidden;
     }}
     .workspace-shell.chat-panel-open {{
-      grid-template-columns: var(--rail-width) minmax(0, 1fr) minmax(190px, var(--chat-panel-width));
+      grid-template-columns:
+        var(--rail-width)
+        minmax(0, 1fr)
+        var(--chat-panel-splitter-size)
+        minmax(190px, var(--chat-panel-width));
     }}
     .workspace-main {{
       order: 2;
@@ -975,7 +980,7 @@
       font-weight: 700;
     }}
     .chat-left-panel {{
-      order: 3;
+      order: 4;
       position: sticky;
       top: var(--topbar-sticky-offset, 72px);
       height: 100%;
@@ -988,6 +993,40 @@
       flex-direction: column;
       min-width: 0;
       overflow: hidden;
+    }}
+    .chat-panel-splitter {{
+      order: 3;
+      position: sticky;
+      top: var(--topbar-sticky-offset, 72px);
+      align-self: stretch;
+      height: 100%;
+      min-height: 0;
+      border: 1px solid #d1e0cb;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #f4faf3, #edf5ea);
+      cursor: col-resize;
+      touch-action: none;
+      user-select: none;
+      min-width: 6px;
+      overflow: hidden;
+    }}
+    .chat-panel-splitter::before {{
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: #b8cab9;
+      border-radius: 1px;
+    }}
+    .chat-panel-splitter:hover::before,
+    .chat-panel-splitter.active::before {{
+      background: #2f855a;
+    }}
+    .workspace-shell:not(.chat-panel-open) .chat-panel-splitter {{
+      display: none !important;
     }}
     .chat-left-panel[hidden] {{
       display: none !important;

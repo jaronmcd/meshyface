@@ -200,6 +200,59 @@
       }});
     }}
 
+    function bindChatPanelSplitter() {{
+      const splitter = document.getElementById("chat-panel-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const shell = splitter.closest(".workspace-shell");
+      const panel = document.getElementById("chat-left-panel");
+      if (!(shell instanceof HTMLElement) || !(panel instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        if (!shell.classList.contains("chat-panel-open")) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const startX = ev.clientX;
+        const panelRect = panel.getBoundingClientRect();
+        const startWidth = Number.isFinite(panelRect.width) && panelRect.width > 0
+          ? panelRect.width
+          : chatPanelWidthPx;
+
+        const updateFromClientX = (clientX) => {{
+          const deltaX = clientX - startX;
+          const shellRect = shell.getBoundingClientRect();
+          const nextWidth = startWidth - deltaX;
+          chatPanelWidthPx = clampChatPanelWidthPx(nextWidth, shellRect.width);
+          applyChatPanelSplitState();
+          requestMapResize();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistChatPanelSplitState();
+          requestMapResize();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
     function bindSavedNodeSplitter() {{
       const handles = [
         document.getElementById("saved-map-splitter"),
