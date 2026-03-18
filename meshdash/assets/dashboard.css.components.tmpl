@@ -3065,6 +3065,7 @@
       color: #c8ffe0 !important;
     }}
     [data-theme="dark"] .chat-change-toggle-btn,
+    [data-theme="dark"] .peer-dm-toggle-btn,
     [data-theme="dark"] .chat-settings-toggle-btn,
     [data-theme="dark"] .favorite-menu-toggle-btn {{
       background: #152633;
@@ -3072,6 +3073,7 @@
       color: #dbeeff;
     }}
     [data-theme="dark"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn,
+    [data-theme="dark"] .topbar-peer-dm-menu-wrap .peer-dm-toggle-btn,
     [data-theme="dark"] .topbar-chat-settings-menu-wrap .chat-settings-toggle-btn,
     [data-theme="dark"] .topbar-favorite-menu-wrap .favorite-menu-toggle-btn {{
       background: rgba(13, 24, 34, 0.82);
@@ -3107,6 +3109,7 @@
       color: #d7ecff;
     }}
     [data-theme="dark"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn:hover,
+    [data-theme="dark"] .topbar-peer-dm-menu-wrap .peer-dm-toggle-btn:hover,
     [data-theme="dark"] .topbar-chat-settings-menu-wrap .chat-settings-toggle-btn:hover,
     [data-theme="dark"] .topbar-favorite-menu-wrap .favorite-menu-toggle-btn:hover {{
       background: rgba(25, 46, 64, 0.94);
@@ -3114,6 +3117,7 @@
       color: #f0f8ff;
     }}
     [data-theme="dark"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn[aria-expanded="true"],
+    [data-theme="dark"] .topbar-peer-dm-menu-wrap .peer-dm-toggle-btn[aria-expanded="true"],
     [data-theme="dark"] .topbar-chat-settings-menu-wrap .chat-settings-toggle-btn[aria-expanded="true"],
     [data-theme="dark"] .topbar-favorite-menu-wrap .favorite-menu-toggle-btn[aria-expanded="true"] {{
       background: rgba(31, 58, 79, 0.96);
@@ -3121,6 +3125,11 @@
       color: #f0f8ff;
     }}
     [data-theme="dark"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn.has-unread {{
+      border-color: #59b883;
+      color: #baf8d4;
+      box-shadow: 0 0 0 1px rgba(89, 184, 131, 0.45);
+    }}
+    [data-theme="dark"] .topbar-peer-dm-menu-wrap .peer-dm-toggle-btn.has-unread {{
       border-color: #59b883;
       color: #baf8d4;
       box-shadow: 0 0 0 1px rgba(89, 184, 131, 0.45);
@@ -3142,6 +3151,9 @@
       box-shadow: 0 0 0 1px rgba(89, 184, 131, 0.45);
     }}
     [data-theme="dark"] .topbar-chat-change-menu-wrap .chat-change-badge {{
+      border-color: #0d1a24;
+    }}
+    [data-theme="dark"] .topbar-peer-dm-menu-wrap .peer-dm-badge {{
       border-color: #0d1a24;
     }}
     [data-theme="dark"] .chat-change-scope-wrap {{
@@ -3170,6 +3182,11 @@
       border-color: #476b87;
       color: #f0f8ff;
     }}
+    [data-theme="dark"] .peer-dm-toggle-btn:hover {{
+      background: #1b2f3e;
+      border-color: #476b87;
+      color: #f0f8ff;
+    }}
     [data-theme="dark"] .favorite-menu-toggle-btn:hover {{
       background: #1b2f3e;
       border-color: #476b87;
@@ -3190,6 +3207,11 @@
       border-color: #58839f;
       color: #dbeeff;
     }}
+    [data-theme="dark"] .peer-dm-toggle-btn[aria-expanded="true"] {{
+      background: #1b3140;
+      border-color: #58839f;
+      color: #dbeeff;
+    }}
     [data-theme="dark"] .favorite-menu-toggle-btn[aria-expanded="true"] {{
       background: #1b3140;
       border-color: #58839f;
@@ -3200,7 +3222,17 @@
       border-color: #0f1a24;
       color: #ecfff4;
     }}
+    [data-theme="dark"] .peer-dm-badge {{
+      background: #2f8f61;
+      border-color: #0f1a24;
+      color: #ecfff4;
+    }}
     [data-theme="dark"] .chat-change-menu {{
+      background: #0f1f17;
+      border-color: #2f4d3d;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.56);
+    }}
+    [data-theme="dark"] .peer-dm-menu {{
       background: #0f1f17;
       border-color: #2f4d3d;
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.56);
@@ -3256,6 +3288,104 @@
     }}
     [data-theme="dark"] .favorite-menu-saved-id {{
       color: #9ab7a7;
+    }}
+    [data-theme="dark"] .peer-dm-menu-list {{
+      background: #13241b;
+      border-color: #2a4638;
+    }}
+    [data-theme="dark"] .peer-dm-menu-empty {{
+      color: #9ab7a7;
+      border-color: #355547;
+      background: rgba(19, 36, 27, 0.68);
+    }}
+    [data-theme="dark"] .peer-dm-menu-item {{
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .peer-dm-menu-item:hover {{
+      border-color: #3f6a56;
+      background: #193128;
+      color: #e2f6eb;
+    }}
+    [data-theme="dark"] .peer-dm-menu-item.is-active {{
+      border-color: #467560;
+      background: #1e3a2f;
+      color: #e6fbef;
+    }}
+    [data-theme="dark"] .peer-dm-menu-preview,
+    [data-theme="dark"] .peer-dm-menu-meta {{
+      color: #9ab7a7;
+    }}
+    [data-theme="dark"] .peer-dm-menu-unread {{
+      border-color: #4b7f65;
+      background: #214535;
+      color: #c8ffe0;
+    }}
+    [data-theme="dark"] .peer-dm-popout-window {{
+      border-color: #2f4d3d;
+      background: #0f1f17;
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.62);
+    }}
+    [data-theme="dark"] .peer-dm-popout-head {{
+      border-color: #2a4638;
+      background: #13241b;
+    }}
+    [data-theme="dark"] .peer-dm-popout-name {{
+      color: #c6e8d5;
+    }}
+    [data-theme="dark"] .peer-dm-popout-id {{
+      color: #93b8a6;
+    }}
+    [data-theme="dark"] .peer-dm-popout-btn {{
+      background: #162820;
+      border-color: #3a5a49;
+      color: #c6e8d5;
+    }}
+    [data-theme="dark"] .peer-dm-popout-btn:hover {{
+      background: #1d3228;
+      border-color: #4e7962;
+      color: #e2f6eb;
+    }}
+    [data-theme="dark"] .peer-dm-popout-body {{
+      background: #13241b;
+    }}
+    [data-theme="dark"] .peer-dm-popout-empty {{
+      color: #9ab7a7;
+      border-color: #355547;
+      background: rgba(19, 36, 27, 0.68);
+    }}
+    [data-theme="dark"] .peer-dm-popout-msg {{
+      border-color: #2a4638;
+      background: #162820;
+      color: #c5e2d2;
+    }}
+    [data-theme="dark"] .peer-dm-popout-msg.is-own {{
+      border-color: #467560;
+      background: #1e3a2f;
+      color: #e6fbef;
+    }}
+    [data-theme="dark"] .peer-dm-popout-msg-meta {{
+      color: #9ab7a7;
+    }}
+    [data-theme="dark"] .peer-dm-popout-composer {{
+      border-color: #2a4638;
+      background: #13241b;
+    }}
+    [data-theme="dark"] .peer-dm-popout-input {{
+      background: #152633;
+      border-color: #35556d;
+      color: #dbeeff;
+    }}
+    [data-theme="dark"] .peer-dm-popout-input::placeholder {{
+      color: #92b5ca;
+    }}
+    [data-theme="dark"] .peer-dm-popout-send-btn {{
+      border-color: #3f8f68;
+      background: #2f8f61;
+      color: #ecfff4;
+    }}
+    [data-theme="dark"] .peer-dm-popout-send-btn:hover {{
+      background: #2a7f56;
+      border-color: #57aa7f;
     }}
     [data-theme="dark"] .chat-settings-section + .chat-settings-section {{
       border-top-color: #2a4638;

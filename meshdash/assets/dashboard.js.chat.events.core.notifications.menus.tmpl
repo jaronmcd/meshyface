@@ -2,6 +2,7 @@
       chatChangeMenuOpen = !!open;
       if (chatChangeMenuOpen) {{
         setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
       }}
       const panel = document.getElementById("chat-change-summary");
       if (panel instanceof HTMLElement) {{
@@ -17,6 +18,7 @@
       chatSettingsMenuOpen = !!open;
       if (chatSettingsMenuOpen) {{
         setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
       }}
       const panel = document.getElementById("chat-settings-menu");
       if (panel instanceof HTMLElement) {{
@@ -32,6 +34,7 @@
       favoriteMenuOpen = !!open;
       if (favoriteMenuOpen) {{
         setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
       }}
       const panel = document.getElementById("favorite-menu");
       if (panel instanceof HTMLElement) {{
@@ -46,12 +49,31 @@
       }}
     }}
 
+    function setPeerDmMenuOpen(open) {{
+      peerDmMenuOpen = !!open;
+      if (peerDmMenuOpen) {{
+        setSelfRadioMenuOpen(false);
+        setChatChangeMenuOpen(false);
+        setChatSettingsMenuOpen(false);
+        setFavoriteMenuOpen(false);
+      }}
+      const panel = document.getElementById("peer-dm-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !peerDmMenuOpen;
+      }}
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", peerDmMenuOpen ? "true" : "false");
+      }}
+    }}
+
     function setSelfRadioMenuOpen(open) {{
       selfRadioMenuOpen = !!open;
       if (selfRadioMenuOpen) {{
         setChatChangeMenuOpen(false);
         setChatSettingsMenuOpen(false);
         setFavoriteMenuOpen(false);
+        setPeerDmMenuOpen(false);
       }}
       const panel = document.getElementById("self-radio-menu");
       if (panel instanceof HTMLElement) {{
@@ -91,6 +113,34 @@
         );
       }}
       const badge = document.getElementById("chat-change-badge");
+      if (badge instanceof HTMLElement) {{
+        if (safeCount > 0) {{
+          badge.hidden = false;
+          badge.textContent = safeCount > 99 ? "99+" : String(safeCount);
+        }} else {{
+          badge.hidden = true;
+          badge.textContent = "0";
+        }}
+      }}
+    }}
+
+    function updatePeerDmBadge(count) {{
+      const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.classList.toggle("has-unread", safeCount > 0);
+        const countLabel = safeCount > 99 ? "99+" : String(safeCount);
+        btn.title = safeCount > 0
+          ? `${{countLabel}} unread peer-to-peer message${{safeCount === 1 ? "" : "s"}}`
+          : "Peer conversations";
+        btn.setAttribute(
+          "aria-label",
+          safeCount > 0
+            ? `Peer conversations (${{countLabel}} unread)`
+            : "Peer conversations"
+        );
+      }}
+      const badge = document.getElementById("peer-dm-badge");
       if (badge instanceof HTMLElement) {{
         if (safeCount > 0) {{
           badge.hidden = false;
@@ -332,6 +382,66 @@
       }}
     }}
 
+    function bindPeerDmMenuControls() {{
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          setPeerDmMenuOpen(!peerDmMenuOpen);
+        }});
+      }}
+
+      const panel = document.getElementById("peer-dm-menu");
+      if (panel instanceof HTMLElement && panel.dataset.bound !== "1") {{
+        panel.dataset.bound = "1";
+        panel.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".peer-dm-menu-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          ev.preventDefault();
+          const nodeId = normalizeNodeId(item.dataset.peerNodeId || "");
+          if (!isCanonicalNodeId(nodeId)) return;
+          peerDmActivePeerId = nodeId;
+          setPeerDmMenuOpen(false);
+          if (latestState) {{
+            renderChat(latestState);
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.peerDmMenuDocBound !== "1") {{
+        document.body.dataset.peerDmMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!peerDmMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setPeerDmMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#peer-dm-toggle-btn") || target.closest("#peer-dm-menu")) {{
+            return;
+          }}
+          setPeerDmMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape") return;
+          if (peerDmMenuOpen) {{
+            setPeerDmMenuOpen(false);
+            return;
+          }}
+          if (isCanonicalNodeId(peerDmActivePeerId || "")) {{
+            peerDmActivePeerId = "";
+            if (latestState) {{
+              renderChat(latestState);
+            }}
+          }}
+        }});
+      }}
+    }}
+
     function bindSelfRadioMenuControls() {{
       const profileBtn = document.getElementById("self-radio-profile");
       if (profileBtn instanceof HTMLButtonElement && profileBtn.dataset.bound !== "1") {{
@@ -388,4 +498,3 @@
         }});
       }}
     }}
-

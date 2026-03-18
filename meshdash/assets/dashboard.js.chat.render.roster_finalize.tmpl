@@ -146,6 +146,264 @@
       const onlineCount = rosterAll.filter((item) => item.status === "online").length;
       const warnCount = rosterAll.filter((item) => item.status === "warn").length;
       const staleCount = rosterAll.filter((item) => item.status === "stale").length;
+      const isKnownPeerNode = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isCanonicalNodeId(peerId)) return false;
+        if (isCanonicalNodeId(localNodeId) && peerId === localNodeId) return false;
+        if (manualDirectPeerIds.has(peerId)) return true;
+        if (nodesById.has(peerId)) return true;
+        if (isSelectableNodeId(selectedNodeId) && normalizeNodeId(selectedNodeId) === peerId) return true;
+        if (isCanonicalNodeId(chatDirectActivePeerId) && normalizeNodeId(chatDirectActivePeerId) === peerId) return true;
+        return false;
+      }};
+      const directBucketForPeer = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        const bucketRaw = directMessagesByPeer.get(peerId);
+        return Array.isArray(bucketRaw) ? bucketRaw : [];
+      }};
+      const isPinnedDirectPeerVisible = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isKnownPeerNode(peerId)) return false;
+        if (directBucketForPeer(peerId).length > 0) return true;
+        if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId) && normalizeNodeId(selectedNodeId) === peerId) {{
+          return true;
+        }}
+        if (isCanonicalNodeId(peerDmActivePeerId) && normalizeNodeId(peerDmActivePeerId) === peerId) {{
+          return true;
+        }}
+        return false;
+      }};
+      const directConversationPeerIds = new Set();
+      for (const peerIdRaw of directMessagesByPeer.keys()) {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isPinnedDirectPeerVisible(peerId)) continue;
+        directConversationPeerIds.add(peerId);
+      }}
+      for (const peerIdRaw of manualDirectPeerIds) {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isPinnedDirectPeerVisible(peerId)) continue;
+        directConversationPeerIds.add(peerId);
+      }}
+      if (isCanonicalNodeId(chatDirectActivePeerId)) {{
+        const activePeer = normalizeNodeId(chatDirectActivePeerId);
+        if (isPinnedDirectPeerVisible(activePeer)) {{
+          directConversationPeerIds.add(activePeer);
+        }}
+      }}
+      const unreadDirectByPeer = new Map();
+      const directAckSet = chatChangeAcknowledgedKeySetForChannel("direct");
+      for (const notice of chatChangeNoticesForChannel("direct")) {{
+        const noticeKey = String((notice && notice.key) || "").trim();
+        if (directAckSet instanceof Set && noticeKey && directAckSet.has(noticeKey)) continue;
+        const peerId = normalizeNodeId(notice && notice.peerNodeId);
+        if (!directConversationPeerIds.has(peerId)) continue;
+        if (directBucketForPeer(peerId).length <= 0) continue;
+        unreadDirectByPeer.set(peerId, (unreadDirectByPeer.get(peerId) || 0) + 1);
+      }}
+      const directConversationRows = Array.from(directConversationPeerIds)
+        .map((peerId) => {{
+          const bucket = directBucketForPeer(peerId);
+          const lastMsg = bucket.length > 0 ? bucket[bucket.length - 1] : null;
+          const lastUnix = lastMsg
+            ? latestUnixTimestamp(lastMsg && lastMsg.rx_time, lastMsg && lastMsg.captured_at)
+            : 0;
+          const lastRaw = lastMsg
+            ? String((lastMsg && (lastMsg.rx_time || lastMsg.captured_at)) || "").trim()
+            : "";
+          const endpoints = lastMsg ? endpointsForMessage(lastMsg) : {{ fromId: "", toId: "" }};
+          const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+          const isOwnLast = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+          const textPreview = lastMsg
+            ? compactInlineMessage(lastMsg && lastMsg.text, 72)
+            : "";
+          const emojiPreview = lastMsg ? String(emojiOf(lastMsg) || "").trim() : "";
+          const previewCore = textPreview || emojiPreview || "No direct messages yet.";
+          const preview = isOwnLast ? `You: ${{previewCore}}` : previewCore;
+          const node = nodesById.get(peerId);
+          const name = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+          const unread = Math.max(0, Number(unreadDirectByPeer.get(peerId) || 0));
+          return {{
+            id: peerId,
+            name,
+            preview,
+            unread,
+            lastUnix: Number.isFinite(lastUnix) ? lastUnix : 0,
+            lastRaw,
+          }};
+        }})
+        .sort((a, b) => {{
+          const unreadDiff = Number(b.unread || 0) - Number(a.unread || 0);
+          if (unreadDiff !== 0) return unreadDiff;
+          const timeDiff = Number(b.lastUnix || 0) - Number(a.lastUnix || 0);
+          if (timeDiff !== 0) return timeDiff;
+          return String(a.name || a.id).localeCompare(String(b.name || b.id));
+        }});
+      const directUnreadTotal = directConversationRows.reduce(
+        (sum, row) => sum + Math.max(0, Number(row.unread || 0)),
+        0
+      );
+      updatePeerDmBadge(directUnreadTotal);
+      const peerDmMenuList = document.getElementById("peer-dm-menu-list");
+      if (peerDmMenuList instanceof HTMLElement) {{
+        peerDmMenuList.innerHTML = directConversationRows.length > 0
+          ? directConversationRows.map((row) => {{
+              const lastSeenText = row.lastUnix > 0
+                ? formatLocalChatTime(row.lastUnix, row.lastRaw || "n/a", nowUnix)
+                : "no traffic";
+              const unreadChip = row.unread > 0
+                ? `<span class="peer-dm-menu-unread" title="${{row.unread}} unread">${{row.unread > 99 ? "99+" : row.unread}}</span>`
+                : "";
+              const activeClass = normalizeNodeId(peerDmActivePeerId || "") === row.id ? " is-active" : "";
+              return `<button type="button" class="peer-dm-menu-item${{activeClass}}" data-peer-node-id="${{escAttr(row.id)}}" title="${{escAttr(`${{row.name}} (${{row.id}})` )}}">
+                <span class="peer-dm-menu-item-main">
+                  <span class="peer-dm-menu-peer">${{escAttr(row.name)}}</span>
+                  <span class="peer-dm-menu-preview">${{escAttr(row.preview)}}</span>
+                </span>
+                <span class="peer-dm-menu-meta">
+                  <span>${{escAttr(lastSeenText)}}</span>
+                  ${{unreadChip}}
+                </span>
+              </button>`;
+            }}).join("")
+          : '<div class="peer-dm-menu-empty">No peer-to-peer conversations yet.</div>';
+      }}
+      const peerDmHost = document.getElementById("peer-dm-popout-host");
+      let activePopoutPeerId = normalizeNodeId(peerDmActivePeerId || "");
+      const activePopoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
+      const activePopoutHasMessages = (
+        Array.isArray(activePopoutBucketRaw)
+        && activePopoutBucketRaw.length > 0
+      );
+      if (
+        !isCanonicalNodeId(activePopoutPeerId)
+        || (
+          !directConversationPeerIds.has(activePopoutPeerId)
+          && !manualDirectPeerIds.has(activePopoutPeerId)
+          && !activePopoutHasMessages
+        )
+      ) {{
+        activePopoutPeerId = "";
+        peerDmActivePeerId = "";
+      }}
+      if (peerDmHost instanceof HTMLElement) {{
+        if (!isCanonicalNodeId(activePopoutPeerId)) {{
+          peerDmHost.innerHTML = "";
+        }} else {{
+          const popoutNode = nodesById.get(activePopoutPeerId);
+          const popoutName = preferredNodeName(popoutNode) || nodeNameCache.get(activePopoutPeerId) || activePopoutPeerId;
+          const popoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
+          const popoutBucket = Array.isArray(popoutBucketRaw) ? popoutBucketRaw : [];
+          const popoutMessages = popoutBucket.length > chatFeedMaxEntries
+            ? popoutBucket.slice(-chatFeedMaxEntries)
+            : popoutBucket;
+          const popoutDraft = String(peerDmDraftByPeer.get(activePopoutPeerId) || "");
+          const popoutMessageRows = popoutMessages.length > 0
+            ? popoutMessages.map((msg) => {{
+                const endpoints = endpointsForMessage(msg);
+                const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+                const isOwn = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+                const fromMeta = chatEndpointParts(fromId, latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at));
+                const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
+                const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+                const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+                const timeLabel = formatLocalChatTime(msgUnix, rawTime || "n/a", nowUnix);
+                const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
+                  || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
+                return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}">
+                  <div class="peer-dm-popout-msg-meta"><span>${{escAttr(fromLabel)}}</span><span>${{escAttr(timeLabel)}}</span></div>
+                  <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
+                </div>`;
+              }}).join("")
+            : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
+          peerDmHost.innerHTML = `<section class="peer-dm-popout-window" data-peer-node-id="${{escAttr(activePopoutPeerId)}}">
+            <header class="peer-dm-popout-head">
+              <div class="peer-dm-popout-title">
+                <span class="peer-dm-popout-name">${{escAttr(popoutName)}}</span>
+                <span class="peer-dm-popout-id">${{escAttr(activePopoutPeerId)}}</span>
+              </div>
+              <div class="peer-dm-popout-actions">
+                <button type="button" id="peer-dm-popout-open-main-btn" class="peer-dm-popout-btn" title="Open this peer in main chat">Open main</button>
+                <button type="button" id="peer-dm-popout-close-btn" class="peer-dm-popout-btn" title="Close this peer window">&times;</button>
+              </div>
+            </header>
+            <div id="peer-dm-popout-body" class="peer-dm-popout-body">${{popoutMessageRows}}</div>
+            <div class="peer-dm-popout-composer">
+              <input id="peer-dm-popout-input" class="peer-dm-popout-input" type="text" autocomplete="off" placeholder="Direct message to ${{escAttr(activePopoutPeerId)}}..." value="${{escAttr(popoutDraft)}}" />
+              <button type="button" id="peer-dm-popout-send-btn" class="peer-dm-popout-send-btn"${{chatSendInFlight ? " disabled" : ""}}>Send</button>
+            </div>
+          </section>`;
+          const openMainBtn = document.getElementById("peer-dm-popout-open-main-btn");
+          if (openMainBtn instanceof HTMLButtonElement) {{
+            openMainBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              setPeerDmMenuOpen(false);
+              applyLayoutView("chat", true);
+              applyChatChannel("direct", true);
+              selectNode(activePopoutPeerId, true, false);
+            }});
+          }}
+          const closeBtn = document.getElementById("peer-dm-popout-close-btn");
+          if (closeBtn instanceof HTMLButtonElement) {{
+            closeBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              peerDmActivePeerId = "";
+              if (peerDmHost instanceof HTMLElement) {{
+                peerDmHost.innerHTML = "";
+              }}
+            }});
+          }}
+          const popoutInput = document.getElementById("peer-dm-popout-input");
+          const popoutSendBtn = document.getElementById("peer-dm-popout-send-btn");
+          const submitPopoutMessage = async () => {{
+            if (!(popoutInput instanceof HTMLInputElement)) return;
+            if (!isCanonicalNodeId(activePopoutPeerId)) return;
+            if (chatSendInFlight) return;
+            const text = String(popoutInput.value || "").trim();
+            if (!text) return;
+            const sendCtx = meshChannelSendContext();
+            const payload = await sendChatPayload(
+              {{
+                text,
+                destination: activePopoutPeerId,
+                channel_index: sendCtx.sendIndex,
+              }},
+              null
+            );
+            if (!(payload && payload.ok)) return;
+            peerDmDraftByPeer.delete(activePopoutPeerId);
+            popoutInput.value = "";
+            setChatSendStatus(`Sent direct to ${{activePopoutPeerId}} on ${{sendCtx.sendLabel}} at ${{payload.sent_at || "now"}}`);
+            if (latestState) {{
+              renderChat(latestState);
+            }}
+          }};
+          if (popoutInput instanceof HTMLInputElement) {{
+            popoutInput.addEventListener("input", () => {{
+              const nextDraft = String(popoutInput.value || "");
+              if (nextDraft.trim()) {{
+                peerDmDraftByPeer.set(activePopoutPeerId, nextDraft);
+              }} else {{
+                peerDmDraftByPeer.delete(activePopoutPeerId);
+              }}
+            }});
+            popoutInput.addEventListener("keydown", (ev) => {{
+              if (ev.key !== "Enter" || ev.shiftKey) return;
+              ev.preventDefault();
+              void submitPopoutMessage();
+            }});
+          }}
+          if (popoutSendBtn instanceof HTMLButtonElement) {{
+            popoutSendBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              void submitPopoutMessage();
+            }});
+          }}
+          const popoutBody = document.getElementById("peer-dm-popout-body");
+          if (popoutBody instanceof HTMLElement) {{
+            popoutBody.scrollTop = popoutBody.scrollHeight;
+          }}
+        }}
+      }}
       if (roomList) {{
         roomList.innerHTML = rosterFiltered.length > 0
           ? rosterFiltered.map((item) => (
