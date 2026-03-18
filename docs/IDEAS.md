@@ -2,8 +2,6 @@
 
 
 
-
-- message system
 - send files from node list
 - have ai "test" zork and print the gameplay
 
