@@ -51,8 +51,6 @@
     const baseDocumentTitle = String(document.title || "").trim() || "Mesh dashboard";
     let chatUnreadCount = 0;
     let chatRosterModel = [];
-    const nodeOnlineSessionTotalSecondsById = new Map();
-    const nodeOnlineSessionAnchorUnixById = new Map();
     const chatUnreadByChannel = {{ all: 0, direct: 0 }};
     const chatUnreadByMeshChannel = {{ all: Object.create(null), direct: Object.create(null) }};
     const chatUnreadLatestByChannel = {{ all: "", direct: "" }};

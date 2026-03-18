@@ -186,60 +186,6 @@
       return Math.max(...candidates);
     }}
 
-    function formatNodeOnlineSessionDuration(totalSeconds) {{
-      const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-      const days = Math.floor(safe / 86400);
-      const hours = Math.floor((safe % 86400) / 3600);
-      const minutes = Math.floor((safe % 3600) / 60);
-      const seconds = safe % 60;
-      if (days > 0) {{
-        return `${{days}}d ${{hours}}h`;
-      }}
-      if (hours > 0) {{
-        return `${{hours}}h ${{minutes}}m`;
-      }}
-      if (minutes > 0) {{
-        return `${{minutes}}m ${{seconds}}s`;
-      }}
-      return `${{seconds}}s`;
-    }}
-
-    function nodeOnlineSessionSeconds(nodeId, nowUnix = Math.floor(Date.now() / 1000)) {{
-      const cleanNodeId = normalizeNodeId(nodeId);
-      if (!isSelectableNodeId(cleanNodeId)) return 0;
-      const baseTotal = Math.max(0, Math.floor(Number(nodeOnlineSessionTotalSecondsById.get(cleanNodeId)) || 0));
-      const anchorUnix = Number(nodeOnlineSessionAnchorUnixById.get(cleanNodeId));
-      if (!Number.isFinite(anchorUnix) || anchorUnix <= 0) {{
-        return baseTotal;
-      }}
-      const now = Number.isFinite(nowUnix) ? Math.floor(nowUnix) : Math.floor(Date.now() / 1000);
-      return baseTotal + Math.max(0, now - Math.floor(anchorUnix));
-    }}
-
-    function updateNodeOnlineSession(nodeId, isOnline, nowUnix = Math.floor(Date.now() / 1000)) {{
-      const cleanNodeId = normalizeNodeId(nodeId);
-      if (!isSelectableNodeId(cleanNodeId)) return;
-      const now = Number.isFinite(nowUnix) ? Math.floor(nowUnix) : Math.floor(Date.now() / 1000);
-      const currentlyOnline = !!isOnline;
-      const anchorUnix = Number(nodeOnlineSessionAnchorUnixById.get(cleanNodeId));
-      if (currentlyOnline) {{
-        if (!Number.isFinite(anchorUnix) || anchorUnix <= 0) {{
-          nodeOnlineSessionAnchorUnixById.set(cleanNodeId, now);
-        }}
-        if (!nodeOnlineSessionTotalSecondsById.has(cleanNodeId)) {{
-          nodeOnlineSessionTotalSecondsById.set(cleanNodeId, 0);
-        }}
-        return;
-      }}
-      if (!Number.isFinite(anchorUnix) || anchorUnix <= 0) {{
-        return;
-      }}
-      const elapsed = Math.max(0, now - Math.floor(anchorUnix));
-      const priorTotal = Math.max(0, Math.floor(Number(nodeOnlineSessionTotalSecondsById.get(cleanNodeId)) || 0));
-      nodeOnlineSessionTotalSecondsById.set(cleanNodeId, priorTotal + elapsed);
-      nodeOnlineSessionAnchorUnixById.delete(cleanNodeId);
-    }}
-
     function syncFavoriteOnlineNotices(
       state = latestState,
       nodesById = null,
@@ -366,7 +312,6 @@
           const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           const key = normalizeFreshnessKey(status);
-          updateNodeOnlineSession(nodeId, key === "online", nowUnix);
           if (key === "online") chatOnlineCount += 1;
           else if (key === "warn") chatWarnCount += 1;
           else if (key === "stale") chatStaleCount += 1;
@@ -391,9 +336,6 @@
           const status = freshnessStatus(lastSeenUnix, nowUnix);
           const key = normalizeFreshnessKey(status);
           if (useFallbackCounts) {{
-            updateNodeOnlineSession(nodeId, key === "online", nowUnix);
-          }}
-          if (useFallbackCounts) {{
             if (key === "online") fallbackOnline += 1;
             else if (key === "warn") fallbackWarn += 1;
             else if (key === "stale") fallbackStale += 1;
@@ -404,12 +346,17 @@
           if (statusEl instanceof HTMLElement) applyFreshnessClass(statusEl, key);
           const nameEl = item.querySelector(".chat-member-name");
           if (nameEl instanceof HTMLElement) applyFreshnessClass(nameEl, key);
-          const onlineDurationEl = item.querySelector(".chat-member-online-time");
-          if (onlineDurationEl instanceof HTMLElement) {{
-            const onlineSeconds = nodeOnlineSessionSeconds(nodeId, nowUnix);
-            const compact = formatNodeOnlineSessionDuration(onlineSeconds);
-            onlineDurationEl.textContent = `Online: ${{compact}}`;
-            onlineDurationEl.title = `Total online time seen in this dashboard session (${{formatUptimeHms(onlineSeconds)}})`;
+          const idleDurationEl = item.querySelector(".chat-member-idle-time");
+          if (idleDurationEl instanceof HTMLElement) {{
+            idleDurationEl.hidden = false;
+            if (!Number.isFinite(lastSeenUnix) || lastSeenUnix <= 0) {{
+              idleDurationEl.textContent = "Idle: n/a";
+              idleDurationEl.title = "Last seen n/a";
+            }} else {{
+              const idleText = formatIdleAge(lastSeenUnix, nowUnix);
+              idleDurationEl.textContent = `Idle: ${{idleText}}`;
+              idleDurationEl.title = `Last seen ${{formatLocalChatTime(lastSeenUnix, "n/a", nowUnix)}}`;
+            }}
           }}
         }}
         if (useFallbackCounts) {{

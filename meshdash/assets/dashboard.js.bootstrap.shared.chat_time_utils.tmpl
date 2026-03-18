@@ -198,6 +198,23 @@
       return `${{mon}}/${{day}} ${{hh}}:${{mm}}:${{ss}}`;
     }}
 
+    function formatIdleAge(unixTs, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(unixTs);
+      if (!Number.isFinite(ts) || ts <= 0) return "n/a";
+      const now = Number.isFinite(nowUnix) ? Math.floor(nowUnix) : Math.floor(Date.now() / 1000);
+      if (typeof savedDetailAge === "function") {{
+        return savedDetailAge(ts, now);
+      }}
+      const ageSec = Math.max(0, now - Math.floor(ts));
+      if (ageSec < 90) return `${{ageSec}}s ago`;
+      const ageMin = ageSec / 60;
+      if (ageMin < 90) return `${{Math.round(ageMin)}}m ago`;
+      const ageHr = ageMin / 60;
+      if (ageHr < 48) return `${{ageHr.toFixed(ageHr < 10 ? 1 : 0)}}h ago`;
+      const ageDay = ageHr / 24;
+      return `${{ageDay.toFixed(ageDay < 10 ? 1 : 0)}}d ago`;
+    }}
+
     function nodeLastHeardUnix(node) {{
       if (!node || typeof node !== "object") return null;
       const raw = Number(node.last_heard_unix);

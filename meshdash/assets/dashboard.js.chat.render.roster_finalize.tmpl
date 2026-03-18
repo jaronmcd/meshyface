@@ -37,6 +37,11 @@
       for (const node of nodes) {{
         touchNodeById(node && node.id);
       }}
+      if (historyCapsById && typeof historyCapsById.keys === "function") {{
+        for (const nodeId of historyCapsById.keys()) {{
+          touchNodeById(nodeId);
+        }}
+      }}
       if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
         favoriteNodeIds.forEach((nodeId) => {{
           touchNodeById(nodeId);
@@ -72,14 +77,7 @@
           if (aTime !== bTime) return bTime - aTime;
           return String(a.name || a.id).localeCompare(String(b.name || b.id));
         }});
-      for (const item of rosterAll) {{
-        const nodeId = normalizeNodeId(item && item.id);
-        if (!isSelectableNodeId(nodeId)) continue;
-        updateNodeOnlineSession(nodeId, normalizeFreshnessKey(item && item.status) === "online", nowUnix);
-      }}
-      const roster = rosterQuery
-        ? rosterAll
-        : rosterAll.slice(0, chatRosterMaxEntries);
+      const roster = rosterAll;
       // Preserve the full (unfiltered) roster so tickFreshnessUI() can compute canonical
       // online/aging/stale counts even when the user is search-filtering the roster DOM.
       chatRosterModel = rosterAll;
@@ -95,18 +93,21 @@
         roomList.innerHTML = rosterFiltered.length > 0
           ? rosterFiltered.map((item) => (
               (() => {{
+                try {{
                 const nodeId = normalizeNodeId(item.id);
                 const snapshot = resolveChatNodeFreshness(nodeId);
                 const node = nodesById.get(nodeId);
-                const caps = historyCapsById.get(nodeId);
-                const onlineSeconds = nodeOnlineSessionSeconds(item.id, nowUnix);
-                const onlineCompact = formatNodeOnlineSessionDuration(onlineSeconds);
+                const caps = (
+                  historyCapsById && typeof historyCapsById.get === "function"
+                    ? historyCapsById.get(nodeId)
+                    : null
+                );
                 const statusKey = normalizeFreshnessKey(item.status);
                 const statusLabel = statusKey === "online"
                   ? "Online"
                   : (statusKey === "warn" ? "Aging" : (statusKey === "stale" ? "Stale" : "Unknown"));
                 const lastSeenText = Number.isFinite(snapshot.lastSeenUnix)
-                  ? `${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}} (${{savedDetailAge(snapshot.lastSeenUnix, nowUnix)}})`
+                  ? `${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}} (${{formatIdleAge(snapshot.lastSeenUnix, nowUnix)}})`
                   : "n/a";
                 const roleText = String((node && node.role) || "").trim() || "n/a";
                 const hardwareText = String((node && (node.hardware_model || node.hardware)) || "").trim() || "n/a";
@@ -136,11 +137,15 @@
                   : ((caps && caps.has_position === true) ? "history only" : "n/a");
                 const noteEntry = (typeof nodeNoteEntry === "function") ? nodeNoteEntry(nodeId) : null;
                 const noteText = String((noteEntry && noteEntry.note) || "").trim();
+                const idleText = Number.isFinite(snapshot.lastSeenUnix)
+                  ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
+                  : "n/a";
+                const idleLine = `Idle: ${{idleText}}`;
                 const tooltipLines = [
                   `${{item.name}} (${{item.id}})`,
                   `Status: ${{statusLabel}}`,
                   `Last seen: ${{lastSeenText}}`,
-                  `Online this session: ${{formatUptimeHms(onlineSeconds)}}`,
+                  idleLine,
                   `Role: ${{roleText}}`,
                   `Hardware: ${{hardwareText}}`,
                   `Battery: ${{batteryText}}`,
@@ -155,6 +160,16 @@
                 const removeBtn = (activeChatChannel === "direct" && item.p2pPinned)
                   ? `<button type="button" class="chat-peer-remove-btn" data-node-id="${{escAttr(item.id)}}" title="Remove from peer-to-peer list" aria-label="Remove ${{escAttr(item.id)}} from peer-to-peer list">&times;</button>`
                   : "";
+                const idleRowTitle = Number.isFinite(snapshot.lastSeenUnix)
+                  ? `Last seen ${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}}`
+                  : "Last seen n/a";
+                const idleRowHtml = `<span class="chat-member-idle-time" title="${{escAttr(idleRowTitle)}}">Idle: ${{escAttr(idleText)}}</span>`;
+                const favoriteBtnHtml = (typeof favoriteToggleButtonHtml === "function")
+                  ? favoriteToggleButtonHtml(item.id, "chat-favorite-btn")
+                  : "";
+                const muteBtnHtml = (typeof muteToggleButtonHtml === "function")
+                  ? muteToggleButtonHtml(item.id, "chat-favorite-btn chat-mute-btn")
+                  : "";
                 return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}" data-node-id="${{escAttr(item.id)}}" title="${{escAttr(memberTitle)}}">
                 <span class="chat-member-status status-${{item.status}}">●</span>
                 <span class="chat-member-main">
@@ -163,20 +178,43 @@
                       <span class="chat-member-name status-${{item.status}}">${{escAttr(item.name)}}</span>
                     </span>
                     <span class="chat-member-actions">
-                      ${{favoriteToggleButtonHtml(item.id, "chat-favorite-btn")}}
-                      ${{muteToggleButtonHtml(item.id, "chat-favorite-btn chat-mute-btn")}}
+                      ${{favoriteBtnHtml}}
+                      ${{muteBtnHtml}}
                       ${{removeBtn}}
                     </span>
                   </span>
                   <span class="chat-member-id">${{escAttr(item.id)}}</span>
-                  <span class="chat-member-online-time" title="${{escAttr(`Total online time seen in this dashboard session (${{formatUptimeHms(onlineSeconds)}})`)}}">Online: ${{escAttr(onlineCompact)}}</span>
+                  ${{idleRowHtml}}
                 </span>
               </div>`;
+                }} catch (err) {{
+                const fallbackId = normalizeNodeId(item && item.id);
+                const fallbackName = String((item && item.name) || fallbackId || "Unknown node");
+                try {{
+                  if (typeof console !== "undefined" && typeof console.error === "function") {{
+                    console.error("Node navigator row render failed", fallbackId || item, err);
+                  }}
+                }} catch (_consoleErr) {{
+                }}
+                return `<div class="chat-member-item status-unknown${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" title="Node navigator fallback row">
+                <span class="chat-member-status status-unknown">●</span>
+                <span class="chat-member-main">
+                  <span class="chat-member-name-row">
+                    <span class="chat-member-name-left">
+                      <span class="chat-member-name status-unknown">${{escAttr(fallbackName)}}</span>
+                    </span>
+                    <span class="chat-member-actions"></span>
+                  </span>
+                  <span class="chat-member-id">${{escAttr(fallbackId || "n/a")}}</span>
+                  <span class="chat-member-idle-time">Idle: n/a</span>
+                </span>
+              </div>`;
+                }}
               }})()
             )).join("")
           : (rosterQuery
               ? '<div class="chat-member-empty">No users match this search.</div>'
-              : "");
+              : '<div class="chat-member-empty">No users discovered yet.</div>');
         for (const member of roomList.querySelectorAll(".chat-member-item")) {{
           member.addEventListener("click", () => {{
             selectNode(member.dataset.nodeId || "", true);

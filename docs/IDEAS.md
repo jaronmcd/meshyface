@@ -1,11 +1,12 @@
 # Ideas Backlog
 
 
-- map improvements
-- reusable map.
-- faster load
-- 
+- should we move chat list to the right, and make hte the perminate selction list ogf nodes?
+- fix time on ack responce to not be from the message, we can't decouple from recevie time becaue it's not a bot?
 
+- message system
+- send files from node list
+- have ai "test" zork and print the gameplay
 
 
 - can you make it so a #hashtag trends in puiblic chat creates channels? After X amount of the same #'s (we will start with 1) that will start a "channel", adding clickable icons below peer to peer, then when the channel is selected, the view is filtered to messages with the #, and the # is trimmed if it's at the end of the message to keep the view clean, if its in the middle of the message the # is stripped off and the treandy word is kept to keep it natual. And when someone transmits from the view # is auto tagged at the end, and if they type the # it stripped to prevent duplicates. Then for now a channel will timeout and be removed after 10 minutes of activity. What's cool is people can setup tx channels for private chat on  a #, but still keep the chat view to all to see the pubic chat alongside.
