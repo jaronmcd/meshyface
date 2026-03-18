@@ -1,8 +1,7 @@
 # Ideas Backlog
 
 
-- should we move chat list to the right, and make hte the perminate selction list ogf nodes?
-- fix time on ack responce to not be from the message, we can't decouple from recevie time becaue it's not a bot?
+
 
 - message system
 - send files from node list
