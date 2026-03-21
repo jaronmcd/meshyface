@@ -170,19 +170,23 @@
         </div>
       </div>
     </div>
-    <h1 class="topbar-heading">
-      <span class="topbar-heading-app">{app_heading}</span>
+    <div class="topbar-main-row">
+      <div class="topbar-brand">
+        <h1 class="topbar-heading">
+          <span class="topbar-heading-app">{app_heading}</span>
+        </h1>
+        <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
+      </div>
       <span id="topbar-chat-context" class="topbar-chat-context" title="Connected local radio: unavailable">n/a</span>
-    </h1>
+      <span class="topbar-main-spacer" aria-hidden="true"></span>
+    </div>
     <div class="sub">
       <div class="sub-main">
-        <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
         <div id="topbar-update-ticker" class="topbar-update-ticker" role="status" aria-live="polite" aria-label="Live update ticker" hidden>
-          <span class="topbar-update-ticker-label">Updates</span>
           <div id="topbar-update-viewport" class="topbar-update-viewport">
             <div id="topbar-update-track" class="topbar-update-track">
-              <span id="topbar-update-text-primary" class="topbar-update-text">No new updates yet.</span>
-              <span id="topbar-update-text-secondary" class="topbar-update-text" aria-hidden="true">No new updates yet.</span>
+              <span id="topbar-update-text-primary" class="topbar-update-text"></span>
+              <span id="topbar-update-text-secondary" class="topbar-update-text" aria-hidden="true"></span>
             </div>
           </div>
         </div>

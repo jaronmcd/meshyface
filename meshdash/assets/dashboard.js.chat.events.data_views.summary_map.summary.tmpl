@@ -508,7 +508,6 @@
       }}
     }}
 
-    const topbarUpdateTickerDefaultMessage = "No new updates yet.";
     const topbarUpdateTickerQueueMax = 24;
     const topbarUpdateTickerOneShotMs = 90 * 1000;
     const topbarUpdateTickerGapPx = 16;
@@ -685,10 +684,10 @@
         }}
         tickerEl.hidden = true;
         tickerEl.classList.add("is-static");
-        primaryEl.textContent = topbarUpdateTickerDefaultMessage;
+        primaryEl.textContent = "";
         secondaryEl.textContent = "";
         secondaryEl.hidden = true;
-        tickerEl.title = topbarUpdateTickerDefaultMessage;
+        tickerEl.title = "";
         trackEl.style.removeProperty("--topbar-update-start");
         trackEl.style.removeProperty("--topbar-update-shift");
         trackEl.style.removeProperty("--topbar-update-duration");

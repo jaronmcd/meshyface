@@ -164,17 +164,52 @@
       line-height: 1.1;
       letter-spacing: 0.1px;
     }}
-    .topbar .topbar-heading {{
-      display: flex;
+    .topbar .topbar-main-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
-      flex-wrap: wrap;
-      gap: 4px;
+      column-gap: 8px;
+      min-width: 0;
+      min-height: 34px;
+    }}
+    .topbar .topbar-brand {{
+      grid-column: 1;
+      justify-self: start;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      max-width: min(58vw, 760px);
+    }}
+    .topbar .topbar-heading {{
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      gap: 0;
+      text-align: left;
     }}
     .topbar .topbar-heading-app {{
       display: inline-flex;
       align-items: center;
+      white-space: nowrap;
+    }}
+    .topbar .topbar-main-row .revision-text {{
+      margin: 0;
+      max-width: min(42vw, 420px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      line-height: 1.2;
+    }}
+    .topbar .topbar-main-spacer {{
+      grid-column: 3;
+      min-width: 0;
     }}
     .topbar .topbar-chat-context {{
+      grid-column: 2;
+      justify-self: center;
       display: inline-flex;
       align-items: center;
       max-width: min(52vw, 420px);
@@ -192,7 +227,7 @@
       text-overflow: ellipsis;
     }}
     .topbar .sub {{
-      margin-top: 2px;
+      margin-top: 6px;
       font-size: 11px;
       opacity: 0.95;
       display: flex;
@@ -201,29 +236,29 @@
       gap: 3px;
     }}
     .topbar .sub .sub-main {{
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
+      display: block;
       min-width: 0;
+      width: calc(100% + var(--topbar-corner-reserve, 172px));
+      margin-right: calc(var(--topbar-corner-reserve, 172px) * -1);
     }}
     .topbar .sub .topbar-update-ticker {{
       --topbar-update-start: 0px;
       --topbar-update-shift: 420px;
       --topbar-update-duration: 42s;
-      flex: 1 1 520px;
-      min-width: min(100%, 280px);
-      max-width: 100%;
+      flex: none;
+      width: 100%;
+      min-width: 0;
+      max-width: none;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       align-items: center;
       gap: 8px;
       border: 1px solid rgba(236, 251, 243, 0.72);
       border-radius: 8px;
       background: linear-gradient(90deg, rgba(7, 24, 18, 0.6), rgba(10, 36, 27, 0.38));
       color: #f3fff8;
-      padding: 6px 12px;
-      min-height: 56px;
+      padding: 5px 12px;
+      min-height: 44px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px rgba(203, 236, 219, 0.08);
     }}
@@ -259,8 +294,8 @@
     .topbar .sub .topbar-update-text {{
       display: inline-flex;
       align-items: center;
-      font-size: 13px;
-      line-height: 1.25;
+      font-size: 14px;
+      line-height: 1.2;
       letter-spacing: 0.12px;
       color: rgba(244, 255, 249, 0.96);
       white-space: nowrap;
@@ -296,7 +331,7 @@
     }}
     @media (max-width: 980px) {{
       .topbar .sub .topbar-update-ticker {{
-        flex-basis: 100%;
+        width: 100%;
       }}
     }}
     .topbar .sub .summary-ticker-row {{
