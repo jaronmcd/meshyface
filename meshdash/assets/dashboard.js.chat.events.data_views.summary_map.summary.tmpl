@@ -712,21 +712,23 @@
 
       topbarUpdateTickerRenderRaf = window.requestAnimationFrame(() => {{
         topbarUpdateTickerRenderRaf = 0;
-        const textWidth = Math.max(primaryEl.scrollWidth, 0);
         const viewportWidth = Math.max(viewportEl.clientWidth, 0);
+        const textWidth = Math.max(primaryEl.scrollWidth, 0);
         if (!(textWidth > 0) || !(viewportWidth > 0)) {{
           tickerEl.classList.add("is-static");
           trackEl.style.removeProperty("--topbar-update-start");
           trackEl.style.removeProperty("--topbar-update-shift");
           trackEl.style.removeProperty("--topbar-update-duration");
+          trackEl.style.removeProperty("--topbar-update-gap");
           return;
         }}
-        const start = Math.max(16, Math.ceil(viewportWidth));
+        const start = Math.max(8, Math.ceil(viewportWidth));
         const shift = Math.max(120, Math.ceil(viewportWidth + textWidth + topbarUpdateTickerGapPx));
         const speedPxPerSecond = 36;
-        const durationSec = Math.max(18, Math.min(180, shift / speedPxPerSecond));
+        const durationSec = Math.max(16, Math.min(180, shift / speedPxPerSecond));
         trackEl.style.setProperty("--topbar-update-start", `${{start}}px`);
         trackEl.style.setProperty("--topbar-update-shift", `${{shift}}px`);
+        trackEl.style.setProperty("--topbar-update-gap", `${{topbarUpdateTickerGapPx}}px`);
         trackEl.style.setProperty("--topbar-update-duration", `${{durationSec.toFixed(2)}}s`);
         if (trainChanged) {{
           trackEl.style.animation = "none";
