@@ -209,15 +209,39 @@ chmod +x ./scripts/deploy_dashboard.sh
 ./scripts/deploy_dashboard.sh
 ```
 
-Default target is `j@192.168.1.241`. You can override it without editing the script:
+Target is required unless `MESH_DASH_DEPLOY_TARGET` is set. For example:
 
 ```bash
-MESH_DASH_DEPLOY_TARGET=j@192.168.1.241 \
+./scripts/deploy_dashboard.sh --target j@192.168.1.29
+```
+
+You can still use env overrides without editing the script:
+
+```bash
+MESH_DASH_DEPLOY_TARGET=j@192.168.1.29 \
 MESH_DASH_DEPLOY_APP_DIR=/home/j/mesh/app \
 MESH_DASH_DEPLOY_REMOTE_PYTHON=/home/j/mesh/.venv/bin/python \
 MESH_DASH_DEPLOY_SERVICE=meshtastic-dashboard \
 ./scripts/deploy_dashboard.sh
 ```
+
+For a brand-new host (first-time setup + deploy), use bootstrap mode and set the radio IP:
+
+```bash
+./scripts/deploy_dashboard.sh \
+  --target j@192.168.1.29 \
+  --bootstrap \
+  --mesh-host 192.168.1.211
+```
+
+Notes:
+
+- No password is stored in the script. SSH and `sudo` will prompt as needed.
+- You can also update `dashboard.env` values during deploy with options like:
+  - `--mesh-port 4403`
+  - `--dash-host 0.0.0.0`
+  - `--dash-port 8877`
+  - `--refresh-ms 3000`
 
 Then hard refresh browser: `Ctrl+Shift+R`.
 
