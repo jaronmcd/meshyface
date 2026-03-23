@@ -271,6 +271,17 @@
       overflow: hidden;
       box-shadow: inset 0 0 0 1px rgba(203, 236, 219, 0.08);
     }}
+    .topbar .sub .topbar-update-ticker,
+    .topbar .sub .summary-ticker-row {{
+      width: calc(100% + var(--topbar-corner-reserve, 172px));
+      margin-right: calc(var(--topbar-corner-reserve, 172px) * -1);
+    }}
+    .topbar .sub .topbar-update-ticker {{
+      padding-right: calc(10px + var(--topbar-right-inset));
+    }}
+    .topbar .sub .summary-ticker-row {{
+      padding-right: var(--topbar-right-inset);
+    }}
     .topbar .sub .topbar-update-ticker.is-fading {{
       opacity: 0;
     }}
@@ -364,7 +375,7 @@
     }}
     @media (max-width: 980px) {{
       .topbar .sub .topbar-update-ticker {{
-        width: 100%;
+        width: calc(100% + var(--topbar-corner-reserve, 172px));
       }}
     }}
     .topbar .sub .summary-ticker-row {{
