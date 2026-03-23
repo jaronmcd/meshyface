@@ -1194,8 +1194,8 @@
           unseenNoticeRows.push({{
             key: rowKey,
             text: preview
-              ? `PUBLIC CHAT ${{sender}}: ${{preview}}`
-              : `PUBLIC CHAT FROM ${{sender}}`,
+              ? `${{sender}}: ${{preview}}`
+              : `${{sender}}`,
             mode: "oneshot",
             sortMs: normalizeTickerSortMs(unix),
           }});

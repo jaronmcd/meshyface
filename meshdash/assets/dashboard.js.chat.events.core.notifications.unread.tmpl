@@ -195,8 +195,8 @@
           const sender = String(entry.sender || "").trim() || "Unknown node";
           const preview = String(entry.preview || "").replace(/\s+/g, " ").trim();
           const tickerText = preview
-            ? `PUBLIC CHAT ${{sender}}: ${{preview}}`
-            : `PUBLIC CHAT FROM ${{sender}}`;
+            ? `${{sender}}: ${{preview}}`
+            : `${{sender}}`;
           publishTopbarUpdateTickerEvent(
             tickerText,
             `oneshot:public:${{String(entry.key || "").trim()}}`,
