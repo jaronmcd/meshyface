@@ -21,12 +21,12 @@
         applyMeshSendChannelIndex(idx, persist, false);
       }}
 
-      if (activeLayoutView === "chat" && !document.hidden && tabHasFocus) {{
+      if ((activeLayoutView === "chat" || activeLayoutView === "macros") && !document.hidden && tabHasFocus) {{
         clearVisibleChatUnread(activeChatChannel);
       }}
 
       if ((changed || shouldFollowForSend) && latestState) {{
-        if (activeLayoutView === "chat") {{
+        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
           renderChat(latestState);
         }} else if (activeLayoutView === "files") {{
           renderFilesView(latestState);
@@ -58,7 +58,7 @@
       }}
 
       if (rerenderChat && changed && latestState) {{
-        if (activeLayoutView === "chat") {{
+        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
           renderChat(latestState);
         }} else if (activeLayoutView === "files") {{
           renderFilesView(latestState);

@@ -54,6 +54,8 @@
       }}
       const feed = document.getElementById("chat-feed");
       if (feed) {{
+        feed.classList.toggle("chat-feed-view-monitor", chatViewMode === "monitor");
+        feed.dataset.chatViewMode = chatViewMode === "monitor" ? "monitor" : "default";
         const emptyText = (activeChatChannel === "direct" && !isCanonicalNodeId(directSelectedId))
           ? "Select a user to view peer-to-peer messages."
           : `No ${{channelLabel(activeChatChannel).toLowerCase()}} messages yet.`;

@@ -149,7 +149,7 @@
         }}
       }}
 
-      pendingSelectionScroll = activeLayoutView === "chat" ? false : !didScroll;
+      pendingSelectionScroll = (activeLayoutView === "chat" || activeLayoutView === "macros") ? false : !didScroll;
     }}
 
     function withProgrammaticMapMove(fn) {{
@@ -384,7 +384,7 @@
       persistSelection();
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
-      if (activeLayoutView === "chat") {{
+      if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
         pendingMapHistoryFocus = false;
         // Chat-only selection should not trigger map/history work.
         applyChatChannel(activeChatChannel, false);
@@ -435,7 +435,7 @@
       persistSelection();
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
-      if (activeLayoutView === "chat") {{
+      if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
         applyChatChannel(activeChatChannel, false);
         return;
       }}

@@ -73,7 +73,7 @@
         if (!changed && item instanceof HTMLElement) {{
           item.classList.remove("change-marker-fading");
         }}
-        if (changed && latestState && activeLayoutView === "chat") {{
+        if (changed && latestState && (activeLayoutView === "chat" || activeLayoutView === "macros")) {{
           renderChat(latestState);
         }}
       }}, chatChangeAutoDismissFadeMs);
@@ -86,7 +86,7 @@
       }}
       const timerId = window.setTimeout(() => {{
         chatChangeAutoDismissTimers.delete(key);
-        if (activeLayoutView !== "chat" || document.hidden || !tabHasFocus) {{
+        if ((activeLayoutView !== "chat" && activeLayoutView !== "macros") || document.hidden || !tabHasFocus) {{
           return;
         }}
         const scroller = getChatScroller();
@@ -104,7 +104,7 @@
     }}
 
     function syncChatChangeAutoDismiss() {{
-      if (activeLayoutView !== "chat" || document.hidden || !tabHasFocus) {{
+      if ((activeLayoutView !== "chat" && activeLayoutView !== "macros") || document.hidden || !tabHasFocus) {{
         clearAllChatChangeAutoDismissTimers();
         return;
       }}
@@ -187,4 +187,3 @@
       }}
       return keys;
     }}
-

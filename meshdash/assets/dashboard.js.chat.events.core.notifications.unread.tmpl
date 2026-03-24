@@ -146,7 +146,7 @@
     function isChatEntryVisibleInCurrentContext(entry) {{
       if (!entry || typeof entry !== "object") return false;
       if (document.hidden || !tabHasFocus) return false;
-      if (activeLayoutView !== "chat") return false;
+      if (activeLayoutView !== "chat" && activeLayoutView !== "macros") return false;
       const entryChannel = normalizeChatChannel(entry.channel || entry.targetChatChannel || "all");
       if (entryChannel !== activeChatChannel) return false;
       if (entryChannel !== "direct") {{
@@ -190,6 +190,7 @@
           entry.countsUnread !== false
           && entry.channel === "all"
           && activeLayoutView !== "chat"
+          && activeLayoutView !== "macros"
           && typeof publishTopbarUpdateTickerEvent === "function"
         ) {{
           const sender = String(entry.sender || "").trim() || "Unknown node";
@@ -242,7 +243,7 @@
       }}
 
       const canClearActiveChat = (
-        activeLayoutView === "chat"
+        (activeLayoutView === "chat" || activeLayoutView === "macros")
         && clearActiveWhenInChat
         && !tabInactive
         && !catchupNoticeArmed

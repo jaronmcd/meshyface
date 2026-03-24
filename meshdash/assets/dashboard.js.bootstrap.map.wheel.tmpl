@@ -104,6 +104,7 @@
     function bindWheelPassthrough() {{
       const isWheelPassthroughEnabled = () => (
         activeLayoutView !== "chat"
+        && activeLayoutView !== "macros"
         && activeLayoutView !== "network"
         && activeLayoutView !== "saved"
         && activeLayoutView !== "settings"
@@ -340,4 +341,3 @@
         scheduleChannelsTableFillRows();
       }}, 120);
     }});
-

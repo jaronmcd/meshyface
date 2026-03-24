@@ -61,7 +61,7 @@
       persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
       renderHistoryNotificationLog();
-      if (latestState && activeLayoutView === "chat") {{
+      if (latestState && (activeLayoutView === "chat" || activeLayoutView === "macros")) {{
         renderChat(latestState);
       }} else {{
         syncChatChangeAutoDismiss();

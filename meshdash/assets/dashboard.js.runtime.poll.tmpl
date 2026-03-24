@@ -1,5 +1,5 @@
     function shouldHydrateNodeNavigatorRoster(state = latestState) {{
-      if (activeLayoutView === "chat") return false;
+      if (activeLayoutView === "chat" || activeLayoutView === "macros") return false;
       const safeState = (state && typeof state === "object") ? state : null;
       if (!safeState) return false;
       const query = (typeof globalNodeSearchQuery === "function")
@@ -220,11 +220,11 @@
           }}
         }}
 
-        if (activeLayoutView !== "chat" && shouldHydrateNodeNavigatorRoster(state)) {{
+        if (activeLayoutView !== "chat" && activeLayoutView !== "macros" && shouldHydrateNodeNavigatorRoster(state)) {{
           renderChat(state);
         }}
 
-        if (activeLayoutView === "chat") {{
+        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
           renderChat(state);
         }} else if (activeLayoutView === "bbs") {{
           renderBbsView(state);

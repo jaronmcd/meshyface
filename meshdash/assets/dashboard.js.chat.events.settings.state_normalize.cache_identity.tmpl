@@ -103,7 +103,7 @@
 
       if (safeState) {{
         renderSelfRadioPill(safeState);
-        if (activeLayoutView === "chat") {{
+        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
           renderChat(safeState);
         }} else if (activeLayoutView === "files") {{
           renderFilesView(safeState);

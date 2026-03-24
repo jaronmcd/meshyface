@@ -64,7 +64,7 @@
       const nextChannel = resolveMainChatChannel(channelKey);
       const changed = activeChatChannel !== nextChannel;
       activeChatChannel = nextChannel;
-      if (activeLayoutView === "chat" && !document.hidden && tabHasFocus) {{
+      if ((activeLayoutView === "chat" || activeLayoutView === "macros") && !document.hidden && tabHasFocus) {{
         clearVisibleChatUnread(activeChatChannel);
       }}
       syncMeshChannelViewControl();
@@ -181,4 +181,25 @@
       }} catch (_err) {{
       }}
       applyChatNotificationScope(preferred, false);
+    }}
+
+    function normalizeChatViewMode(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return clean === "monitor" ? "monitor" : "default";
+    }}
+
+    function applyChatViewMode(modeValue, rerender = true) {{
+      const mode = normalizeChatViewMode(modeValue);
+      const changed = chatViewMode !== mode;
+      chatViewMode = mode;
+      document.documentElement.setAttribute("data-chat-view-mode", mode);
+      const feed = document.getElementById("chat-feed");
+      if (feed instanceof HTMLElement) {{
+        feed.classList.toggle("chat-feed-view-monitor", mode === "monitor");
+        feed.dataset.chatViewMode = mode;
+      }}
+      if (!changed) return;
+      if (rerender && latestState) {{
+        renderChat(latestState);
+      }}
     }}

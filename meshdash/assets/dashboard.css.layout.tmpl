@@ -1745,6 +1745,177 @@
       display: none !important;
     }}
 
+    .layout.view-macros {{
+      height: 100%;
+      min-height: 0;
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-macros .chat {{
+      grid-row: 1;
+      min-height: 0;
+    }}
+    .layout.view-macros .map,
+    .layout.view-macros .map-data,
+    .layout.view-macros .summary,
+    .layout.view-macros .nodes,
+    .layout.view-macros .bots,
+    .layout.view-macros .packets,
+    .layout.view-macros .raw,
+    .layout.view-macros .console,
+    .layout.view-macros .splitter,
+    .layout.view-macros .hsplitter {{
+      display: none !important;
+    }}
+    .layout.view-macros .card.chat {{
+      background: #191c22 !important;
+      border-color: #3a3f48 !important;
+      box-shadow: none !important;
+    }}
+    .layout.view-macros .card.chat .chat-card-head {{
+      display: none !important;
+    }}
+    .layout.view-macros .card.chat .body {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 6px;
+      background: #191c22 !important;
+    }}
+    .layout.view-macros .card.chat .chat-shell {{
+      position: relative;
+      width: 33%;
+      max-width: 33%;
+      min-width: 420px;
+      height: 60vh;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #222 !important;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }}
+    .layout.view-macros .card.chat .chat-shell::before {{
+      content: "Log";
+      position: absolute;
+      top: 0;
+      left: 25%;
+      transform: translateX(-50%);
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ddd;
+      font-size: 12px;
+      line-height: 1;
+      pointer-events: none;
+      z-index: 2;
+    }}
+    .layout.view-macros .card.chat .chat-shell::after {{
+      content: "MediumFast";
+      position: absolute;
+      top: 0;
+      left: 62%;
+      transform: translateX(-50%);
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      color: #2f9cff;
+      font-size: 12px;
+      line-height: 1;
+      pointer-events: none;
+      z-index: 2;
+    }}
+    .layout.view-macros .card.chat .chat-main-pane {{
+      row-gap: 0 !important;
+      height: 100%;
+      padding-top: 24px;
+    }}
+    .layout.view-macros .card.chat .chat-compose-shell {{
+      display: none !important;
+    }}
+    .layout.view-macros .card.chat .chat-log-scroll {{
+      background: #222 !important;
+      border: 0 !important;
+      border-top: 1px solid #2f9cff !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      height: 100%;
+    }}
+    .layout.view-macros .card.chat .chat-feed {{
+      background: #222 !important;
+      font-family: ui-monospace, Menlo, Consolas, monospace !important;
+      margin-top: 0 !important;
+      padding: 6px !important;
+    }}
+    .layout.view-macros .card.chat .chat-feed-item-monitor-exact {{
+      border: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      color: #bbb !important;
+    }}
+    .layout.view-macros .card.chat .chat-feed-item:not(.chat-feed-item-monitor-exact),
+    .layout.view-macros .card.chat .chat-feed-side,
+    .layout.view-macros .card.chat .chat-reaction-summary-row,
+    .layout.view-macros .card.chat .chat-reaction-row,
+    .layout.view-macros .card.chat .chat-feed-status-dot,
+    .layout.view-macros .card.chat .chat-feed-colon,
+    .layout.view-macros .card.chat .chat-feed-status-pill,
+    .layout.view-macros .card.chat .chat-feed-new-pill,
+    .layout.view-macros .card.chat .chat-feed-line,
+    .layout.view-macros .card.chat .chat-feed-summary {{
+      display: none !important;
+    }}
+    .layout.view-macros .card.chat .chat-feed-item-monitor-exact .chat-entry-msg {{
+      display: block;
+      font-family: ui-monospace, Menlo, Consolas, monospace !important;
+      font-size: 12px !important;
+      line-height: 1.35 !important;
+      color: #bbb !important;
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
+      margin: 0 !important;
+    }}
+    .layout.view-macros .card.chat .chat-monitor-prefix {{
+      color: #bbb !important;
+      font-weight: 700 !important;
+      margin-right: 0 !important;
+    }}
+    .layout.view-macros .card.chat .chat-monitor-network-tag {{
+      color: #bbb !important;
+      margin-right: 2px !important;
+      font-weight: 700 !important;
+    }}
+    .layout.view-macros .card.chat .short-name {{
+      margin-right: 2px !important;
+      padding: 0 2px !important;
+      border-radius: 4px !important;
+    }}
+    .layout.view-macros .card.chat .chat-entry-reply {{
+      color: #999 !important;
+      font-style: italic !important;
+      margin-right: 4px !important;
+    }}
+    .layout.view-macros .card.chat .chat-monitor-text {{
+      color: #bbb !important;
+    }}
+    .layout.view-macros .card.chat .chat-link {{
+      color: #9bd !important;
+    }}
+    @media (max-width: 1100px) {{
+      .layout.view-macros .card.chat .chat-shell {{
+        width: 100%;
+        min-width: 0;
+        height: min(65vh, 560px);
+      }}
+      .layout.view-macros .card.chat .chat-shell::before {{
+        left: 24%;
+      }}
+      .layout.view-macros .card.chat .chat-shell::after {{
+        left: 62%;
+      }}
+    }}
+
     .layout.view-files {{
       height: 100%;
       min-height: 0;
@@ -4336,6 +4507,114 @@
       100% {{
         background: transparent;
       }}
+    }}
+    [data-chat-view-mode="monitor"] .card.chat .chat-shell {{
+      padding: 4px;
+    }}
+    [data-chat-view-mode="monitor"] .card.chat {{
+      background: #191c22;
+      border-color: #3a3f48;
+      box-shadow: none;
+    }}
+    [data-chat-view-mode="monitor"] .card.chat .chat-main-pane {{
+      row-gap: 2px;
+    }}
+    [data-chat-view-mode="monitor"] .card.chat .chat-compose-shell {{
+      display: none;
+    }}
+    [data-chat-view-mode="monitor"] .card.chat .chat-log-scroll {{
+      background: #20242b;
+      border: 1px solid #3b404a;
+      border-radius: 4px;
+      box-shadow: none;
+    }}
+    .chat-feed.chat-feed-view-monitor {{
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      background: #20242b;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-item {{
+      padding: 4px 6px;
+      border-bottom: 0;
+      background: transparent;
+      box-shadow: none;
+      color: #d7dce3;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.chat-selectable:hover {{
+      background: rgba(90, 100, 115, 0.16);
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.selected-node,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.chat-selectable.selected-node:hover {{
+      background: rgba(112, 124, 141, 0.24);
+      box-shadow: inset 2px 0 0 #8ea5c1;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.channel-tinted,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.channel-tinted.has-change-marker,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.self-authored,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.self-authored.channel-tinted,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.has-change-marker,
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.kind-status {{
+      background: transparent;
+      box-shadow: none;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-line {{
+      gap: 0;
+      align-items: baseline;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-summary {{
+      display: block;
+      line-height: 1.45;
+      white-space: normal;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-side,
+    .chat-feed.chat-feed-view-monitor .chat-reaction-summary-row,
+    .chat-feed.chat-feed-view-monitor .chat-reaction-row,
+    .chat-feed.chat-feed-view-monitor .chat-feed-status-dot,
+    .chat-feed.chat-feed-view-monitor .chat-feed-colon,
+    .chat-feed.chat-feed-view-monitor .chat-feed-status-pill,
+    .chat-feed.chat-feed-view-monitor .chat-feed-new-pill {{
+      display: none !important;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-entry-msg {{
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #d7dce3;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-monitor-prefix {{
+      color: #98a3b2;
+      font-weight: 700;
+      margin-right: 5px;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-monitor-network-tag {{
+      color: #b2bac6;
+      margin-right: 6px;
+      font-weight: 600;
+    }}
+    .chat-feed.chat-feed-view-monitor .short-name {{
+      display: inline-block;
+      border-radius: 4px;
+      padding: 0 2px;
+      color: #000000;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      margin-right: 5px;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-entry-reply {{
+      color: #9aa6b5;
+      font-style: italic;
+      margin-right: 4px;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-entry-reply.missing {{
+      opacity: 0.78;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-monitor-text {{
+      color: #d7dce3;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-link {{
+      color: #9abef3;
     }}
     .chat-feed-line {{
       display: flex;

@@ -1,3 +1,15 @@
+      const monitorRoleColorByName = {{
+        CLIENT_HIDDEN: "#A9CBE8",
+        SENSOR: "#A8D5BA",
+        TRACKER: "#99e67f",
+        CLIENT_MUTE: "#bcef75",
+        CLIENT: "#f3ef74",
+        CLIENT_BASE: "#fdbf79",
+        REPEATER: "#fa997b",
+        ROUTER_LATE: "#ff5061",
+        ROUTER: "#ff0019",
+        LOST_AND_FOUND: "#C3A8E8",
+      }};
       const feedItems = visibleMessages.map((msg) => {{
         const endpoints = endpointsForMessage(msg);
         const sourceNode = endpoints.fromId;
@@ -28,6 +40,7 @@
           .filter((part) => !!part)
           .join(" | ");
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
+        const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);
         const textCompact = compactInlineMessage(msg.text || "", 140);
         const hopNum = nonNegativeIntegerOrNull(msg.hops);
         const hasHop = hopNum != null;
@@ -294,6 +307,42 @@
               <span class="chat-reply-inline-text">${{escAttr(replyInlineText)}}</span>
             </span>`
           : "";
+        const monitorMode = chatViewMode === "monitor";
+        const sourceNodeEntry = nodesById.get(normalizeNodeId(sourceNode)) || null;
+        const sourceRole = String(
+          (sourceNodeEntry && sourceNodeEntry.role != null)
+            ? sourceNodeEntry.role
+            : ""
+        ).trim().toUpperCase();
+        const monitorBadgeColor = monitorRoleColorByName[sourceRole]
+          || monitorRoleColorByName.CLIENT
+          || "#cccccc";
+        const monitorSenderTag = (() => {{
+          if (isCanonicalNodeId(fromMeta.idTag || "")) {{
+            return String(fromMeta.idTag).replace(/^!+/, "").slice(-4).toLowerCase();
+          }}
+          const compactLabel = compactInlineMessage(fromMeta.label || "node", 12);
+          return compactLabel.replace(/[\[\]]/g, "").slice(-4).toLowerCase();
+        }})();
+        const monitorShortTagHtml = escAttr(String(monitorSenderTag || "node").padStart(4, " ")).replace(/ /g, "&nbsp;");
+        const monitorReplyInline = replyInlineLabel
+          ? `<span class="chat-entry-reply${{replyInlineMissing ? " missing" : ""}}">[in reply to ${{escAttr(replyInlineLabel)}}]</span>`
+          : "";
+        const monitorPrefix = `<span class="chat-monitor-prefix">[${{escAttr(timeText)}}]</span>`;
+        const monitorViewClass = monitorMode ? " chat-view-monitor" : "";
+        if (monitorMode) {{
+          const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selectedFeedClass}}${{monitorViewClass}}`;
+          return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}" title="${{escAttr(messageTooltip)}}">
+            <span class="chat-entry-msg">
+              ${{monitorPrefix}}
+              ${{monitorNetworkTag}}
+              <span class="short-name status-${{fromStatusKey}}" style="background:${{escAttr(monitorBadgeColor)}}" title="${{escAttr(fromMeta.title)}}">${{monitorShortTagHtml}}</span>
+              ${{monitorReplyInline}}
+              <span class="chat-entry-copy chat-monitor-text">${{textHtmlMonitor || "&nbsp;"}}</span>
+            </span>
+          </div>`;
+        }}
         const summaryBody = isStatusMessage
           ? `${{replyInline}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`
           : `${{replyInline}}${{statusBadge}}
@@ -303,19 +352,22 @@
               </span>
               <span class="chat-feed-colon">:</span>
               <span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`;
-        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{meshTintClass}}"${{meshTintStyle}} title="${{escAttr(messageTooltip)}}">
+        const sideHtml = monitorMode
+          ? ""
+          : `<span class="chat-feed-side">
+              ${{retryButton}}
+              ${{deliveryChip}}
+              <span class="chat-feed-time" title="${{escAttr(timeTitle || timeText)}}">${{escAttr(timeText)}}</span>
+            </span>`;
+        const extraRows = monitorMode ? "" : `${{reactionSummaryRow}}${{reactionRow}}`;
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{meshTintClass}}${{monitorViewClass}}"${{meshTintStyle}} title="${{escAttr(messageTooltip)}}">
           <div class="chat-feed-line">
             <div class="chat-feed-summary">
               ${{changeBadge}}
               ${{summaryBody}}
             </div>
-            <span class="chat-feed-side">
-              ${{retryButton}}
-              ${{deliveryChip}}
-              <span class="chat-feed-time" title="${{escAttr(timeTitle || timeText)}}">${{escAttr(timeText)}}</span>
-            </span>
+            ${{sideHtml}}
           </div>
-          ${{reactionSummaryRow}}
-          ${{reactionRow}}
+          ${{extraRows}}
         </div>`;
       }}).filter((item) => !!item);

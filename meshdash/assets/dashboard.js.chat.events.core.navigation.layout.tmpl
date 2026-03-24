@@ -51,7 +51,7 @@
         btn.setAttribute("aria-current", isActive ? "page" : "false");
       }}
 
-      const chatViewActive = next === "chat";
+      const chatViewActive = next === "chat" || next === "macros";
       if (shell instanceof HTMLElement) {{
         shell.classList.add("chat-panel-open");
       }}
@@ -109,6 +109,7 @@
         }} catch (_err) {{
         }}
       }}
+      applyChatViewMode(next === "macros" ? "monitor" : "default", false);
 
       if (next === "history") {{
         mapDataFocus = "activity";
@@ -148,7 +149,7 @@
           renderNodes(latestState.nodes || []);
         }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory);
-        if (next === "chat") {{
+        if (next === "chat" || next === "macros") {{
           renderChat(latestState);
         }}
         if (next === "files") {{
@@ -235,7 +236,7 @@
       renderFavoriteMenuNodeSearchDropdown(latestState);
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "data" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "data" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
