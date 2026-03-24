@@ -44,6 +44,59 @@
       return "Macros: /shrug, /tableflip (/flip), /unflip, /give, /lenny, /cheer · use /macros or /help";
     }}
 
+    const MACROS_ASCII_RAMP_FALLBACK = "@%#*+=-:. ";
+    const MACROS_ASCII_PALETTE_CUSTOM_ID = "custom";
+    const MACROS_ASCII_PALETTE_PRESETS = Object.freeze([
+      Object.freeze({{
+        id: "classic_10",
+        label: "Classic 10 (Bourke-style)",
+        ramp: "@%#*+=-:. ",
+        note: "Classic 10-level ramp (dark -> light), used widely since the 1990s.",
+      }}),
+      Object.freeze({{
+        id: "bourke_1997_long",
+        label: "Paul Bourke 1997 (70)",
+        ramp: "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{{}}[]?-_+~<>i!lI;:,\"^`'. ",
+        note: "Paul Bourke (1997) long grayscale ramp (black -> white).",
+      }}),
+      Object.freeze({{
+        id: "bourke_1997_dense_32",
+        label: "Bourke-Derived Dense (32)",
+        ramp: "@$B8W#*ahkbdpqwZO0QJYXzcvnxrjt/|()1[]-+<>i;:. ",
+        note: "32-level dense subset derived from Bourke's 1997 ramp.",
+      }}),
+      Object.freeze({{
+        id: "jp2a_default",
+        label: "jp2a Default (reversed)",
+        ramp: "MWNXK0Okxdolc:;,'... ",
+        note: "jp2a default chars (man page), reversed here to dark -> light.",
+      }}),
+      Object.freeze({{
+        id: "asciinator_2014",
+        label: "Asciinator Script (2014)",
+        ramp: "@&B9#SGHMh352AXsri;:,. ",
+        note: "Popular asciinator.py ramp, reversed here to dark -> light.",
+      }}),
+      Object.freeze({{
+        id: "legacy_8bit",
+        label: "Legacy 8-bit (10)",
+        ramp: "@#S%?*+;:,. ",
+        note: "Retro BBS/terminal-style 10-level palette.",
+      }}),
+      Object.freeze({{
+        id: "technical_6",
+        label: "Technical Draft (6)",
+        ramp: "@#*+=-. ",
+        note: "Compact 6-step palette for cleaner line art macros.",
+      }}),
+      Object.freeze({{
+        id: "minimal_4",
+        label: "Minimal 4",
+        ramp: "@*:. ",
+        note: "Very coarse 4-step palette for tiny, readable macros.",
+      }}),
+    ]);
+
     function clampMacrosAsciiDimension(rawValue, fallbackValue = 16, minValue = 8, maxValue = 96) {{
       const numeric = Math.trunc(Number(rawValue));
       if (!Number.isFinite(numeric)) return fallbackValue;
@@ -51,7 +104,7 @@
     }}
 
     function normalizeMacrosAsciiRamp(rawRamp) {{
-      const fallback = "@%#*+=-:. ";
+      const fallback = MACROS_ASCII_RAMP_FALLBACK;
       const value = String(rawRamp == null ? "" : rawRamp);
       const chars = [];
       const seen = new Set();
@@ -63,6 +116,22 @@
       }}
       const ramp = chars.join("");
       return ramp.length >= 2 ? ramp : fallback;
+    }}
+
+    function findMacrosAsciiPalettePresetByRamp(rawRamp) {{
+      const normalized = normalizeMacrosAsciiRamp(rawRamp);
+      for (const preset of MACROS_ASCII_PALETTE_PRESETS) {{
+        if (normalizeMacrosAsciiRamp(preset.ramp) === normalized) {{
+          return preset;
+        }}
+      }}
+      return null;
+    }}
+
+    function findMacrosAsciiPalettePresetById(rawId) {{
+      const id = String(rawId == null ? "" : rawId).trim();
+      if (!id) return null;
+      return MACROS_ASCII_PALETTE_PRESETS.find((preset) => preset.id === id) || null;
     }}
 
     function parseMacrosAsciiLines(rawText) {{
@@ -400,6 +469,63 @@
       const copyBtn = document.getElementById("macros-copy-btn");
       const sendBtn = document.getElementById("macros-send-lines-btn");
       const textInput = document.getElementById("macros-text-input");
+      const rampInput = document.getElementById("macros-ascii-ramp");
+      const paletteSelect = document.getElementById("macros-ascii-palette");
+      const paletteNote = document.getElementById("macros-ascii-palette-note");
+
+      const setPaletteNote = (rawText) => {{
+        if (!(paletteNote instanceof HTMLElement)) return;
+        paletteNote.textContent = String(rawText == null ? "" : rawText).trim() || "Using custom ramp.";
+      }};
+
+      let paletteSyncLocked = false;
+      const syncPalettePresetFromRamp = () => {{
+        if (!(paletteSelect instanceof HTMLSelectElement) || !(rampInput instanceof HTMLInputElement)) {{
+          setPaletteNote("Using custom ramp.");
+          return;
+        }}
+        const preset = findMacrosAsciiPalettePresetByRamp(rampInput.value);
+        paletteSyncLocked = true;
+        paletteSelect.value = preset ? preset.id : MACROS_ASCII_PALETTE_CUSTOM_ID;
+        paletteSyncLocked = false;
+        setPaletteNote(preset ? preset.note : "Using custom ramp.");
+      }};
+
+      if (paletteSelect instanceof HTMLSelectElement) {{
+        paletteSelect.innerHTML = "";
+        const customOption = document.createElement("option");
+        customOption.value = MACROS_ASCII_PALETTE_CUSTOM_ID;
+        customOption.textContent = "Custom";
+        paletteSelect.appendChild(customOption);
+        for (const preset of MACROS_ASCII_PALETTE_PRESETS) {{
+          const option = document.createElement("option");
+          option.value = preset.id;
+          option.textContent = preset.label;
+          paletteSelect.appendChild(option);
+        }}
+      }}
+
+      if (paletteSelect instanceof HTMLSelectElement && rampInput instanceof HTMLInputElement) {{
+        paletteSelect.addEventListener("change", () => {{
+          if (paletteSyncLocked) return;
+          const selected = findMacrosAsciiPalettePresetById(paletteSelect.value);
+          if (!selected) {{
+            setPaletteNote("Using custom ramp.");
+            return;
+          }}
+          const normalized = normalizeMacrosAsciiRamp(selected.ramp);
+          rampInput.value = normalized;
+          setPaletteNote(selected.note);
+          if (output instanceof HTMLTextAreaElement && String(output.value || "").trim()) {{
+            syncMacrosPreviewFromOutput("edited");
+          }}
+        }});
+
+        rampInput.addEventListener("input", () => {{
+          if (paletteSyncLocked) return;
+          syncPalettePresetFromRamp();
+        }});
+      }}
 
       if (imageInput instanceof HTMLInputElement) {{
         imageInput.addEventListener("change", async () => {{
@@ -508,6 +634,7 @@
       }}
 
       updateMacrosImageMeta();
+      syncPalettePresetFromRamp();
       syncMacrosPreviewFromOutput("init");
       setMacrosStatus("Load an image or type text to build a macro.");
     }}

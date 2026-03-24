@@ -1538,9 +1538,14 @@
                   </label>
                 </div>
                 <label class="macros-tool-field">
-                  <span>Ramp (dark to light)</span>
-                  <input id="macros-ascii-ramp" type="text" value="@%#*+=-:. " maxlength="40" autocomplete="off" spellcheck="false" />
+                  <span>Palette Preset</span>
+                  <select id="macros-ascii-palette" aria-label="ASCII palette preset"></select>
                 </label>
+                <label class="macros-tool-field">
+                  <span>Ramp (dark to light)</span>
+                  <input id="macros-ascii-ramp" type="text" value="@%#*+=-:. " maxlength="128" autocomplete="off" spellcheck="false" />
+                </label>
+                <div id="macros-ascii-palette-note" class="macros-mini-meta">Classic 10-level ramp (dark -> light), used widely since the 1990s.</div>
                 <label class="macros-tool-check">
                   <input id="macros-ascii-invert" type="checkbox" />
                   <span>Invert luminance</span>
