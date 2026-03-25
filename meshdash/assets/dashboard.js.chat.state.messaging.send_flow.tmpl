@@ -587,7 +587,7 @@
       const sendBtn = document.getElementById("macros-send-lines-btn");
       if (!(sendBtn instanceof HTMLButtonElement)) return;
       sendBtn.disabled = !!isBusy;
-      sendBtn.textContent = isBusy ? "Sending..." : "Send As Lines";
+      sendBtn.textContent = isBusy ? "Sending..." : "Send Macro";
     }}
 
     async function sendMacrosPreviewAsLines() {{
@@ -686,7 +686,6 @@
       const imageInput = document.getElementById("macros-image-input");
       const imageBtn = document.getElementById("macros-image-generate-btn");
       const textBtn = document.getElementById("macros-text-generate-btn");
-      const textSendBtn = document.getElementById("macros-text-send-btn");
       const output = document.getElementById("macros-ascii-output");
       const previewBtn = document.getElementById("macros-preview-apply-btn");
       const clearBtn = document.getElementById("macros-clear-btn");
@@ -961,13 +960,6 @@
       if (textBtn instanceof HTMLButtonElement) {{
         textBtn.addEventListener("click", () => {{
           generateMacrosAsciiFromText();
-        }});
-      }}
-      if (textSendBtn instanceof HTMLButtonElement) {{
-        textSendBtn.addEventListener("click", () => {{
-          const lines = generateMacrosAsciiFromText();
-          if (!Array.isArray(lines) || lines.length <= 0) return;
-          void sendMacrosPreviewAsLines();
         }});
       }}
 
