@@ -150,10 +150,10 @@ def _start_summary_sampler(context: DashboardRuntimeContext) -> tuple[threading.
 
 
 def _enable_serial_auto_reconnect(args: DashboardArgs) -> bool:
-    # Meshtastic TCPInterface has its own reconnect path. Serial links do not,
-    # so recover by rebuilding a fresh runtime session.
-    mesh_host = str(getattr(args, "mesh_host", "") or "").strip()
-    return mesh_host == ""
+    # Keep runtime sessions resilient for both serial and TCP links by
+    # rebuilding the radio session when links are unavailable/lost.
+    del args
+    return True
 
 
 def _build_offline_state_loader(
@@ -161,6 +161,7 @@ def _build_offline_state_loader(
     target: str,
     revision_info: object,
     startup_error: Exception,
+    connecting: bool,
     started_at: float,
     utc_now_fn: UtcNowFn,
 ):
@@ -172,7 +173,16 @@ def _build_offline_state_loader(
         except Exception:
             revision_payload = {}
     startup_error_text = str(startup_error).strip() or "radio unavailable"
-    tracker_error_text = f"radio link lost: {startup_error_text}"
+    tracker_error_text = (
+        f"radio connecting: {startup_error_text}"
+        if connecting
+        else f"radio link lost: {startup_error_text}"
+    )
+    radio_connection_summary = {
+        "state": "connecting" if connecting else "lost",
+        "target": target,
+        "error": startup_error_text,
+    }
 
     def state_fn() -> dict[str, object]:
         uptime_seconds = int(max(0, time.time() - started_at))
@@ -190,6 +200,7 @@ def _build_offline_state_loader(
                 "modem_preset": None,
                 "disk": {"free_percent": "n/a"},
                 "revision": revision_payload,
+                "radio_connection": radio_connection_summary,
             },
             "summary_error": None,
             "my_info": None,
@@ -234,6 +245,7 @@ def _build_offline_runtime_context(
     args: DashboardArgs,
     *,
     startup_error: Exception,
+    connecting: bool,
     mesh_target_label_fn: MeshTargetLabelFn,
     revision_info_fn: RevisionInfoFn,
     utc_now_fn: UtcNowFn,
@@ -245,6 +257,7 @@ def _build_offline_runtime_context(
         target=target,
         revision_info=revision_info,
         startup_error=startup_error,
+        connecting=connecting,
         started_at=started_at,
         utc_now_fn=utc_now_fn,
     )
@@ -402,11 +415,30 @@ def run_dashboard_runtime(
     threading_http_server_cls: ThreadingHttpServerCls = ThreadingHTTPServer,
 ) -> None:
     auto_reconnect = _enable_serial_auto_reconnect(args)
+    mesh_host = str(getattr(args, "mesh_host", "") or "").strip()
+    prefer_connecting_bootstrap = bool(mesh_host)
     first_session = True
     while True:
         startup_offline = False
         startup_error: Optional[Exception] = None
-        if auto_reconnect and first_session:
+        if prefer_connecting_bootstrap and first_session:
+            startup_offline = True
+            startup_error = RuntimeError(
+                f"waiting for radio link on {mesh_host}:{getattr(args, 'mesh_tcp_port', '')}"
+            )
+            print(
+                f"Starting dashboard before radio connect ({startup_error}). "
+                "Serving UI now and retrying radio link in background..."
+            )
+            context = _build_offline_runtime_context(
+                args,
+                startup_error=startup_error,
+                connecting=True,
+                mesh_target_label_fn=mesh_target_label_fn,
+                revision_info_fn=revision_info_fn,
+                utc_now_fn=utc_now_fn,
+            )
+        elif auto_reconnect and first_session:
             try:
                 context = _build_runtime_context_once(
                     args,
@@ -434,11 +466,12 @@ def run_dashboard_runtime(
                 startup_error = exc
                 print(
                     f"Radio unavailable at startup ({exc}). "
-                    "Starting dashboard in offline mode; plug in the radio and restart."
+                    "Starting dashboard in connecting mode; retrying in background."
                 )
                 context = _build_offline_runtime_context(
                     args,
                     startup_error=exc,
+                    connecting=True,
                     mesh_target_label_fn=mesh_target_label_fn,
                     revision_info_fn=revision_info_fn,
                     utc_now_fn=utc_now_fn,
@@ -510,7 +543,46 @@ def run_dashboard_runtime(
         summary_sampler_thread: threading.Thread | None = None
         stop_summary_sampler, summary_sampler_thread = _start_summary_sampler(context)
 
-        if auto_reconnect and not startup_offline and hasattr(context.tracker, "radio_link_connected"):
+        if auto_reconnect and startup_offline:
+
+            def _watch_startup_radio_connect() -> None:
+                attempt = 0
+                delay_seconds = 0.5
+                while not stop_watcher.wait(delay_seconds):
+                    attempt += 1
+                    try:
+                        probe_iface = open_mesh_interface_fn(args)
+                    except Exception as exc:
+                        delay_seconds = min(10.0, 1.0 + attempt)
+                        if attempt == 1 or (attempt % 5) == 0:
+                            print(
+                                f"Waiting for radio link ({exc}). "
+                                f"Retrying in {delay_seconds:.0f}s..."
+                            )
+                        continue
+                    try:
+                        close_fn = getattr(probe_iface, "close", None)
+                        if callable(close_fn):
+                            close_fn()
+                    except Exception:
+                        pass
+                    restart_requested.set()
+                    print("Radio link detected. Switching dashboard to live session...")
+                    shutdown_fn = getattr(server, "shutdown", None)
+                    if callable(shutdown_fn):
+                        try:
+                            shutdown_fn()
+                        except Exception:
+                            pass
+                    return
+
+            watcher_thread = threading.Thread(
+                target=_watch_startup_radio_connect,
+                name="dashboard-startup-radio-watch",
+                daemon=True,
+            )
+            watcher_thread.start()
+        elif auto_reconnect and not startup_offline and hasattr(context.tracker, "radio_link_connected"):
 
             def _watch_radio_link_loss() -> None:
                 while not stop_watcher.wait(0.5):
@@ -564,6 +636,9 @@ def run_dashboard_runtime(
 
         if interrupted:
             return
+        if startup_offline and auto_reconnect and restart_requested.is_set():
+            time.sleep(0.5)
+            continue
         if startup_offline:
             return
         if auto_reconnect and restart_requested.is_set():

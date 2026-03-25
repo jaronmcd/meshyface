@@ -360,6 +360,98 @@ def test_run_dashboard_runtime_starts_offline_mode_when_serial_radio_missing():
     assert "no serial device" in str(payload.get("tracker_error", ""))
 
 
+def test_run_dashboard_runtime_starts_connecting_mode_when_wifi_radio_unavailable():
+    args = argparse.Namespace(
+        history_db="/tmp/fake.sqlite3",
+        no_history=False,
+        seed_from_node_db=False,
+        history_max_rows=5000,
+        history_retention_days=7,
+        history_event_max_rows=200000,
+        history_event_retention_days=30,
+        history_rollup_retention_days=365,
+        packet_limit=250,
+        show_secrets=False,
+        node_history_hours=72,
+        node_history_max_points=1440,
+        refresh_ms=3000,
+        http_host="127.0.0.1",
+        http_port=8877,
+        mesh_host="192.168.1.200",
+        mesh_tcp_port=4403,
+    )
+
+    calls = {
+        "server": None,
+        "state_payload": None,
+        "send_chat_fn": "unset",
+    }
+
+    class _OfflineWifiServer:
+        def __init__(self, addr, handler_cls):
+            self.addr = addr
+            self.handler_cls = handler_cls
+            self.server_address = ("127.0.0.1", 8877)
+            self.closed = False
+            calls["server"] = self
+
+        def serve_forever(self, poll_interval=0.5):
+            del poll_interval
+            raise KeyboardInterrupt()
+
+        def server_close(self):
+            self.closed = True
+
+    def _open_mesh_interface(_args):
+        raise TimeoutError("wifi handshake timed out")
+
+    def _make_http_handler(*_args, **kwargs):
+        calls["send_chat_fn"] = kwargs.get("send_chat_fn")
+        state_fn = _args[1]
+        calls["state_payload"] = state_fn()
+        return object()
+
+    run_dashboard_runtime(
+        args,
+        mesh_target_label_fn=lambda _args: "192.168.1.200:4403 (tcp)",
+        open_mesh_interface_fn=_open_mesh_interface,
+        history_store_cls=_FakeHistoryStore,
+        dashboard_tracker_cls=_FakeTracker,
+        subscribe_fn=lambda *_a: None,
+        seed_tracker_fn=lambda *_a, **_k: None,
+        revision_info_fn=lambda: RevisionInfo(
+            version="0.1.0",
+            commit="test",
+            label="Rev: v0.1.0 (test)",
+            title="Rev",
+        ),
+        build_state_fn=lambda **kwargs: {"ok": True},
+        build_node_history_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
+        build_online_activity_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
+        build_summary_metrics_loader_fn=lambda **kwargs: (lambda *_a, **_k: {}),
+        send_chat_message_fn=lambda **kwargs: {"ok": True},
+        send_reaction_packet_fn=lambda **kwargs: type("Packet", (), {"id": 1})(),
+        get_local_node_id_fn=lambda iface: "!local",
+        normalize_single_emoji_fn=lambda value: (None, None),
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        utc_now_fn=lambda: "2026-02-22T00:00:00Z",
+        render_html_fn=lambda **kwargs: "<html></html>",
+        make_http_handler_fn=_make_http_handler,
+        guess_lan_ipv4_fn=lambda: "192.168.1.10",
+        default_chat_max_bytes=220,
+        threading_http_server_cls=_OfflineWifiServer,
+    )
+
+    assert calls["server"] is not None
+    assert calls["server"].closed is True
+    assert calls["send_chat_fn"] is None
+    payload = calls["state_payload"]
+    assert isinstance(payload, dict)
+    assert payload.get("summary", {}).get("target") == "192.168.1.200:4403 (tcp)"
+    assert payload.get("summary", {}).get("radio_connection", {}).get("state") == "connecting"
+    assert "radio connecting" in str(payload.get("tracker_error", ""))
+
+
 def test_start_summary_sampler_primes_with_lite_state_fn():
     calls = []
 

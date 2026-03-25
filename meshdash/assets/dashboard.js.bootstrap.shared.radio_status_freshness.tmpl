@@ -126,6 +126,24 @@
       if (pollErrorActive) errors.push(`poll: ${{pollError}}`);
       const errorSummary = errors.join(" | ");
       const trackerReportsLost = /radio link lost/i.test(trackerError);
+      const radioConnectionSummary = (safeState.summary && typeof safeState.summary.radio_connection === "object")
+        ? safeState.summary.radio_connection
+        : null;
+      const radioConnectionState = String(
+        (radioConnectionSummary && (radioConnectionSummary.state || radioConnectionSummary.status)) || ""
+      ).trim().toLowerCase();
+      const trackerReportsConnecting = /radio connecting/i.test(trackerError)
+        || /radio connecting/i.test(localStateError)
+        || radioConnectionState === "connecting"
+        || !!(radioConnectionSummary && radioConnectionSummary.connecting === true);
+      if (trackerReportsConnecting) {{
+        const detail = errorSummary || "waiting for radio link";
+        return {{
+          key: "warn",
+          text: `Connecting · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Connecting to radio. ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
+        }};
+      }}
 
       if (!isCanonicalNodeId(localId)) {{
         const detail = errorSummary || "local radio id unavailable";
