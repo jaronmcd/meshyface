@@ -179,14 +179,14 @@ def _build_make_http_handler_with_theme_settings(
 
 def _resolve_backfill_history_db_path(raw_history_db: object) -> tuple[str, list[str]]:
     resolved = os.path.abspath(os.path.expanduser(str(raw_history_db or DEFAULT_HISTORY_DB)))
+    if ".radio-" in os.path.basename(resolved):
+        return resolved, []
     root, ext = os.path.splitext(resolved)
     candidate_pattern = f"{root}.radio-*{ext}"
     candidates = [path for path in glob.glob(candidate_pattern) if os.path.isfile(path)]
     if not candidates:
         return resolved, []
     candidates.sort(key=lambda path: os.path.getmtime(path), reverse=True)
-    if os.path.isfile(resolved):
-        return resolved, candidates
     return candidates[0], candidates
 
 
