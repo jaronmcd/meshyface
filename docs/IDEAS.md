@@ -1,6 +1,7 @@
 # Ideas Backlog
 
 
+- fix bug in games that causes a stand still
 
 
 - allow public bot shutdown with opt in
@@ -22,14 +23,6 @@
 - Ability to add a favorite by manually entering a Node ID.
 
 - what are directed links and can we show more about them?
-
-- add link to private messge seledcted node from anywhere
-
-- color code radio channels globally (drop downs, chats, notifaction)
-
-
-- make it work with radios connected to wifi
-
 
 
 
