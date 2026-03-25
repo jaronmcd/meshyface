@@ -1,33 +1,100 @@
+    const pingReplyTemplateTokenRe = /\$(?:\{([a-zA-Z_][a-zA-Z0-9_]*)\}|([a-zA-Z_][a-zA-Z0-9_]*))/g;
+
+    function normalizePingReplyTemplate(value) {{
+      if (value == null) return "";
+      let clean = String(value).trim();
+      if (clean.length > 240) {{
+        clean = clean.slice(0, 240).trimEnd();
+      }}
+      clean = clean.replace(/\(\s*\$(?:\{distance\}|distance)\s*\)/gi, "");
+      clean = clean.replace(/\$(?:\{distance\}|distance)\b/gi, "");
+      clean = clean.replace(/\s{2,}/g, " ");
+      clean = clean.replace(/\s+([,.;:!?])/g, "$1");
+      clean = clean.trim();
+      return clean;
+    }}
+
+    function pingReplyFallbackNodeLabel(nodeId) {{
+      const cleanId = normalizeNodeId(nodeId || "");
+      if (!cleanId) return "unknown";
+      if (isCanonicalNodeId(cleanId)) {{
+        const suffix = cleanId.slice(-4);
+        return suffix || cleanId;
+      }}
+      return cleanId;
+    }}
+
+    function pingReplyNodeLabel(node, nodeId) {{
+      if (node && typeof node === "object") {{
+        const preferred = (typeof preferredNodeName === "function")
+          ? String(preferredNodeName(node) || "").trim()
+          : "";
+        if (preferred) {{
+          return preferred;
+        }}
+      }}
+      return pingReplyFallbackNodeLabel(nodeId);
+    }}
+
+    function pingReplyNodeHops(node) {{
+      if (!node || typeof node !== "object") return null;
+      const hopKeys = ["hops_away", "hopsAway", "hops", "last_hops", "lastHops"];
+      for (const key of hopKeys) {{
+        const hops = nonNegativeIntegerOrNull(node[key]);
+        if (hops != null) return hops;
+      }}
+      return null;
+    }}
+
+    function effectiveAckReplyHops(options = null, sourceNode = null) {{
+      const direct = nonNegativeIntegerOrNull(options && options.hops);
+      if (direct != null) return direct;
+      const hopStart = optionalFiniteNumber(options && (options.hop_start ?? options.hopStart));
+      const hopLimit = optionalFiniteNumber(options && (options.hop_limit ?? options.hopLimit));
+      if (hopStart != null && hopLimit != null) {{
+        const derived = Math.trunc(hopStart) - Math.trunc(hopLimit);
+        if (derived >= 0) return derived;
+      }}
+      return pingReplyNodeHops(sourceNode);
+    }}
+
+    function renderPingReplyTemplate(template, tokens = {{}}) {{
+      const cleanTemplate = normalizePingReplyTemplate(template);
+      if (!cleanTemplate) return "";
+      const hops = nonNegativeIntegerOrNull(tokens.hops);
+      const tokenValues = {{
+        sender: String(tokens.sender || "").trim() || "unknown",
+        sender_id: String(tokens.sender_id || "").trim() || "unknown",
+        bot: String(tokens.bot || "").trim() || "unknown",
+        bot_id: String(tokens.bot_id || "").trim() || "unknown",
+        hops: hops == null ? "n/a" : String(hops),
+        hop_count: hops == null ? "n/a" : String(hops),
+        hop_label: String(tokens.hop_label || "").trim() || "hop count n/a",
+        location: String(tokens.location || "").trim() || "n/a",
+        city: String(tokens.city || "").trim() || "n/a",
+        distance: "",
+      }};
+      const protectedTemplate = cleanTemplate.replace(/\$\$/g, "\0");
+      const rendered = protectedTemplate.replace(
+        pingReplyTemplateTokenRe,
+        (match, bracedKey, plainKey) => {{
+          const key = String(bracedKey || plainKey || "").trim().toLowerCase();
+          if (Object.prototype.hasOwnProperty.call(tokenValues, key)) {{
+            return String(tokenValues[key] || "");
+          }}
+          return match;
+        }}
+      );
+      return rendered.replace(/\0/g, "$").trim();
+    }}
+
     async function buildPongStyleAckReplyText(options = null, state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const sourceId = normalizeNodeId((options && options.source_id) || "");
       const sourceNode = nodes.find((node) => normalizeNodeId(node && node.id) === sourceId) || null;
-
-      const actionStartMs = parseDashboardTimeToMs(
-        options && (options.action_start_ms ?? options.ack_started_ms ?? options.started_ms)
-      );
-      const receivedMs = parseDashboardTimeToMs(
-        options && (options.received_ms ?? options.received_unix ?? options.received_at)
-      );
-      const nowMs = Date.now();
-      const latencyBaselineMs = (Number.isFinite(actionStartMs) && actionStartMs > 0)
-        ? actionStartMs
-        : receivedMs;
-      const latencyMs = (Number.isFinite(latencyBaselineMs) && latencyBaselineMs > 0)
-        ? Math.max(0, nowMs - latencyBaselineMs)
-        : null;
-      const latencyText = formatLatencyLabel(latencyMs);
-      const hopText = formatHopCountLabel(options && options.hops, "hop count n/a");
-
-      const details = [];
-      const linkHint = buildLinkSignalHintText(
-        options && options.rx_rssi,
-        options && options.rx_snr
-      );
-      if (linkHint) {{
-        details.push(linkHint);
-      }}
+      const hops = effectiveAckReplyHops(options, sourceNode);
+      const hopText = formatHopCountLabel(hops, "hop count n/a");
 
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
       const localNode = nodes.find((node) => normalizeNodeId(node && node.id) === localNodeId) || null;
@@ -41,35 +108,29 @@
         );
       }}
 
-      let distanceHint = "";
-      const nowUnix = Math.floor(nowMs / 1000);
-      const requesterCoords = (
-        sourceNode && nodePositionIsRecent(sourceNode, nowUnix)
-          ? nodeCoordsFromStateEntry(sourceNode)
-          : null
+      const pingResponseTemplate = normalizePingReplyTemplate(
+        serverBotSettings && serverBotSettings.ping_response_template
       );
-      if (localCoords && requesterCoords) {{
-        const distanceKm = haversineKm(
-          localCoords.lat,
-          localCoords.lon,
-          requesterCoords.lat,
-          requesterCoords.lon
-        );
-        distanceHint = formatDistanceMiLabel(distanceKm);
+      if (pingResponseTemplate) {{
+        const rendered = renderPingReplyTemplate(pingResponseTemplate, {{
+          sender: pingReplyNodeLabel(sourceNode, sourceId),
+          sender_id: sourceId || "unknown",
+          bot: pingReplyNodeLabel(localNode, localNodeId),
+          bot_id: localNodeId || "unknown",
+          hops,
+          hop_label: hopText,
+          location: botCityHint,
+          city: botCityHint,
+        }});
+        if (rendered) {{
+          return rendered;
+        }}
       }}
 
-      if (botCityHint && distanceHint) {{
-        details.push(`bot near ${{botCityHint}}, about ${{distanceHint}} from you`);
-      }} else if (botCityHint) {{
-        details.push(`bot near ${{botCityHint}}`);
-      }} else if (distanceHint) {{
-        details.push(`about ${{distanceHint}} from you`);
+      if (botCityHint) {{
+        return `${{hopText}}, bot near ${{botCityHint}}.`;
       }}
-
-      if (details.length === 0) {{
-        return `${{latencyText}}, ${{hopText}}.`;
-      }}
-      return `${{latencyText}}, ${{hopText}}, ${{details.join(", ")}}.`;
+      return `${{hopText}}.`;
     }}
 
     function deliveryStateLabel(state) {{

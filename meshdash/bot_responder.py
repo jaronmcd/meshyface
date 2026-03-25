@@ -17,7 +17,6 @@ from .bot_commands import (
 from .bot_apps.base import BotApp
 from .bot_apps.registry import build_builtin_bot_apps
 from .bot_responder_nodes import (
-    _bot_to_requester_distance_hint,
     _effective_hops,
     _find_node_for_query,
     _format_hop_count_label,
@@ -93,6 +92,11 @@ _PUBLIC_PING_DIRECT_HANDOFF_TEXT = (
 )
 _PING_TEMPLATE_TOKEN_RE = re.compile(
     r"\$(?:\{(?P<braced>[a-zA-Z_][a-zA-Z0-9_]*)\}|(?P<plain>[a-zA-Z_][a-zA-Z0-9_]*))"
+)
+_PING_TEMPLATE_DISTANCE_TOKEN_RE = re.compile(r"\$(?:\{distance\}|distance)\b", re.IGNORECASE)
+_PING_TEMPLATE_DISTANCE_PAREN_RE = re.compile(
+    r"\(\s*\$(?:\{distance\}|distance)\s*\)",
+    re.IGNORECASE,
 )
 
 
@@ -337,6 +341,12 @@ def _normalize_ping_response_template(value: object) -> str:
     clean = str(value).strip()
     if len(clean) > 240:
         clean = clean[:240].rstrip()
+    # Distance is intentionally suppressed from all ping/ack replies.
+    clean = _PING_TEMPLATE_DISTANCE_PAREN_RE.sub("", clean)
+    clean = _PING_TEMPLATE_DISTANCE_TOKEN_RE.sub("", clean)
+    clean = re.sub(r"\s{2,}", " ", clean)
+    clean = re.sub(r"\s+([,.;:!?])", r"\1", clean)
+    clean = clean.strip()
     return clean
 
 
@@ -365,7 +375,6 @@ def _render_ping_response_template(
     hops: Optional[int],
     hop_label: str,
     city: str,
-    distance: str,
 ) -> str:
     clean_template = _normalize_ping_response_template(template)
     if not clean_template:
@@ -380,7 +389,7 @@ def _render_ping_response_template(
         "hop_label": hop_label,
         "location": city or "n/a",
         "city": city or "n/a",
-        "distance": distance or "n/a",
+        "distance": "",
     }
     protected = clean_template.replace("$$", "\0")
 
@@ -1496,12 +1505,6 @@ class MeshResponseBot:
             requester = _find_node_for_query(from_id, nodes)
             local_node = _find_node_for_query(local_node_id, nodes) if local_node_id else None
             bot_city_hint = _bot_city_hint(local_node)
-            distance_hint = _bot_to_requester_distance_hint(
-                packet=packet,
-                requester_node=requester,
-                local_node=local_node,
-                now_unix=now_unix,
-            )
             with self._lock:
                 ping_response_template = str(self._ping_response_template or "").strip()
             if ping_response_template:
@@ -1516,17 +1519,12 @@ class MeshResponseBot:
                     hops=hops,
                     hop_label=hop_text,
                     city=bot_city_hint,
-                    distance=distance_hint,
                 )
                 if rendered_template:
                     return rendered_template
             details: list[str] = []
-            if bot_city_hint and distance_hint:
-                details.append(f"bot near {bot_city_hint}, about {distance_hint} from you")
-            elif bot_city_hint:
+            if bot_city_hint:
                 details.append(f"bot near {bot_city_hint}")
-            elif distance_hint:
-                details.append(f"about {distance_hint} from you")
             if not details:
                 return f"{hop_text}."
             return f"{hop_text}, {', '.join(details)}."

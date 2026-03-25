@@ -185,7 +185,19 @@
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
         const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);
         const textCompact = compactInlineMessage(msg.text || "", 140);
-        const hopNum = nonNegativeIntegerOrNull(msg.hops);
+        const messageId = messageIdOf(msg);
+        const packetEntry = messageId ? packetSummaryById.get(String(messageId)) : null;
+        const packetSummary = (packetEntry && packetEntry.summary && typeof packetEntry.summary === "object")
+          ? packetEntry.summary
+          : {};
+        const packetRaw = (packetEntry && packetEntry.packet && typeof packetEntry.packet === "object")
+          ? packetEntry.packet
+          : {};
+        const hopNum = (
+          hopCountOfChatPacket(msg)
+          ?? hopCountOfChatPacket(packetSummary)
+          ?? hopCountOfChatPacket(packetRaw)
+        );
         const hasHop = hopNum != null;
         const meshIdx = messageMeshChannelIndex(msg);
         const hasMeshTint = Number.isInteger(meshIdx) && meshIdx >= 0;
@@ -193,8 +205,28 @@
         const meshTintStyle = hasMeshTint
           ? ` style="${{escAttr(meshChannelTintStyle(meshIdx, {{ allowAll: false }}))}}"`
           : "";
-        const hopStart = optionalFiniteNumber(msg.hop_start ?? msg.hopStart);
-        const hopLimit = optionalFiniteNumber(msg.hop_limit ?? msg.hopLimit);
+        const hopStart = firstFiniteNestedNumber(
+          [msg, packetSummary, packetRaw],
+          [
+            "hop_start",
+            "hopStart",
+            "hopstart",
+            "routing.hop_start",
+            "routing.hopStart",
+            "routing.hopstart",
+          ]
+        );
+        const hopLimit = firstFiniteNestedNumber(
+          [msg, packetSummary, packetRaw],
+          [
+            "hop_limit",
+            "hopLimit",
+            "hoplimit",
+            "routing.hop_limit",
+            "routing.hopLimit",
+            "routing.hoplimit",
+          ]
+        );
         const hopLabel = hasHop
           ? `${{hopNum}} hop${{hopNum === 1 ? "" : "s"}}`
           : "";
@@ -203,7 +235,6 @@
             ? `hopStart=${{Math.trunc(hopStart)}}, hopLimit=${{Math.trunc(hopLimit)}}`
             : "Hop count"
         );
-        const messageId = messageIdOf(msg);
         const canReply = Number.isInteger(messageId) && messageId > 0;
         const replyToId = replyIdOf(msg);
         let replyTooltipSummary = "";
@@ -311,10 +342,6 @@
         const deliveryChip = (isLocalEcho && deliveryLabel)
           ? `<span class="chat-delivery-pill state-${{escAttr(deliveryState)}}" title="${{escAttr(deliveryTitle)}}">${{escAttr(deliveryLabel)}}</span>`
           : "";
-        const packetEntry = messageId ? packetSummaryById.get(String(messageId)) : null;
-        const packetSummary = (packetEntry && packetEntry.summary && typeof packetEntry.summary === "object")
-          ? packetEntry.summary
-          : {};
         const rxSnrRaw = Number(
           packetSummary.rx_snr
           ?? packetSummary.rxSnr
@@ -334,12 +361,10 @@
         );
         const rxRssi = Number.isFinite(rxRssiRaw) ? rxRssiRaw : null;
         const portnumText = String(msg.portnum ?? packetSummary.portnum ?? "").trim() || "n/a";
-        const ackParts = ["ack"];
-        if (hasHop) ackParts.push(`hop ${{Math.trunc(hopNum)}}`);
-        ackParts.push(`snr ${{rxSnr == null ? "n/a" : formatMetricValue(rxSnr, 1)}}`);
-        ackParts.push(`rssi ${{rxRssi == null ? "n/a" : formatMetricValue(rxRssi, 0)}}`);
-        const ackText = ackParts.join(" ");
+        const ackText = `${{formatHopCountLabel(hopNum, "hop count n/a")}}.`;
         const ackHopCount = hasHop ? Math.trunc(hopNum) : "";
+        const ackHopStart = Number.isFinite(hopStart) ? Math.trunc(hopStart) : "";
+        const ackHopLimit = Number.isFinite(hopLimit) ? Math.trunc(hopLimit) : "";
         const ackReceivedUnix = (Number.isFinite(msgTimeUnix) && msgTimeUnix > 0)
           ? Math.floor(msgTimeUnix)
           : "";
@@ -364,7 +389,7 @@
           : "";
         const canAck = canReply && !isStatusMessage && !isLocalEcho && !isSelfNodeId(sourceNode);
         const ackButton = canAck
-          ? `<button type="button" class="chat-ack-btn" data-ack-reply-id="${{escAttr(messageId)}}" data-ack-text="${{escAttr(ackText)}}" data-ack-text-mode="pong" data-ack-destination="${{escAttr(ackDestination)}}" data-ack-channel="${{escAttr(meshIdx)}}" data-ack-target-label="${{escAttr(ackTargetLabel)}}" data-ack-source-id="${{escAttr(sourceNode)}}" data-ack-source-label="${{escAttr(fromMeta.label || "")}}" data-ack-received-unix="${{escAttr(ackReceivedUnix)}}" data-ack-hop-count="${{escAttr(ackHopCount)}}" data-ack-rx-snr="${{escAttr(rxSnr == null ? "" : rxSnr)}}" data-ack-rx-rssi="${{escAttr(rxRssi == null ? "" : rxRssi)}}" title="Quick ACK reply (pong-style): ${{escAttr(ackText)}}">Ack</button>`
+          ? `<button type="button" class="chat-ack-btn" data-ack-reply-id="${{escAttr(messageId)}}" data-ack-text="${{escAttr(ackText)}}" data-ack-text-mode="pong" data-ack-destination="${{escAttr(ackDestination)}}" data-ack-channel="${{escAttr(meshIdx)}}" data-ack-target-label="${{escAttr(ackTargetLabel)}}" data-ack-source-id="${{escAttr(sourceNode)}}" data-ack-source-label="${{escAttr(fromMeta.label || "")}}" data-ack-received-unix="${{escAttr(ackReceivedUnix)}}" data-ack-hop-count="${{escAttr(ackHopCount)}}" data-ack-hop-start="${{escAttr(ackHopStart)}}" data-ack-hop-limit="${{escAttr(ackHopLimit)}}" data-ack-rx-snr="${{escAttr(rxSnr == null ? "" : rxSnr)}}" data-ack-rx-rssi="${{escAttr(rxRssi == null ? "" : rxRssi)}}" title="Quick ACK reply (ping-style): ${{escAttr(ackText)}}">Ack</button>`
           : "";
         const whoisButton = "";
         const hasReactions = reactionGroups.length > 0;

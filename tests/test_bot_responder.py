@@ -662,6 +662,41 @@ def test_ping_response_template_supports_location_token_from_bot_city():
     assert str(sent[0]["text"]).strip() == "3 hops to Saint Paul, Minnesota"
 
 
+def test_ping_response_template_strips_distance_token_from_reply_text():
+    iface = _FakeIface()
+    iface.nodesByNum[0x02ED9B7C]["position"] = {
+        "latitude": 44.9537,
+        "longitude": -93.0900,
+    }
+    sent = []
+
+    def _send_chat(**kwargs):
+        sent.append(kwargs)
+        return {"ok": True}
+
+    bot = MeshResponseBot(
+        send_chat_fn=_send_chat,
+        get_local_node_id_fn=lambda _iface: "!02ed9b7c",
+        custom_commands={},
+        ping_response_template="$hops hops to $location ($distance)",
+        now_unix_fn=lambda: 1710001240.0,
+    )
+    original_lookup = _bot_responder_module._nearest_city_for_coords
+    _bot_responder_module._nearest_city_for_coords = lambda _lat, _lon: {
+        "name": "Saint Paul",
+        "state": "Minnesota",
+        "country": "United States of America",
+        "distance_km": 2.2,
+    }
+    try:
+        bot.on_receive(_base_packet("ping 9b7c"), iface)
+    finally:
+        _bot_responder_module._nearest_city_for_coords = original_lookup
+
+    assert len(sent) == 1
+    assert str(sent[0]["text"]).strip() == "3 hops to Saint Paul, Minnesota"
+
+
 def test_ping_falls_back_to_known_node_hops_when_packet_hops_missing():
     iface = _FakeIface()
     sent = []
@@ -971,7 +1006,7 @@ def test_ping_omits_bot_city_hint_when_local_node_position_is_unavailable():
     assert "bot near " not in text
 
 
-def test_ping_includes_bot_to_requester_distance_when_both_positions_are_known():
+def test_ping_omits_bot_to_requester_distance_even_when_positions_are_known():
     iface = _FakeIface()
     iface.nodesByNum[0x02ED9B7C]["position"] = {
         "latitude": 44.9778,
@@ -1009,10 +1044,10 @@ def test_ping_includes_bot_to_requester_distance_when_both_positions_are_known()
     assert len(sent) == 1
     text = str(sent[0]["text"]).lower()
     assert "bot near minneapolis, minnesota" in text
-    assert "about <1mi from you." in text
+    assert "from you" not in text
 
 
-def test_ping_distance_falls_back_to_recent_requester_node_position():
+def test_ping_does_not_include_distance_from_recent_requester_node_position():
     iface = _FakeIface()
     iface.nodesByNum[0x49B5DFF0]["position"] = {
         "latitude": 44.98,
@@ -1039,7 +1074,8 @@ def test_ping_distance_falls_back_to_recent_requester_node_position():
 
     assert len(sent) == 1
     text = str(sent[0]["text"]).lower()
-    assert "from you." in text
+    assert "from you" not in text
+    assert "3 hops" in text
 
 
 def test_ping_omits_bot_city_hint_when_nearest_city_is_too_far():
