@@ -1,5 +1,7 @@
 import threading
 
+import meshdash.history_store_chat as history_store_chat_module
+import meshdash.history_store_connections as history_store_connections_module
 import meshdash.history_store_nodes as history_store_nodes_module
 import meshdash.history_store_packets as history_store_packets_module
 from meshdash.history_store import HistoryStore
@@ -636,6 +638,75 @@ class _FailLock:
 
     def __exit__(self, exc_type, exc, tb):
         return False
+
+
+def test_load_recent_chat_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_load_recent_chat_data(
+        conn,
+        *,
+        limit,
+        fetch_recent_chat_rows_fn,
+        decode_recent_chat_rows_fn,
+    ):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [{"text": "hello"}]
+
+    monkeypatch.setattr(
+        history_store_chat_module,
+        "_load_recent_chat_data_helper",
+        _fake_load_recent_chat_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    rows = load_recent_chat_domain(store, 4)
+
+    assert rows == [{"text": "hello"}]
+    assert calls["conn"] is store._conn
+    assert calls["limit"] == 4
+    assert store._lock.enter_count == 1
+
+
+def test_load_connections_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_load_connections_data(
+        conn,
+        *,
+        fetch_connection_rows_fn,
+        decode_connections_rows_fn,
+    ):
+        calls["conn"] = conn
+        return [{"from": "!a", "to": "!b"}]
+
+    monkeypatch.setattr(
+        history_store_connections_module,
+        "_load_connections_data_helper",
+        _fake_load_connections_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    rows = load_connections_domain(store)
+
+    assert rows == [{"from": "!a", "to": "!b"}]
+    assert calls["conn"] is store._conn
+    assert store._lock.enter_count == 1
 
 
 def test_load_recent_packets_uses_primary_lock_when_read_connection_missing(monkeypatch):

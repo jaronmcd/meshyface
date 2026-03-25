@@ -1,7 +1,7 @@
 from meshdash.games.zork import ZorkGame
 
 
-def test_zork_game_happy_path_reaches_victory():
+def test_zork_game_happy_path_supports_classic_opening():
     game = ZorkGame()
 
     result = game.try_handle_message(
@@ -14,10 +14,17 @@ def test_zork_game_happy_path_reaches_victory():
     )
     assert result.handled is True
     assert result.command_name == "zork"
-    assert "trailhead" in str(result.reply_text).lower()
+    assert "west of house" in str(result.reply_text).lower()
     assert game.has_active_session("!49b5dff0") is True
 
-    for step in ("north", "take key", "west", "open gate", "north", "take beacon"):
+    expected_text_by_step = (
+        ("open mailbox", "leaflet"),
+        ("take leaflet", "taken"),
+        ("read leaflet", "welcome to dungeon"),
+        ("inventory", "leaflet"),
+        ("look", "west of house"),
+    )
+    for step, expected in expected_text_by_step:
         result = game.try_handle_message(
             text=step,
             from_id="!49b5dff0",
@@ -28,5 +35,4 @@ def test_zork_game_happy_path_reaches_victory():
         )
         assert result.handled is True
         assert result.command_name == "zork"
-
-    assert "victory" in str(result.reply_text).lower()
+        assert expected in str(result.reply_text).lower()

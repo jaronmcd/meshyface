@@ -62,6 +62,30 @@ def test_emit_startup_status_bound_host_history_disabled_no_redaction_line():
     assert all("Open from Wi-Fi devices:" not in line for line in lines)
 
 
+def test_emit_startup_status_public_bind_without_lan_ip_uses_placeholder():
+    lines = []
+
+    emit_startup_status(
+        http_host="0.0.0.0",
+        bound_host="0.0.0.0",
+        bound_port=8877,
+        show_secrets=True,
+        revision_info=RevisionInfo(version="0.1.0", commit="abc123", label="L", title="T"),
+        history_enabled=False,
+        history_db_path="/tmp/history.sqlite3",
+        history_retention_days=7,
+        history_max_rows=5000,
+        history_event_retention_days=30,
+        history_event_max_rows=200000,
+        history_rollup_retention_days=365,
+        guess_lan_ipv4_fn=lambda: None,
+        out_fn=lines.append,
+    )
+
+    assert "Open from this computer: http://127.0.0.1:8877" in lines
+    assert "Open from Wi-Fi devices: http://<this-computer-ip>:8877" in lines
+
+
 def test_serve_until_stopped_handles_keyboard_interrupt():
     lines = []
 

@@ -34,6 +34,32 @@ def test_open_optional_history_store_builds_store_when_enabled():
     assert captured["max_rows"] == 5000
 
 
+def test_open_optional_history_store_handles_constructor_error():
+    args = argparse.Namespace(
+        no_history=False,
+        history_max_rows=5000,
+        history_retention_days=7,
+        history_event_max_rows=200000,
+        history_event_retention_days=30,
+        history_rollup_retention_days=365,
+    )
+    lines = []
+
+    def _raise_store_cls(**_kwargs):
+        raise RuntimeError("db unavailable")
+
+    store = open_optional_history_store(
+        args,
+        history_store_cls=_raise_store_cls,
+        history_db_path="/tmp/test.sqlite3",
+        print_fn=lines.append,
+    )
+
+    assert store is None
+    assert len(lines) == 1
+    assert "History disabled: cannot open /tmp/test.sqlite3: db unavailable" in lines[0]
+
+
 def test_seed_tracker_if_empty_calls_seed_only_when_no_packets():
     calls = {"seed": 0}
 
