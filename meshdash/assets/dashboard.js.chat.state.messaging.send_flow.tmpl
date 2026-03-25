@@ -44,8 +44,6 @@
       return "Macros: /shrug, /tableflip (/flip), /unflip, /give, /lenny, /cheer · use /macros or /help";
     }}
 
-    const MACROS_ASCII_BLANK_ASCII = " ";
-    const MACROS_ASCII_BLANK_BRAILLE = "\u2800";
     const MACROS_ASCII_SPACE_REPLACEMENT_FALLBACK = "·";
     const MACROS_ASCII_RAMP_FALLBACK = "@%#*+=-:. ";
     const MACROS_ASCII_PALETTE_CUSTOM_ID = "custom";
@@ -228,7 +226,6 @@
       const rampInput = document.getElementById("macros-ascii-ramp");
       const invertInput = document.getElementById("macros-ascii-invert");
       const cropWhitespaceInput = document.getElementById("macros-ascii-crop-whitespace");
-      const useBrailleEdgeGuardsInput = document.getElementById("macros-ascii-braille-blank");
       const useSpaceReplacementInput = document.getElementById("macros-ascii-space-replace-enabled");
       const spaceReplacementCharInput = document.getElementById("macros-ascii-space-replace-char");
       return {{
@@ -237,10 +234,6 @@
         ramp: normalizeMacrosAsciiRamp(rampInput && rampInput.value),
         invert: !!(invertInput && invertInput.checked),
         cropWhitespace: !cropWhitespaceInput || !!cropWhitespaceInput.checked,
-        useBrailleEdgeGuards: !!(
-          useBrailleEdgeGuardsInput
-          && useBrailleEdgeGuardsInput.checked
-        ),
         useSpaceReplacement: !!(
           useSpaceReplacementInput
           && useSpaceReplacementInput.checked
@@ -488,33 +481,18 @@
 
     function encodeAsciiMacroLineForSend(line, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
-      const useBrailleEdgeGuards = !!opts.useBrailleEdgeGuards;
       const useSpaceReplacement = !!opts.useSpaceReplacement;
       const spaceReplacementChar = normalizeMacrosSpaceReplacementChar(opts.spaceReplacementChar);
       const raw = String(line == null ? "" : line);
       if (!raw) {{
         if (useSpaceReplacement) return spaceReplacementChar;
-        return useBrailleEdgeGuards ? MACROS_ASCII_BLANK_BRAILLE : "\u00A0";
+        return "\u00A0";
       }}
       const normalized = raw.replace(/\t/g, "  ").slice(0, 280);
       if (useSpaceReplacement) {{
         return normalized.replace(/ /g, spaceReplacementChar);
       }}
-      if (!useBrailleEdgeGuards) {{
-        return normalized.replace(/ /g, "\u00A0");
-      }}
-      let encoded = normalized.replace(/ /g, "\u00A0");
-      const leadingSpaces = normalized.match(/^ +/);
-      const trailingSpaces = normalized.match(/ +$/);
-      const leadCount = leadingSpaces ? leadingSpaces[0].length : 0;
-      const trailCount = trailingSpaces ? trailingSpaces[0].length : 0;
-      if (leadCount > 0) {{
-        encoded = `${{MACROS_ASCII_BLANK_BRAILLE.repeat(leadCount)}}${{encoded.slice(leadCount)}}`;
-      }}
-      if (trailCount > 0) {{
-        encoded = `${{encoded.slice(0, Math.max(0, encoded.length - trailCount))}}${{MACROS_ASCII_BLANK_BRAILLE.repeat(trailCount)}}`;
-      }}
-      return encoded;
+      return normalized.replace(/ /g, "\u00A0");
     }}
 
     function buildMacrosSendLinesFromRawText(rawText, settings = null) {{
@@ -527,7 +505,6 @@
         cropWhitespace: sendSettings && sendSettings.cropWhitespace,
       }});
       const sendLines = parsedLines.map((line) => encodeAsciiMacroLineForSend(line, {{
-        useBrailleEdgeGuards: sendSettings && sendSettings.useBrailleEdgeGuards,
         useSpaceReplacement: sendSettings && sendSettings.useSpaceReplacement,
         spaceReplacementChar: sendSettings && sendSettings.spaceReplacementChar,
       }}));
@@ -637,7 +614,6 @@
       const textInput = document.getElementById("macros-text-input");
       const rampInput = document.getElementById("macros-ascii-ramp");
       const cropWhitespaceInput = document.getElementById("macros-ascii-crop-whitespace");
-      const brailleBlankInput = document.getElementById("macros-ascii-braille-blank");
       const spaceReplacementEnabledInput = document.getElementById("macros-ascii-space-replace-enabled");
       const spaceReplacementCharInput = document.getElementById("macros-ascii-space-replace-char");
       const paletteSelect = document.getElementById("macros-ascii-palette");
@@ -735,17 +711,6 @@
               syncMacrosPreviewFromOutput("edited");
             }}
           }});
-        }});
-      }}
-
-      if (brailleBlankInput instanceof HTMLInputElement) {{
-        brailleBlankInput.addEventListener("change", () => {{
-          const lineCount = refreshMacrosPreviewSendView();
-          setMacrosStatus(
-            brailleBlankInput.checked
-              ? `Braille edge-guard enabled for send view (${lineCount} line${lineCount === 1 ? "" : "s"}).`
-              : `Braille edge-guard disabled; using NBSP send view (${lineCount} line${lineCount === 1 ? "" : "s"}).`,
-          );
         }});
       }}
 

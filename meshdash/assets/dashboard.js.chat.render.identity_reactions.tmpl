@@ -48,11 +48,6 @@
           const sendSettings = (typeof macrosAsciiSettingsFromInputs === "function")
             ? macrosAsciiSettingsFromInputs()
             : null;
-          const useBrailleEdgeGuards = !!(
-            sendSettings
-            && typeof sendSettings === "object"
-            && sendSettings.useBrailleEdgeGuards
-          );
           const useSpaceReplacement = !!(
             sendSettings
             && typeof sendSettings === "object"
@@ -66,14 +61,11 @@
             ? String(sendSettings.spaceReplacementChar)
             : "";
           renderedLines = lines.map((line) => encodeAsciiMacroLineForSend(line, {{
-            useBrailleEdgeGuards,
             useSpaceReplacement,
             spaceReplacementChar: replacementChar,
           }}));
           if (useSpaceReplacement && replacementChar) {{
             sendViewSuffix = ` · send view: spaces→${{replacementChar}}`;
-          }} else if (useBrailleEdgeGuards) {{
-            sendViewSuffix = " · send view: braille-edge";
           }}
         }}
         const previewUnix = Number.isFinite(macrosPreviewUpdatedAtUnix) && macrosPreviewUpdatedAtUnix > 0
