@@ -417,6 +417,107 @@ def _build_environment_points_from_rollups(
     return points, metric_meta, node_meta
 
 
+def _merge_environment_meta_maps(
+    base_metric_meta: dict[str, dict[str, object]],
+    base_node_meta: dict[str, dict[str, object]],
+    extra_metric_meta: dict[str, dict[str, object]],
+    extra_node_meta: dict[str, dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    for metric_key, extra in extra_metric_meta.items():
+        if metric_key not in base_metric_meta:
+            cloned = dict(extra)
+            cloned["node_ids"] = set(extra.get("node_ids") or [])
+            base_metric_meta[metric_key] = cloned
+            continue
+        merged = base_metric_meta[metric_key]
+        merged["count"] = int(merged.get("count", 0)) + int(extra.get("count", 0))
+        merged_node_ids = set(merged.get("node_ids") or [])
+        merged_node_ids |= set(extra.get("node_ids") or [])
+        merged["node_ids"] = merged_node_ids
+        merged["min"] = min(
+            float(merged.get("min", extra.get("min", 0.0)) or 0.0),
+            float(extra.get("min", merged.get("min", 0.0)) or 0.0),
+        )
+        merged["max"] = max(
+            float(merged.get("max", extra.get("max", 0.0)) or 0.0),
+            float(extra.get("max", merged.get("max", 0.0)) or 0.0),
+        )
+
+    for node_id, extra in extra_node_meta.items():
+        if node_id not in base_node_meta:
+            cloned = dict(extra)
+            cloned["metric_keys"] = set(extra.get("metric_keys") or [])
+            base_node_meta[node_id] = cloned
+            continue
+        merged = base_node_meta[node_id]
+        merged["count"] = int(merged.get("count", 0)) + int(extra.get("count", 0))
+        merged_metric_keys = set(merged.get("metric_keys") or [])
+        merged_metric_keys |= set(extra.get("metric_keys") or [])
+        merged["metric_keys"] = merged_metric_keys
+        merged["last_unix"] = max(
+            int(_to_int(merged.get("last_unix")) or 0),
+            int(_to_int(extra.get("last_unix")) or 0),
+        )
+        merged_label = str(merged.get("label") or "").strip()
+        if merged_label in ("", node_id):
+            merged["label"] = str(extra.get("label") or node_id)
+
+    return base_metric_meta, base_node_meta
+
+
+def _derive_environment_meta_from_points(
+    points: list[dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    metric_meta: dict[str, dict[str, object]] = {}
+    node_meta: dict[str, dict[str, object]] = {}
+    for point in points:
+        metric_key = _normalize_env_metric_key(point.get("metric_key") or "")
+        node_id = _canonical_node_id(point.get("node_id"))
+        if not metric_key or not node_id:
+            continue
+        metric_label = _format_env_metric_label(point.get("metric_label") or metric_key)
+        node_label = str(point.get("node_label") or node_id)
+        value = _metric_float(point.get("value"))
+        if value is None:
+            continue
+        sample_count = max(1, int(_to_int(point.get("sample_count")) or 1))
+        unix = int(_to_int(point.get("unix")) or 0)
+
+        metric_state = metric_meta.setdefault(
+            metric_key,
+            {
+                "key": metric_key,
+                "label": metric_label,
+                "count": 0,
+                "node_ids": set(),
+                "min": value,
+                "max": value,
+            },
+        )
+        metric_state["count"] = int(metric_state.get("count", 0)) + sample_count
+        metric_state["node_ids"].add(node_id)
+        metric_state["min"] = min(float(metric_state.get("min", value)), value)
+        metric_state["max"] = max(float(metric_state.get("max", value)), value)
+
+        node_state = node_meta.setdefault(
+            node_id,
+            {
+                "id": node_id,
+                "label": node_label,
+                "count": 0,
+                "metric_keys": set(),
+                "last_unix": unix,
+            },
+        )
+        node_state["count"] = int(node_state.get("count", 0)) + sample_count
+        node_state["metric_keys"].add(metric_key)
+        node_state["last_unix"] = max(int(node_state.get("last_unix", 0)), unix)
+        if node_state.get("label") in ("", node_id):
+            node_state["label"] = node_label
+
+    return metric_meta, node_meta
+
+
 def load_recent_packets(store: HistoryStoreReadState, limit: int) -> list[dict[str, object]]:
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
@@ -673,8 +774,21 @@ def load_environment_metrics_history(
                 limit=clean_limit,
             )
         )
-        packet_rows = []
-        if not rollup_rows:
+        packet_rows: list[tuple[object, ...]] = []
+        earliest_rollup_unix = 0
+        if rollup_rows:
+            for row in rollup_rows:
+                rollup_unix = _to_int(row[10]) if len(row) > 10 else None
+                if rollup_unix is None or rollup_unix <= 0:
+                    rollup_unix = _to_int(row[0]) if len(row) > 0 else None
+                if rollup_unix is None or rollup_unix <= 0:
+                    continue
+                if earliest_rollup_unix <= 0 or rollup_unix < earliest_rollup_unix:
+                    earliest_rollup_unix = int(rollup_unix)
+        need_packet_gap_fill = (not rollup_rows) or (
+            earliest_rollup_unix > 0 and earliest_rollup_unix > cutoff
+        )
+        if need_packet_gap_fill:
             packet_rows = list(
                 _fetch_environment_metric_packet_rows_helper(
                     read_conn,
@@ -691,6 +805,38 @@ def load_environment_metrics_history(
         )
         scanned_count = len(rollup_rows)
         source_kind = "rollup_1m"
+        if packet_rows:
+            packet_points, _packet_metric_meta_map, _packet_node_meta_map = _build_environment_points(
+                packet_rows,
+                metric_filter=clean_metric,
+                node_filter=clean_node_id,
+            )
+            if earliest_rollup_unix > 0:
+                packet_points = [
+                    point
+                    for point in packet_points
+                    if int(_to_int(point.get("unix")) or 0) < earliest_rollup_unix
+                ]
+            if packet_points:
+                points.extend(packet_points)
+                points.sort(
+                    key=lambda point: (
+                        int(_to_int(point.get("unix")) or 0),
+                        str(point.get("node_id") or ""),
+                        str(point.get("metric_key") or ""),
+                    )
+                )
+                packet_metric_meta_map, packet_node_meta_map = _derive_environment_meta_from_points(
+                    packet_points
+                )
+                metric_meta_map, node_meta_map = _merge_environment_meta_maps(
+                    metric_meta_map,
+                    node_meta_map,
+                    packet_metric_meta_map,
+                    packet_node_meta_map,
+                )
+            scanned_count += len(packet_rows)
+            source_kind = "rollup_1m+packet_scan"
     else:
         points, metric_meta_map, node_meta_map = _build_environment_points(
             packet_rows,
