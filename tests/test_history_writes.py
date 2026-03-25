@@ -95,3 +95,69 @@ def test_save_packet_event_and_rollups_updates_link_metrics_for_direct_edges():
         assert row[10] == 85
     finally:
         conn.close()
+
+
+def test_save_packet_event_and_rollups_writes_environment_metric_rollups():
+    conn = sqlite3.connect(":memory:")
+    try:
+        initialize_history_schema(conn)
+        save_packet_event_and_rollups(
+            conn,
+            {
+                "from": "!a1b2c3d4",
+                "from_short_name": "alpha",
+                "to": "^all",
+                "rx_time_unix": 120,
+                "portnum": "TELEMETRY_APP",
+            },
+            packet={
+                "fromId": "!a1b2c3d4",
+                "toId": "^all",
+                "rxTime": 120,
+                "decoded": {
+                    "portnum": "TELEMETRY_APP",
+                    "telemetry": {
+                        "time": 120,
+                        "environmentMetrics": {
+                            "temperature": 21.5,
+                            "relativeHumidity": 54.0,
+                        },
+                    },
+                },
+            },
+        )
+        save_packet_event_and_rollups(
+            conn,
+            {
+                "from": "!a1b2c3d4",
+                "from_short_name": "alpha",
+                "to": "^all",
+                "rx_time_unix": 130,
+                "portnum": "TELEMETRY_APP",
+            },
+            packet={
+                "fromId": "!a1b2c3d4",
+                "toId": "^all",
+                "rxTime": 130,
+                "decoded": {
+                    "portnum": "TELEMETRY_APP",
+                    "telemetry": {
+                        "time": 130,
+                        "environmentMetrics": {
+                            "temperature": 22.5,
+                        },
+                    },
+                },
+            },
+        )
+
+        row = conn.execute(
+            """
+            SELECT node_id, node_label, metric_key, sample_count, value_sum, value_min, value_max, last_value
+            FROM environment_metrics_1m
+            WHERE bucket_unix = 120 AND node_id = '!a1b2c3d4' AND metric_key = 'temperature'
+            """
+        ).fetchone()
+        assert row == ("!a1b2c3d4", "alpha", "temperature", 2, 44.0, 21.5, 22.5, 22.5)
+    finally:
+        conn.close()

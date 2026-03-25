@@ -4,6 +4,7 @@ from meshdash.history_queries import (
     fetch_chat_search_rows,
     fetch_connection_rows,
     fetch_environment_metric_packet_rows,
+    fetch_environment_metric_rollup_rows,
     fetch_node_capability_rows,
     fetch_node_history_rows,
     fetch_packet_search_rows,
@@ -147,6 +148,45 @@ def test_fetch_environment_metric_packet_rows_applies_cutoff_and_recent_limit():
         rows = fetch_environment_metric_packet_rows(conn, cutoff=15, limit=2)
         assert [row[1] for row in rows] == [30, 40]
         assert [row[2] for row in rows] == ['{"k":"c"}', '{"k":"d"}']
+    finally:
+        conn.close()
+
+
+def test_fetch_environment_metric_rollup_rows_applies_cutoff_and_recent_limit():
+    conn = sqlite3.connect(":memory:")
+    try:
+        initialize_history_schema(conn)
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(60, '!a', 'alpha', 'temperature', 'Temperature',
+                     1, 20.0, 20.0, 20.0, 20.0, 60)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(120, '!a', 'alpha', 'temperature', 'Temperature',
+                     2, 43.0, 21.0, 22.0, 22.0, 120)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(180, '!b', 'beta', 'temperature', 'Temperature',
+                     1, 23.0, 23.0, 23.0, 23.0, 180)
+            """
+        )
+
+        rows = fetch_environment_metric_rollup_rows(conn, cutoff=90, limit=2)
+        assert [row[0] for row in rows] == [120, 180]
+        assert [row[1] for row in rows] == ["!a", "!b"]
     finally:
         conn.close()
 

@@ -61,6 +61,24 @@ def test_prune_history_tables_applies_retention_and_row_limits():
         conn.execute(
             "INSERT INTO summary_metrics_1m(bucket_unix, node_count, nodes_with_position, live_packet_count, real_edge_count, last_seen_unix) VALUES(60, 2, 2, 2, 2, 99)"
         )
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(0, '!a', 'alpha', 'temperature', 'Temperature',
+                     1, 21.5, 21.5, 21.5, 21.5, 10)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(60, '!a', 'alpha', 'temperature', 'Temperature',
+                     2, 43.0, 21.0, 22.0, 22.0, 99)
+            """
+        )
         conn.commit()
 
         prune_history_tables(
@@ -83,5 +101,6 @@ def test_prune_history_tables_applies_retention_and_row_limits():
         assert conn.execute("SELECT COUNT(*) FROM node_metrics_1m").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM link_metrics_1m").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM summary_metrics_1m").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM environment_metrics_1m").fetchone()[0] == 1
     finally:
         conn.close()

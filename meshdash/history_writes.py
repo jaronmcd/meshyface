@@ -1,7 +1,11 @@
 import time
 from typing import Callable
 
-from .helpers import extract_position_fields as _extract_position_fields
+from .helpers import (
+    extract_position_fields as _extract_position_fields,
+    to_float as _to_float,
+    to_int as _to_int,
+)
 from .history_capability_writes import (
     upsert_node_capability as _upsert_node_capability,
 )
@@ -17,13 +21,304 @@ from .history_positions import (
     insert_node_position_if_changed as _insert_node_position_if_changed,
 )
 from .history_rollups import bucket_minute as _bucket_minute
+from .history_rollups import clean_node_id as _clean_node_id
 from .sql_contracts import SqlConnection
+
+_ENV_METRIC_ALIAS_MAP = {
+    "relativehumidity": "relative_humidity",
+    "barometricpressure": "barometric_pressure",
+    "gasresistance": "gas_resistance",
+    "iaq": "iaq",
+    "channelutilization": "channel_utilization",
+    "airutiltx": "air_util_tx",
+}
+
+
+def _is_hex_text(value: str) -> bool:
+    return bool(value) and all(ch in "0123456789abcdefABCDEF" for ch in value)
+
+
+def _canonical_node_id(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in {"^all", "all", "broadcast", "!ffffffff", "ffffffff", "0xffffffff", "4294967295"}:
+        return "^all"
+    if text.startswith("!") and len(text) == 9 and _is_hex_text(text[1:]):
+        return f"!{text[1:].lower()}"
+    if len(text) == 8 and _is_hex_text(text):
+        return f"!{text.lower()}"
+
+    parsed_num: int | None = None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        parsed_num = int(value)
+    elif text.isdigit():
+        try:
+            parsed_num = int(text, 10)
+        except Exception:
+            parsed_num = None
+    if parsed_num is not None and 0 <= parsed_num <= 0xFFFFFFFF:
+        return f"!{parsed_num:08x}"
+    return text
+
+
+def _normalize_env_metric_key(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    cleaned = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in text)
+    cleaned = "_".join(part for part in cleaned.split("_") if part).lower()
+    if not cleaned:
+        return ""
+    squashed = cleaned.replace("_", "")
+    return _ENV_METRIC_ALIAS_MAP.get(squashed, cleaned)
+
+
+def _format_env_metric_label(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "Metric"
+    words = "".join(ch if (ch.isalnum() or ch in ("_", "-")) else " " for ch in text)
+    words = words.replace("_", " ").replace("-", " ")
+    return " ".join(part.capitalize() for part in words.split() if part) or "Metric"
+
+
+def _metric_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        out = float(value)
+        return out if out == out and abs(out) != float("inf") else None
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        out = float(text)
+    except Exception:
+        return None
+    return out if out == out and abs(out) != float("inf") else None
+
+
+def _normalize_unix_seconds(value: object) -> int | None:
+    parsed = _to_int(value)
+    if parsed is None or parsed <= 0:
+        return None
+    if parsed > 10**12:
+        parsed //= 1000
+    return parsed if parsed > 0 else None
+
+
+def _latest_unix(*values: object) -> int:
+    latest = 0
+    for value in values:
+        parsed = _normalize_unix_seconds(value)
+        if parsed is not None and parsed > latest:
+            latest = parsed
+    return latest
+
+
+def _extract_node_label(summary: dict[str, object], fallback: str) -> str:
+    candidates = (
+        summary.get("from_long_name"),
+        summary.get("from_short_name"),
+        summary.get("from_name"),
+        fallback,
+    )
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text:
+            return text
+    return fallback
+
+
+def _collect_environment_metric_containers(source: object) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    metric_container_keys = {"environmentmetrics", "devicemetrics"}
+    stack = [source]
+    seen: set[int] = set()
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            current_id = id(current)
+            if current_id in seen:
+                continue
+            seen.add(current_id)
+            for raw_key, raw_value in current.items():
+                key = "".join(ch for ch in str(raw_key or "") if ch.isalnum()).lower()
+                if key in metric_container_keys and isinstance(raw_value, dict):
+                    out.append(raw_value)
+                if isinstance(raw_value, (dict, list)):
+                    stack.append(raw_value)
+        elif isinstance(current, list):
+            current_id = id(current)
+            if current_id in seen:
+                continue
+            seen.add(current_id)
+            for item in current:
+                if isinstance(item, (dict, list)):
+                    stack.append(item)
+    return out
+
+
+def _upsert_environment_metric_rollup(
+    conn: SqlConnection,
+    *,
+    bucket_unix: int,
+    node_id: str,
+    node_label: str,
+    metric_key: str,
+    metric_label: str,
+    value: float,
+    sample_unix: int,
+) -> None:
+    row = conn.execute(
+        """
+        SELECT sample_count, value_sum, value_min, value_max, last_value, last_seen_unix, node_label
+        FROM environment_metrics_1m
+        WHERE bucket_unix = ? AND node_id = ? AND metric_key = ?
+        """,
+        (bucket_unix, node_id, metric_key),
+    ).fetchone()
+    if row is None:
+        conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(bucket_unix),
+                node_id,
+                node_label,
+                metric_key,
+                metric_label,
+                1,
+                float(value),
+                float(value),
+                float(value),
+                float(value),
+                int(sample_unix),
+            ),
+        )
+        return
+
+    sample_count = int(row[0] or 0) + 1
+    value_sum = float(row[1] or 0.0) + float(value)
+    prev_min = _to_float(row[2])
+    prev_max = _to_float(row[3])
+    prev_last_value = _to_float(row[4])
+    prev_last_seen = _to_int(row[5]) or 0
+    prev_node_label = str(row[6] or "").strip()
+
+    value_min = float(value) if prev_min is None else min(float(prev_min), float(value))
+    value_max = float(value) if prev_max is None else max(float(prev_max), float(value))
+
+    if int(sample_unix) >= prev_last_seen or prev_last_value is None:
+        last_value = float(value)
+    else:
+        last_value = float(prev_last_value)
+    last_seen_unix = max(prev_last_seen, int(sample_unix))
+    merged_node_label = node_label if node_label else prev_node_label
+
+    conn.execute(
+        """
+        UPDATE environment_metrics_1m
+        SET node_label = ?,
+            metric_label = ?,
+            sample_count = ?,
+            value_sum = ?,
+            value_min = ?,
+            value_max = ?,
+            last_value = ?,
+            last_seen_unix = ?
+        WHERE bucket_unix = ? AND node_id = ? AND metric_key = ?
+        """,
+        (
+            merged_node_label,
+            metric_label,
+            int(sample_count),
+            float(value_sum),
+            float(value_min),
+            float(value_max),
+            float(last_value),
+            int(last_seen_unix),
+            int(bucket_unix),
+            node_id,
+            metric_key,
+        ),
+    )
+
+
+def _save_environment_metric_rollups(
+    conn: SqlConnection,
+    *,
+    summary: dict[str, object],
+    packet: dict[str, object] | None,
+    now_unix_fn: Callable[[], float],
+) -> None:
+    if not isinstance(packet, dict):
+        return
+    decoded = packet.get("decoded")
+    if not isinstance(decoded, dict):
+        return
+    containers = _collect_environment_metric_containers(decoded)
+    if not containers:
+        return
+
+    node_id = _canonical_node_id(
+        summary.get("from")
+        or summary.get("from_id")
+        or summary.get("from_num")
+        or packet.get("fromId")
+        or packet.get("from_id")
+        or packet.get("from")
+    )
+    node_id = _clean_node_id(node_id)
+    if not node_id:
+        return
+    node_label = _extract_node_label(summary, node_id)
+    telemetry = decoded.get("telemetry")
+    if not isinstance(telemetry, dict):
+        telemetry = {}
+    sample_unix = _latest_unix(
+        summary.get("rx_time_unix"),
+        summary.get("time"),
+        summary.get("captured_at_unix"),
+        packet.get("rxTime"),
+        packet.get("rx_time"),
+        telemetry.get("time"),
+    )
+    if sample_unix <= 0:
+        sample_unix = int(now_unix_fn())
+    bucket_unix = _bucket_minute(sample_unix)
+
+    for container in containers:
+        for raw_key, raw_value in container.items():
+            metric_key = _normalize_env_metric_key(raw_key)
+            if not metric_key:
+                continue
+            metric_value = _metric_float(raw_value)
+            if metric_value is None:
+                continue
+            _upsert_environment_metric_rollup(
+                conn,
+                bucket_unix=bucket_unix,
+                node_id=node_id,
+                node_label=node_label,
+                metric_key=metric_key,
+                metric_label=_format_env_metric_label(raw_key),
+                value=metric_value,
+                sample_unix=sample_unix,
+            )
 
 
 def save_packet_event_and_rollups(
     conn: SqlConnection,
     summary: dict[str, object],
     *,
+    packet: dict[str, object] | None = None,
     now_unix_fn: Callable[[], float] = time.time,
 ) -> None:
     normalized = _normalize_packet_event_summary(summary, now_unix_fn=now_unix_fn)
@@ -83,3 +378,9 @@ def save_packet_event_and_rollups(
             rx_rssi=rx_rssi,
             hops=hops,
         )
+    _save_environment_metric_rollups(
+        conn,
+        summary=summary,
+        packet=packet,
+        now_unix_fn=now_unix_fn,
+    )

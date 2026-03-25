@@ -3,6 +3,7 @@ import time
 from .history_queries import (
     fetch_chat_search_rows as _fetch_chat_search_rows_helper,
     fetch_environment_metric_packet_rows as _fetch_environment_metric_packet_rows_helper,
+    fetch_environment_metric_rollup_rows as _fetch_environment_metric_rollup_rows_helper,
     fetch_packet_search_rows as _fetch_packet_search_rows_helper,
     fetch_recent_packet_rows as _fetch_recent_packet_rows_helper,
 )
@@ -316,6 +317,106 @@ def _build_environment_points(
     return points, metric_meta, node_meta
 
 
+def _build_environment_points_from_rollups(
+    rows: list[tuple[object, ...]],
+    *,
+    metric_filter: str,
+    node_filter: str,
+) -> tuple[list[dict[str, object]], dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    points: list[dict[str, object]] = []
+    metric_meta: dict[str, dict[str, object]] = {}
+    node_meta: dict[str, dict[str, object]] = {}
+
+    for row in rows:
+        bucket_unix = _to_int(row[0]) if len(row) > 0 else None
+        node_id = _canonical_node_id(row[1] if len(row) > 1 else None)
+        node_label = str(row[2] if len(row) > 2 and row[2] is not None else "").strip()
+        metric_key = _normalize_env_metric_key(row[3] if len(row) > 3 else "")
+        metric_label = _format_env_metric_label(row[4] if len(row) > 4 else metric_key)
+        sample_count = max(1, int(_to_int(row[5]) or 0))
+        value_sum = _metric_float(row[6] if len(row) > 6 else None)
+        value_min = _metric_float(row[7] if len(row) > 7 else None)
+        value_max = _metric_float(row[8] if len(row) > 8 else None)
+        last_value = _metric_float(row[9] if len(row) > 9 else None)
+        last_seen_unix = _to_int(row[10]) if len(row) > 10 else None
+
+        if not node_id or not metric_key:
+            continue
+        if node_filter and node_id != node_filter:
+            continue
+        if metric_filter and metric_key != metric_filter:
+            continue
+        if value_sum is None and last_value is None:
+            continue
+
+        value = (
+            float(value_sum) / float(sample_count)
+            if value_sum is not None and sample_count > 0
+            else float(last_value or 0.0)
+        )
+        point_unix = int(last_seen_unix or bucket_unix or 0)
+        if point_unix <= 0:
+            continue
+
+        clean_node_label = node_label or node_id
+        point = {
+            "packet_row_id": None,
+            "unix": point_unix,
+            "time": _format_epoch(point_unix),
+            "node_id": node_id,
+            "node_label": clean_node_label,
+            "metric_key": metric_key,
+            "metric_label": metric_label,
+            "value": value,
+            "sample_count": sample_count,
+            "value_min": value_min,
+            "value_max": value_max,
+            "last_value": last_value,
+        }
+        points.append(point)
+
+        metric_state = metric_meta.setdefault(
+            metric_key,
+            {
+                "key": metric_key,
+                "label": metric_label,
+                "count": 0,
+                "node_ids": set(),
+                "min": value,
+                "max": value,
+            },
+        )
+        metric_state["count"] = int(metric_state.get("count", 0)) + sample_count
+        metric_state["node_ids"].add(node_id)
+        metric_state["min"] = min(float(metric_state.get("min", value)), value)
+        metric_state["max"] = max(float(metric_state.get("max", value)), value)
+
+        node_state = node_meta.setdefault(
+            node_id,
+            {
+                "id": node_id,
+                "label": clean_node_label,
+                "count": 0,
+                "metric_keys": set(),
+                "last_unix": point_unix,
+            },
+        )
+        node_state["count"] = int(node_state.get("count", 0)) + sample_count
+        node_state["metric_keys"].add(metric_key)
+        node_state["last_unix"] = max(int(node_state.get("last_unix", 0)), point_unix)
+        if node_state.get("label") in ("", node_id):
+            node_state["label"] = clean_node_label
+
+    points.sort(
+        key=lambda point: (
+            int(_to_int(point.get("unix")) or 0),
+            str(point.get("node_id") or ""),
+            str(point.get("metric_key") or ""),
+        )
+    )
+    return points, metric_meta, node_meta
+
+
 def load_recent_packets(store: HistoryStoreReadState, limit: int) -> list[dict[str, object]]:
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
@@ -552,7 +653,7 @@ def load_environment_metrics_history(
     limit: int | None = None,
 ) -> dict[str, object]:
     clean_hours = max(1, min(24 * 365, int(window_hours) if isinstance(window_hours, int) else 72))
-    clean_limit = max(200, min(50000, int(limit) if isinstance(limit, int) else 6000))
+    clean_limit = max(200, min(100000, int(limit) if isinstance(limit, int) else 20000))
     clean_metric = _normalize_env_metric_key(metric or "")
     clean_node_id = _canonical_node_id(node_id or "")
 
@@ -565,19 +666,39 @@ def load_environment_metrics_history(
         read_lock = getattr(store, "_read_lock", None) or store._lock
 
     with read_lock:
-        rows = list(
-            _fetch_environment_metric_packet_rows_helper(
+        rollup_rows = list(
+            _fetch_environment_metric_rollup_rows_helper(
                 read_conn,
                 cutoff=cutoff,
                 limit=clean_limit,
             )
         )
+        packet_rows = []
+        if not rollup_rows:
+            packet_rows = list(
+                _fetch_environment_metric_packet_rows_helper(
+                    read_conn,
+                    cutoff=cutoff,
+                    limit=clean_limit,
+                )
+            )
 
-    points, metric_meta_map, node_meta_map = _build_environment_points(
-        rows,
-        metric_filter=clean_metric,
-        node_filter=clean_node_id,
-    )
+    if rollup_rows:
+        points, metric_meta_map, node_meta_map = _build_environment_points_from_rollups(
+            rollup_rows,
+            metric_filter=clean_metric,
+            node_filter=clean_node_id,
+        )
+        scanned_count = len(rollup_rows)
+        source_kind = "rollup_1m"
+    else:
+        points, metric_meta_map, node_meta_map = _build_environment_points(
+            packet_rows,
+            metric_filter=clean_metric,
+            node_filter=clean_node_id,
+        )
+        scanned_count = len(packet_rows)
+        source_kind = "packet_scan"
 
     metric_rows = [
         {
@@ -615,7 +736,8 @@ def load_environment_metrics_history(
             "node_id": clean_node_id,
             "limit": clean_limit,
         },
-        "scanned_packets": len(rows),
+        "source": source_kind,
+        "scanned_packets": scanned_count,
         "total_points": len(points),
         "returned_points": len(points),
         "metrics": metric_rows,

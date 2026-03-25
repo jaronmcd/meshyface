@@ -85,6 +85,32 @@ def fetch_environment_metric_packet_rows(
     ).fetchall()
 
 
+def fetch_environment_metric_rollup_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    limit: int,
+) -> SqlRows:
+    clean_limit = max(1, min(100000, int(limit)))
+    clean_cutoff = max(0, int(cutoff))
+    return conn.execute(
+        """
+        SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
+               sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+        FROM (
+          SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
+                 sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+          FROM environment_metrics_1m
+          WHERE last_seen_unix >= ?
+          ORDER BY bucket_unix DESC, last_seen_unix DESC
+          LIMIT ?
+        )
+        ORDER BY bucket_unix ASC, node_id ASC, metric_key ASC
+        """,
+        (clean_cutoff, clean_limit),
+    ).fetchall()
+
+
 def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
         """

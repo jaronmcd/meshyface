@@ -124,6 +124,22 @@ TABLE_SCHEMA_STATEMENTS = [
       last_seen_unix INTEGER NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS environment_metrics_1m (
+      bucket_unix INTEGER NOT NULL,
+      node_id TEXT NOT NULL,
+      node_label TEXT,
+      metric_key TEXT NOT NULL,
+      metric_label TEXT NOT NULL,
+      sample_count INTEGER NOT NULL,
+      value_sum REAL NOT NULL,
+      value_min REAL,
+      value_max REAL,
+      last_value REAL,
+      last_seen_unix INTEGER NOT NULL,
+      PRIMARY KEY(bucket_unix, node_id, metric_key)
+    )
+    """,
 
     # Fast per-node rollup of history storage totals.
     #

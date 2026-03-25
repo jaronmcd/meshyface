@@ -20,6 +20,7 @@
       selectedMetric: "",
       selectedNodeId: "",
       selectedWindowHours: 72,
+      source: "",
       scannedPackets: 0,
       cutoffUnix: 0,
     }};
@@ -807,8 +808,11 @@
       const nodeSummary = nodeMeta
         ? `${{nodeMeta.label || nodeMeta.id}} (${{nodeMeta.id}})`
         : `${{nodes.length}} nodes`;
+      const scannedLabel = (String(envMetricsViewState.source || "").toLowerCase() === "rollup_1m")
+        ? "Scanned rollup rows"
+        : "Scanned packets";
       setEnvironmentMetricsStatus(
-        `Window ${{windowHours}}h • Metric: ${{metricMeta.label}} • Scope: ${{nodeSummary}} • Points: ${{renderedCount}} • Scanned packets: ${{Math.max(0, Math.trunc(Number(envMetricsViewState.scannedPackets) || 0))}}`,
+        `Window ${{windowHours}}h • Metric: ${{metricMeta.label}} • Scope: ${{nodeSummary}} • Points: ${{renderedCount}} • ${{scannedLabel}}: ${{Math.max(0, Math.trunc(Number(envMetricsViewState.scannedPackets) || 0))}}`,
         filteredPoints.length ? "info" : "warn",
       );
     }}
@@ -818,6 +822,7 @@
       envMetricsViewState.points = Array.isArray(data.points) ? data.points : [];
       envMetricsViewState.metrics = Array.isArray(data.metrics) ? data.metrics : [];
       envMetricsViewState.nodes = Array.isArray(data.nodes) ? data.nodes : [];
+      envMetricsViewState.source = String(data.source || "");
       envMetricsViewState.scannedPackets = Math.max(0, Math.trunc(Number(data.scanned_packets) || 0));
       envMetricsViewState.cutoffUnix = Math.max(0, Math.trunc(Number(data.cutoff_unix) || 0));
       envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(data.window_hours || envMetricsViewState.selectedWindowHours);
@@ -842,7 +847,7 @@
       }}
       const params = new URLSearchParams();
       params.set("hours", String(cleanHours));
-      params.set("limit", "8000");
+      params.set("limit", "25000");
       const resp = await fetch(`/api/history/environment?${{params.toString()}}`, {{ cache: "no-store" }});
       if (!resp.ok) throw new Error(`sensor history API ${{resp.status}}`);
       const payload = await resp.json();
@@ -915,6 +920,7 @@
         envMetricsViewState.points = [];
         envMetricsViewState.metrics = [];
         envMetricsViewState.nodes = [];
+        envMetricsViewState.source = "";
         envMetricsViewState.scannedPackets = 0;
         renderEnvironmentMetricsSnapshot();
         setEnvironmentMetricsStatus(`Sensor history unavailable: ${{msg}}`, "error");

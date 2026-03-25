@@ -26,6 +26,7 @@ def prune_history_tables(
         conn.execute("DELETE FROM node_metrics_1m WHERE last_seen_unix < ?", (rollup_cutoff,))
         conn.execute("DELETE FROM link_metrics_1m WHERE last_seen_unix < ?", (rollup_cutoff,))
         conn.execute("DELETE FROM summary_metrics_1m WHERE last_seen_unix < ?", (rollup_cutoff,))
+        conn.execute("DELETE FROM environment_metrics_1m WHERE last_seen_unix < ?", (rollup_cutoff,))
         # node_hour_seen is derived from node_metrics_1m; prune it with the
         # same retention window.
         hour_cutoff = int(rollup_cutoff) - (int(rollup_cutoff) % 3600)
