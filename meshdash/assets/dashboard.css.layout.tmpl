@@ -2595,18 +2595,23 @@
       flex-direction: column;
       min-height: 0;
       height: 100%;
+      overflow: hidden;
     }}
     .layout.view-console .console .body {{
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+      width: 100%;
+      flex: 1 1 auto;
+      height: 100%;
+      overflow: hidden;
+    }}
+    .layout.view-console .console-terminal-screen {{
       display: flex;
       flex-direction: column;
       min-height: 0;
-      flex: 1 1 auto;
-      height: 100%;
-    }}
-    .layout.view-console .console-terminal-screen {{
-      flex: 1 1 auto;
-      min-height: 0;
-      height: 100%;
+      width: 100%;
+      height: auto;
     }}
     .layout.view-console #live-console {{
       flex: 1 1 auto;
