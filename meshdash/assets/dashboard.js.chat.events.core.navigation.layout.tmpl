@@ -1,5 +1,6 @@
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
+      if (clean === "data") return "settings";
       return knownLayoutViews.has(clean) ? clean : "chat";
     }}
 
@@ -244,7 +245,7 @@
       renderFavoriteMenuNodeSearchDropdown(latestState);
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "macros" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "data" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -267,12 +268,17 @@
     }}
 
     function loadLayoutView() {{
-      let preferred = "chat";
+      let rawPreferred = "chat";
       try {{
-        preferred = normalizeLayoutView(window.localStorage.getItem(layoutViewStorageKey) || "chat");
+        rawPreferred = String(window.localStorage.getItem(layoutViewStorageKey) || "chat");
       }} catch (_err) {{
       }}
+      const preferred = normalizeLayoutView(rawPreferred);
+      const migratedDataView = String(rawPreferred || "").trim().toLowerCase() === "data";
       applyLayoutView(preferred, false);
+      if (migratedDataView) {{
+        setActiveSettingsTab("data", true);
+      }}
     }}
 
     function bindLayoutNav() {{

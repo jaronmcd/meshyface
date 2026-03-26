@@ -329,7 +329,6 @@
       <button class="rail-btn" data-view="packets" type="button" title="Recent packet stream">Packets</button>
       <button class="rail-btn" data-view="channels" type="button" title="Inferred message channel activity">Channels</button>
       <button class="rail-btn" data-view="encription" type="button" title="Encrypted packets and route activity">Encription</button>
-      <button class="rail-btn" data-view="data" type="button" title="Raw node/config views">Data</button>
       <button class="rail-btn" data-view="environment" type="button" title="Historical sensor telemetry">Sensors</button>
       <button class="rail-btn" data-view="history" type="button" title="Network and chat history">History</button>
       <button class="rail-btn" data-view="console" type="button" title="Realtime dashboard console">Console</button>
@@ -430,6 +429,16 @@
             data-settings-tab="advanced"
           >
             Advanced
+          </button>
+          <button
+            id="settings-tab-data-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="data"
+          >
+            Data
           </button>
           <button
             id="settings-tab-tickers-btn"
@@ -1425,6 +1434,21 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="data" hidden>
+            <h3>Raw Data</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Live raw API responses for diagnostics and debugging.
+              </div>
+              <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
+              <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
+              <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
+              <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
+              <details><summary>channels</summary><pre id="raw-channels"></pre></details>
+              <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
             </div>
           </div>
         </div>
@@ -2769,18 +2793,6 @@ Ready.
           </div>
           <div id="env-metrics-available" class="env-metrics-available"></div>
         </section>
-      </div>
-    </section>
-
-    <section class="card raw">
-      <h2>Raw Data</h2>
-      <div class="body">
-        <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
-        <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
-        <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
-        <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
-        <details><summary>channels</summary><pre id="raw-channels"></pre></details>
-        <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
       </div>
     </section>
 

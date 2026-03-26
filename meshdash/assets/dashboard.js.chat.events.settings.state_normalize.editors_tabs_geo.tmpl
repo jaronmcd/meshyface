@@ -149,6 +149,7 @@
         || key === "connectivity"
         || key === "security"
         || key === "advanced"
+        || key === "data"
         || key === "tickers"
       ) return key;
       return "core";
@@ -206,6 +207,12 @@
           source: readSettingsPositionSourceSelection(),
           recenter: activeLayoutView === "settings" && settingsFixedMapPanelVisible,
         }});
+      }} else if (next === "data") {{
+        // Keep raw diagnostics current when the Data tab is opened.
+        void loadRawMyInfo().catch(() => {{}});
+        void loadRawMetadata().catch(() => {{}});
+        void loadRawLocalState().catch(() => {{}});
+        void loadRawNodesFull(0).catch(() => {{}});
       }} else if (next === "security") {{
         syncChatWhoisQuickActionControls();
       }} else if (next === "tickers") {{
