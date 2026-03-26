@@ -64,7 +64,7 @@
       const nextChannel = resolveMainChatChannel(channelKey);
       const changed = activeChatChannel !== nextChannel;
       activeChatChannel = nextChannel;
-      if ((activeLayoutView === "chat" || activeLayoutView === "macros") && !document.hidden && tabHasFocus) {{
+      if (isChatWorkspaceLayoutView(activeLayoutView) && !document.hidden && tabHasFocus) {{
         clearVisibleChatUnread(activeChatChannel);
       }}
       syncMeshChannelViewControl();
@@ -93,6 +93,9 @@
       }}
       if (latestState) {{
         renderChat(latestState);
+        if (activeLayoutView === "chatlabs") {{
+          renderChatLabsView(latestState);
+        }}
       }}
       requestImmediatePoll(0);
     }}

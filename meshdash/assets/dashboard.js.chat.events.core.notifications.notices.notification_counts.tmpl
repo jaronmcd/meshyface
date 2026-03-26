@@ -61,8 +61,11 @@
       persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
       renderHistoryNotificationLog();
-      if (latestState && (activeLayoutView === "chat" || activeLayoutView === "macros")) {{
+      if (latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
         renderChat(latestState);
+        if (activeLayoutView === "chatlabs") {{
+          renderChatLabsView(latestState);
+        }}
       }} else {{
         syncChatChangeAutoDismiss();
       }}

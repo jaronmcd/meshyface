@@ -561,8 +561,11 @@
         }}
       }}
       if (changed && latestState) {{
-        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
+        if (isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(latestState);
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(latestState);
+          }}
         }}
         if (activeLayoutView === "bots") {{
           renderBotsView(latestState);

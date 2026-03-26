@@ -149,7 +149,7 @@
         }}
       }}
 
-      pendingSelectionScroll = (activeLayoutView === "chat" || activeLayoutView === "macros") ? false : !didScroll;
+      pendingSelectionScroll = isChatWorkspaceLayoutView(activeLayoutView) ? false : !didScroll;
     }}
 
     function withProgrammaticMapMove(fn) {{
@@ -384,7 +384,7 @@
       persistSelection();
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
-      if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
+      if (isChatWorkspaceLayoutView(activeLayoutView)) {{
         pendingMapHistoryFocus = false;
         // Chat-only selection should not trigger map/history work.
         applyChatChannel(activeChatChannel, false);
@@ -435,7 +435,7 @@
       persistSelection();
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
-      if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
+      if (isChatWorkspaceLayoutView(activeLayoutView)) {{
         applyChatChannel(activeChatChannel, false);
         return;
       }}

@@ -323,6 +323,7 @@
   <div class="workspace-shell chat-panel-open">
     <aside class="teams-rail" aria-label="Dashboard views">
       <button class="rail-btn active" data-view="chat" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Teams-style chat workspace">Chat</button>
+      <button class="rail-btn" data-view="chatlabs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Experimental console-rendered chat workspace">Chat Labs</button>
       <button class="rail-btn" data-view="network" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Topology, nodes, and links">Network</button>
       <button class="rail-btn" data-view="saved" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Node details and saved nodes">Node</button>
       <button class="rail-btn" data-view="packets" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Recent packet stream">Packets</button>
@@ -1682,6 +1683,21 @@
               <div id="macros-status" class="macros-status" aria-live="polite"></div>
             </section>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card chatlabs" aria-label="Experimental console-style chat">
+      <div class="chatlabs-head">
+        <h2>Chat Labs</h2>
+        <div class="chatlabs-caption">
+          Experimental console-rendered chat stream.
+          <span id="chat-labs-count" class="chatlabs-count">0 lines</span>
+        </div>
+      </div>
+      <div class="body">
+        <div id="chat-labs-terminal" class="chatlabs-terminal">
+          <div id="chat-labs-feed" class="chatlabs-feed"></div>
         </div>
       </div>
     </section>

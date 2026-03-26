@@ -1727,6 +1727,125 @@
       cursor: row-resize !important;
       user-select: none !important;
     }}
+    .layout .card.chatlabs {{
+      display: none;
+    }}
+    .layout.view-chatlabs {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-chatlabs > :not(.chatlabs) {{
+      display: none !important;
+    }}
+    .layout.view-chatlabs .chatlabs {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: #0b1411;
+      border-color: #24513c;
+      box-shadow: inset 0 0 0 1px rgba(56, 126, 93, 0.25);
+    }}
+    .layout.view-chatlabs .chatlabs .chatlabs-head {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid #1f3f31;
+      background: linear-gradient(180deg, #0f1d17 0%, #0b1411 100%);
+    }}
+    .layout.view-chatlabs .chatlabs .chatlabs-head h2 {{
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      color: #d9ffe9;
+    }}
+    .layout.view-chatlabs .chatlabs .chatlabs-caption {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 0.8rem;
+      color: #93c8ad;
+    }}
+    .layout.view-chatlabs .chatlabs .chatlabs-count {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid #2d654b;
+      background: rgba(45, 101, 75, 0.35);
+      color: #b8f7d4;
+      font-size: 0.72rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }}
+    .layout.view-chatlabs .chatlabs .body {{
+      padding: 10px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: radial-gradient(circle at 15% 0%, rgba(45, 100, 73, 0.2), transparent 58%);
+    }}
+    .layout.view-chatlabs .chatlabs-terminal {{
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      border-radius: 8px;
+      border: 1px solid #285741;
+      background: #07100d;
+      box-shadow: inset 0 0 0 1px rgba(67, 152, 111, 0.17);
+      font-family: "IBM Plex Mono", "JetBrains Mono", "Fira Code", monospace;
+      scrollbar-width: thin;
+    }}
+    .layout.view-chatlabs .chatlabs-feed {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 100%;
+      padding: 12px;
+    }}
+    .layout.view-chatlabs .chatlabs-line {{
+      color: #d8fbe9;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    .layout.view-chatlabs .chatlabs-line .chatlabs-ts {{
+      color: #89b89f;
+    }}
+    .layout.view-chatlabs .chatlabs-line .chatlabs-node {{
+      color: #6ee7ac;
+      font-weight: 600;
+    }}
+    .layout.view-chatlabs .chatlabs-line .chatlabs-route {{
+      color: #9ac9b2;
+      margin-left: 2px;
+    }}
+    .layout.view-chatlabs .chatlabs-line.chatlabs-line-self .chatlabs-node {{
+      color: #9fd7ff;
+    }}
+    .layout.view-chatlabs .chatlabs-line.chatlabs-line-reaction .chatlabs-body {{
+      color: #f6d98f;
+    }}
+    .layout.view-chatlabs .chatlabs-line .chatlabs-body a {{
+      color: #9dd9ff;
+      text-decoration-color: rgba(157, 217, 255, 0.42);
+    }}
+    .layout.view-chatlabs .chatlabs-empty {{
+      color: #7ea994;
+      font-size: 0.84rem;
+      padding: 2px 0;
+    }}
     .layout.view-chat {{
       height: 100%;
       min-height: 0;

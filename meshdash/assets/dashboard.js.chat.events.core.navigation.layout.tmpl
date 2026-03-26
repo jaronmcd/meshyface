@@ -1,3 +1,168 @@
+    function renderChatLabsView(state = latestState) {{
+      const terminal = document.getElementById("chat-labs-terminal");
+      const feed = document.getElementById("chat-labs-feed");
+      const countEl = document.getElementById("chat-labs-count");
+      if (!(terminal instanceof HTMLElement) || !(feed instanceof HTMLElement)) return;
+
+      const safeState = (state && typeof state === "object") ? state : null;
+      const traffic = (safeState && safeState.traffic && typeof safeState.traffic === "object")
+        ? safeState.traffic
+        : {{}};
+      const rows = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const nodes = Array.isArray(safeState && safeState.nodes) ? safeState.nodes : [];
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState || latestState || {{}}));
+      const nodesById = new Map();
+      const nodeIdByNum = new Map();
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (isCanonicalNodeId(nodeId) && !nodesById.has(nodeId)) {{
+          nodesById.set(nodeId, node);
+        }}
+        const nodeNum = parseNodeNum(node && node.num);
+        if (Number.isInteger(nodeNum) && nodeNum >= 0 && isCanonicalNodeId(nodeId) && !nodeIdByNum.has(nodeNum)) {{
+          nodeIdByNum.set(nodeNum, nodeId);
+        }}
+      }}
+
+      const wasNearBottom = (terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight) <= 28;
+      const maxLines = 260;
+      const resolveNodeIdFromMessage = (msg, keys) => {{
+        for (const key of keys) {{
+          const rawValue = msg && msg[key];
+          const clean = normalizeNodeId(rawValue);
+          if (isCanonicalNodeId(clean) || clean === "^all" || clean === "local") {{
+            return clean;
+          }}
+          const nodeNum = parseNodeNum(rawValue);
+          if (Number.isInteger(nodeNum) && nodeIdByNum.has(nodeNum)) {{
+            return nodeIdByNum.get(nodeNum) || clean;
+          }}
+        }}
+        return "";
+      }};
+      const nodeLabel = (nodeId, fallbackText = "unknown") => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!clean || clean === "^all") return "all";
+        if (clean === "local") return "local";
+        if (!isCanonicalNodeId(clean)) return String(fallbackText || "unknown");
+        const node = nodesById.get(clean) || null;
+        const preferred = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
+        return String(preferred || clean);
+      }};
+      const emojiFromCodepoint = (rawValue) => {{
+        const codepoint = Number(rawValue);
+        if (!Number.isInteger(codepoint) || codepoint <= 0) return "";
+        try {{
+          return String.fromCodePoint(codepoint);
+        }} catch (_err) {{
+          return "";
+        }}
+      }};
+      const messageText = (msg) => {{
+        const candidates = [
+          msg && msg.decoded_text,
+          msg && msg.payload_text,
+          msg && msg.text,
+          msg && msg.message,
+          msg && msg.body,
+        ];
+        for (const candidate of candidates) {{
+          const text = String(candidate == null ? "" : candidate).trim();
+          if (text) return text;
+        }}
+        const emoji = String(msg && msg.emoji ? msg.emoji : "").trim() || emojiFromCodepoint(msg && (msg.emoji_codepoint ?? msg.emojiCodepoint));
+        if (emoji) {{
+          return `reaction ${{emoji}}`;
+        }}
+        if (msg && msg.is_reaction === true) {{
+          return "reaction";
+        }}
+        return "";
+      }};
+
+      const timeline = rows
+        .map((msg, index) => {{
+          const unix = latestUnixTimestamp(
+            msg && msg.rx_time,
+            msg && msg.captured_at,
+            msg && msg.time,
+            msg && msg.rxTime,
+            msg && msg.timestamp,
+          );
+          return {{
+            msg,
+            index,
+            unix: Number.isFinite(unix) ? Math.floor(unix) : null,
+          }};
+        }})
+        .filter((row) => row && row.msg && typeof row.msg === "object")
+        .sort((a, b) => {{
+          const aUnix = Number.isFinite(a.unix) ? a.unix : null;
+          const bUnix = Number.isFinite(b.unix) ? b.unix : null;
+          if (aUnix == null && bUnix != null) return -1;
+          if (aUnix != null && bUnix == null) return 1;
+          if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
+            return aUnix - bUnix;
+          }}
+          return a.index - b.index;
+        }})
+        .slice(-maxLines);
+
+      if (!timeline.length) {{
+        feed.innerHTML = '<div class="chatlabs-empty">No chat traffic yet. Incoming messages will appear here.</div>';
+        if (countEl instanceof HTMLElement) {{
+          countEl.textContent = "0 lines";
+        }}
+        return;
+      }}
+
+      const lineHtml = [];
+      for (const row of timeline) {{
+        const msg = row.msg;
+        const fromId = resolveNodeIdFromMessage(msg, ["from_id", "fromId", "from", "source_id", "sourceId", "source", "from_num", "fromNum"]);
+        const toId = resolveNodeIdFromMessage(msg, ["to_id", "toId", "to", "dest_id", "destId", "destination", "dest", "to_num", "toNum"]);
+        const fromLabel = nodeLabel(fromId, "unknown");
+        const toLabel = nodeLabel(toId || "^all", "all");
+        const isDirect = !!(toId && toId !== "^all" && toId !== "all" && toId !== "local");
+        const text = messageText(msg);
+        const isReaction = !!(
+          msg && (
+            msg.is_reaction === true
+            || msg.emoji != null
+            || msg.emoji_codepoint != null
+            || msg.emojiCodepoint != null
+          )
+        );
+        const rawTime = msg && (msg.rx_time || msg.captured_at || msg.time || msg.rxTime || msg.timestamp || "");
+        const timeLabel = Number.isFinite(row.unix) && row.unix > 0
+          ? formatLocalChatTime(row.unix, rawTime || "n/a", nowUnix)
+          : String(rawTime || "n/a");
+        const classes = ["chatlabs-line"];
+        if (isCanonicalNodeId(fromId) && isCanonicalNodeId(localNodeId) && fromId === localNodeId) {{
+          classes.push("chatlabs-line-self");
+        }}
+        if (isReaction) {{
+          classes.push("chatlabs-line-reaction");
+        }}
+        const directionLabel = isDirect ? `-> ${{toLabel}}` : "-> all";
+        const bodyHtml = chatPlainTextToHtml(text || "(no text)", true);
+        lineHtml.push(
+          `<div class="${{escAttr(classes.join(" "))}}"><span class="chatlabs-ts">[${{escAttr(timeLabel)}}]</span> <span class="chatlabs-node">${{escAttr(fromLabel)}}</span> <span class="chatlabs-route">${{escAttr(directionLabel)}}</span> <span class="chatlabs-body">${{bodyHtml || "&nbsp;"}}</span></div>`
+        );
+      }}
+
+      feed.innerHTML = lineHtml.join("");
+      if (countEl instanceof HTMLElement) {{
+        countEl.textContent = `${{timeline.length}} lines`;
+      }}
+      if (wasNearBottom) {{
+        window.requestAnimationFrame(() => {{
+          terminal.scrollTop = terminal.scrollHeight;
+        }});
+      }}
+    }}
+
     function normalizeAppsLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       if (
@@ -152,7 +317,7 @@
       syncAppsTabBarVisibility(next);
       syncAppsTabBar(next);
 
-      const chatViewActive = next === "chat" || next === "macros";
+      const chatViewActive = isChatWorkspaceLayoutView(next);
       if (shell instanceof HTMLElement) {{
         shell.classList.add("chat-panel-open");
       }}
@@ -253,8 +418,11 @@
           renderNodes(latestState.nodes || []);
         }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory);
-        if (next === "chat" || next === "macros") {{
+        if (isChatWorkspaceLayoutView(next)) {{
           renderChat(latestState);
+          if (next === "chatlabs") {{
+            renderChatLabsView(latestState);
+          }}
         }}
         if (next === "files") {{
           renderFilesView(latestState);
@@ -310,6 +478,8 @@
         setMapDataMode("activity");
         renderWeeklySummaryLoading();
         renderHistoryChat({{}});
+      }} else if (next === "chatlabs") {{
+        renderChatLabsView(latestState);
       }} else if (next === "files") {{
         renderFilesView(latestState);
       }} else if (next === "bbs") {{
@@ -340,7 +510,7 @@
       renderFavoriteMenuNodeSearchDropdown(latestState);
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "macros" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

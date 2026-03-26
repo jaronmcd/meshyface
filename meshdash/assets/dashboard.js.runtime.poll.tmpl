@@ -1,5 +1,5 @@
     function shouldHydrateNodeNavigatorRoster(state = latestState) {{
-      if (activeLayoutView === "chat" || activeLayoutView === "macros") return false;
+      if (isChatWorkspaceLayoutView(activeLayoutView)) return false;
       const safeState = (state && typeof state === "object") ? state : null;
       if (!safeState) return false;
       const query = (typeof globalNodeSearchQuery === "function")
@@ -106,6 +106,9 @@
               ? historyTargetId304
               : null;
             renderFavorites(latestState, cachedHistory304, loadingId304);
+          }}
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(latestState);
           }}
           if (shouldHydrateNodeNavigatorRoster(latestState)) {{
             renderChat(latestState);
@@ -220,12 +223,15 @@
           }}
         }}
 
-        if (activeLayoutView !== "chat" && activeLayoutView !== "macros" && shouldHydrateNodeNavigatorRoster(state)) {{
+        if (!isChatWorkspaceLayoutView(activeLayoutView) && shouldHydrateNodeNavigatorRoster(state)) {{
           renderChat(state);
         }}
 
-        if (activeLayoutView === "chat" || activeLayoutView === "macros") {{
+        if (isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(state);
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(state);
+          }}
         }} else if (activeLayoutView === "bbs") {{
           renderBbsView(state);
         }} else if (activeLayoutView === "bots") {{
