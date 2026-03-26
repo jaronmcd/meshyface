@@ -323,10 +323,9 @@
   <div class="workspace-shell chat-panel-open">
     <aside class="teams-rail" aria-label="Dashboard views">
       <button class="rail-btn active" data-view="chat" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Teams-style chat workspace">Chat</button>
-      <button class="rail-btn" data-view="apps" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Apps workspace (Macros, Games, Files, BBS, Bots)">Apps</button>
+      <button class="rail-btn" data-view="apps" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Apps workspace (Macros, Games, Files, BBS, Bots, Remote)">Apps</button>
       <button class="rail-btn" data-view="network" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Topology, nodes, and links">Network</button>
       <button class="rail-btn" data-view="saved" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Node details and saved nodes">Node</button>
-      <button class="rail-btn" data-view="remote" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Remote-node actions workspace">Remote</button>
       <button class="rail-btn" data-view="packets" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Recent packet stream">Packets</button>
       <button class="rail-btn" data-view="channels" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Inferred message channel activity">Channels</button>
       <button class="rail-btn" data-view="encription" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Encrypted packets and route activity">Encription</button>
@@ -372,6 +371,7 @@
     <button class="apps-tab-btn" data-app-view="files" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Files</button>
     <button class="apps-tab-btn" data-app-view="bbs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>BBS</button>
     <button class="apps-tab-btn" data-app-view="bots" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Bots</button>
+    <button class="apps-tab-btn" data-app-view="remote" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Remote</button>
   </div>
   <div id="dashboard-layout" class="layout view-chat">
     <section class="card settings" aria-label="Settings">

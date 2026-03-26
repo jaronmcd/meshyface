@@ -92,9 +92,9 @@ def test_render_html_includes_apps_tabs_structure_tokens():
     assert 'data-app-view="files"' in html
     assert 'data-app-view="bbs"' in html
     assert 'data-app-view="bots"' in html
+    assert 'data-app-view="remote"' in html
     assert 'data-app-view="network"' not in html
     assert 'data-app-view="saved"' not in html
-    assert 'data-app-view="remote"' not in html
     assert 'data-app-view="packets"' not in html
     assert 'data-app-view="channels"' not in html
     assert 'data-app-view="encription"' not in html
@@ -103,6 +103,7 @@ def test_render_html_includes_apps_tabs_structure_tokens():
     assert 'data-app-view="console"' not in html
     assert 'data-app-view="settings"' not in html
     assert 'data-app-view="chat"' not in html
+    assert 'data-view="remote"' not in html
     assert 'data-apps-view=' not in html
 
 
