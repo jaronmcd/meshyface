@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, Callable
 
 from .api_input_radio import RadioSettingsRequest
+from .time_sync import (
+    normalize_time_sync_timezone as _normalize_time_sync_timezone_helper,
+    resolve_time_sync as _resolve_time_sync_helper,
+)
 
 
 def _is_scalar_json(value: object) -> bool:
@@ -281,6 +285,35 @@ def _normalize_owner_updates(owner_updates: Mapping[str, object] | None) -> dict
     return out
 
 
+def _normalize_time_sync_updates(time_sync_updates: Mapping[str, object] | None) -> dict[str, object]:
+    if not time_sync_updates:
+        return {}
+
+    out: dict[str, object] = {}
+    if "enabled" in time_sync_updates:
+        out["enabled"] = _coerce_bool(time_sync_updates.get("enabled"))
+    if "server" in time_sync_updates:
+        clean_server = str(time_sync_updates.get("server") or "").strip()
+        if clean_server:
+            out["server"] = clean_server
+    if "timezone" in time_sync_updates:
+        out["timezone"] = _normalize_time_sync_timezone_helper(time_sync_updates.get("timezone"))
+    if "timeout_ms" in time_sync_updates:
+        out["timeout_ms"] = time_sync_updates.get("timeout_ms")
+    return out
+
+
+def _radio_ntp_server_from_node(node: object) -> str:
+    local_config = _object_get(node, "localConfig")
+    network = _object_get(local_config, "network")
+    server = str(
+        _object_get(network, "ntp_server")
+        or _object_get(network, "ntpServer")
+        or ""
+    ).strip()
+    return server
+
+
 def _set_owner_with_fallback(node: object, owner_kwargs: Mapping[str, object]) -> None:
     set_owner = getattr(node, "setOwner", None)
     if not callable(set_owner):
@@ -551,6 +584,7 @@ def apply_radio_settings(
     send_lock: object,
     history_store: object | None = None,
     tracker: object | None = None,
+    resolve_time_sync_fn: Callable[..., dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Apply radio settings/actions to the connected local node."""
 
@@ -559,7 +593,11 @@ def apply_radio_settings(
     module_updates = _normalize_section_updates(request.module)
     owner_updates = _normalize_owner_updates(request.owner)
     fixed_position_updates = _normalize_fixed_position_payload(request.fixed_position)
+    time_sync_updates = _normalize_time_sync_updates(request.time_sync)
     actions = dict(request.actions or {})
+
+    if resolve_time_sync_fn is None:
+        resolve_time_sync_fn = _resolve_time_sync_helper
 
     # Allow clients to submit LoRa updates either in top-level "lora" (legacy)
     # or in local.lora (generic editor). Top-level lora wins on conflicts.
@@ -635,6 +673,7 @@ def apply_radio_settings(
     applied_fields: list[str] = []
     ignored_fields: list[str] = []
     actions_applied: list[str] = []
+    time_sync_response: dict[str, object] | None = None
 
     if lora_updates:
         local_config = getattr(node, "localConfig", None)
@@ -747,7 +786,40 @@ def apply_radio_settings(
                 set_time_fn = getattr(node, "setTime", None)
                 if not callable(set_time_fn):
                     return {"ok": False, "error": "Meshtastic node does not support setTime()"}
-                set_time_fn(0)
+                use_time_server = bool(time_sync_updates.get("enabled"))
+                timezone_name = str(time_sync_updates.get("timezone") or "local")
+                time_server = str(time_sync_updates.get("server") or "").strip()
+                if not time_server:
+                    time_server = _radio_ntp_server_from_node(node) or "pool.ntp.org"
+
+                time_sync_response = resolve_time_sync_fn(
+                    use_time_server=use_time_server,
+                    server=time_server,
+                    timezone_name=timezone_name,
+                    timeout_ms=time_sync_updates.get("timeout_ms"),
+                )
+                if not bool(time_sync_response.get("ok")):
+                    error_text = str(time_sync_response.get("error") or "unknown time sync error")
+                    return {
+                        "ok": False,
+                        "error": f"Time sync failed: {error_text}",
+                        "actions_applied": actions_applied,
+                        "time_sync": time_sync_response,
+                    }
+
+                if use_time_server:
+                    applied_unix = _coerce_int(time_sync_response.get("applied_unix") or 0)
+                    if applied_unix <= 0:
+                        return {
+                            "ok": False,
+                            "error": "Time sync failed: invalid server time returned",
+                            "actions_applied": actions_applied,
+                            "time_sync": time_sync_response,
+                        }
+                    set_time_fn(applied_unix)
+                else:
+                    # Keep legacy behavior: Meshtastic maps 0 -> host clock now.
+                    set_time_fn(0)
 
             if regenerate_node_id:
                 factory_reset = getattr(node, "factoryReset", None)
@@ -824,6 +896,8 @@ def apply_radio_settings(
         "write_sections": write_sections,
         "reboot_expected": bool(write_sections or reset_nodedb or regenerate_node_id),
     }
+    if time_sync_response is not None:
+        response["time_sync"] = time_sync_response
     if deleted_history_rows is not None:
         response["deleted_history_rows"] = deleted_history_rows
     return response

@@ -98,10 +98,33 @@
     async function setRadioTime() {{
       if (settingsApplyInFlight) return;
 
+      const timeSyncSelection = readSettingsTimeSyncSelection();
+      settingsTimeSyncEnabledPref = !!(timeSyncSelection && timeSyncSelection.enabled);
+      settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(
+        timeSyncSelection && timeSyncSelection.timezone
+      );
+      persistSettingsTimeSyncPreferences();
+
+      const requestedServer = String(readTextValue("settings-network-ntp-server") || "").trim() || "pool.ntp.org";
+      const payload = {{
+        actions: {{ set_time: true }},
+        time_sync: {{
+          enabled: settingsTimeSyncEnabledPref,
+          timezone: settingsTimeSyncTimezonePref,
+        }},
+      }};
+      if (settingsTimeSyncEnabledPref) {{
+        payload.time_sync.server = requestedServer;
+      }}
+
       const ok = await postRadioSettingsPayload(
-        {{ actions: {{ set_time: true }} }},
-        "Setting radio time from dashboard host clock…",
-        "radio time synced from dashboard host clock"
+        payload,
+        settingsTimeSyncEnabledPref
+          ? `Setting radio time from ${{requestedServer}}…`
+          : "Setting radio time from dashboard host clock…",
+        settingsTimeSyncEnabledPref
+          ? `radio time synced from ${{requestedServer}}`
+          : "radio time synced from dashboard host clock"
       );
       if (ok) {{
         setTimeout(() => {{
@@ -184,4 +207,3 @@
         }}, 600);
       }}
     }}
-

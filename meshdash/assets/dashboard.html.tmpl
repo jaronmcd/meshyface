@@ -1062,6 +1062,19 @@
                   <button id="settings-apply-network" class="btn btn-secondary" type="button">Apply Network</button>
                 </label>
               </div>
+              <div class="settings-row settings-row-time-sync">
+                <div class="settings-time-sync-controls">
+                  <label class="settings-field settings-inline settings-time-sync-toggle">
+                    <input id="settings-time-sync-enabled" type="checkbox" />
+                    <span>Sync radio time via time server</span>
+                  </label>
+                  <label class="settings-field settings-time-sync-timezone">
+                    <span class="settings-label">Display timezone</span>
+                    <select id="settings-time-sync-timezone" class="settings-select"></select>
+                  </label>
+                  <button id="settings-set-time" class="btn btn-secondary" type="button">Set Radio Time</button>
+                </div>
+              </div>
 
               <div class="settings-row">
                 <label class="settings-field settings-inline">
@@ -1458,7 +1471,6 @@
 
         <div class="settings-actions">
           <button id="settings-apply-lora" class="btn" type="button">Apply LoRa settings</button>
-          <button id="settings-set-time" class="btn btn-secondary" type="button">Set Radio Time</button>
           <button id="settings-reset" class="btn btn-secondary" type="button">Fetch settings</button>
           <span id="settings-apply-status" class="settings-status"></span>
         </div>

@@ -335,6 +335,7 @@
         source: sourceFromRadio || (fixedForForm ? "fixed" : settingsPositionSourcePref),
         recenter: shouldAutoCenterFixed,
       }});
+      syncSettingsTimeSyncControls();
     }}
 
     function markSettingsDirty(message = "Unsaved settings changes") {{
@@ -403,4 +404,3 @@
       }});
       return true;
     }}
-

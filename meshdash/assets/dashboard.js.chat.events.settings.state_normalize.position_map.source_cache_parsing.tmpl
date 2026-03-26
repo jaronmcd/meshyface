@@ -30,6 +30,163 @@
       }}
     }}
 
+    function normalizeSettingsTimeSyncTimezone(value) {{
+      const clean = String(value || "").trim();
+      if (!clean) return "local";
+      const lowered = clean.toLowerCase();
+      if (lowered === "local" || lowered === "browser" || lowered === "system") return "local";
+      if (lowered === "utc" || lowered === "z") return "UTC";
+      try {{
+        const resolved = new Intl.DateTimeFormat("en-US", {{ timeZone: clean }}).resolvedOptions().timeZone;
+        return String(resolved || clean).trim() || "local";
+      }} catch (_err) {{
+        return "local";
+      }}
+    }}
+
+    function defaultSettingsTimeSyncTimezone() {{
+      try {{
+        const tz = String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
+        if (!tz) return "local";
+        return normalizeSettingsTimeSyncTimezone(tz);
+      }} catch (_err) {{
+        return "local";
+      }}
+    }}
+
+    function collectSettingsTimeSyncTimezoneOptions() {{
+      if (Array.isArray(settingsTimeSyncTimezoneOptionsCache) && settingsTimeSyncTimezoneOptionsCache.length) {{
+        return [...settingsTimeSyncTimezoneOptionsCache];
+      }}
+      const seen = new Set();
+      const out = [];
+      const pushZone = (zoneId) => {{
+        const normalized = normalizeSettingsTimeSyncTimezone(zoneId);
+        if (normalized === "local" || seen.has(normalized)) return;
+        seen.add(normalized);
+        out.push(normalized);
+      }};
+      pushZone("UTC");
+      pushZone(defaultSettingsTimeSyncTimezone());
+
+      if (typeof Intl !== "undefined" && Intl && typeof Intl.supportedValuesOf === "function") {{
+        try {{
+          const supported = Intl.supportedValuesOf("timeZone");
+          for (const zoneId of supported) {{
+            pushZone(zoneId);
+          }}
+        }} catch (_err) {{
+        }}
+      }}
+
+      for (const fallbackZone of [
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
+      ]) {{
+        pushZone(fallbackZone);
+      }}
+
+      out.sort((a, b) => a.localeCompare(b));
+      settingsTimeSyncTimezoneOptionsCache = out;
+      return [...out];
+    }}
+
+    function populateSettingsTimeSyncTimezoneOptions() {{
+      const select = document.getElementById("settings-time-sync-timezone");
+      if (!(select instanceof HTMLSelectElement)) return;
+
+      const previous = normalizeSettingsTimeSyncTimezone(select.value || settingsTimeSyncTimezonePref);
+      const options = collectSettingsTimeSyncTimezoneOptions();
+      select.innerHTML = "";
+
+      const localOption = document.createElement("option");
+      localOption.value = "local";
+      localOption.textContent = "Browser Local (auto)";
+      select.appendChild(localOption);
+
+      for (const zoneId of options) {{
+        if (zoneId === "local") continue;
+        const option = document.createElement("option");
+        option.value = zoneId;
+        option.textContent = zoneId;
+        select.appendChild(option);
+      }}
+
+      const selected = normalizeSettingsTimeSyncTimezone(
+        settingsTimeSyncTimezonePref || previous || defaultSettingsTimeSyncTimezone()
+      );
+      settingsTimeSyncTimezonePref = selected;
+      select.value = selected;
+      if (select.value !== selected) {{
+        select.value = "local";
+        settingsTimeSyncTimezonePref = "local";
+      }}
+    }}
+
+    function loadSettingsTimeSyncPreferences() {{
+      settingsTimeSyncEnabledPref = true;
+      settingsTimeSyncTimezonePref = "local";
+      try {{
+        settingsTimeSyncEnabledPref = parseBoolToken(
+          window.localStorage.getItem(settingsTimeSyncEnabledStorageKey),
+          true
+        );
+      }} catch (_err) {{
+      }}
+      try {{
+        const rawTz = String(window.localStorage.getItem(settingsTimeSyncTimezoneStorageKey) || "").trim();
+        settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(
+          rawTz || defaultSettingsTimeSyncTimezone()
+        );
+      }} catch (_err) {{
+        settingsTimeSyncTimezonePref = defaultSettingsTimeSyncTimezone();
+      }}
+    }}
+
+    function persistSettingsTimeSyncPreferences() {{
+      settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(settingsTimeSyncTimezonePref);
+      try {{
+        window.localStorage.setItem(settingsTimeSyncEnabledStorageKey, settingsTimeSyncEnabledPref ? "1" : "0");
+        window.localStorage.setItem(settingsTimeSyncTimezoneStorageKey, settingsTimeSyncTimezonePref);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncSettingsTimeSyncControls() {{
+      const toggle = document.getElementById("settings-time-sync-enabled");
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = !!settingsTimeSyncEnabledPref;
+      }}
+      populateSettingsTimeSyncTimezoneOptions();
+      const select = document.getElementById("settings-time-sync-timezone");
+      if (select instanceof HTMLSelectElement) {{
+        const normalized = normalizeSettingsTimeSyncTimezone(settingsTimeSyncTimezonePref);
+        settingsTimeSyncTimezonePref = normalized;
+        select.value = normalized;
+        if (select.value !== normalized) {{
+          select.value = "local";
+          settingsTimeSyncTimezonePref = "local";
+        }}
+      }}
+    }}
+
+    function readSettingsTimeSyncSelection() {{
+      const toggle = document.getElementById("settings-time-sync-enabled");
+      const select = document.getElementById("settings-time-sync-timezone");
+      const enabled = toggle instanceof HTMLInputElement
+        ? !!toggle.checked
+        : !!settingsTimeSyncEnabledPref;
+      const timezone = normalizeSettingsTimeSyncTimezone(
+        select instanceof HTMLSelectElement ? select.value : settingsTimeSyncTimezonePref
+      );
+      return {{
+        enabled,
+        timezone,
+      }};
+    }}
+
     function persistSettingsPositionSourcePreference() {{
       try {{
         window.localStorage.setItem(settingsPositionSourceStorageKey, settingsPositionSourcePref);
@@ -129,4 +286,3 @@
         alt,
       }};
     }}
-

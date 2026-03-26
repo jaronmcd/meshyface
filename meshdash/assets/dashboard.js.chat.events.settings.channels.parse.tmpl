@@ -94,6 +94,36 @@
       }}
     }}
 
+    function buildTimeSyncStatusHint(timeSyncRaw) {{
+      if (!timeSyncRaw || typeof timeSyncRaw !== "object") return "";
+      const source = String(timeSyncRaw.source || "").trim().toLowerCase();
+      const server = String(timeSyncRaw.server || "").trim();
+      const appliedUtc = String(timeSyncRaw.applied_utc || "").trim();
+      const appliedLocal = String(timeSyncRaw.applied_local || "").trim();
+      const timezone = String(timeSyncRaw.timezone || "").trim();
+      const offset = Number(timeSyncRaw.offset_seconds);
+      const parts = [];
+      if (source === "time_server") {{
+        parts.push(` Time source: ${{server || "time server"}}.`);
+      }} else if (source === "host_clock") {{
+        parts.push(" Time source: dashboard host clock.");
+      }}
+      if (source === "time_server" && Number.isFinite(offset)) {{
+        parts.push(` Host offset: ${{offset >= 0 ? "+" : ""}}${{offset.toFixed(3)}}s.`);
+      }}
+      if (appliedUtc) {{
+        parts.push(` Applied UTC: ${{appliedUtc}}.`);
+      }}
+      if (appliedLocal) {{
+        if (timezone && timezone !== "local") {{
+          parts.push(` ${{timezone}}: ${{appliedLocal}}.`);
+        }} else {{
+          parts.push(` Local: ${{appliedLocal}}.`);
+        }}
+      }}
+      return parts.join("");
+    }}
+
     async function postRadioSettingsPayload(payload, pendingLabel, successLabel) {{
       if (settingsApplyInFlight) return false;
       settingsApplyInFlight = true;
@@ -129,10 +159,11 @@
           parsed && Number.isFinite(Number(parsed.deleted_history_rows))
             ? ` Cleared rows: ${{Number(parsed.deleted_history_rows)}}.`
             : "";
-        setSettingsStatusText(`Applied. ${{successLabel}}.${{rebootHint}}${{actionHint}}${{deletedHint}}`);
+        const timeSyncHint = buildTimeSyncStatusHint(parsed && parsed.time_sync);
+        setSettingsStatusText(`Applied. ${{successLabel}}.${{rebootHint}}${{actionHint}}${{deletedHint}}${{timeSyncHint}}`);
         appendConsoleLine(
           `settings|${{Date.now()}}|ok`,
-          `[settings] ${{successLabel}}.${{rebootHint}}${{actionHint}}${{deletedHint}}`
+          `[settings] ${{successLabel}}.${{rebootHint}}${{actionHint}}${{deletedHint}}${{timeSyncHint}}`
         );
         clearSettingsDirty();
         invalidateStateSnapshotCache(parsed && parsed.reboot_expected ? 200 : 20);
@@ -147,4 +178,3 @@
         setSettingsButtonsDisabled(false);
       }}
     }}
-

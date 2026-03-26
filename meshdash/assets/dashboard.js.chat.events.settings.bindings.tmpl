@@ -2,6 +2,10 @@
       const settingsCard = document.querySelector(".card.settings");
       if (!(settingsCard instanceof HTMLElement) || settingsCard.dataset.bound === "1") return;
       settingsCard.dataset.bound = "1";
+      const isRuntimeOnlySettingsControl = (controlId) => (
+        controlId === "settings-time-sync-enabled"
+        || controlId === "settings-time-sync-timezone"
+      );
 
       for (const tabBtn of settingsCard.querySelectorAll(".settings-tab-btn[data-settings-tab]")) {{
         if (!(tabBtn instanceof HTMLButtonElement)) continue;
@@ -15,6 +19,7 @@
         const target = ev.target;
         if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {{
           if (target.id === "settings-local-section" || target.id === "settings-module-section") return;
+          if (isRuntimeOnlySettingsControl(target.id)) return;
           if (isTickerSettingsControlId(target.id)) return;
           markSettingsDirty();
         }}
@@ -40,10 +45,29 @@
         const target = ev.target;
         if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {{
           if (target.id !== "settings-local-section" && target.id !== "settings-module-section") {{
-            if (!isTickerSettingsControlId(target.id)) {{
+            if (!isRuntimeOnlySettingsControl(target.id) && !isTickerSettingsControlId(target.id)) {{
               markSettingsDirty();
             }}
           }}
+        }}
+        if (target instanceof HTMLInputElement && target.id === "settings-time-sync-enabled") {{
+          settingsTimeSyncEnabledPref = !!target.checked;
+          persistSettingsTimeSyncPreferences();
+          setSettingsStatusText(
+            settingsTimeSyncEnabledPref
+              ? "Set Radio Time will query a time server first."
+              : "Set Radio Time will use dashboard host clock."
+          );
+        }}
+        if (target instanceof HTMLSelectElement && target.id === "settings-time-sync-timezone") {{
+          settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(target.value);
+          persistSettingsTimeSyncPreferences();
+          syncSettingsTimeSyncControls();
+          setSettingsStatusText(
+            settingsTimeSyncTimezonePref === "local"
+              ? "Time sync timezone set to browser local."
+              : `Time sync timezone set to ${{settingsTimeSyncTimezonePref}}.`
+          );
         }}
         if (
           target instanceof HTMLInputElement
@@ -92,6 +116,7 @@
           void setRadioTime();
         }});
       }}
+      syncSettingsTimeSyncControls();
 
       const applyOwnerBtn = document.getElementById("settings-apply-owner");
       if (applyOwnerBtn instanceof HTMLButtonElement) {{
@@ -314,4 +339,3 @@
         }});
       }}
     }}
-

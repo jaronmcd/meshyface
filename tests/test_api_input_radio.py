@@ -11,6 +11,7 @@ def test_parse_radio_settings_request_defaults_to_empty_objects():
     assert request.module == {}
     assert request.owner == {}
     assert request.fixed_position == {}
+    assert request.time_sync == {}
     assert request.actions == {}
 
 
@@ -61,6 +62,13 @@ def test_parse_radio_settings_request_filters_to_supported_value_shapes():
             "longitude": -93.26,
             "altitude": 260,
             "extra": {"bad": true}
+          },
+          "time_sync": {
+            "enabled": "1",
+            "ntp_server": "pool.ntp.org",
+            "timezone": "America/Chicago",
+            "timeout": 5000,
+            "drop": {"bad": true}
           }
         }
         """
@@ -83,6 +91,12 @@ def test_parse_radio_settings_request_filters_to_supported_value_shapes():
         "is_unmessagable": False,
     }
     assert request.fixed_position == {"lat": "44.98", "lon": -93.26, "alt": 260}
+    assert request.time_sync == {
+        "enabled": True,
+        "server": "pool.ntp.org",
+        "timezone": "America/Chicago",
+        "timeout_ms": 5000,
+    }
     assert request.actions == {
         "reset_nodedb": True,
         "reset_dashboard_db": True,
@@ -194,6 +208,9 @@ def test_parse_radio_settings_request_rejects_non_object_fixed_position():
     with pytest.raises(ValueError, match="Expected 'fixed_position' to be an object"):
         parse_radio_settings_request(b'{"fixed_position": ["not", "an", "object"]}')
 
+    with pytest.raises(ValueError, match="Expected 'time_sync' to be an object"):
+        parse_radio_settings_request(b'{"time_sync": ["not", "an", "object"]}')
+
 
 def test_radio_input_helper_branches_for_private_cleaners():
     class _Unsupported:
@@ -262,3 +279,19 @@ def test_radio_input_helper_branches_for_private_cleaners():
         }
     )
     assert clean_fixed_position == {"lat": 44.98}
+
+    clean_time_sync = radio_input._clean_time_sync(
+        {
+            "enabled": "yes",
+            "server": "pool.ntp.org",
+            "timezone": "UTC",
+            "timeout": 2500,
+            "drop": _Unsupported(),
+        }
+    )
+    assert clean_time_sync == {
+        "enabled": True,
+        "server": "pool.ntp.org",
+        "timezone": "UTC",
+        "timeout_ms": 2500,
+    }

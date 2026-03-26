@@ -567,6 +567,65 @@ def test_apply_radio_settings_supports_set_time_action():
     assert response["write_sections"] == []
     assert response["reboot_expected"] is False
     assert node.set_time_calls == [0]
+    assert response["time_sync"]["source"] == "host_clock"
+
+
+def test_apply_radio_settings_supports_time_server_sync_for_set_time_action():
+    node = _FakeNode()
+    resolve_calls: list[dict[str, object]] = []
+
+    def _resolve_time_sync(**kwargs):
+        resolve_calls.append(dict(kwargs))
+        return {
+            "ok": True,
+            "source": "time_server",
+            "server": "time.cloudflare.com",
+            "timezone": "UTC",
+            "applied_unix": 1_711_111_111,
+            "applied_utc": "2024-03-31 06:11:51Z",
+            "applied_local": "2024-03-31 06:11:51 UTC",
+            "offset_seconds": -0.12,
+        }
+
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_time": True},
+            time_sync={"enabled": True, "server": "time.cloudflare.com", "timezone": "UTC"},
+        ),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+        resolve_time_sync_fn=_resolve_time_sync,
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_time"]
+    assert node.set_time_calls == [1_711_111_111]
+    assert response["time_sync"]["source"] == "time_server"
+    assert response["time_sync"]["server"] == "time.cloudflare.com"
+    assert resolve_calls and resolve_calls[0]["use_time_server"] is True
+
+
+def test_apply_radio_settings_set_time_reports_time_sync_failures():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_time": True},
+            time_sync={"enabled": True, "server": "bad.invalid", "timezone": "UTC"},
+        ),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+        resolve_time_sync_fn=lambda **_kwargs: {
+            "ok": False,
+            "source": "time_server",
+            "server": "bad.invalid",
+            "timezone": "UTC",
+            "error": "timeout",
+        },
+    )
+
+    assert response["ok"] is False
+    assert "Time sync failed" in str(response["error"])
+    assert node.set_time_calls == []
 
 
 def test_apply_radio_settings_supports_regenerate_node_id_action():

@@ -3979,11 +3979,80 @@
       align-items: center;
       margin-top: 12px;
     }}
+    .settings-time-sync-controls {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 12px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--ink);
+    }}
+    .settings-time-sync-toggle {{
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .settings-time-sync-toggle input[type="checkbox"] {{
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #2f855a;
+    }}
+    .settings-time-sync-toggle span {{
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+    }}
+    .settings-time-sync-timezone {{
+      min-width: 200px;
+      max-width: 320px;
+      gap: 3px;
+    }}
+    .settings-time-sync-timezone .settings-label {{
+      font-size: 11px;
+      letter-spacing: 0.1px;
+      text-transform: none;
+      color: var(--muted);
+      font-weight: 600;
+    }}
+    .settings-time-sync-timezone .settings-select {{
+      min-width: 200px;
+      min-height: 34px;
+      font-size: 13px;
+      color: var(--ink);
+      border-color: var(--line);
+      background: var(--panel);
+    }}
+    .settings-time-sync-controls input:disabled,
+    .settings-time-sync-controls select:disabled {{
+      opacity: 0.8;
+    }}
     .layout.view-settings .settings-actions {{
       margin-top: 10px;
       padding: 10px 0 2px;
       border-top: 1px solid var(--line);
       background: var(--panel);
+    }}
+    .layout.view-settings .settings-time-sync-controls {{
+      border-color: var(--line);
+      background: transparent;
+    }}
+    @media (max-width: 980px) {{
+      .settings-time-sync-controls {{
+        width: 100%;
+      }}
+      .settings-time-sync-timezone {{
+        max-width: none;
+        flex: 1 1 220px;
+      }}
+      .settings-time-sync-timezone .settings-select {{
+        width: 100%;
+      }}
     }}
     .btn {{
       font-size: 12px;
