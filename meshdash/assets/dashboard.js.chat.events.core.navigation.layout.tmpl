@@ -103,7 +103,7 @@
       const historyRows = Array.isArray(historyBridge.rows) ? historyBridge.rows : [];
       const mergedRows = [];
       const seenMergedKeys = new Set();
-      const mergedCandidates = historyRows.concat(liveRows);
+      const mergedCandidates = liveRows.concat(historyRows);
       const dedupeChatLabsRowKey = (msg) => {{
         const packetId = messageIdOfChatPacket(msg);
         if (Number.isInteger(packetId) && packetId > 0) {{
@@ -172,7 +172,12 @@
                 timestamp: chat.captured_at || chat.rx_time || "",
                 message_id: chat.message_id,
                 packet_id: chat.message_id,
-                reply_id: chat.reply_id,
+                reply_id: chat.reply_id ?? chat.replyId,
+                replyId: chat.reply_id ?? chat.replyId,
+                emoji: chat.emoji,
+                emoji_codepoint: chat.emoji_codepoint ?? chat.emojiCodepoint,
+                emojiCodepoint: chat.emoji_codepoint ?? chat.emojiCodepoint,
+                is_reaction: chat.is_reaction === true || chat.isReaction === true,
                 portnum: chat.portnum,
                 rx_snr: chat.rx_snr,
                 rx_rssi: chat.rx_rssi,
@@ -219,9 +224,50 @@
         return "";
       }};
       const reactionEmojiForMessage = (msg) => {{
+        const isEmojiCodePointLocal = (cp) => {{
+          if (!Number.isInteger(cp)) return false;
+          return (
+            (cp >= 0x1F000 && cp <= 0x1FAFF)
+            || (cp >= 0x2600 && cp <= 0x27BF)
+            || (cp >= 0x1F1E6 && cp <= 0x1F1FF)
+          );
+        }};
+        const emojiFromTextPayloadLocal = (rawValue) => {{
+          const text = String(rawValue == null ? "" : rawValue).trim();
+          if (!text) return "";
+          const keycapMatch = text.match(/^([0-9#*])(?:\uFE0F)?\u20E3$/u);
+          if (keycapMatch) {{
+            return `${{keycapMatch[1]}}\uFE0F\u20E3`;
+          }}
+          if (text.length > 8 || /\\s/.test(text)) return "";
+          if (/^[0-9A-Za-z.,;:!?'"`~_\\-]+$/.test(text)) return "";
+          let sawEmoji = false;
+          for (const ch of text) {{
+            const cp = ch.codePointAt(0);
+            if (!Number.isInteger(cp)) return "";
+            if (cp === 0x200D || cp === 0xFE0F || cp === 0x20E3) continue;
+            if (isEmojiCodePointLocal(cp)) {{
+              sawEmoji = true;
+              continue;
+            }}
+            return "";
+          }}
+          if (!sawEmoji) return "";
+          const clusters = Array.from(text);
+          if (clusters.length > 4) return "";
+          return text;
+        }};
+        if (typeof emojiOf === "function") {{
+          const parsed = String(emojiOf(msg) || "").trim();
+          if (parsed) return parsed;
+        }}
         const inline = String(msg && msg.emoji ? msg.emoji : "").trim();
         if (inline) return inline;
-        return emojiFromCodepoint(msg && (msg.emoji_codepoint ?? msg.emojiCodepoint));
+        const fromCodepoint = emojiFromCodepoint(msg && (msg.emoji_codepoint ?? msg.emojiCodepoint));
+        if (fromCodepoint) return fromCodepoint;
+        const fromText = emojiFromTextPayloadLocal(msg && (msg.text ?? msg.decoded_text ?? msg.payload_text));
+        if (fromText) return fromText;
+        return "";
       }};
       const avatarTokenFromLabel = (label) => {{
         const raw = String(label == null ? "" : label).trim();
