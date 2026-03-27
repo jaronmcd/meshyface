@@ -44,6 +44,14 @@ def test_normalize_packet_event_summary_maps_expected_fields():
     )
 
 
+def test_normalize_packet_event_summary_clamps_future_event_unix_to_now():
+    normalized = normalize_packet_event_summary(
+        {"from": "!abc", "rx_time_unix": 9_999_999_999},
+        now_unix_fn=lambda: 500,
+    )
+    assert normalized["event_unix"] == 500
+
+
 def test_build_packet_event_insert_values_matches_table_column_order():
     normalized = {
         "event_unix": 100,

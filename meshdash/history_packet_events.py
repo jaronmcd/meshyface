@@ -4,6 +4,7 @@ from typing import Callable
 
 from .helpers import to_float as _to_float, to_int as _to_int
 from .history_rollups import clean_node_id as _clean_node_id
+from .history_time import clamp_future_unix as _clamp_future_unix
 
 
 def normalize_packet_event_summary(
@@ -11,9 +12,11 @@ def normalize_packet_event_summary(
     *,
     now_unix_fn: Callable[[], float] = time.time,
 ) -> dict[str, object]:
-    event_unix = _to_int(summary.get("rx_time_unix"))
-    if event_unix is None or event_unix <= 0:
-        event_unix = int(now_unix_fn())
+    now_unix = int(now_unix_fn())
+    event_unix = _clamp_future_unix(
+        summary.get("rx_time_unix"),
+        now_unix=now_unix,
+    )
 
     portnum_raw = summary.get("portnum")
     channel_raw = summary.get("channel")

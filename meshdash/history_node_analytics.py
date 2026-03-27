@@ -1,9 +1,11 @@
+import time
 from collections.abc import Iterable
 from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import safe_json_loads as _safe_json_loads
 from .helpers import to_int as _to_int
+from .history_time import clamp_future_unix as _clamp_future_unix
 from .history_node_metrics import (
     build_metric_history_points as _build_metric_history_points_helper,
 )
@@ -19,6 +21,8 @@ def _extract_packet_time_unix(
     created_unix: object,
     summary_json: object,
     packet_json: object,
+    *,
+    now_unix: int,
 ) -> int | None:
     summary = _safe_json_loads(summary_json, {})
     packet = _safe_json_loads(packet_json, {})
@@ -35,7 +39,15 @@ def _extract_packet_time_unix(
     ):
         ts = _to_int(candidate)
         if ts is not None and ts > 0:
-            return int(ts)
+            clamped = _clamp_future_unix(
+                ts,
+                now_unix=now_unix,
+                fallback_unix=created_unix,
+                default_to_now=False,
+            )
+            if clamped > 0:
+                return int(clamped)
+            continue
     return None
 
 
@@ -43,11 +55,17 @@ def _collect_packet_timestamps(
     packet_rows: Iterable[tuple[object, ...]],
 ) -> list[int]:
     timestamps: set[int] = set()
+    now_unix = int(time.time())
     for row in packet_rows:
         created_unix = row[0] if len(row) > 0 else None
         summary_json = row[1] if len(row) > 1 else None
         packet_json = row[2] if len(row) > 2 else None
-        packet_time = _extract_packet_time_unix(created_unix, summary_json, packet_json)
+        packet_time = _extract_packet_time_unix(
+            created_unix,
+            summary_json,
+            packet_json,
+            now_unix=now_unix,
+        )
         if packet_time is None or packet_time <= 0:
             continue
         timestamps.add(packet_time)

@@ -28,6 +28,11 @@ from .history_store_runtime_contracts import (
 from .history_writes import (
     save_packet_event_and_rollups as _save_packet_event_and_rollups_helper,
 )
+from .history_time import (
+    clamp_future_unix as _clamp_future_unix,
+    latest_unix as _latest_unix,
+    normalize_unix_seconds as _normalize_unix_seconds,
+)
 
 _ENV_METRIC_ALIAS_MAP = {
     "relativehumidity": "relative_humidity",
@@ -80,24 +85,6 @@ def _metric_float(value: object) -> float | None:
     except Exception:
         return None
     return out if out == out and abs(out) != float("inf") else None
-
-
-def _normalize_unix_seconds(value: object) -> int | None:
-    parsed = _to_int(value)
-    if parsed is None or parsed <= 0:
-        return None
-    if parsed > 10**12:
-        parsed //= 1000
-    return parsed if parsed > 0 else None
-
-
-def _latest_unix(*values: object) -> int:
-    latest = 0
-    for value in values:
-        parsed = _normalize_unix_seconds(value)
-        if parsed is not None and parsed > latest:
-            latest = parsed
-    return latest
 
 
 def _canonical_node_id(value: object) -> str:
@@ -261,6 +248,7 @@ def _build_environment_points(
     points: list[dict[str, object]] = []
     metric_meta: dict[str, dict[str, object]] = {}
     node_meta: dict[str, dict[str, object]] = {}
+    now_unix = int(time.time())
 
     for row in rows:
         packet_row_id = _to_int(row[0]) if len(row) > 0 else None
@@ -299,17 +287,23 @@ def _build_environment_points(
         telemetry = decoded.get("telemetry")
         if not isinstance(telemetry, dict):
             telemetry = {}
-        sample_unix = _latest_unix(
+        receive_unix = _latest_unix(
             summary.get("rx_time_unix"),
             summary.get("time"),
             summary.get("captured_at_unix"),
             packet.get("rxTime"),
             packet.get("rx_time"),
-            telemetry.get("time"),
             created_unix,
         )
+        sample_unix = _latest_unix(receive_unix, telemetry.get("time"))
+        sample_unix = _clamp_future_unix(
+            sample_unix,
+            now_unix=now_unix,
+            fallback_unix=receive_unix,
+            default_to_now=False,
+        )
         if sample_unix <= 0:
-            sample_unix = _normalize_unix_seconds(created_unix) or 0
+            continue
 
         for container in containers:
             for raw_key, raw_value in container.items():
@@ -385,6 +379,7 @@ def _build_environment_points_from_rollups(
     points: list[dict[str, object]] = []
     metric_meta: dict[str, dict[str, object]] = {}
     node_meta: dict[str, dict[str, object]] = {}
+    now_unix = int(time.time())
 
     for row in rows:
         bucket_unix = _to_int(row[0]) if len(row) > 0 else None
@@ -413,7 +408,12 @@ def _build_environment_points_from_rollups(
             if value_sum is not None and sample_count > 0
             else float(last_value or 0.0)
         )
-        point_unix = int(last_seen_unix or bucket_unix or 0)
+        point_unix = _clamp_future_unix(
+            int(last_seen_unix or bucket_unix or 0),
+            now_unix=now_unix,
+            fallback_unix=bucket_unix,
+            default_to_now=False,
+        )
         if point_unix <= 0:
             continue
 

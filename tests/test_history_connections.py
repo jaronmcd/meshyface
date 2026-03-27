@@ -19,6 +19,18 @@ def test_normalize_connection_event_input_applies_defaults():
     assert clean_hops == 3
 
 
+def test_normalize_connection_event_input_clamps_future_event_unix_to_now():
+    event_unix, clean_port, clean_hops = normalize_connection_event_input(
+        rx_time=9_999_999_999,
+        portnum="NODEINFO_APP",
+        hops=1,
+        now_unix_fn=lambda: 400,
+    )
+    assert event_unix == 400
+    assert clean_port == "NODEINFO_APP"
+    assert clean_hops == 1
+
+
 def test_build_connection_insert_values_builds_expected_row_values():
     values = build_connection_insert_values(
         from_id="!a",

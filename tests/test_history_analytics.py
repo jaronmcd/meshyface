@@ -1,3 +1,4 @@
+import meshdash.history_node_analytics as history_node_analytics_module
 from meshdash.history_analytics import build_node_history_payload, build_online_activity_payload
 
 
@@ -89,3 +90,21 @@ def test_build_online_activity_payload_builds_hourly_profile_and_summary():
     assert payload["points"][1]["online_nodes"] == 5
     for point in payload["points"]:
         assert point["hour_label"] == f"{point['hour_local']:02d}:00"
+
+
+def test_build_node_history_payload_clamps_future_packet_timestamps(monkeypatch):
+    monkeypatch.setattr(history_node_analytics_module.time, "time", lambda: 1000.0)
+    payload = build_node_history_payload(
+        node_id="!abcd1234",
+        window_hours=6,
+        metric_rows=[],
+        position_rows=[],
+        packet_rows=[
+            (
+                900,
+                '{"from":"!abcd1234","rx_time_unix":5000,"portnum":"NODEINFO_APP"}',
+                '{"fromId":"!abcd1234","rxTime":5000,"decoded":{"portnum":"NODEINFO_APP"}}',
+            ),
+        ],
+    )
+    assert payload["packet_timestamps"] == [900]

@@ -582,6 +582,49 @@ def test_history_store_domain_environment_metrics_history_extracts_channel_utili
         store.close()
 
 
+def test_history_store_domain_environment_metrics_history_clamps_future_rollup_timestamps(tmp_path, monkeypatch):
+    store = _make_store(tmp_path)
+    try:
+        now_unix = 1_900_000_000
+        monkeypatch.setattr(history_store_packets_module.time, "time", lambda: float(now_unix))
+        store._conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                now_unix + 3600,
+                "!01020304",
+                "delta",
+                "temperature",
+                "Temperature",
+                1,
+                22.0,
+                22.0,
+                22.0,
+                22.0,
+                now_unix + 3600,
+            ),
+        )
+        store._conn.commit()
+
+        payload = load_environment_metrics_history_domain(
+            store,
+            window_hours=72,
+            metric="temperature",
+            node_id="!01020304",
+            limit=1000,
+        )
+        assert payload["ok"] is True
+        assert payload["points"] == []
+        assert payload["metrics"] == []
+        assert payload["nodes"] == []
+    finally:
+        store.close()
+
+
 def test_history_store_domain_node_history_and_online_wrappers_delegate(monkeypatch):
     calls = {"node_history": None, "online_activity": None}
 

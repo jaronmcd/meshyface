@@ -1,3 +1,4 @@
+import meshdash.history_node_names as history_node_names_module
 from meshdash.history_node_names import (
     build_name_change_chat_entries,
     build_name_history_points,
@@ -147,3 +148,17 @@ def test_build_name_change_chat_entries_skips_changes_that_do_not_affect_display
     entries = build_name_change_chat_entries(recent_packets=recent_packets)
 
     assert entries == []
+
+
+def test_build_name_history_points_skips_future_summary_time_and_uses_packet_time(monkeypatch):
+    monkeypatch.setattr(history_node_names_module.time, "time", lambda: 200.0)
+    packet_rows = [
+        (
+            150,
+            '{"from":"!a1b2c3d4","to":"^all","rx_time_unix":9999999999,"portnum":"NODEINFO_APP"}',
+            '{"fromId":"!a1b2c3d4","rxTime":150,"decoded":{"portnum":"NODEINFO_APP","user":{"id":"!a1b2c3d4","shortName":"N1","longName":"Node One"}}}',
+        ),
+    ]
+    history = build_name_history_points(node_id="!a1b2c3d4", packet_rows=packet_rows)
+    assert len(history) == 1
+    assert history[0]["time_unix"] == 150

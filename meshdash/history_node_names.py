@@ -1,8 +1,10 @@
+import time
 from collections.abc import Iterable
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import safe_json_loads as _safe_json_loads
 from .helpers import to_int as _to_int
+from .history_time import clamp_future_unix as _clamp_future_unix
 from .nodes import parse_utc_text_to_unix as _parse_utc_text_to_unix
 
 
@@ -78,14 +80,29 @@ def _preferred_display_name(
 
 def _extract_time_unix(
     *values: object,
+    now_unix: int,
 ) -> int | None:
     for value in values:
         unix_value = _to_int(value)
         if unix_value is not None and unix_value > 0:
-            return int(unix_value)
+            clamped = _clamp_future_unix(
+                unix_value,
+                now_unix=now_unix,
+                default_to_now=False,
+            )
+            if clamped > 0:
+                return int(clamped)
+            continue
         parsed_unix = _parse_utc_text_to_unix(value)
         if parsed_unix is not None and parsed_unix > 0:
-            return int(parsed_unix)
+            clamped = _clamp_future_unix(
+                parsed_unix,
+                now_unix=now_unix,
+                default_to_now=False,
+            )
+            if clamped > 0:
+                return int(clamped)
+            continue
     return None
 
 
@@ -97,6 +114,7 @@ def build_name_history_points(
     target_node_id = _normalize_node_id(node_id)
     if not target_node_id:
         return []
+    now_unix = int(time.time())
 
     raw_events: list[dict[str, object]] = []
     for order, row in enumerate(packet_rows):
@@ -132,6 +150,7 @@ def build_name_history_points(
                 summary.get("rx_time_unix"),
                 packet.get("rxTime"),
                 created_unix,
+                now_unix=now_unix,
             )
             if time_unix is None or time_unix <= 0:
                 continue
@@ -182,6 +201,7 @@ def build_name_change_chat_entries(
     recent_packets: Iterable[dict[str, object]],
 ) -> list[dict[str, object]]:
     raw_events: list[dict[str, object]] = []
+    now_unix = int(time.time())
     for order, entry in enumerate(recent_packets):
         if not isinstance(entry, dict):
             continue
@@ -204,6 +224,7 @@ def build_name_change_chat_entries(
             entry.get("rx_time_unix"),
             entry.get("rx_time"),
             entry.get("captured_at"),
+            now_unix=now_unix,
         )
         if time_unix is None or time_unix <= 0:
             continue

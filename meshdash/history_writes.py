@@ -17,6 +17,10 @@ from .history_packet_events import (
     build_packet_event_insert_values as _build_packet_event_insert_values,
     normalize_packet_event_summary as _normalize_packet_event_summary,
 )
+from .history_time import (
+    clamp_future_unix as _clamp_future_unix,
+    latest_unix as _latest_unix,
+)
 from .history_positions import (
     insert_node_position_if_changed as _insert_node_position_if_changed,
 )
@@ -98,24 +102,6 @@ def _metric_float(value: object) -> float | None:
     except Exception:
         return None
     return out if out == out and abs(out) != float("inf") else None
-
-
-def _normalize_unix_seconds(value: object) -> int | None:
-    parsed = _to_int(value)
-    if parsed is None or parsed <= 0:
-        return None
-    if parsed > 10**12:
-        parsed //= 1000
-    return parsed if parsed > 0 else None
-
-
-def _latest_unix(*values: object) -> int:
-    latest = 0
-    for value in values:
-        parsed = _normalize_unix_seconds(value)
-        if parsed is not None and parsed > latest:
-            latest = parsed
-    return latest
 
 
 def _extract_node_label(summary: dict[str, object], fallback: str) -> str:
@@ -282,16 +268,23 @@ def _save_environment_metric_rollups(
     telemetry = decoded.get("telemetry")
     if not isinstance(telemetry, dict):
         telemetry = {}
-    sample_unix = _latest_unix(
+    now_unix = int(now_unix_fn())
+    receive_unix = _latest_unix(
         summary.get("rx_time_unix"),
         summary.get("time"),
         summary.get("captured_at_unix"),
         packet.get("rxTime"),
         packet.get("rx_time"),
+    )
+    sample_unix = _latest_unix(
+        receive_unix,
         telemetry.get("time"),
     )
-    if sample_unix <= 0:
-        sample_unix = int(now_unix_fn())
+    sample_unix = _clamp_future_unix(
+        sample_unix,
+        now_unix=now_unix,
+        fallback_unix=receive_unix,
+    )
     bucket_unix = _bucket_minute(sample_unix)
 
     for container in containers:

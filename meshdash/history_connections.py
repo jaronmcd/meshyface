@@ -3,6 +3,7 @@ import time
 from typing import Callable, Optional
 
 from .helpers import safe_json_loads as _safe_json_loads, to_int as _to_int
+from .history_time import clamp_future_unix as _clamp_future_unix
 
 
 def normalize_connection_event_input(
@@ -12,7 +13,8 @@ def normalize_connection_event_input(
     hops: Optional[int],
     now_unix_fn: Callable[[], float] = time.time,
 ) -> tuple[int, Optional[str], Optional[int]]:
-    event_unix = rx_time if isinstance(rx_time, int) and rx_time > 0 else int(now_unix_fn())
+    now_unix = int(now_unix_fn())
+    event_unix = _clamp_future_unix(rx_time, now_unix=now_unix)
     clean_port = str(portnum) if portnum is not None else None
     clean_hops = hops if isinstance(hops, int) and hops >= 0 else None
     return event_unix, clean_port, clean_hops

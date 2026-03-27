@@ -161,3 +161,45 @@ def test_save_packet_event_and_rollups_writes_environment_metric_rollups():
         assert row == ("!a1b2c3d4", "alpha", "temperature", 2, 44.0, 21.5, 22.5, 22.5)
     finally:
         conn.close()
+
+
+def test_save_packet_event_and_rollups_uses_receive_time_when_telemetry_time_is_future():
+    conn = sqlite3.connect(":memory:")
+    try:
+        initialize_history_schema(conn)
+        save_packet_event_and_rollups(
+            conn,
+            {
+                "from": "!a1b2c3d4",
+                "from_short_name": "alpha",
+                "to": "^all",
+                "rx_time_unix": 120,
+                "portnum": "TELEMETRY_APP",
+            },
+            packet={
+                "fromId": "!a1b2c3d4",
+                "toId": "^all",
+                "rxTime": 120,
+                "decoded": {
+                    "portnum": "TELEMETRY_APP",
+                    "telemetry": {
+                        "time": 9_999_999_999,
+                        "environmentMetrics": {
+                            "temperature": 19.5,
+                        },
+                    },
+                },
+            },
+            now_unix_fn=lambda: 600,
+        )
+
+        row = conn.execute(
+            """
+            SELECT bucket_unix, last_seen_unix
+            FROM environment_metrics_1m
+            WHERE node_id = '!a1b2c3d4' AND metric_key = 'temperature'
+            """
+        ).fetchone()
+        assert row == (120, 120)
+    finally:
+        conn.close()
