@@ -14,9 +14,18 @@
       return out;
     }}
 
+    function chatEmojiPanelElement() {{
+      const panel = document.getElementById("chat-emoji-panel");
+      if (!(panel instanceof HTMLElement)) return null;
+      if (panel.parentElement !== document.body) {{
+        document.body.appendChild(panel);
+      }}
+      return panel;
+    }}
+
     function clearChatEmojiTopDragState(topGrid) {{
       chatEmojiTopDragEmoji = "";
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const activeTopGrid = topGrid instanceof HTMLElement
         ? topGrid
         : (document.getElementById("chat-emoji-top-grid") instanceof HTMLElement
@@ -168,7 +177,7 @@
     }}
 
     function renderChatEmojiPickerPanel() {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const groupSelect = document.getElementById("chat-emoji-group-select");
       const searchInput = document.getElementById("chat-emoji-search");
       const searchRow = document.getElementById("chat-emoji-search-row");
@@ -326,7 +335,7 @@
     }}
 
     function focusChatEmojiSearchInput() {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const searchInput = document.getElementById("chat-emoji-search");
       if (!(panel instanceof HTMLElement) || panel.hidden) {{
         return false;
@@ -352,7 +361,7 @@
     }}
 
     function positionChatEmojiPanel() {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       if (!(panel instanceof HTMLElement) || panel.hidden) return;
       const anchor = resolveChatEmojiPanelAnchor();
       if (!(anchor instanceof HTMLElement)) return;
@@ -412,7 +421,7 @@
     }}
 
     function openChatEmojiPanel(mode = "compose", reactionTargetId = null, anchorEl = null) {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const btn = document.getElementById("chat-emoji-btn");
       if (!(panel instanceof HTMLElement)) return;
       chatEmojiMode = mode === "react" ? "react" : "compose";
@@ -446,7 +455,7 @@
     }}
 
     function closeChatEmojiPanel() {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const btn = document.getElementById("chat-emoji-btn");
       chatEmojiMode = "compose";
       chatReactionTargetId = null;
@@ -484,7 +493,7 @@
     }}
 
     function bindEmojiPicker() {{
-      const panel = document.getElementById("chat-emoji-panel");
+      const panel = chatEmojiPanelElement();
       const btn = document.getElementById("chat-emoji-btn");
       if (!(panel instanceof HTMLElement) || !(btn instanceof HTMLButtonElement)) return;
 

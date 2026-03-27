@@ -1,6 +1,10 @@
     function reactionPopoverElement() {{
       const popover = document.getElementById("chat-reaction-popover");
-      return popover instanceof HTMLElement ? popover : null;
+      if (!(popover instanceof HTMLElement)) return null;
+      if (popover.parentElement !== document.body) {{
+        document.body.appendChild(popover);
+      }}
+      return popover;
     }}
 
     function clearReactionPopoverHideTimer() {{
@@ -232,4 +236,3 @@
         positionReactionPopover(chatReactionPopoverAnchor, el);
       }}, true);
     }}
-
