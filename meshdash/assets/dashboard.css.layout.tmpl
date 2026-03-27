@@ -1827,49 +1827,22 @@
     }}
     .layout.view-chatlabs .chatlabs-message-row {{
       display: flex;
-      align-items: flex-end;
-      gap: 6px;
+      align-items: flex-start;
+      gap: 0;
       width: 100%;
       max-width: 100%;
     }}
     .layout.view-chatlabs .chatlabs-message-row.is-continuation {{
-      margin-top: -3px;
+      margin-top: -1px;
     }}
     .layout.view-chatlabs .chatlabs-message-row.is-self {{
-      flex-direction: row-reverse;
-    }}
-    .layout.view-chatlabs .chatlabs-avatar {{
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      border: 1px solid rgba(121, 198, 160, 0.5);
-      background: linear-gradient(180deg, rgba(43, 82, 64, 0.95), rgba(26, 52, 41, 0.95));
-      color: #d8ffe9;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 0.56rem;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      flex: 0 0 auto;
-      user-select: none;
-    }}
-    .layout.view-chatlabs .chatlabs-avatar-gap {{
-      width: 22px;
-      height: 22px;
-      flex: 0 0 auto;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-avatar {{
-      border-color: rgba(141, 207, 255, 0.5);
-      background: linear-gradient(180deg, rgba(33, 72, 102, 0.94), rgba(20, 46, 66, 0.94));
-      color: #d9f2ff;
+      justify-content: flex-end;
     }}
     .layout.view-chatlabs .chatlabs-message-main {{
       display: flex;
       flex-direction: column;
       gap: 1px;
-      max-width: min(82%, 860px);
+      max-width: min(88%, 940px);
       min-width: 0;
     }}
     .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-message-main {{
@@ -1878,32 +1851,92 @@
     .layout.view-chatlabs .chatlabs-meta {{
       display: inline-flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 3px;
-      font-size: 0.62rem;
-      line-height: 1.25;
-      color: #88b59f;
+      flex-wrap: nowrap;
+      gap: 6px;
+      font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      color: #9dc7b4;
+      margin-bottom: 1px;
+      max-width: 100%;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
     }}
     .layout.view-chatlabs .chatlabs-meta.chatlabs-meta-compact {{
-      gap: 4px;
-      opacity: 0.72;
-      margin-bottom: -2px;
+      opacity: 0.9;
     }}
     .layout.view-chatlabs .chatlabs-meta-name {{
-      font-weight: 600;
-      color: #b6f5d3;
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #d7ffe9;
+      letter-spacing: 0;
+      max-width: 30ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }}
     .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-meta-name {{
-      color: #c7e9ff;
+      color: #d8eeff;
+    }}
+    .layout.view-chatlabs .chatlabs-meta-status {{
+      flex: 0 0 auto;
+      border: 1px solid rgba(113, 163, 139, 0.52);
+      border-radius: 999px;
+      padding: 0 6px;
+      min-height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      background: rgba(28, 59, 44, 0.86);
+      color: #bcebd2;
+    }}
+    .layout.view-chatlabs .chatlabs-meta-status.status-online {{
+      border-color: rgba(99, 172, 133, 0.58);
+      background: rgba(21, 61, 40, 0.86);
+      color: #c8f7dc;
+    }}
+    .layout.view-chatlabs .chatlabs-meta-status.status-warn {{
+      border-color: rgba(184, 157, 96, 0.58);
+      background: rgba(71, 58, 27, 0.86);
+      color: #ffe6ae;
+    }}
+    .layout.view-chatlabs .chatlabs-meta-status.status-stale {{
+      border-color: rgba(189, 103, 103, 0.58);
+      background: rgba(74, 33, 33, 0.86);
+      color: #ffd0d0;
+    }}
+    .layout.view-chatlabs .chatlabs-meta-status.status-unknown {{
+      border-color: rgba(114, 132, 122, 0.58);
+      background: rgba(33, 44, 39, 0.86);
+      color: #d6e5dd;
     }}
     .layout.view-chatlabs .chatlabs-meta-route {{
-      display: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(116, 170, 143, 0.56);
+      border-radius: 999px;
+      padding: 0 6px;
+      min-height: 16px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      background: rgba(26, 56, 42, 0.86);
+      color: #bcebd2;
     }}
     .layout.view-chatlabs .chatlabs-meta-time {{
-      color: #719d89;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 0.6rem;
-      opacity: 0.82;
+      flex: 0 0 auto;
+      color: #8fb6a5;
+      font-size: 0.67rem;
+      font-weight: 500;
+      opacity: 0.95;
     }}
     .layout.view-chatlabs .chatlabs-react-meta {{
       margin-left: 4px;

@@ -461,8 +461,22 @@
         }}
         const directionLabel = isDirect ? `to ${{toLabel}}` : "to all";
         const bodyHtml = chatPlainTextToHtml(text || "(no text)", true);
-        const avatarLabel = avatarTokenFromLabel(fromLabel);
-        const senderLabel = isSelf ? "You" : (normalizeChatLabsLabel(fromLabel) || "unknown");
+        const fromMeta = (typeof chatEndpointParts === "function")
+          ? chatEndpointParts(fromId, row.unix)
+          : null;
+        const senderBaseLabel = fromMeta && fromMeta.label
+          ? String(fromMeta.label || "")
+          : fromLabel;
+        const senderLabel = isSelf ? "You" : (normalizeChatLabsLabel(senderBaseLabel) || "unknown");
+        const rawSenderStatusKey = String((fromMeta && fromMeta.status) || "").trim().toLowerCase();
+        const senderStatusKey = (
+          rawSenderStatusKey === "online"
+          || rawSenderStatusKey === "warn"
+          || rawSenderStatusKey === "stale"
+        ) ? rawSenderStatusKey : "unknown";
+        const senderStatusLabel = senderStatusKey === "online"
+          ? "Online"
+          : (senderStatusKey === "warn" ? "Aging" : (senderStatusKey === "stale" ? "Stale" : "Unknown"));
         const messageReactions = messageId ? reactionBucketsByMessage.get(String(messageId)) : null;
         const reactionGroups = messageReactions
           ? Array.from(messageReactions.values())
@@ -494,20 +508,19 @@
         const tools = reactionSummary
           ? `<div class="chatlabs-message-tools">${{reactionSummary}}</div>`
           : "";
-        const avatarHtml = continuation
-          ? '<div class="chatlabs-avatar-gap" aria-hidden="true"></div>'
-          : `<div class="chatlabs-avatar" aria-hidden="true">${{escAttr(avatarLabel)}}</div>`;
-        const metaHtml = continuation
-          ? `<div class="chatlabs-meta chatlabs-meta-compact"><span class="chatlabs-meta-time">${{escAttr(timeLabel)}}</span>${{reactButton}}</div>`
-          : `<div class="chatlabs-meta">
-                <span class="chatlabs-meta-name">${{escAttr(senderLabel)}}</span>
-                <span class="chatlabs-meta-route" title="${{escAttr(directionLabel)}}">${{escAttr(directionLabel)}}</span>
-                <span class="chatlabs-meta-time">${{escAttr(timeLabel)}}</span>
-                ${{reactButton}}
-              </div>`;
+        const statusChip = `<span class="chatlabs-meta-status status-${{escAttr(senderStatusKey)}}" title="Sender status: ${{escAttr(senderStatusLabel)}}">${{escAttr(senderStatusLabel)}}</span>`;
+        const routeChip = isDirect
+          ? `<span class="chatlabs-meta-route" title="${{escAttr(directionLabel)}}">Direct</span>`
+          : "";
+        const metaHtml = `<div class="chatlabs-meta${{continuation ? " chatlabs-meta-compact" : ""}}">
+              <span class="chatlabs-meta-name">${{escAttr(senderLabel)}}</span>
+              ${{statusChip}}
+              ${{routeChip}}
+              <span class="chatlabs-meta-time">${{escAttr(timeLabel)}}</span>
+              ${{reactButton}}
+            </div>`;
         lineHtml.push(
           `<article class="${{escAttr(rowClasses.join(" "))}}">
-            ${{avatarHtml}}
             <div class="chatlabs-message-main">
               ${{metaHtml}}
               <div class="${{escAttr(bubbleClasses.join(" "))}}"><span class="chatlabs-bubble-text">${{bodyHtml || "&nbsp;"}}</span></div>
