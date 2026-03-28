@@ -3,6 +3,10 @@
 
 
 - replace star with custom node colors (node tag)
+- put mute in dropdown, pick new dropdown icon
+
+- makw channel highlight dotted?
+
 
 - all bots are plugins
 - bot activity show as (1)
