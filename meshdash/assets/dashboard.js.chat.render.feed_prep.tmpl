@@ -505,38 +505,9 @@
       );
       chatDirectActivePeerId = isCanonicalNodeId(directSelectedId) ? directSelectedId : "";
       updateChatInputPlaceholder();
-      const mergedAllAndDirectMessages = (() => {{
-        const publicRows = Array.isArray(channelMessages.all) ? channelMessages.all : [];
-        const directRows = Array.isArray(channelMessages.direct) ? channelMessages.direct : [];
-        if (directRows.length <= 0) return publicRows;
-        if (publicRows.length <= 0) return directRows;
-        // In chat-main mode, show peer-to-peer rows inline so the feed is never
-        // blank while direct traffic is active.
-        if (chatMainDirectModeEnabled) return publicRows;
-        return publicRows
-          .concat(directRows)
-          .slice()
-          .map((msg, mergeIndex) => ({{ msg, mergeIndex }}))
-          .sort((aRow, bRow) => {{
-            const a = aRow.msg;
-            const b = bRow.msg;
-            const aUnix = latestUnixTimestamp(a && a.rx_time, a && a.captured_at);
-            const bUnix = latestUnixTimestamp(b && b.rx_time, b && b.captured_at);
-            if (aUnix !== bUnix) return aUnix - bUnix;
-            const aId = messageIdOf(a) || 0;
-            const bId = messageIdOf(b) || 0;
-            const aReplyId = replyIdOf(a) || 0;
-            const bReplyId = replyIdOf(b) || 0;
-            // If both rows share the same rendered second, keep request/parent
-            // rows before their replies to avoid apparent "reply before request".
-            if (aId > 0 && bReplyId === aId) return -1;
-            if (bId > 0 && aReplyId === bId) return 1;
-            return aRow.mergeIndex - bRow.mergeIndex;
-          }})
-          .map((row) => row.msg);
-      }})();
+      const allChannelMessages = Array.isArray(channelMessages.all) ? channelMessages.all : [];
       const activeChannelMessages = (
-        activeChatChannel === "direct" ? channelMessages.direct : mergedAllAndDirectMessages
+        activeChatChannel === "direct" ? channelMessages.direct : allChannelMessages
       );
       const messages = (() => {{
         if (activeChatChannel !== "direct") {{
