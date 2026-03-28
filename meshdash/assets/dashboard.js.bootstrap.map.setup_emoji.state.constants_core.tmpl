@@ -220,6 +220,19 @@
         .slice(1)
         .filter((step) => String(step && step.command || "").trim().toLowerCase() !== "quit")
     );
+    const zorkRemoteAutoResponseFreeRunCommands = Object.freeze([
+      "look",
+      "inventory",
+      "north",
+      "east",
+      "south",
+      "west",
+      "up",
+      "down",
+      "take all",
+      "attack troll with sword",
+      "score",
+    ]);
     const knownDeliveryStates = new Set(["pending", "sent", "acked", "nak", "timeout", "error"]);
     const botCityHintMaxDistanceKm = 120;
     const requesterPositionMaxAgeSeconds = 24 * 3600;

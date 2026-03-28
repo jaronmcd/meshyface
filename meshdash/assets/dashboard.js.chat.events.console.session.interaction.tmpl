@@ -252,6 +252,19 @@
       }});
     }}
 
+    function consoleRemoteAutoInboundReplyEligible(replyTextRaw) {{
+      const replyText = String(replyTextRaw || "").trim();
+      if (!replyText) return false;
+      const marker = replyText.match(/^(\d+)\s*\/\s*(\d+)\s+/);
+      if (!marker) return true;
+      const part = Number(marker[1]);
+      const total = Number(marker[2]);
+      if (!Number.isFinite(part) || !Number.isFinite(total) || part <= 0 || total <= 0) {{
+        return true;
+      }}
+      return Math.trunc(part) <= 1;
+    }}
+
     function maybeAdvanceConsoleRemoteAutoResponse(session, inboundText) {{
       const activeSession = (session && typeof session === "object") ? session : null;
       if (!activeSession) return;
@@ -275,6 +288,12 @@
 
       const replyText = String(inboundText || "").trim();
       if (activeSession.autoAwaitingReply) {{
+        if (!replyText) {{
+          return;
+        }}
+        if (!consoleRemoteAutoInboundReplyEligible(replyText)) {{
+          return;
+        }}
         const matched = consoleRemoteAutoScriptExpectMatch(replyText, activeSession.autoExpectedAny);
         if (!matched) {{
           // Stay in wait mode; mesh replies can be segmented/noisy and may arrive over multiple lines.
@@ -285,28 +304,49 @@
         activeSession.autoAwaitingDeadlineMs = 0;
       }}
 
-      const script = Array.isArray(zorkRemoteAutoResponseScript) ? zorkRemoteAutoResponseScript : [];
-      const idx = Math.max(0, Math.trunc(Number(activeSession.autoScriptIndex) || 0));
-      if (idx >= script.length) {{
-        activeSession.autoResponseEnabled = false;
-        activeSession.autoAwaitingReply = false;
-        activeSession.autoExpectedAny = [];
-        activeSession.autoAwaitingSinceMs = 0;
-        activeSession.autoAwaitingDeadlineMs = 0;
-        appendConsoleEventLine("[zork-remote][auto] script complete. Session is still active; keep typing commands.");
-        persistConsoleSessionState();
-        return;
+      let command = "";
+      let expectedAny = [];
+      const currentMode = String(activeSession.autoMode || "script").trim().toLowerCase() === "free-run"
+        ? "free-run"
+        : "script";
+      if (currentMode !== "free-run") {{
+        const script = Array.isArray(zorkRemoteAutoResponseScript) ? zorkRemoteAutoResponseScript : [];
+        const idx = Math.max(0, Math.trunc(Number(activeSession.autoScriptIndex) || 0));
+        if (idx < script.length) {{
+          const step = script[idx] && typeof script[idx] === "object" ? script[idx] : {{}};
+          command = String(step.command || "").trim();
+          expectedAny = Array.isArray(step.expectAny) ? step.expectAny : [];
+          activeSession.autoScriptIndex = idx + 1;
+        }} else {{
+          activeSession.autoMode = "free-run";
+          activeSession.autoFreeRunIndex = Math.max(0, Math.trunc(Number(activeSession.autoFreeRunIndex) || 0));
+          appendConsoleEventLine("[zork-remote][auto] checkpoints complete. Entering continuous mode.");
+        }}
       }}
-
-      const step = script[idx] && typeof script[idx] === "object" ? script[idx] : {{}};
-      const command = String(step.command || "").trim();
       if (!command) {{
-        activeSession.autoScriptIndex = idx + 1;
+        const freeRun = Array.isArray(zorkRemoteAutoResponseFreeRunCommands)
+          ? zorkRemoteAutoResponseFreeRunCommands
+          : [];
+        if (freeRun.length <= 0) {{
+          activeSession.autoResponseEnabled = false;
+          activeSession.autoAwaitingReply = false;
+          activeSession.autoExpectedAny = [];
+          activeSession.autoAwaitingSinceMs = 0;
+          activeSession.autoAwaitingDeadlineMs = 0;
+          appendConsoleEventLine("[zork-remote][auto] no continuous commands configured.");
+          persistConsoleSessionState();
+          return;
+        }}
+        const freeIdx = Math.max(0, Math.trunc(Number(activeSession.autoFreeRunIndex) || 0));
+        command = String(freeRun[freeIdx % freeRun.length] || "").trim();
+        expectedAny = [];
+        activeSession.autoFreeRunIndex = freeIdx + 1;
+      }}
+      if (!command) {{
         return;
       }}
-      activeSession.autoScriptIndex = idx + 1;
       activeSession.autoLastCommand = command;
-      activeSession.autoExpectedAny = Array.isArray(step.expectAny) ? step.expectAny : [];
+      activeSession.autoExpectedAny = expectedAny;
       activeSession.autoAwaitingReply = true;
       activeSession.autoSending = true;
       activeSession.autoAwaitingSinceMs = nowMs;

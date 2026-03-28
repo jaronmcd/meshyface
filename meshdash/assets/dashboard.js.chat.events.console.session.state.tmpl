@@ -34,6 +34,10 @@
         autoResponseEnabled: payload.autoResponseEnabled === true || payload.auto_response_enabled === true,
         autoAwaitingReply: payload.autoAwaitingReply === true || payload.auto_awaiting_reply === true,
         autoScriptIndex: Math.max(0, Math.trunc(Number(payload.autoScriptIndex ?? payload.auto_script_index) || 0)),
+        autoMode: String(payload.autoMode ?? payload.auto_mode ?? "script").trim().toLowerCase() === "free-run"
+          ? "free-run"
+          : "script",
+        autoFreeRunIndex: Math.max(0, Math.trunc(Number(payload.autoFreeRunIndex ?? payload.auto_free_run_index) || 0)),
         autoExpectedAny: Array.isArray(payload.autoExpectedAny ?? payload.auto_expected_any)
           ? (payload.autoExpectedAny ?? payload.auto_expected_any)
             .map((value) => String(value == null ? "" : value).trim())
@@ -83,6 +87,10 @@
                 autoResponseEnabled: consoleInteractiveSession.autoResponseEnabled === true,
                 autoAwaitingReply: consoleInteractiveSession.autoAwaitingReply === true,
                 autoScriptIndex: Math.max(0, Math.trunc(Number(consoleInteractiveSession.autoScriptIndex) || 0)),
+                autoMode: String(consoleInteractiveSession.autoMode || "script").trim().toLowerCase() === "free-run"
+                  ? "free-run"
+                  : "script",
+                autoFreeRunIndex: Math.max(0, Math.trunc(Number(consoleInteractiveSession.autoFreeRunIndex) || 0)),
                 autoExpectedAny: Array.isArray(consoleInteractiveSession.autoExpectedAny)
                   ? consoleInteractiveSession.autoExpectedAny
                     .map((value) => String(value == null ? "" : value).trim())

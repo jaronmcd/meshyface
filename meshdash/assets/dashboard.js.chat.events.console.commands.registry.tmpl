@@ -511,6 +511,8 @@
               : [],
             autoLastCommand: autoResponseEnabled ? "zork" : "",
             autoSending: false,
+            autoMode: "script",
+            autoFreeRunIndex: 0,
             autoAwaitingSinceMs: autoResponseEnabled ? Date.now() : 0,
             autoAwaitingDeadlineMs: autoResponseEnabled
               ? (Date.now() + Math.max(1000, Math.trunc(Number(zorkRemoteAutoResponseStepTimeoutMs) || 45000)))
