@@ -83,7 +83,7 @@ def test_handle_standalone_zork_post_returns_500_on_unexpected_exception():
     )
 
     assert calls["status_code"] == 500
-    assert calls["payload_obj"]["error"] == "Standalone Zork failed: zork blew up"
+    assert calls["payload_obj"]["error"] == "Standalone Zork failed"
 
 
 def test_handle_standalone_zork_post_returns_200_and_passes_request_fields():

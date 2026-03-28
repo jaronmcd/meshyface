@@ -240,12 +240,17 @@ def test_handle_dashboard_post_disabled_feature_paths_return_503():
 
 def test_handle_dashboard_post_requires_api_token_for_write_endpoints(monkeypatch):
     json_calls = []
-    helper_calls = {"chat": 0}
+    helper_calls = {"chat": 0, "zork": 0}
 
     monkeypatch.setattr(
         routes_post,
         "_handle_chat_send_post_helper",
         lambda *_args, **_kwargs: helper_calls.__setitem__("chat", helper_calls["chat"] + 1),
+    )
+    monkeypatch.setattr(
+        routes_post,
+        "_handle_standalone_zork_post_helper",
+        lambda *_args, **_kwargs: helper_calls.__setitem__("zork", helper_calls["zork"] + 1),
     )
 
     deps = _build_post_deps(json_calls=json_calls, api_token="secret-token")
@@ -255,12 +260,24 @@ def test_handle_dashboard_post_requires_api_token_for_write_endpoints(monkeypatc
     assert "token required" in json_calls[0]["payload_obj"]["error"].lower()
     assert helper_calls["chat"] == 0
 
+    routes_post.handle_dashboard_post(_fake_handler(), path="/api/games/zork", deps=deps)
+    assert json_calls[1]["status_code"] == 401
+    assert "token required" in json_calls[1]["payload_obj"]["error"].lower()
+    assert helper_calls["zork"] == 0
+
     routes_post.handle_dashboard_post(
         _fake_handler(headers={"Authorization": "Bearer secret-token"}),
         path="/api/chat/send",
         deps=deps,
     )
     assert helper_calls["chat"] == 1
+
+    routes_post.handle_dashboard_post(
+        _fake_handler(headers={"Authorization": "Bearer secret-token"}),
+        path="/api/games/zork",
+        deps=deps,
+    )
+    assert helper_calls["zork"] == 1
 
 
 def test_handle_dashboard_post_private_mode_blocks_chat_and_zork():

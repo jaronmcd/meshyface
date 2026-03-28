@@ -60,3 +60,20 @@ def test_standalone_zork_service_quit_ends_session():
     assert ended["ok"] is True
     assert ended["active_session"] is False
     assert "session ended" in str(ended["reply_text"]).lower()
+
+
+def test_standalone_zork_service_rejects_new_sessions_when_at_capacity():
+    service = StandaloneZorkService(now_unix_fn=lambda: 1710001240.0, max_sessions=1)
+
+    first = service.play(text="zork", session_id="alpha")
+    assert first["ok"] is True
+    assert first["active_session"] is True
+
+    second = service.play(text="zork", session_id="bravo")
+    assert second["ok"] is False
+    assert second["active_session"] is False
+    assert "capacity" in str(second["error"]).lower()
+
+    followup = service.play(text="look", session_id="alpha")
+    assert followup["ok"] is True
+    assert followup["active_session"] is True

@@ -272,9 +272,23 @@ def test_http_api_version_health_metrics_and_private_mode():
 
 
 def test_http_api_token_auth_for_write_routes():
+    def _state():
+        return {"ok": True}
+
+    setattr(
+        _state,
+        "play_standalone_zork_fn",
+        lambda **_kwargs: {
+            "ok": True,
+            "session_id": "abc123",
+            "reply_text": "West of House.",
+            "active_session": True,
+        },
+    )
+
     handler_cls = make_http_handler(
         html_text="<html>ok</html>",
-        state_fn=lambda: {"ok": True},
+        state_fn=_state,
         send_chat_fn=lambda **kwargs: {"ok": True, "echo": kwargs.get("text", "")},
         set_theme_preset_fn=lambda preset_name: {"ok": True, "selected_preset": str(preset_name)},
         api_token="abc123",
@@ -292,6 +306,19 @@ def test_http_api_token_auth_for_write_routes():
     )
     assert sent["status"] == 200
     assert json.loads(data.decode("utf-8"))["echo"] == "hello"
+
+    sent, data = _run_post(handler_cls, "/api/games/zork", {"text": "zork"})
+    assert sent["status"] == 401
+    assert "token required" in json.loads(data.decode("utf-8"))["error"].lower()
+
+    sent, data = _run_post(
+        handler_cls,
+        "/api/games/zork",
+        {"text": "zork"},
+        headers={"X-API-Token": "abc123"},
+    )
+    assert sent["status"] == 200
+    assert "West of House" in json.loads(data.decode("utf-8"))["reply_text"]
 
     sent, data = _run_post(
         handler_cls,

@@ -53,11 +53,11 @@ def handle_standalone_zork_post(
             payload_obj={"ok": False, "error": str(exc)},
         )
         return
-    except Exception as exc:
+    except Exception:
         write_json_response_fn(
             handler,
             status_code=500,
-            payload_obj={"ok": False, "error": f"Standalone Zork failed: {exc}"},
+            payload_obj={"ok": False, "error": "Standalone Zork failed"},
         )
         return
 

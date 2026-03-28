@@ -6,6 +6,8 @@ import time
 from .games.zork import ZorkGame
 
 _STANDALONE_ZORK_LOCAL_NODE_ID = "!70f70001"
+_STANDALONE_ZORK_SESSION_PEER_HEX_CHARS = 16
+_DEFAULT_MAX_STANDALONE_ZORK_SESSIONS = 256
 
 
 def _normalize_session_id(value: object) -> str:
@@ -15,14 +17,15 @@ def _normalize_session_id(value: object) -> str:
 
 def _session_peer_id(session_id: str) -> str:
     digest = hashlib.sha1(str(session_id).encode("utf-8")).hexdigest()
-    return f"!{digest[:8]}"
+    return f"!{digest[:_STANDALONE_ZORK_SESSION_PEER_HEX_CHARS]}"
 
 
 class StandaloneZorkService:
-    def __init__(self, *, now_unix_fn=time.time) -> None:
+    def __init__(self, *, now_unix_fn=time.time, max_sessions: int = _DEFAULT_MAX_STANDALONE_ZORK_SESSIONS) -> None:
         self._game = ZorkGame()
         self._lock = threading.Lock()
         self._now_unix_fn = now_unix_fn
+        self._max_sessions = max(1, int(max_sessions))
 
     def play(self, *, text: object, session_id: object = None) -> dict[str, object]:
         clean_text = str(text or "").strip()
@@ -32,7 +35,15 @@ class StandaloneZorkService:
         peer_id = _session_peer_id(clean_session_id)
         now_unix = int(self._now_unix_fn())
         with self._lock:
+            self._game.prune_expired_sessions(now_unix)
             active_before = self._game.has_active_session(peer_id)
+            if not active_before and clean_text.lower() == "zork" and self._game.active_session_count() >= self._max_sessions:
+                return {
+                    "ok": False,
+                    "error": "Standalone Zork is at capacity. Try again shortly.",
+                    "session_id": clean_session_id,
+                    "active_session": False,
+                }
             if not active_before and clean_text.lower() != "zork":
                 return {
                     "ok": False,

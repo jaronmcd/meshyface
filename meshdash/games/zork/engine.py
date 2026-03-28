@@ -401,6 +401,9 @@ class ZorkGame:
     def clear_sessions(self) -> None:
         self._sessions.clear()
 
+    def prune_expired_sessions(self, now_unix: int) -> None:
+        self._prune_sessions(int(now_unix))
+
     def has_active_session(self, from_id: str) -> bool:
         peer_id = str(from_id or "").strip().lower()
         if not peer_id:

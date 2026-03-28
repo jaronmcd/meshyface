@@ -24,6 +24,7 @@ from .http_route_contracts import DashboardPostRouteDependencies
 
 _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/chat/send",
+    "/api/games/zork",
     "/api/settings/radio",
     "/api/settings/channels",
     "/api/settings/theme",
