@@ -265,73 +265,6 @@
       return Math.trunc(part) <= 1;
     }}
 
-    function consoleRemoteAutoReplyLooksLikeSessionRestart(replyTextRaw) {{
-      const replyText = String(replyTextRaw || "").trim().toLowerCase();
-      if (!replyText) return false;
-      return replyText.includes("session started") || replyText.includes("tip: type help for list of commands");
-    }}
-
-    function consoleRemoteAutoSessionMode(activeSession) {{
-      return String(activeSession && activeSession.autoMode || "script").trim().toLowerCase() === "free-run"
-        ? "free-run"
-        : "script";
-    }}
-
-    function queueConsoleRemoteAutoCommand(
-      activeSession,
-      commandRaw,
-      expectedAnyRaw,
-      nowMs,
-      keepRetryCount = false
-    ) {{
-      const command = String(commandRaw || "").trim();
-      if (!command) return;
-      const expectedAny = Array.isArray(expectedAnyRaw) ? expectedAnyRaw : [];
-      const sentAtMs = Number.isFinite(nowMs) ? nowMs : Date.now();
-      const stepTimeoutMs = Math.max(
-        1000,
-        Math.trunc(Number(zorkRemoteAutoResponseStepTimeoutMs) || 45000)
-      );
-      const retryDelayMs = Math.max(
-        1000,
-        Math.min(
-          stepTimeoutMs - 250,
-          Math.trunc(Number(zorkRemoteAutoResponseRetryDelayMs) || 8000)
-        )
-      );
-      activeSession.autoLastCommand = command;
-      activeSession.autoExpectedAny = expectedAny;
-      activeSession.autoAwaitingReply = true;
-      activeSession.autoSending = true;
-      activeSession.autoAwaitingSinceMs = sentAtMs;
-      activeSession.autoAwaitingDeadlineMs = sentAtMs + stepTimeoutMs;
-      activeSession.autoNextRetryMs = sentAtMs + retryDelayMs;
-      if (!keepRetryCount) {{
-        activeSession.autoRetryCount = 0;
-      }}
-      const delayMs = Math.max(0, Math.trunc(Number(zorkE2EWinScriptDelayMs) || 0));
-      window.setTimeout(() => {{
-        void (async () => {{
-          try {{
-            appendConsoleEventLine(`> ${{command}}`);
-            await sendConsoleInteractiveSessionLine(command);
-          }} catch (err) {{
-            const msg = err instanceof Error ? err.message : String(err || "unknown error");
-            activeSession.autoResponseEnabled = false;
-            activeSession.autoAwaitingReply = false;
-            activeSession.autoExpectedAny = [];
-            activeSession.autoAwaitingSinceMs = 0;
-            activeSession.autoAwaitingDeadlineMs = 0;
-            activeSession.autoNextRetryMs = 0;
-            activeSession.autoRetryCount = 0;
-            appendConsoleEventLine(`[zork-remote][auto] send failed: ${{msg}}`);
-          }} finally {{
-            activeSession.autoSending = false;
-          }}
-        }})();
-      }}, delayMs);
-    }}
-
     function maybeAdvanceConsoleRemoteAutoResponse(session, inboundText) {{
       const activeSession = (session && typeof session === "object") ? session : null;
       if (!activeSession) return;
@@ -341,37 +274,15 @@
 
       const nowMs = Date.now();
       if (activeSession.autoAwaitingReply) {{
-        const lastCommand = String(activeSession.autoLastCommand || "").trim();
-        const expectedAny = Array.isArray(activeSession.autoExpectedAny) ? activeSession.autoExpectedAny : [];
-        const retryCount = Math.max(0, Math.trunc(Number(activeSession.autoRetryCount) || 0));
-        const retryMax = Math.max(0, Math.trunc(Number(zorkRemoteAutoResponseRetryMax) || 3));
-        const retryDeadlineMs = Math.max(0, Math.trunc(Number(activeSession.autoNextRetryMs) || 0));
         const deadlineMs = Math.max(0, Math.trunc(Number(activeSession.autoAwaitingDeadlineMs) || 0));
-        if (lastCommand && retryCount < retryMax && retryDeadlineMs > 0 && nowMs > retryDeadlineMs) {{
-          activeSession.autoRetryCount = retryCount + 1;
-          appendConsoleEventLine(
-            `[zork-remote][auto] no matching reply yet after "${{lastCommand}}"; retrying (${{activeSession.autoRetryCount}}/${{retryMax}}).`
-          );
-          queueConsoleRemoteAutoCommand(activeSession, lastCommand, expectedAny, nowMs, true);
-          return;
-        }}
         if (deadlineMs > 0 && nowMs > deadlineMs) {{
+          activeSession.autoResponseEnabled = false;
           activeSession.autoAwaitingReply = false;
           activeSession.autoExpectedAny = [];
-          activeSession.autoAwaitingSinceMs = 0;
-          activeSession.autoAwaitingDeadlineMs = 0;
-          activeSession.autoNextRetryMs = 0;
-          activeSession.autoRetryCount = 0;
-          if (consoleRemoteAutoSessionMode(activeSession) !== "free-run") {{
-            activeSession.autoMode = "free-run";
-            appendConsoleEventLine(
-              `[zork-remote][auto] timeout waiting for reply after "${{String(lastCommand || "zork")}}"; switching to continuous mode.`
-            );
-          }} else {{
-            appendConsoleEventLine(
-              `[zork-remote][auto] timeout waiting for reply after "${{String(lastCommand || "zork")}}"; continuing with next command.`
-            );
-          }}
+          appendConsoleEventLine(
+            `[zork-remote][auto] timeout waiting for reply after "${{String(activeSession.autoLastCommand || "zork")}}".`
+          );
+          return;
         }}
       }}
 
@@ -385,34 +296,19 @@
         }}
         const matched = consoleRemoteAutoScriptExpectMatch(replyText, activeSession.autoExpectedAny);
         if (!matched) {{
-          const lastCommand = String(activeSession.autoLastCommand || "").trim();
-          const expectedAny = Array.isArray(activeSession.autoExpectedAny) ? activeSession.autoExpectedAny : [];
-          const retryCount = Math.max(0, Math.trunc(Number(activeSession.autoRetryCount) || 0));
-          const retryMax = Math.max(0, Math.trunc(Number(zorkRemoteAutoResponseRetryMax) || 3));
-          if (
-            lastCommand
-            && retryCount < retryMax
-            && consoleRemoteAutoReplyLooksLikeSessionRestart(replyText)
-          ) {{
-            activeSession.autoRetryCount = retryCount + 1;
-            appendConsoleEventLine(
-              `[zork-remote][auto] got session-reset text while waiting for "${{lastCommand}}"; retrying (${{activeSession.autoRetryCount}}/${{retryMax}}).`
-            );
-            queueConsoleRemoteAutoCommand(activeSession, lastCommand, expectedAny, nowMs, true);
-          }}
           // Stay in wait mode; mesh replies can be segmented/noisy and may arrive over multiple lines.
           return;
         }}
         activeSession.autoAwaitingReply = false;
         activeSession.autoAwaitingSinceMs = 0;
         activeSession.autoAwaitingDeadlineMs = 0;
-        activeSession.autoNextRetryMs = 0;
-        activeSession.autoRetryCount = 0;
       }}
 
       let command = "";
       let expectedAny = [];
-      const currentMode = consoleRemoteAutoSessionMode(activeSession);
+      const currentMode = String(activeSession.autoMode || "script").trim().toLowerCase() === "free-run"
+        ? "free-run"
+        : "script";
       if (currentMode !== "free-run") {{
         const script = Array.isArray(zorkRemoteAutoResponseScript) ? zorkRemoteAutoResponseScript : [];
         const idx = Math.max(0, Math.trunc(Number(activeSession.autoScriptIndex) || 0));
@@ -437,8 +333,6 @@
           activeSession.autoExpectedAny = [];
           activeSession.autoAwaitingSinceMs = 0;
           activeSession.autoAwaitingDeadlineMs = 0;
-          activeSession.autoNextRetryMs = 0;
-          activeSession.autoRetryCount = 0;
           appendConsoleEventLine("[zork-remote][auto] no continuous commands configured.");
           persistConsoleSessionState();
           return;
@@ -451,7 +345,34 @@
       if (!command) {{
         return;
       }}
-      queueConsoleRemoteAutoCommand(activeSession, command, expectedAny, nowMs, false);
+      activeSession.autoLastCommand = command;
+      activeSession.autoExpectedAny = expectedAny;
+      activeSession.autoAwaitingReply = true;
+      activeSession.autoSending = true;
+      activeSession.autoAwaitingSinceMs = nowMs;
+      activeSession.autoAwaitingDeadlineMs = nowMs + Math.max(
+        1000,
+        Math.trunc(Number(zorkRemoteAutoResponseStepTimeoutMs) || 45000)
+      );
+      const delayMs = Math.max(0, Math.trunc(Number(zorkE2EWinScriptDelayMs) || 0));
+      window.setTimeout(() => {{
+        void (async () => {{
+          try {{
+            appendConsoleEventLine(`> ${{command}}`);
+            await sendConsoleInteractiveSessionLine(command);
+          }} catch (err) {{
+            const msg = err instanceof Error ? err.message : String(err || "unknown error");
+            activeSession.autoResponseEnabled = false;
+            activeSession.autoAwaitingReply = false;
+            activeSession.autoExpectedAny = [];
+            activeSession.autoAwaitingSinceMs = 0;
+            activeSession.autoAwaitingDeadlineMs = 0;
+            appendConsoleEventLine(`[zork-remote][auto] send failed: ${{msg}}`);
+          }} finally {{
+            activeSession.autoSending = false;
+          }}
+        }})();
+      }}, delayMs);
     }}
 
     function syncConsoleInteractiveSessionMessages(state = latestState) {{
