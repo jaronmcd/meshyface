@@ -2393,15 +2393,16 @@
       --chat-feed-node-hue: 210;
       --chat-feed-node-gradient: linear-gradient(
         96deg,
-        hsl(var(--chat-feed-node-hue) 18% 36% / 0.19),
-        hsl(var(--chat-feed-node-hue) 14% 28% / 0.065) 24%,
-        rgba(13, 17, 23, 0) 52%
+        hsl(var(--chat-feed-node-hue) 22% 42% / 0.24),
+        hsl(var(--chat-feed-node-hue) 16% 32% / 0.085) 28%,
+        rgba(13, 17, 23, 0) 58%
       );
       background: var(--chat-feed-node-gradient);
       border: 0;
-      border-bottom: 1px solid #2f3b4b;
+      border-bottom: 1px solid hsl(var(--chat-feed-node-hue) 12% 26% / 0.3);
       border-radius: 0;
       color: var(--ui-text);
+      box-shadow: inset 1px 0 0 hsl(var(--chat-feed-node-hue) 20% 46% / 0.1);
     }}
     [data-theme="dark"] .card.chat .chat-feed-item.self-authored {{
       background:
