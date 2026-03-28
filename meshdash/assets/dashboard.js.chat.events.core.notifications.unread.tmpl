@@ -20,6 +20,33 @@
         : {{}};
       const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const activeMeshIdx = (typeof activeMeshChannelFilterIndex === "function")
+        ? activeMeshChannelFilterIndex()
+        : meshChannelAllIndex;
+      const nodesLength = nodes.length;
+      const botRequestsLength = botRequests.length;
+      const recentChatLength = recentChat.length;
+      const recentChatTailKey = recentChatLength > 0
+        ? String(chatMessageKey(recentChat[recentChatLength - 1]) || "")
+        : "";
+      const cachedEntries = (chatMessageEntriesCache && typeof chatMessageEntriesCache === "object")
+        ? chatMessageEntriesCache
+        : null;
+      if (
+        cachedEntries
+        && cachedEntries.nodesRef === nodes
+        && cachedEntries.botRequestsRef === botRequests
+        && cachedEntries.recentChatRef === recentChat
+        && cachedEntries.localNodeId === localNodeId
+        && cachedEntries.meshFilterIndex === activeMeshIdx
+        && cachedEntries.nodesLength === nodesLength
+        && cachedEntries.botRequestsLength === botRequestsLength
+        && cachedEntries.recentChatLength === recentChatLength
+        && cachedEntries.recentChatTailKey === recentChatTailKey
+        && Array.isArray(cachedEntries.entries)
+      ) {{
+        return cachedEntries.entries;
+      }}
       const hasLocalNodeId = isCanonicalNodeId(localNodeId);
       const nodesById = new Map(
         nodes.map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
@@ -140,6 +167,18 @@
           unix: latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at),
         }});
       }}
+      chatMessageEntriesCache = {{
+        nodesRef: nodes,
+        botRequestsRef: botRequests,
+        recentChatRef: recentChat,
+        localNodeId,
+        meshFilterIndex: activeMeshIdx,
+        nodesLength,
+        botRequestsLength,
+        recentChatLength,
+        recentChatTailKey,
+        entries,
+      }};
       return entries;
     }}
 

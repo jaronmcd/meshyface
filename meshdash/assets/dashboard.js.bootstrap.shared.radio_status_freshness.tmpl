@@ -426,23 +426,38 @@
       const nowUnix = Math.floor(Date.now() / 1000);
       syncFavoriteOnlineNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
       syncTopbarNodeOnlineTickerNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
+      const freshnessByNodeId = new Map();
+      const freshnessForNode = (nodeIdRaw) => {{
+        const nodeId = normalizeNodeId(nodeIdRaw || "");
+        if (!isSelectableNodeId(nodeId)) return null;
+        const cached = freshnessByNodeId.get(nodeId);
+        if (cached && typeof cached === "object") return cached;
+        const node = nodesById.get(nodeId);
+        const caps = capsById.get(nodeId);
+        const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+        const status = freshnessStatus(lastSeenUnix, nowUnix);
+        const entry = {{
+          nodeId,
+          lastSeenUnix,
+          status,
+          key: normalizeFreshnessKey(status),
+        }};
+        freshnessByNodeId.set(nodeId, entry);
+        return entry;
+      }};
 
       // Network explorer table freshness dots.
       const table = document.getElementById("nodes-table");
       if (table) {{
         for (const row of table.querySelectorAll("tbody tr[data-node-id]")) {{
           if (!(row instanceof HTMLElement)) continue;
-          const nodeId = normalizeNodeId(row.dataset.nodeId || "");
-          if (!isSelectableNodeId(nodeId)) continue;
-          const node = nodesById.get(nodeId);
-          const caps = capsById.get(nodeId);
-          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          applyFreshnessClass(row, status);
+          const freshness = freshnessForNode(row.dataset.nodeId || "");
+          if (!freshness) continue;
+          applyFreshnessClass(row, freshness.status);
           const dot = row.querySelector(".node-status-dot");
           if (dot instanceof HTMLElement) {{
-            applyFreshnessClass(dot, status);
+            applyFreshnessClass(dot, freshness.status);
           }}
         }}
       }}
@@ -455,17 +470,11 @@
       const rosterModel = Array.isArray(chatRosterModel) ? chatRosterModel : [];
       if (rosterModel.length > 0) {{
         for (const entry of rosterModel) {{
-          const nodeId = normalizeNodeId(entry && entry.id);
-          if (!isSelectableNodeId(nodeId)) continue;
-          const node = nodesById.get(nodeId);
-          const caps = capsById.get(nodeId);
-          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const key = normalizeFreshnessKey(status);
-          if (key === "online") chatOnlineCount += 1;
-          else if (key === "warn") chatWarnCount += 1;
-          else if (key === "stale") chatStaleCount += 1;
+          const freshness = freshnessForNode(entry && entry.id);
+          if (!freshness) continue;
+          if (freshness.key === "online") chatOnlineCount += 1;
+          else if (freshness.key === "warn") chatWarnCount += 1;
+          else if (freshness.key === "stale") chatStaleCount += 1;
         }}
       }}
 
@@ -478,14 +487,10 @@
         const useFallbackCounts = rosterModel.length === 0;
         for (const item of rosterList.querySelectorAll(".chat-member-item[data-node-id]")) {{
           if (!(item instanceof HTMLElement)) continue;
-          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
-          if (!isSelectableNodeId(nodeId)) continue;
-          const node = nodesById.get(nodeId);
-          const caps = capsById.get(nodeId);
-          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const key = normalizeFreshnessKey(status);
+          const freshness = freshnessForNode(item.dataset.nodeId || "");
+          if (!freshness) continue;
+          const key = freshness.key;
+          const lastSeenUnix = freshness.lastSeenUnix;
           if (useFallbackCounts) {{
             if (key === "online") fallbackOnline += 1;
             else if (key === "warn") fallbackWarn += 1;
@@ -527,14 +532,9 @@
       if (favList) {{
         for (const item of favList.querySelectorAll(".favorite-node-item[data-node-id]")) {{
           if (!(item instanceof HTMLElement)) continue;
-          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
-          if (!isSelectableNodeId(nodeId)) continue;
-          const node = nodesById.get(nodeId);
-          const caps = capsById.get(nodeId);
-          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          applyFreshnessClass(item, status);
+          const freshness = freshnessForNode(item.dataset.nodeId || "");
+          if (!freshness) continue;
+          applyFreshnessClass(item, freshness.status);
         }}
 
         const caption = document.getElementById("favorites-caption");
@@ -543,16 +543,11 @@
           let warnCount = 0;
           let staleCount = 0;
           for (const nodeId of favoriteNodeIds) {{
-            if (!isSelectableNodeId(nodeId)) continue;
-            const node = nodesById.get(nodeId);
-            const caps = capsById.get(nodeId);
-            const chatTouch = latestChatTouchByNode.get(nodeId) || null;
-            const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-            const status = freshnessStatus(lastSeenUnix, nowUnix);
-            const key = normalizeFreshnessKey(status);
-            if (key === "online") onlineCount += 1;
-            else if (key === "warn") warnCount += 1;
-            else if (key === "stale") staleCount += 1;
+            const freshness = freshnessForNode(nodeId);
+            if (!freshness) continue;
+            if (freshness.key === "online") onlineCount += 1;
+            else if (freshness.key === "warn") warnCount += 1;
+            else if (freshness.key === "stale") staleCount += 1;
           }}
           caption.textContent = `Saved subsection: ${{favoriteNodeIds.size}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
         }}
