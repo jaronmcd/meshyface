@@ -252,17 +252,102 @@
       }});
     }}
 
-    function consoleRemoteAutoInboundReplyEligible(replyTextRaw) {{
+    function consoleRemoteAutoInboundReplyParts(replyTextRaw) {{
       const replyText = String(replyTextRaw || "").trim();
-      if (!replyText) return false;
-      const marker = replyText.match(/^(\d+)\s*\/\s*(\d+)\s+/);
-      if (!marker) return true;
-      const part = Number(marker[1]);
-      const total = Number(marker[2]);
-      if (!Number.isFinite(part) || !Number.isFinite(total) || part <= 0 || total <= 0) {{
-        return true;
+      if (!replyText) {{
+        return {{
+          text: "",
+          isSegmented: false,
+          part: 0,
+          total: 0,
+          body: "",
+          finalPart: true,
+        }};
       }}
-      return Math.trunc(part) <= 1;
+      const marker = replyText.match(/^(\d+)\s*\/\s*(\d+)\s+(.*)$/);
+      if (!marker) {{
+        return {{
+          text: replyText,
+          isSegmented: false,
+          part: 0,
+          total: 0,
+          body: replyText,
+          finalPart: true,
+        }};
+      }}
+      const partRaw = Number(marker[1]);
+      const totalRaw = Number(marker[2]);
+      const part = Number.isFinite(partRaw) ? Math.max(0, Math.trunc(partRaw)) : 0;
+      const total = Number.isFinite(totalRaw) ? Math.max(0, Math.trunc(totalRaw)) : 0;
+      if (part < 1 || total < 1) {{
+        return {{
+          text: replyText,
+          isSegmented: false,
+          part: 0,
+          total: 0,
+          body: replyText,
+          finalPart: true,
+        }};
+      }}
+      return {{
+        text: replyText,
+        isSegmented: true,
+        part,
+        total,
+        body: String(marker[3] || "").trim(),
+        finalPart: part >= total,
+      }};
+    }}
+
+    function resetConsoleRemoteAutoSegmentState(activeSession) {{
+      if (!activeSession || typeof activeSession !== "object") return;
+      activeSession.autoSegmentTotal = 0;
+      activeSession.autoSegmentNextPart = 1;
+      activeSession.autoSegmentBuffer = "";
+    }}
+
+    function consumeConsoleRemoteAutoReply(activeSession, replyTextRaw) {{
+      const parts = consoleRemoteAutoInboundReplyParts(replyTextRaw);
+      if (!parts.text) {{
+        return {{ ready: false, sawProgress: false, replyText: "" }};
+      }}
+      if (!parts.isSegmented) {{
+        resetConsoleRemoteAutoSegmentState(activeSession);
+        return {{
+          ready: true,
+          sawProgress: true,
+          replyText: parts.body || parts.text,
+        }};
+      }}
+      const expectedTotal = Math.max(0, Math.trunc(Number(activeSession.autoSegmentTotal) || 0));
+      const expectedPart = Math.max(1, Math.trunc(Number(activeSession.autoSegmentNextPart) || 1));
+      const sameSequence = expectedTotal === parts.total && expectedPart === parts.part;
+      if (!sameSequence || parts.part === 1) {{
+        activeSession.autoSegmentTotal = parts.total;
+        activeSession.autoSegmentNextPart = 1;
+        activeSession.autoSegmentBuffer = "";
+      }}
+      const currentPart = Math.max(1, Math.trunc(Number(activeSession.autoSegmentNextPart) || 1));
+      if (parts.part === currentPart) {{
+        const prior = String(activeSession.autoSegmentBuffer || "").trim();
+        const next = String(parts.body || "").trim();
+        activeSession.autoSegmentBuffer = prior && next ? `${{prior}} ${{next}}` : (next || prior);
+        activeSession.autoSegmentNextPart = currentPart + 1;
+      }} else {{
+        activeSession.autoSegmentBuffer = String(parts.body || "").trim();
+        activeSession.autoSegmentNextPart = parts.part + 1;
+        activeSession.autoSegmentTotal = parts.total;
+      }}
+      if (!parts.finalPart) {{
+        return {{ ready: false, sawProgress: true, replyText: "" }};
+      }}
+      const replyText = String(activeSession.autoSegmentBuffer || parts.body || parts.text).trim();
+      resetConsoleRemoteAutoSegmentState(activeSession);
+      return {{
+        ready: !!replyText,
+        sawProgress: true,
+        replyText,
+      }};
     }}
 
     function consoleRemoteAutoReplyLooksLikeSessionRestart(replyTextRaw) {{
@@ -299,6 +384,7 @@
           Math.trunc(Number(zorkRemoteAutoResponseRetryDelayMs) || 8000)
         )
       );
+      resetConsoleRemoteAutoSegmentState(activeSession);
       activeSession.autoLastCommand = command;
       activeSession.autoExpectedAny = expectedAny;
       activeSession.autoAwaitingReply = true;
@@ -324,6 +410,7 @@
             activeSession.autoAwaitingDeadlineMs = 0;
             activeSession.autoNextRetryMs = 0;
             activeSession.autoRetryCount = 0;
+            resetConsoleRemoteAutoSegmentState(activeSession);
             appendConsoleEventLine(`[zork-remote][auto] send failed: ${{msg}}`);
           }} finally {{
             activeSession.autoSending = false;
@@ -362,6 +449,7 @@
           activeSession.autoAwaitingDeadlineMs = 0;
           activeSession.autoNextRetryMs = 0;
           activeSession.autoRetryCount = 0;
+          resetConsoleRemoteAutoSegmentState(activeSession);
           if (consoleRemoteAutoSessionMode(activeSession) !== "free-run") {{
             activeSession.autoMode = "free-run";
             appendConsoleEventLine(
@@ -375,12 +463,29 @@
         }}
       }}
 
-      const replyText = String(inboundText || "").trim();
+      const inboundReply = String(inboundText || "").trim();
       if (activeSession.autoAwaitingReply) {{
-        if (!replyText) {{
+        if (!inboundReply) {{
           return;
         }}
-        if (!consoleRemoteAutoInboundReplyEligible(replyText)) {{
+        const consumedReply = consumeConsoleRemoteAutoReply(activeSession, inboundReply);
+        if (!consumedReply.sawProgress) {{
+          return;
+        }}
+        const retryDelayMs = Math.max(1000, Math.trunc(Number(zorkRemoteAutoResponseRetryDelayMs) || 8000));
+        activeSession.autoNextRetryMs = nowMs + retryDelayMs;
+        if (activeSession.autoAwaitingDeadlineMs > 0) {{
+          const minimumDeadlineMs = nowMs + Math.max(4000, retryDelayMs * 2);
+          if (activeSession.autoAwaitingDeadlineMs < minimumDeadlineMs) {{
+            activeSession.autoAwaitingDeadlineMs = minimumDeadlineMs;
+          }}
+        }}
+        if (!consumedReply.ready) {{
+          // Wait until the segmented peer reply reaches its final part.
+          return;
+        }}
+        const replyText = String(consumedReply.replyText || "").trim();
+        if (!replyText) {{
           return;
         }}
         const matched = consoleRemoteAutoScriptExpectMatch(replyText, activeSession.autoExpectedAny);
@@ -408,6 +513,7 @@
         activeSession.autoAwaitingDeadlineMs = 0;
         activeSession.autoNextRetryMs = 0;
         activeSession.autoRetryCount = 0;
+        resetConsoleRemoteAutoSegmentState(activeSession);
       }}
 
       let command = "";
@@ -439,6 +545,7 @@
           activeSession.autoAwaitingDeadlineMs = 0;
           activeSession.autoNextRetryMs = 0;
           activeSession.autoRetryCount = 0;
+          resetConsoleRemoteAutoSegmentState(activeSession);
           appendConsoleEventLine("[zork-remote][auto] no continuous commands configured.");
           persistConsoleSessionState();
           return;

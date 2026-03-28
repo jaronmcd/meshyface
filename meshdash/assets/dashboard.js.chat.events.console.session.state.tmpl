@@ -61,6 +61,9 @@
           0,
           Math.trunc(Number(payload.autoNextRetryMs ?? payload.auto_next_retry_ms) || 0)
         ),
+        autoSegmentTotal: 0,
+        autoSegmentNextPart: 1,
+        autoSegmentBuffer: "",
         autoSending: false,
       }};
     }}
