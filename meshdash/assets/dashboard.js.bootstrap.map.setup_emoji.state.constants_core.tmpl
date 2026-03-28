@@ -197,17 +197,29 @@
     const zorkRemoteAutoResponseRetryDelayMs = 8 * 1000;
     const zorkE2EWinScript = Object.freeze([
       Object.freeze({{ command: "zork", expectAny: Object.freeze(["session started", "west of house"]) }}),
-      Object.freeze({{ command: "open mailbox", expectAny: Object.freeze(["leaflet"]) }}),
-      Object.freeze({{ command: "take leaflet", expectAny: Object.freeze(["taken"]) }}),
+      Object.freeze({{
+        command: "open mailbox",
+        expectAny: Object.freeze(["leaflet", "already open", "small open mailbox"]),
+      }}),
+      Object.freeze({{
+        command: "take leaflet",
+        expectAny: Object.freeze(["taken", "already have the leaflet", "you already have the leaflet"]),
+      }}),
       Object.freeze({{ command: "read leaflet", expectAny: Object.freeze(["welcome to dungeon"]) }}),
       Object.freeze({{ command: "north", expectAny: Object.freeze(["north of house"]) }}),
       Object.freeze({{ command: "east", expectAny: Object.freeze(["behind house"]) }}),
       Object.freeze({{ command: "open window", expectAny: Object.freeze(["open the window"]) }}),
       Object.freeze({{ command: "enter window", expectAny: Object.freeze(["kitchen"]) }}),
       Object.freeze({{ command: "west", expectAny: Object.freeze(["living room"]) }}),
-      Object.freeze({{ command: "take lamp", expectAny: Object.freeze(["taken"]) }}),
+      Object.freeze({{
+        command: "take lamp",
+        expectAny: Object.freeze(["taken", "already have", "already carrying"]),
+      }}),
       Object.freeze({{ command: "turn on lamp", expectAny: Object.freeze(["glows to life", "lantern glows"]) }}),
-      Object.freeze({{ command: "take sword", expectAny: Object.freeze(["taken"]) }}),
+      Object.freeze({{
+        command: "take sword",
+        expectAny: Object.freeze(["taken", "already have", "already carrying"]),
+      }}),
       Object.freeze({{ command: "move rug", expectAny: Object.freeze(["trap door"]) }}),
       Object.freeze({{ command: "open trap door", expectAny: Object.freeze(["staircase descending", "trap door"]) }}),
       Object.freeze({{ command: "down", expectAny: Object.freeze(["cellar"]) }}),

@@ -517,9 +517,6 @@
         const matched = consoleRemoteAutoScriptExpectMatch(replyText, activeSession.autoExpectedAny);
         if (!matched) {{
           const lastCommand = String(activeSession.autoLastCommand || "").trim();
-          const expectedAny = Array.isArray(activeSession.autoExpectedAny) ? activeSession.autoExpectedAny : [];
-          const retryCount = Math.max(0, Math.trunc(Number(activeSession.autoRetryCount) || 0));
-          const retryMax = Math.max(0, Math.trunc(Number(zorkRemoteAutoResponseRetryMax) || 3));
           let continueWithNextStep = false;
           if (
             lastCommand
@@ -528,15 +525,9 @@
             // A reset means prior world-state assumptions are invalid; restart scripted checkpoints.
             resyncConsoleRemoteAutoToCheckpointStart(activeSession, `while waiting for "${{lastCommand}}"`);
             continueWithNextStep = true;
-          }} else if (lastCommand && retryCount < retryMax) {{
-            activeSession.autoRetryCount = retryCount + 1;
-            appendConsoleEventLine(
-              `[zork-remote][auto] no expected text after "${{lastCommand}}"; retrying (${{activeSession.autoRetryCount}}/${{retryMax}}).`
-            );
-            queueConsoleRemoteAutoCommand(activeSession, lastCommand, expectedAny, nowMs, true);
-            return;
           }}
-          // Stay in wait mode unless we explicitly resynced checkpoints above.
+          // Ignore non-matching lines and keep waiting; delayed/out-of-order mesh
+          // replies are common. Retry scheduling is handled by the retry deadline.
           if (!continueWithNextStep) {{
             return;
           }}
