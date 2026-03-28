@@ -362,26 +362,6 @@
         : "script";
     }}
 
-    function resyncConsoleRemoteAutoToCheckpointStart(activeSession, reasonText = "") {{
-      if (!activeSession || typeof activeSession !== "object") return;
-      activeSession.autoMode = "script";
-      activeSession.autoScriptIndex = 0;
-      activeSession.autoFreeRunIndex = 0;
-      activeSession.autoAwaitingReply = false;
-      activeSession.autoExpectedAny = [];
-      activeSession.autoAwaitingSinceMs = 0;
-      activeSession.autoAwaitingDeadlineMs = 0;
-      activeSession.autoNextRetryMs = 0;
-      activeSession.autoRetryCount = 0;
-      resetConsoleRemoteAutoSegmentState(activeSession);
-      const suffix = String(reasonText || "").trim();
-      appendConsoleEventLine(
-        suffix
-          ? `[zork-remote][auto] session reset detected (${{suffix}}); resyncing checkpoints from start.`
-          : "[zork-remote][auto] session reset detected; resyncing checkpoints from start."
-      );
-    }}
-
     function queueConsoleRemoteAutoCommand(
       activeSession,
       commandRaw,
@@ -508,38 +488,25 @@
         if (!replyText) {{
           return;
         }}
-        if (
-          consoleRemoteAutoSessionMode(activeSession) === "free-run"
-          && consoleRemoteAutoReplyLooksLikeSessionRestart(replyText)
-        ) {{
-          resyncConsoleRemoteAutoToCheckpointStart(activeSession, "during continuous mode");
-        }}
         const matched = consoleRemoteAutoScriptExpectMatch(replyText, activeSession.autoExpectedAny);
         if (!matched) {{
           const lastCommand = String(activeSession.autoLastCommand || "").trim();
           const expectedAny = Array.isArray(activeSession.autoExpectedAny) ? activeSession.autoExpectedAny : [];
           const retryCount = Math.max(0, Math.trunc(Number(activeSession.autoRetryCount) || 0));
           const retryMax = Math.max(0, Math.trunc(Number(zorkRemoteAutoResponseRetryMax) || 3));
-          let continueWithNextStep = false;
           if (
             lastCommand
+            && retryCount < retryMax
             && consoleRemoteAutoReplyLooksLikeSessionRestart(replyText)
           ) {{
-            // A reset means prior world-state assumptions are invalid; restart scripted checkpoints.
-            resyncConsoleRemoteAutoToCheckpointStart(activeSession, `while waiting for "${{lastCommand}}"`);
-            continueWithNextStep = true;
-          }} else if (lastCommand && retryCount < retryMax) {{
             activeSession.autoRetryCount = retryCount + 1;
             appendConsoleEventLine(
-              `[zork-remote][auto] no expected text after "${{lastCommand}}"; retrying (${{activeSession.autoRetryCount}}/${{retryMax}}).`
+              `[zork-remote][auto] got session-reset text while waiting for "${{lastCommand}}"; retrying (${{activeSession.autoRetryCount}}/${{retryMax}}).`
             );
             queueConsoleRemoteAutoCommand(activeSession, lastCommand, expectedAny, nowMs, true);
-            return;
           }}
-          // Stay in wait mode unless we explicitly resynced checkpoints above.
-          if (!continueWithNextStep) {{
-            return;
-          }}
+          // Stay in wait mode; mesh replies can be segmented/noisy and may arrive over multiple lines.
+          return;
         }}
         activeSession.autoAwaitingReply = false;
         activeSession.autoAwaitingSinceMs = 0;
