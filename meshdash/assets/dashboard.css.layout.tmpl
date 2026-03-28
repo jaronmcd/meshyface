@@ -3730,19 +3730,29 @@
     }}
     .chat-member-item {{
       --chat-member-node-hue: 145;
-      --chat-member-node-bg: hsl(var(--chat-member-node-hue) 22% 95%);
-      --chat-member-node-bg-hover: hsl(var(--chat-member-node-hue) 24% 93%);
+      --chat-member-node-bg: #ecf5ef;
+      --chat-member-node-bg-hover: #e7f0ea;
+      --chat-member-node-gradient: linear-gradient(
+        96deg,
+        hsl(var(--chat-member-node-hue) 22% 90% / 0.26),
+        hsl(var(--chat-member-node-hue) 18% 92% / 0.09) 26%,
+        rgba(248, 252, 248, 0) 52%
+      );
+      --chat-member-node-gradient-hover: linear-gradient(
+        96deg,
+        hsl(var(--chat-member-node-hue) 24% 90% / 0.32),
+        hsl(var(--chat-member-node-hue) 20% 92% / 0.11) 26%,
+        rgba(240, 247, 242, 0) 52%
+      );
       --chat-member-node-border: hsl(var(--chat-member-node-hue) 18% 83%);
       --chat-member-node-fg: #214234;
-      --chat-member-node-selected-bg: hsl(var(--chat-member-node-hue) 28% 90%);
       --chat-member-node-selected-border: hsl(var(--chat-member-node-hue) 22% 74%);
-      --chat-member-node-selected-fg: #1a3d2d;
       display: grid;
       grid-template-columns: 11px minmax(0, 1fr);
       gap: 6px;
       align-items: center;
       border: 1px solid var(--chat-member-node-border);
-      background: var(--chat-member-node-bg);
+      background: var(--chat-member-node-gradient), var(--chat-member-node-bg);
       color: var(--chat-member-node-fg);
       border-radius: 6px;
       padding: 3px 6px;
@@ -3751,27 +3761,28 @@
       cursor: pointer;
     }}
     .chat-member-item:hover {{
-      background: var(--chat-member-node-bg-hover);
+      background: var(--chat-member-node-gradient-hover), var(--chat-member-node-bg-hover);
     }}
     .chat-member-item.status-warn {{
-      background: var(--chat-member-node-bg);
+      background: var(--chat-member-node-gradient), var(--chat-member-node-bg);
       color: var(--chat-member-node-fg);
       border-color: var(--chat-member-node-border);
     }}
     .chat-member-item.status-stale {{
-      background: var(--chat-member-node-bg);
+      background: var(--chat-member-node-gradient), var(--chat-member-node-bg);
       color: var(--chat-member-node-fg);
       border-color: var(--chat-member-node-border);
     }}
     .chat-member-item.status-unknown {{
-      background: var(--chat-member-node-bg);
+      background: var(--chat-member-node-gradient), var(--chat-member-node-bg);
       color: var(--chat-member-node-fg);
       border-color: var(--chat-member-node-border);
     }}
     .chat-member-item.selected-node {{
-      background: var(--chat-member-node-selected-bg);
       border-color: var(--chat-member-node-selected-border);
-      color: var(--chat-member-node-selected-fg);
+      box-shadow:
+        inset 2px 0 0 hsl(var(--chat-member-node-hue) 32% 52% / 0.46),
+        inset 0 0 0 1px hsl(var(--chat-member-node-hue) 20% 72% / 0.22);
     }}
     .chat-member-status {{
       width: 10px;
@@ -5037,9 +5048,9 @@
       --chat-feed-node-hue: 145;
       --chat-feed-node-gradient: linear-gradient(
         96deg,
-        hsl(var(--chat-feed-node-hue) 24% 94% / 0.34),
-        hsl(var(--chat-feed-node-hue) 22% 95% / 0.12) 34%,
-        rgba(247, 252, 247, 0) 74%
+        hsl(var(--chat-feed-node-hue) 20% 90% / 0.2),
+        hsl(var(--chat-feed-node-hue) 16% 92% / 0.075) 30%,
+        rgba(247, 252, 247, 0) 56%
       );
       width: 100%;
       box-sizing: border-box;
@@ -5109,44 +5120,44 @@
       background:
         linear-gradient(
           90deg,
-          rgba(var(--chat-feed-channel-rgb), 0.16),
-          rgba(var(--chat-feed-channel-rgb), 0.08) 28%,
-          rgba(var(--chat-feed-channel-rgb), 0.03) 56%,
+          rgba(var(--chat-feed-channel-rgb), 0.075),
+          rgba(var(--chat-feed-channel-rgb), 0.032) 28%,
+          rgba(var(--chat-feed-channel-rgb), 0.012) 52%,
           rgba(var(--chat-feed-channel-rgb), 0) 100%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.72);
+      box-shadow: inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.46);
     }}
     .chat-feed-item.self-authored {{
       background:
         linear-gradient(
           90deg,
-          rgba(47, 133, 90, 0.08),
-          rgba(47, 133, 90, 0.04) 56%,
-          rgba(47, 133, 90, 0.01) 100%
+          rgba(47, 133, 90, 0.04),
+          rgba(47, 133, 90, 0.018) 28%,
+          rgba(47, 133, 90, 0.007) 52%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 2px 0 0 rgba(47, 133, 90, 0.42);
+      box-shadow: inset 2px 0 0 rgba(47, 133, 90, 0.24);
     }}
     .chat-feed-item.self-authored.channel-tinted {{
       background:
         linear-gradient(
           90deg,
-          rgba(var(--chat-feed-channel-rgb), 0.14),
-          rgba(var(--chat-feed-channel-rgb), 0.07) 28%,
-          rgba(var(--chat-feed-channel-rgb), 0.02) 56%,
+          rgba(var(--chat-feed-channel-rgb), 0.08),
+          rgba(var(--chat-feed-channel-rgb), 0.038) 30%,
+          rgba(var(--chat-feed-channel-rgb), 0.014) 58%,
           rgba(var(--chat-feed-channel-rgb), 0) 100%
         ),
         linear-gradient(
           90deg,
-          rgba(47, 133, 90, 0.08),
-          rgba(47, 133, 90, 0.04) 56%,
-          rgba(47, 133, 90, 0.01) 100%
+          rgba(47, 133, 90, 0.055),
+          rgba(47, 133, 90, 0.026) 58%,
+          rgba(47, 133, 90, 0.009) 100%
         ),
         var(--chat-feed-node-gradient);
       box-shadow:
-        inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.72),
-        inset 4px 0 0 rgba(47, 133, 90, 0.28);
+        inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.56),
+        inset 4px 0 0 rgba(47, 133, 90, 0.19);
     }}
     .chat-feed-item.chat-selectable {{
       cursor: pointer;
@@ -5155,8 +5166,8 @@
       background:
         linear-gradient(
           90deg,
-          rgba(35, 78, 58, 0.06),
-          rgba(35, 78, 58, 0.02) 56%,
+          rgba(35, 78, 58, 0.03),
+          rgba(35, 78, 58, 0.01) 56%,
           rgba(35, 78, 58, 0) 100%
         ),
         var(--chat-feed-node-gradient);
@@ -5165,19 +5176,19 @@
       background:
         linear-gradient(
           90deg,
-          rgba(47, 133, 90, 0.12),
-          rgba(47, 133, 90, 0.06) 56%,
-          rgba(47, 133, 90, 0.02) 100%
+          rgba(47, 133, 90, 0.05),
+          rgba(47, 133, 90, 0.025) 56%,
+          rgba(47, 133, 90, 0.01) 100%
         ),
         var(--chat-feed-node-gradient);
     }}
     .chat-feed-item.chat-selectable.channel-tinted:hover {{
       background: linear-gradient(
         90deg,
-        rgba(var(--chat-feed-channel-rgb), 0.22),
-        rgba(var(--chat-feed-channel-rgb), 0.11) 30%,
-        rgba(var(--chat-feed-channel-rgb), 0.05) 58%,
-        rgba(var(--chat-feed-channel-rgb), 0.02) 100%
+        rgba(var(--chat-feed-channel-rgb), 0.1),
+        rgba(var(--chat-feed-channel-rgb), 0.045) 30%,
+        rgba(var(--chat-feed-channel-rgb), 0.02) 58%,
+        rgba(var(--chat-feed-channel-rgb), 0.008) 100%
       ),
       var(--chat-feed-node-gradient);
     }}
@@ -5185,16 +5196,16 @@
       background:
         linear-gradient(
           90deg,
-          rgba(var(--chat-feed-channel-rgb), 0.2),
-          rgba(var(--chat-feed-channel-rgb), 0.1) 30%,
-          rgba(var(--chat-feed-channel-rgb), 0.04) 58%,
-          rgba(var(--chat-feed-channel-rgb), 0.01) 100%
+          rgba(var(--chat-feed-channel-rgb), 0.09),
+          rgba(var(--chat-feed-channel-rgb), 0.04) 30%,
+          rgba(var(--chat-feed-channel-rgb), 0.016) 58%,
+          rgba(var(--chat-feed-channel-rgb), 0.006) 100%
         ),
         linear-gradient(
           90deg,
-          rgba(47, 133, 90, 0.12),
-          rgba(47, 133, 90, 0.06) 56%,
-          rgba(47, 133, 90, 0.02) 100%
+          rgba(47, 133, 90, 0.05),
+          rgba(47, 133, 90, 0.025) 56%,
+          rgba(47, 133, 90, 0.01) 100%
         ),
         var(--chat-feed-node-gradient);
     }}

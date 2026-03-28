@@ -1584,7 +1584,6 @@
     }}
     [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .chat-channel-item,
-    [data-theme="dark"] .chat-member-item,
     [data-theme="dark"] .metric {{
       background: #213229;
       border-color: #3a5346;
@@ -1592,7 +1591,6 @@
     }}
     [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
-    [data-theme="dark"] .chat-member-item:hover,
     [data-theme="dark"] .metric:hover {{
       background: #284034;
     }}
@@ -2029,9 +2027,7 @@
     [data-theme="dark"] .card,
     [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .chat-channel-item,
-    [data-theme="dark"] .chat-member-item,
     [data-theme="dark"] .metric,
-    [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-composer,
     [data-theme="dark"] .chat-compose-shell,
     [data-theme="dark"] .chat-left-bottom-bar,
@@ -2064,9 +2060,7 @@
     }}
     [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
-    [data-theme="dark"] .chat-member-item:hover,
     [data-theme="dark"] .metric:hover,
-    [data-theme="dark"] .chat-feed-item.chat-selectable:hover:not(.channel-tinted),
     [data-theme="dark"] .chat-reaction-chip:hover,
     [data-theme="dark"] .chat-reply-btn:hover,
     [data-theme="dark"] .chat-ack-btn:hover,
@@ -2308,9 +2302,7 @@
     [data-theme="dark"] .disk-meter,
     [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .chat-channel-item,
-    [data-theme="dark"] .chat-member-item,
     [data-theme="dark"] .metric,
-    [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-endpoint .chat-id-bg,
     [data-theme="dark"] .chat-reaction-chip,
     [data-theme="dark"] .chat-reply-btn,
@@ -2401,9 +2393,9 @@
       --chat-feed-node-hue: 145;
       --chat-feed-node-gradient: linear-gradient(
         96deg,
-        hsl(var(--chat-feed-node-hue) 20% 26% / 0.46),
-        hsl(var(--chat-feed-node-hue) 16% 22% / 0.18) 34%,
-        rgba(7, 13, 7, 0) 76%
+        hsl(var(--chat-feed-node-hue) 18% 36% / 0.19),
+        hsl(var(--chat-feed-node-hue) 14% 28% / 0.065) 24%,
+        rgba(7, 13, 7, 0) 52%
       );
       background: var(--chat-feed-node-gradient);
       border: 0;
@@ -2415,32 +2407,32 @@
       background:
         linear-gradient(
           90deg,
-          rgba(63, 185, 80, 0.08),
-          rgba(63, 185, 80, 0.035) 56%,
-          rgba(63, 185, 80, 0.01) 100%
+          rgba(63, 185, 80, 0.04),
+          rgba(63, 185, 80, 0.015) 28%,
+          rgba(63, 185, 80, 0.006) 52%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 2px 0 0 rgba(63, 185, 80, 0.18);
+      box-shadow: inset 2px 0 0 rgba(63, 185, 80, 0.16);
     }}
     [data-theme="dark"] .card.chat .chat-feed-item.self-authored.channel-tinted {{
       background:
         linear-gradient(
           90deg,
-          rgba(var(--chat-feed-channel-rgb), 0.16),
-          rgba(var(--chat-feed-channel-rgb), 0.08) 28%,
-          rgba(var(--chat-feed-channel-rgb), 0.025) 56%,
-          rgba(var(--chat-feed-channel-rgb), 0.01) 100%
+          rgba(var(--chat-feed-channel-rgb), 0.065),
+          rgba(var(--chat-feed-channel-rgb), 0.03) 30%,
+          rgba(var(--chat-feed-channel-rgb), 0.012) 58%,
+          rgba(var(--chat-feed-channel-rgb), 0.006) 100%
         ),
         linear-gradient(
           90deg,
-          rgba(63, 185, 80, 0.08),
-          rgba(63, 185, 80, 0.035) 56%,
-          rgba(63, 185, 80, 0.01) 100%
+          rgba(63, 185, 80, 0.04),
+          rgba(63, 185, 80, 0.015) 28%,
+          rgba(63, 185, 80, 0.006) 52%
         ),
         var(--chat-feed-node-gradient);
       box-shadow:
-        inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.84),
-        inset 4px 0 0 rgba(63, 185, 80, 0.12);
+        inset 2px 0 0 rgba(var(--chat-feed-channel-rgb), 0.44),
+        inset 4px 0 0 rgba(63, 185, 80, 0.08);
     }}
     [data-theme="dark"] .card.chat .chat-feed-item:last-child {{
       border-bottom: 0;
@@ -2449,8 +2441,8 @@
       background:
         linear-gradient(
           90deg,
-          rgba(107, 136, 163, 0.16),
-          rgba(107, 136, 163, 0.06) 56%,
+          rgba(107, 136, 163, 0.1),
+          rgba(107, 136, 163, 0.035) 56%,
           rgba(107, 136, 163, 0) 100%
         ),
         var(--chat-feed-node-gradient);
@@ -2459,9 +2451,9 @@
       background:
         linear-gradient(
           90deg,
-          rgba(63, 185, 80, 0.12),
-          rgba(63, 185, 80, 0.055) 56%,
-          rgba(63, 185, 80, 0.02) 100%
+          rgba(63, 185, 80, 0.07),
+          rgba(63, 185, 80, 0.032) 56%,
+          rgba(63, 185, 80, 0.012) 100%
         ),
         var(--chat-feed-node-gradient);
     }}
@@ -2469,16 +2461,16 @@
       background:
         linear-gradient(
           90deg,
-          rgba(var(--chat-feed-channel-rgb), 0.18),
-          rgba(var(--chat-feed-channel-rgb), 0.09) 30%,
-          rgba(var(--chat-feed-channel-rgb), 0.035) 58%,
-          rgba(var(--chat-feed-channel-rgb), 0.02) 100%
+          rgba(var(--chat-feed-channel-rgb), 0.1),
+          rgba(var(--chat-feed-channel-rgb), 0.046) 30%,
+          rgba(var(--chat-feed-channel-rgb), 0.018) 58%,
+          rgba(var(--chat-feed-channel-rgb), 0.01) 100%
         ),
         linear-gradient(
           90deg,
-          rgba(63, 185, 80, 0.12),
-          rgba(63, 185, 80, 0.055) 56%,
-          rgba(63, 185, 80, 0.02) 100%
+          rgba(63, 185, 80, 0.07),
+          rgba(63, 185, 80, 0.032) 56%,
+          rgba(63, 185, 80, 0.012) 100%
         ),
         var(--chat-feed-node-gradient);
     }}
@@ -2832,9 +2824,7 @@
     [data-theme="dark"] .starred-node-wrap:hover,
     [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
-    [data-theme="dark"] .chat-member-item:hover,
     [data-theme="dark"] .metric:hover,
-    [data-theme="dark"] .chat-feed-item.chat-selectable:hover:not(.channel-tinted),
     [data-theme="dark"] .chat-reaction-chip:hover,
     [data-theme="dark"] .chat-reply-btn:hover,
     [data-theme="dark"] .chat-ack-btn:hover,
@@ -2866,10 +2856,10 @@
         inset 0 0 0 1px rgba(63, 185, 80, 0.3);
     }}
     [data-theme="dark"] .chat-member-item.selected-node {{
-      background: hsl(var(--chat-member-node-hue, 205) 20% 24%) !important;
       border-color: hsl(var(--chat-member-node-hue, 205) 20% 40%) !important;
-      color: hsl(var(--chat-member-node-hue, 205) 30% 92%) !important;
-      box-shadow: inset 2px 0 0 hsl(var(--chat-member-node-hue, 205) 48% 64%);
+      box-shadow:
+        inset 2px 0 0 hsl(var(--chat-member-node-hue, 205) 40% 64% / 0.56),
+        inset 0 0 0 1px hsl(var(--chat-member-node-hue, 205) 20% 48% / 0.24);
     }}
     [data-theme="dark"] .chat-member-dm-link {{
       color: #8fc8ff;
@@ -2879,10 +2869,6 @@
     }}
     [data-theme="dark"] .chat-member-dm-link:focus-visible {{
       outline-color: #7aaad6;
-    }}
-    [data-theme="dark"] .chat-member-item.selected-node .chat-member-id {{
-      color: #bed3e8 !important;
-      opacity: 0.9;
     }}
     [data-theme="dark"] .node-status-dot.status-online {{ color: #3fb950; }}
     [data-theme="dark"] .node-status-dot.status-warn {{ color: #d29922; }}
@@ -3053,14 +3039,30 @@
       color: var(--ui-text-soft);
     }}
     [data-theme="dark"] .chat-member-item {{
-      background: hsl(var(--chat-member-node-hue, 145) 16% 17%);
-      border-color: hsl(var(--chat-member-node-hue, 145) 14% 30%);
+      background:
+        linear-gradient(
+          96deg,
+          hsl(var(--chat-member-node-hue, 145) 28% 46% / 0.17),
+          hsl(var(--chat-member-node-hue, 145) 22% 38% / 0.06) 26%,
+          rgba(12, 18, 24, 0) 52%
+        ),
+        #10161b;
+      border-color: hsl(var(--chat-member-node-hue, 145) 12% 30% / 0.42);
       color: hsl(var(--chat-member-node-hue, 145) 24% 86%);
+      box-shadow: inset 1px 0 0 hsl(var(--chat-member-node-hue, 145) 24% 48% / 0.1);
     }}
     [data-theme="dark"] .chat-member-item:hover {{
-      background: hsl(var(--chat-member-node-hue, 145) 18% 20%);
-      border-color: hsl(var(--chat-member-node-hue, 145) 16% 34%) !important;
-      color: hsl(var(--chat-member-node-hue, 145) 24% 90%) !important;
+      background:
+        linear-gradient(
+          96deg,
+          hsl(var(--chat-member-node-hue, 145) 30% 50% / 0.2),
+          hsl(var(--chat-member-node-hue, 145) 24% 40% / 0.075) 26%,
+          rgba(14, 20, 28, 0) 52%
+        ),
+        #121a20;
+      border-color: hsl(var(--chat-member-node-hue, 145) 14% 34% / 0.5);
+      color: hsl(var(--chat-member-node-hue, 145) 24% 90%);
+      box-shadow: inset 1px 0 0 hsl(var(--chat-member-node-hue, 145) 26% 52% / 0.14);
     }}
     [data-theme="dark"] .chat-peer-add-toggle-btn:hover,
     [data-theme="dark"] .chat-peer-add-btn:hover,

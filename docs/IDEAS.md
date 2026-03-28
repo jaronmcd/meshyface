@@ -3,6 +3,9 @@
 
 
 - node color by ID
+- gradiant in list
+- do we need the node list on node / network now that have the left node list?
+
 - bot activity show as (1)
 - at the base level, report to other users the version of meshyface
 - fix deselected channel notifaction
