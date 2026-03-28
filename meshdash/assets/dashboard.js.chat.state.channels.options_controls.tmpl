@@ -513,7 +513,7 @@
       channelsViewHydrateInFlight = hydrateMeshChannelOptions(force)
         .catch(() => null)
         .then(() => {{
-          if (activeLayoutView === "channels") {{
+          if (isChannelsViewActive()) {{
             renderChannelsView(latestState);
           }}
           return settingsLocalStateCache;

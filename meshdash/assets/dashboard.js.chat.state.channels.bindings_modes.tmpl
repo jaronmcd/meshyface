@@ -37,7 +37,7 @@
           renderBbsView(latestState);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(latestState);
-        }} else if (activeLayoutView === "channels") {{
+        }} else if (isChannelsViewActive()) {{
           renderChannelsView(latestState);
         }}
       }}
@@ -72,7 +72,7 @@
           renderBbsView(latestState);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(latestState);
-        }} else if (activeLayoutView === "channels") {{
+        }} else if (isChannelsViewActive()) {{
           renderChannelsView(latestState);
         }}
       }}

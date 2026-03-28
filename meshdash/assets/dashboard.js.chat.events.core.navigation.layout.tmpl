@@ -665,6 +665,7 @@
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "data") return "settings";
       if (clean === "packets") return "settings";
+      if (clean === "channels") return "settings";
       if (clean === "apps") return loadPreferredAppsLayoutView();
       if (isAppsLayoutView(clean)) return clean;
       return knownLayoutViews.has(clean) ? clean : "chat";
@@ -757,8 +758,12 @@
       const requested = String(viewName || "").trim().toLowerCase();
       const next = normalizeLayoutView(viewName);
       activeLayoutView = next;
-      if (next === "settings" && (requested === "data" || requested === "packets")) {{
-        setActiveSettingsTab("data", true);
+      if (next === "settings") {{
+        if (requested === "data" || requested === "packets") {{
+          setActiveSettingsTab("data", true);
+        }} else if (requested === "channels") {{
+          setActiveSettingsTab("channels", true);
+        }}
       }}
       persistPreferredAppsLayoutView(next);
       for (const name of knownLayoutViews) {{
@@ -949,11 +954,10 @@
           }});
           if (activeSettingsTab === "data") {{
             renderPackets(latestState);
+          }} else if (activeSettingsTab === "channels") {{
+            renderChannelsView(latestState);
+            void ensureChannelsViewLocalStateHydrated(false);
           }}
-        }}
-        if (next === "channels") {{
-          renderChannelsView(latestState);
-          void ensureChannelsViewLocalStateHydrated(false);
         }}
         if (next === "encription") {{
           renderEncription(latestState.traffic || {{}});
@@ -976,9 +980,6 @@
         renderFilesView(latestState);
       }} else if (next === "bbs") {{
         renderBbsView(latestState);
-      }} else if (next === "channels") {{
-        renderChannelsView(latestState);
-        void ensureChannelsViewLocalStateHydrated(false);
       }} else if (next === "bots") {{
         renderBotsView(latestState);
       }} else if (next === "games") {{
@@ -1007,7 +1008,7 @@
       }}
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "channels" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -1066,9 +1067,12 @@
       const preferred = normalizeLayoutView(rawPreferred);
       const rawPreferredView = String(rawPreferred || "").trim().toLowerCase();
       const migratedDataView = rawPreferredView === "data" || rawPreferredView === "packets";
+      const migratedChannelsView = rawPreferredView === "channels";
       applyLayoutView(preferred, false);
       if (migratedDataView) {{
         setActiveSettingsTab("data", true);
+      }} else if (migratedChannelsView) {{
+        setActiveSettingsTab("channels", true);
       }}
     }}
 

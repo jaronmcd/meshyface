@@ -325,7 +325,6 @@
       <button class="rail-btn active" data-view="chat" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Teams-style chat workspace">Chat</button>
       <button class="rail-btn" data-view="network" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Topology, nodes, and links">Network</button>
       <button class="rail-btn" data-view="saved" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Node details and saved nodes">Node</button>
-      <button class="rail-btn" data-view="channels" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Inferred message channel activity">Channels</button>
       <button class="rail-btn" data-view="encription" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Encrypted packets and route activity">Encription</button>
       <button class="rail-btn" data-view="environment" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Historical sensor telemetry">Sensors</button>
       <button class="rail-btn" data-view="history" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Network and chat history">History</button>
@@ -518,6 +517,16 @@
             data-settings-tab="advanced"
           >
             Advanced
+          </button>
+          <button
+            id="settings-tab-channels-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="channels"
+          >
+            Channels
           </button>
           <button
             id="settings-tab-tickers-btn"
@@ -1484,6 +1493,91 @@
                 <button id="settings-regenerate-node-id" class="btn btn-danger" type="button">Regenerate Node ID</button>
                 <span class="settings-danger-note">Danger zone: resets radio discovery, clears dashboard history, or full-resets the radio to regenerate node ID.</span>
               </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="channels" hidden>
+            <h3>Message Channels</h3>
+            <div class="channels-dashboard-grid">
+              <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-summary" aria-label="Observed channel summary">
+                <div class="channels-section-head">
+                  <div>
+                    <h3>Observed</h3>
+                    <div id="channels-caption" class="history-caption channels-panel-copy">Recent packet evidence for local and observed message channels.</div>
+                  </div>
+                  <div class="channels-section-actions channels-summary-actions">
+                    <label class="settings-field settings-inline channels-summary-toggle" title="Beginner-friendly view hides MQTT bridge toggles and shows quick actions. Advanced shows everything.">
+                      <input id="settings-channels-advanced-toggle" type="checkbox" />
+                      <span>Advanced</span>
+                    </label>
+                    <label class="settings-field settings-inline channels-summary-toggle" title="Allows adding a new secondary channel with no name. Leave this off unless you intentionally want an unnamed channel.">
+                      <input id="settings-channels-experimental-toggle" type="checkbox" />
+                      <span>Experimental</span>
+                    </label>
+                    <button id="channels-fetch-settings-btn" class="btn btn-secondary" type="button">Fetch radio config</button>
+                  </div>
+                </div>
+                <div id="channels-overview" class="overview-grid"></div>
+                <section class="channels-app-routing" aria-label="App channel routing">
+                  <div class="channels-app-routing-head">
+                    <div class="channels-app-routing-head-main">
+                      <h4>App Channels</h4>
+                      <button
+                        id="channels-app-routing-toggle-btn"
+                        class="btn btn-secondary channels-app-routing-toggle"
+                        type="button"
+                        aria-expanded="false"
+                      >Expand</button>
+                    </div>
+                    <div id="channels-app-routing-summary" class="channels-app-routing-summary">Loading app routing summary...</div>
+                    <div id="channels-app-routing-copy" class="channels-app-routing-copy" hidden>Choose whether Files, Games, and BBS follow global send or stay locked to a fixed channel.</div>
+                  </div>
+                  <div id="channels-app-routing-grid" class="channels-app-routing-grid" hidden>
+                    <div class="channels-app-route-placeholder">Loading app channel routing controls...</div>
+                  </div>
+                </section>
+                <div class="channels-summary-footer">
+                  <div class="settings-help-note channels-current-note">
+                    Blank <strong>PSK</strong> keeps the current key. <strong>Ch 0</strong> may be active with no name.
+                  </div>
+                  <div class="channels-status-row">
+                    <span id="channels-apply-status" class="settings-status channels-status"></span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-activity" aria-label="Channel activity">
+                <div class="channels-section-head">
+                  <div>
+                    <h3>Channel Activity</h3>
+                  </div>
+                </div>
+                <div class="channels-activity-table-wrap scroll">
+                  <table class="settings-channels-table" id="settings-channels-table">
+                    <thead>
+                      <tr>
+                        <th>Index</th>
+                        <th>Role</th>
+                        <th>Name</th>
+                        <th class="settings-channel-mqtt">MQTT Up</th>
+                        <th class="settings-channel-mqtt">MQTT Down</th>
+                        <th>PSK (new)</th>
+                        <th>Actions</th>
+                        <th>Evidence</th>
+                        <th>Packets</th>
+                        <th>Everyone</th>
+                        <th>Direct</th>
+                        <th>Nodes</th>
+                        <th>Top ports</th>
+                        <th>Latest</th>
+                      </tr>
+                    </thead>
+                    <tbody id="settings-channels-tbody">
+                      <tr><td colspan="14" class="settings-channels-empty">Fetch settings to load channels.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -2803,93 +2897,6 @@ Ready.
     </section>
 
     <div class="hsplitter" data-target="mid" title="Drag to resize middle and lower panels"></div>
-
-    <section class="card channels-view" aria-label="Inferred message channels">
-      <h2>Channels</h2>
-      <div class="body">
-        <div class="channels-dashboard-grid">
-          <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-summary" aria-label="Observed channel summary">
-            <div class="channels-section-head">
-              <div>
-                <h3>Observed</h3>
-                <div id="channels-caption" class="history-caption channels-panel-copy">Recent packet evidence for local and observed message channels.</div>
-              </div>
-              <div class="channels-section-actions channels-summary-actions">
-                <label class="settings-field settings-inline channels-summary-toggle" title="Beginner-friendly view hides MQTT bridge toggles and shows quick actions. Advanced shows everything.">
-                  <input id="settings-channels-advanced-toggle" type="checkbox" />
-                  <span>Advanced</span>
-                </label>
-                <label class="settings-field settings-inline channels-summary-toggle" title="Allows adding a new secondary channel with no name. Leave this off unless you intentionally want an unnamed channel.">
-                  <input id="settings-channels-experimental-toggle" type="checkbox" />
-                  <span>Experimental</span>
-                </label>
-                <button id="channels-fetch-settings-btn" class="btn btn-secondary" type="button">Fetch radio config</button>
-              </div>
-            </div>
-            <div id="channels-overview" class="overview-grid"></div>
-            <section class="channels-app-routing" aria-label="App channel routing">
-              <div class="channels-app-routing-head">
-                <div class="channels-app-routing-head-main">
-                  <h4>App Channels</h4>
-                  <button
-                    id="channels-app-routing-toggle-btn"
-                    class="btn btn-secondary channels-app-routing-toggle"
-                    type="button"
-                    aria-expanded="false"
-                  >Expand</button>
-                </div>
-                <div id="channels-app-routing-summary" class="channels-app-routing-summary">Loading app routing summary…</div>
-                <div id="channels-app-routing-copy" class="channels-app-routing-copy" hidden>Choose whether Files, Games, and BBS follow global send or stay locked to a fixed channel.</div>
-              </div>
-              <div id="channels-app-routing-grid" class="channels-app-routing-grid" hidden>
-                <div class="channels-app-route-placeholder">Loading app channel routing controls…</div>
-              </div>
-            </section>
-            <div class="channels-summary-footer">
-              <div class="settings-help-note channels-current-note">
-                Blank <strong>PSK</strong> keeps the current key. <strong>Ch 0</strong> may be active with no name.
-              </div>
-              <div class="channels-status-row">
-                <span id="channels-apply-status" class="settings-status channels-status"></span>
-              </div>
-            </div>
-          </section>
-
-          <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-activity" aria-label="Channel activity">
-            <div class="channels-section-head">
-              <div>
-                <h3>Channel Activity</h3>
-              </div>
-            </div>
-            <div class="channels-activity-table-wrap scroll">
-              <table class="settings-channels-table" id="settings-channels-table">
-                <thead>
-                  <tr>
-                    <th>Index</th>
-                    <th>Role</th>
-                    <th>Name</th>
-                    <th class="settings-channel-mqtt">MQTT Up</th>
-                    <th class="settings-channel-mqtt">MQTT Down</th>
-                    <th>PSK (new)</th>
-                    <th>Actions</th>
-                    <th>Evidence</th>
-                    <th>Packets</th>
-                    <th>Everyone</th>
-                    <th>Direct</th>
-                    <th>Nodes</th>
-                    <th>Top ports</th>
-                    <th>Latest</th>
-                  </tr>
-                </thead>
-                <tbody id="settings-channels-tbody">
-                  <tr><td colspan="14" class="settings-channels-empty">Fetch settings to load channels.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </div>
-    </section>
 
     <section class="card encription">
       <h2>Encrypted Traffic</h2>

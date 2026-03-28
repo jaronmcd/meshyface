@@ -151,6 +151,7 @@
         || key === "telemetry"
         || key === "security"
         || key === "advanced"
+        || key === "channels"
         || key === "data"
         || key === "tickers"
       ) return key;
@@ -209,6 +210,11 @@
           source: readSettingsPositionSourceSelection(),
           recenter: activeLayoutView === "settings" && settingsFixedMapPanelVisible,
         }});
+      }} else if (next === "channels") {{
+        if (latestState) {{
+          renderChannelsView(latestState);
+        }}
+        void ensureChannelsViewLocalStateHydrated(false);
       }} else if (next === "data") {{
         // Keep raw diagnostics current when the Data tab is opened.
         void loadRawMyInfo().catch(() => {{}});

@@ -85,7 +85,7 @@
             renderHistoryChat(traffic304);
             void refreshHistoryPanels(false);
           }}
-          if (activeLayoutView === "channels") {{
+          if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
             renderChannelsView(latestState);
           }}
           if (activeLayoutView === "encription") {{
@@ -287,10 +287,6 @@
           renderFavorites(state, cachedHistory, loadingId);
         }}
 
-        if (activeLayoutView === "channels") {{
-          renderChannelsView(state);
-        }}
-
         if (activeLayoutView === "encription") {{
           renderEncription(state.traffic || {{}});
         }}
@@ -303,6 +299,8 @@
           renderSettings(state);
           if (activeSettingsTab === "data") {{
             renderPackets(state);
+          }} else if (activeSettingsTab === "channels") {{
+            renderChannelsView(state);
           }}
         }}
 
