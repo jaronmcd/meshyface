@@ -995,15 +995,16 @@
                   ? `Last seen ${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}}`
                   : "Last seen n/a";
                 const idleRowHtml = `<span class="chat-member-idle-time" title="${{escAttr(idleRowTitle)}}">Idle: ${{escAttr(idleText)}}</span>`;
-                let packetRowHtml = "";
+                let packetDirectionHtml = "";
+                let packetSparkWrapHtml = "";
                 if (showPacketTrendRow) {{
                   const packetSparklinePath = buildNodePacketSparklinePath(packetSparklineBuckets, 56, 12);
                   const packetSparklineTrend = classifyNodePacketSparklineTrend(packetSparklineBuckets);
                   const packetRowTitle = packetTotal > 0
                     ? `Packet trend: last ${{packetSparklineWindowMin}}m. RX ${{packetRxRecent5m}} / TX ${{packetTxRecent5m}} in last 5m, RX ${{packetRxTotal}} / TX ${{packetTxTotal}} total. Last any ${{packetLastText}}. Last RX ${{packetLastRxText}}. Last TX ${{packetLastTxText}}`
                     : `No packets from this node in the current packet buffer. Trend window: ${{packetSparklineWindowMin}}m`;
-                  packetRowHtml = `<span class="chat-member-packet-trend-wrap">
-                  <span class="chat-member-packet-direction" title="Per-node radio packet direction in last 5 minutes">RX ${{packetRxRecent5m}} · TX ${{packetTxRecent5m}}</span>
+                  packetDirectionHtml = `<span class="chat-member-packet-direction" title="Per-node radio packet direction in last 5 minutes">RX ${{packetRxRecent5m}} · TX ${{packetTxRecent5m}}</span>`;
+                  packetSparkWrapHtml = `<span class="chat-member-packet-spark-wrap">
                   <span class="chat-member-packet-trend metric-ticker ${{packetSparklineTrend}}" title="${{escAttr(packetRowTitle)}}">
                   <svg class="metric-ticker-chart chat-member-packet-sparkline" viewBox="0 0 56 12" preserveAspectRatio="none" aria-hidden="true" focusable="false">
                     <path d="${{escAttr(packetSparklinePath)}}" />
@@ -1011,7 +1012,7 @@
                 </span>
                 </span>`;
                 }}
-                const memberMetaRowHtml = `<span class="chat-member-meta-row">${{idleRowHtml}}${{packetRowHtml}}</span>`;
+                const memberMetaRowHtml = `<span class="chat-member-meta-row">${{idleRowHtml}}${{packetDirectionHtml}}</span>`;
                 const memberFieldsRowHtml = (() => {{
                   const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
                   if (!Array.isArray(visibleFieldIds) || visibleFieldIds.length <= 0) return "";
@@ -1036,9 +1037,7 @@
                   if (chips.length <= 0) return "";
                   return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
                 }})();
-                const favoriteBtnHtml = (typeof favoriteToggleButtonHtml === "function")
-                  ? favoriteToggleButtonHtml(item.id, "chat-favorite-btn")
-                  : "";
+                const actionButtonsHtml = removeBtn || "";
                 const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
                 const nodeHue = tagActive
                   ? nodeTagTintHue(tagEntry, autoNodeHue)
@@ -1049,7 +1048,11 @@
                 const tagChipHtml = (showTagBadge && tagActive)
                   ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
                   : "";
-                return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}${{tagClass}}" data-node-id="${{escAttr(item.id)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
+                const packetSparkClass = packetSparkWrapHtml ? " has-packet-spark" : "";
+                const actionRowHtml = actionButtonsHtml
+                  ? `<span class="chat-member-actions">${{actionButtonsHtml}}</span>`
+                  : "";
+                return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}${{tagClass}}${{packetSparkClass}}" data-node-id="${{escAttr(item.id)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
                 <span class="chat-member-status status-${{item.status}}">●</span>
                 <span class="chat-member-main">
                   <span class="chat-member-name-row">
@@ -1057,14 +1060,12 @@
                       <span class="chat-member-name status-${{item.status}}">${{escAttr(item.name)}}</span>
                       ${{tagChipHtml}}
                     </span>
-                    <span class="chat-member-actions">
-                      ${{favoriteBtnHtml}}
-                      ${{removeBtn}}
-                    </span>
+                    ${{actionRowHtml}}
                   </span>
                   ${{memberMetaRowHtml}}
                   ${{memberFieldsRowHtml}}
                 </span>
+                ${{packetSparkWrapHtml}}
               </div>`;
                 }} catch (err) {{
                 const fallbackId = normalizeNodeId(item && item.id);
