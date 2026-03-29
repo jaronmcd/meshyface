@@ -1,18 +1,15 @@
 # Ideas Backlog
 
 
-- ask if we can make github issues and use them?
-- replace star with custom node colors (node tag)
-- put mute in dropdown, pick new dropdown icon
-- makw channel highlight dotted?
-
-
-- move tag config to node dropdown tab. its a +tag, when none is assigned, and then if assigned it shows the tag name and clicking iot shows the edit
+move the scrollbar uptop whwre the name is, between the version and icons. replace Maeashface with the full radio name
 
 
 - sort out click selection, map non map
 
 
+- ask if we can make github issues and use them?
+
+- theme settings tab
 
 - all bots are plugins
 - bot activity show as (1)
