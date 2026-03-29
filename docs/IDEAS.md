@@ -10,7 +10,7 @@
 - move tag config to node dropdown tab. its a +tag, when none is assigned, and then if assigned it shows the tag name and clicking iot shows the edit
 
 
-- sort out click selection
+- sort out click selection, map non map
 
 
 
