@@ -376,6 +376,21 @@
       const normalized = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(normalized)) return;
       if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{
+        if (
+          shouldFocus
+          && isChatWorkspaceLayoutView(activeLayoutView)
+          && typeof setChatNodeDetailsDrawerExpanded === "function"
+          && (
+            typeof isChatNodeDetailsDrawerExpanded !== "function"
+            || !isChatNodeDetailsDrawerExpanded()
+          )
+        ) {{
+          setChatNodeDetailsDrawerExpanded(true, {{
+            fetchHistory: true,
+            rerender: false,
+          }});
+          return;
+        }}
         clearNodeSelection();
         return;
       }}
