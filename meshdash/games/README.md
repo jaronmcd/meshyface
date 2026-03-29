@@ -12,5 +12,6 @@ If you want to make your own game:
    `build_bot_apps()` (or exports `BOT_APPS`).
 5. (Optional) Load plugin modules from outside the package with
    `MESH_DASH_BOT_PLUGIN_MODULES`.
+6. For command-style bots, prefer the SDK helper `meshdash.bot_sdk.CommandApp`.
 
 The goal is to keep the app code separate from the transport, logging, and bot settings code.

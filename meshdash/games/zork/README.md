@@ -34,6 +34,7 @@ To make your own game, the fastest path is:
    `build_bot_apps()` (or exports `BOT_APPS`).
 6. (Optional) Load plugin modules from outside the package with
    `MESH_DASH_BOT_PLUGIN_MODULES`.
+7. For command-style bots, prefer `meshdash.bot_sdk.CommandApp`.
 
 The bot only provides message routing, settings, and request logging. The app logic stays here.
 

@@ -86,3 +86,8 @@ def test_build_builtin_bot_apps_can_strict_fail_on_bad_plugin_modules():
                 "MESH_DASH_BOT_PLUGIN_STRICT": "1",
             }
         )
+
+
+def test_build_builtin_bot_apps_skips_underscore_template_modules():
+    names = _app_names(build_builtin_bot_apps(env={}))
+    assert "echo" not in names

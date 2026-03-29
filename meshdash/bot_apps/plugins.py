@@ -61,6 +61,9 @@ def _discover_namespace_modules(namespace: str) -> list[str]:
         return []
     out: list[str] = []
     for module_info in pkgutil.iter_modules(package_path):
+        # Treat underscore-prefixed modules as templates/private helpers.
+        if str(module_info.name).startswith("_"):
+            continue
         out.append(f"{clean}.{module_info.name}")
     return sorted(out)
 

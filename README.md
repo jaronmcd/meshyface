@@ -359,9 +359,17 @@ Custom template fields:
   - optional comma/semicolon/newline-delimited Python module list
   - each module should expose either `build_bot_apps()` or `BOT_APPS`
   - these modules are loaded in addition to `meshdash.bot_plugins.*`
+  - underscore-prefixed modules in `meshdash.bot_plugins` are ignored
 - `MESH_DASH_BOT_PLUGIN_STRICT=0|1` (default: `0`)
   - when `1`, plugin import/build errors raise and fail bot startup
   - when `0`, bad plugins are skipped and startup continues
+
+SDK helpers:
+
+- Use `meshdash.bot_sdk.CommandApp` + `CommandInvocation` for low-boilerplate
+  command plugins.
+- Start from `meshdash/bot_plugins/_sdk_template.py`.
+- See `docs/BOT_SDK.md` for the plugin workflow.
 
 Bots panel notes:
 
