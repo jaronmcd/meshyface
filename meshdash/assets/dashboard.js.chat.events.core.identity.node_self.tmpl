@@ -89,16 +89,314 @@
       return raw;
     }}
 
-    function nodeTintHue(nodeId, fallbackHue = 145) {{
-      const fallback = Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)));
-      const clean = normalizeNodeId(nodeId || "");
-      if (!clean) return fallback;
+    function mixHash32(value) {{
+      let x = Number(value) >>> 0;
+      x ^= x >>> 16;
+      x = Math.imul(x, 0x7feb352d);
+      x ^= x >>> 15;
+      x = Math.imul(x, 0x846ca68b);
+      x ^= x >>> 16;
+      return x >>> 0;
+    }}
+
+    function radicalInverse32(value) {{
+      let x = Number(value) >>> 0;
+      x = ((x >>> 1) & 0x55555555) | ((x & 0x55555555) << 1);
+      x = ((x >>> 2) & 0x33333333) | ((x & 0x33333333) << 2);
+      x = ((x >>> 4) & 0x0f0f0f0f) | ((x & 0x0f0f0f0f) << 4);
+      x = ((x >>> 8) & 0x00ff00ff) | ((x & 0x00ff00ff) << 8);
+      x = ((x >>> 16) & 0x0000ffff) | ((x & 0x0000ffff) << 16);
+      return (x >>> 0) / 4294967296;
+    }}
+
+    function clampNodeTintMultiplier(value, fallback = 1) {{
+      const raw = Number(value);
+      const base = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+      const normalized = Number.isFinite(raw) ? raw : base;
+      return Math.max(0.72, Math.min(1.32, normalized));
+    }}
+
+    function clampNodeTintShift(value, fallback = 0, min = -8, max = 8) {{
+      const raw = Number(value);
+      const base = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+      const normalized = Number.isFinite(raw) ? raw : base;
+      return Math.max(min, Math.min(max, normalized));
+    }}
+
+    function normalizeNodeTintHue(value, fallback = 0) {{
+      const raw = Number(value);
+      const fallbackHue = Number.isFinite(Number(fallback))
+        ? Number(fallback)
+        : 0;
+      const normalized = Number.isFinite(raw)
+        ? raw
+        : fallbackHue;
+      return ((((Math.trunc(normalized) % 360) + 360) % 360));
+    }}
+
+    function nodeTintHueDelta(fromHue, toHue) {{
+      const from = normalizeNodeTintHue(fromHue, 0);
+      const to = normalizeNodeTintHue(toHue, from);
+      let delta = to - from;
+      if (delta <= -180) delta += 360;
+      if (delta > 180) delta -= 360;
+      return delta;
+    }}
+
+    function normalizeNodeTintSeedText(value, fallback = "") {{
+      const raw = String(value == null ? "" : value).trim();
+      if (raw) return raw;
+      return String(fallback == null ? "" : fallback).trim();
+    }}
+
+    function nodeTintHashFromSeed(seedValue, fallbackSeed = "node") {{
+      const seedText = normalizeNodeTintSeedText(seedValue, fallbackSeed || "node");
+      if (!seedText) return 0;
       let hash = 2166136261;
-      for (let idx = 0; idx < clean.length; idx += 1) {{
-        hash ^= clean.charCodeAt(idx);
+      for (let idx = 0; idx < seedText.length; idx += 1) {{
+        hash ^= seedText.charCodeAt(idx);
         hash = Math.imul(hash, 16777619);
       }}
-      return (hash >>> 0) % 360;
+      return hash >>> 0;
+    }}
+
+    function nodeTintHueFromHash(hashValue, fallbackHue = 145) {{
+      const fallback = normalizeNodeTintHue(fallbackHue, 145);
+      const baseHash = Number(hashValue) >>> 0;
+      if (!baseHash) return fallback;
+      const hueFrac = radicalInverse32(mixHash32(baseHash ^ 0x9e3779b9));
+      const satFrac = radicalInverse32(mixHash32(baseHash ^ 0x243f6a88));
+      return Math.trunc((((hueFrac + (satFrac * 0.3819660112501051)) % 1) * 360));
+    }}
+
+    function normalizeNodeTintProfile(rawProfile, fallbackHue = 145) {{
+      const fallback = normalizeNodeTintHue(fallbackHue, 145);
+      const profile = rawProfile && typeof rawProfile === "object" ? rawProfile : {{}};
+      const tintStartHue = normalizeNodeTintHue(profile.tintStartHue, fallback);
+      const tintEndHue = normalizeNodeTintHue(profile.tintEndHue, tintStartHue + 36);
+      const hue = normalizeNodeTintHue(profile.hue, tintStartHue);
+      const satMult = clampNodeTintMultiplier(profile.satMult, 1);
+      const lightShift = clampNodeTintShift(profile.lightShift, 0, -8, 8);
+      const darkSatMult = clampNodeTintMultiplier(profile.darkSatMult, satMult);
+      const darkLightShift = clampNodeTintShift(profile.darkLightShift, 0, -8, 8);
+      const outlineHue = normalizeNodeTintHue(profile.outlineHue, hue + 180);
+      const outlineSatMult = clampNodeTintMultiplier(profile.outlineSatMult, 1.04);
+      const outlineLightShift = clampNodeTintShift(profile.outlineLightShift, -3, -10, 10);
+      const outlineDarkSatMult = clampNodeTintMultiplier(profile.outlineDarkSatMult, outlineSatMult);
+      const outlineDarkLightShift = clampNodeTintShift(profile.outlineDarkLightShift, 4, -10, 10);
+      const vibranceRaw = Number(profile.vibrance);
+      const vibrance = Number.isFinite(vibranceRaw)
+        ? Math.max(0, Math.min(1, vibranceRaw))
+        : 0.72;
+      return {{
+        hue,
+        tintStartHue,
+        tintEndHue,
+        satMult,
+        lightShift,
+        darkSatMult,
+        darkLightShift,
+        outlineHue,
+        outlineSatMult,
+        outlineLightShift,
+        outlineDarkSatMult,
+        outlineDarkLightShift,
+        vibrance,
+      }};
+    }}
+
+    function nodeTintProfile(nodeId, fallbackHue = 145, options = null) {{
+      const fallback = normalizeNodeTintHue(fallbackHue, 145);
+      const opts = options && typeof options === "object" ? options : {{}};
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const outlineSeed = normalizeNodeTintSeedText(
+        opts.outlineSeed,
+        normalizeNodeTintSeedText(opts.idSeed, cleanNodeId)
+      );
+      const tintStartSeed = normalizeNodeTintSeedText(
+        opts.tintStartSeed,
+        normalizeNodeTintSeedText(opts.shortNameSeed, outlineSeed)
+      );
+      const tintEndSeed = normalizeNodeTintSeedText(
+        opts.tintEndSeed,
+        normalizeNodeTintSeedText(opts.longNameSeed, tintStartSeed || outlineSeed)
+      );
+
+      if (!outlineSeed && !tintStartSeed && !tintEndSeed) {{
+        return normalizeNodeTintProfile({{ hue: fallback }}, fallback);
+      }}
+
+      const baseHash = nodeTintHashFromSeed(outlineSeed, cleanNodeId || "node");
+      const startHash = nodeTintHashFromSeed(tintStartSeed, outlineSeed || "node-start");
+      const endHash = nodeTintHashFromSeed(tintEndSeed, outlineSeed || "node-end");
+
+      const lightFrac = radicalInverse32(mixHash32(baseHash ^ 0xb7e15162));
+      const darkSatFrac = radicalInverse32(mixHash32(baseHash ^ 0x94d049bb));
+      const darkLightFrac = radicalInverse32(mixHash32(baseHash ^ 0x3c6ef372));
+      const satJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0xa4093822));
+      const lightJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x299f31d0));
+      const darkSatJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x082efa98));
+      const darkLightJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0xec4e6c89));
+      const vibranceFrac = radicalInverse32(mixHash32(baseHash ^ 0x452821e6));
+      const outlineSideFrac = radicalInverse32(mixHash32(baseHash ^ 0x1f123bb5));
+      const outlineSpanFrac = radicalInverse32(mixHash32(baseHash ^ 0x7f4a7c15));
+      const outlineSpanJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x11d8b58d));
+      const outlineSatFrac = radicalInverse32(mixHash32(baseHash ^ 0x6a09e667));
+      const outlineSatJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0xbb67ae85));
+      const outlineLightFrac = radicalInverse32(mixHash32(baseHash ^ 0x3a6ef9c1));
+      const outlineLightJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0xc6ef372f));
+      const outlineDarkSatFrac = radicalInverse32(mixHash32(baseHash ^ 0x510e527f));
+      const outlineDarkSatJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x9b05688c));
+      const outlineDarkLightFrac = radicalInverse32(mixHash32(baseHash ^ 0x1f83d9ab));
+      const outlineDarkLightJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x5be0cd19));
+      const gradientJitterFrac = radicalInverse32(mixHash32(baseHash ^ 0x0d15ea5e));
+
+      const tintStartHue = nodeTintHueFromHash(startHash, fallback);
+      let tintEndHue = nodeTintHueFromHash(endHash, normalizeNodeTintHue(tintStartHue + 36, tintStartHue));
+      if (Math.abs(nodeTintHueDelta(tintStartHue, tintEndHue)) < 28) {{
+        const pushDirection = outlineSideFrac < 0.5 ? -1 : 1;
+        const pushAmount = 36 + Math.trunc(gradientJitterFrac * 68);
+        tintEndHue = normalizeNodeTintHue(tintStartHue + (pushDirection * pushAmount), tintEndHue);
+      }}
+
+      const hue = tintStartHue;
+
+      const satBands = [0.78, 0.90, 1.00, 1.12, 1.24];
+      const satBand = satBands[Math.min(satBands.length - 1, Math.floor(satJitterFrac * satBands.length))];
+      const satMult = satBand + ((satJitterFrac - 0.5) * 0.10);
+
+      const lightBands = [-6, -3, 0, 3, 6];
+      const lightBand = lightBands[Math.min(lightBands.length - 1, Math.floor(lightFrac * lightBands.length))];
+      const lightShift = lightBand + ((lightJitterFrac - 0.5) * 1.6);
+
+      const darkSatBands = [0.84, 0.94, 1.02, 1.10, 1.20];
+      const darkSatBand = darkSatBands[Math.min(darkSatBands.length - 1, Math.floor(darkSatFrac * darkSatBands.length))];
+      const darkSatMult = darkSatBand + ((darkSatJitterFrac - 0.5) * 0.08);
+
+      const darkLightBands = [-5, -2, 0, 2, 5];
+      const darkLightBand = darkLightBands[Math.min(darkLightBands.length - 1, Math.floor(darkLightFrac * darkLightBands.length))];
+      const darkLightShift = darkLightBand + ((darkLightJitterFrac - 0.5) * 1.4);
+
+      const outlineDirection = outlineSideFrac < 0.5 ? -1 : 1;
+      const outlineSpanBands = [138, 152, 166, 180, 194, 208];
+      const outlineSpanBand = outlineSpanBands[Math.min(outlineSpanBands.length - 1, Math.floor(outlineSpanFrac * outlineSpanBands.length))];
+      const outlineSpan = outlineSpanBand + ((outlineSpanJitterFrac - 0.5) * 9.5);
+      const outlineBaseHue = nodeTintHueFromHash(baseHash, normalizeNodeTintHue(hue + 180, fallback));
+      let outlineHue = normalizeNodeTintHue(outlineBaseHue + (outlineDirection * (outlineSpan * 0.15)), outlineBaseHue);
+      const minOutlineGap = Math.min(
+        Math.abs(nodeTintHueDelta(outlineHue, tintStartHue)),
+        Math.abs(nodeTintHueDelta(outlineHue, tintEndHue))
+      );
+      if (minOutlineGap < 24) {{
+        const outlinePush = 64 + Math.trunc(outlineSpanFrac * 72);
+        outlineHue = normalizeNodeTintHue(outlineHue + (outlineDirection * outlinePush), outlineHue);
+      }}
+
+      const outlineSatBands = [0.94, 1.04, 1.14, 1.24];
+      const outlineSatBand = outlineSatBands[Math.min(outlineSatBands.length - 1, Math.floor(outlineSatFrac * outlineSatBands.length))];
+      const outlineSatMult = outlineSatBand + ((outlineSatJitterFrac - 0.5) * 0.12);
+
+      const outlineLightBands = [-7, -5, -3, -1, 1];
+      const outlineLightBand = outlineLightBands[Math.min(outlineLightBands.length - 1, Math.floor(outlineLightFrac * outlineLightBands.length))];
+      const outlineLightShift = outlineLightBand + ((outlineLightJitterFrac - 0.5) * 1.8);
+
+      const outlineDarkSatBands = [1.04, 1.12, 1.20, 1.28];
+      const outlineDarkSatBand = outlineDarkSatBands[Math.min(outlineDarkSatBands.length - 1, Math.floor(outlineDarkSatFrac * outlineDarkSatBands.length))];
+      const outlineDarkSatMult = outlineDarkSatBand + ((outlineDarkSatJitterFrac - 0.5) * 0.10);
+
+      const outlineDarkLightBands = [2, 4, 6, 8];
+      const outlineDarkLightBand = outlineDarkLightBands[Math.min(outlineDarkLightBands.length - 1, Math.floor(outlineDarkLightFrac * outlineDarkLightBands.length))];
+      const outlineDarkLightShift = outlineDarkLightBand + ((outlineDarkLightJitterFrac - 0.5) * 1.6);
+
+      const vibrance = 0.45 + (vibranceFrac * 0.50);
+
+      return normalizeNodeTintProfile(
+        {{
+          hue,
+          tintStartHue,
+          tintEndHue,
+          satMult,
+          lightShift,
+          darkSatMult,
+          darkLightShift,
+          outlineHue,
+          outlineSatMult,
+          outlineLightShift,
+          outlineDarkSatMult,
+          outlineDarkLightShift,
+          vibrance,
+        }},
+        fallback
+      );
+    }}
+
+    function resolveNodeTintStyleState(nodeIdOrProfile, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const scope = String(opts.scope || "feed").trim().toLowerCase() === "member"
+        ? "member"
+        : "feed";
+      const fallbackHue = Number.isFinite(Number(opts.fallbackHue))
+        ? Number(opts.fallbackHue)
+        : (scope === "member" ? 145 : 210);
+      const inferred = (
+        nodeIdOrProfile
+        && typeof nodeIdOrProfile === "object"
+        && Object.prototype.hasOwnProperty.call(nodeIdOrProfile, "hue")
+      )
+        ? nodeIdOrProfile
+        : nodeTintProfile(nodeIdOrProfile, fallbackHue, opts);
+      const profile = normalizeNodeTintProfile(inferred, fallbackHue);
+      const hueOverrideRaw = Number(opts.hue);
+      const hue = Number.isFinite(hueOverrideRaw)
+        ? normalizeNodeTintHue(hueOverrideRaw, profile.hue)
+        : profile.hue;
+      const tintStartHueOverrideRaw = Number(opts.tintStartHue);
+      const inferredTintStartHue = profile.tintStartHue;
+      const tintStartHue = Number.isFinite(tintStartHueOverrideRaw)
+        ? normalizeNodeTintHue(tintStartHueOverrideRaw, inferredTintStartHue)
+        : inferredTintStartHue;
+      const tintEndHueOverrideRaw = Number(opts.tintEndHue);
+      const inferredTintEndHue = profile.tintEndHue;
+      let tintEndHue = Number.isFinite(tintEndHueOverrideRaw)
+        ? normalizeNodeTintHue(tintEndHueOverrideRaw, inferredTintEndHue)
+        : inferredTintEndHue;
+      if (Math.abs(nodeTintHueDelta(tintStartHue, tintEndHue)) < 20) {{
+        tintEndHue = normalizeNodeTintHue(tintStartHue + 32, tintEndHue);
+      }}
+      const outlineHueOverrideRaw = Number(opts.outlineHue);
+      const inferredOutlineHue = profile.outlineHue;
+      const outlineHue = Number.isFinite(outlineHueOverrideRaw)
+        ? normalizeNodeTintHue(outlineHueOverrideRaw, inferredOutlineHue)
+        : inferredOutlineHue;
+      return {{ scope, profile, hue, tintStartHue, tintEndHue, outlineHue }};
+    }}
+
+    function nodeTintStyleVars(nodeIdOrProfile, options = null) {{
+      const resolved = resolveNodeTintStyleState(nodeIdOrProfile, options);
+      const scopePrefix = resolved.scope === "member" ? "--chat-member-node-" : "--chat-feed-node-";
+      return `${{scopePrefix}}hue:${{resolved.hue}};${{scopePrefix}}tint-start-hue:${{resolved.tintStartHue}};${{scopePrefix}}tint-end-hue:${{resolved.tintEndHue}};${{scopePrefix}}sat-mult:${{resolved.profile.satMult.toFixed(3)}};${{scopePrefix}}light-shift:${{resolved.profile.lightShift.toFixed(2)}}%;${{scopePrefix}}dark-sat-mult:${{resolved.profile.darkSatMult.toFixed(3)}};${{scopePrefix}}dark-light-shift:${{resolved.profile.darkLightShift.toFixed(2)}}%;${{scopePrefix}}outline-hue:${{resolved.outlineHue}};${{scopePrefix}}outline-sat-mult:${{resolved.profile.outlineSatMult.toFixed(3)}};${{scopePrefix}}outline-light-shift:${{resolved.profile.outlineLightShift.toFixed(2)}}%;${{scopePrefix}}outline-dark-sat-mult:${{resolved.profile.outlineDarkSatMult.toFixed(3)}};${{scopePrefix}}outline-dark-light-shift:${{resolved.profile.outlineDarkLightShift.toFixed(2)}}%;`;
+    }}
+
+    function applyNodeTintStyleVars(target, nodeIdOrProfile, options = null) {{
+      if (!(target instanceof HTMLElement)) return;
+      const resolved = resolveNodeTintStyleState(nodeIdOrProfile, options);
+      const prefix = resolved.scope === "member" ? "--chat-member-node-" : "--chat-feed-node-";
+      target.style.setProperty(`${{prefix}}hue`, String(resolved.hue));
+      target.style.setProperty(`${{prefix}}tint-start-hue`, String(resolved.tintStartHue));
+      target.style.setProperty(`${{prefix}}tint-end-hue`, String(resolved.tintEndHue));
+      target.style.setProperty(`${{prefix}}sat-mult`, resolved.profile.satMult.toFixed(3));
+      target.style.setProperty(`${{prefix}}light-shift`, `${{resolved.profile.lightShift.toFixed(2)}}%`);
+      target.style.setProperty(`${{prefix}}dark-sat-mult`, resolved.profile.darkSatMult.toFixed(3));
+      target.style.setProperty(`${{prefix}}dark-light-shift`, `${{resolved.profile.darkLightShift.toFixed(2)}}%`);
+      target.style.setProperty(`${{prefix}}outline-hue`, String(resolved.outlineHue));
+      target.style.setProperty(`${{prefix}}outline-sat-mult`, resolved.profile.outlineSatMult.toFixed(3));
+      target.style.setProperty(`${{prefix}}outline-light-shift`, `${{resolved.profile.outlineLightShift.toFixed(2)}}%`);
+      target.style.setProperty(`${{prefix}}outline-dark-sat-mult`, resolved.profile.outlineDarkSatMult.toFixed(3));
+      target.style.setProperty(`${{prefix}}outline-dark-light-shift`, `${{resolved.profile.outlineDarkLightShift.toFixed(2)}}%`);
+    }}
+
+    function nodeTintHue(nodeId, fallbackHue = 145) {{
+      return nodeTintProfile(nodeId, fallbackHue).hue;
     }}
 
     function isCanonicalNodeId(nodeId) {{

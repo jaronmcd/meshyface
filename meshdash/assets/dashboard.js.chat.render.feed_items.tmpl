@@ -313,7 +313,13 @@
         const nodeTintHueValue = (tintTagEntry && typeof nodeTagTintHue === "function")
           ? nodeTagTintHue(tintTagEntry, autoNodeTintHue)
           : autoNodeTintHue;
-        const nodeTintStyle = `--chat-feed-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeTintHueValue) || 210)))}};`;
+        const nodeTintStyle = (typeof nodeTintStyleVars === "function")
+          ? nodeTintStyleVars(tintNodeId, {{
+            scope: "feed",
+            fallbackHue: 210,
+            hue: nodeTintHueValue,
+          }})
+          : `--chat-feed-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeTintHueValue) || 210)))}};`;
         const rowTintStyleParts = [];
         if (hasMeshTint) {{
           rowTintStyleParts.push(meshChannelTintStyle(meshIdx, {{ allowAll: false }}));

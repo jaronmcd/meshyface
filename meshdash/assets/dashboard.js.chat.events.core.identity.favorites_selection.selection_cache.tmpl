@@ -331,6 +331,15 @@
       for (const member of document.querySelectorAll("#chat-room-list .chat-member-item")) {{
         if (!(member instanceof HTMLElement)) continue;
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
+        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintOutlineSeed, nodeId || "unknown")
+          : String(member.dataset.nodeTintOutlineSeed || nodeId || "unknown").trim();
+        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintStartSeed, tintOutlineSeed)
+          : String(member.dataset.nodeTintStartSeed || tintOutlineSeed).trim();
+        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintEndSeed, tintStartSeed || tintOutlineSeed)
+          : String(member.dataset.nodeTintEndSeed || tintStartSeed || tintOutlineSeed).trim();
         const tagEntry = nodeTagEntryForNode(nodeId);
         const active = !!tagEntry;
         const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
@@ -345,7 +354,21 @@
           const tintHue = nodeTagTintHue(tagEntry, autoNodeHue);
           const tagLabel = normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged");
           const tagStyleVars = nodeTagStyleVars(tagEntry);
-          member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(tintHue) || autoNodeHue)))));
+          if (typeof applyNodeTintStyleVars === "function") {{
+            applyNodeTintStyleVars(member, nodeId, {{
+              scope: "member",
+              fallbackHue: 145,
+              hue: tintHue,
+              tintStartHue: tintHue,
+              tintEndHue: tintHue,
+              outlineHue: tintHue,
+              outlineSeed: tintOutlineSeed,
+              tintStartSeed,
+              tintEndSeed,
+            }});
+          }} else {{
+            member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(tintHue) || autoNodeHue)))));
+          }}
           member.style.setProperty("--node-tag-color", color);
           member.style.setProperty("--node-tag-vibrance", vibranceRatio);
           if (showTagBadge) {{
@@ -371,7 +394,18 @@
             existingChip.remove();
           }}
         }} else {{
-          member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(autoNodeHue) || 145)))));
+          if (typeof applyNodeTintStyleVars === "function") {{
+            applyNodeTintStyleVars(member, nodeId, {{
+              scope: "member",
+              fallbackHue: 145,
+              hue: autoNodeHue,
+              outlineSeed: tintOutlineSeed,
+              tintStartSeed,
+              tintEndSeed,
+            }});
+          }} else {{
+            member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(autoNodeHue) || 145)))));
+          }}
           member.style.removeProperty("--node-tag-color");
           member.style.removeProperty("--node-tag-vibrance");
           if (existingChip instanceof HTMLElement) {{
@@ -408,7 +442,15 @@
           ? nodeTagTintHue(tagEntry, autoNodeHue)
           : autoNodeHue;
         row.classList.toggle("tagged-node", active);
-        row.style.setProperty("--chat-feed-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || autoNodeHue)))));
+        if (typeof applyNodeTintStyleVars === "function") {{
+          applyNodeTintStyleVars(row, rowNodeId, {{
+            scope: "feed",
+            fallbackHue: 210,
+            hue: nodeHue,
+          }});
+        }} else {{
+          row.style.setProperty("--chat-feed-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || autoNodeHue)))));
+        }}
         if (active && tagEntry && tagEntry.preset) {{
           const color = normalizeNodeTagColor(tagEntry.preset.color, "#2aa85a");
           const vibranceRatio = (clampNodeTagVibrance(tagEntry.preset.vibrance, 70) / 100).toFixed(3);

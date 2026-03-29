@@ -1038,12 +1038,48 @@
                   return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
                 }})();
                 const actionButtonsHtml = removeBtn || "";
+                const shortNameSeedRaw = String(
+                  (node && (node.short_name || node.shortName || (node.user && (node.user.short_name || node.user.shortName))))
+                  || (nodeProjection && nodeProjection.node && (nodeProjection.node.short_name || nodeProjection.node.shortName || (nodeProjection.node.user && (nodeProjection.node.user.short_name || nodeProjection.node.user.shortName))))
+                  || ""
+                ).trim();
+                const longNameSeedRaw = String(
+                  (node && (node.long_name || node.longName || (node.user && (node.user.long_name || node.user.longName))))
+                  || (nodeProjection && nodeProjection.node && (nodeProjection.node.long_name || nodeProjection.node.longName || (nodeProjection.node.user && (nodeProjection.node.user.long_name || nodeProjection.node.user.longName))))
+                  || (nodeProjection && nodeProjection.name)
+                  || item.name
+                  || ""
+                ).trim();
+                const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(nodeId || item.id || "", item.id || nodeId || "unknown")
+                  : String(nodeId || item.id || "unknown").trim();
+                const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(shortNameSeedRaw, tintOutlineSeed)
+                  : String(shortNameSeedRaw || tintOutlineSeed).trim();
+                const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(longNameSeedRaw, item.name || tintStartSeed || tintOutlineSeed)
+                  : String(longNameSeedRaw || item.name || tintStartSeed || tintOutlineSeed).trim();
                 const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
                 const nodeHue = tagActive
                   ? nodeTagTintHue(tagEntry, autoNodeHue)
                   : autoNodeHue;
                 const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
-                const memberTintStyle = `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || 145)))}};${{tagStyleVars}}`;
+                const memberTintOptions = {{
+                  scope: "member",
+                  fallbackHue: 145,
+                  hue: nodeHue,
+                  outlineSeed: tintOutlineSeed,
+                  tintStartSeed,
+                  tintEndSeed,
+                }};
+                if (tagActive) {{
+                  memberTintOptions.tintStartHue = nodeHue;
+                  memberTintOptions.tintEndHue = nodeHue;
+                  memberTintOptions.outlineHue = nodeHue;
+                }}
+                const memberTintStyle = (typeof nodeTintStyleVars === "function")
+                  ? `${{nodeTintStyleVars(nodeId, memberTintOptions)}}${{tagStyleVars}}`
+                  : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || 145)))}};${{tagStyleVars}}`;
                 const tagClass = tagActive ? " tagged-node" : "";
                 const tagChipHtml = (showTagBadge && tagActive)
                   ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
@@ -1052,7 +1088,7 @@
                 const actionRowHtml = actionButtonsHtml
                   ? `<span class="chat-member-actions">${{actionButtonsHtml}}</span>`
                   : "";
-                return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}${{tagClass}}${{packetSparkClass}}" data-node-id="${{escAttr(item.id)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
+                return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}${{tagClass}}${{packetSparkClass}}" data-node-id="${{escAttr(item.id)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
                 <span class="chat-member-status status-${{item.status}}">●</span>
                 <span class="chat-member-main">
                   <span class="chat-member-name-row">
@@ -1071,14 +1107,32 @@
                 const fallbackId = normalizeNodeId(item && item.id);
                 const fallbackName = String((item && item.name) || fallbackId || "Unknown node");
                 const fallbackHue = (typeof nodeTintHue === "function") ? nodeTintHue(fallbackId || "unknown", 145) : 145;
-                const fallbackTintStyle = `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)))}};`;
+                const fallbackOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(fallbackId || "unknown", "unknown")
+                  : String(fallbackId || "unknown").trim();
+                const fallbackStartSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText("", fallbackOutlineSeed)
+                  : fallbackOutlineSeed;
+                const fallbackEndSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(fallbackName, fallbackStartSeed || fallbackOutlineSeed)
+                  : String(fallbackName || fallbackStartSeed || fallbackOutlineSeed).trim();
+                const fallbackTintStyle = (typeof nodeTintStyleVars === "function")
+                  ? nodeTintStyleVars(fallbackId || "unknown", {{
+                    scope: "member",
+                    fallbackHue: 145,
+                    hue: fallbackHue,
+                    outlineSeed: fallbackOutlineSeed,
+                    tintStartSeed: fallbackStartSeed,
+                    tintEndSeed: fallbackEndSeed,
+                  }})
+                  : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)))}};`;
                 try {{
                   if (typeof console !== "undefined" && typeof console.error === "function") {{
                     console.error("Node navigator row render failed", fallbackId || item, err);
                   }}
                 }} catch (_consoleErr) {{
                 }}
-                return `<div class="chat-member-item status-unknown${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" style="${{escAttr(fallbackTintStyle)}}" title="Node navigator fallback row">
+                return `<div class="chat-member-item status-unknown${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" data-node-tint-outline-seed="${{escAttr(fallbackOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(fallbackStartSeed)}}" data-node-tint-end-seed="${{escAttr(fallbackEndSeed)}}" style="${{escAttr(fallbackTintStyle)}}" title="Node navigator fallback row">
                 <span class="chat-member-status status-unknown">●</span>
                 <span class="chat-member-main">
                   <span class="chat-member-name-row">

@@ -3933,23 +3933,38 @@
     }}
     .chat-member-item {{
       --chat-member-node-hue: 145;
+      --chat-member-node-tint-start-hue: 145;
+      --chat-member-node-tint-end-hue: 176;
+      --chat-member-node-sat-mult: 1;
+      --chat-member-node-light-shift: 0%;
+      --chat-member-node-outline-hue: 325;
+      --chat-member-node-outline-sat-mult: 1.04;
+      --chat-member-node-outline-light-shift: -3%;
+      --chat-member-node-dark-sat-mult: 1;
+      --chat-member-node-dark-light-shift: 0%;
+      --chat-member-node-outline-dark-sat-mult: 1.1;
+      --chat-member-node-outline-dark-light-shift: 4%;
       --chat-member-node-bg: #ecf5ef;
       --chat-member-node-bg-hover: #e7f0ea;
       --chat-member-node-gradient: linear-gradient(
         96deg,
-        hsl(var(--chat-member-node-hue) 22% 90% / 0.26),
-        hsl(var(--chat-member-node-hue) 18% 92% / 0.09) 26%,
-        rgba(248, 252, 248, 0) 52%
+        hsl(var(--chat-member-node-tint-start-hue) calc(28% * var(--chat-member-node-sat-mult, 1)) calc(88% + var(--chat-member-node-light-shift, 0%)) / 0.34) 0%,
+        hsl(var(--chat-member-node-tint-start-hue) calc(24% * var(--chat-member-node-sat-mult, 1)) calc(90% + var(--chat-member-node-light-shift, 0%)) / 0.22) 34%,
+        hsl(var(--chat-member-node-tint-end-hue) calc(24% * var(--chat-member-node-sat-mult, 1)) calc(90% + var(--chat-member-node-light-shift, 0%)) / 0.20) 66%,
+        hsl(var(--chat-member-node-tint-end-hue) calc(18% * var(--chat-member-node-sat-mult, 1)) calc(92% + var(--chat-member-node-light-shift, 0%)) / 0.08) 90%,
+        rgba(248, 252, 248, 0) 100%
       );
       --chat-member-node-gradient-hover: linear-gradient(
         96deg,
-        hsl(var(--chat-member-node-hue) 24% 90% / 0.32),
-        hsl(var(--chat-member-node-hue) 20% 92% / 0.11) 26%,
-        rgba(240, 247, 242, 0) 52%
+        hsl(var(--chat-member-node-tint-start-hue) calc(32% * var(--chat-member-node-sat-mult, 1)) calc(88% + var(--chat-member-node-light-shift, 0%)) / 0.40) 0%,
+        hsl(var(--chat-member-node-tint-start-hue) calc(28% * var(--chat-member-node-sat-mult, 1)) calc(90% + var(--chat-member-node-light-shift, 0%)) / 0.30) 34%,
+        hsl(var(--chat-member-node-tint-end-hue) calc(28% * var(--chat-member-node-sat-mult, 1)) calc(90% + var(--chat-member-node-light-shift, 0%)) / 0.26) 66%,
+        hsl(var(--chat-member-node-tint-end-hue) calc(22% * var(--chat-member-node-sat-mult, 1)) calc(92% + var(--chat-member-node-light-shift, 0%)) / 0.10) 90%,
+        rgba(240, 247, 242, 0) 100%
       );
-      --chat-member-node-border: hsl(var(--chat-member-node-hue) 18% 83%);
+      --chat-member-node-border: hsl(var(--chat-member-node-outline-hue) calc(24% * var(--chat-member-node-outline-sat-mult, 1)) calc(80% + var(--chat-member-node-outline-light-shift, 0%)));
       --chat-member-node-fg: #214234;
-      --chat-member-node-selected-border: hsl(var(--chat-member-node-hue) 22% 74%);
+      --chat-member-node-selected-border: hsl(var(--chat-member-node-outline-hue) calc(30% * var(--chat-member-node-outline-sat-mult, 1)) calc(68% + var(--chat-member-node-outline-light-shift, 0%)));
       display: grid;
       grid-template-columns: 11px minmax(0, 1fr);
       gap: 6px;
@@ -3991,8 +4006,8 @@
     .chat-member-item.selected-node {{
       border-color: var(--chat-member-node-selected-border);
       box-shadow:
-        inset 2px 0 0 hsl(var(--chat-member-node-hue) 32% 52% / 0.46),
-        inset 0 0 0 1px hsl(var(--chat-member-node-hue) 20% 72% / 0.22);
+        inset 2px 0 0 hsl(var(--chat-member-node-hue) calc(32% * var(--chat-member-node-sat-mult, 1)) calc(52% + var(--chat-member-node-light-shift, 0%)) / 0.46),
+        inset 0 0 0 1px hsl(var(--chat-member-node-outline-hue) calc(34% * var(--chat-member-node-outline-sat-mult, 1)) calc(63% + var(--chat-member-node-outline-light-shift, 0%)) / 0.24);
     }}
     .chat-member-item.tagged-node {{
       box-shadow:
@@ -4002,7 +4017,7 @@
     .chat-member-item.tagged-node.selected-node {{
       box-shadow:
         inset 2px 0 0 var(--node-tag-color, #2aa85a),
-        inset 0 0 0 1px hsl(var(--chat-member-node-hue) 20% 72% / 0.24);
+        inset 0 0 0 1px hsl(var(--chat-member-node-outline-hue) calc(34% * var(--chat-member-node-outline-sat-mult, 1)) calc(63% + var(--chat-member-node-outline-light-shift, 0%)) / 0.26);
     }}
     .chat-member-status {{
       width: 10px;
@@ -5486,10 +5501,14 @@
     }}
     .chat-feed-item {{
       --chat-feed-node-hue: 145;
+      --chat-feed-node-sat-mult: 1;
+      --chat-feed-node-light-shift: 0%;
+      --chat-feed-node-dark-sat-mult: 1;
+      --chat-feed-node-dark-light-shift: 0%;
       --chat-feed-node-gradient: linear-gradient(
         96deg,
-        hsl(var(--chat-feed-node-hue) 20% 90% / 0.2),
-        hsl(var(--chat-feed-node-hue) 16% 92% / 0.075) 30%,
+        hsl(var(--chat-feed-node-hue) calc(20% * var(--chat-feed-node-sat-mult, 1)) calc(90% + var(--chat-feed-node-light-shift, 0%)) / 0.2),
+        hsl(var(--chat-feed-node-hue) calc(16% * var(--chat-feed-node-sat-mult, 1)) calc(92% + var(--chat-feed-node-light-shift, 0%)) / 0.075) 30%,
         rgba(247, 252, 247, 0) 56%
       );
       width: 100%;
@@ -5610,12 +5629,12 @@
       background:
         linear-gradient(
           90deg,
-          hsl(var(--chat-feed-node-hue) 58% 82% / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
-          hsl(var(--chat-feed-node-hue) 54% 86% / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
-          hsl(var(--chat-feed-node-hue) 50% 90% / 0) 68%
+          hsl(var(--chat-feed-node-hue) calc(58% * var(--chat-feed-node-sat-mult, 1)) calc(82% + var(--chat-feed-node-light-shift, 0%)) / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
+          hsl(var(--chat-feed-node-hue) calc(54% * var(--chat-feed-node-sat-mult, 1)) calc(86% + var(--chat-feed-node-light-shift, 0%)) / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
+          hsl(var(--chat-feed-node-hue) calc(50% * var(--chat-feed-node-sat-mult, 1)) calc(90% + var(--chat-feed-node-light-shift, 0%)) / 0) 68%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) 32% 74% / 0.16);
+      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) calc(32% * var(--chat-feed-node-sat-mult, 1)) calc(74% + var(--chat-feed-node-light-shift, 0%)) / 0.16);
     }}
     .chat-feed-item.tagged-node.channel-tinted {{
       border-left-color: rgba(var(--chat-feed-channel-rgb), 0.92);
@@ -5624,9 +5643,9 @@
       background:
         linear-gradient(
           90deg,
-          hsl(var(--chat-feed-node-hue) 58% 82% / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
-          hsl(var(--chat-feed-node-hue) 54% 86% / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
-          hsl(var(--chat-feed-node-hue) 50% 90% / 0) 68%
+          hsl(var(--chat-feed-node-hue) calc(58% * var(--chat-feed-node-sat-mult, 1)) calc(82% + var(--chat-feed-node-light-shift, 0%)) / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
+          hsl(var(--chat-feed-node-hue) calc(54% * var(--chat-feed-node-sat-mult, 1)) calc(86% + var(--chat-feed-node-light-shift, 0%)) / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
+          hsl(var(--chat-feed-node-hue) calc(50% * var(--chat-feed-node-sat-mult, 1)) calc(90% + var(--chat-feed-node-light-shift, 0%)) / 0) 68%
         ),
         linear-gradient(
           90deg,
@@ -5636,7 +5655,7 @@
           rgba(var(--chat-feed-channel-rgb), 0) 100%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) 32% 74% / 0.2);
+      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) calc(32% * var(--chat-feed-node-sat-mult, 1)) calc(74% + var(--chat-feed-node-light-shift, 0%)) / 0.2);
     }}
     .chat-feed-item.tagged-node.self-authored {{
       background:
@@ -5648,12 +5667,12 @@
         ),
         linear-gradient(
           90deg,
-          hsl(var(--chat-feed-node-hue) 58% 82% / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
-          hsl(var(--chat-feed-node-hue) 54% 86% / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
-          hsl(var(--chat-feed-node-hue) 50% 90% / 0) 68%
+          hsl(var(--chat-feed-node-hue) calc(58% * var(--chat-feed-node-sat-mult, 1)) calc(82% + var(--chat-feed-node-light-shift, 0%)) / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
+          hsl(var(--chat-feed-node-hue) calc(54% * var(--chat-feed-node-sat-mult, 1)) calc(86% + var(--chat-feed-node-light-shift, 0%)) / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
+          hsl(var(--chat-feed-node-hue) calc(50% * var(--chat-feed-node-sat-mult, 1)) calc(90% + var(--chat-feed-node-light-shift, 0%)) / 0) 68%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) 32% 74% / 0.2);
+      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) calc(32% * var(--chat-feed-node-sat-mult, 1)) calc(74% + var(--chat-feed-node-light-shift, 0%)) / 0.2);
     }}
     .chat-feed-item.tagged-node.self-authored.channel-tinted {{
       border-left-color: rgba(var(--chat-feed-channel-rgb), 0.92);
@@ -5662,9 +5681,9 @@
       background:
         linear-gradient(
           90deg,
-          hsl(var(--chat-feed-node-hue) 58% 82% / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
-          hsl(var(--chat-feed-node-hue) 54% 86% / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
-          hsl(var(--chat-feed-node-hue) 50% 90% / 0) 68%
+          hsl(var(--chat-feed-node-hue) calc(58% * var(--chat-feed-node-sat-mult, 1)) calc(82% + var(--chat-feed-node-light-shift, 0%)) / calc(0.04 + var(--node-tag-vibrance, 0.7) * 0.10)),
+          hsl(var(--chat-feed-node-hue) calc(54% * var(--chat-feed-node-sat-mult, 1)) calc(86% + var(--chat-feed-node-light-shift, 0%)) / calc(0.02 + var(--node-tag-vibrance, 0.7) * 0.055)) 34%,
+          hsl(var(--chat-feed-node-hue) calc(50% * var(--chat-feed-node-sat-mult, 1)) calc(90% + var(--chat-feed-node-light-shift, 0%)) / 0) 68%
         ),
         linear-gradient(
           90deg,
@@ -5680,7 +5699,7 @@
           rgba(47, 133, 90, 0.009) 100%
         ),
         var(--chat-feed-node-gradient);
-      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) 32% 74% / 0.2);
+      box-shadow: inset 0 0 0 1px hsl(var(--chat-feed-node-hue) calc(32% * var(--chat-feed-node-sat-mult, 1)) calc(74% + var(--chat-feed-node-light-shift, 0%)) / 0.2);
     }}
     .chat-feed-item.chat-selectable {{
       cursor: pointer;
@@ -5766,7 +5785,7 @@
     .chat-feed-item.chat-selectable.tagged-node.selected-node.channel-tinted.has-change-marker:hover {{
       box-shadow:
         inset 3px 0 0 var(--node-tag-color, #2aa85a),
-        inset 0 0 0 1px hsl(var(--chat-feed-node-hue) 28% 72% / 0.26);
+        inset 0 0 0 1px hsl(var(--chat-feed-node-hue) calc(28% * var(--chat-feed-node-sat-mult, 1)) calc(72% + var(--chat-feed-node-light-shift, 0%)) / 0.26);
     }}
     .chat-feed-item.has-change-marker {{
       background: #f9fcf8;
