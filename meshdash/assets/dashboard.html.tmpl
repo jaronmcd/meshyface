@@ -408,6 +408,16 @@
               aria-selected="false"
               data-drawer-tab="history"
             >History</button>
+            <button
+              id="chat-node-details-tab-tag"
+              class="chat-node-details-tab-btn chat-node-details-tab-tag-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-drawer-tab="tag"
+              title="Add or edit node tag"
+              aria-label="Add or edit node tag"
+            ><span id="chat-node-details-tab-tag-chip" class="favorite-menu-tag-chip chat-node-details-tab-tag-chip" aria-hidden="true"></span><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>
             <span class="chat-node-details-tab-spacer" aria-hidden="true"></span>
             <button
               id="chat-node-details-mute-btn"
@@ -441,6 +451,15 @@
             hidden
           >
             <div id="chat-node-details-history-host" class="chat-node-details-history-host"></div>
+          </div>
+          <div
+            id="chat-node-details-panel-tag"
+            class="chat-node-details-panel"
+            role="tabpanel"
+            aria-labelledby="chat-node-details-tab-tag"
+            hidden
+          >
+            <div id="chat-node-details-tag-host" class="chat-node-details-tag-host"></div>
           </div>
         </section>
       </div>

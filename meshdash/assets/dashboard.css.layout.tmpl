@@ -3857,6 +3857,24 @@
       border-color: #89b89a;
       color: #18442f;
     }}
+    .chat-node-details-tab-tag-btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }}
+    .chat-node-details-tab-tag-label {{
+      min-width: 0;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .chat-node-details-tab-tag-chip {{
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+    }}
     .chat-node-details-panel {{
       flex: 1 1 auto;
       min-height: 0;
@@ -3868,7 +3886,8 @@
       display: none !important;
     }}
     .chat-node-details-content-host,
-    .chat-node-details-history-host {{
+    .chat-node-details-history-host,
+    .chat-node-details-tag-host {{
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -3876,6 +3895,9 @@
       overflow: hidden;
       padding: 6px 7px 7px 7px;
       gap: 6px;
+    }}
+    .chat-node-details-tag-host {{
+      overflow: auto;
     }}
     .chat-node-details-drawer .saved-node-details {{
       display: flex;

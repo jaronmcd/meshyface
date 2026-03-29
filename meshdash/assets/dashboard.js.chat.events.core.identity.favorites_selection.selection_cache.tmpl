@@ -168,6 +168,11 @@
           }} else {{
             renderStarredNodeSelect({{}});
           }}
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{
+              fetchHistory: false,
+            }});
+          }}
         }});
       }}
       if (clearBtn.dataset.bound !== "1") {{
@@ -179,6 +184,11 @@
             renderFavorites(latestState);
           }} else {{
             renderStarredNodeSelect({{}});
+          }}
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{
+              fetchHistory: false,
+            }});
           }}
         }});
       }}
@@ -233,9 +243,7 @@
               </span>
               <span class="favorite-menu-saved-id">${{escAttr(selectedNodeValue)}}</span>
             </button>
-            ${{favoriteMenuTagEditorHtml(selectedNodeValue)}}
           </div>`;
-          bindFavoriteMenuTagEditorControls(selectedNodeValue);
         }} else {{
           let searchInput = document.getElementById("favorite-menu-node-search-input");
           let searchDropdown = document.getElementById("favorite-menu-node-search-dropdown");

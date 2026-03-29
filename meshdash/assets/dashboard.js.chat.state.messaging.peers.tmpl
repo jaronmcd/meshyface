@@ -384,7 +384,9 @@
 
     function normalizeChatNodeDetailsDrawerTab(value) {{
       const clean = String(value || "").trim().toLowerCase();
-      return clean === "history" ? "history" : "details";
+      if (clean === "history") return "history";
+      if (clean === "tag") return "tag";
+      return "details";
     }}
 
     function chatNodeDetailsDrawerTargetNodeId(rawNodeId = selectedNodeId) {{
@@ -430,8 +432,13 @@
       const dmBtn = document.getElementById("chat-node-details-dm-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const historyTabBtn = document.getElementById("chat-node-details-tab-history");
+      const tagTabBtn = document.getElementById("chat-node-details-tab-tag");
+      const tagTabLabel = document.getElementById("chat-node-details-tab-tag-label");
+      const tagTabChip = document.getElementById("chat-node-details-tab-tag-chip");
       const detailsPanel = document.getElementById("chat-node-details-panel-details");
       const historyPanel = document.getElementById("chat-node-details-panel-history");
+      const tagPanel = document.getElementById("chat-node-details-panel-tag");
+      const tagHost = document.getElementById("chat-node-details-tag-host");
       if (!(drawer instanceof HTMLElement)) return;
 
       const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
@@ -476,11 +483,55 @@
         historyTabBtn.classList.toggle("is-active", isActive);
         historyTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
       }}
+      if (tagTabBtn instanceof HTMLButtonElement) {{
+        const isActive = activeTab === "tag";
+        tagTabBtn.classList.toggle("is-active", isActive);
+        tagTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
       if (detailsPanel instanceof HTMLElement) {{
         detailsPanel.hidden = activeTab !== "details";
       }}
       if (historyPanel instanceof HTMLElement) {{
         historyPanel.hidden = activeTab !== "history";
+      }}
+      if (tagPanel instanceof HTMLElement) {{
+        tagPanel.hidden = activeTab !== "tag";
+      }}
+
+      const tagEntry = nodeTagEntryForNode(selectedId);
+      const tagPreset = tagEntry && tagEntry.preset ? tagEntry.preset : null;
+      const hasTag = !!tagPreset;
+      const tagLabel = hasTag
+        ? normalizeNodeTagPresetName(tagPreset.name, "Tagged")
+        : "+tag";
+      if (tagTabLabel instanceof HTMLElement) {{
+        tagTabLabel.textContent = tagLabel;
+      }}
+      if (tagTabBtn instanceof HTMLButtonElement) {{
+        const tagTitle = hasTag
+          ? `Edit tag: ${{tagLabel}}`
+          : "Add or edit node tag";
+        tagTabBtn.title = tagTitle;
+        tagTabBtn.setAttribute("aria-label", tagTitle);
+      }}
+      if (tagTabChip instanceof HTMLElement) {{
+        if (hasTag) {{
+          tagTabChip.classList.add("is-tagged");
+          tagTabChip.setAttribute("style", nodeTagStyleVars(tagEntry));
+        }} else {{
+          tagTabChip.classList.remove("is-tagged");
+          tagTabChip.removeAttribute("style");
+        }}
+      }}
+      if (tagHost instanceof HTMLElement) {{
+        const existingEditor = tagHost.querySelector("#favorite-menu-tag-editor");
+        const existingNodeId = existingEditor instanceof HTMLElement
+          ? normalizeNodeId(existingEditor.dataset.nodeId || "")
+          : "";
+        if (!(existingEditor instanceof HTMLElement) || existingNodeId !== selectedId) {{
+          tagHost.innerHTML = favoriteMenuTagEditorHtml(selectedId);
+        }}
+        bindFavoriteMenuTagEditorControls(selectedId);
       }}
 
       const resolvedName = (typeof resolveSavedViewNodeName === "function")
