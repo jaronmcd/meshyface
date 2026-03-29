@@ -32,6 +32,8 @@
       Object.freeze({{ label: "/scrambled <text>", command: "/scrambled", needsArg: true }}),
       Object.freeze({{ label: "/upsidedown <text>", command: "/upsidedown", needsArg: true }}),
       Object.freeze({{ label: "/disemvowel <text>", command: "/disemvowel", needsArg: true }}),
+      Object.freeze({{ label: "/special <text>", command: "/special", needsArg: true }}),
+      Object.freeze({{ label: "/glyph <text> (alias)", command: "/glyph", needsArg: true }}),
     ]);
     const chatLeetSpeakMap = Object.freeze({{
       a: "4",
@@ -113,6 +115,60 @@
       ">": "<",
       "_": "‾",
     }});
+    const chatSpecialCharMap = Object.freeze({{
+      a: "ą",
+      b: "ɓ",
+      c: "ƈ",
+      d: "đ",
+      e: "ę",
+      f: "ƒ",
+      g: "ɠ",
+      h: "ħ",
+      i: "į",
+      j: "ʝ",
+      k: "ƙ",
+      l: "ŀ",
+      m: "ɱ",
+      n: "ŋ",
+      o: "ǿ",
+      p: "þ",
+      q: "ɋ",
+      r: "ř",
+      s: "ş",
+      t: "ŧ",
+      u: "ʉ",
+      v: "ⱱ",
+      w: "ŵ",
+      x: "ẋ",
+      y: "ɏ",
+      z: "ž",
+      A: "Ą",
+      B: "Ƀ",
+      C: "Ƈ",
+      D: "Đ",
+      E: "Ę",
+      F: "Ƒ",
+      G: "Ɠ",
+      H: "Ħ",
+      I: "Į",
+      J: "Ɉ",
+      K: "Ƙ",
+      L: "Ŀ",
+      M: "Ṁ",
+      N: "Ŋ",
+      O: "Ǿ",
+      P: "Þ",
+      Q: "Ɋ",
+      R: "Ř",
+      S: "Ş",
+      T: "Ŧ",
+      U: "Ʉ",
+      V: "Ʋ",
+      W: "Ŵ",
+      X: "Ẋ",
+      Y: "Ɏ",
+      Z: "Ž",
+    }});
 
     function toLeetSpeak(rawText) {{
       const value = String(rawText == null ? "" : rawText);
@@ -193,6 +249,16 @@
 
     function toDisemvowel(rawText) {{
       return String(rawText == null ? "" : rawText).replace(/[aeiou]/gi, "");
+    }}
+
+    function toSpecialChars(rawText) {{
+      const value = String(rawText == null ? "" : rawText);
+      if (!value) return "";
+      let transformed = "";
+      for (const ch of value) {{
+        transformed += chatSpecialCharMap[ch] || ch;
+      }}
+      return transformed;
     }}
 
     function setChatMacroPreviewText(previewEl, text) {{
@@ -278,7 +344,7 @@
           source: lowered,
         }};
       }}
-      const transformMatch = text.match(/^\/(1337|backwards|scrambled|upsidedown|disemvowel)(?:\s+([\s\S]+))?$/i);
+      const transformMatch = text.match(/^\/(1337|backwards|scrambled|upsidedown|disemvowel|special|glyph)(?:\s+([\s\S]+))?$/i);
       if (!transformMatch) return null;
       const transformId = String(transformMatch[1] || "").toLowerCase();
       const payload = String(transformMatch[2] == null ? "" : transformMatch[2]);
@@ -293,6 +359,8 @@
         transformedText = toUpsideDown(payload);
       }} else if (transformId === "disemvowel") {{
         transformedText = toDisemvowel(payload);
+      }} else if (transformId === "special" || transformId === "glyph") {{
+        transformedText = toSpecialChars(payload);
       }}
       return {{
         kind: "transform",
