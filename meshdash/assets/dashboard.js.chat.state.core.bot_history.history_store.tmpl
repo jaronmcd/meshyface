@@ -1,0 +1,389 @@
+    function normalizeBotRequestHistoryEntry(raw) {{
+      if (!raw || typeof raw !== "object") return null;
+      const command = String(raw.command || "").trim();
+      if (!command) return null;
+      const source = String(raw.source || "local").trim().toLowerCase() || "local";
+      const commandHead = String(raw.command_head || raw.commandHead || botCommandHeadFromText(command)).trim().toLowerCase();
+      const prefix = knownWhoisCommandPrefixes.has(commandHead)
+        ? normalizeWhoisCommandPrefix(raw.prefix || commandHead)
+        : String(raw.prefix || commandHead || command.split(/\\s+/)[0] || "").trim().toLowerCase();
+      const suffix = nodeIdSuffixForWhois(raw.suffix || command.split(/\\s+/).slice(1).join(" "));
+      const fromId = normalizeNodeId(raw.from_id ?? raw.fromId ?? "");
+      const destination = normalizeNodeId(raw.destination ?? raw.to_id ?? raw.toId ?? "^all") || "^all";
+      const messageId = parsePositiveMessageId(raw.message_id ?? raw.messageId);
+      const replyId = parsePositiveMessageId(raw.reply_id ?? raw.replyId);
+      const sentAtText = String(raw.sent_at ?? raw.sentAt ?? raw.received_at ?? raw.receivedAt ?? "").trim();
+      const sentMs = (
+        parseDashboardTimeToMs(raw.sent_ms ?? raw.sentMs)
+        || parseDashboardTimeToMs(raw.sent_at ?? raw.sentAt)
+        || parseDashboardTimeToMs(raw.sent_unix ?? raw.sentUnix)
+        || parseDashboardTimeToMs(raw.received_unix ?? raw.receivedUnix)
+        || parseDashboardTimeToMs(raw.received_at ?? raw.receivedAt)
+        || Date.now()
+      );
+      const sentUnix = (
+        parseDashboardTimeToUnix(raw.sent_unix ?? raw.sentUnix)
+        || parseDashboardTimeToUnix(raw.sent_at ?? raw.sentAt)
+        || parseDashboardTimeToUnix(raw.received_unix ?? raw.receivedUnix)
+        || parseDashboardTimeToUnix(raw.received_at ?? raw.receivedAt)
+        || Math.floor(sentMs / 1000)
+      );
+      const responseMessageId = parsePositiveMessageId(raw.response_message_id ?? raw.responseMessageId);
+      const responseMs = parseDashboardTimeToMs(raw.response_ms ?? raw.responseMs ?? raw.response_at ?? raw.responseAt);
+      const responseUnix = parseDashboardTimeToUnix(raw.response_unix ?? raw.responseUnix ?? raw.response_at ?? raw.responseAt);
+      const responseHops = nonNegativeIntegerOrNull(raw.response_hops ?? raw.responseHops);
+      const respondEnabled = parseBoolToken(raw.respond_enabled ?? raw.respondEnabled, true);
+      const responded = parseBoolToken(raw.responded, !!responseMessageId);
+      const responseError = String(raw.response_error ?? raw.responseError ?? "").trim();
+      return {{
+        id: String(raw.id || makeBotRequestHistoryId(suffix)).trim() || makeBotRequestHistoryId(suffix),
+        source,
+        command,
+        command_head: commandHead,
+        prefix,
+        suffix,
+        from_id: fromId,
+        destination,
+        channel_index: normalizeMeshChannelIndex(raw.channel_index ?? raw.channelIndex ?? 0),
+        reply_id: replyId,
+        reply_attached: parseBoolToken(raw.reply_attached ?? raw.replyAttached, !!replyId),
+        message_id: messageId,
+        sent_at: sentAtText,
+        sent_ms: sentMs,
+        sent_unix: sentUnix,
+        respond_enabled: respondEnabled,
+        responded,
+        response_message_id: responseMessageId,
+        response_ms: responseMs,
+        response_unix: responseUnix,
+        response_hops: responseHops,
+        response_from: normalizeNodeId(raw.response_from ?? raw.responseFrom ?? ""),
+        response_to: normalizeNodeId(raw.response_to ?? raw.responseTo ?? ""),
+        response_text: String(raw.response_text ?? raw.responseText ?? "").trim(),
+        response_error: responseError,
+      }};
+    }}
+
+    function pruneBotRequestHistoryEntries(entries, nowUnix = Math.floor(Date.now() / 1000)) {{
+      if (!Array.isArray(entries) || entries.length === 0) return [];
+      const normalized = entries
+        .map((entry) => normalizeBotRequestHistoryEntry(entry))
+        .filter((entry) => !!entry)
+        .sort((a, b) => (Number(b.sent_unix) || 0) - (Number(a.sent_unix) || 0));
+      const seenIds = new Set();
+      const output = [];
+      for (const entry of normalized) {{
+        if (seenIds.has(entry.id)) continue;
+        seenIds.add(entry.id);
+        const sentUnix = Number(entry.sent_unix) || 0;
+        if (sentUnix > 0 && (nowUnix - sentUnix) > botRequestLogMaxAgeSeconds) {{
+          continue;
+        }}
+        output.push(entry);
+        if (output.length >= botRequestLogMaxEntries) {{
+          break;
+        }}
+      }}
+      return output;
+    }}
+
+    function persistBotRequestHistory() {{
+      try {{
+        window.localStorage.setItem(botRequestLogStorageKey, JSON.stringify(botRequestHistory || []));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadBotRequestHistory() {{
+      let loaded = [];
+      try {{
+        const raw = window.localStorage.getItem(botRequestLogStorageKey);
+        if (raw) {{
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {{
+            loaded = parsed;
+          }}
+        }}
+      }} catch (_err) {{
+        loaded = [];
+      }}
+      botRequestHistory = pruneBotRequestHistoryEntries(loaded);
+      persistBotRequestHistory();
+      if (activeLayoutView === "bots") {{
+        renderBotsView(latestState);
+      }}
+    }}
+
+    function syncBackendBotRequestHistory(state = latestState) {{
+      const raw = (state && Array.isArray(state.bot_requests)) ? state.bot_requests : [];
+      backendBotRequestHistory = pruneBotRequestHistoryEntries(raw);
+    }}
+
+    function observedLiveBotRequestHistoryEntries(state = latestState) {{
+      const observed = extractObservedBotTrafficEntries(state);
+      if (!Array.isArray(observed) || observed.length === 0) return [];
+      const out = [];
+      for (const row of observed) {{
+        if (!row || typeof row !== "object") continue;
+        const parsed = parseTrackedBotCommandFromText(String(row.command || ""));
+        if (!parsed) continue;
+        const fromId = normalizeNodeId(row.from_id || row.fromId || "");
+        if (!fromId || fromId === "^all") continue;
+        const destination = normalizeNodeId(row.to_id || row.toId || row.destination || "") || "^all";
+        const messageId = parsePositiveMessageId(row.message_id ?? row.messageId);
+        const sentUnix = (
+          parseDashboardTimeToUnix(row.received_unix ?? row.receivedUnix ?? row.received_at ?? row.receivedAt)
+          || parseDashboardTimeToUnix(row.sent_unix ?? row.sentUnix ?? row.sent_at ?? row.sentAt)
+          || 0
+        );
+        const sentMs = (
+          parseDashboardTimeToMs(row.received_ms ?? row.receivedMs ?? row.received_at ?? row.receivedAt)
+          || parseDashboardTimeToMs(row.sent_ms ?? row.sentMs ?? row.sent_at ?? row.sentAt)
+          || (sentUnix > 0 ? (sentUnix * 1000) : Date.now())
+        );
+        const fromToken = String(fromId || "na").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(-8) || "na";
+        const headToken = normalizeTrackedBotCommandName(parsed.head || row.command_head || row.commandHead || "") || "cmd";
+        const id = messageId
+          ? `live-msg-${{messageId}}-${{fromToken}}`
+          : `live-${{fromToken}}-${{headToken}}-${{String(sentUnix || 0)}}`;
+        const normalized = normalizeBotRequestHistoryEntry({{
+          id,
+          source: "observed_live",
+          command: parsed.command,
+          command_head: parsed.head,
+          prefix: parsed.prefix,
+          suffix: parsed.suffix,
+          from_id: fromId,
+          destination,
+          channel_index: normalizeMeshChannelIndex(row.channel_index ?? row.channelIndex ?? 0),
+          reply_id: null,
+          reply_attached: false,
+          message_id: messageId,
+          sent_at: String(row.received_at ?? row.receivedAt ?? row.sent_at ?? row.sentAt ?? "").trim(),
+          sent_ms: sentMs,
+          sent_unix: sentUnix > 0 ? sentUnix : Math.floor(sentMs / 1000),
+          respond_enabled: false,
+          responded: false,
+          response_error: "",
+        }});
+        if (normalized) {{
+          out.push(normalized);
+        }}
+      }}
+      return pruneBotRequestHistoryEntries(out);
+    }}
+
+    function trackedBotHistoryCommandHeads() {{
+      const seen = new Set();
+      const out = [];
+      const push = (value) => {{
+        const clean = normalizeTrackedBotCommandName(value);
+        if (!clean || seen.has(clean)) return;
+        seen.add(clean);
+        out.push(clean);
+      }};
+      for (const head of defaultBotTrafficSnifferCommandHeads) {{
+        push(head);
+      }}
+      const commands = Array.isArray(serverBotSettings && serverBotSettings.commands)
+        ? serverBotSettings.commands
+        : [];
+      for (const row of commands) {{
+        if (!row || typeof row !== "object") continue;
+        push(row.name || row.command || row.usage || "");
+      }}
+      return out.slice(0, 16);
+    }}
+
+    function trackedBotHistorySearchTerms() {{
+      const canonicalHeads = trackedBotHistoryCommandHeads();
+      const canonicalSet = new Set(canonicalHeads);
+      const seen = new Set();
+      const out = [];
+      const push = (value) => {{
+        const clean = normalizeTrackedBotCommandName(value);
+        if (!clean || seen.has(clean)) return;
+        seen.add(clean);
+        out.push(clean);
+      }};
+      for (const head of canonicalHeads) {{
+        push(head);
+      }}
+      for (const [aliasRaw, targetRaw] of (botCommandAliasByName || new Map()).entries()) {{
+        const alias = normalizeTrackedBotCommandName(aliasRaw);
+        const target = normalizeTrackedBotCommandName(targetRaw);
+        if (!alias || !target || !canonicalSet.has(target)) continue;
+        push(alias);
+      }}
+      return out.slice(0, 24);
+    }}
+
+    function parseBotHistoryCommandFromPacketSearchEntry(rawEntry, trackedHeads = null) {{
+      if (!rawEntry || typeof rawEntry !== "object") return null;
+      if (rawEntry.separator === true) return null;
+      const summary = (rawEntry.summary && typeof rawEntry.summary === "object")
+        ? rawEntry.summary
+        : {{}};
+      const packet = (rawEntry.packet && typeof rawEntry.packet === "object")
+        ? rawEntry.packet
+        : {{}};
+      const decoded = (packet.decoded && typeof packet.decoded === "object")
+        ? packet.decoded
+        : {{}};
+      const commandText = String(
+        summary.decoded_text
+        || summary.text
+        || decoded.text
+        || ""
+      ).trim();
+      if (!commandText) return null;
+      const parsed = parseTrackedBotCommandFromText(commandText);
+      if (!parsed) return null;
+      const normalizedHead = normalizeTrackedBotCommandName(parsed.head || parsed.prefix || parsed.command || "");
+      if (trackedHeads instanceof Set && trackedHeads.size > 0) {{
+        if (!normalizedHead || !trackedHeads.has(normalizedHead)) {{
+          return null;
+        }}
+      }}
+      const fromId = normalizeNodeId(summary.from ?? packet.fromId ?? packet.from_id ?? packet.from ?? "");
+      if (!fromId || fromId === "^all") return null;
+      const destination = normalizeNodeId(summary.to ?? packet.toId ?? packet.to_id ?? packet.to ?? "") || "^all";
+      const channelIndex = normalizeMeshChannelIndex(summary.channel ?? packet.channel ?? 0);
+      const messageId = parsePositiveMessageId(summary.packet_id ?? packet.id ?? packet.packetId);
+      const replyId = parsePositiveMessageId(
+        summary.reply_id
+        ?? summary.replyId
+        ?? decoded.reply_id
+        ?? decoded.replyId
+        ?? packet.reply_id
+        ?? packet.replyId
+      );
+      const sentMs = (
+        latestTimestampMs(
+          summary.rx_time,
+          summary.captured_at,
+          summary.created_at,
+          packet.rxTime,
+          packet.rx_time,
+          rawEntry.created_unix
+        )
+        || Date.now()
+      );
+      const sentUnix = (
+        latestUnixTimestamp(
+          summary.rx_time_unix,
+          summary.captured_at_unix,
+          summary.created_unix,
+          packet.rxTime,
+          packet.rx_time,
+          packet.created_unix,
+          rawEntry.created_unix,
+          summary.rx_time,
+          summary.captured_at,
+          summary.created_at
+        )
+        || Math.floor(sentMs / 1000)
+      );
+      const packetRowId = parsePositiveMessageId(rawEntry.packet_row_id ?? rawEntry.packetRowId);
+      const fromToken = String(fromId || "na").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(-8) || "na";
+      const toToken = String(destination || "all").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(-8) || "all";
+      const channelToken = String(Number(channelIndex) || 0);
+      const timeToken = String(Number(sentUnix) || 0);
+      const headToken = normalizedHead || "cmd";
+      const entryId = packetRowId
+        ? `packet-${{packetRowId}}`
+        : (
+          messageId
+            ? `packet-msg-${{messageId}}-${{fromToken}}`
+            : `packet-${{fromToken}}-${{toToken}}-${{channelToken}}-${{timeToken}}-${{headToken}}`
+        );
+      return normalizeBotRequestHistoryEntry({{
+        id: entryId,
+        source: "packet_history",
+        command: parsed.command,
+        command_head: parsed.head,
+        prefix: parsed.prefix,
+        suffix: parsed.suffix,
+        from_id: fromId,
+        destination,
+        channel_index: channelIndex,
+        reply_id: replyId,
+        reply_attached: Number.isInteger(replyId) && replyId > 0,
+        message_id: messageId,
+        sent_at: String(summary.rx_time || summary.captured_at || summary.created_at || "").trim(),
+        sent_ms: sentMs,
+        sent_unix: sentUnix,
+        respond_enabled: false,
+        responded: false,
+      }});
+    }}
+
+    async function refreshPacketBotRequestHistory(state = latestState, force = false) {{
+      if (!chatBotCommandsEnabled || !chatBotHistoryEnabled) {{
+        packetBotRequestHistory = [];
+        packetBotRequestHistoryFetchedAtMs = Date.now();
+        return packetBotRequestHistory;
+      }}
+      if (!force && packetBotRequestHistoryInFlight) {{
+        return packetBotRequestHistoryInFlight;
+      }}
+      const nowMs = Date.now();
+      const cacheWindowMs = Math.max(refreshMs * 20, 2 * 60 * 1000);
+      if (!force && packetBotRequestHistoryFetchedAtMs > 0 && (nowMs - packetBotRequestHistoryFetchedAtMs) < cacheWindowMs) {{
+        return packetBotRequestHistory;
+      }}
+      const trackedHeads = trackedBotHistoryCommandHeads();
+      const trackedSearchTerms = trackedBotHistorySearchTerms();
+      if (trackedHeads.length === 0 || trackedSearchTerms.length === 0) {{
+        packetBotRequestHistory = [];
+        packetBotRequestHistoryFetchedAtMs = nowMs;
+        return packetBotRequestHistory;
+      }}
+      packetBotRequestHistoryInFlight = (async () => {{
+        const trackedSet = new Set(trackedHeads);
+        const parsedEntries = [];
+        for (const queryHead of trackedSearchTerms) {{
+          let payload = null;
+          try {{
+            payload = await fetchConsoleHistorySearch({{
+              queryText: queryHead,
+              limit: 180,
+              before: 0,
+              after: 0,
+              scope: "summary",
+              scanLimit: 15000,
+            }});
+          }} catch (_err) {{
+            continue;
+          }}
+          const rows = Array.isArray(payload && payload.entries) ? payload.entries : [];
+          for (const row of rows) {{
+            const parsed = parseBotHistoryCommandFromPacketSearchEntry(row, trackedSet);
+            if (!parsed) continue;
+            parsedEntries.push(parsed);
+          }}
+        }}
+        packetBotRequestHistory = pruneBotRequestHistoryEntries(parsedEntries);
+        packetBotRequestHistoryFetchedAtMs = Date.now();
+        if (activeLayoutView === "bots") {{
+          renderBotsView(state);
+        }}
+        return packetBotRequestHistory;
+      }})().finally(() => {{
+        packetBotRequestHistoryInFlight = null;
+      }});
+      return packetBotRequestHistoryInFlight;
+    }}
+
+    function mergedBotRequestHistoryEntries(state = latestState) {{
+      syncBackendBotRequestHistory(state);
+      const localRows = Array.isArray(botRequestHistory) ? botRequestHistory : [];
+      const backendRows = Array.isArray(backendBotRequestHistory) ? backendBotRequestHistory : [];
+      const packetRows = Array.isArray(packetBotRequestHistory) ? packetBotRequestHistory : [];
+      const primaryRows = pruneBotRequestHistoryEntries([...(packetRows || []), ...(backendRows || []), ...(localRows || [])]);
+      if (primaryRows.length > 0) {{
+        return primaryRows;
+      }}
+      const observedRows = observedLiveBotRequestHistoryEntries(state);
+      return pruneBotRequestHistoryEntries([...(primaryRows || []), ...(observedRows || [])]);
+    }}

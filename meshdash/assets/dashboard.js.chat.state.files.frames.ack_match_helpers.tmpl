@@ -1,0 +1,86 @@
+    function fileTransferMissingChunkIndexes(totalChunks, receivedSet) {{
+      const total = Math.max(1, Math.trunc(Number(totalChunks) || 1));
+      const seen = receivedSet instanceof Set ? receivedSet : new Set();
+      const missing = [];
+      for (let idx = 0; idx < total; idx += 1) {{
+        if (!seen.has(idx)) {{
+          missing.push(idx);
+        }}
+      }}
+      return missing;
+    }}
+
+    function findAckForOutgoingSession(session, ackByTransferKey, localNodeId) {{
+      if (!session || !(ackByTransferKey instanceof Map)) return null;
+      const senderId = normalizeNodeId(localNodeId || session.senderId || "");
+      const expectedReceiver = normalizeNodeId(session.destination || "");
+      const expectedChannel = fileTransferExplicitChannelIndex(session.channelIndex);
+      if (!isCanonicalNodeId(expectedReceiver)) return null;
+      const directKey = isCanonicalNodeId(senderId)
+        ? fileTransferKeyOf(senderId, expectedReceiver, session.transferId)
+        : "";
+      if (directKey && ackByTransferKey.has(directKey)) {{
+        return ackByTransferKey.get(directKey) || null;
+      }}
+      function ackChannelMatchScore(ack) {{
+        if (!ack || typeof ack !== "object") return 0;
+        const ackChannel = fileTransferExplicitChannelIndex(ack.channelIndex);
+        if (expectedChannel == null || ackChannel == null) return 1;
+        return ackChannel === expectedChannel ? 2 : 0;
+      }}
+      let fallback = null;
+      let fallbackScore = -1;
+      for (const ack of ackByTransferKey.values()) {{
+        if (!ack || typeof ack !== "object") continue;
+        if (String(ack.transferId || "") !== String(session.transferId || "")) continue;
+        const ackOriginalReceiver = normalizeNodeId(ack.originalReceiverId || "");
+        const ackOriginalSender = normalizeNodeId(ack.originalSenderId || "");
+        if (isCanonicalNodeId(ackOriginalReceiver) && ackOriginalReceiver !== expectedReceiver) continue;
+        if (isCanonicalNodeId(senderId) && isCanonicalNodeId(ackOriginalSender) && ackOriginalSender !== senderId) continue;
+        const endpointConfidence = (
+          (isCanonicalNodeId(ackOriginalReceiver) && ackOriginalReceiver === expectedReceiver)
+          || (isCanonicalNodeId(senderId) && isCanonicalNodeId(ackOriginalSender) && ackOriginalSender === senderId)
+        );
+        if (!endpointConfidence) {{
+          const endpointsUnknown = !isCanonicalNodeId(ackOriginalReceiver) && !isCanonicalNodeId(ackOriginalSender);
+          if (!endpointsUnknown) {{
+            continue;
+          }}
+        }}
+        const score = ackChannelMatchScore(ack);
+        if (
+          !fallback
+          || score > fallbackScore
+          || (score === fallbackScore && Number(ack.latestUnix || 0) > Number(fallback.latestUnix || 0))
+        ) {{
+          fallback = ack;
+          fallbackScore = score;
+        }}
+      }}
+      if (fallback) {{
+        return fallback;
+      }}
+      // Final escape hatch: if endpoints are missing or inconsistent in packet metadata,
+      // a transferId-only match is still safe because transfer IDs are random per send.
+      let transferIdOnlyFallback = null;
+      let transferIdOnlyScore = -1;
+      for (const ack of ackByTransferKey.values()) {{
+        if (!ack || typeof ack !== "object") continue;
+        if (String(ack.transferId || "") !== String(session.transferId || "")) continue;
+        const score = ackChannelMatchScore(ack);
+        if (
+          !transferIdOnlyFallback
+          || score > transferIdOnlyScore
+          || (score === transferIdOnlyScore
+            && Number(ack.latestUnix || 0) > Number(transferIdOnlyFallback.latestUnix || 0))
+        ) {{
+          transferIdOnlyFallback = ack;
+          transferIdOnlyScore = score;
+        }}
+      }}
+      if (transferIdOnlyFallback) {{
+        return transferIdOnlyFallback;
+      }}
+      return fallback;
+    }}
+

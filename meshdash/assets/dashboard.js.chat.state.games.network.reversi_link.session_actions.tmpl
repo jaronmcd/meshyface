@@ -1,0 +1,135 @@
+    async function hostReversiMatch() {{
+      const peerId = normalizeNodeId(reversiPeerId);
+      if (!isCanonicalNodeId(peerId)) {{
+        updateReversiLinkStatus("Select a peer before hosting.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const hostColor = Number(reversiHostColorPreference) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      const guestColor = reversiOpponent(hostColor);
+      const sessionChannel = meshChannelEffectiveSendIndexForApp("games");
+      const sessionId = generateReversiSessionId();
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      reversiLink = createReversiLinkState({{
+        mode: "pending_host",
+        role: "host",
+        session_id: sessionId,
+        peer_id: peerId,
+        channel_index: sessionChannel,
+        local_color: hostColor,
+        remote_color: guestColor,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Invite sent to ${{reversiNodeLabel(peerId)}}. You are ${{reversiPlayerLabel(hostColor)}}; waiting for accept...`,
+      }});
+      removeAllReversiPendingInvitesFromPeer(peerId);
+      const sent = await sendReversiProtocolMessage(
+        "invite",
+        [sessionId, normalizeNodeId(resolveLocalNodeId(latestState) || ""), reversiColorToken(hostColor)],
+        {{ destination_id: peerId, channel_index: sessionChannel }}
+      );
+      if (!sent) {{
+        reversiLink.mode = "local";
+        reversiLink.role = "";
+        reversiLink.session_id = "";
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function acceptReversiInvite() {{
+      const invite = reversiPendingInviteChoice();
+      if (!invite) {{
+        updateReversiLinkStatus("No pending invite to accept.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const peerId = normalizeNodeId(invite.from_id || "");
+      const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      const hostColor = Number(invite.host_color) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      const guestColor = reversiOpponent(hostColor);
+      const inviteChannelRaw = Number(invite.channel_index);
+      const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0
+        ? inviteChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      if (!isCanonicalNodeId(peerId) || !sessionId) {{
+        updateReversiLinkStatus("Invite details are invalid.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      if (
+        reversiLink.mode === "pending_host"
+        && isCanonicalNodeId(reversiLink.peer_id)
+        && String(reversiLink.session_id || "").trim()
+        && (
+          normalizeNodeId(reversiLink.peer_id) !== peerId
+          || String(reversiLink.session_id || "").trim().toLowerCase() !== sessionId
+        )
+      ) {{
+        await sendReversiProtocolMessage(
+          "leave",
+          [reversiLink.session_id],
+          {{
+            destination_id: reversiLink.peer_id,
+            channel_index: Number.isInteger(Number(reversiLink.channel_index)) ? Number(reversiLink.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+          }}
+        );
+      }}
+      reversiPeerId = peerId;
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      reversiLink = createReversiLinkState({{
+        mode: "connected",
+        role: "guest",
+        session_id: sessionId,
+        peer_id: peerId,
+        channel_index: inviteChannel,
+        local_color: guestColor,
+        remote_color: hostColor,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Connected to ${{reversiNodeLabel(peerId)}}. You are ${{reversiPlayerLabel(guestColor)}}.`,
+      }});
+      removeReversiPendingInvite(peerId, sessionId);
+      removeAllReversiPendingInvitesFromPeer(peerId);
+      await sendReversiProtocolMessage(
+        "accept",
+        [sessionId],
+        {{ destination_id: peerId, channel_index: inviteChannel }}
+      );
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function declineReversiInvite() {{
+      const invite = reversiPendingInviteChoice();
+      if (!invite) {{
+        updateReversiLinkStatus("No pending invite to decline.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const peerId = normalizeNodeId(invite.from_id || "");
+      const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      removeReversiPendingInvite(peerId, sessionId);
+      updateReversiLinkStatus(`Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function disconnectReversiMatch() {{
+      const linked = reversiIsNetworkLinked() || reversiLink.mode === "pending_host";
+      if (linked && isCanonicalNodeId(reversiLink.peer_id) && String(reversiLink.session_id || "").trim()) {{
+        await sendReversiProtocolMessage(
+          "leave",
+          [reversiLink.session_id],
+          {{
+            destination_id: reversiLink.peer_id,
+            channel_index: Number.isInteger(Number(reversiLink.channel_index)) ? Number(reversiLink.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+          }}
+        );
+      }}
+      resetReversiNetworkLink("Disconnected. Local hotseat mode.", {{ keepPeer: true }});
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}

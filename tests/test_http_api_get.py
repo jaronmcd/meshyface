@@ -24,6 +24,7 @@ def test_build_get_route_dependencies_sets_expected_defaults():
     assert deps.state_fn is state_fn
     assert deps.default_node_history_hours == 72
     assert deps.get_theme_settings_fn is None
+    assert deps.get_custom_telemetry_settings_fn is None
     assert callable(deps.parse_node_history_request_fn)
     assert callable(deps.parse_online_activity_request_fn)
     assert callable(deps.write_html_response_fn)

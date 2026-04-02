@@ -52,6 +52,7 @@ def test_build_dashboard_runtime_dependencies_wraps_injected_context():
         sensitive_field_names={"token", "password"},
         build_node_history_loader_fn=lambda **kwargs: (lambda **_kwargs: {}),
         build_online_activity_loader_fn=lambda **kwargs: (lambda **_kwargs: {}),
+        build_summary_metrics_loader_fn=lambda **kwargs: (lambda **_kwargs: {}),
         send_chat_message_fn=lambda **kwargs: {"ok": True},
         send_emoji_reaction_packet_fn=_reaction_fn,
         mesh_pb2_module="MESH_PB2",

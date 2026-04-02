@@ -1,8 +1,17 @@
 # Meshyface Roadmap
 
+Doc status: active-planning
+Last reviewed: 2026-03-14
+
 Meshyface is the working title for “Meshtastic Deep Dashboard, but chat‑first” — with a bonus goal: **explorable public rooms** that feel like AOL/Prodigy chatrooms, without spamming the standard Meshtastic public text feed.
 
 This roadmap is written to be directly hand‑offable to a coding agent (Codex) and to a human reviewer.
+
+## Status (Audited 2026-03-14)
+
+- Milestone 0 is largely complete.
+- Milestones 1-5 remain planned work (Rooms are not implemented yet in this branch).
+- This document is planning/backlog guidance; current behavior should always be verified against code.
 
 ## Guiding principles
 
@@ -64,7 +73,10 @@ This roadmap is written to be directly hand‑offable to a coding agent (Codex) 
 
 **Implementation notes (hotspots)**
 
-- Frontend: `meshdash/assets/dashboard.js.tmpl`
+- Frontend:
+  - `meshdash/assets/dashboard.js.chat.state.messaging.send_flow.tmpl` (`classifyMessageChannel(msg)`)
+  - `meshdash/assets/dashboard.js.chat.render.tmpl` (dynamic channel list rendering)
+  - `meshdash/assets/dashboard.js.chat.state.core.tmpl` (`applyChatChannel(...)` + persistence)
   - Extend `classifyMessageChannel(msg)` to return `room:<slug>` when prefix matches.
   - Extend the channel list builder to include discovered rooms.
   - Extend `applyChatChannel(...)` and localStorage persistence to accept dynamic keys.

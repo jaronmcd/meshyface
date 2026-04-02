@@ -1,0 +1,227 @@
+    function makeBotRequestHistoryId(seed = "") {{
+      const cleanSeed = String(seed || "").trim().replace(/[^a-z0-9_-]/gi, "").toLowerCase().slice(0, 18);
+      const rand = Math.random().toString(36).slice(2, 8);
+      return `bot-${{Date.now().toString(36)}}-${{rand}}${{cleanSeed ? `-${{cleanSeed}}` : ""}}`;
+    }}
+
+    function normalizeTrackedBotCommandName(value) {{
+      const raw = String(value || "").trim().toLowerCase();
+      if (!raw) return "";
+      let text = canonicalTrackedBotCommandHead(raw);
+      if (text.startsWith("!") || text.startsWith("#")) {{
+        text = text.slice(1);
+      }}
+      return Array.from(text).filter((ch) => (
+        (ch >= "a" && ch <= "z")
+        || (ch >= "0" && ch <= "9")
+        || ch === "_"
+        || ch === "-"
+      )).join("");
+    }}
+
+    function canonicalTrackedBotCommandHead(value) {{
+      const raw = String(value || "").trim().toLowerCase();
+      if (!raw) return "";
+      const prefix = (raw.startsWith("!") || raw.startsWith("#")) ? raw.slice(0, 1) : "";
+      const bodyRaw = prefix ? raw.slice(1) : raw;
+      const bodyClean = Array.from(bodyRaw).filter((ch) => (
+        (ch >= "a" && ch <= "z")
+        || (ch >= "0" && ch <= "9")
+        || ch === "_"
+        || ch === "-"
+      )).join("");
+      if (!bodyClean) return "";
+      const mappedBody = String(botCommandAliasByName.get(bodyClean) || bodyClean).trim().toLowerCase();
+      if (!mappedBody) return "";
+      return `${{prefix}}${{mappedBody}}`;
+    }}
+
+    function botCommandHeadFromText(commandText) {{
+      const raw = String(commandText || "").trim().toLowerCase();
+      if (!raw) return "";
+      const head = raw.split(/\\s+/)[0] || "";
+      return canonicalTrackedBotCommandHead(head);
+    }}
+
+    function normalizeBotTrafficSnifferCommandHeads(raw) {{
+      const parts = Array.isArray(raw)
+        ? raw
+        : String(raw || "").split(/[\\s,;]+/);
+      const seen = new Set();
+      const output = [];
+      for (const part of parts) {{
+        const clean = normalizeTrackedBotCommandName(part);
+        if (!clean || seen.has(clean)) continue;
+        seen.add(clean);
+        output.push(clean);
+      }}
+      return output.length ? output : [...defaultBotTrafficSnifferCommandHeads];
+    }}
+
+    function persistBotTrafficSnifferCommandHeads() {{
+      try {{
+        window.localStorage.setItem(
+          botTrafficSnifferCommandsStorageKey,
+          JSON.stringify(botTrafficSnifferCommandHeads || [])
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncBotTrafficSnifferControls() {{
+      const input = document.getElementById("bots-sniffer-command-input");
+      if (input instanceof HTMLInputElement) {{
+        input.value = (botTrafficSnifferCommandHeads || []).join(", ");
+      }}
+    }}
+
+    function applyBotTrafficSnifferCommandHeads(raw, persist = true) {{
+      botTrafficSnifferCommandHeads = normalizeBotTrafficSnifferCommandHeads(raw);
+      syncBotTrafficSnifferControls();
+      if (persist) {{
+        persistBotTrafficSnifferCommandHeads();
+      }}
+      if (activeLayoutView === "bots") {{
+        renderBotsView(latestState);
+      }}
+    }}
+
+    function loadBotTrafficSnifferCommandHeads() {{
+      let loaded = [...defaultBotTrafficSnifferCommandHeads];
+      try {{
+        const raw = window.localStorage.getItem(botTrafficSnifferCommandsStorageKey);
+        if (raw) {{
+          const parsed = JSON.parse(raw);
+          loaded = normalizeBotTrafficSnifferCommandHeads(parsed);
+        }}
+      }} catch (_err) {{
+        loaded = [...defaultBotTrafficSnifferCommandHeads];
+      }}
+      botTrafficSnifferCommandHeads = loaded;
+      syncBotTrafficSnifferControls();
+      persistBotTrafficSnifferCommandHeads();
+    }}
+
+    function buildBotNodeLabelResolver(state = latestState) {{
+      const nodes = (state && Array.isArray(state.nodes)) ? state.nodes : [];
+      const nameById = new Map();
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isCanonicalNodeId(nodeId)) continue;
+        nameById.set(nodeId, preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId);
+      }}
+      return (nodeId) => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!clean || clean === "^all") return "All";
+        if (!isCanonicalNodeId(clean)) return clean || "n/a";
+        return nameById.get(clean) || nodeNameCache.get(clean) || clean;
+      }};
+    }}
+
+    function extractObservedBotTrafficEntries(state = latestState) {{
+      const trackedHeads = new Set(normalizeBotTrafficSnifferCommandHeads(botTrafficSnifferCommandHeads));
+      if (trackedHeads.size === 0) return [];
+      const traffic = (state && state.traffic && typeof state.traffic === "object")
+        ? state.traffic
+        : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat)
+        ? traffic.recent_chat
+        : [];
+      const packets = Array.isArray(traffic.recent_packets)
+        ? traffic.recent_packets
+        : [];
+      const output = [];
+      const seen = new Set();
+      const pushUnique = (row, dedupeKey) => {{
+        const cleanKey = String(dedupeKey || row && row.id || "").trim();
+        if (!row || !cleanKey || seen.has(cleanKey)) return;
+        seen.add(cleanKey);
+        output.push(row);
+      }};
+
+      for (const msg of chatMessages) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (msg.local_echo === true || msg.localEcho === true) continue;
+        const kind = normalizeChatMessageKind(msg, msg.is_reaction === true);
+        if (kind !== "message") continue;
+        const text = String(msg.text ?? msg.decoded_text ?? msg.payload_text ?? "").trim();
+        if (!text) continue;
+        const head = normalizeTrackedBotCommandName(botCommandHeadFromText(text));
+        if (!head || !trackedHeads.has(head)) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        if (!fromId) continue;
+        const toId = normalizeNodeId(msg.to || msg.destination || "") || "^all";
+        const channelIndex = messageMeshChannelIndex(msg);
+        const receivedUnix = latestUnixTimestamp(
+          msg.rx_time,
+          msg.captured_at,
+          msg.sent_at,
+          msg.created_at
+        ) || 0;
+        const messageId = messageIdOfChatPacket(msg);
+        const dedupeKey = messageId
+          ? `chat:${{messageId}}`
+          : `chat:${{fromId}}|${{toId}}|${{channelIndex}}|${{receivedUnix}}|${{text}}`;
+        pushUnique({{
+          id: `sniff-${{messageId || receivedUnix || output.length}}-${{head}}-${{fromId}}`,
+          command: text,
+          command_head: head,
+          from_id: fromId,
+          to_id: toId,
+          channel_index: channelIndex,
+          message_id: messageId,
+          received_unix: receivedUnix,
+          received_at: String(msg.rx_time ?? msg.captured_at ?? msg.sent_at ?? "").trim(),
+          hops: hopCountOfChatPacket(msg),
+        }}, dedupeKey);
+      }}
+
+      for (const entry of packets) {{
+        if (!entry || typeof entry !== "object") continue;
+        const summary = (entry.summary && typeof entry.summary === "object") ? entry.summary : {{}};
+        const packet = (entry.packet && typeof entry.packet === "object") ? entry.packet : {{}};
+        const decoded = (packet.decoded && typeof packet.decoded === "object") ? packet.decoded : {{}};
+        const text = String(summary.decoded_text ?? decoded.text ?? "").trim();
+        if (!text) continue;
+        const head = normalizeTrackedBotCommandName(botCommandHeadFromText(text));
+        if (!head || !trackedHeads.has(head)) continue;
+        const fromId = normalizeNodeId(summary.from ?? packet.fromId ?? packet.from_id ?? "");
+        if (!fromId) continue;
+        const toId = normalizeNodeId(summary.to ?? packet.toId ?? packet.to_id ?? "") || "^all";
+        const channelIndex = normalizeMeshChannelIndex(summary.channel ?? packet.channel ?? 0);
+        const receivedUnix = latestUnixTimestamp(
+          summary.rx_time_unix,
+          packet.rxTime,
+          summary.rx_time,
+          summary.captured_at,
+          entry.rx_time_unix,
+          entry.rx_time,
+          entry.captured_at
+        ) || 0;
+        const packetId = parsePositiveMessageId(summary.packet_id ?? packet.id);
+        const dedupeKey = packetId
+          ? `packet:${{packetId}}`
+          : `packet:${{fromId}}|${{toId}}|${{channelIndex}}|${{receivedUnix}}|${{text}}`;
+        const hops = hopCountOfChatPacket({{
+          hops: summary.hops,
+          hop_start: summary.hop_start ?? packet.hopStart,
+          hop_limit: summary.hop_limit ?? packet.hopLimit,
+        }});
+        pushUnique({{
+          id: `sniff-${{packetId || receivedUnix || output.length}}-${{head}}-${{fromId}}`,
+          command: text,
+          command_head: head,
+          from_id: fromId,
+          to_id: toId,
+          channel_index: channelIndex,
+          message_id: packetId,
+          received_unix: receivedUnix,
+          received_at: String(summary.rx_time ?? summary.captured_at ?? "").trim(),
+          hops,
+        }}, dedupeKey);
+      }}
+      output.sort((a, b) => (
+        (Number(b.received_unix) || 0) - (Number(a.received_unix) || 0)
+      ));
+      return output.slice(0, botRequestLogMaxEntries);
+    }}

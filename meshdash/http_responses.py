@@ -80,12 +80,15 @@ def write_html_response(
     handler: DashboardHttpHandler,
     *,
     html_text: str,
+    no_store: bool = False,
     extra_headers: Optional[Mapping[str, str]] = None,
 ) -> None:
     payload = html_text.encode("utf-8")
     payload, content_encoding = _gzip_if_accepted(handler, payload)
     handler.send_response(200)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
+    if no_store:
+        handler.send_header("Cache-Control", "no-store")
     if extra_headers:
         for key, value in extra_headers.items():
             handler.send_header(str(key), str(value))

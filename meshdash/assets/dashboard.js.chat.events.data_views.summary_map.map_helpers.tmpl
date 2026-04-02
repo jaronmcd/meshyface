@@ -1,0 +1,272 @@
+    function hashTrailSignature(nodeHistory, selection) {{
+      let hash = 2166136261;
+      let pointCount = 0;
+      const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
+      hash = hashMixStr(hash, historyNodeId);
+      if (!(historyNodeId && historyNodeId === selection)) {{
+        hash = hashMixInt(hash, -1);
+        return {{ hash: hash >>> 0, count: 0 }};
+      }}
+
+      const rawTrail = Array.isArray(nodeHistory && nodeHistory.positions)
+        ? nodeHistory.positions
+        : [];
+      for (const point of rawTrail) {{
+        const lat = Number(point && point.lat);
+        const lon = Number(point && point.lon);
+        if (!isValidMapCoord(lat, lon)) continue;
+        pointCount += 1;
+        hash = hashMixInt(hash, Math.round(lat * 100000));
+        hash = hashMixInt(hash, Math.round(lon * 100000));
+        const when = Number(point && point.time_unix);
+        hash = hashMixInt(hash, Number.isFinite(when) ? Math.round(when) : 0);
+      }}
+      hash = hashMixInt(hash, pointCount);
+      return {{ hash: hash >>> 0, count: pointCount }};
+    }}
+
+    function buildMapGraphSignature(nodes, edges) {{
+      let hash = 2166136261;
+      let nodeCount = 0;
+      let nodeXor = 0;
+      let nodeSum = 0;
+      for (const node of (nodes || [])) {{
+        if (typeof node.lat !== "number" || typeof node.lon !== "number") continue;
+        let itemHash = 2166136261;
+        itemHash = hashMixStr(itemHash, normalizeNodeId(node.id));
+        itemHash = hashMixInt(itemHash, Math.round(node.lat * 100000));
+        itemHash = hashMixInt(itemHash, Math.round(node.lon * 100000));
+        nodeXor ^= itemHash;
+        nodeSum = (nodeSum + itemHash) >>> 0;
+        nodeCount += 1;
+      }}
+      hash = hashMixInt(hash, nodeCount);
+      hash = hashMixInt(hash, nodeXor);
+      hash = hashMixInt(hash, nodeSum);
+
+      let edgeCount = 0;
+      let edgeXor = 0;
+      let edgeSum = 0;
+      for (const edge of (edges || [])) {{
+        const lifetimeCount = Number(edge && (edge.lifetime_count ?? edge.count ?? 0));
+        const lastHops = Number(edge && edge.last_hops);
+        let itemHash = 2166136261;
+        itemHash = hashMixStr(itemHash, normalizeNodeId(edge && edge.from));
+        itemHash = hashMixStr(itemHash, normalizeNodeId(edge && edge.to));
+        itemHash = hashMixInt(itemHash, Number.isFinite(lifetimeCount) ? Math.trunc(lifetimeCount) : 0);
+        itemHash = hashMixStr(itemHash, edge && edge.last_rx_time);
+        itemHash = hashMixInt(itemHash, Number.isFinite(lastHops) ? Math.trunc(lastHops) : -1);
+        itemHash = hashMixInt(itemHash, edge && edge.is_real ? 1 : 0);
+        edgeXor ^= itemHash;
+        edgeSum = (edgeSum + itemHash) >>> 0;
+        edgeCount += 1;
+      }}
+      hash = hashMixInt(hash, edgeCount);
+      hash = hashMixInt(hash, edgeXor);
+      hash = hashMixInt(hash, edgeSum);
+
+      return `graph:${{(hash >>> 0).toString(16)}}:${{nodeCount}}:${{edgeCount}}`;
+    }}
+
+    function buildMapSignatures(nodes, edges, nodeHistory) {{
+      const selection = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : (isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "");
+      const savedSelectionMode = activeLayoutView === "saved" && !!selection;
+      const networkSelectionMode = activeLayoutView === "network" && !!selection;
+
+      if (savedSelectionMode) {{
+        let hash = 2166136261;
+        hash = hashMixStr(hash, "saved");
+        hash = hashMixStr(hash, selection);
+        const selectedNode = savedViewNodeFrom(nodes, latestState);
+        if (
+          selectedNode &&
+          typeof selectedNode.lat === "number" &&
+          typeof selectedNode.lon === "number"
+        ) {{
+          hash = hashMixInt(hash, Math.round(selectedNode.lat * 100000));
+          hash = hashMixInt(hash, Math.round(selectedNode.lon * 100000));
+        }} else {{
+          hash = hashMixInt(hash, -2147483648);
+        }}
+        const trailSig = hashTrailSignature(nodeHistory, selection);
+        hash = hashMixInt(hash, trailSig.hash);
+        hash = hashMixInt(hash, trailSig.count);
+        return {{
+          signature: `saved:${{(hash >>> 0).toString(16)}}:${{trailSig.hash.toString(16)}}:${{trailSig.count}}`,
+          graphSignature: "",
+          selection,
+          savedSelectionMode: true,
+          networkSelectionMode: false,
+        }};
+      }}
+
+      const graphSignature = buildMapGraphSignature(nodes, edges);
+      if (networkSelectionMode) {{
+        const trailSig = hashTrailSignature(nodeHistory, selection);
+        return {{
+          signature: `${{graphSignature}}:network:${{selection}}:${{trailSig.hash.toString(16)}}:${{trailSig.count}}`,
+          graphSignature,
+          selection,
+          savedSelectionMode: false,
+          networkSelectionMode: true,
+        }};
+      }}
+      return {{
+        signature: `${{graphSignature}}:all`,
+        graphSignature,
+        selection,
+        savedSelectionMode: false,
+        networkSelectionMode: false,
+      }};
+    }}
+
+
+    function isValidMapCoord(lat, lon) {{
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if (lat < -90 || lat > 90) return false;
+      if (lon < -180 || lon > 180) return false;
+      // Many devices report (0,0) before GPS lock. Treat that as "unknown" for overview fitting.
+      if (Math.abs(lat) < 1e-9 && Math.abs(lon) < 1e-9) return false;
+      return true;
+    }}
+
+    function collectTrailPoints(nodeHistory, selectionId) {{
+      const selection = normalizeNodeId(selectionId || "");
+      if (!selection) return [];
+      const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
+      if (!historyNodeId || historyNodeId !== selection) return [];
+      const rawTrail = Array.isArray(nodeHistory && nodeHistory.positions)
+        ? nodeHistory.positions
+        : [];
+      const points = [];
+      for (const point of rawTrail) {{
+        const lat = Number(point && point.lat);
+        const lon = Number(point && point.lon);
+        if (!isValidMapCoord(lat, lon)) continue;
+        const timeUnix = Number(point && point.time_unix);
+        points.push({{
+          lat,
+          lon,
+          time_unix: Number.isFinite(timeUnix) ? Math.round(timeUnix) : null,
+          time: point && point.time ? String(point.time) : null,
+        }});
+      }}
+      return points;
+    }}
+
+    function collectNodeLatLngs(nodes) {{
+      const pts = [];
+      for (const node of (nodes || [])) {{
+        const lat = Number(node && node.lat);
+        const lon = Number(node && node.lon);
+        if (!isValidMapCoord(lat, lon)) continue;
+        pts.push([lat, lon]);
+      }}
+      return pts;
+    }}
+
+    function computeTrimmedBounds(points, trimFrac = 0.05) {{
+      if (!Array.isArray(points) || points.length === 0) return null;
+      if (points.length === 1) {{
+        return L.latLngBounds(points[0], points[0]);
+      }}
+      const n = points.length;
+      const trimCount = Math.max(0, Math.floor(n * trimFrac));
+      const lats = points.map((p) => p[0]).slice().sort((a, b) => a - b);
+      const lons = points.map((p) => p[1]).slice().sort((a, b) => a - b);
+      const lo = Math.min(trimCount, Math.floor((n - 1) / 2));
+      const hi = n - 1 - lo;
+      const latMin = lats[lo];
+      const latMax = lats[hi];
+      const lonMin = lons[lo];
+      const lonMax = lons[hi];
+      const bounds = L.latLngBounds([latMin, lonMin], [latMax, lonMax]);
+      return bounds && bounds.isValid() ? bounds : null;
+    }}
+
+    function fitMapToMostNodes(nodes, opts = {{}}) {{
+      const points = collectNodeLatLngs(nodes);
+      if (!points.length) return false;
+
+      // If we only have one point, zoom in enough to be useful.
+      if (points.length === 1) {{
+        map.setView(points[0], Math.max(map.getZoom(), 12), {{ animate: false }});
+        requestMapResize();
+        return true;
+      }}
+
+      const trimFrac = points.length >= 14 ? 0.05 : 0;
+      let bounds = computeTrimmedBounds(points, trimFrac);
+      if (!bounds) {{
+        bounds = L.latLngBounds(points);
+      }}
+      if (!bounds || !bounds.isValid()) return false;
+
+      const pad = Number.isFinite(Number(opts.pad)) ? Number(opts.pad) : 0.18;
+      const maxZoom = Number.isFinite(Number(opts.maxZoom)) ? Number(opts.maxZoom) : 13;
+      map.fitBounds(bounds.pad(pad), {{ animate: false, maxZoom }});
+      requestMapResize();
+      return true;
+    }}
+
+    function bindMapResetControl() {{
+      const btn = document.getElementById("map-reset-view-btn");
+      if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {{
+        map.closePopup();
+        pendingMapHistoryFocus = false;
+        if (latestState) {{
+          const nodes = Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          fitMapToMostNodes(nodes, {{ pad: 0.18, maxZoom: 13 }});
+        }}
+      }});
+    }}
+
+    function resolveMapPositionBadge(node, caps = null, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const lat = Number(node && node.lat);
+      const lon = Number(node && node.lon);
+      if (!isValidMapCoord(lat, lon)) {{
+        return {{
+          label: "No Position",
+          className: "unknown",
+          title: "No usable position is available for this node.",
+        }};
+      }}
+
+      const heardRaw = Number(node && node.last_heard_unix);
+      const heardUnix = Number.isFinite(heardRaw) && heardRaw > 0
+        ? Math.trunc(heardRaw)
+        : null;
+      const capsPosRaw = Number(caps && caps.last_position_unix);
+      const capsPosUnix = Number.isFinite(capsPosRaw) && capsPosRaw > 0
+        ? Math.trunc(capsPosRaw)
+        : null;
+
+      const heardAgeSeconds = Number.isFinite(heardUnix)
+        ? Math.max(0, nowUnix - heardUnix)
+        : null;
+      const recentlyHeard = Number.isFinite(heardAgeSeconds) && heardAgeSeconds <= chatWarnWindowSeconds;
+      const positionNearLastHeard = Number.isFinite(heardUnix)
+        && Number.isFinite(capsPosUnix)
+        && Math.abs(heardUnix - capsPosUnix) <= 120;
+      const positionRecentlyUpdated = Number.isFinite(capsPosUnix)
+        && (nowUnix - capsPosUnix) <= chatWarnWindowSeconds;
+
+      if (positionNearLastHeard || (recentlyHeard && (positionRecentlyUpdated || !Number.isFinite(capsPosUnix)))) {{
+        return {{
+          label: "Live GPS",
+          className: "live",
+          title: "Position appears to be from a recent live GPS update.",
+        }};
+      }}
+
+      return {{
+        label: "History/Fixed",
+        className: "history",
+        title: "Position appears to be fixed or from an older saved location.",
+      }};
+    }}
+

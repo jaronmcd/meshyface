@@ -1,0 +1,441 @@
+      const savedChip = document.getElementById("updated-freshness");
+      if (savedChip instanceof HTMLElement) {{
+        const savedNodeId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(latestState)
+          : "";
+        if (activeLayoutView === "saved" && isSelectableNodeId(savedNodeId)) {{
+          const node = nodesById.get(savedNodeId);
+          const caps = capsById.get(savedNodeId);
+          const chatTouch = latestChatTouchByNode.get(savedNodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+          const status = freshnessStatus(lastSeenUnix, nowUnix);
+          const key = normalizeFreshnessKey(status);
+          savedChip.textContent = key === "online"
+            ? "Fresh"
+            : (key === "warn" ? "Aging" : (key === "stale" ? "Stale" : "Unknown"));
+          applyFreshnessClass(savedChip, key);
+          savedChip.hidden = false;
+        }} else {{
+          savedChip.textContent = "";
+          savedChip.hidden = true;
+          applyFreshnessClass(savedChip, "unknown");
+        }}
+      }}
+    }}
+
+
+    function normalizeChatChannel(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (knownChatChannels.has(clean)) return clean;
+      if (clean.startsWith("room:")) {{
+        const slug = clean.slice(5).trim();
+        if (roomSlugRe.test(slug)) return `room:${{slug}}`;
+      }}
+      return "all";
+    }}
+
+    function channelLabel(key) {{
+      if (key === "direct") return "Peer-to-peer";
+      if (typeof key === "string" && key.startsWith("room:")) return `#${{key.slice(5)}}`;
+      return "Everyone";
+    }}
+
+    function normalizeDeliveryState(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      return knownDeliveryStates.has(clean) ? clean : "";
+    }}
+
+    function formatHopCountLabel(hops, fallback = "hops n/a") {{
+      const hopCount = nonNegativeIntegerOrNull(hops);
+      if (hopCount != null) {{
+        return `${{hopCount}} hop${{hopCount === 1 ? "" : "s"}}`;
+      }}
+      return String(fallback || "").trim() || "hops n/a";
+    }}
+
+    function computeRoundTripMs(sentMsRaw, responseMsRaw) {{
+      const sentMs = Number(sentMsRaw);
+      const responseMs = Number(responseMsRaw);
+      if (!Number.isFinite(sentMs) || sentMs <= 0) return null;
+      if (!Number.isFinite(responseMs) || responseMs <= 0) return null;
+      if (responseMs < sentMs) return null;
+      return Math.round(responseMs - sentMs);
+    }}
+
+    function buildResponseTelemetry(sentMsRaw, responseMsRaw, hopsRaw) {{
+      return {{
+        rttMs: computeRoundTripMs(sentMsRaw, responseMsRaw),
+        hopLabel: formatHopCountLabel(hopsRaw),
+      }};
+    }}
+
+    function buildResponseTelemetryMetaHtml(sentMsRaw, responseMsRaw, hopsRaw) {{
+      const telemetry = buildResponseTelemetry(sentMsRaw, responseMsRaw, hopsRaw);
+      return `<div class="bots-history-meta"><span>RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}</span><span>${{escAttr(telemetry.hopLabel)}}</span></div>`;
+    }}
+
+    function buildDeliveredAckDetail(msg, ackMeta = null) {{
+      if (!msg || typeof msg !== "object") return "";
+      const sentMs = latestTimestampMs(
+        msg.sent_at,
+        msg.created_at,
+        msg.captured_at,
+        msg.rx_time,
+        msg.time,
+      );
+      const ackInfo = (ackMeta && typeof ackMeta === "object") ? ackMeta : null;
+      const ackMs = (
+        parseDashboardTimeToMs(ackInfo && (ackInfo.rx_ms ?? ackInfo.rxMs))
+        || latestTimestampMs(
+          msg.delivery_updated_unix,
+          msg.delivery_updated_at,
+          msg.updated_at,
+          msg.updatedAt,
+        )
+      );
+      const telemetry = buildResponseTelemetry(sentMs, ackMs, ackInfo && (ackInfo.hops ?? ackInfo.hopCount));
+      const parts = [
+        `RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}`,
+        telemetry.hopLabel,
+      ];
+      const rxSnrRaw = Number(ackInfo && (ackInfo.rx_snr ?? ackInfo.rxSnr));
+      if (Number.isFinite(rxSnrRaw)) {{
+        parts.push(`snr ${{formatMetricValue(rxSnrRaw, 1)}} dB`);
+      }}
+      const rxRssiRaw = Number(ackInfo && (ackInfo.rx_rssi ?? ackInfo.rxRssi));
+      if (Number.isFinite(rxRssiRaw)) {{
+        parts.push(`rssi ${{formatMetricValue(rxRssiRaw, 0)}} dBm`);
+      }}
+      return parts.join(" | ");
+    }}
+
+    function indexMeshBotRequestsByMessageId(botRequestsRaw) {{
+      const requestByMessageId = new Map();
+      const responseByMessageId = new Map();
+      const rows = Array.isArray(botRequestsRaw) ? botRequestsRaw : [];
+      for (const rawRow of rows) {{
+        if (!rawRow || typeof rawRow !== "object") continue;
+        const source = String(rawRow.source || "").trim().toLowerCase();
+        if (source !== "mesh") continue;
+        const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
+        const responseMessageId = parsePositiveMessageId(
+          rawRow.response_message_id ?? rawRow.responseMessageId
+        );
+        if (requestMessageId) {{
+          requestByMessageId.set(String(requestMessageId), rawRow);
+        }}
+        if (responseMessageId) {{
+          responseByMessageId.set(String(responseMessageId), rawRow);
+        }}
+      }}
+      return {{ requestByMessageId, responseByMessageId }};
+    }}
+
+    function buildPacketSummaryAndRoutingAckMaps(rawPackets) {{
+      const packetSummaryById = new Map();
+      const deliveryAckByRequestId = new Map();
+      const entries = Array.isArray(rawPackets) ? rawPackets : [];
+      for (const entry of entries) {{
+        const summary = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const packet = (entry && entry.packet && typeof entry.packet === "object")
+          ? entry.packet
+          : {{}};
+        const decoded = (packet.decoded && typeof packet.decoded === "object")
+          ? packet.decoded
+          : {{}};
+        const packetId = parsePositiveMessageId(
+          summary.packet_id
+          ?? summary.message_id
+          ?? packet.id
+          ?? packet.packet_id
+          ?? packet.message_id
+        );
+        if (packetId) {{
+          packetSummaryById.set(String(packetId), entry);
+        }}
+
+        const portnum = String(summary.portnum ?? decoded.portnum ?? "").trim().toUpperCase();
+        if (portnum !== "ROUTING_APP") {{
+          continue;
+        }}
+        const routing = (decoded.routing && typeof decoded.routing === "object")
+          ? decoded.routing
+          : {{}};
+        const requestId = parsePositiveMessageId(
+          routing.requestId
+          ?? routing.request_id
+          ?? decoded.requestId
+          ?? decoded.request_id
+        );
+        if (!requestId) {{
+          continue;
+        }}
+        const ackMs = latestTimestampMs(
+          summary.rx_time_unix,
+          summary.rx_time,
+          summary.captured_at,
+          entry && (entry.captured_at || entry.rx_time),
+          packet.rxTime,
+        ) || 0;
+        const ackHops = hopCountOfChatPacket(summary) ?? hopCountOfChatPacket(packet);
+        const rxSnrRaw = Number(
+          summary.rx_snr
+          ?? summary.rxSnr
+          ?? packet.rx_snr
+          ?? packet.rxSnr
+        );
+        const rxRssiRaw = Number(
+          summary.rx_rssi
+          ?? summary.rxRssi
+          ?? packet.rx_rssi
+          ?? packet.rxRssi
+        );
+        const existingAck = deliveryAckByRequestId.get(String(requestId));
+        if (existingAck && Number(existingAck.rx_ms || 0) > ackMs) {{
+          continue;
+        }}
+        deliveryAckByRequestId.set(String(requestId), {{
+          request_id: requestId,
+          rx_ms: ackMs > 0 ? ackMs : null,
+          hops: Number.isInteger(ackHops) && ackHops >= 0 ? ackHops : null,
+          rx_snr: Number.isFinite(rxSnrRaw) ? rxSnrRaw : null,
+          rx_rssi: Number.isFinite(rxRssiRaw) ? Math.trunc(rxRssiRaw) : null,
+        }});
+      }}
+      return {{ packetSummaryById, deliveryAckByRequestId }};
+    }}
+
+    function formatLatencyLabel(latencyMsRaw) {{
+      const latencyMs = Number(latencyMsRaw);
+      if (!Number.isFinite(latencyMs) || latencyMs < 0) return "n/a";
+      const value = Math.max(0, Math.trunc(latencyMs));
+      if (value < 1000) return `${{value}}ms`;
+      if (value < 10000) return `${{(value / 1000).toFixed(1)}}s`;
+      const totalSeconds = Math.trunc(value / 1000);
+      const days = Math.trunc(totalSeconds / 86400);
+      const hours = Math.trunc((totalSeconds % 86400) / 3600);
+      const minutes = Math.trunc((totalSeconds % 3600) / 60);
+      const seconds = Math.trunc(totalSeconds % 60);
+      const parts = [];
+      if (days > 0) parts.push(`${{days}}d`);
+      if (hours > 0) parts.push(`${{hours}}h`);
+      if (minutes > 0) parts.push(`${{minutes}}m`);
+      if (seconds > 0 || parts.length === 0) parts.push(`${{seconds}}s`);
+      return parts.slice(0, 3).join(" ");
+    }}
+
+    function formatDistanceMiLabel(distanceKmRaw) {{
+      const distanceKm = Number(distanceKmRaw);
+      if (!Number.isFinite(distanceKm) || distanceKm < 0) return "";
+      const distanceMi = distanceKm * 0.621371;
+      if (distanceMi < 1) return "<1mi";
+      if (distanceMi < 10) return `${{distanceMi.toFixed(1)}}mi`;
+      return `${{Math.round(distanceMi)}}mi`;
+    }}
+
+    function formatSignalRssiLabel(valueRaw) {{
+      const value = Number(valueRaw);
+      if (!Number.isFinite(value)) return "";
+      return `${{Math.round(value)}}dBm`;
+    }}
+
+    function formatSignalSnrLabel(valueRaw) {{
+      const value = Number(valueRaw);
+      if (!Number.isFinite(value)) return "";
+      return `${{value.toFixed(1)}}dB`;
+    }}
+
+    function buildLinkSignalHintText(rssiRaw, snrRaw) {{
+      const parts = [];
+      const rssiLabel = formatSignalRssiLabel(rssiRaw);
+      if (rssiLabel) parts.push(rssiLabel);
+      const snrLabel = formatSignalSnrLabel(snrRaw);
+      if (snrLabel) parts.push(snrLabel);
+      if (parts.length === 0) return "";
+      return `link ${{parts.join(" / ")}} (last-hop)`;
+    }}
+
+    function haversineKm(latA, lonA, latB, lonB) {{
+      const earthRadiusKm = 6371.0;
+      const toRad = (value) => (Number(value) * Math.PI) / 180;
+      const latARad = toRad(latA);
+      const lonARad = toRad(lonA);
+      const latBRad = toRad(latB);
+      const lonBRad = toRad(lonB);
+      const dLat = latBRad - latARad;
+      const dLon = lonBRad - lonARad;
+      const hav = (
+        (Math.sin(dLat / 2) ** 2)
+        + (Math.cos(latARad) * Math.cos(latBRad) * (Math.sin(dLon / 2) ** 2))
+      );
+      return 2 * earthRadiusKm * Math.asin(Math.sqrt(Math.max(0, hav)));
+    }}
+
+    function nodeCoordsFromStateEntry(node) {{
+      if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+      const candidates = [
+        node,
+        node.position,
+        node.local_position,
+        node.localPosition,
+      ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+      for (const candidate of candidates) {{
+        const lat = coordinateValueFromSpecs(candidate, [
+          {{ key: "lat" }},
+          {{ key: "latitude" }},
+          {{ key: "latitude_i", scale: 1e-7 }},
+          {{ key: "latitudeI", scale: 1e-7 }},
+        ]);
+        const lon = coordinateValueFromSpecs(candidate, [
+          {{ key: "lon" }},
+          {{ key: "lng" }},
+          {{ key: "longitude" }},
+          {{ key: "longitude_i", scale: 1e-7 }},
+          {{ key: "longitudeI", scale: 1e-7 }},
+        ]);
+        if (!isValidLatLonRange(lat, lon)) continue;
+        if (Math.abs(Number(lat)) < 1e-9 && Math.abs(Number(lon)) < 1e-9) continue;
+        return {{ lat: Number(lat), lon: Number(lon) }};
+      }}
+      return null;
+    }}
+
+    function nodePositionUnix(node) {{
+      if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+      const roots = [
+        node,
+        node.position,
+        node.local_position,
+        node.localPosition,
+      ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+      const raw = firstNestedValue(roots, [
+        "position_unix",
+        "positionUnix",
+        "position_time",
+        "positionTime",
+        "last_position_unix",
+        "lastPositionUnix",
+        "timestamp",
+        "time",
+      ]);
+      return parseDashboardTimeToUnix(raw);
+    }}
+
+    function nodePositionIsRecent(node, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const positionUnix = Number(nodePositionUnix(node));
+      if (!Number.isFinite(positionUnix) || positionUnix <= 0) {{
+        // Some payloads do not expose per-position timestamps; keep coordinates usable.
+        return true;
+      }}
+      if (positionUnix > (nowUnix + 3600)) return false;
+      return (nowUnix - positionUnix) <= requesterPositionMaxAgeSeconds;
+    }}
+
+    function offlineAtlasCityRowsFromPayload(payload) {{
+      const layers = (payload && typeof payload === "object" && payload.layers && typeof payload.layers === "object")
+        ? payload.layers
+        : {{}};
+      const cities = normalizeOfflineAtlasCollection(layers.cities);
+      const features = Array.isArray(cities.features) ? cities.features : [];
+      const rows = [];
+      for (const feature of features) {{
+        const geometry = (feature && typeof feature.geometry === "object") ? feature.geometry : null;
+        const coordinates = Array.isArray(geometry && geometry.coordinates)
+          ? geometry.coordinates
+          : null;
+        if (!coordinates || coordinates.length < 2) continue;
+        const lon = Number(coordinates[0]);
+        const lat = Number(coordinates[1]);
+        if (!isValidLatLonRange(lat, lon)) continue;
+        const props = (feature && typeof feature.properties === "object") ? feature.properties : {{}};
+        const name = sanitizeOfflineLabel(props.name, "");
+        if (!name) continue;
+        const stateText = sanitizeOfflineLabel(
+          props.state || props.region || props.admin1 || props.adm1name,
+          ""
+        );
+        const countryText = sanitizeOfflineLabel(
+          props.country || props.admin0 || props.adm0name || props.iso_a2 || props.iso_a3,
+          ""
+        );
+        const populationRaw = Number(
+          props.population ?? props.pop_max ?? props.popMax ?? props.pop
+        );
+        rows.push({{
+          lat: Number(lat),
+          lon: Number(lon),
+          name,
+          state: stateText,
+          country: countryText,
+          population: Number.isFinite(populationRaw) ? populationRaw : 0,
+        }});
+      }}
+      return rows;
+    }}
+
+    async function loadOfflineAtlasCityRows() {{
+      if (Array.isArray(offlineAtlasCityRowsCache)) {{
+        return offlineAtlasCityRowsCache;
+      }}
+      if (offlineAtlasCityRowsPromise) {{
+        return offlineAtlasCityRowsPromise;
+      }}
+      offlineAtlasCityRowsPromise = (async () => {{
+        try {{
+          const payload = await fetchOfflineAtlasPayload();
+          const rows = payload ? offlineAtlasCityRowsFromPayload(payload) : [];
+          offlineAtlasCityRowsCache = Array.isArray(rows) ? rows : [];
+          return offlineAtlasCityRowsCache;
+        }} catch (_err) {{
+          offlineAtlasCityRowsCache = [];
+          return offlineAtlasCityRowsCache;
+        }} finally {{
+          offlineAtlasCityRowsPromise = null;
+        }}
+      }})();
+      return offlineAtlasCityRowsPromise;
+    }}
+
+    async function nearestOfflineCityHintFromCoords(latRaw, lonRaw, maxDistanceKm = botCityHintMaxDistanceKm) {{
+      const lat = Number(latRaw);
+      const lon = Number(lonRaw);
+      if (!isValidLatLonRange(lat, lon)) return "";
+      const rows = await loadOfflineAtlasCityRows();
+      if (!Array.isArray(rows) || rows.length === 0) return "";
+      const limitKm = Number(maxDistanceKm);
+      const maxDistance = Number.isFinite(limitKm) && limitKm > 0 ? limitKm : botCityHintMaxDistanceKm;
+      let best = null;
+      let bestDistanceKm = null;
+      for (const row of rows) {{
+        if (!row || typeof row !== "object") continue;
+        const cityLat = Number(row.lat);
+        const cityLon = Number(row.lon);
+        if (!isValidLatLonRange(cityLat, cityLon)) continue;
+        const distanceKm = haversineKm(lat, lon, cityLat, cityLon);
+        if (!Number.isFinite(distanceKm) || distanceKm < 0) continue;
+        if (best == null || bestDistanceKm == null || distanceKm < bestDistanceKm) {{
+          best = row;
+          bestDistanceKm = distanceKm;
+          continue;
+        }}
+        if (Math.abs(distanceKm - bestDistanceKm) < 0.01) {{
+          const candidatePop = Number(row.population) || 0;
+          const bestPop = Number(best.population) || 0;
+          if (candidatePop > bestPop) {{
+            best = row;
+            bestDistanceKm = distanceKm;
+          }}
+        }}
+      }}
+      if (!best || !Number.isFinite(bestDistanceKm) || bestDistanceKm > maxDistance) return "";
+      const cityName = sanitizeOfflineLabel(best.name, "");
+      if (!cityName) return "";
+      const stateName = sanitizeOfflineLabel(best.state, "");
+      const countryName = sanitizeOfflineLabel(best.country, "");
+      const place = stateName
+        ? `${{cityName}}, ${{stateName}}`
+        : (countryName ? `${{cityName}}, ${{countryName}}` : cityName);
+      return place;
+    }}

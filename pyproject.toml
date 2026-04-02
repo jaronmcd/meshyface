@@ -2,3 +2,8 @@
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
+
+[tool.coverage.run]
+omit = [
+    "meshdash/games/zork/engine.py",
+]

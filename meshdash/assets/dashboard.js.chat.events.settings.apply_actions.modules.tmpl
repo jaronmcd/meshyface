@@ -1,0 +1,399 @@
+    async function applyMqttSettings() {{
+      if (settingsApplyInFlight) return;
+      const mapReportSettings = {{
+        publish_interval_secs: readNumberValue("settings-mqtt-map-publish-interval-secs"),
+        position_precision: readNumberValue("settings-mqtt-map-position-precision"),
+        should_report_location: readCheckboxValue("settings-mqtt-map-report-location"),
+      }};
+      for (const [key, value] of Object.entries(mapReportSettings)) {{
+        if (value == null) delete mapReportSettings[key];
+      }}
+
+      const mqttSettings = {{
+        enabled: readCheckboxValue("settings-mqtt-enabled"),
+        address: readTextValue("settings-mqtt-address"),
+        root: readTextValue("settings-mqtt-root"),
+        username: readTextValue("settings-mqtt-username"),
+        password: readTextValue("settings-mqtt-password"),
+        encryption_enabled: readCheckboxValue("settings-mqtt-encryption-enabled"),
+        json_enabled: readCheckboxValue("settings-mqtt-json-enabled"),
+        tls_enabled: readCheckboxValue("settings-mqtt-tls-enabled"),
+        proxy_to_client_enabled: readCheckboxValue("settings-mqtt-proxy-to-client-enabled"),
+        map_reporting_enabled: readCheckboxValue("settings-mqtt-map-reporting-enabled"),
+      }};
+      if (Object.keys(mapReportSettings).length) {{
+        mqttSettings.map_report_settings = mapReportSettings;
+      }}
+      for (const [key, value] of Object.entries(mqttSettings)) {{
+        if (value == null) delete mqttSettings[key];
+      }}
+      if (!Object.keys(mqttSettings).length) {{
+        setText("settings-apply-status", "No MQTT fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{ module: {{ mqtt: mqttSettings }} }},
+        "Applying MQTT settings…",
+        "MQTT settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applySerialSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        module: {{
+          serial: {{
+            enabled: readCheckboxValue("settings-serial-enabled"),
+            echo: readCheckboxValue("settings-serial-echo"),
+            override_console_serial_port: readCheckboxValue("settings-serial-override-console-port"),
+            mode: readSelectValue("settings-serial-mode"),
+            baud: readSelectValue("settings-serial-baud"),
+            timeout: readNumberValue("settings-serial-timeout"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.module.serial)) {{
+        if (value == null) delete payload.module.serial[key];
+      }}
+      if (!Object.keys(payload.module.serial).length) {{
+        setText("settings-apply-status", "No serial fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying serial settings…",
+        "serial settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyExternalNotificationSettings() {{
+      if (settingsApplyInFlight) return;
+      const payload = {{
+        module: {{
+          external_notification: {{
+            enabled: readCheckboxValue("settings-ext-notify-enabled"),
+            alert_message: readCheckboxValue("settings-ext-notify-alert-message"),
+            alert_bell: readCheckboxValue("settings-ext-notify-alert-bell"),
+            active: readCheckboxValue("settings-ext-notify-active-high"),
+            use_pwm: readCheckboxValue("settings-ext-notify-use-pwm"),
+            output_ms: readNumberValue("settings-ext-notify-output-ms"),
+            output: readNumberValue("settings-ext-notify-output-pin"),
+            nag_timeout: readNumberValue("settings-ext-notify-nag-timeout"),
+          }},
+        }},
+      }};
+      for (const [key, value] of Object.entries(payload.module.external_notification)) {{
+        if (value == null) delete payload.module.external_notification[key];
+      }}
+      if (!Object.keys(payload.module.external_notification).length) {{
+        setText("settings-apply-status", "No external notification fields to apply.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Applying external notification settings…",
+        "external notification settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyPositionConfigSettings() {{
+      if (settingsApplyInFlight) return;
+      const smartEnabled = !!readCheckboxValue("settings-position-smart-enabled");
+      const positionBroadcastSecs = readNumberValue("settings-position-broadcast-secs");
+      const gpsUpdateIntervalSecs = readNumberValue("settings-position-gps-update-secs");
+      if (!Number.isFinite(positionBroadcastSecs) || Number(positionBroadcastSecs) < 60) {{
+        setText("settings-apply-status", "Position broadcast interval must be at least 60 seconds.");
+        return;
+      }}
+      if (!Number.isFinite(gpsUpdateIntervalSecs) || Number(gpsUpdateIntervalSecs) < 60) {{
+        setText("settings-apply-status", "GPS update interval must be at least 60 seconds.");
+        return;
+      }}
+
+      const belowRecommended = (
+        Number(positionBroadcastSecs) < recommendedPositionBroadcastSecs
+        || Number(gpsUpdateIntervalSecs) < recommendedGpsUpdateSecs
+      );
+      if (
+        belowRecommended
+        && !window.confirm("Position intervals are below recommended (12h broadcast, 1h GPS update). Apply anyway?")
+      ) {{
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{
+          local: {{
+            position: {{
+              position_broadcast_smart_enabled: smartEnabled,
+              position_broadcast_secs: Math.trunc(Number(positionBroadcastSecs)),
+              gps_update_interval: Math.trunc(Number(gpsUpdateIntervalSecs)),
+            }},
+          }},
+        }},
+        "Applying position settings…",
+        "position settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function applyTelemetrySettings() {{
+      if (settingsApplyInFlight) return;
+      const deviceEnabled = !!readCheckboxValue("settings-telemetry-device-enabled");
+      const environmentEnabled = !!readCheckboxValue("settings-telemetry-environment-enabled");
+      const airQualityEnabled = !!readCheckboxValue("settings-telemetry-air-quality-enabled");
+      const powerEnabled = !!readCheckboxValue("settings-telemetry-power-enabled");
+      const healthEnabled = !!readCheckboxValue("settings-telemetry-health-enabled");
+      const environmentScreenEnabled = !!readCheckboxValue("settings-telemetry-environment-screen-enabled");
+      const environmentFahrenheit = !!readCheckboxValue("settings-telemetry-environment-fahrenheit");
+      const powerScreenEnabled = !!readCheckboxValue("settings-telemetry-power-screen-enabled");
+      const healthScreenEnabled = !!readCheckboxValue("settings-telemetry-health-screen-enabled");
+      const airQualityScreenEnabled = !!readCheckboxValue("settings-telemetry-air-quality-screen-enabled");
+      let deviceInterval = readNumberValue("settings-telemetry-device-interval-secs");
+      let environmentInterval = readNumberValue("settings-telemetry-environment-interval-secs");
+      let airQualityInterval = readNumberValue("settings-telemetry-air-quality-interval-secs");
+      let powerInterval = readNumberValue("settings-telemetry-power-interval-secs");
+      let healthInterval = readNumberValue("settings-telemetry-health-interval-secs");
+      if (!Number.isFinite(deviceInterval) || Number(deviceInterval) < 0) {{
+        setText("settings-apply-status", "Telemetry device interval must be 0 or more.");
+        return;
+      }}
+      if (!Number.isFinite(environmentInterval) || Number(environmentInterval) < 0) {{
+        setText("settings-apply-status", "Telemetry environment interval must be 0 or more.");
+        return;
+      }}
+      if (!Number.isFinite(airQualityInterval) || Number(airQualityInterval) < 0) {{
+        setText("settings-apply-status", "Telemetry air quality interval must be 0 or more.");
+        return;
+      }}
+      if (!Number.isFinite(powerInterval) || Number(powerInterval) < 0) {{
+        setText("settings-apply-status", "Telemetry power interval must be 0 or more.");
+        return;
+      }}
+      if (!Number.isFinite(healthInterval) || Number(healthInterval) < 0) {{
+        setText("settings-apply-status", "Telemetry health interval must be 0 or more.");
+        return;
+      }}
+
+      const telemetryDisabled = !deviceEnabled && !environmentEnabled && !airQualityEnabled && !powerEnabled && !healthEnabled;
+      if (telemetryDisabled) {{
+        deviceInterval = 0;
+        environmentInterval = 0;
+        airQualityInterval = 0;
+        powerInterval = 0;
+        healthInterval = 0;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{
+          module: {{
+            telemetry: {{
+              device_telemetry_enabled: deviceEnabled,
+              environment_measurement_enabled: environmentEnabled,
+              air_quality_enabled: airQualityEnabled,
+              power_measurement_enabled: powerEnabled,
+              health_measurement_enabled: healthEnabled,
+              environment_screen_enabled: telemetryDisabled ? false : environmentScreenEnabled,
+              environment_display_fahrenheit: telemetryDisabled ? false : environmentFahrenheit,
+              power_screen_enabled: telemetryDisabled ? false : powerScreenEnabled,
+              health_screen_enabled: telemetryDisabled ? false : healthScreenEnabled,
+              air_quality_screen_enabled: telemetryDisabled ? false : airQualityScreenEnabled,
+              device_update_interval: Math.trunc(Number(deviceInterval)),
+              environment_update_interval: Math.trunc(Number(environmentInterval)),
+              air_quality_interval: Math.trunc(Number(airQualityInterval)),
+              power_update_interval: Math.trunc(Number(powerInterval)),
+              health_update_interval: Math.trunc(Number(healthInterval)),
+            }},
+          }},
+        }},
+        "Applying telemetry settings…",
+        telemetryDisabled ? "telemetry disabled" : "telemetry settings saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    function parseCustomTelemetryRulesTextarea() {{
+      const textarea = document.getElementById("settings-custom-telemetry-rules");
+      if (!(textarea instanceof HTMLTextAreaElement)) {{
+        return {{ ok: false, error: "Custom telemetry rules editor is unavailable.", rules: [] }};
+      }}
+      const raw = String(textarea.value || "").trim();
+      if (!raw) {{
+        return {{ ok: true, error: "", rules: [] }};
+      }}
+      let parsed = null;
+      try {{
+        parsed = JSON.parse(raw);
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "invalid JSON");
+        return {{ ok: false, error: `Invalid custom telemetry JSON: ${{msg}}`, rules: [] }};
+      }}
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.rules)) {{
+        parsed = parsed.rules;
+      }}
+      if (!Array.isArray(parsed)) {{
+        return {{ ok: false, error: "Custom telemetry rules JSON must be an array.", rules: [] }};
+      }}
+      return {{ ok: true, error: "", rules: parsed }};
+    }}
+
+    function setCustomTelemetryRulesTextareaValue(rules) {{
+      const textarea = document.getElementById("settings-custom-telemetry-rules");
+      if (!(textarea instanceof HTMLTextAreaElement)) return;
+      const normalized = Array.isArray(rules) ? rules : [];
+      let pretty = "[]";
+      try {{
+        pretty = JSON.stringify(normalized, null, 2) || "[]";
+      }} catch (_err) {{
+        pretty = "[]";
+      }}
+      setFormValue(textarea, pretty);
+    }}
+
+    async function fetchCustomTelemetrySettings(options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const silent = !!opts.silent;
+      if (customTelemetrySettingsFetchInFlight) return false;
+      customTelemetrySettingsFetchInFlight = true;
+      if (!silent) {{
+        setSettingsStatusText("Loading custom telemetry rules…");
+      }}
+      try {{
+        const resp = await fetch(customTelemetrySettingsEndpoint, {{ cache: "no-store" }});
+        const rawText = await resp.text();
+        let payload = null;
+        try {{
+          payload = rawText ? JSON.parse(rawText) : null;
+        }} catch (_err) {{
+          payload = null;
+        }}
+        if (!resp.ok || !payload || typeof payload !== "object" || payload.ok === false) {{
+          const errMsg = payload && payload.error
+            ? String(payload.error)
+            : (rawText || `HTTP ${{resp.status}}`);
+          if (!silent) {{
+            setSettingsStatusText(`Custom telemetry load failed: ${{errMsg}}`);
+          }}
+          appendConsoleLine(`settings|${{Date.now()}}|error`, `[settings] custom telemetry load failed: ${{errMsg}}`);
+          return false;
+        }}
+        const rules = Array.isArray(payload.rules) ? payload.rules : [];
+        setCustomTelemetryRulesTextareaValue(rules);
+        customTelemetrySettingsLoadedOnce = true;
+        if (!silent) {{
+          setSettingsStatusText(`Loaded custom telemetry rules (${{rules.length}}).`);
+        }}
+        return true;
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        if (!silent) {{
+          setSettingsStatusText(`Custom telemetry load error: ${{msg}}`);
+        }}
+        appendConsoleLine(`settings|${{Date.now()}}|error`, `[settings] custom telemetry load error: ${{msg}}`);
+        return false;
+      }} finally {{
+        customTelemetrySettingsFetchInFlight = false;
+      }}
+    }}
+
+    async function applyCustomTelemetrySettings() {{
+      if (settingsApplyInFlight) return;
+      const parsed = parseCustomTelemetryRulesTextarea();
+      if (!parsed.ok) {{
+        setSettingsStatusText(parsed.error || "Invalid custom telemetry rules.");
+        return;
+      }}
+
+      settingsApplyInFlight = true;
+      setSettingsButtonsDisabled(true);
+      setSettingsStatusText("Applying custom telemetry rules…");
+      try {{
+        const resp = await fetch(customTelemetrySettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ rules: parsed.rules }}),
+        }});
+        const rawText = await resp.text();
+        let payload = null;
+        try {{
+          payload = rawText ? JSON.parse(rawText) : null;
+        }} catch (_err) {{
+          payload = null;
+        }}
+        if (!resp.ok || !payload || typeof payload !== "object" || payload.ok === false) {{
+          const errMsg = payload && payload.error
+            ? String(payload.error)
+            : (rawText || `HTTP ${{resp.status}}`);
+          setSettingsStatusText(`Custom telemetry apply failed: ${{errMsg}}`);
+          appendConsoleLine(`settings|${{Date.now()}}|error`, `[settings] custom telemetry apply failed: ${{errMsg}}`);
+          return false;
+        }}
+        const savedRules = Array.isArray(payload.rules) ? payload.rules : [];
+        setCustomTelemetryRulesTextareaValue(savedRules);
+        customTelemetrySettingsLoadedOnce = true;
+        clearSettingsDirty();
+        setSettingsStatusText(`Applied. Custom telemetry rules saved (${{savedRules.length}}).`);
+        appendConsoleLine(
+          `settings|${{Date.now()}}|ok`,
+          `[settings] custom telemetry rules saved (${{savedRules.length}}).`
+        );
+        invalidateStateSnapshotCache(20);
+        return true;
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        setSettingsStatusText(`Custom telemetry apply error: ${{msg}}`);
+        appendConsoleLine(`settings|${{Date.now()}}|error`, `[settings] custom telemetry apply error: ${{msg}}`);
+        return false;
+      }} finally {{
+        settingsApplyInFlight = false;
+        setSettingsButtonsDisabled(false);
+      }}
+    }}
+
+    async function applyLedHeartbeatSetting() {{
+      if (settingsApplyInFlight) return;
+      const ledHeartbeatEnabled = !!readCheckboxValue("settings-led-heartbeat-enabled");
+
+      const ok = await postRadioSettingsPayload(
+        {{
+          local: {{
+            device: {{
+              led_heartbeat_disabled: !ledHeartbeatEnabled,
+            }},
+          }},
+        }},
+        "Applying LED heartbeat setting…",
+        "LED heartbeat setting saved"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}

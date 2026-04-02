@@ -1,0 +1,114 @@
+    function renderCheckersBoard() {{
+      const boardEl = document.getElementById("checkers-board");
+      if (!(boardEl instanceof HTMLElement)) return;
+      if (!checkersState || typeof checkersState !== "object") {{
+        startNewCheckersGame();
+      }}
+      const board = cloneCheckersBoard(checkersState && checkersState.board);
+      const selected = (
+        Array.isArray(checkersSelectedCell)
+        && checkersSelectedCell.length >= 2
+      ) ? [Number(checkersSelectedCell[0]), Number(checkersSelectedCell[1])] : null;
+      const selectedMoves = selected ? checkersMovesFromCell(selected[0], selected[1]) : [];
+      const targets = new Set(selectedMoves.map((move) => {{
+        const to = Array.isArray(move && move.to) ? move.to : [0, 0];
+        return `${{Number(to[0])}},${{Number(to[1])}}`;
+      }}));
+      const movers = new Set((Array.isArray(checkersLegalMoves) ? checkersLegalMoves : []).map((move) => {{
+        const from = Array.isArray(move && move.from) ? move.from : [0, 0];
+        return `${{Number(from[0])}},${{Number(from[1])}}`;
+      }}));
+      const lastMove = checkersState && checkersState.last_move && typeof checkersState.last_move === "object"
+        ? checkersState.last_move
+        : null;
+      const lastFrom = Array.isArray(lastMove && lastMove.from) ? lastMove.from : null;
+      const lastTo = Array.isArray(lastMove && lastMove.to) ? lastMove.to : null;
+      const html = [];
+
+      for (let row = 0; row < checkersBoardSize; row += 1) {{
+        for (let col = 0; col < checkersBoardSize; col += 1) {{
+          if (!checkersIsDarkSquare(row, col)) {{
+            html.push('<span class="checkers-cell is-light" aria-hidden="true"></span>');
+            continue;
+          }}
+          const key = `${{row}},${{col}}`;
+          const classes = ["checkers-cell", "is-dark"];
+          if (selected && Number(selected[0]) === row && Number(selected[1]) === col) classes.push("is-selected");
+          if (targets.has(key)) classes.push("is-target");
+          if (movers.has(key)) classes.push("is-movable");
+          if (lastFrom && Number(lastFrom[0]) === row && Number(lastFrom[1]) === col) classes.push("is-last-from");
+          if (lastTo && Number(lastTo[0]) === row && Number(lastTo[1]) === col) classes.push("is-last-to");
+          const piece = String(board[row] && board[row][col] || "").trim();
+          const owner = checkersPieceOwner(piece);
+          const isKing = checkersPieceIsKing(piece);
+          let pieceHtml = "";
+          if (owner) {{
+            const discClasses = ["checkers-disc", owner === "white" ? "disc-white" : "disc-black"];
+            if (isKing) discClasses.push("is-king");
+            pieceHtml = `<span class="${{escAttr(discClasses.join(" "))}}" aria-hidden="true">${{isKing ? "K" : ""}}</span>`;
+          }} else if (targets.has(key)) {{
+            pieceHtml = '<span class="checkers-hint" aria-hidden="true"></span>';
+          }}
+          const ownerLabel = owner ? `${{checkersPlayerLabel(owner)}}${{isKing ? " king" : " piece"}}` : "empty";
+          html.push(
+            `<button class="${{escAttr(classes.join(" "))}}" type="button" data-row="${{row}}" data-col="${{col}}" title="${{escAttr(`${{checkersCellLabel(row, col)}} • ${{ownerLabel}}`)}}">${{pieceHtml}}</button>`
+          );
+        }}
+      }}
+      boardEl.innerHTML = html.join("");
+    }}
+
+    function renderCheckersStatus() {{
+      if (!checkersState || typeof checkersState !== "object") return;
+      const statusEl = document.getElementById("checkers-status-text");
+      const blackPill = document.getElementById("checkers-player-black-pill");
+      const whitePill = document.getElementById("checkers-player-white-pill");
+      const blackNameEl = document.getElementById("checkers-player-black-name");
+      const whiteNameEl = document.getElementById("checkers-player-white-name");
+      const localColor = boardGameLocalColor("checkers");
+      const localName = boardGameLocalParticipantName("checkers", latestState);
+      const remoteName = boardGameRemoteParticipantName("checkers", latestState);
+      let blackCount = 0;
+      let whiteCount = 0;
+      for (let row = 0; row < checkersBoardSize; row += 1) {{
+        for (let col = 0; col < checkersBoardSize; col += 1) {{
+          const owner = checkersPieceOwner(checkersState.board[row] && checkersState.board[row][col]);
+          if (owner === "black") blackCount += 1;
+          if (owner === "white") whiteCount += 1;
+        }}
+      }}
+      if (statusEl instanceof HTMLElement) {{
+        statusEl.textContent = String(checkersState.notice || `${{checkersPlayerLabel(checkersState.turn)}} to move.`);
+      }}
+      if (blackPill instanceof HTMLElement) {{
+        blackPill.classList.remove("is-active", "is-over");
+        if (checkersState.game_over) {{
+          blackPill.classList.add("is-over");
+        }} else if (checkersState.turn === "black") {{
+          blackPill.classList.add("is-active");
+        }}
+      }}
+      if (whitePill instanceof HTMLElement) {{
+        whitePill.classList.remove("is-active", "is-over");
+        if (checkersState.game_over) {{
+          whitePill.classList.add("is-over");
+        }} else if (checkersState.turn === "white") {{
+          whitePill.classList.add("is-active");
+        }}
+      }}
+      if (blackNameEl instanceof HTMLElement) {{
+        blackNameEl.textContent = boardGameIsNetworkLinked("checkers")
+          ? (localColor === "black" ? localName : remoteName)
+          : "Black";
+      }}
+      if (whiteNameEl instanceof HTMLElement) {{
+        whiteNameEl.textContent = boardGameIsNetworkLinked("checkers")
+          ? (localColor === "white" ? localName : remoteName)
+          : "White";
+      }}
+      setText("checkers-black-count", blackCount);
+      setText("checkers-white-count", whiteCount);
+      setText("checkers-move-count", Math.max(0, Math.trunc(Number(checkersState.move_count) || 0)));
+      setText("checkers-legal-count", checkersState.game_over ? 0 : (Array.isArray(checkersLegalMoves) ? checkersLegalMoves.length : 0));
+    }}
+

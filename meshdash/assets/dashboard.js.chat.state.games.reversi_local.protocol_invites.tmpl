@@ -1,0 +1,270 @@
+    function reversiOpponent(player) {{
+      return Number(player) === reversiPiece.white ? reversiPiece.black : reversiPiece.white;
+    }}
+
+    function reversiPlayerLabel(player) {{
+      return Number(player) === reversiPiece.white ? "White" : "Black";
+    }}
+
+    function reversiColorToken(player) {{
+      return Number(player) === reversiPiece.white ? "white" : "black";
+    }}
+
+    function parseReversiColor(value, fallback = reversiPiece.black) {{
+      const token = String(value == null ? "" : value).trim().toLowerCase();
+      if (token === "white" || token === "w" || token === "-1") return reversiPiece.white;
+      if (token === "black" || token === "b" || token === "1") return reversiPiece.black;
+      return Number(fallback) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+    }}
+
+    function reversiCellLabel(row, col) {{
+      const file = String.fromCharCode(65 + Math.max(0, Math.min(7, Math.trunc(Number(col) || 0))));
+      const rank = Math.max(1, Math.min(8, Math.trunc(Number(row) || 0) + 1));
+      return `${{file}}${{rank}}`;
+    }}
+
+    function createReversiLinkState(overrides = {{}}) {{
+      const mode = String(overrides.mode || "local").trim().toLowerCase();
+      const role = String(overrides.role || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(overrides.peer_id ?? overrides.peerId ?? "");
+      const channelIndexRaw = Number(overrides.channel_index ?? overrides.channelIndex);
+      const channelIndex = Number.isInteger(channelIndexRaw) && channelIndexRaw >= 0
+        ? channelIndexRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      return {{
+        mode: mode === "connected" || mode === "pending_host" ? mode : "local",
+        role: role === "host" || role === "guest" ? role : "",
+        session_id: String(overrides.session_id ?? overrides.sessionId ?? "").trim().toLowerCase(),
+        peer_id: isCanonicalNodeId(peerId) ? peerId : "",
+        channel_index: channelIndex,
+        local_color: Number(overrides.local_color) === reversiPiece.white ? reversiPiece.white : reversiPiece.black,
+        remote_color: Number(overrides.remote_color) === reversiPiece.black ? reversiPiece.black : reversiPiece.white,
+        local_move_seq: Math.max(0, Math.trunc(Number(overrides.local_move_seq) || 0)),
+        remote_move_seq: Math.max(0, Math.trunc(Number(overrides.remote_move_seq) || 0)),
+        status: String(overrides.status || "Local hotseat mode.").trim().slice(0, 220) || "Local hotseat mode.",
+      }};
+    }}
+
+    function updateReversiLinkStatus(statusText) {{
+      if (!reversiLink || typeof reversiLink !== "object") {{
+        reversiLink = createReversiLinkState();
+      }}
+      reversiLink.status = String(statusText || "").trim().slice(0, 220) || "Local hotseat mode.";
+    }}
+
+    function resetReversiNetworkLink(
+      statusText = "Local hotseat mode.",
+      {{ keepPeer = true }} = {{}}
+    ) {{
+      const preservedPeer = keepPeer ? normalizeNodeId(reversiLink && reversiLink.peer_id) : "";
+      reversiLink = createReversiLinkState({{
+        status: statusText,
+        peer_id: preservedPeer,
+      }});
+      if (isCanonicalNodeId(preservedPeer)) {{
+        reversiPeerId = preservedPeer;
+      }}
+    }}
+
+    function reversiIsNetworkLinked() {{
+      return !!(
+        reversiLink
+        && reversiLink.mode === "connected"
+        && isCanonicalNodeId(reversiLink.peer_id)
+        && String(reversiLink.session_id || "").trim()
+      );
+    }}
+
+    function generateReversiSessionId() {{
+      const now = Date.now().toString(36);
+      const rand = Math.random().toString(36).slice(2, 8);
+      return `${{now}}${{rand}}`.slice(0, 16);
+    }}
+
+    function encodeReversiProtocolMessage(type, ...fields) {{
+      const cleanType = String(type || "").trim().toLowerCase();
+      if (!cleanType) return "";
+      const encoded = [reversiProtocolVersion, cleanType];
+      for (const field of fields) {{
+        encoded.push(
+          String(field == null ? "" : field)
+            .trim()
+            .replace(/\|/g, "")
+        );
+      }}
+      return encoded.join("|");
+    }}
+
+    function parseReversiProtocolMessage(text) {{
+      const raw = String(text || "").trim();
+      if (!raw) return null;
+      if (!raw.startsWith(`${{reversiProtocolVersion}}|`)) return null;
+      const parts = raw.split("|").map((part) => String(part || "").trim());
+      if (parts.length < 2) return null;
+      const type = String(parts[1] || "").trim().toLowerCase();
+      if (!type) return null;
+      return {{
+        raw,
+        type,
+        parts,
+      }};
+    }}
+
+    function rememberReversiNetworkMessage(key) {{
+      const clean = String(key || "").trim();
+      if (!clean || reversiSeenNetworkMessageKeys.has(clean)) return false;
+      reversiSeenNetworkMessageKeys.add(clean);
+      reversiSeenNetworkMessageOrder.push(clean);
+      if (reversiSeenNetworkMessageOrder.length > reversiMaxSeenNetworkMessages) {{
+        while (reversiSeenNetworkMessageOrder.length > Math.floor(reversiMaxSeenNetworkMessages * 0.72)) {{
+          const stale = reversiSeenNetworkMessageOrder.shift();
+          if (stale) reversiSeenNetworkMessageKeys.delete(stale);
+        }}
+      }}
+      return true;
+    }}
+
+    function reversiInviteKey(fromId, sessionId) {{
+      return `${{normalizeNodeId(fromId)}}|${{String(sessionId || "").trim().toLowerCase()}}`;
+    }}
+
+    function registerReversiPendingInvite({{
+      from_id = "",
+      session_id = "",
+      received_unix = Math.floor(Date.now() / 1000),
+      host_color = reversiPiece.black,
+      channel_index = 0,
+    }} = {{}}) {{
+      const fromId = normalizeNodeId(from_id);
+      const sessionId = String(session_id || "").trim().toLowerCase();
+      if (!isCanonicalNodeId(fromId) || !sessionId) return;
+      const hostColor = Number(host_color) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      const channelIndexRaw = Number(channel_index);
+      const channelIndex = Number.isInteger(channelIndexRaw) && channelIndexRaw >= 0 ? channelIndexRaw : 0;
+      const nextRows = [];
+      const targetKey = reversiInviteKey(fromId, sessionId);
+      let replaced = false;
+      for (const row of (Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [])) {{
+        if (!row || typeof row !== "object") continue;
+        const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+        const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+        if (!isCanonicalNodeId(rowFrom) || !rowSession) continue;
+        const rowKey = reversiInviteKey(rowFrom, rowSession);
+        if (rowKey === targetKey) {{
+          nextRows.push({{
+            from_id: fromId,
+            session_id: sessionId,
+            received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+            host_color: hostColor,
+            channel_index: channelIndex,
+          }});
+          replaced = true;
+          continue;
+        }}
+        nextRows.push({{
+          from_id: rowFrom,
+          session_id: rowSession,
+          received_unix: Math.max(0, Math.trunc(Number(row.received_unix ?? row.receivedUnix) || 0)),
+          host_color: Number(row.host_color ?? row.hostColor) === reversiPiece.white ? reversiPiece.white : reversiPiece.black,
+          channel_index: (Number.isInteger(Number(row.channel_index ?? row.channelIndex)) && Number(row.channel_index ?? row.channelIndex) >= 0)
+            ? Number(row.channel_index ?? row.channelIndex)
+            : 0,
+        }});
+      }}
+      if (!replaced) {{
+        nextRows.push({{
+          from_id: fromId,
+          session_id: sessionId,
+          received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+          host_color: hostColor,
+          channel_index: channelIndex,
+        }});
+      }}
+      const nowUnix = Math.floor(Date.now() / 1000);
+      nextRows.sort((a, b) => (Number(b.received_unix) || 0) - (Number(a.received_unix) || 0));
+      reversiPendingInvites = nextRows
+        .filter((row) => (nowUnix - (Number(row.received_unix) || 0)) <= reversiInviteStaleSeconds)
+        .slice(0, reversiInviteMaxRows);
+      if (!isCanonicalNodeId(reversiPeerId)) {{
+        reversiPeerId = fromId;
+      }}
+      if (!reversiSelectedInviteKey) {{
+        reversiSelectedInviteKey = targetKey;
+      }}
+    }}
+
+    function removeReversiPendingInvite(fromId, sessionId = "") {{
+      const cleanFrom = normalizeNodeId(fromId);
+      const cleanSession = String(sessionId || "").trim().toLowerCase();
+      reversiPendingInvites = (Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [])
+        .filter((row) => {{
+          if (!row || typeof row !== "object") return false;
+          const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+          const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+          if (!isCanonicalNodeId(rowFrom) || !rowSession) return false;
+          if (rowFrom !== cleanFrom) return true;
+          if (!cleanSession) return false;
+          return rowSession !== cleanSession;
+        }});
+      if (reversiSelectedInviteKey && !reversiPendingInvites.some((row) => reversiInviteKey(row && row.from_id, row && row.session_id) === reversiSelectedInviteKey)) {{
+        reversiSelectedInviteKey = "";
+      }}
+    }}
+
+    function removeAllReversiPendingInvitesFromPeer(fromId) {{
+      const cleanFrom = normalizeNodeId(fromId);
+      if (!isCanonicalNodeId(cleanFrom)) return;
+      removeReversiPendingInvite(cleanFrom, "");
+    }}
+
+    function reversiPendingInviteChoice() {{
+      const rows = Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [];
+      if (rows.length < 1) return null;
+      const selectedInvite = String(reversiSelectedInviteKey || "").trim().toLowerCase();
+      if (selectedInvite) {{
+        const exact = rows.find((row) => reversiInviteKey(row && row.from_id, row && row.session_id) === selectedInvite);
+        if (exact) return exact;
+      }}
+      const selectedPeer = normalizeNodeId(reversiPeerId);
+      if (isCanonicalNodeId(selectedPeer)) {{
+        const preferred = rows.find((row) => normalizeNodeId(row && row.from_id) === selectedPeer);
+        if (preferred) return preferred;
+      }}
+      return rows[0] || null;
+    }}
+
+    async function sendReversiProtocolMessage(
+      type,
+      fields = [],
+      {{
+        destination_id = "",
+        channel_index = null,
+      }} = {{}}
+    ) {{
+      const destinationId = normalizeNodeId(destination_id);
+      if (!isCanonicalNodeId(destinationId)) {{
+        updateReversiLinkStatus("Pick a valid peer node ID first.");
+        return false;
+      }}
+      const encoded = encodeReversiProtocolMessage(type, ...(Array.isArray(fields) ? fields : []));
+      if (!encoded) {{
+        updateReversiLinkStatus("Could not encode Reversi network payload.");
+        return false;
+      }}
+      const channelIndex = normalizeMeshChannelIndex(
+        channel_index == null ? meshChannelEffectiveSendIndexForApp("games") : channel_index
+      );
+      const payload = await sendChatPayload(
+        {{
+          text: encoded,
+          destination: destinationId,
+          channel_index: channelIndex,
+        }},
+        null
+      );
+      if (!payload || payload.ok !== true) {{
+        updateReversiLinkStatus("Failed to send Reversi network payload.");
+        return false;
+      }}
+      return true;
+    }}

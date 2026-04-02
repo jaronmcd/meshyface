@@ -10,9 +10,10 @@ def test_save_packet_record_inserts_packet_and_calls_rollup_writer():
     try:
         initialize_history_schema(conn)
 
-        def _rollup_stub(inner_conn, summary, *, now_unix_fn):
+        def _rollup_stub(inner_conn, summary, *, packet, now_unix_fn):
             called["conn"] = inner_conn
             called["summary"] = summary
+            called["packet"] = packet
             called["now"] = int(now_unix_fn())
 
         save_packet_record(
@@ -28,6 +29,7 @@ def test_save_packet_record_inserts_packet_and_calls_rollup_writer():
         assert row == (123, '{"from":"!a","rx_time_unix":50}', '{"raw":1}')
         assert called["conn"] is conn
         assert called["summary"] == {"from": "!a", "rx_time_unix": 50}
+        assert called["packet"] == {"raw": 1}
         assert called["now"] == 123
     finally:
         conn.close()

@@ -1,0 +1,103 @@
+    function isLikelyEncryptedPacketEntry(entry) {{
+      const s = (entry && entry.summary && typeof entry.summary === "object")
+        ? entry.summary
+        : {{}};
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      const decodedText = s.decoded_text == null ? "" : String(s.decoded_text).trim();
+      if (decodedText) return false;
+      const portnum = s.portnum == null ? "" : String(s.portnum).trim();
+      if (portnum) return false;
+
+      const decoded = packet.decoded;
+      if (decoded && typeof decoded === "object" && !Array.isArray(decoded) && Object.keys(decoded).length > 0) {{
+        return false;
+      }}
+
+      if (Object.prototype.hasOwnProperty.call(packet, "encrypted")) {{
+        return true;
+      }}
+      return true;
+    }}
+
+    function encryptedPacketReason(entry) {{
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      if (Object.prototype.hasOwnProperty.call(packet, "encrypted")) {{
+        return "encrypted payload";
+      }}
+      const payload = packet.payload;
+      if (typeof payload === "string" && payload.trim()) {{
+        return "payload only";
+      }}
+      return "no decoded payload";
+    }}
+
+    function compactEncryptedPayloadText(rawValue, maxChars = 84) {{
+      let text = "";
+      if (rawValue == null) {{
+        text = "";
+      }} else if (typeof rawValue === "string") {{
+        text = rawValue;
+      }} else if (typeof rawValue === "number" || typeof rawValue === "boolean") {{
+        text = String(rawValue);
+      }} else {{
+        try {{
+          text = JSON.stringify(rawValue);
+        }} catch (_err) {{
+          text = String(rawValue);
+        }}
+      }}
+      const compact = String(text || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!compact) return "";
+      if (compact.length <= maxChars) return compact;
+      const keep = Math.max(52, maxChars - 1);
+      const hidden = Math.max(0, compact.length - keep);
+      return `${{compact.slice(0, keep).trimEnd()}}... (+${{hidden}} chars)`;
+    }}
+
+    function encryptedPacketPayloadPreview(entry) {{
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      const decoded = (packet.decoded && typeof packet.decoded === "object")
+        ? packet.decoded
+        : null;
+      const candidates = [
+        packet.encrypted,
+        packet.payload,
+        packet.payload_text,
+        packet.raw_payload,
+        packet.rawPayload,
+        decoded && decoded.payload,
+      ];
+      let full = "";
+      for (const candidate of candidates) {{
+        const candidateText = compactEncryptedPayloadText(candidate, 2400);
+        if (!candidateText) continue;
+        full = candidateText;
+        break;
+      }}
+      if (!full) {{
+        return {{
+          display: "n/a",
+          sort: "",
+          title: "",
+        }};
+      }}
+      const title = full.length > 480
+        ? `${{full.slice(0, 480)}}... (+${{full.length - 480}} chars)`
+        : full;
+      return {{
+        display: compactEncryptedPayloadText(full, 84),
+        sort: full,
+        title,
+      }};
+    }}
+

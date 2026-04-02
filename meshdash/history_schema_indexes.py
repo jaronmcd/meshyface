@@ -14,4 +14,8 @@ INDEX_SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_node_metrics_1m_node_id_bucket_unix ON node_metrics_1m(node_id, bucket_unix)",
     "CREATE INDEX IF NOT EXISTS idx_node_metrics_1m_last_seen_unix ON node_metrics_1m(last_seen_unix)",
     "CREATE INDEX IF NOT EXISTS idx_link_metrics_1m_last_seen_unix ON link_metrics_1m(last_seen_unix)",
+    "CREATE INDEX IF NOT EXISTS idx_summary_metrics_1m_last_seen_unix ON summary_metrics_1m(last_seen_unix)",
+    "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_last_seen_unix ON environment_metrics_1m(last_seen_unix)",
+    "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_metric_key_bucket_unix ON environment_metrics_1m(metric_key, bucket_unix)",
+    "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_node_id_bucket_unix ON environment_metrics_1m(node_id, bucket_unix)",
 ]

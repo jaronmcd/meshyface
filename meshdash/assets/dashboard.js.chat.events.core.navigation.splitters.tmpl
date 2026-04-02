@@ -1,0 +1,520 @@
+    function bindSplitters() {{
+      const layout = document.querySelector(".layout");
+      if (!(layout instanceof HTMLElement)) return;
+
+      for (const splitter of document.querySelectorAll(".splitter, .hsplitter")) {{
+        if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") continue;
+        splitter.dataset.bound = "1";
+
+        splitter.addEventListener("pointerdown", (ev) => {{
+          if (window.matchMedia("(max-width: 1100px)").matches) return;
+          ev.preventDefault();
+          splitter.classList.add("active");
+          const isHorizontal = splitter.classList.contains("hsplitter");
+          document.body.classList.add(isHorizontal ? "resizing-panels-y" : "resizing-panels-x");
+          splitter.setPointerCapture(ev.pointerId);
+          const rect = layout.getBoundingClientRect();
+          const startY = ev.clientY;
+          const target = splitter.dataset.target || "";
+          const startTop = splitTopPx;
+          const startMid = splitMidPx;
+          const startLow = splitLowPx;
+
+          const onMove = (moveEv) => {{
+            if (isHorizontal) {{
+              const deltaY = moveEv.clientY - startY;
+              if (target === "top") {{
+                splitTopPx = clampTopSplitPx(startTop + deltaY);
+              }} else if (target === "mid") {{
+                splitMidPx = clampMidSplitPx(startMid + deltaY);
+              }} else if (target === "low") {{
+                if (activeLayoutView === "packets" || activeLayoutView === "data" || activeLayoutView === "environment") {{
+                  splitTopPx = clampTopSplitPx(startTop + deltaY);
+                }} else {{
+                  splitLowPx = clampLowSplitPx(startLow + deltaY);
+                }}
+              }}
+            }} else {{
+              const pct = clampSplitPct(((moveEv.clientX - rect.left) / rect.width) * 100);
+              splitPct = pct;
+            }}
+            applySplitState();
+            requestMapResize();
+          }};
+
+          const onUp = () => {{
+            splitter.classList.remove("active");
+            document.body.classList.remove("resizing-panels-x", "resizing-panels-y");
+            persistSplitState();
+            requestMapResize();
+            splitter.removeEventListener("pointermove", onMove);
+            splitter.removeEventListener("pointerup", onUp);
+            splitter.removeEventListener("pointercancel", onUp);
+          }};
+
+          splitter.addEventListener("pointermove", onMove);
+          splitter.addEventListener("pointerup", onUp);
+          splitter.addEventListener("pointercancel", onUp);
+        }});
+      }}
+    }}
+
+    function bindNetworkNodeSplitter() {{
+      const splitter = document.getElementById("network-node-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".network-node-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const tablePane = stack.querySelector(".nodes-table-scroll");
+        if (!(tablePane instanceof HTMLElement)) {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          return;
+        }}
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampNetworkNodesListPct((relativeY / rect.height) * 100);
+          networkNodesListPct = pct;
+          applyNetworkNodesSplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistNetworkNodesSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindBotsMainSplitter() {{
+      const splitter = document.getElementById("bots-main-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const grid = splitter.closest(".bots-grid");
+      if (!(grid instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "bots") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientX = (clientX) => {{
+          const rect = grid.getBoundingClientRect();
+          if (rect.width < 300) return;
+          const relativeX = clientX - rect.left;
+          const pct = clampBotsMainPanePct((relativeX / rect.width) * 100);
+          botsMainPanePct = pct;
+          applyBotsMainSplitState();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistBotsMainSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindBotsCommandSplitter() {{
+      const splitter = document.getElementById("bots-command-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const shell = splitter.closest(".bots-command-shell");
+      if (!(shell instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "bots") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientX = (clientX) => {{
+          const rect = shell.getBoundingClientRect();
+          if (rect.width < 220) return;
+          const relativeX = clientX - rect.left;
+          const pct = clampBotsCommandListPct((relativeX / rect.width) * 100);
+          botsCommandListPct = pct;
+          applyBotsCommandSplitState();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistBotsCommandSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindChatPanelSplitter() {{
+      const splitter = document.getElementById("chat-panel-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const shell = splitter.closest(".workspace-shell");
+      const panel = document.getElementById("chat-left-panel");
+      if (!(shell instanceof HTMLElement) || !(panel instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        if (!shell.classList.contains("chat-panel-open")) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const startX = ev.clientX;
+        const panelRect = panel.getBoundingClientRect();
+        const splitterRect = splitter.getBoundingClientRect();
+        const panelOnLeft = panelRect.right <= splitterRect.left + 1;
+        const startWidth = Number.isFinite(panelRect.width) && panelRect.width > 0
+          ? panelRect.width
+          : chatPanelWidthPx;
+
+        const updateFromClientX = (clientX) => {{
+          const deltaX = clientX - startX;
+          const shellRect = shell.getBoundingClientRect();
+          const nextWidth = panelOnLeft
+            ? (startWidth + deltaX)
+            : (startWidth - deltaX);
+          chatPanelWidthPx = clampChatPanelWidthPx(nextWidth, shellRect.width);
+          applyChatPanelSplitState();
+          requestMapResize();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistChatPanelSplitState();
+          requestMapResize();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindMacrosPanelSplitter() {{
+      const splitter = document.getElementById("macros-panel-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const body = splitter.closest(".chat > .body");
+      const shell = splitter.previousElementSibling;
+      if (!(body instanceof HTMLElement) || !(shell instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "macros") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-x");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const startX = ev.clientX;
+        const shellRect = shell.getBoundingClientRect();
+        const startWidth = Number.isFinite(shellRect.width) && shellRect.width > 0
+          ? shellRect.width
+          : macrosPanelWidthPx;
+
+        const updateFromClientX = (clientX) => {{
+          const deltaX = clientX - startX;
+          const bodyRect = body.getBoundingClientRect();
+          const nextWidth = startWidth + deltaX;
+          macrosPanelWidthPx = clampMacrosPanelWidthPx(nextWidth, bodyRect.width);
+          applyMacrosPanelSplitState();
+          requestMapResize();
+        }};
+
+        updateFromClientX(ev.clientX);
+
+        const onMove = (moveEv) => {{
+          updateFromClientX(moveEv.clientX);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-x");
+          persistMacrosPanelSplitState();
+          requestMapResize();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindSavedNodeSplitter() {{
+      const handles = [
+        document.getElementById("saved-map-splitter"),
+        document.getElementById("saved-map-splitter-head"),
+      ].filter((el) => el instanceof HTMLElement);
+      if (!handles.length) return;
+      const pane = document.querySelector(".card.map .body");
+      if (!(pane instanceof HTMLElement)) return;
+
+      const setActive = (active) => {{
+        for (const handle of handles) {{
+          handle.classList.toggle("active", !!active);
+        }}
+      }};
+
+      for (const splitter of handles) {{
+        if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") continue;
+        splitter.dataset.bound = "1";
+
+        splitter.addEventListener("pointerdown", (ev) => {{
+          if (activeLayoutView !== "saved") return;
+          if (window.matchMedia("(max-width: 1100px)").matches) return;
+          ev.preventDefault();
+          setActive(true);
+          document.body.classList.add("resizing-panels-x");
+          splitter.setPointerCapture(ev.pointerId);
+
+          const updateFromClientX = (clientX) => {{
+            const rect = pane.getBoundingClientRect();
+            if (rect.width < 120) return;
+            const relativeX = clientX - rect.left;
+            const pct = clampSavedNodePanePct((relativeX / rect.width) * 100);
+            savedNodePanePct = pct;
+            applySavedNodeSplitState();
+            requestMapResize();
+          }};
+
+          updateFromClientX(ev.clientX);
+
+          const onMove = (moveEv) => {{
+            updateFromClientX(moveEv.clientX);
+          }};
+
+          const onUp = () => {{
+            setActive(false);
+            document.body.classList.remove("resizing-panels-x");
+            persistSavedNodeSplitState();
+            requestMapResize();
+            splitter.removeEventListener("pointermove", onMove);
+            splitter.removeEventListener("pointerup", onUp);
+            splitter.removeEventListener("pointercancel", onUp);
+          }};
+
+          splitter.addEventListener("pointermove", onMove);
+          splitter.addEventListener("pointerup", onUp);
+          splitter.addEventListener("pointercancel", onUp);
+        }});
+      }}
+    }}
+
+    function bindSavedNodeHistorySplitter() {{
+      const splitter = document.getElementById("saved-node-history-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".saved-node-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "saved") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const mainPane = stack.querySelector(".saved-node-main-scroll");
+        if (!(mainPane instanceof HTMLElement)) {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          return;
+        }}
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampSavedNodeMainPct((relativeY / rect.height) * 100);
+          savedNodeMainPct = pct;
+          applySavedNodeHistorySplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistSavedNodeHistorySplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindHistoryActivitySplitter() {{
+      const splitter = document.getElementById("history-activity-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".history-activity-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "history") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const topPane = stack.querySelector(".history-activity-main-scroll");
+        if (!(topPane instanceof HTMLElement)) {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          return;
+        }}
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampHistoryActivityTopPct((relativeY / rect.height) * 100);
+          historyActivityTopPct = pct;
+          applyHistoryActivitySplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistHistoryActivitySplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
+    function bindHistoryChatSplitter() {{
+      const splitter = document.getElementById("history-chat-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const stack = splitter.closest(".history-chat-stack");
+      if (!(stack instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (activeLayoutView !== "history") return;
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientY = (clientY) => {{
+          const rect = stack.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampHistoryChatMainPct((relativeY / rect.height) * 100);
+          historyChatMainPct = pct;
+          applyHistoryChatSplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistHistoryChatSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}

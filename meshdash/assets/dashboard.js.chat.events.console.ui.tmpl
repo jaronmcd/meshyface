@@ -1,0 +1,372 @@
+    function syncConsoleTerminalScreenFillHeight() {{
+      const terminalScreen = document.getElementById("console-terminal-screen");
+      if (!(terminalScreen instanceof HTMLElement)) return;
+      if (activeLayoutView !== "console") {{
+        terminalScreen.style.removeProperty("height");
+        terminalScreen.style.removeProperty("min-height");
+        terminalScreen.style.removeProperty("max-height");
+        return;
+      }}
+      const container = terminalScreen.parentElement;
+      if (!(container instanceof HTMLElement)) return;
+      const rect = terminalScreen.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const consoleCard = terminalScreen.closest(".console");
+      const layout = document.getElementById("dashboard-layout");
+      const workspaceMain = terminalScreen.closest(".workspace-main");
+      const top = Number(rect && rect.top);
+      let bottom = Number(containerRect && containerRect.bottom);
+      if (consoleCard instanceof HTMLElement) {{
+        const cardRect = consoleCard.getBoundingClientRect();
+        const cardBottom = Number(cardRect && cardRect.bottom);
+        if (Number.isFinite(cardBottom) && cardBottom > bottom) {{
+          bottom = cardBottom;
+        }}
+      }}
+      if (layout instanceof HTMLElement) {{
+        const layoutRect = layout.getBoundingClientRect();
+        const layoutBottom = Number(layoutRect && layoutRect.bottom);
+        if (Number.isFinite(layoutBottom) && layoutBottom > bottom) {{
+          bottom = layoutBottom;
+        }}
+      }}
+      if (workspaceMain instanceof HTMLElement) {{
+        const mainRect = workspaceMain.getBoundingClientRect();
+        const mainBottom = Number(mainRect && mainRect.bottom);
+        if (Number.isFinite(mainBottom) && mainBottom > bottom) {{
+          bottom = mainBottom;
+        }}
+      }}
+      if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
+      let bottomInset = 0;
+      try {{
+        const styles = window.getComputedStyle(container);
+        bottomInset = Math.max(0, Number.parseFloat(styles.paddingBottom) || 0);
+      }} catch (_err) {{
+      }}
+      const measuredHeight = Math.floor(bottom - top - bottomInset);
+      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {{
+        terminalScreen.style.removeProperty("height");
+        terminalScreen.style.removeProperty("min-height");
+        terminalScreen.style.removeProperty("max-height");
+        return;
+      }}
+      const nextHeight = Math.max(140, measuredHeight);
+      terminalScreen.style.height = `${{nextHeight}}px`;
+      terminalScreen.style.removeProperty("min-height");
+      terminalScreen.style.removeProperty("max-height");
+    }}
+
+    function scheduleConsoleTerminalScreenFillHeight() {{
+      if (typeof window === "undefined") return;
+      if (consoleFrameFillRaf !== null && typeof window.cancelAnimationFrame === "function") {{
+        try {{
+          window.cancelAnimationFrame(consoleFrameFillRaf);
+        }} catch (_err) {{
+        }}
+      }}
+      if (typeof window.requestAnimationFrame !== "function") {{
+        syncConsoleTerminalScreenFillHeight();
+        return;
+      }}
+      consoleFrameFillRaf = window.requestAnimationFrame(() => {{
+        consoleFrameFillRaf = null;
+        syncConsoleTerminalScreenFillHeight();
+      }});
+    }}
+
+    function isConsoleHotkeyTextEntryTarget(target) {{
+      if (!(target instanceof Element)) return false;
+      if (target instanceof HTMLTextAreaElement) return true;
+      if (target instanceof HTMLSelectElement) return true;
+      if (target instanceof HTMLInputElement) {{
+        return target.id !== "console-command-input";
+      }}
+      if (target instanceof HTMLElement && target.isContentEditable) {{
+        return true;
+      }}
+      const editableHost = target.closest("[contenteditable=''], [contenteditable='true'], [contenteditable='plaintext-only']");
+      return editableHost instanceof HTMLElement;
+    }}
+
+    function bindConsoleDropdownHotkey() {{
+      if (document.body.dataset.consoleHotkeyBound === "1") return;
+      document.body.dataset.consoleHotkeyBound = "1";
+      document.addEventListener("keydown", (ev) => {{
+        if (!ev || ev.defaultPrevented) return;
+        if (ev.isComposing || ev.repeat) return;
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const key = String(ev.key || "");
+        const code = String(ev.code || "");
+        if (!(code === "Backquote" || key === "`" || key === "~")) return;
+        const target = ev.target;
+        if (
+          activeLayoutView !== "console"
+          && isConsoleHotkeyTextEntryTarget(target instanceof Element ? target : null)
+        ) {{
+          return;
+        }}
+        const remembered = normalizeLayoutView(consoleHotkeyReturnLayoutView || "chat");
+        const nextView = activeLayoutView === "console"
+          ? (remembered === "console" ? "chat" : remembered)
+          : "console";
+        ev.preventDefault();
+        applyLayoutView(nextView, true);
+      }});
+    }}
+
+    function bindConsoleControls() {{
+      ensureConsoleCommandsRegistered();
+      bindConsoleDropdownHotkey();
+      const clearBtn = document.getElementById("console-clear-btn");
+      if (clearBtn instanceof HTMLButtonElement && clearBtn.dataset.bound !== "1") {{
+        clearBtn.dataset.bound = "1";
+        clearBtn.addEventListener("click", () => {{
+          clearConsoleOutput();
+        }});
+      }}
+
+      const auto = document.getElementById("console-autoscroll");
+      if (auto instanceof HTMLInputElement && auto.dataset.bound !== "1") {{
+        auto.dataset.bound = "1";
+        auto.checked = !!consoleAutoscroll;
+        auto.addEventListener("change", () => {{
+          consoleAutoscroll = auto.checked;
+          persistConsoleSessionState();
+          if (consoleAutoscroll) {{
+            renderConsoleBuffer(true);
+          }}
+        }});
+      }}
+      const timestamps = document.getElementById("console-timestamps");
+      if (timestamps instanceof HTMLInputElement) {{
+        timestamps.checked = !!consoleShowTimestamps;
+        if (timestamps.dataset.bound !== "1") {{
+          timestamps.dataset.bound = "1";
+          timestamps.addEventListener("change", () => {{
+            consoleShowTimestamps = !!timestamps.checked;
+            persistConsoleSessionState();
+            renderConsoleBuffer(false);
+          }});
+        }}
+      }}
+      const filterInput = document.getElementById("console-filter-input");
+      if (filterInput instanceof HTMLInputElement) {{
+        filterInput.value = String(consoleFilterText || "");
+        if (filterInput.dataset.bound !== "1") {{
+          filterInput.dataset.bound = "1";
+          filterInput.addEventListener("input", () => {{
+            consoleFilterText = String(filterInput.value || "").slice(0, 120);
+            if (filterInput.value !== consoleFilterText) {{
+              filterInput.value = consoleFilterText;
+            }}
+            persistConsoleSessionState();
+            renderConsoleBuffer(false);
+          }});
+          filterInput.addEventListener("keydown", (ev) => {{
+            if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+              if (!filterInput.value) return;
+              ev.preventDefault();
+              filterInput.value = "";
+              consoleFilterText = "";
+              persistConsoleSessionState();
+              renderConsoleBuffer(false);
+            }}
+          }});
+        }}
+      }}
+      const fontSizeSelect = document.getElementById("console-font-size-select");
+      if (fontSizeSelect instanceof HTMLSelectElement) {{
+        fontSizeSelect.value = normalizeConsoleFontSize(consoleFontSize);
+        if (fontSizeSelect.dataset.bound !== "1") {{
+          fontSizeSelect.dataset.bound = "1";
+          fontSizeSelect.addEventListener("change", () => {{
+            consoleFontSize = normalizeConsoleFontSize(fontSizeSelect.value);
+            fontSizeSelect.value = consoleFontSize;
+            persistConsoleFontSizePreference();
+            applyConsoleFontSizePreference();
+            renderConsoleBuffer(false);
+          }});
+        }}
+      }}
+      const pre = document.getElementById("live-console");
+      if (pre instanceof HTMLElement && pre.dataset.scrollBound !== "1") {{
+        pre.dataset.scrollBound = "1";
+        pre.addEventListener("scroll", () => {{
+          const maxTop = Math.max(0, pre.scrollHeight - pre.clientHeight);
+          const remaining = Math.max(0, maxTop - pre.scrollTop);
+          const atBottom = remaining <= 3;
+          if (consoleAutoscroll !== atBottom) {{
+            consoleAutoscroll = atBottom;
+          }}
+          const autoBox = document.getElementById("console-autoscroll");
+          if (autoBox instanceof HTMLInputElement && autoBox.checked !== consoleAutoscroll) {{
+            autoBox.checked = consoleAutoscroll;
+          }}
+        }});
+        pre.addEventListener("mouseup", () => {{
+          void copyConsoleSelectionToClipboard();
+          if (consoleRenderDeferred) {{
+            renderConsoleBuffer(false);
+          }}
+        }});
+      }}
+      if (
+        pre instanceof HTMLElement
+        && !consoleResizeObserver
+        && typeof ResizeObserver !== "undefined"
+      ) {{
+        consoleResizeObserver = new ResizeObserver(() => {{
+          if (activeLayoutView !== "console") return;
+          applyConsoleBottomAnchor(pre);
+          applyConsoleAutoscroll(pre, false);
+          scheduleConsoleAnchorRefresh(pre, false);
+        }});
+        consoleResizeObserver.observe(pre);
+      }}
+      const terminalScreen = document.getElementById("console-terminal-screen");
+      if (terminalScreen instanceof HTMLElement && terminalScreen.dataset.bound !== "1") {{
+        terminalScreen.dataset.bound = "1";
+        terminalScreen.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (target instanceof HTMLButtonElement) return;
+          const pre = document.getElementById("live-console");
+          const selection = window.getSelection ? window.getSelection() : null;
+          const hasConsoleSelection = selectionIntersectsElement(
+            selection,
+            pre instanceof HTMLElement ? pre : null
+          ) && String(selection ? selection.toString() : "").trim();
+          if (hasConsoleSelection) return;
+          focusConsoleCommandInput(false);
+        }});
+        terminalScreen.addEventListener("paste", (ev) => {{
+          handleConsolePasteEvent(ev);
+        }});
+      }}
+      if (terminalScreen instanceof HTMLElement && terminalScreen.dataset.fillBound !== "1") {{
+        terminalScreen.dataset.fillBound = "1";
+        const scheduleConsoleFillOnResume = () => {{
+          if (activeLayoutView !== "console") return;
+          scheduleConsoleTerminalScreenFillHeight();
+        }};
+        window.addEventListener("resize", () => {{
+          scheduleConsoleTerminalScreenFillHeight();
+        }}, {{ passive: true }});
+        window.addEventListener("focus", scheduleConsoleFillOnResume, {{ passive: true }});
+        window.addEventListener("pageshow", scheduleConsoleFillOnResume, {{ passive: true }});
+        document.addEventListener("visibilitychange", () => {{
+          if (!document.hidden) {{
+            scheduleConsoleFillOnResume();
+          }}
+        }});
+        if (window.visualViewport && typeof window.visualViewport.addEventListener === "function") {{
+          window.visualViewport.addEventListener("resize", () => {{
+            scheduleConsoleTerminalScreenFillHeight();
+          }}, {{ passive: true }});
+        }}
+      }}
+      applyConsoleFontSizePreference();
+      scheduleConsoleTerminalScreenFillHeight();
+      const input = consoleCommandInputElement();
+      if (input instanceof HTMLInputElement && input.dataset.bound !== "1") {{
+        input.dataset.bound = "1";
+        input.addEventListener("focus", () => {{
+          consoleCursorVisible = true;
+          renderConsolePromptBuffer(false);
+        }});
+        input.addEventListener("blur", () => {{
+          consoleCursorVisible = false;
+          renderConsolePromptBuffer(false);
+        }});
+        input.addEventListener("input", () => {{
+          renderConsolePromptBuffer(false);
+        }});
+        const rerenderForCaretMove = () => {{
+          if (document.activeElement === input) {{
+            renderConsolePromptBuffer(false);
+          }}
+        }};
+        input.addEventListener("select", rerenderForCaretMove);
+        input.addEventListener("keyup", rerenderForCaretMove);
+        input.addEventListener("click", rerenderForCaretMove);
+        input.addEventListener("mouseup", rerenderForCaretMove);
+        input.addEventListener("paste", (ev) => {{
+          handleConsolePasteEvent(ev);
+        }});
+        input.addEventListener("keydown", (ev) => {{
+          if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && String(ev.key || "").toLowerCase() === "c") {{
+            const pre = document.getElementById("live-console");
+            const selection = window.getSelection ? window.getSelection() : null;
+            const hasConsoleSelection = selectionIntersectsElement(
+              selection,
+              pre instanceof HTMLElement ? pre : null
+            ) && String(selection ? selection.toString() : "").trim();
+            if (!consoleRunningCommand && !consoleInteractiveSession && hasConsoleSelection) {{
+              ev.preventDefault();
+              void copyConsoleSelectionToClipboard();
+              return;
+            }}
+            if (consoleRunningCommand || consoleInteractiveSession) {{
+              ev.preventDefault();
+              appendConsoleEventLine("^C");
+              if (!stopConsoleRunningCommand("interrupted", true)) {{
+                stopConsoleInteractiveSession("interrupted", true);
+              }}
+              input.value = "";
+              consoleCommandHistoryCursor = -1;
+              consoleCommandDraft = "";
+              renderConsolePromptBuffer(false);
+            }}
+            return;
+          }}
+          if (ev.key === "Enter" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+            ev.preventDefault();
+            const cmdLine = input.value;
+            input.value = "";
+            consoleCommandHistoryCursor = -1;
+            consoleCommandDraft = "";
+            renderConsolePromptBuffer(false);
+            void runConsoleCommandLine(cmdLine);
+            focusConsoleCommandInput(false);
+            return;
+          }}
+          if (ev.key === "ArrowUp" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+            ev.preventDefault();
+            navigateConsoleHistory(-1, input);
+            return;
+          }}
+          if (ev.key === "ArrowDown" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+            ev.preventDefault();
+            navigateConsoleHistory(1, input);
+          }}
+        }});
+      }}
+      startConsoleCursorBlink();
+      syncConsoleCommandInputState();
+      renderConsoleBuffer(false);
+    }}
+
+    function renderConsole(traffic) {{
+      if (consoleLiveModeActive) {{
+        const packets = Array.isArray(traffic && traffic.recent_packets) ? traffic.recent_packets : [];
+        const verbosityLevel = Math.max(0, Math.min(4, Number(consoleLiveVerbosity) || 0));
+        const layerSignature = formatConsoleLiveLayerLabel(consoleLiveLayers)
+          .replace(/\s+/g, "")
+          .toLowerCase();
+        const viewSignature = `v${{verbosityLevel}}|${{layerSignature || "legacy"}}`;
+        for (const entry of packets) {{
+          const key = packetConsoleKey(entry);
+          const summary = entry && entry.summary && typeof entry.summary === "object" ? entry.summary : {{}};
+          const packetUnix = latestUnixTimestamp(summary.captured_at, summary.rx_time);
+          const packetMs = Number.isFinite(packetUnix) && packetUnix > 0
+            ? packetUnix * 1000
+            : Date.now();
+          const lines = formatConsoleLine(entry, consoleLiveVerbosity);
+          const lineList = Array.isArray(lines) ? lines : [String(lines == null ? "" : lines)];
+          lineList.forEach((line, index) => {{
+            appendConsoleLine(`${{key}}|${{viewSignature}}|${{index}}`, line, packetMs);
+          }});
+        }}
+      }}
+      renderConsoleBuffer();
+    }}

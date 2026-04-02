@@ -1,0 +1,273 @@
+    function resolveTrafficRenderContext(source, fallbackState = latestState) {{
+      const safeFallback = (fallbackState && typeof fallbackState === "object") ? fallbackState : {{}};
+      const safeSource = (source && typeof source === "object") ? source : {{}};
+      const sourceHasTraffic = !!(safeSource.traffic && typeof safeSource.traffic === "object");
+      const traffic = sourceHasTraffic
+        ? safeSource.traffic
+        : safeSource;
+      const nodes = sourceHasTraffic
+        ? (Array.isArray(safeSource.nodes) ? safeSource.nodes : [])
+        : (Array.isArray(safeFallback.nodes) ? safeFallback.nodes : []);
+      return {{
+        traffic: (traffic && typeof traffic === "object") ? traffic : {{}},
+        nodes,
+      }};
+    }}
+
+    function buildHistoryNodeIdentityResolver(nodes) {{
+      const rows = Array.isArray(nodes) ? nodes : [];
+      const nodesById = new Map(
+        rows
+          .map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
+          .filter(([nodeId]) => !!nodeId)
+      );
+      return (rawNodeId) => {{
+        const clean = normalizeNodeId(rawNodeId);
+        if (!clean) {{
+          return {{
+            sort: "n/a",
+            title: "n/a",
+            html: '<div class="history-node-cell"><span class="history-node-primary">n/a</span></div>',
+            primary: "n/a",
+            secondary: "",
+            nodeId: "",
+          }};
+        }}
+        if (clean === "^all") {{
+          return {{
+            sort: "^all",
+            title: "Broadcast / all nodes",
+            html: '<div class="history-node-cell"><span class="history-node-primary">All</span><span class="history-node-secondary">broadcast</span></div>',
+            primary: "All",
+            secondary: "broadcast",
+            nodeId: "^all",
+          }};
+        }}
+        if (clean === "local") {{
+          return {{
+            sort: "local",
+            title: "Local node",
+            html: '<div class="history-node-cell"><span class="history-node-primary">Local</span><span class="history-node-secondary">this node</span></div>',
+            primary: "Local",
+            secondary: "this node",
+            nodeId: "local",
+          }};
+        }}
+
+        const node = nodesById.get(clean);
+        const longName = String(node && node.long_name ? node.long_name : "").trim();
+        const shortName = String(node && node.short_name ? node.short_name : "").trim();
+        const cachedName = String(nodeNameCache.get(clean) || "").trim();
+        const primary = longName || cachedName || shortName || clean;
+        const secondaryParts = [];
+        if (shortName && shortName !== primary) {{
+          secondaryParts.push(shortName);
+        }}
+        if (clean && clean !== primary) {{
+          secondaryParts.push(clean);
+        }} else if (!secondaryParts.length && clean) {{
+          secondaryParts.push(clean);
+        }}
+        const secondary = secondaryParts.join(" • ");
+        const titleParts = [];
+        if (longName) titleParts.push(`Long: ${{longName}}`);
+        if (shortName) titleParts.push(`Short: ${{shortName}}`);
+        if (!longName && !shortName && cachedName && cachedName !== clean) {{
+          titleParts.push(`Name: ${{cachedName}}`);
+        }}
+        titleParts.push(`ID: ${{clean}}`);
+        return {{
+          sort: `${{primary}} ${{shortName}} ${{clean}}`.trim(),
+          title: titleParts.join(" | "),
+          html: `<div class="history-node-cell"><span class="history-node-primary">${{escAttr(primary)}}</span>${{secondary ? `<span class="history-node-secondary">${{escAttr(secondary)}}</span>` : ""}}</div>`,
+          primary,
+          secondary,
+          nodeId: clean,
+        }};
+      }};
+    }}
+
+    function renderHistoryMessageCell(entry, renderedText) {{
+      const kind = normalizeChatMessageKind(entry, entry && entry.is_reaction === true);
+      const textHtml = chatPlainTextToHtml(renderedText, true) || "&nbsp;";
+      if (kind !== "status") {{
+        return textHtml;
+      }}
+      const statusEvent = String(entry && entry.status_event ? entry.status_event : "").trim().toLowerCase();
+      const pillLabel = statusEvent === "name_change" ? "Name change" : "Status";
+      const pillClass = statusEvent === "name_change" ? " history-message-pill-name-change" : "";
+      return `<div class="history-message-cell"><span class="history-message-pill${{pillClass}}">${{escAttr(pillLabel)}}</span><span class="history-message-body">${{textHtml}}</span></div>`;
+    }}
+
+    function renderHistoryChat(source) {{
+      const context = resolveTrafficRenderContext(source);
+      const traffic = context.traffic;
+      const describeNode = buildHistoryNodeIdentityResolver(context.nodes);
+      const messages = Array.isArray(traffic && traffic.recent_chat) ? traffic.recent_chat : [];
+      const rows = messages.slice(0, 240).map((entry) => {{
+        const capturedAt = String((entry && (entry.captured_at || entry.rx_time)) || "n/a");
+        const fromId = String((entry && entry.from) || "n/a");
+        const toId = String((entry && entry.to) || "n/a");
+        const fromNodeId = normalizeNodeId(fromId);
+        const toNodeId = normalizeNodeId(toId);
+        const fromIdentity = describeNode(fromId);
+        const toIdentity = describeNode(toId);
+        const text = String((entry && entry.text) || "").trim();
+        const emoji = String((entry && entry.emoji) || "").trim();
+        const isReaction = entry && entry.is_reaction === true;
+        const renderedText = text
+          ? text
+          : (isReaction ? `Reaction ${{emoji || ""}}`.trim() : (emoji || "n/a"));
+        const rowSelectable = isSelectableNodeId(fromNodeId) || isSelectableNodeId(toNodeId);
+        const rowSelected = !!selectedNodeId && (
+          (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+          || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+        );
+        return {{
+          className: `${{rowSelectable ? "history-node-selectable" : ""}}${{rowSelected ? " selected-node" : ""}}`,
+          dataset: {{
+            "from-node-id": fromNodeId,
+            "to-node-id": toNodeId,
+          }},
+          cells: [
+            {{ sort: capturedAt, text: capturedAt }},
+            {{
+              sort: fromIdentity.sort,
+              html: fromIdentity.html,
+              title: fromIdentity.title,
+              className: isSelectableNodeId(fromNodeId) ? "history-node-clickable" : "",
+            }},
+            {{
+              sort: toIdentity.sort,
+              html: toIdentity.html,
+              title: toIdentity.title,
+              className: isSelectableNodeId(toNodeId) ? "history-node-clickable" : "",
+            }},
+            {{ sort: renderedText, html: renderHistoryMessageCell(entry, renderedText) }},
+          ],
+        }};
+      }});
+      renderSortableListboxTable("history-chat-table", rows, {{
+        emptyText: "No saved chat or derived status history yet.",
+        emptyColspan: 4,
+      }});
+      const caption = document.getElementById("history-chat-caption");
+      if (caption) {{
+        caption.textContent = rows.length
+          ? `Showing ${{rows.length}} most recent saved chat and derived status entries.`
+          : "No saved chat or derived status history yet.";
+      }}
+      renderHistoryNotificationLog();
+      renderHistoryChatTrendChart(messages);
+    }}
+
+    function collectHistoryNotificationRows() {{
+      return collectSystemNotificationRows();
+    }}
+
+    function renderHistoryNotificationLog(nowUnix = Math.floor(Date.now() / 1000)) {{
+      const host = document.getElementById("history-notification-list");
+      if (!(host instanceof HTMLElement)) return;
+      const caption = document.getElementById("history-notification-caption");
+      const rows = collectHistoryNotificationRows();
+      if (caption instanceof HTMLElement) {{
+        caption.textContent = rows.length
+          ? `Showing ${{rows.length}} recent inbound system notifications from this browser log.`
+          : "No saved system notification history yet in this browser.";
+      }}
+      if (!rows.length) {{
+        host.innerHTML = '<div class="history-notification-empty">No system notification history yet in this browser.</div>';
+        return;
+      }}
+      host.innerHTML = rows.map((row) => {{
+        const channelKey = normalizeChatChannel(row && row.channel ? row.channel : "all");
+        const channelLabel = channelKey === "direct" ? "Peer-to-peer" : "Everyone";
+        const kindRaw = String(row && row.kind ? row.kind : "").trim().toLowerCase();
+        const kind = kindRaw === "reaction"
+          ? "reaction"
+          : (kindRaw === "status" ? "status" : "message");
+        const kindLabel = kind === "reaction"
+          ? "Reaction"
+          : (kind === "status" ? "Status" : "Message");
+        const isSeen = row && row.seen === true;
+        const statusLabel = isSeen ? "Seen" : "New";
+        const unixRaw = Number(row && row.unix);
+        const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+        const when = unix ? savedDetailAge(unix, nowUnix) : "just now";
+        const whenAbs = unix ? formatConsoleListTime(unix) : "n/a";
+        const sender = String(row && row.sender ? row.sender : "Unknown node");
+        const preview = String(row && row.preview ? row.preview : "update");
+        return `<div class="history-notification-item ${{isSeen ? "is-seen" : "is-new"}}" title="${{escAttr(`${{channelLabel}} | ${{kindLabel}} | ${{whenAbs}}`)}}">
+          <div class="history-notification-meta">
+            <span class="history-notification-pill status-${{isSeen ? "seen" : "new"}}">${{statusLabel}}</span>
+            <span class="history-notification-pill kind-${{kind}}">${{kindLabel}}</span>
+            <span class="history-notification-pill">${{escAttr(channelLabel)}}</span>
+          </div>
+          <div class="history-notification-text"><strong>${{escAttr(sender)}}</strong>: ${{escAttr(preview)}}</div>
+          <div class="history-notification-time" title="${{escAttr(whenAbs)}}">${{escAttr(when)}}</div>
+        </div>`;
+      }}).join("");
+    }}
+
+    function setHistoryChatTab(tabName) {{
+      activeHistoryChatTab = String(tabName || "").trim().toLowerCase() === "encrypted"
+        ? "encrypted"
+        : "activity";
+      for (const btn of document.querySelectorAll(".history-chat-tab-btn")) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const tab = String(btn.dataset.historyChatTab || "").trim().toLowerCase();
+        const isActive = tab === activeHistoryChatTab;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+      const activityPanelIds = [
+        "history-chat-panel-activity",
+        "history-activity-panel-activity",
+      ];
+      const encryptedPanelIds = [
+        "history-chat-panel-encrypted",
+        "history-activity-panel-encrypted",
+      ];
+      for (const panelId of activityPanelIds) {{
+        const panel = document.getElementById(panelId);
+        if (panel instanceof HTMLElement) {{
+          panel.hidden = activeHistoryChatTab !== "activity";
+        }}
+      }}
+      for (const panelId of encryptedPanelIds) {{
+        const panel = document.getElementById(panelId);
+        if (panel instanceof HTMLElement) {{
+          panel.hidden = activeHistoryChatTab !== "encrypted";
+        }}
+      }}
+    }}
+
+    function bindHistoryChatTabs() {{
+      for (const btn of document.querySelectorAll(".history-chat-tab-btn")) {{
+        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          const tabName = String(btn.dataset.historyChatTab || "activity");
+          setHistoryChatTab(tabName);
+        }});
+      }}
+      setHistoryChatTab(activeHistoryChatTab);
+    }}
+
+    function bindHistoryNotificationControls() {{
+      const clearBtn = document.getElementById("history-notification-clear-btn");
+      if (!(clearBtn instanceof HTMLButtonElement) || clearBtn.dataset.bound === "1") return;
+      clearBtn.dataset.bound = "1";
+      clearBtn.addEventListener("click", (ev) => {{
+        ev.preventDefault();
+        clearChatChangeNotices();
+        clearChatFeedChangeFocus();
+        renderChatChangeSummary();
+        if (latestState) {{
+          renderChat(latestState);
+        }} else {{
+          renderHistoryNotificationLog();
+        }}
+      }});
+    }}

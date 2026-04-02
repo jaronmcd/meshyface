@@ -1,0 +1,787 @@
+    function setChatSendStatus(message, isError = false) {{
+      const el = document.getElementById("chat-send-status");
+      if (!(el instanceof HTMLElement)) return;
+      el.textContent = message ? String(message) : "";
+      el.classList.toggle("error", !!isError);
+    }}
+
+    function setChatSendBusy(isBusy) {{
+      chatSendInFlight = !!isBusy;
+      const btn = document.getElementById("chat-send-btn");
+      const emojiBtn = document.getElementById("chat-emoji-btn");
+      const replyClearBtn = document.getElementById("chat-reply-clear-btn");
+      const sendChannelSelect = document.getElementById("chat-send-channel-select");
+      const sendChannelBtn = document.getElementById("chat-send-channel-menu-btn");
+      const input = document.getElementById("chat-input");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.disabled = chatSendInFlight;
+        btn.textContent = chatSendInFlight ? "Sending..." : "Send";
+      }}
+      if (emojiBtn instanceof HTMLButtonElement) {{
+        emojiBtn.disabled = chatSendInFlight;
+      }}
+      if (replyClearBtn instanceof HTMLButtonElement) {{
+        replyClearBtn.disabled = chatSendInFlight;
+      }}
+      if (sendChannelSelect instanceof HTMLSelectElement) {{
+        sendChannelSelect.disabled = chatSendInFlight;
+      }}
+      if (sendChannelBtn instanceof HTMLButtonElement) {{
+        sendChannelBtn.disabled = chatSendInFlight;
+      }}
+      if (chatSendInFlight) {{
+        setMeshChannelSendMenuOpen(false);
+      }}
+      if (input instanceof HTMLInputElement) {{
+        input.disabled = chatSendInFlight;
+      }}
+      if (chatSendInFlight) {{
+        closeChatEmojiPanel();
+      }}
+    }}
+
+    function setFileTransferStatus(message, isError = false) {{
+      const el = document.getElementById("files-send-status");
+      if (!(el instanceof HTMLElement)) return;
+      el.textContent = message ? String(message) : "";
+      el.classList.toggle("error", !!isError);
+    }}
+
+    function fileTransferClampPercent(rawPercent) {{
+      const num = Number(rawPercent);
+      if (!Number.isFinite(num)) return 0;
+      return Math.max(0, Math.min(100, Math.round(num)));
+    }}
+
+    function setPeerDmFileTransferUiState(peerIdRaw, state = null) {{
+      const peerId = normalizeNodeId(peerIdRaw || "");
+      if (!isCanonicalNodeId(peerId)) return null;
+      if (!(state && typeof state === "object")) {{
+        peerDmFileTransferUiByPeer.delete(peerId);
+        return null;
+      }}
+      const normalized = {{
+        peerId,
+        phase: String(state.phase || "sending").trim().toLowerCase(),
+        text: String(state.text || "").trim(),
+        isError: !!state.isError,
+        percent: fileTransferClampPercent(state.percent),
+        transferId: String(state.transferId || "").trim().toLowerCase(),
+        fileName: normalizeFileTransferName(state.fileName || "mesh-file.bin"),
+        sentChunks: Math.max(0, Math.trunc(Number(state.sentChunks) || 0)),
+        ackedChunks: Math.max(0, Math.trunc(Number(state.ackedChunks) || 0)),
+        totalChunks: Math.max(0, Math.trunc(Number(state.totalChunks) || 0)),
+        updatedAtMs: Date.now(),
+      }};
+      peerDmFileTransferUiByPeer.set(peerId, normalized);
+      return normalized;
+    }}
+
+    function latestOutgoingFileTransferSessionForPeer(peerIdRaw) {{
+      const peerId = normalizeNodeId(peerIdRaw || "");
+      if (!isCanonicalNodeId(peerId)) return null;
+      let selected = null;
+      let selectedStamp = 0;
+      for (const session of fileTransferOutgoingByToken.values()) {{
+        if (!session || typeof session !== "object") continue;
+        if (normalizeNodeId(session.destination || "") !== peerId) continue;
+        const stamp = Math.max(
+          0,
+          Number(session.deliveredAtMs) || 0,
+          Number(session.failedAtMs) || 0,
+          Number(session.lastAckProgressAtMs) || 0,
+          Number(session.lastRetryAtMs) || 0,
+          Number(session.lastSendAtMs) || 0,
+          Number(session.createdAtMs) || 0
+        );
+        if (!selected || stamp >= selectedStamp) {{
+          selected = session;
+          selectedStamp = stamp;
+        }}
+      }}
+      return selected;
+    }}
+
+    function summarizePeerDmFileTransferState(peerIdRaw) {{
+      const peerId = normalizeNodeId(peerIdRaw || "");
+      if (!isCanonicalNodeId(peerId)) return null;
+      const nowMs = Date.now();
+      const uiStateRaw = peerDmFileTransferUiByPeer.get(peerId) || null;
+      if (uiStateRaw && (nowMs - Math.max(0, Number(uiStateRaw.updatedAtMs) || 0)) > (20 * 60 * 1000)) {{
+        peerDmFileTransferUiByPeer.delete(peerId);
+      }}
+      const uiState = peerDmFileTransferUiByPeer.get(peerId) || null;
+      const session = latestOutgoingFileTransferSessionForPeer(peerId);
+      let sessionState = null;
+      if (session) {{
+        const totalChunks = Math.max(1, Math.trunc(Number(session.totalChunks) || 1));
+        const ackedChunks = Math.max(
+          0,
+          Math.min(totalChunks, Math.trunc(Number(session.ackedChunks) || 0))
+        );
+        const sentChunks = Math.max(
+          ackedChunks,
+          Math.min(totalChunks, Math.trunc(Number(session.sentChunks) || 0))
+        );
+        const activeRetries = Math.max(
+          0,
+          Math.trunc(Number(session.retriesSinceProgress) || Number(session.retryAttempts) || 0)
+        );
+        const waitingForAccept = !!session.waitingForAccept;
+        const acceptProbeAttempts = Math.max(0, Math.trunc(Number(session.acceptProbeAttempts) || 0));
+        let phase = "awaiting_ack";
+        let text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: awaiting ACK (${{ackedChunks}}/${{totalChunks}} acked)`;
+        let isError = false;
+        if (session.failed) {{
+          phase = "failed";
+          text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: delivery failed (${{ackedChunks}}/${{totalChunks}} acked)`;
+          isError = true;
+        }} else if (session.delivered) {{
+          phase = "delivered";
+          text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: delivered (${{totalChunks}}/${{totalChunks}} acked)`;
+        }} else if (waitingForAccept) {{
+          phase = "awaiting_accept";
+          text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: awaiting receiver accept`;
+          if (acceptProbeAttempts > 0) {{
+            text += ` (ping ${{acceptProbeAttempts}})`;
+          }}
+        }} else if (ackedChunks <= 0 && sentChunks < totalChunks) {{
+          phase = "sending";
+          text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: sending bursts (${{sentChunks}}/${{totalChunks}} sent)`;
+        }} else if (activeRetries > 0) {{
+          phase = "retrying";
+          text = `${{normalizeFileTransferName(session.fileName || "mesh-file.bin")}}: retry ${{activeRetries}}/${{session.maxRetries}} (${{ackedChunks}}/${{totalChunks}} acked)`;
+        }}
+        const updatedAtMs = Math.max(
+          0,
+          Number(session.deliveredAtMs) || 0,
+          Number(session.failedAtMs) || 0,
+          Number(session.lastAckProgressAtMs) || 0,
+          Number(session.lastRetryAtMs) || 0,
+          Number(session.lastSendAtMs) || 0,
+          Number(session.createdAtMs) || 0
+        );
+        sessionState = {{
+          peerId,
+          phase,
+          text,
+          isError,
+          percent: session.delivered
+            ? 100
+            : (
+              waitingForAccept
+                ? 0
+                : fileTransferClampPercent((ackedChunks / Math.max(totalChunks, 1)) * 100)
+            ),
+          transferId: String(session.transferId || "").trim().toLowerCase(),
+          fileName: normalizeFileTransferName(session.fileName || "mesh-file.bin"),
+          sentChunks,
+          ackedChunks,
+          totalChunks,
+          updatedAtMs,
+        }};
+      }}
+      if (uiState && sessionState) {{
+        const sameTransfer = (
+          !uiState.transferId
+          || !sessionState.transferId
+          || uiState.transferId === sessionState.transferId
+        );
+        if (sameTransfer && uiState.phase === "sending") {{
+          return uiState;
+        }}
+        return sessionState.updatedAtMs >= uiState.updatedAtMs ? sessionState : uiState;
+      }}
+      return sessionState || uiState || null;
+    }}
+
+    function fileTransferShortTransferId(rawTransferId) {{
+      const clean = String(rawTransferId || "").trim().toLowerCase();
+      if (!clean) return "n/a";
+      if (clean.length <= 12) return clean;
+      return `${{clean.slice(0, 6)}}...${{clean.slice(-4)}}`;
+    }}
+
+    function fileTransferConsoleTimestamp(unixMs = Date.now()) {{
+      const stamp = new Date(Number(unixMs) || Date.now());
+      return stamp.toLocaleTimeString([], {{ hour12: false }});
+    }}
+
+    function renderFileTransferConsole() {{
+      const logEl = document.getElementById("files-console-log");
+      if (!(logEl instanceof HTMLElement)) return;
+      const shouldStickBottom = (
+        logEl.scrollHeight - (logEl.scrollTop + logEl.clientHeight)
+      ) <= 20;
+      const lines = fileTransferConsoleLines.slice(-fileTransferConsoleMaxEntries);
+      logEl.textContent = lines.length ? lines.join("\n") : "No file transfer activity yet.";
+      if (shouldStickBottom) {{
+        logEl.scrollTop = logEl.scrollHeight;
+      }}
+    }}
+
+    function appendFileTransferConsole(message, options = null) {{
+      const text = String(message == null ? "" : message).trim();
+      if (!text) return;
+      const levelRaw = String(options && options.level ? options.level : "info").trim().toLowerCase();
+      const level = levelRaw === "error" || levelRaw === "warn" ? levelRaw : "info";
+      const tag = level === "error" ? "ERR" : level === "warn" ? "WRN" : "INF";
+      fileTransferConsoleLines.push(`${{fileTransferConsoleTimestamp()}} [${{tag}}] ${{text}}`);
+      if (fileTransferConsoleLines.length > fileTransferConsoleMaxEntries) {{
+        fileTransferConsoleLines.splice(0, fileTransferConsoleLines.length - fileTransferConsoleMaxEntries);
+      }}
+      renderFileTransferConsole();
+    }}
+
+    function clearFileTransferConsole() {{
+      fileTransferConsoleLines.length = 0;
+      renderFileTransferConsole();
+    }}
+
+    async function copyFileTransferConsoleToClipboard() {{
+      const text = fileTransferConsoleLines.length
+        ? fileTransferConsoleLines.join("\n")
+        : "No file transfer activity yet.";
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
+        try {{
+          await navigator.clipboard.writeText(text);
+          return true;
+        }} catch (_err) {{
+        }}
+      }}
+      try {{
+        // Browser fallback for non-secure contexts where navigator.clipboard is blocked.
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "readonly");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        let copied = false;
+        try {{
+          copied = document.execCommand("copy");
+        }} catch (_err) {{
+          copied = false;
+        }}
+        ta.remove();
+        return !!copied;
+      }} catch (_err) {{
+        return false;
+      }}
+    }}
+
+    function bindFilesConsoleControls() {{
+      const copyBtn = document.getElementById("files-console-copy-btn");
+      if (copyBtn instanceof HTMLButtonElement && copyBtn.dataset.bound !== "1") {{
+        copyBtn.dataset.bound = "1";
+        copyBtn.addEventListener("click", async () => {{
+          const copied = await copyFileTransferConsoleToClipboard();
+          if (!copied) {{
+            setFileTransferStatus("Could not copy transfer console.", true);
+            return;
+          }}
+          const count = fileTransferConsoleLines.length;
+          const countLabel = count > 0 ? count : 1;
+          setFileTransferStatus(`Copied ${{countLabel}} console line${{countLabel === 1 ? "" : "s"}}.`);
+        }});
+      }}
+      const clearBtn = document.getElementById("files-console-clear-btn");
+      if (clearBtn instanceof HTMLButtonElement && clearBtn.dataset.bound !== "1") {{
+        clearBtn.dataset.bound = "1";
+        clearBtn.addEventListener("click", () => {{
+          clearFileTransferConsole();
+          setFileTransferStatus("Transfer console cleared.");
+        }});
+      }}
+      renderFileTransferConsole();
+    }}
+
+    function setFileTransferBusy(isBusy) {{
+      fileTransferSendInFlight = !!isBusy;
+      const sendBtn = document.getElementById("files-send-btn");
+      const fileInput = document.getElementById("files-input");
+      const destinationInput = document.getElementById("files-destination-input");
+      const useSelectedBtn = document.getElementById("files-use-selected-btn");
+      const sendChannelSelect = document.getElementById("files-send-channel-select");
+      const peerAttachBtn = document.getElementById("peer-dm-popout-file-attach-btn");
+      const peerFileInput = document.getElementById("peer-dm-popout-file-input");
+      if (sendBtn instanceof HTMLButtonElement) {{
+        sendBtn.disabled = fileTransferSendInFlight;
+        sendBtn.textContent = fileTransferSendInFlight ? "Sending..." : "Send file";
+      }}
+      if (fileInput instanceof HTMLInputElement) {{
+        fileInput.disabled = fileTransferSendInFlight;
+      }}
+      if (destinationInput instanceof HTMLInputElement) {{
+        destinationInput.disabled = fileTransferSendInFlight;
+      }}
+      if (useSelectedBtn instanceof HTMLButtonElement) {{
+        useSelectedBtn.disabled = fileTransferSendInFlight;
+      }}
+      if (sendChannelSelect instanceof HTMLSelectElement) {{
+        sendChannelSelect.disabled = fileTransferSendInFlight || meshChannelAppUsesFixedChannel("files");
+      }}
+      if (peerAttachBtn instanceof HTMLButtonElement) {{
+        peerAttachBtn.disabled = fileTransferSendInFlight;
+        peerAttachBtn.textContent = fileTransferSendInFlight ? "Sending..." : "Attach file";
+      }}
+      if (peerFileInput instanceof HTMLInputElement) {{
+        peerFileInput.disabled = fileTransferSendInFlight;
+      }}
+    }}
+
+    function persistFileTransferDestinationPreference() {{
+      try {{
+        if (fileTransferDestinationId) {{
+          window.localStorage.setItem(fileTransferDestinationStorageKey, fileTransferDestinationId);
+        }} else {{
+          window.localStorage.removeItem(fileTransferDestinationStorageKey);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncFileTransferDestinationInput() {{
+      const input = document.getElementById("files-destination-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      const clean = normalizeNodeId(fileTransferDestinationId || "");
+      if (input.value !== clean) {{
+        input.value = clean;
+      }}
+    }}
+
+    function setFileTransferDestination(rawDestination, options = null) {{
+      const persist = !(options && options.persist === false);
+      const clean = normalizeNodeId(rawDestination || "");
+      fileTransferDestinationId = isCanonicalNodeId(clean) ? clean : "";
+      syncFileTransferDestinationInput();
+      if (persist) {{
+        persistFileTransferDestinationPreference();
+      }}
+    }}
+
+    function loadFileTransferDestinationPreference() {{
+      let stored = "";
+      try {{
+        stored = String(window.localStorage.getItem(fileTransferDestinationStorageKey) || "");
+      }} catch (_err) {{
+      }}
+      setFileTransferDestination(stored, {{ persist: false }});
+    }}
+
+    function resolveFileTransferDestination() {{
+      const input = document.getElementById("files-destination-input");
+      const rawInput = input instanceof HTMLInputElement ? input.value : "";
+      let destination = normalizeNodeId(rawInput || fileTransferDestinationId || "");
+      if (!isCanonicalNodeId(destination) && isSelectableNodeId(selectedNodeId)) {{
+        destination = normalizeNodeId(selectedNodeId || "");
+      }}
+      if (!isCanonicalNodeId(destination)) return "";
+      if (isSelfNodeId(destination)) return "";
+      return destination;
+    }}
+
+    async function sendFileTransferFrameText(frameText, destination, channelIndex) {{
+      const text = String(frameText || "").trim();
+      if (!text) {{
+        throw new Error("Cannot send an empty file frame.");
+      }}
+      const payloadBytes = utf8ByteLength(text);
+      if (payloadBytes > fileTransferChatMaxBytes) {{
+        throw new Error(`File frame too large (${payloadBytes} bytes).`);
+      }}
+      const body = {{
+        text,
+        destination,
+        channel_index: channelIndex,
+      }};
+      const resp = await fetch("/api/chat/send", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(body),
+      }});
+      const payload = await resp.json().catch(() => ({{}}));
+      if (!resp.ok || !payload.ok) {{
+        const msg = payload && payload.error ? payload.error : `send failed (${{resp.status}})`;
+        throw new Error(msg);
+      }}
+      return payload;
+    }}
+
+    function buildFileTransferChunkFrames(transferId, bytes) {{
+      const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+      const frames = [];
+      let chunkIndex = 0;
+      let offset = 0;
+      while (offset < source.length) {{
+        let end = Math.min(source.length, offset + fileTransferChunkBytes);
+        let frame = "";
+        while (end > offset) {{
+          const chunkBytes = source.subarray(offset, end);
+          const payload = encodeBytesToBase64(chunkBytes);
+          frame = buildFileTransferChunkFrame(transferId, chunkIndex, payload);
+          if (payload && utf8ByteLength(frame) <= fileTransferChatMaxBytes) {{
+            break;
+          }}
+          end -= 1;
+        }}
+        if (end <= offset || !frame) {{
+          throw new Error(`Unable to encode chunk #${{chunkIndex + 1}} within message size limit.`);
+        }}
+        frames.push(frame);
+        offset = end;
+        chunkIndex += 1;
+      }}
+      return frames;
+    }}
+
+    async function sendFileTransferToDestination(fileCandidate, destinationRaw, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const statusFn = (typeof opts.statusFn === "function") ? opts.statusFn : setFileTransferStatus;
+      const progressFn = (typeof opts.progressFn === "function") ? opts.progressFn : null;
+      const manageBusy = opts.manageBusy !== false;
+      const persistDestination = opts.persistDestination !== false;
+      const destination = normalizeNodeId(destinationRaw || "");
+      const peerTrackId = normalizeNodeId(opts.peerId || destination || "");
+      const trackPeerState = isCanonicalNodeId(peerTrackId);
+      const emitProgress = (payload) => {{
+        if (typeof progressFn !== "function") return;
+        try {{
+          progressFn(payload);
+        }} catch (_err) {{
+        }}
+      }};
+      const pushPeerState = (state) => {{
+        if (!trackPeerState) return null;
+        const next = setPeerDmFileTransferUiState(peerTrackId, state);
+        emitProgress(next || null);
+        return next;
+      }};
+
+      if (fileTransferSendInFlight) {{
+        const msg = "A file transfer is already in progress.";
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: msg,
+          isError: true,
+          percent: 0,
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+      const file = (
+        fileCandidate
+        && typeof fileCandidate === "object"
+        && typeof fileCandidate.arrayBuffer === "function"
+      ) ? fileCandidate : null;
+      if (!file) {{
+        const msg = "Choose a file before sending.";
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: msg,
+          isError: true,
+          percent: 0,
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+      if (!isCanonicalNodeId(destination)) {{
+        const msg = "Enter a valid destination Node ID (for example !49b54790).";
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: msg,
+          isError: true,
+          percent: 0,
+          fileName: file.name || "mesh-file.bin",
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+      if (isSelfNodeId(destination)) {{
+        const msg = "Cannot send a file to your own radio.";
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: msg,
+          isError: true,
+          percent: 0,
+          fileName: file.name || "mesh-file.bin",
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+      if (persistDestination) {{
+        setFileTransferDestination(destination);
+      }}
+
+      const fileName = normalizeFileTransferName(file.name || "mesh-file.bin");
+      const fileSize = Number(file.size);
+      if (!Number.isFinite(fileSize) || fileSize <= 0) {{
+        const msg = "Selected file is empty.";
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: `${{fileName}}: ${{msg.toLowerCase()}}`,
+          isError: true,
+          percent: 0,
+          fileName,
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+      if (fileSize > fileTransferMaxFileBytes) {{
+        const msg = `File is too large (${formatFileTransferSize(fileSize)}). Limit: ${{formatFileTransferSize(fileTransferMaxFileBytes)}}.`;
+        statusFn(msg, true);
+        pushPeerState({{
+          phase: "failed",
+          text: `${{fileName}}: too large (${formatFileTransferSize(fileSize)})`,
+          isError: true,
+          percent: 0,
+          fileName,
+        }});
+        return {{ ok: false, error: msg }};
+      }}
+
+      if (manageBusy) {{
+        setFileTransferBusy(true);
+      }}
+      pushPeerState({{
+        phase: "preparing",
+        text: `${{fileName}}: preparing...`,
+        isError: false,
+        percent: 0,
+        fileName,
+      }});
+
+      try {{
+        let bytes = null;
+        try {{
+          const arrayBuffer = await file.arrayBuffer();
+          bytes = new Uint8Array(arrayBuffer);
+        }} catch (_err) {{
+          const msg = "Could not read the selected file.";
+          statusFn(msg, true);
+          pushPeerState({{
+            phase: "failed",
+            text: `${{fileName}}: could not read file`,
+            isError: true,
+            percent: 0,
+            fileName,
+          }});
+          return {{ ok: false, error: msg }};
+        }}
+        if (!(bytes instanceof Uint8Array) || !bytes.length) {{
+          const msg = "Selected file is empty.";
+          statusFn(msg, true);
+          pushPeerState({{
+            phase: "failed",
+            text: `${{fileName}}: selected file is empty`,
+            isError: true,
+            percent: 0,
+            fileName,
+          }});
+          return {{ ok: false, error: msg }};
+        }}
+
+        const transferId = buildFileTransferId();
+        const payloadPlan = buildFileTransferPayloadPlan(bytes);
+        const wireBytes = payloadPlan && payloadPlan.wireBytes instanceof Uint8Array
+          ? payloadPlan.wireBytes
+          : bytes;
+        const payloadCodec = normalizeFileTransferCompressionCodec(payloadPlan && payloadPlan.codec);
+        const originalSize = Math.max(0, Math.trunc(Number(payloadPlan && payloadPlan.originalSize) || bytes.length));
+        const chunkFrames = buildFileTransferChunkFrames(transferId, wireBytes);
+        const metaFrame = buildFileTransferMetaFrame(
+          transferId,
+          fileName,
+          wireBytes.length,
+          chunkFrames.length,
+          {{
+            codec: payloadCodec,
+            originalFileSize: originalSize,
+          }}
+        );
+        if (utf8ByteLength(metaFrame) > fileTransferChatMaxBytes) {{
+          const msg = "File name is too long for transfer metadata. Rename the file and try again.";
+          statusFn(msg, true);
+          pushPeerState({{
+            phase: "failed",
+            text: `${{fileName}}: file name is too long`,
+            isError: true,
+            percent: 0,
+            transferId,
+            fileName,
+            totalChunks: chunkFrames.length,
+          }});
+          return {{ ok: false, error: msg }};
+        }}
+
+        const sendCtx = meshChannelSendContext({{ appId: "files" }});
+        appendFileTransferConsole(
+          `Send requested: ${{fileName}} (${{formatFileTransferSize(bytes.length)}}) to ${{destination}} on ${{sendCtx.sendLabel}}.`
+        );
+        if (payloadPlan && payloadPlan.compressed) {{
+          const savingsBytes = Math.max(0, Math.trunc(Number(payloadPlan.savingsBytes) || 0));
+          const savingsPct = originalSize > 0
+            ? Math.max(0, Math.round((savingsBytes / originalSize) * 100))
+            : 0;
+          appendFileTransferConsole(
+            `Compression active (${{payloadCodec}}): ${{formatFileTransferSize(originalSize)}} -> ${{formatFileTransferSize(wireBytes.length)}} (${{savingsPct}}% smaller).`
+          );
+        }} else {{
+          appendFileTransferConsole("Compression skipped (raw payload was best for this file).");
+        }}
+        statusFn(`Sending "${{fileName}}" to ${{destination}} on ${{sendCtx.sendLabel}}...`);
+        pushPeerState({{
+          phase: "sending",
+          text: `${{fileName}}: sending metadata...`,
+          isError: false,
+          percent: 0,
+          transferId,
+          fileName,
+          sentChunks: 0,
+          totalChunks: chunkFrames.length,
+        }});
+
+        await sendFileTransferFrameText(metaFrame, destination, sendCtx.sendIndex);
+        appendFileTransferConsole(
+          `Metadata sent for ${{fileTransferShortTransferId(transferId)}} (${{chunkFrames.length}} chunk${{chunkFrames.length === 1 ? "" : "s"}}).`
+        );
+        registerOutgoingFileTransferSession({{
+          transferId,
+          senderId: normalizeNodeId(resolveLocalNodeId(latestState) || ""),
+          destination,
+          channelIndex: sendCtx.sendIndex,
+          fileName,
+          metaFrame,
+          chunkFrames,
+          totalChunks: chunkFrames.length,
+          sentChunks: 0,
+          retryChunkCursor: 0,
+          waitingForAccept: true,
+          acceptProbeAttempts: 0,
+          lastAcceptProbeAtMs: Date.now(),
+          cwndChunks: Math.max(fileTransferCwndMinChunks, Number(fileTransferCwndInitialChunks) || 1),
+          ssthreshChunks: Math.max(fileTransferCwndMinChunks, Number(fileTransferSsthreshInitialChunks) || fileTransferCwndInitialChunks),
+          rtoMs: Math.max(fileTransferRtoMinMs, Number(fileTransferRtoInitialMs) || 3000),
+          frameGapMs: Math.max(fileTransferInterFrameDelayMinMs, Number(fileTransferInterFrameDelayMs) || 320),
+          lastWindowSendAtMs: 0,
+        }});
+        statusFn(`Awaiting receiver accept for "${{fileName}}" on ${{sendCtx.sendLabel}}...`);
+        pushPeerState({{
+          phase: "awaiting_accept",
+          text: `${{fileName}}: awaiting receiver accept`,
+          isError: false,
+          percent: 0,
+          transferId,
+          fileName,
+          sentChunks: 0,
+          ackedChunks: 0,
+          totalChunks: chunkFrames.length,
+        }});
+        appendFileTransferConsole(
+          `Transfer ${{fileTransferShortTransferId(transferId)}} is waiting for receiver acceptance from ${{destination}} before chunk send begins.`
+        );
+        scheduleFileTransferMaintenance(latestState);
+        requestImmediatePoll(40);
+        await poll();
+        return {{
+          ok: true,
+          transferId,
+          fileName,
+          sizeBytes: bytes.length,
+          destination,
+          totalChunks: chunkFrames.length,
+          channelIndex: sendCtx.sendIndex,
+          sendLabel: sendCtx.sendLabel,
+        }};
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        statusFn(`File send error: ${{msg}}`, true);
+        pushPeerState({{
+          phase: "failed",
+          text: `${{fileName}}: send failed (${{msg}})`,
+          isError: true,
+          percent: 0,
+          fileName,
+        }});
+        appendFileTransferConsole(
+          `Send failed for ${{fileName}}: ${{msg}}`,
+          {{ level: "error" }}
+        );
+        return {{ ok: false, error: msg }};
+      }} finally {{
+        if (manageBusy) {{
+          setFileTransferBusy(false);
+        }}
+      }}
+    }}
+
+    async function sendSelectedFileTransfer() {{
+      if (fileTransferSendInFlight) return;
+      const fileInput = document.getElementById("files-input");
+      if (!(fileInput instanceof HTMLInputElement)) return;
+      const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+      const destination = resolveFileTransferDestination();
+      const result = await sendFileTransferToDestination(file, destination, {{
+        statusFn: setFileTransferStatus,
+        manageBusy: true,
+        persistDestination: true,
+      }});
+      if (result && result.ok) {{
+        fileInput.value = "";
+      }}
+    }}
+
+    function bindFilesControls() {{
+      const destinationInput = document.getElementById("files-destination-input");
+      if (destinationInput instanceof HTMLInputElement && destinationInput.dataset.bound !== "1") {{
+        destinationInput.dataset.bound = "1";
+        destinationInput.addEventListener("input", () => {{
+          const clean = normalizeNodeId(destinationInput.value || "");
+          fileTransferDestinationId = isCanonicalNodeId(clean) ? clean : "";
+          persistFileTransferDestinationPreference();
+        }});
+      }}
+      const useSelectedBtn = document.getElementById("files-use-selected-btn");
+      if (useSelectedBtn instanceof HTMLButtonElement && useSelectedBtn.dataset.bound !== "1") {{
+        useSelectedBtn.dataset.bound = "1";
+        useSelectedBtn.addEventListener("click", () => {{
+          const selected = normalizeNodeId(selectedNodeId || "");
+          if (!isCanonicalNodeId(selected)) {{
+            setFileTransferStatus("Select a node first, or enter a Node ID manually.", true);
+            return;
+          }}
+          if (isSelfNodeId(selected)) {{
+            setFileTransferStatus("Cannot send a file to your own radio.", true);
+            return;
+          }}
+          setFileTransferDestination(selected);
+          setFileTransferStatus(`Destination set to ${{selected}}`);
+          appendFileTransferConsole(`Destination set to ${{selected}}.`);
+        }});
+      }}
+      const sendBtn = document.getElementById("files-send-btn");
+      if (sendBtn instanceof HTMLButtonElement && sendBtn.dataset.bound !== "1") {{
+        sendBtn.dataset.bound = "1";
+        sendBtn.addEventListener("click", () => {{
+          void sendSelectedFileTransfer();
+        }});
+      }}
+      const fileInput = document.getElementById("files-input");
+      if (fileInput instanceof HTMLInputElement && fileInput.dataset.bound !== "1") {{
+        fileInput.dataset.bound = "1";
+        fileInput.addEventListener("change", () => {{
+          const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+          if (!file) {{
+            setFileTransferStatus("");
+            return;
+          }}
+          setFileTransferStatus(`Selected: ${{normalizeFileTransferName(file.name)}} (${{formatFileTransferSize(file.size)}})`);
+        }});
+      }}
+      bindFilesConsoleControls();
+      syncFileTransferDestinationInput();
+    }}

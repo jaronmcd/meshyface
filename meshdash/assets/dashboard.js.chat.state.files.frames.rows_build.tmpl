@@ -1,0 +1,339 @@
+    function buildFileTransferRows(state = latestState) {{
+      const frameState = collectFileTransferFrames(state, {{ respectActiveChannel: true }});
+      const transfers = frameState.transfers;
+      const ackByTransferKey = frameState.ackByTransferKey;
+      const nodesById = frameState.nodesById;
+      const localNodeId = frameState.localNodeId;
+      const rows = [];
+      const transferKeysSeen = new Set();
+      for (const transfer of transfers.values()) {{
+        transferKeysSeen.add(String(transfer && transfer.key ? transfer.key : ""));
+        const direction = fileTransferDirectionMeta(transfer.fromId, transfer.toId, localNodeId);
+        const peerMeta = fileTransferPeerMeta(direction.peerId, nodesById, localNodeId);
+        const inboundRequiresAccept = !!transfer.requiresInboundAccept;
+        const inboundDecision = normalizeFileTransferInboundDecision(transfer.inboundDecision);
+        const inboundAccepted = !inboundRequiresAccept || inboundDecision === "accepted";
+        const inboundDeclined = inboundRequiresAccept && inboundDecision === "declined";
+        const inboundPending = inboundRequiresAccept && !inboundAccepted && !inboundDeclined;
+        const expectedChunks = Number.isInteger(transfer.totalChunks) && transfer.totalChunks > 0
+          ? transfer.totalChunks
+          : Math.max(transfer.chunks.size, 1);
+        const receivedChunks = transfer.chunks.size;
+        let contiguous = receivedChunks >= expectedChunks;
+        if (contiguous) {{
+          for (let idx = 0; idx < expectedChunks; idx += 1) {{
+            if (!(transfer.chunks.get(idx) instanceof Uint8Array)) {{
+              contiguous = false;
+              break;
+            }}
+          }}
+        }}
+
+        let observedBytes = 0;
+        for (const bytes of transfer.chunks.values()) {{
+          observedBytes += Number(bytes && bytes.length) || 0;
+        }}
+
+        const wireDeclaredBytes = Number.isFinite(transfer.fileSize) ? Math.max(0, Math.trunc(Number(transfer.fileSize) || 0)) : null;
+        const originalDeclaredBytes = Number.isFinite(transfer.originalFileSize)
+          ? Math.max(0, Math.trunc(Number(transfer.originalFileSize) || 0))
+          : wireDeclaredBytes;
+        const payloadCodec = normalizeFileTransferCompressionCodec(transfer.codec || fileTransferCompressionCodecRaw);
+        let assembled = null;
+        let complete = false;
+        let assembleError = "";
+        if (contiguous && expectedChunks > 0) {{
+          let totalLen = 0;
+          for (let idx = 0; idx < expectedChunks; idx += 1) {{
+            const part = transfer.chunks.get(idx);
+            totalLen += Number(part && part.length) || 0;
+          }}
+          const merged = new Uint8Array(totalLen);
+          let cursor = 0;
+          for (let idx = 0; idx < expectedChunks; idx += 1) {{
+            const part = transfer.chunks.get(idx);
+            if (!(part instanceof Uint8Array)) {{
+              assembleError = "Missing chunk data";
+              break;
+            }}
+            merged.set(part, cursor);
+            cursor += part.length;
+          }}
+          if (!assembleError) {{
+            let mergedView = merged;
+            if (wireDeclaredBytes != null) {{
+              if (wireDeclaredBytes < merged.length) {{
+                mergedView = merged.slice(0, wireDeclaredBytes);
+              }} else if (wireDeclaredBytes > merged.length) {{
+                assembleError = `Missing ${{wireDeclaredBytes - merged.length}} byte${{wireDeclaredBytes - merged.length === 1 ? "" : "s"}}`;
+              }}
+            }}
+            if (!assembleError) {{
+              const decodedView = decodeFileTransferPayloadBytes(
+                mergedView,
+                payloadCodec,
+                originalDeclaredBytes
+              );
+              if (!(decodedView instanceof Uint8Array)) {{
+                assembleError = payloadCodec === fileTransferCompressionCodecRaw
+                  ? "Decode failed"
+                  : `Decode failed (${{payloadCodec}})`;
+              }} else {{
+                assembled = decodedView;
+                complete = true;
+              }}
+            }}
+          }}
+        }}
+        if (!inboundAccepted) {{
+          assembled = null;
+          complete = false;
+          assembleError = "";
+        }}
+
+        const percent = Math.max(
+          0,
+          Math.min(100, Math.round((receivedChunks / Math.max(expectedChunks, 1)) * 100))
+        );
+        const outgoing = direction.className === "outbound";
+        const ack = outgoing ? (ackByTransferKey.get(transfer.key) || null) : null;
+        const ackedChunks = ack
+          ? Math.max(
+            0,
+            Math.min(
+              expectedChunks,
+              Math.max(
+                Number(ack.receivedCount || 0),
+                (ack.receivedSet instanceof Set ? ack.receivedSet.size : 0)
+              )
+            )
+          )
+          : 0;
+        const deliveryPct = Math.max(0, Math.min(100, Math.round((ackedChunks / Math.max(expectedChunks, 1)) * 100)));
+        const outgoingSession = outgoing
+          ? findOutgoingFileTransferSession(transfer.transferId, transfer.toId, transfer.channelIndex)
+          : null;
+        const transferChannelIndex = fileTransferExplicitChannelIndex(transfer.channelIndex);
+        const sessionChannelIndex = fileTransferExplicitChannelIndex(outgoingSession && outgoingSession.channelIndex);
+        const resolvedChannelIndex = transferChannelIndex != null ? transferChannelIndex : sessionChannelIndex;
+        let delivered = outgoing
+          ? !!(ack && ack.complete && ackedChunks >= expectedChunks)
+          : (complete && inboundAccepted);
+        if (outgoingSession && outgoingSession.delivered) {{
+          delivered = true;
+        }}
+
+        let progressLabel = "";
+        let progressSort = 0;
+        let progressPercent = Math.max(0, Math.min(100, Math.trunc(percent)));
+        let progressState = "active";
+        let outgoingRetrying = false;
+        if (outgoing) {{
+          const waitingForAccept = !!(outgoingSession && outgoingSession.waitingForAccept && !outgoingSession.failed && !outgoingSession.delivered);
+          const sentChunksVisual = outgoingSession
+            ? Math.max(
+              0,
+              Math.min(expectedChunks, Math.trunc(Number(outgoingSession.sentChunks) || 0))
+            )
+            : 0;
+          const sentPct = Math.max(0, Math.min(100, Math.round((sentChunksVisual / Math.max(expectedChunks, 1)) * 100)));
+          if (outgoingSession && outgoingSession.failed && !delivered) {{
+            progressLabel = `Delivery failed (${{ackedChunks}}/${{expectedChunks}} acked)`;
+            progressSort = deliveryPct;
+            progressPercent = deliveryPct;
+            progressState = "error";
+          }} else if (waitingForAccept) {{
+            const acceptProbeAttempts = Math.max(
+              0,
+              Math.trunc(Number(outgoingSession && outgoingSession.acceptProbeAttempts) || 0)
+            );
+            progressLabel = "Awaiting receiver accept";
+            if (acceptProbeAttempts > 0) {{
+              progressLabel += ` (ping ${{acceptProbeAttempts}})`;
+            }}
+            progressSort = 12;
+            progressPercent = 0;
+            progressState = "pending";
+          }} else if (delivered) {{
+            progressLabel = `Delivered (${{Math.max(ackedChunks, expectedChunks)}}/${{expectedChunks}} acked)`;
+            progressSort = 220;
+            progressPercent = 100;
+            progressState = "success";
+          }} else if (ack) {{
+            progressLabel = `${{deliveryPct}}% delivered (${{ackedChunks}}/${{expectedChunks}} acked)`;
+            progressSort = 100 + deliveryPct;
+            progressPercent = deliveryPct;
+            progressState = "active";
+          }} else {{
+            progressLabel = `Awaiting ACK (${{ackedChunks}}/${{expectedChunks}} acked, ${{sentChunksVisual}}/${{expectedChunks}} sent)`;
+            progressSort = 25;
+            progressPercent = Math.max(deliveryPct, sentPct);
+            progressState = "pending";
+          }}
+          const activeRetries = Math.max(
+            0,
+            Math.trunc(Number(outgoingSession && outgoingSession.retriesSinceProgress) || Number(outgoingSession && outgoingSession.retryAttempts) || 0)
+          );
+          if (outgoingSession && !outgoingSession.delivered && !outgoingSession.failed && activeRetries > 0) {{
+            outgoingRetrying = true;
+            progressLabel = `${{progressLabel}} • retry ${{activeRetries}}/${{outgoingSession.maxRetries}}`;
+            if (progressState === "active") {{
+              progressState = "pending";
+            }}
+          }}
+        }} else {{
+          if (inboundPending) {{
+            progressLabel = "Awaiting acceptance";
+            progressSort = 14;
+            progressPercent = 0;
+            progressState = "pending";
+          }} else if (inboundDeclined) {{
+            progressLabel = "Declined (no ACKs sent)";
+            progressSort = 6;
+            progressPercent = 0;
+            progressState = "pending";
+          }} else {{
+            progressLabel = complete
+              ? "Complete"
+              : `${{percent}}% (${{receivedChunks}}/${{expectedChunks}} chunks)`;
+            progressSort = complete ? 100 : percent;
+            progressPercent = complete ? 100 : percent;
+            progressState = complete ? "success" : "active";
+            if (!complete && transfer.hasDecodeError) {{
+              progressLabel = "Error (invalid chunk)";
+              progressState = "error";
+            }} else if (!complete && assembleError) {{
+              progressLabel = `Error (${{assembleError}})`;
+              progressState = "error";
+            }}
+          }}
+        }}
+
+        const sizeLabel = (() => {{
+          if (originalDeclaredBytes == null) {{
+            return formatFileTransferSize(observedBytes);
+          }}
+          if (complete || observedBytes <= 0) {{
+            return formatFileTransferSize(originalDeclaredBytes);
+          }}
+          if (wireDeclaredBytes != null && observedBytes === wireDeclaredBytes) {{
+            return formatFileTransferSize(originalDeclaredBytes);
+          }}
+          const expectedWireBytes = wireDeclaredBytes != null ? wireDeclaredBytes : originalDeclaredBytes;
+          return `${{formatFileTransferSize(observedBytes)}} / ${{formatFileTransferSize(expectedWireBytes)}}`;
+        }})();
+        const fileName = normalizeFileTransferName(transfer.fileName || `file-${{transfer.transferId}}.bin`);
+        const channelLabel = resolvedChannelIndex == null
+          ? "Unknown"
+          : meshChannelLabelForIndex(resolvedChannelIndex, {{ allowAll: false }});
+        const sortUnix = Number(transfer.latestUnix || transfer.firstUnix || 0);
+        rows.push({{
+          key: transfer.key,
+          transferId: transfer.transferId,
+          unix: sortUnix > 0 ? sortUnix : null,
+          sortUnix,
+          directionClass: direction.className,
+          directionLabel: direction.label,
+          fromId: normalizeNodeId(transfer.fromId || ""),
+          toId: normalizeNodeId(transfer.toId || ""),
+          peerId: direction.peerId,
+          peerLabel: peerMeta.label,
+          peerTitle: peerMeta.title,
+          fileName,
+          downloadName: safeFileTransferDownloadName(fileName),
+          progressLabel,
+          progressSort,
+          progressPercent,
+          progressState,
+          sizeLabel,
+          sizeSort: originalDeclaredBytes != null ? originalDeclaredBytes : observedBytes,
+          channelIndex: resolvedChannelIndex,
+          channelLabel,
+          delivered,
+          requiresInboundAccept: inboundRequiresAccept,
+          inboundAccepted,
+          inboundPending,
+          inboundDeclined,
+          outgoingWaitingForAccept: !!(outgoingSession && outgoingSession.waitingForAccept),
+          outgoingRetrying,
+          canDownload: inboundAccepted && complete && assembled instanceof Uint8Array,
+          bytes: assembled,
+        }});
+      }}
+
+      // Refresh fallback: if only ACK frames are available (for example after a page reload
+      // where local outgoing in-memory session state was reset), still render delivery progress.
+      for (const [transferKeyRaw, ack] of ackByTransferKey.entries()) {{
+        const transferKey = String(transferKeyRaw || "").trim();
+        if (!transferKey) continue;
+        if (transferKeysSeen.has(transferKey)) continue;
+        if (!(ack && typeof ack === "object")) continue;
+        const senderId = normalizeNodeId(ack.originalSenderId || "");
+        const receiverId = normalizeNodeId(ack.originalReceiverId || "");
+        if (!isCanonicalNodeId(senderId) || !isCanonicalNodeId(receiverId)) continue;
+        // ACK-only rows are useful to the sender (the side waiting for ACK progression).
+        if (!isCanonicalNodeId(localNodeId) || senderId !== localNodeId) continue;
+        const totalChunks = Math.max(1, Math.trunc(Number(ack.totalChunks) || 1));
+        const ackedChunks = Math.max(
+          0,
+          Math.min(totalChunks, Math.trunc(Number(ack.receivedCount) || 0))
+        );
+        const delivered = ackedChunks >= totalChunks || !!ack.complete;
+        const deliveryPct = Math.max(0, Math.min(100, Math.round((ackedChunks / totalChunks) * 100)));
+        const direction = fileTransferDirectionMeta(senderId, receiverId, localNodeId);
+        const peerMeta = fileTransferPeerMeta(direction.peerId, nodesById, localNodeId);
+        const channelIndex = fileTransferExplicitChannelIndex(ack.channelIndex);
+        const channelLabel = channelIndex == null
+          ? "Unknown"
+          : meshChannelLabelForIndex(channelIndex, {{ allowAll: false }});
+        const transferId = String(ack.transferId || "").trim().toLowerCase();
+        const fallbackName = normalizeFileTransferName(
+          transferId
+            ? `unknown-file-${{fileTransferShortTransferId(transferId)}}`
+            : "unknown-file"
+        );
+        rows.push({{
+          key: `${{transferKey}}|ack-only`,
+          transferId,
+          unix: Number(ack.latestUnix || 0) || null,
+          sortUnix: Number(ack.latestUnix || 0) || 0,
+          directionClass: direction.className,
+          directionLabel: direction.label,
+          peerId: direction.peerId,
+          peerLabel: peerMeta.label,
+          peerTitle: peerMeta.title,
+          fileName: fallbackName,
+          downloadName: safeFileTransferDownloadName(fallbackName),
+          progressLabel: delivered
+            ? `Delivered (${{totalChunks}}/${{totalChunks}} acked)`
+            : `${{deliveryPct}}% delivered (${{ackedChunks}}/${{totalChunks}} acked)`,
+          progressSort: delivered ? 220 : (100 + deliveryPct),
+          progressPercent: delivered ? 100 : deliveryPct,
+          progressState: delivered ? "success" : "active",
+          sizeLabel: "n/a",
+          sizeSort: 0,
+          channelIndex,
+          channelLabel,
+          delivered,
+          fromId: senderId,
+          toId: receiverId,
+          requiresInboundAccept: false,
+          inboundAccepted: true,
+          inboundPending: false,
+          inboundDeclined: false,
+          outgoingWaitingForAccept: false,
+          outgoingRetrying: false,
+          canDownload: false,
+          bytes: null,
+        }});
+      }}
+
+      rows.sort((a, b) => {{
+        const unixDiff = Number(b.sortUnix || 0) - Number(a.sortUnix || 0);
+        if (unixDiff !== 0) return unixDiff;
+        const nameDiff = String(a.fileName || "").localeCompare(String(b.fileName || ""));
+        if (nameDiff !== 0) return nameDiff;
+        return String(a.key || "").localeCompare(String(b.key || ""));
+      }});
+      return rows;
+    }}

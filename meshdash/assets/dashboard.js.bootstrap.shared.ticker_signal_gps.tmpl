@@ -1,0 +1,265 @@
+    function resolveLatestRadioSignalSnapshot(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const traffic = safeState.traffic && typeof safeState.traffic === "object"
+        ? safeState.traffic
+        : {{}};
+      const packets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
+      let latest = null;
+      for (const packet of packets) {{
+        const summary = (packet && typeof packet.summary === "object") ? packet.summary : packet;
+        const snrRaw = Number(
+          (summary && (summary.rx_snr ?? summary.rxSnr)) ?? (packet && (packet.rx_snr ?? packet.rxSnr))
+        );
+        const rssiRaw = Number(
+          (summary && (summary.rx_rssi ?? summary.rxRssi)) ?? (packet && (packet.rx_rssi ?? packet.rxRssi))
+        );
+        const snrDb = Number.isFinite(snrRaw) ? snrRaw : null;
+        const rssiDbm = Number.isFinite(rssiRaw) ? Math.trunc(rssiRaw) : null;
+        if (!Number.isFinite(snrDb) && !Number.isFinite(rssiDbm)) continue;
+
+        const seenUnix = latestUnixTimestamp(
+          summary && summary.captured_at,
+          summary && summary.rx_time,
+          summary && summary.time,
+          packet && packet.captured_at,
+          packet && packet.rx_time,
+          packet && packet.time,
+        );
+        if (!latest) {{
+          latest = {{ snrDb, rssiDbm, seenUnix }};
+          continue;
+        }}
+        const currentSeen = Number(latest.seenUnix);
+        const nextSeen = Number(seenUnix);
+        if (!Number.isFinite(nextSeen) || nextSeen <= 0) continue;
+        if (!Number.isFinite(currentSeen) || nextSeen >= currentSeen) {{
+          latest = {{ snrDb, rssiDbm, seenUnix: nextSeen }};
+        }}
+      }}
+      return latest || {{ snrDb: null, rssiDbm: null, seenUnix: null }};
+    }}
+
+    function buildChannelUtilTickerSummary(state = latestState) {{
+      const telemetry = resolveLocalNodeTelemetry(state);
+      const localId = telemetry.localId;
+      const channelUtilRaw = Number(telemetry && telemetry.channelUtil);
+      const channelUtil = Number.isFinite(channelUtilRaw) ? Math.max(0, channelUtilRaw) : null;
+      const airUtilTxRaw = Number(telemetry && telemetry.airUtilTx);
+      const airUtilTx = Number.isFinite(airUtilTxRaw) ? Math.max(0, airUtilTxRaw) : null;
+      const channelText = Number.isFinite(channelUtil)
+        ? `${{formatTickerNumber(channelUtil, 1)}}%`
+        : "n/a";
+      const airText = Number.isFinite(airUtilTx)
+        ? `TX ${{formatTickerNumber(airUtilTx, 1)}}%`
+        : null;
+      const text = [channelText, airText].filter(Boolean).join(" · ") || "n/a";
+      const titleParts = [];
+      if (isCanonicalNodeId(localId)) {{
+        titleParts.push(`node ${{telemetry.nodeName}} (${{localId}})`);
+      }} else {{
+        titleParts.push(`node ${{telemetry.nodeName}}`);
+      }}
+      titleParts.push(Number.isFinite(channelUtil) ? `channel utilization ${{channelText}}` : "channel utilization n/a");
+      titleParts.push(Number.isFinite(airUtilTx) ? `air util tx ${{formatTickerNumber(airUtilTx, 1)}}%` : "air util tx n/a");
+      titleParts.push(`last seen ${{telemetry.lastSeenText}}`);
+      return {{
+        text,
+        title: titleParts.join(" | "),
+        channel_util: channelUtil,
+        air_util_tx: airUtilTx,
+      }};
+    }}
+
+    function buildWifiTickerSummary(state = latestState) {{
+      const telemetry = resolveLocalNodeTelemetry(state);
+      const localId = telemetry.localId;
+      const wifiSummary = telemetry.wifiSummary;
+      const compactRaw = String((wifiSummary && wifiSummary.compact) || "").trim();
+      const compact = compactRaw.replace(/^WiFi\\s*/i, "").trim() || compactRaw || "n/a";
+      const connected = coerceOptionalBool(wifiSummary && wifiSummary.connected);
+      const rssiValue = wifiSummary ? wifiSummary.rssi : null;
+      const rssiRaw = (rssiValue == null || rssiValue === "") ? NaN : Number(rssiValue);
+      const rssi = Number.isFinite(rssiRaw) && rssiRaw <= -1 && rssiRaw >= -140
+        ? Math.trunc(rssiRaw)
+        : null;
+      const rssiText = Number.isFinite(rssi)
+        ? `${{rssi}}dBm`
+        : (connected === false ? "off" : (connected === true ? "on" : "n/a"));
+      const ip = String((wifiSummary && wifiSummary.ip) || "").trim() || "n/a";
+      const ssid = String((wifiSummary && wifiSummary.ssid) || "").trim() || "n/a";
+      const detail = String((wifiSummary && wifiSummary.detail) || "").trim();
+      const rows = [
+        {{ key: "RSSI", value: rssiText }},
+      ];
+      const rowsHtml = rows
+        .map((row) => `<div class="wifi-ticker-row"><span class="wifi-ticker-key">${{escAttr(row.key)}}:</span><span class="wifi-ticker-val">${{escAttr(row.value)}}</span></div>`)
+        .join("");
+      const titleParts = [];
+      if (isCanonicalNodeId(localId)) {{
+        titleParts.push(`node ${{telemetry.nodeName}} (${{localId}})`);
+      }} else {{
+        titleParts.push(`node ${{telemetry.nodeName}}`);
+      }}
+      titleParts.push(`ssid "${{ssid}}"`);
+      titleParts.push(detail || "wifi status unavailable");
+      return {{
+        text: compact,
+        rows,
+        rows_html: rowsHtml,
+        title: titleParts.join(" | "),
+        rssi_dbm: rssi,
+      }};
+    }}
+
+    function buildGpsTickerSummary(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const telemetry = resolveLocalNodeTelemetry(safeState);
+      const localId = telemetry.localId;
+      const localState = settingsLocalStateFrom(safeState);
+      const localInfo = localState && typeof localState === "object" && localState.local_node_info && typeof localState.local_node_info === "object"
+        ? localState.local_node_info
+        : null;
+      const nodePosition = telemetry && telemetry.localNode && typeof telemetry.localNode.position === "object"
+        ? telemetry.localNode.position
+        : null;
+      const positionCandidates = [
+        localState && localState.local_position,
+        localState && localState.localPosition,
+        localState && localState.local_node_position,
+        localState && localState.localNodePosition,
+        localState && localState.position,
+        localInfo && localInfo.position,
+        nodePosition,
+      ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+
+      const firstValue = (paths) => firstNestedValue(positionCandidates, paths);
+      const firstFiniteNumber = (paths) => firstFiniteNestedNumber(positionCandidates, paths);
+
+      let lat = Number(telemetry && telemetry.lat);
+      let lon = Number(telemetry && telemetry.lon);
+      if (!isValidMapCoord(lat, lon)) {{
+        for (const candidate of positionCandidates) {{
+          const candLat = coordinateValueFromSpecs(candidate, [
+            {{ key: "lat" }},
+            {{ key: "latitude" }},
+            {{ key: "latitude_i", scale: 1e-7 }},
+            {{ key: "latitudeI", scale: 1e-7 }},
+          ]);
+          const candLon = coordinateValueFromSpecs(candidate, [
+            {{ key: "lon" }},
+            {{ key: "lng" }},
+            {{ key: "longitude" }},
+            {{ key: "longitude_i", scale: 1e-7 }},
+            {{ key: "longitudeI", scale: 1e-7 }},
+          ]);
+          if (isValidMapCoord(candLat, candLon)) {{
+            lat = Number(candLat);
+            lon = Number(candLon);
+            break;
+          }}
+        }}
+      }}
+      const gpsFix = isValidMapCoord(lat, lon);
+      const fixValue = gpsFix
+        ? "fix"
+        : (telemetry.gpsCapable ? "ready" : "n/a");
+      const posText = gpsFix ? `${{lat.toFixed(5)}}, ${{lon.toFixed(5)}}` : "n/a";
+
+      const altitude = firstFiniteNumber([
+        "altitude",
+        "altitude_m",
+        "altitudeM",
+        "alt",
+      ]);
+      const sats = firstFiniteNumber([
+        "sats_in_view",
+        "satsInView",
+        "satellites",
+        "num_satellites",
+        "numSatellites",
+      ]);
+      const hdop = firstFiniteNumber(["hdop", "h_dop"]);
+      const pdop = firstFiniteNumber(["pdop", "p_dop"]);
+      const precisionBits = firstFiniteNumber(["precision_bits", "precisionBits"]);
+      const accuracyMeters = firstFiniteNumber(["accuracy", "gps_accuracy", "horizontal_accuracy", "horizontalAccuracy"]);
+      const speedMps = firstFiniteNumber([
+        "ground_speed",
+        "groundSpeed",
+        "ground_speed_mps",
+        "speed",
+        "speed_mps",
+      ]);
+      const trackDegrees = firstFiniteNumber([
+        "ground_track",
+        "groundTrack",
+        "heading",
+        "bearing",
+      ]);
+
+      const precisionText = Number.isFinite(hdop) && hdop > 0
+        ? `HDOP ${{formatTickerNumber(hdop, 1)}}`
+        : (Number.isFinite(pdop) && pdop > 0
+          ? `PDOP ${{formatTickerNumber(pdop, 1)}}`
+          : (Number.isFinite(accuracyMeters) && accuracyMeters > 0
+            ? `${{formatTickerNumber(accuracyMeters, 1)}}m`
+            : (Number.isFinite(precisionBits) && precisionBits > 0
+              ? `${{Math.round(precisionBits)}} bits`
+              : null)));
+      const speedText = Number.isFinite(speedMps) && speedMps >= 0
+        ? `${{formatTickerNumber(speedMps, 1)}} m/s`
+        : null;
+      const trackText = Number.isFinite(trackDegrees)
+        ? `${{Math.round(trackDegrees)}}°`
+        : null;
+      const fixUnix = latestUnixTimestamp(
+        firstValue([
+          "time",
+          "timestamp",
+          "timestamp_unix",
+          "timestampUnix",
+          "time_unix",
+          "timeUnix",
+          "position_time",
+          "positionTime",
+        ]),
+        telemetry && telemetry.lastSeenUnix
+      );
+      const seenText = Number.isFinite(fixUnix)
+        ? savedDetailAge(fixUnix, Math.floor(Date.now() / 1000))
+        : telemetry.lastSeenText;
+
+      const rows = [
+        {{ key: "Fix", value: fixValue }},
+        {{ key: "Pos", value: posText }},
+      ];
+      if (Number.isFinite(altitude)) rows.push({{ key: "Alt", value: `${{Math.round(altitude)}}m` }});
+      if (Number.isFinite(sats) && sats >= 0) rows.push({{ key: "Sats", value: String(Math.round(sats)) }});
+      if (precisionText) rows.push({{ key: "Prec", value: precisionText }});
+      if (speedText) rows.push({{ key: "Speed", value: speedText }});
+      if (trackText) rows.push({{ key: "Track", value: trackText }});
+      rows.push({{ key: "Seen", value: seenText || "n/a" }});
+
+      const rowsHtml = rows
+        .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+        .join("");
+      const titleParts = [];
+      if (isCanonicalNodeId(localId)) {{
+        titleParts.push(`node ${{telemetry.nodeName}} (${{localId}})`);
+      }} else {{
+        titleParts.push(`node ${{telemetry.nodeName}}`);
+      }}
+      titleParts.push(gpsFix ? `position ${{posText}}` : "position unavailable");
+      if (Number.isFinite(altitude)) titleParts.push(`alt ${{Math.round(altitude)}}m`);
+      if (Number.isFinite(sats) && sats >= 0) titleParts.push(`sats ${{Math.round(sats)}}`);
+      if (precisionText) titleParts.push(`precision ${{precisionText}}`);
+      if (speedText) titleParts.push(`speed ${{speedText}}`);
+      if (trackText) titleParts.push(`track ${{trackText}}`);
+      titleParts.push(`last seen ${{seenText || "n/a"}}`);
+
+      return {{
+        text: rows.map((row) => `${{row.key}} ${{row.value}}`).join(" · "),
+        rows,
+        rows_html: rowsHtml,
+        title: titleParts.join(" | "),
+      }};
+    }}

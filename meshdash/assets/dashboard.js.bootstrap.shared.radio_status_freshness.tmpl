@@ -1,0 +1,558 @@
+    function isMeshRadioActivityPacket(packetEntry, localNodeId = "") {{
+      const summary = (packetEntry && typeof packetEntry.summary === "object")
+        ? packetEntry.summary
+        : ((packetEntry && typeof packetEntry === "object") ? packetEntry : {{}});
+      const packet = (packetEntry && typeof packetEntry.packet === "object")
+        ? packetEntry.packet
+        : ((packetEntry && typeof packetEntry === "object") ? packetEntry : {{}});
+      const decoded = (packet && typeof packet.decoded === "object")
+        ? packet.decoded
+        : {{}};
+      const fromRaw = (
+        summary && (summary.from_id ?? summary.fromId ?? summary.from)
+      ) ?? (
+        packet && (packet.from_id ?? packet.fromId ?? packet.from)
+      );
+      const fromId = normalizeNodeId(fromRaw);
+      const toRaw = (
+        summary && (summary.to_id ?? summary.toId ?? summary.to)
+      ) ?? (
+        packet && (packet.to_id ?? packet.toId ?? packet.to ?? packet.destination)
+      );
+      const toId = normalizeNodeId(toRaw);
+      const portnumRaw = (
+        summary && summary.portnum
+      ) ?? (
+        decoded && decoded.portnum
+      ) ?? (
+        packet && packet.portnum
+      ) ?? "";
+      const portnum = String(portnumRaw).trim().toUpperCase();
+      if (portnum === "ADMIN_APP") {{
+        return false;
+      }}
+      if (toId === "^local") {{
+        return false;
+      }}
+      if (isCanonicalNodeId(localNodeId) && fromId === localNodeId && toId === localNodeId) {{
+        return false;
+      }}
+      const hasKnownFrom = isCanonicalNodeId(fromId);
+      const hasKnownTo = isCanonicalNodeId(toId);
+      const isBroadcastToAll = toId === "^all";
+      return hasKnownFrom || hasKnownTo || isBroadcastToAll;
+    }}
+
+    function buildRadioTrafficSnapshot(traffic, localNodeId, nowUnix = Math.floor(Date.now() / 1000), windowSec = 120) {{
+      const packets = Array.isArray(traffic && traffic.recent_packets) ? traffic.recent_packets : [];
+      let rxRecent = 0;
+      let txRecent = 0;
+      let lastPacketUnix = null;
+      const windowSeconds = Math.max(30, Math.floor(Number(windowSec) || 120));
+      for (const packet of packets) {{
+        const summary = (packet && typeof packet.summary === "object") ? packet.summary : packet;
+        const packetUnix = latestUnixTimestamp(
+          summary && summary.captured_at,
+          summary && summary.rx_time,
+          summary && summary.time,
+          packet && packet.captured_at,
+          packet && packet.rx_time,
+          packet && packet.time,
+        );
+        if (!Number.isFinite(packetUnix) || packetUnix <= 0) continue;
+        if ((nowUnix - packetUnix) > windowSeconds) continue;
+        if (!isMeshRadioActivityPacket(packet, localNodeId)) continue;
+        if (!Number.isFinite(lastPacketUnix) || packetUnix > lastPacketUnix) {{
+          lastPacketUnix = packetUnix;
+        }}
+
+        const fromId = normalizeNodeId(
+          summary && (summary.from_id ?? summary.fromId ?? summary.from)
+        );
+        const toId = normalizeNodeId(
+          summary && (summary.to_id ?? summary.toId ?? summary.to)
+        );
+        const isLocalTx = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+        const isDirectToLocal = isCanonicalNodeId(localNodeId) && toId === localNodeId;
+        const heardFromPeer = isCanonicalNodeId(fromId) && (!isCanonicalNodeId(localNodeId) || fromId !== localNodeId);
+        if (isLocalTx) {{
+          txRecent += 1;
+        }} else if (isDirectToLocal || heardFromPeer) {{
+          rxRecent += 1;
+        }}
+      }}
+      return {{
+        rxRecent,
+        txRecent,
+        lastPacketUnix,
+        windowSeconds,
+      }};
+    }}
+
+    function buildTargetRadioStatus(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const wifiSummary = buildTargetWifiSummary(safeState);
+      const radioIp = String((wifiSummary && wifiSummary.ip) || "").trim();
+      const ipCompactSuffix = radioIp ? ` · IP ${{radioIp}}` : "";
+      const ipDetailSuffix = radioIp ? ` | ip ${{radioIp}}` : "";
+      const localStateError = trimInlineError(safeState.local_state_error || "");
+      const trackerError = trimInlineError(safeState.tracker_error || "");
+      const pollError = trimInlineError(lastPollError || "");
+      const pollErrorActive = !!pollError
+        && Number.isFinite(lastPollErrorUnix)
+        && lastPollErrorUnix > 0
+        && (nowUnix - lastPollErrorUnix) <= Math.max(120, Math.round((refreshMs / 1000) * 6));
+      const pollSuccessAge = Number.isFinite(lastPollSuccessUnix) && lastPollSuccessUnix > 0
+        ? Math.max(0, nowUnix - lastPollSuccessUnix)
+        : null;
+      const pollLikelyLost = pollErrorActive
+        && (!Number.isFinite(pollSuccessAge) || pollSuccessAge > Math.max(20, Math.round((refreshMs / 1000) * 4)));
+
+      const localId = resolveLocalNodeId(safeState);
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const trafficSnap = buildRadioTrafficSnapshot(traffic, localId, nowUnix, 120);
+      const trafficText = `RX ${{trafficSnap.rxRecent}} / TX ${{trafficSnap.txRecent}} (2m)`;
+      const trafficCompactText = `RX ${{trafficSnap.rxRecent}} TX ${{trafficSnap.txRecent}}`;
+      const lastActivityText = Number.isFinite(trafficSnap.lastPacketUnix)
+        ? savedDetailAge(trafficSnap.lastPacketUnix, nowUnix)
+        : "n/a";
+      const lastActivityCompact = String(lastActivityText).replace(/\s+ago$/, "");
+      const activityText = `last activity ${{lastActivityText}}`;
+
+      const errors = [];
+      if (localStateError) errors.push(`local state: ${{localStateError}}`);
+      if (trackerError) errors.push(`tracker: ${{trackerError}}`);
+      if (pollErrorActive) errors.push(`poll: ${{pollError}}`);
+      const errorSummary = errors.join(" | ");
+      const trackerReportsLost = /radio link lost/i.test(trackerError);
+      const radioConnectionSummary = (safeState.summary && typeof safeState.summary.radio_connection === "object")
+        ? safeState.summary.radio_connection
+        : null;
+      const radioConnectionState = String(
+        (radioConnectionSummary && (radioConnectionSummary.state || radioConnectionSummary.status)) || ""
+      ).trim().toLowerCase();
+      const trackerReportsConnecting = /radio connecting/i.test(trackerError)
+        || /radio connecting/i.test(localStateError)
+        || radioConnectionState === "connecting"
+        || !!(radioConnectionSummary && radioConnectionSummary.connecting === true);
+      if (trackerReportsConnecting) {{
+        const detail = errorSummary || "waiting for radio link";
+        return {{
+          key: "warn",
+          text: `Connecting · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Connecting to radio. ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
+        }};
+      }}
+
+      if (!isCanonicalNodeId(localId)) {{
+        const detail = errorSummary || "local radio id unavailable";
+        return {{
+          key: "lost",
+          text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Local radio unavailable. ${{detail}}${{ipDetailSuffix}}`,
+        }};
+      }}
+
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const selfNode = nodes.find((node) => normalizeNodeId(node && node.id) === localId) || null;
+      const historyCapsById = new Map(
+        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+      );
+      const caps = historyCapsById.get(localId) || null;
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
+      const freshness = resolveNodeFreshness(selfNode, caps, null, latestChatTouchByNode.get(localId) || null);
+      const liveFreshnessUnix = Number(freshness.unix);
+      const trafficFreshnessUnix = Number(trafficSnap.lastPacketUnix);
+      const statusFreshnessCandidates = [];
+      if (Number.isFinite(liveFreshnessUnix) && liveFreshnessUnix > 0) {{
+        statusFreshnessCandidates.push(Math.trunc(liveFreshnessUnix));
+      }}
+      if (Number.isFinite(trafficFreshnessUnix) && trafficFreshnessUnix > 0) {{
+        statusFreshnessCandidates.push(Math.trunc(trafficFreshnessUnix));
+      }}
+      const statusFreshnessUnix = statusFreshnessCandidates.length > 0
+        ? Math.max(...statusFreshnessCandidates)
+        : null;
+      const freshnessKey = normalizeFreshnessKey(freshnessStatus(statusFreshnessUnix, nowUnix));
+      if (pollLikelyLost) {{
+        const detail = errorSummary || "state polling failed";
+        return {{
+          key: "lost",
+          text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Dashboard polling is stale (${{
+            Number.isFinite(pollSuccessAge) ? `${{pollSuccessAge}}s since last success` : "no successful poll yet"
+          }}). ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
+        }};
+      }}
+      if (trackerReportsLost) {{
+        const detail = errorSummary || trackerError;
+        return {{
+          key: "lost",
+          text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Meshtastic interface reported radio disconnect. ${{detail || "radio link lost"}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
+        }};
+      }}
+
+      let key = freshnessKey;
+      let label = "Unknown";
+      if (freshnessKey === "online") label = "Active";
+      else if (freshnessKey === "warn") label = "Aging";
+      else if (freshnessKey === "stale") label = "Stale";
+
+      const text = `${{label}} · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`;
+      const statusUsesTraffic = Number.isFinite(statusFreshnessUnix)
+        && Number.isFinite(trafficFreshnessUnix)
+        && Math.trunc(statusFreshnessUnix) === Math.trunc(trafficFreshnessUnix)
+        && (!Number.isFinite(liveFreshnessUnix) || trafficFreshnessUnix >= liveFreshnessUnix);
+      const lastSeenTitle = Number.isFinite(statusFreshnessUnix)
+        ? `last seen ${{savedDetailAge(statusFreshnessUnix, nowUnix)}}${{statusUsesTraffic ? " (packet activity)" : ""}}`
+        : "last seen n/a";
+      return {{
+        key,
+        text,
+        title: `${{localId}} | ${{label}} | ${{activityText}} | ${{trafficText}} | ${{lastSeenTitle}}${{errorSummary ? ` | ${{errorSummary}}` : ""}}${{ipDetailSuffix}}`,
+      }};
+    }}
+
+    function renderTargetRadioStatus(state = latestState) {{
+      const el = document.getElementById("m-target-radio-status");
+      if (!(el instanceof HTMLElement)) return;
+      const status = buildTargetRadioStatus(state);
+      const cleanKey = String(status && status.key ? status.key : "unknown").toLowerCase();
+      const allowed = new Set(["online", "warn", "stale", "lost", "unknown"]);
+      const key = allowed.has(cleanKey) ? cleanKey : "unknown";
+      let toneKey = "warn";
+      if (key === "online") toneKey = "online";
+      else if (key === "lost") toneKey = "lost";
+      el.classList.remove("status-online", "status-warn", "status-stale", "status-lost", "status-unknown");
+      el.classList.add(`status-${{toneKey}}`);
+      el.textContent = status && status.text ? String(status.text) : "n/a";
+      el.title = status && status.title ? String(status.title) : "Radio status unavailable";
+    }}
+
+    function computeNodeFreshnessUnix(node, caps = null, chatTouch = null) {{
+      const candidates = [];
+      const live = nodeLastHeardUnix(node);
+      if (Number.isFinite(live) && live > 0) {{
+        candidates.push(Math.trunc(live));
+      }}
+      const capsUnix = Number(caps && caps.last_seen_unix);
+      if (Number.isFinite(capsUnix) && capsUnix > 0) {{
+        candidates.push(Math.trunc(capsUnix));
+      }}
+      const chatUnix = Number(chatTouch && chatTouch.unix);
+      if (Number.isFinite(chatUnix) && chatUnix > 0) {{
+        candidates.push(Math.trunc(chatUnix));
+      }}
+      if (candidates.length === 0) return null;
+      return Math.max(...candidates);
+    }}
+
+    function syncFavoriteOnlineNotices(
+      state = latestState,
+      nodesById = null,
+      capsById = null,
+      latestChatTouchByNode = null,
+      nowUnix = Math.floor(Date.now() / 1000)
+    ) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodeMap = nodesById instanceof Map
+        ? nodesById
+        : new Map(
+            (Array.isArray(safeState.nodes) ? safeState.nodes : [])
+              .map((node) => [normalizeNodeId(node && node.id), node])
+          );
+      const capsMap = capsById instanceof Map
+        ? capsById
+        : new Map(
+            Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+          );
+      const chatTouchMap = latestChatTouchByNode instanceof Map
+        ? latestChatTouchByNode
+        : mapLatestChatTouchInfo(
+            Array.isArray(safeState.traffic && safeState.traffic.recent_chat)
+              ? safeState.traffic.recent_chat
+              : []
+          );
+
+      for (const nodeId of Array.from(favoriteFreshnessByNodeId.keys())) {{
+        if (!favoriteNodeIds.has(nodeId)) {{
+          favoriteFreshnessByNodeId.delete(nodeId);
+        }}
+      }}
+
+      const bootstrap = !favoriteFreshnessHydrated;
+      for (const favoriteId of favoriteNodeIds) {{
+        const nodeId = normalizeNodeId(favoriteId);
+        if (!isSelectableNodeId(nodeId)) continue;
+        const node = nodeMap.get(nodeId);
+        const caps = capsMap.get(nodeId);
+        const chatTouch = chatTouchMap.get(nodeId) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+        const status = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, nowUnix));
+        const previousStatus = favoriteFreshnessByNodeId.has(nodeId)
+          ? String(favoriteFreshnessByNodeId.get(nodeId) || "")
+          : "";
+        favoriteFreshnessByNodeId.set(nodeId, status);
+        if (bootstrap || !previousStatus || previousStatus === "online" || status !== "online") {{
+          continue;
+        }}
+        const displayName = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        const whenText = Number.isFinite(lastSeenUnix)
+          ? savedDetailAge(lastSeenUnix, nowUnix)
+          : "just now";
+        const noticeKeyUnix = Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : Math.trunc(nowUnix);
+        trackChatChangeNotice({{
+          key: `favorite-online:${{nodeId}}:${{noticeKeyUnix}}`,
+          focusKey: nodeId,
+          channel: "all",
+          targetView: "saved",
+          sender: displayName,
+          preview: `tagged node is online (${{nodeId}}, seen ${{whenText}})`,
+          kind: "status",
+          // Keep these visible even in "Self" notification scope.
+          selfRelevant: true,
+          unix: noticeKeyUnix,
+        }});
+      }}
+      favoriteFreshnessHydrated = true;
+    }}
+
+    function syncTopbarNodeOnlineTickerNotices(
+      state = latestState,
+      nodesById = null,
+      capsById = null,
+      latestChatTouchByNode = null,
+      nowUnix = Math.floor(Date.now() / 1000)
+    ) {{
+      const oneShotEnabled = (
+        typeof topbarOneshotNodeOnlineEnabled === "function"
+        ? topbarOneshotNodeOnlineEnabled()
+        : false
+      );
+      if (!oneShotEnabled) {{
+        topbarNodeFreshnessByNodeId.clear();
+        topbarNodeFreshnessHydrated = false;
+        return;
+      }}
+      const favoritesOnly = (
+        typeof topbarOneshotNodeOnlineFavoritesOnly === "function"
+        ? topbarOneshotNodeOnlineFavoritesOnly()
+        : true
+      );
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodeMap = nodesById instanceof Map
+        ? nodesById
+        : new Map(
+            (Array.isArray(safeState.nodes) ? safeState.nodes : [])
+              .map((node) => [normalizeNodeId(node && node.id), node])
+          );
+      const capsMap = capsById instanceof Map
+        ? capsById
+        : new Map(
+            Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+          );
+      const chatTouchMap = latestChatTouchByNode instanceof Map
+        ? latestChatTouchByNode
+        : mapLatestChatTouchInfo(
+            Array.isArray(safeState.traffic && safeState.traffic.recent_chat)
+              ? safeState.traffic.recent_chat
+              : []
+          );
+      const eligibleNodeIds = favoritesOnly
+        ? Array.from(favoriteNodeIds).map((rawId) => normalizeNodeId(rawId)).filter(isSelectableNodeId)
+        : Array.from(nodeMap.keys()).map((rawId) => normalizeNodeId(rawId)).filter(isSelectableNodeId);
+      const eligibleSet = new Set(eligibleNodeIds);
+      for (const nodeId of Array.from(topbarNodeFreshnessByNodeId.keys())) {{
+        if (!eligibleSet.has(nodeId)) {{
+          topbarNodeFreshnessByNodeId.delete(nodeId);
+        }}
+      }}
+      const bootstrap = !topbarNodeFreshnessHydrated;
+      for (const nodeId of eligibleNodeIds) {{
+        const node = nodeMap.get(nodeId);
+        const caps = capsMap.get(nodeId);
+        const chatTouch = chatTouchMap.get(nodeId) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+        const status = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, nowUnix));
+        const previousStatus = topbarNodeFreshnessByNodeId.has(nodeId)
+          ? String(topbarNodeFreshnessByNodeId.get(nodeId) || "")
+          : "";
+        topbarNodeFreshnessByNodeId.set(nodeId, status);
+        if (bootstrap || !previousStatus || previousStatus === "online" || status !== "online") {{
+          continue;
+        }}
+        if (typeof publishTopbarUpdateTickerEvent !== "function") {{
+          continue;
+        }}
+        const displayName = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        const whenText = Number.isFinite(lastSeenUnix)
+          ? savedDetailAge(lastSeenUnix, nowUnix)
+          : "just now";
+        const noticeKeyUnix = Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : Math.trunc(nowUnix);
+        const scopeText = favoritesOnly ? "tagged node" : "node";
+        publishTopbarUpdateTickerEvent(
+          `${{displayName}} is online (${{scopeText}}, seen ${{whenText}})`,
+          `oneshot:node_online:${{nodeId}}:${{noticeKeyUnix}}`,
+          {{ mode: "oneshot" }}
+        );
+      }}
+      topbarNodeFreshnessHydrated = true;
+    }}
+
+    function tickFreshnessUI(state = latestState) {{
+      if (!state || typeof state !== "object") return;
+      const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+      const nodesById = new Map(
+        nodes.map((node) => [normalizeNodeId(node && node.id), node])
+      );
+      const capsById = new Map(
+        Object.entries((state.history_caps && typeof state.history_caps === "object") ? state.history_caps : {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+      );
+      const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      syncFavoriteOnlineNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
+      syncTopbarNodeOnlineTickerNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
+      const freshnessByNodeId = new Map();
+      const freshnessForNode = (nodeIdRaw) => {{
+        const nodeId = normalizeNodeId(nodeIdRaw || "");
+        if (!isSelectableNodeId(nodeId)) return null;
+        const cached = freshnessByNodeId.get(nodeId);
+        if (cached && typeof cached === "object") return cached;
+        const node = nodesById.get(nodeId);
+        const caps = capsById.get(nodeId);
+        const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+        const status = freshnessStatus(lastSeenUnix, nowUnix);
+        const entry = {{
+          nodeId,
+          lastSeenUnix,
+          status,
+          key: normalizeFreshnessKey(status),
+        }};
+        freshnessByNodeId.set(nodeId, entry);
+        return entry;
+      }};
+
+      // Network explorer table freshness dots.
+      const table = document.getElementById("nodes-table");
+      if (table) {{
+        for (const row of table.querySelectorAll("tbody tr[data-node-id]")) {{
+          if (!(row instanceof HTMLElement)) continue;
+          const freshness = freshnessForNode(row.dataset.nodeId || "");
+          if (!freshness) continue;
+          applyFreshnessClass(row, freshness.status);
+          const dot = row.querySelector(".node-status-dot");
+          if (dot instanceof HTMLElement) {{
+            applyFreshnessClass(dot, freshness.status);
+          }}
+        }}
+      }}
+
+      // Chat roster freshness + counts.
+      const rosterList = document.getElementById("chat-room-list");
+      let chatOnlineCount = 0;
+      let chatWarnCount = 0;
+      let chatStaleCount = 0;
+      const rosterModel = Array.isArray(chatRosterModel) ? chatRosterModel : [];
+      if (rosterModel.length > 0) {{
+        for (const entry of rosterModel) {{
+          const freshness = freshnessForNode(entry && entry.id);
+          if (!freshness) continue;
+          if (freshness.key === "online") chatOnlineCount += 1;
+          else if (freshness.key === "warn") chatWarnCount += 1;
+          else if (freshness.key === "stale") chatStaleCount += 1;
+        }}
+      }}
+
+      if (rosterList) {{
+        // Refresh the visible DOM list's status chips, but compute the counts from the
+        // canonical roster model (so search filters don't skew the totals).
+        let fallbackOnline = 0;
+        let fallbackWarn = 0;
+        let fallbackStale = 0;
+        const useFallbackCounts = rosterModel.length === 0;
+        for (const item of rosterList.querySelectorAll(".chat-member-item[data-node-id]")) {{
+          if (!(item instanceof HTMLElement)) continue;
+          const freshness = freshnessForNode(item.dataset.nodeId || "");
+          if (!freshness) continue;
+          const key = freshness.key;
+          const lastSeenUnix = freshness.lastSeenUnix;
+          if (useFallbackCounts) {{
+            if (key === "online") fallbackOnline += 1;
+            else if (key === "warn") fallbackWarn += 1;
+            else if (key === "stale") fallbackStale += 1;
+          }}
+
+          applyFreshnessClass(item, key);
+          const statusEl = item.querySelector(".chat-member-status");
+          if (statusEl instanceof HTMLElement) applyFreshnessClass(statusEl, key);
+          const nameEl = item.querySelector(".chat-member-name");
+          if (nameEl instanceof HTMLElement) applyFreshnessClass(nameEl, key);
+          const idleDurationEl = item.querySelector(".chat-member-idle-time");
+          if (idleDurationEl instanceof HTMLElement) {{
+            idleDurationEl.hidden = false;
+            if (!Number.isFinite(lastSeenUnix) || lastSeenUnix <= 0) {{
+              idleDurationEl.textContent = "Idle: n/a";
+              idleDurationEl.title = "Last seen n/a";
+            }} else {{
+              const idleText = formatIdleAge(lastSeenUnix, nowUnix);
+              idleDurationEl.textContent = `Idle: ${{idleText}}`;
+              idleDurationEl.title = `Last seen ${{formatLocalChatTime(lastSeenUnix, "n/a", nowUnix)}}`;
+            }}
+          }}
+        }}
+        if (useFallbackCounts) {{
+          chatOnlineCount = fallbackOnline;
+          chatWarnCount = fallbackWarn;
+          chatStaleCount = fallbackStale;
+        }}
+      }}
+
+      const leftSub = document.getElementById("chat-left-sub");
+      if (leftSub) {{
+        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • View Ch: ${{currentMeshChannelViewLabel()}} • Send Ch: ${{currentMeshChannelSendLabel()}} • ${{chatOnlineCount}} online, ${{chatWarnCount}} aging, ${{chatStaleCount}} stale`;
+      }}
+
+      // Saved nodes list freshness.
+      const favList = document.getElementById("favorites-list");
+      if (favList) {{
+        for (const item of favList.querySelectorAll(".favorite-node-item[data-node-id]")) {{
+          if (!(item instanceof HTMLElement)) continue;
+          const freshness = freshnessForNode(item.dataset.nodeId || "");
+          if (!freshness) continue;
+          applyFreshnessClass(item, freshness.status);
+        }}
+
+        const caption = document.getElementById("favorites-caption");
+        if (caption) {{
+          let onlineCount = 0;
+          let warnCount = 0;
+          let staleCount = 0;
+          for (const nodeId of favoriteNodeIds) {{
+            const freshness = freshnessForNode(nodeId);
+            if (!freshness) continue;
+            if (freshness.key === "online") onlineCount += 1;
+            else if (freshness.key === "warn") warnCount += 1;
+            else if (freshness.key === "stale") staleCount += 1;
+          }}
+          caption.textContent = `Tagged subsection: ${{favoriteNodeIds.size}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
+        }}
+      }}
+
+      // Saved view summary freshness chip should age even if state is cached.
+      // Also: when the user clears selection, we must hide/reset it (304 responses would
+      // otherwise skip renderSummary() and the chip can get "stuck" stale).

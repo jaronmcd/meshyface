@@ -40,3 +40,19 @@ def test_append_local_chat_entry_returns_false_for_none_entry():
     assert ok is False
     assert list(recent) == []
     assert history.saved == []
+
+
+def test_append_local_chat_entry_skips_file_transfer_protocol_entries():
+    recent = deque(maxlen=4)
+    history = _FakeHistoryStore()
+    entry = {"text": "MF_FILE_V1|C|mtest123|0|QUJD"}
+
+    ok = append_local_chat_entry(
+        recent_chat=recent,
+        history_store=history,
+        entry=entry,
+    )
+
+    assert ok is False
+    assert list(recent) == []
+    assert history.saved == []

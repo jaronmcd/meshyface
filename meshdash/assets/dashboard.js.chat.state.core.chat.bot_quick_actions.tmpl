@@ -1,0 +1,840 @@
+    function normalizeWhoisCommandPrefix(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return knownWhoisCommandPrefixes.has(clean) ? clean : "whois";
+    }}
+
+    function nodeIdSuffixForWhois(nodeId) {{
+      const clean = String(nodeId || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (!clean) return "";
+      return clean.slice(-4);
+    }}
+
+    function buildWhoisCommandForNode(nodeId, prefixValue = chatWhoisQuickActionPrefix) {{
+      const prefix = normalizeWhoisCommandPrefix(prefixValue);
+      const suffix = nodeIdSuffixForWhois(nodeId);
+      if (!suffix) return prefix;
+      return `${{prefix}} ${{suffix}}`;
+    }}
+
+    function normalizeServerBotCommand(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+      const name = String(raw.name || raw.command || "").trim().toLowerCase();
+      if (!name) return null;
+      const usage = String(raw.usage || name).trim() || name;
+      const description = String(raw.description || "").trim();
+      const kindRaw = String(raw.kind || "builtin").trim().toLowerCase();
+      const kind = kindRaw === "custom"
+        ? "custom"
+        : (kindRaw === "game" ? "game" : "builtin");
+      return {{
+        name,
+        usage,
+        description,
+        kind,
+        enabled: parseBoolToken(raw.enabled, true),
+      }};
+    }}
+
+    function normalizeBotSettingsTextList(value, {{ splitCommas = false }} = {{}}) {{
+      let rawItems = [];
+      if (Array.isArray(value)) {{
+        rawItems = value;
+      }} else {{
+        let normalized = String(value || "").replace(/;/g, "\n");
+        if (splitCommas) {{
+          normalized = normalized.replace(/,/g, "\n");
+        }}
+        rawItems = normalized.split(/\r?\n/);
+      }}
+      const out = [];
+      const seen = new Set();
+      for (const rawItem of rawItems) {{
+        const clean = String(rawItem || "").trim();
+        if (!clean) continue;
+        const key = clean.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(clean);
+      }}
+      return out;
+    }}
+
+    function normalizeServerBotSettings(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {{
+        return {{
+          available: false,
+          enabled: true,
+          log_enabled: true,
+          game_enabled: false,
+          game_public_start_enabled: false,
+          hard_disabled_incoming_commands: [],
+          ping_triggers: [],
+          ping_response_template: "",
+          pull_reel_symbols: [],
+          pull_response_template: "",
+          joke_triggers: [],
+          zork_triggers: [],
+          joke_lines: [],
+          joke_near_guess_lines: [],
+          joke_delay_punchline_enabled: false,
+          active_game_sessions: 0,
+          commands: [],
+          disabled_commands: [],
+        }};
+      }}
+      const sessionsRaw = Number(raw.active_game_sessions ?? raw.activeGameSessions ?? 0);
+      const commandsRaw = Array.isArray(raw.commands) ? raw.commands : [];
+      const commands = [];
+      const seen = new Set();
+      for (const row of commandsRaw) {{
+        const normalized = normalizeServerBotCommand(row);
+        if (!normalized || seen.has(normalized.name)) continue;
+        commands.push(normalized);
+        seen.add(normalized.name);
+      }}
+      const disabledRaw = Array.isArray(raw.disabled_commands ?? raw.disabledCommands)
+        ? (raw.disabled_commands ?? raw.disabledCommands)
+        : [];
+      const disabledCommands = [];
+      const disabledSeen = new Set();
+      for (const value of disabledRaw) {{
+        const clean = String(value || "").trim().toLowerCase();
+        if (!clean || disabledSeen.has(clean)) continue;
+        disabledCommands.push(clean);
+        disabledSeen.add(clean);
+      }}
+      return {{
+        available: true,
+        enabled: parseBoolToken(raw.enabled, true),
+        log_enabled: parseBoolToken(raw.log_enabled ?? raw.logEnabled, true),
+        game_enabled: parseBoolToken(raw.game_enabled ?? raw.gameEnabled, false),
+        game_public_start_enabled: parseBoolToken(
+          raw.game_public_start_enabled ?? raw.gamePublicStartEnabled,
+          false
+        ),
+        hard_disabled_incoming_commands: normalizeBotSettingsTextList(
+          raw.hard_disabled_incoming_commands ?? raw.hardDisabledIncomingCommands,
+          {{ splitCommas: true }}
+        ),
+        ping_triggers: normalizeBotSettingsTextList(
+          raw.ping_triggers ?? raw.pingTriggers,
+          {{ splitCommas: true }}
+        ),
+        ping_response_template: String(
+          raw.ping_response_template ?? raw.pingResponseTemplate ?? ""
+        ).trim().slice(0, 240),
+        pull_reel_symbols: normalizeBotSettingsTextList(
+          raw.pull_reel_symbols ?? raw.pullReelSymbols,
+          {{ splitCommas: true }}
+        ),
+        pull_response_template: String(
+          raw.pull_response_template ?? raw.pullResponseTemplate ?? ""
+        ).trim().slice(0, 280),
+        joke_triggers: normalizeBotSettingsTextList(
+          raw.joke_triggers ?? raw.jokeTriggers,
+          {{ splitCommas: true }}
+        ),
+        zork_triggers: normalizeBotSettingsTextList(
+          raw.zork_triggers ?? raw.zorkTriggers,
+          {{ splitCommas: true }}
+        ),
+        joke_lines: normalizeBotSettingsTextList(
+          raw.joke_lines ?? raw.jokeLines,
+          {{ splitCommas: false }}
+        ),
+        joke_near_guess_lines: normalizeBotSettingsTextList(
+          raw.joke_near_guess_lines ?? raw.jokeNearGuessLines,
+          {{ splitCommas: false }}
+        ),
+        joke_delay_punchline_enabled: parseBoolToken(
+          raw.joke_delay_punchline_enabled ?? raw.jokeDelayPunchlineEnabled,
+          false
+        ),
+        active_game_sessions: Number.isFinite(sessionsRaw) && sessionsRaw >= 0 ? Math.trunc(sessionsRaw) : 0,
+        commands,
+        disabled_commands: disabledCommands,
+      }};
+    }}
+
+    function applyServerBotSettingsFromState(state = latestState) {{
+      const normalized = normalizeServerBotSettings(state && state.bot_settings);
+      serverBotSettings = normalized;
+      return normalized.available;
+    }}
+
+    function hardDisableIncomingAutomationAndFileTransferEnabled() {{
+      const hardDisabled = Array.isArray(serverBotSettings.hard_disabled_incoming_commands)
+        ? serverBotSettings.hard_disabled_incoming_commands.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean)
+        : [];
+      return hardDisabled.includes("all");
+    }}
+
+    async function saveServerBotSettingsPatch(patch = {{}}, { quiet = false } = {{}}) {{
+      if (!patch || typeof patch !== "object") {{
+        return false;
+      }}
+      botSettingsSaveInFlight = true;
+      syncChatWhoisQuickActionControls();
+      try {{
+        const resp = await fetch(botSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(patch),
+        }});
+        const payload = await resp.json().catch(() => ({{ ok: false, error: `API ${{resp.status}}` }}));
+        if (!resp.ok || !payload || payload.ok === false) {{
+          const message = payload && payload.error ? payload.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        serverBotSettings = normalizeServerBotSettings(payload);
+        if (!quiet) {{
+          setChatSendStatus(
+            "Bot settings updated.",
+            false
+          );
+        }}
+        if (latestState && typeof latestState === "object") {{
+          latestState.bot_settings = {{ ...payload }};
+        }}
+        if (activeLayoutView === "bots") {{
+          renderBotsView(latestState);
+        }}
+        return true;
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        if (!quiet) {{
+          setChatSendStatus(`Failed to update bot settings: ${{msg}}`, true);
+        }}
+        appendConsoleLine(`bot-settings-save|${{Date.now()}}|${{msg}}`, `[bot settings] save failed: ${{msg}}`);
+      }} finally {{
+        botSettingsSaveInFlight = false;
+        syncChatWhoisQuickActionControls();
+      }}
+      return false;
+    }}
+
+    function syncChatWhoisQuickActionControls() {{
+      const masterInput = document.getElementById("bots-command-master-enabled");
+      const hardDisableAllInput = document.getElementById("bots-command-hard-disable-all");
+      const commandEnabledInput = document.getElementById("bots-command-selected-enabled");
+      const pingConfigWrap = document.getElementById("bots-command-ping-config-wrap");
+      const pingTriggersInput = document.getElementById("bots-command-ping-triggers");
+      const pingResponseTemplateInput = document.getElementById("bots-command-ping-response-template");
+      const pingSaveBtn = document.getElementById("bots-command-ping-save-btn");
+      const pullConfigWrap = document.getElementById("bots-command-pull-config-wrap");
+      const pullReelSymbolsInput = document.getElementById("bots-command-pull-reel-symbols");
+      const pullResponseTemplateInput = document.getElementById("bots-command-pull-response-template");
+      const pullSaveBtn = document.getElementById("bots-command-pull-save-btn");
+      const zorkConfigWrap = document.getElementById("bots-command-zork-config-wrap");
+      const zorkTriggersInput = document.getElementById("bots-command-zork-triggers");
+      const zorkSaveBtn = document.getElementById("bots-command-zork-save-btn");
+      const publicStartWrap = document.getElementById("bots-command-selected-public-start-wrap");
+      const publicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      const publicStartNote = document.getElementById("bots-command-selected-public-start-note");
+      const jokeConfigWrap = document.getElementById("bots-command-joke-config-wrap");
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
+      const jokeTriggersInput = document.getElementById("bots-command-joke-triggers");
+      const jokeLinesInput = document.getElementById("bots-command-joke-lines");
+      const jokeNearGuessLinesInput = document.getElementById("bots-command-joke-near-guess-lines");
+      const jokeSaveBtn = document.getElementById("bots-command-joke-save-btn");
+      const enabledInput = document.getElementById("chat-bot-whois-enabled");
+      const prefixSelect = document.getElementById("chat-bot-whois-prefix");
+      const threadReplyInput = document.getElementById("chat-bot-whois-thread-reply");
+      const commandsInput = document.getElementById("chat-bot-commands-enabled");
+      const historyInput = document.getElementById("chat-bot-history-enabled");
+      const commandsEnabled = !!chatBotCommandsEnabled;
+      const enabled = commandsEnabled && !!chatWhoisQuickActionEnabled;
+      const prefix = normalizeWhoisCommandPrefix(chatWhoisQuickActionPrefix);
+      const zorkCommand = Array.isArray(serverBotSettings.commands)
+        ? serverBotSettings.commands.find((row) => String(row && row.name || "").trim().toLowerCase() === "zork")
+        : null;
+      const selectedCommandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      const selectedCommand = Array.isArray(serverBotSettings.commands)
+        ? serverBotSettings.commands.find((row) => String(row && row.name || "").trim().toLowerCase() === selectedCommandName)
+        : null;
+      const zorkEnabled = !!(zorkCommand && zorkCommand.enabled);
+      const selectedIsPing = !!(selectedCommand && selectedCommand.name === "ping");
+      const selectedIsPull = !!(selectedCommand && selectedCommand.name === "pull");
+      const selectedIsZork = !!(selectedCommand && selectedCommand.name === "zork");
+      const selectedIsJoke = !!(selectedCommand && selectedCommand.name === "joke");
+      const available = !!serverBotSettings.available;
+      const hardDisableAll = hardDisableIncomingAutomationAndFileTransferEnabled();
+      if (pingConfigWrap instanceof HTMLElement) {{
+        pingConfigWrap.hidden = !selectedIsPing;
+      }}
+      if (pullConfigWrap instanceof HTMLElement) {{
+        pullConfigWrap.hidden = !selectedIsPull;
+      }}
+      if (zorkConfigWrap instanceof HTMLElement) {{
+        zorkConfigWrap.hidden = !selectedIsZork;
+      }}
+      if (publicStartWrap instanceof HTMLElement) {{
+        publicStartWrap.hidden = !selectedIsZork;
+      }}
+      if (publicStartNote instanceof HTMLElement) {{
+        publicStartNote.hidden = !selectedIsZork;
+      }}
+      if (jokeConfigWrap instanceof HTMLElement) {{
+        jokeConfigWrap.hidden = !selectedIsJoke;
+      }}
+      if (enabledInput instanceof HTMLInputElement) {{
+        enabledInput.checked = !!chatWhoisQuickActionEnabled;
+        enabledInput.disabled = !commandsEnabled;
+      }}
+      if (prefixSelect instanceof HTMLSelectElement) {{
+        prefixSelect.value = prefix;
+        prefixSelect.disabled = !enabled;
+      }}
+      if (threadReplyInput instanceof HTMLInputElement) {{
+        threadReplyInput.checked = !!chatWhoisQuickActionThreadReply;
+        threadReplyInput.disabled = !enabled;
+      }}
+      if (commandsInput instanceof HTMLInputElement) {{
+        commandsInput.checked = commandsEnabled;
+      }}
+      if (historyInput instanceof HTMLInputElement) {{
+        historyInput.checked = !!chatBotHistoryEnabled;
+        historyInput.disabled = !commandsEnabled;
+      }}
+      if (masterInput instanceof HTMLInputElement) {{
+        masterInput.checked = !!serverBotSettings.enabled;
+        masterInput.disabled = !available || botSettingsSaveInFlight;
+        if (!available) {{
+          masterInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (botSettingsSaveInFlight) {{
+          masterInput.title = "Saving bot response setting...";
+        }} else {{
+          masterInput.title = "Enable or disable all backend bot responses on this node.";
+        }}
+      }}
+      if (hardDisableAllInput instanceof HTMLInputElement) {{
+        hardDisableAllInput.checked = hardDisableAll;
+        hardDisableAllInput.disabled = !available || botSettingsSaveInFlight;
+        if (!available) {{
+          hardDisableAllInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (botSettingsSaveInFlight) {{
+          hardDisableAllInput.title = "Saving hard-disable setting...";
+        }} else {{
+          hardDisableAllInput.title = "Hard-disable all incoming bot commands and incoming file-transfer protocol handling. Outgoing file sends are not blocked.";
+        }}
+      }}
+      if (commandEnabledInput instanceof HTMLInputElement) {{
+        commandEnabledInput.checked = !!(selectedCommand && selectedCommand.enabled);
+        commandEnabledInput.disabled = !available || !selectedCommand || botSettingsSaveInFlight;
+        if (!available) {{
+          commandEnabledInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedCommand) {{
+          commandEnabledInput.title = "Select a bot command to edit.";
+        }} else if (botSettingsSaveInFlight) {{
+          commandEnabledInput.title = "Saving bot command settings...";
+        }} else if (!serverBotSettings.enabled) {{
+          commandEnabledInput.title = "Bot responses are globally disabled. Per-command settings are preserved.";
+        }} else {{
+          commandEnabledInput.title = "Enable or disable this backend bot command.";
+        }}
+      }}
+      if (pingTriggersInput instanceof HTMLTextAreaElement) {{
+        const value = selectedIsPing && Array.isArray(serverBotSettings.ping_triggers)
+          ? serverBotSettings.ping_triggers.join("\n")
+          : "";
+        if (document.activeElement !== pingTriggersInput || !selectedIsPing) {{
+          pingTriggersInput.value = value;
+        }}
+        pingTriggersInput.disabled = !available || botSettingsSaveInFlight || !selectedIsPing;
+        if (!available) {{
+          pingTriggersInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsPing) {{
+          pingTriggersInput.title = "Select the ping command to edit trigger phrases.";
+        }} else if (botSettingsSaveInFlight) {{
+          pingTriggersInput.title = "Saving ping settings...";
+        }} else {{
+          pingTriggersInput.title = "Delimited trigger phrases. One per line (or comma separated).";
+        }}
+      }}
+      if (pingResponseTemplateInput instanceof HTMLInputElement) {{
+        const value = selectedIsPing
+          ? String(serverBotSettings.ping_response_template || "")
+          : "";
+        if (document.activeElement !== pingResponseTemplateInput || !selectedIsPing) {{
+          pingResponseTemplateInput.value = value;
+        }}
+        pingResponseTemplateInput.disabled = !available || botSettingsSaveInFlight || !selectedIsPing;
+        if (!available) {{
+          pingResponseTemplateInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsPing) {{
+          pingResponseTemplateInput.title = "Select the ping command to edit reply template.";
+        }} else if (botSettingsSaveInFlight) {{
+          pingResponseTemplateInput.title = "Saving ping settings...";
+        }} else {{
+          pingResponseTemplateInput.title = "Optional ping reply template. Use tokens like $sender, $hops, $hop_label, $bot, $location, $city, and $state.";
+        }}
+      }}
+      if (pingSaveBtn instanceof HTMLButtonElement) {{
+        pingSaveBtn.disabled = !available || botSettingsSaveInFlight || !selectedIsPing;
+      }}
+      if (pullReelSymbolsInput instanceof HTMLInputElement) {{
+        const value = selectedIsPull && Array.isArray(serverBotSettings.pull_reel_symbols)
+          ? serverBotSettings.pull_reel_symbols.join(", ")
+          : "";
+        if (document.activeElement !== pullReelSymbolsInput || !selectedIsPull) {{
+          pullReelSymbolsInput.value = value;
+        }}
+        pullReelSymbolsInput.disabled = !available || botSettingsSaveInFlight || !selectedIsPull;
+        if (!available) {{
+          pullReelSymbolsInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsPull) {{
+          pullReelSymbolsInput.title = "Select the pull command to edit reel emojis.";
+        }} else if (botSettingsSaveInFlight) {{
+          pullReelSymbolsInput.title = "Saving pull settings...";
+        }} else {{
+          pullReelSymbolsInput.title = "Comma-delimited reel emoji list.";
+        }}
+      }}
+      if (pullResponseTemplateInput instanceof HTMLInputElement) {{
+        const value = selectedIsPull
+          ? String(serverBotSettings.pull_response_template || "")
+          : "";
+        if (document.activeElement !== pullResponseTemplateInput || !selectedIsPull) {{
+          pullResponseTemplateInput.value = value;
+        }}
+        pullResponseTemplateInput.disabled = !available || botSettingsSaveInFlight || !selectedIsPull;
+        if (!available) {{
+          pullResponseTemplateInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsPull) {{
+          pullResponseTemplateInput.title = "Select the pull command to edit reply template.";
+        }} else if (botSettingsSaveInFlight) {{
+          pullResponseTemplateInput.title = "Saving pull settings...";
+        }} else {{
+          pullResponseTemplateInput.title = "Optional pull reply template. Use tokens like $reels, $reel1, $reel2, $reel3, $prize, $tier, and $result.";
+        }}
+      }}
+      if (pullSaveBtn instanceof HTMLButtonElement) {{
+        pullSaveBtn.disabled = !available || botSettingsSaveInFlight || !selectedIsPull;
+      }}
+      if (zorkTriggersInput instanceof HTMLTextAreaElement) {{
+        const value = selectedIsZork && Array.isArray(serverBotSettings.zork_triggers)
+          ? serverBotSettings.zork_triggers.join("\n")
+          : "";
+        if (document.activeElement !== zorkTriggersInput || !selectedIsZork) {{
+          zorkTriggersInput.value = value;
+        }}
+        zorkTriggersInput.disabled = !available || botSettingsSaveInFlight || !selectedIsZork;
+        if (!available) {{
+          zorkTriggersInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsZork) {{
+          zorkTriggersInput.title = "Select the zork command to edit trigger phrases.";
+        }} else if (botSettingsSaveInFlight) {{
+          zorkTriggersInput.title = "Saving zork settings...";
+        }} else {{
+          zorkTriggersInput.title = "Delimited trigger phrases. One per line (or comma separated). Use the nodename placeholder to optionally match your local node name.";
+        }}
+      }}
+      if (zorkSaveBtn instanceof HTMLButtonElement) {{
+        zorkSaveBtn.disabled = !available || botSettingsSaveInFlight || !selectedIsZork;
+      }}
+      if (publicStartInput instanceof HTMLInputElement) {{
+        publicStartInput.checked = !!serverBotSettings.game_public_start_enabled;
+        publicStartInput.disabled = !available || botSettingsSaveInFlight || !selectedIsZork;
+        if (!available) {{
+          publicStartInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsZork) {{
+          publicStartInput.title = "Select the zork command to edit this setting.";
+        }} else if (botSettingsSaveInFlight) {{
+          publicStartInput.title = "Saving zork handoff setting...";
+        }} else if (!serverBotSettings.enabled) {{
+          publicStartInput.title = "Bot responses are globally disabled. This setting will apply when responses are enabled.";
+        }} else if (!zorkEnabled) {{
+          publicStartInput.title = "Zork is disabled. This setting is saved and will apply when the game command is enabled.";
+        }} else {{
+          publicStartInput.title = "When enabled, a public 'zork' message starts the game with a direct peer-to-peer reply. Follow-up commands still need to continue in direct chat.";
+        }}
+      }}
+      if (jokeTriggersInput instanceof HTMLTextAreaElement) {{
+        const value = selectedIsJoke && Array.isArray(serverBotSettings.joke_triggers)
+          ? serverBotSettings.joke_triggers.join("\n")
+          : "";
+        if (document.activeElement !== jokeTriggersInput || !selectedIsJoke) {{
+          jokeTriggersInput.value = value;
+        }}
+        jokeTriggersInput.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+        if (!available) {{
+          jokeTriggersInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsJoke) {{
+          jokeTriggersInput.title = "Select the joke command to edit trigger phrases.";
+        }} else if (botSettingsSaveInFlight) {{
+          jokeTriggersInput.title = "Saving joke settings...";
+        }} else {{
+          jokeTriggersInput.title = "Delimited trigger phrases. One per line (or comma separated).";
+        }}
+      }}
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement) {{
+        jokeDelayPunchlineInput.checked = !!serverBotSettings.joke_delay_punchline_enabled;
+        jokeDelayPunchlineInput.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+        if (!available) {{
+          jokeDelayPunchlineInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsJoke) {{
+          jokeDelayPunchlineInput.title = "Select the joke command to edit this setting.";
+        }} else if (botSettingsSaveInFlight) {{
+          jokeDelayPunchlineInput.title = "Saving joke settings...";
+        }} else {{
+          jokeDelayPunchlineInput.title = "Pause question jokes to let people answer before posting the punchline.";
+        }}
+      }}
+      if (jokeLinesInput instanceof HTMLTextAreaElement) {{
+        const value = selectedIsJoke && Array.isArray(serverBotSettings.joke_lines)
+          ? serverBotSettings.joke_lines.join("\n")
+          : "";
+        if (document.activeElement !== jokeLinesInput || !selectedIsJoke) {{
+          jokeLinesInput.value = value;
+        }}
+        jokeLinesInput.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+        if (!available) {{
+          jokeLinesInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsJoke) {{
+          jokeLinesInput.title = "Select the joke command to edit joke lines.";
+        }} else if (botSettingsSaveInFlight) {{
+          jokeLinesInput.title = "Saving joke settings...";
+        }} else {{
+          jokeLinesInput.title = "One joke per line.";
+        }}
+      }}
+      if (jokeNearGuessLinesInput instanceof HTMLTextAreaElement) {{
+        const value = selectedIsJoke && Array.isArray(serverBotSettings.joke_near_guess_lines)
+          ? serverBotSettings.joke_near_guess_lines.join("\n")
+          : "";
+        if (document.activeElement !== jokeNearGuessLinesInput || !selectedIsJoke) {{
+          jokeNearGuessLinesInput.value = value;
+        }}
+        jokeNearGuessLinesInput.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+        if (!available) {{
+          jokeNearGuessLinesInput.title = "Backend bot settings endpoint unavailable on this node.";
+        }} else if (!selectedIsJoke) {{
+          jokeNearGuessLinesInput.title = "Select the joke command to edit near-guess responses.";
+        }} else if (botSettingsSaveInFlight) {{
+          jokeNearGuessLinesInput.title = "Saving joke settings...";
+        }} else {{
+          jokeNearGuessLinesInput.title = "One near-guess response per line. Include {{punchline}} if you want to reveal the answer.";
+        }}
+      }}
+      if (jokeSaveBtn instanceof HTMLButtonElement) {{
+        jokeSaveBtn.disabled = !available || botSettingsSaveInFlight || !selectedIsJoke;
+      }}
+    }}
+
+    function applyChatWhoisQuickActionConfig(config = {{}}, persist = true) {{
+      const nextEnabled = Object.prototype.hasOwnProperty.call(config, "enabled")
+        ? !!config.enabled
+        : !!chatWhoisQuickActionEnabled;
+      const nextPrefix = Object.prototype.hasOwnProperty.call(config, "prefix")
+        ? normalizeWhoisCommandPrefix(config.prefix)
+        : normalizeWhoisCommandPrefix(chatWhoisQuickActionPrefix);
+      const nextThreadReply = Object.prototype.hasOwnProperty.call(config, "threadReply")
+        ? !!config.threadReply
+        : !!chatWhoisQuickActionThreadReply;
+      const nextCommandsEnabled = Object.prototype.hasOwnProperty.call(config, "commandsEnabled")
+        ? !!config.commandsEnabled
+        : !!chatBotCommandsEnabled;
+      const nextHistoryEnabled = Object.prototype.hasOwnProperty.call(config, "historyEnabled")
+        ? !!config.historyEnabled
+        : !!chatBotHistoryEnabled;
+      const changed = (
+        chatWhoisQuickActionEnabled !== nextEnabled
+        || chatWhoisQuickActionPrefix !== nextPrefix
+        || chatWhoisQuickActionThreadReply !== nextThreadReply
+        || chatBotCommandsEnabled !== nextCommandsEnabled
+        || chatBotHistoryEnabled !== nextHistoryEnabled
+      );
+      chatWhoisQuickActionEnabled = nextEnabled;
+      chatWhoisQuickActionPrefix = nextPrefix;
+      chatWhoisQuickActionThreadReply = nextThreadReply;
+      chatBotCommandsEnabled = nextCommandsEnabled;
+      chatBotHistoryEnabled = nextHistoryEnabled;
+      syncChatWhoisQuickActionControls();
+      if (persist) {{
+        try {{
+          window.localStorage.setItem(chatWhoisQuickActionEnabledStorageKey, nextEnabled ? "1" : "0");
+          window.localStorage.setItem(chatWhoisQuickActionPrefixStorageKey, nextPrefix);
+          window.localStorage.setItem(chatWhoisQuickActionThreadReplyStorageKey, nextThreadReply ? "1" : "0");
+          window.localStorage.setItem(chatBotCommandsEnabledStorageKey, nextCommandsEnabled ? "1" : "0");
+          window.localStorage.setItem(chatBotHistoryEnabledStorageKey, nextHistoryEnabled ? "1" : "0");
+        }} catch (_err) {{
+        }}
+      }}
+      if (changed && latestState) {{
+        if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+          renderChat(latestState);
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(latestState);
+          }}
+        }}
+        if (activeLayoutView === "bots") {{
+          renderBotsView(latestState);
+        }}
+      }}
+    }}
+
+    function loadChatWhoisQuickActionConfig() {{
+      const config = {{
+        enabled: false,
+        prefix: "whois",
+        threadReply: true,
+        commandsEnabled: true,
+        historyEnabled: true,
+      }};
+      applyChatWhoisQuickActionConfig(config, false);
+    }}
+
+    function bindChatWhoisQuickActionControls() {{
+      const enabledInput = document.getElementById("chat-bot-whois-enabled");
+      if (enabledInput instanceof HTMLInputElement && enabledInput.dataset.bound !== "1") {{
+        enabledInput.dataset.bound = "1";
+        enabledInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ enabled: enabledInput.checked }}, true);
+        }});
+      }}
+      const prefixSelect = document.getElementById("chat-bot-whois-prefix");
+      if (prefixSelect instanceof HTMLSelectElement && prefixSelect.dataset.bound !== "1") {{
+        prefixSelect.dataset.bound = "1";
+        prefixSelect.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ prefix: prefixSelect.value }}, true);
+        }});
+      }}
+      const threadReplyInput = document.getElementById("chat-bot-whois-thread-reply");
+      if (threadReplyInput instanceof HTMLInputElement && threadReplyInput.dataset.bound !== "1") {{
+        threadReplyInput.dataset.bound = "1";
+        threadReplyInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ threadReply: threadReplyInput.checked }}, true);
+        }});
+      }}
+      const commandsInput = document.getElementById("chat-bot-commands-enabled");
+      if (commandsInput instanceof HTMLInputElement && commandsInput.dataset.bound !== "1") {{
+        commandsInput.dataset.bound = "1";
+        commandsInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ commandsEnabled: commandsInput.checked }}, true);
+        }});
+      }}
+      const historyInput = document.getElementById("chat-bot-history-enabled");
+      if (historyInput instanceof HTMLInputElement && historyInput.dataset.bound !== "1") {{
+        historyInput.dataset.bound = "1";
+        historyInput.addEventListener("change", () => {{
+          applyChatWhoisQuickActionConfig({{ historyEnabled: historyInput.checked }}, true);
+        }});
+      }}
+      syncChatWhoisQuickActionControls();
+    }}
+
+    async function saveSelectedPingBotSettings() {{
+      const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      if (commandName !== "ping") return false;
+      const triggersInput = document.getElementById("bots-command-ping-triggers");
+      const responseTemplateInput = document.getElementById("bots-command-ping-response-template");
+      const triggers = normalizeBotSettingsTextList(
+        triggersInput instanceof HTMLTextAreaElement ? triggersInput.value : "",
+        {{ splitCommas: true }}
+      );
+      const responseTemplate = String(
+        responseTemplateInput instanceof HTMLInputElement ? responseTemplateInput.value : ""
+      ).trim().slice(0, 240);
+      const ok = await saveServerBotSettingsPatch({{
+        ping_triggers: triggers,
+        ping_response_template: responseTemplate,
+      }});
+      if (!ok) {{
+        renderBotsView(latestState);
+        return false;
+      }}
+      return true;
+    }}
+
+    async function saveSelectedPullBotSettings() {{
+      const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      if (commandName !== "pull") return false;
+      const reelSymbolsInput = document.getElementById("bots-command-pull-reel-symbols");
+      const responseTemplateInput = document.getElementById("bots-command-pull-response-template");
+      const reelSymbols = normalizeBotSettingsTextList(
+        reelSymbolsInput instanceof HTMLInputElement ? reelSymbolsInput.value : "",
+        {{ splitCommas: true }}
+      );
+      const responseTemplate = String(
+        responseTemplateInput instanceof HTMLInputElement ? responseTemplateInput.value : ""
+      ).trim().slice(0, 280);
+      const ok = await saveServerBotSettingsPatch({{
+        pull_reel_symbols: reelSymbols,
+        pull_response_template: responseTemplate,
+      }});
+      if (!ok) {{
+        renderBotsView(latestState);
+        return false;
+      }}
+      return true;
+    }}
+
+    async function saveSelectedZorkBotSettings() {{
+      const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      if (commandName !== "zork") return false;
+      const triggersInput = document.getElementById("bots-command-zork-triggers");
+      const triggers = normalizeBotSettingsTextList(
+        triggersInput instanceof HTMLTextAreaElement ? triggersInput.value : "",
+        {{ splitCommas: true }}
+      );
+      const ok = await saveServerBotSettingsPatch({{
+        zork_triggers: triggers,
+      }});
+      if (!ok) {{
+        renderBotsView(latestState);
+        return false;
+      }}
+      return true;
+    }}
+
+    async function saveSelectedJokeBotSettings() {{
+      const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      if (commandName !== "joke") return false;
+      const triggersInput = document.getElementById("bots-command-joke-triggers");
+      const linesInput = document.getElementById("bots-command-joke-lines");
+      const nearGuessLinesInput = document.getElementById("bots-command-joke-near-guess-lines");
+      const delayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
+      const triggers = normalizeBotSettingsTextList(
+        triggersInput instanceof HTMLTextAreaElement ? triggersInput.value : "",
+        {{ splitCommas: true }}
+      );
+      const jokeLines = normalizeBotSettingsTextList(
+        linesInput instanceof HTMLTextAreaElement ? linesInput.value : "",
+        {{ splitCommas: false }}
+      );
+      const jokeNearGuessLines = normalizeBotSettingsTextList(
+        nearGuessLinesInput instanceof HTMLTextAreaElement ? nearGuessLinesInput.value : "",
+        {{ splitCommas: false }}
+      );
+      const ok = await saveServerBotSettingsPatch({{
+        joke_triggers: triggers,
+        joke_lines: jokeLines,
+        joke_near_guess_lines: jokeNearGuessLines,
+        joke_delay_punchline_enabled: !!(
+          delayPunchlineInput instanceof HTMLInputElement
+          ? delayPunchlineInput.checked
+          : false
+        ),
+      }});
+      if (!ok) {{
+        renderBotsView(latestState);
+        return false;
+      }}
+      return true;
+    }}
+
+    function bindBotCommandCatalogControls() {{
+      const masterInput = document.getElementById("bots-command-master-enabled");
+      if (masterInput instanceof HTMLInputElement && masterInput.dataset.bound !== "1") {{
+        masterInput.dataset.bound = "1";
+        masterInput.addEventListener("change", async () => {{
+          const nextValue = !!masterInput.checked;
+          const ok = await saveServerBotSettingsPatch({{ enabled: nextValue }});
+          if (!ok) {{
+            masterInput.checked = !!serverBotSettings.enabled;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const hardDisableAllInput = document.getElementById("bots-command-hard-disable-all");
+      if (hardDisableAllInput instanceof HTMLInputElement && hardDisableAllInput.dataset.bound !== "1") {{
+        hardDisableAllInput.dataset.bound = "1";
+        hardDisableAllInput.addEventListener("change", async () => {{
+          const nextList = hardDisableAllInput.checked ? ["all"] : [];
+          const ok = await saveServerBotSettingsPatch({{
+            hard_disabled_incoming_commands: nextList,
+          }});
+          if (!ok) {{
+            hardDisableAllInput.checked = hardDisableIncomingAutomationAndFileTransferEnabled();
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const list = document.getElementById("bots-command-list");
+      if (list instanceof HTMLElement && list.dataset.bound !== "1") {{
+        list.dataset.bound = "1";
+        list.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".bots-command-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          const commandName = String(item.dataset.commandName || "").trim().toLowerCase();
+          if (!commandName) return;
+          activeBotCommandSettingsId = commandName;
+          renderManagedBotCommandList();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const selectedEnabledInput = document.getElementById("bots-command-selected-enabled");
+      if (selectedEnabledInput instanceof HTMLInputElement && selectedEnabledInput.dataset.bound !== "1") {{
+        selectedEnabledInput.dataset.bound = "1";
+        selectedEnabledInput.addEventListener("change", async () => {{
+          const commandName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+          if (!commandName) return;
+          const ok = await saveServerBotSettingsPatch({{
+            command_settings: {{
+              [commandName]: !!selectedEnabledInput.checked,
+            }},
+          }});
+          if (!ok) {{
+            renderBotsView(latestState);
+            return;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const selectedPublicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      if (selectedPublicStartInput instanceof HTMLInputElement && selectedPublicStartInput.dataset.bound !== "1") {{
+        selectedPublicStartInput.dataset.bound = "1";
+        selectedPublicStartInput.addEventListener("change", async () => {{
+          const ok = await saveServerBotSettingsPatch({{
+            game_public_start_enabled: !!selectedPublicStartInput.checked,
+          }});
+          if (!ok) {{
+            renderBotsView(latestState);
+            return;
+          }}
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const pingSaveBtn = document.getElementById("bots-command-ping-save-btn");
+      if (pingSaveBtn instanceof HTMLButtonElement && pingSaveBtn.dataset.bound !== "1") {{
+        pingSaveBtn.dataset.bound = "1";
+        pingSaveBtn.addEventListener("click", async () => {{
+          await saveSelectedPingBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const pullSaveBtn = document.getElementById("bots-command-pull-save-btn");
+      if (pullSaveBtn instanceof HTMLButtonElement && pullSaveBtn.dataset.bound !== "1") {{
+        pullSaveBtn.dataset.bound = "1";
+        pullSaveBtn.addEventListener("click", async () => {{
+          await saveSelectedPullBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const zorkSaveBtn = document.getElementById("bots-command-zork-save-btn");
+      if (zorkSaveBtn instanceof HTMLButtonElement && zorkSaveBtn.dataset.bound !== "1") {{
+        zorkSaveBtn.dataset.bound = "1";
+        zorkSaveBtn.addEventListener("click", async () => {{
+          await saveSelectedZorkBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const jokeSaveBtn = document.getElementById("bots-command-joke-save-btn");
+      if (jokeSaveBtn instanceof HTMLButtonElement && jokeSaveBtn.dataset.bound !== "1") {{
+        jokeSaveBtn.dataset.bound = "1";
+        jokeSaveBtn.addEventListener("click", async () => {{
+          await saveSelectedJokeBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement && jokeDelayPunchlineInput.dataset.bound !== "1") {{
+        jokeDelayPunchlineInput.dataset.bound = "1";
+        jokeDelayPunchlineInput.addEventListener("change", async () => {{
+          await saveSelectedJokeBotSettings();
+          syncChatWhoisQuickActionControls();
+        }});
+      }}
+    }}

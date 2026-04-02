@@ -105,3 +105,27 @@ def test_handle_chat_send_post_returns_200_on_success():
     assert calls[0]["payload_obj"]["ok"] is True
     assert calls[0]["payload_obj"]["message_id"] == 123
     assert calls[0]["no_store"] is True
+
+
+def test_handle_chat_send_post_returns_500_for_unexpected_errors():
+    calls = []
+
+    handle_chat_send_post(
+        _fake_handler(),
+        send_chat_fn=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        to_int_fn=lambda value: int(value) if value else None,
+        validate_content_length_fn=lambda *_args, **_kwargs: 2,
+        parse_chat_send_request_fn=lambda *_args, **_kwargs: ChatSendRequest(
+            text="x",
+            destination="^all",
+            channel_index=0,
+            reply_id=None,
+            retry_of=None,
+            emoji=None,
+        ),
+        write_json_response_fn=lambda *_args, **kwargs: calls.append(kwargs),
+    )
+
+    assert calls[0]["status_code"] == 500
+    assert calls[0]["payload_obj"]["ok"] is False
+    assert "Send failed: boom" in calls[0]["payload_obj"]["error"]

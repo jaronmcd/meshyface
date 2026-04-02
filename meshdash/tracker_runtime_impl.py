@@ -50,6 +50,7 @@ MIN_REAL_LINK_COUNT = 2
 class DashboardTracker:
     def __init__(self, packet_limit: int, history_store: Optional[HistoryStore] = None) -> None:
         self._lock = threading.Lock()
+        self._accept_packets = True
         _initialize_dashboard_tracker_runtime_helper(
             self,
             packet_limit=packet_limit,
@@ -65,11 +66,20 @@ class DashboardTracker:
             to_int_fn=_to_int,
             now_unix_fn=time.time,
         )
+        self.radio_link_connected: Optional[bool] = None
+        self.radio_link_changed_unix: Optional[int] = None
+        self.radio_link_error: Optional[str] = None
 
     def on_receive(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
+            if not self._accept_packets:
+                return
             self.live_packet_count += 1
             self._record_packet_unlocked(packet, interface, include_live_count=True)
+
+    def stop_receiving(self) -> None:
+        with self._lock:
+            self._accept_packets = False
 
     def has_recent_packets(self) -> bool:
         with self._lock:
@@ -125,6 +135,58 @@ class DashboardTracker:
             interface=interface,
             include_live_count=include_live_count,
         )
+
+    def _set_radio_link_state_unlocked(
+        self,
+        *,
+        connected: Optional[bool],
+        error: Optional[str],
+    ) -> None:
+        self.radio_link_connected = connected
+        self.radio_link_changed_unix = int(time.time())
+        clean_error = str(error).strip() if error else ""
+        self.radio_link_error = clean_error or None
+
+    def bootstrap_connection_state(self, iface: object) -> None:
+        connected_attr = getattr(iface, "isConnected", None)
+        connected: Optional[bool] = None
+        if hasattr(connected_attr, "is_set"):
+            try:
+                connected = bool(connected_attr.is_set())
+            except Exception:
+                connected = None
+        elif isinstance(connected_attr, bool):
+            connected = connected_attr
+        if connected is None:
+            return
+        with self._lock:
+            self._set_radio_link_state_unlocked(
+                connected=connected,
+                error=None if connected else "link not established",
+            )
+
+    def on_connection_established(self, interface: object | None = None, **_kwargs: object) -> None:
+        del interface
+        with self._lock:
+            self._set_radio_link_state_unlocked(connected=True, error=None)
+
+    def on_connection_lost(self, interface: object | None = None, **kwargs: object) -> None:
+        del interface
+        raw_reason = kwargs.get("reason") or kwargs.get("error")
+        reason = str(raw_reason).strip() if raw_reason is not None else ""
+        with self._lock:
+            self._set_radio_link_state_unlocked(
+                connected=False,
+                error=reason or "connection lost",
+            )
+
+    def radio_link_snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "connected": self.radio_link_connected,
+                "changed_unix": self.radio_link_changed_unix,
+                "error": self.radio_link_error,
+            }
 
     def snapshot_typed(self, nodes_by_id: dict[str, dict[str, object]]) -> TrackerSnapshot:
         with self._lock:

@@ -1,0 +1,105 @@
+    function trafficTableHashMixInt(hash, value) {{
+      const v = (Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 0) | 0;
+      hash ^= v;
+      hash = Math.imul(hash, 16777619);
+      return hash >>> 0;
+    }}
+
+    function trafficTableHashMixStr(hash, value) {{
+      const text = String(value == null ? "" : value);
+      for (let i = 0; i < text.length; i += 1) {{
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }}
+      return hash >>> 0;
+    }}
+
+    function renderTraffic(traffic, nodes, nodeHistory) {{
+      const drawerHistoryActive = (
+        typeof isChatNodeDetailsHistoryActive === "function"
+        && isChatNodeDetailsHistoryActive()
+      );
+      const drawerNodeId = normalizeNodeId(selectedNodeId || "");
+      if (activeLayoutView === "history" && !drawerHistoryActive) {{
+        setMapDataMode("activity");
+        return;
+      }}
+      if (mapDataFocus === "activity" && !drawerHistoryActive) {{
+        setMapDataMode("activity");
+        return;
+      }}
+
+      if (drawerHistoryActive && isSelectableNodeId(drawerNodeId)) {{
+        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === drawerNodeId) {{
+          renderNodeHistory(nodeHistory, nodes);
+        }} else {{
+          renderNodeHistoryLoading(drawerNodeId);
+        }}
+        return;
+      }}
+
+      const savedNodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : "";
+      const showNodeHistory = activeLayoutView === "saved" && isSelectableNodeId(savedNodeId);
+      if (showNodeHistory) {{
+        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === savedNodeId) {{
+          renderNodeHistory(nodeHistory, nodes);
+        }} else {{
+          renderNodeHistoryLoading(savedNodeId);
+        }}
+        return;
+      }}
+
+      setMapDataMode("live");
+      const portsSortState = tableSortState["ports-table"] || {{ index: 1, dir: "desc" }};
+      let portsHash = 2166136261;
+      portsHash = trafficTableHashMixInt(portsHash, portsSortState.index);
+      portsHash = trafficTableHashMixStr(portsHash, portsSortState.dir);
+      const ports = (traffic.port_counts || []).slice(0, 30).map((item) => {{
+        const portValue = item.portnum ?? "";
+        const countValue = item.count ?? "";
+        portsHash = trafficTableHashMixStr(portsHash, portValue);
+        portsHash = trafficTableHashMixInt(portsHash, countValue);
+        return `<tr><td data-sort="${{escAttr(portValue)}}">${{portValue}}</td><td data-sort="${{escAttr(countValue)}}">${{countValue}}</td></tr>`;
+      }});
+      portsHash = trafficTableHashMixInt(portsHash, ports.length);
+      if (portsHash !== trafficPortsTableLastHash) {{
+        fillTable("ports-table", ports);
+        trafficPortsTableLastHash = portsHash;
+      }}
+
+      const linksSortState = tableSortState["links-table"] || {{ index: 2, dir: "desc" }};
+      let linksHash = 2166136261;
+      linksHash = trafficTableHashMixInt(linksHash, linksSortState.index);
+      linksHash = trafficTableHashMixStr(linksHash, linksSortState.dir);
+      const links = (traffic.edges || []).slice(0, 60).map((edge) => {{
+        const fromValue = edge.from ?? "";
+        const toValue = edge.to ?? "";
+        const countValue = edge.lifetime_count ?? edge.count ?? 0;
+        const avgHopsRaw = edge.avg_hops;
+        const avgHopsSortValue = avgHopsRaw ?? "";
+        const avgHopsText = avgHopsRaw == null ? "n/a" : avgHopsRaw;
+        const confidenceValue = edge.confidence || (edge.is_real ? "confirmed" : "observed");
+        const lastRxValue = edge.last_rx_time || "n/a";
+        linksHash = trafficTableHashMixStr(linksHash, fromValue);
+        linksHash = trafficTableHashMixStr(linksHash, toValue);
+        linksHash = trafficTableHashMixInt(linksHash, countValue);
+        linksHash = trafficTableHashMixStr(linksHash, avgHopsSortValue);
+        linksHash = trafficTableHashMixStr(linksHash, confidenceValue);
+        linksHash = trafficTableHashMixStr(linksHash, lastRxValue);
+        return `<tr>
+          <td data-sort="${{escAttr(fromValue)}}">${{fromValue}}</td>
+          <td data-sort="${{escAttr(toValue)}}">${{toValue}}</td>
+          <td data-sort="${{escAttr(countValue)}}">${{countValue}}</td>
+          <td data-sort="${{escAttr(avgHopsSortValue)}}">${{avgHopsText}}</td>
+          <td data-sort="${{escAttr(confidenceValue)}}">${{confidenceValue}}</td>
+          <td data-sort="${{escAttr(lastRxValue)}}">${{lastRxValue}}</td>
+        </tr>`;
+      }});
+      linksHash = trafficTableHashMixInt(linksHash, links.length);
+      if (linksHash !== trafficLinksTableLastHash) {{
+        fillTable("links-table", links);
+        trafficLinksTableLastHash = linksHash;
+      }}
+    }}

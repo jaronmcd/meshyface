@@ -1,0 +1,466 @@
+    function normalizeMeshChannelIndex(value, options = {{}}) {{
+      const allowAll = !!(options && options.allowAll);
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (allowAll && (text === "all" || text === "*")) {{
+        return meshChannelAllIndex;
+      }}
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      const idx = Math.trunc(num);
+      if (allowAll && idx === meshChannelAllIndex) {{
+        return meshChannelAllIndex;
+      }}
+      if (!Number.isInteger(idx) || idx < 0) return 0;
+      return idx;
+    }}
+
+    function meshChannelOptionLabel(opt) {{
+      if (!opt || typeof opt !== "object") return "";
+      const idx = Number(opt.index);
+      if (!Number.isInteger(idx) || idx < 0) return "";
+      const name = typeof opt.name === "string" ? opt.name.trim() : "";
+      if (name) return name;
+      return `Ch ${{idx}}`;
+    }}
+
+    function meshChannelOptionByIndex(rawIndex, sourceOptions = null) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      if (!Number.isInteger(idx) || idx < 0) return null;
+      const candidateLists = [];
+      if (Array.isArray(sourceOptions)) candidateLists.push(sourceOptions);
+      if (Array.isArray(meshChannelOptions) && sourceOptions !== meshChannelOptions) candidateLists.push(meshChannelOptions);
+      if (Array.isArray(meshChannelSendOptions) && sourceOptions !== meshChannelSendOptions) candidateLists.push(meshChannelSendOptions);
+      for (const list of candidateLists) {{
+        const match = list.find((opt) => Number(opt && opt.index) === idx);
+        if (match && typeof match === "object") {{
+          return {{ ...match, index: idx }};
+        }}
+      }}
+      return null;
+    }}
+
+    function meshChannelConfiguredName(rawIndex, sourceOptions = null) {{
+      const match = meshChannelOptionByIndex(rawIndex, sourceOptions);
+      const name = match && typeof match.name === "string" ? match.name.trim() : "";
+      return name || "";
+    }}
+
+    function meshChannelViewOptionLabel(opt) {{
+      if (!opt || typeof opt !== "object") return "";
+      const idx = Number(opt.index);
+      if (!Number.isInteger(idx) || idx < 0) return "";
+      const name = typeof opt.name === "string" ? opt.name.trim() : "";
+      if (name) return name;
+      return `Ch ${{idx}}`;
+    }}
+
+    function meshChannelIsPrimary(rawIndex) {{
+      return normalizeMeshChannelIndex(rawIndex) === 0;
+    }}
+
+    function meshChannelPrimaryBadgeHtml(rawIndex) {{
+      if (!meshChannelIsPrimary(rawIndex)) return "";
+      return '<span class="mesh-channel-primary-badge" aria-hidden="true">P</span>';
+    }}
+
+    function meshChannelSendOptionLabel(opt) {{
+      if (!opt || typeof opt !== "object") return "";
+      const idx = Number(opt.index);
+      if (!Number.isInteger(idx) || idx < 0) return "";
+      const name = typeof opt.name === "string" ? opt.name.trim() : "";
+      if (name) return name;
+      return `Ch ${{idx}}`;
+    }}
+
+    function meshChannelColorMeta(rawIndex, {{ allowAll = true, sourceOptions = null }} = {{}}) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
+      if (idx === meshChannelAllIndex) {{
+        return {{
+          key: "all",
+          name: "all",
+          fill: "#FFFFFF",
+          title: "All channels view",
+        }};
+      }}
+      const configuredName = meshChannelConfiguredName(idx, sourceOptions);
+      if (idx === 0) {{
+        const channelBaseLabel = configuredName || "Ch 0 • Primary channel";
+        return {{
+          key: "channel-0-white",
+          name: "white",
+          fill: "#FFFFFF",
+          title: `${{channelBaseLabel}} • White channel`,
+        }};
+      }}
+      const palette = meshChannelColorPalette[idx % meshChannelColorPalette.length] || meshChannelColorPalette[0];
+      const colorName = String(palette && palette.name || "channel").trim() || "channel";
+      const fill = String(palette && palette.fill || "#8DA3B1").trim() || "#8DA3B1";
+      const channelBaseLabel = configuredName || (idx === 0 ? "Ch 0 • Primary channel" : `Ch ${{idx}}`);
+      const colorTitle = `${{channelBaseLabel}} • ${{colorName.charAt(0).toUpperCase()}}${{colorName.slice(1)}} channel`;
+      return {{
+        key: configuredName ? colorName : `channel-${{idx}}-${{colorName}}`,
+        name: colorName,
+        fill,
+        title: colorTitle,
+      }};
+    }}
+
+    function hexColorRgbTriplet(fill) {{
+      const text = String(fill || "").trim();
+      const match = /^#?([0-9a-f]{6})$/i.exec(text);
+      if (!match) return "141, 163, 177";
+      const hex = match[1];
+      const r = Number.parseInt(hex.slice(0, 2), 16);
+      const g = Number.parseInt(hex.slice(2, 4), 16);
+      const b = Number.parseInt(hex.slice(4, 6), 16);
+      return `${{r}}, ${{g}}, ${{b}}`;
+    }}
+
+    function meshChannelBadgeStyle(rawIndex, {{ allowAll = false }} = {{}}) {{
+      const meta = meshChannelColorMeta(rawIndex, {{ allowAll }});
+      return `--mesh-channel-badge-fill: ${{meta.fill}}; --mesh-channel-badge-rgb: ${{hexColorRgbTriplet(meta.fill)}};`;
+    }}
+
+    function meshChannelBadgeHtml(rawIndex, label, {{ allowAll = false, extraClass = "", title = "" }} = {{}}) {{
+      const classNames = ["mesh-channel-badge"];
+      if (extraClass) classNames.push(String(extraClass).trim());
+      const text = String(label || "").trim() || meshChannelLabelForIndex(rawIndex, {{ compact: true, allowAll }});
+      const titleText = String(title || "").trim();
+      const styleAttr = escAttr(meshChannelBadgeStyle(rawIndex, {{ allowAll }}));
+      const titleAttr = titleText ? ` title="${{escAttr(titleText)}}"` : "";
+      return `<span class="${{escAttr(classNames.join(" "))}}" style="${{styleAttr}}"${{titleAttr}}>${{escAttr(text)}}</span>`;
+    }}
+
+    function meshChannelTintStyle(rawIndex, {{ allowAll = false }} = {{}}) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
+      const meta = meshChannelColorMeta(idx, {{ allowAll }});
+      return `--chat-feed-channel-fill: ${{meta.fill}}; --chat-feed-channel-rgb: ${{hexColorRgbTriplet(meta.fill)}};`;
+    }}
+
+    function meshChannelEdgeClass(rawIndex, {{ allowAll = false }} = {{}}) {{
+      normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
+      return "channel-edge-dotted";
+    }}
+
+    function meshChannelViewMenuLabel(rawIndex) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll: true }});
+      if (idx === meshChannelAllIndex) {{
+        return "All channels";
+      }}
+      const match = meshChannelOptionByIndex(idx, meshChannelOptions);
+      return meshChannelViewOptionLabel(match ? {{ ...match, index: idx }} : {{ index: idx }});
+    }}
+
+    function syncMeshChannelViewControl() {{
+      renderMeshChannelPills(meshChannelOptions);
+      syncMeshChannelMismatchWarning();
+    }}
+
+    function renderMeshChannelPills(options) {{
+      const panelSet = new Set([
+        document.getElementById("mesh-channel-pill-strip"),
+        document.getElementById("chat-labs-channel-pill-strip"),
+      ]);
+      const panels = Array.from(panelSet).filter((panel) => panel instanceof HTMLElement);
+      if (!panels.length) return;
+      const normalized = Array.isArray(options) ? options : [];
+      const activeScope = normalizeChatChannel(activeChatChannel);
+      const rows = [];
+      rows.push({{
+        index: meshChannelAllIndex,
+        label: meshChannelViewMenuLabel(meshChannelAllIndex),
+        meta: meshChannelColorMeta(meshChannelAllIndex, {{ allowAll: true }}),
+        all: true,
+        unread: Math.max(0, Number(chatUnreadByChannel[activeScope] || 0)),
+      }});
+      for (const opt of normalized) {{
+        const idx = normalizeMeshChannelIndex(opt && opt.index);
+        rows.push({{
+          index: idx,
+          label: meshChannelViewOptionLabel({{ ...opt, index: idx }}) || `Ch ${{idx}}`,
+          meta: meshChannelColorMeta(idx, {{ allowAll: false }}),
+          all: false,
+          unread: getChatMeshChannelUnread(activeScope, idx),
+        }});
+      }}
+      const activeViewIdx = normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }});
+      const renderSignature = rows.map((row) => (
+        `${{row.index}}:${{String(row.label || "")}}:${{row.unread}}:${{row.all ? 1 : 0}}:${{row.meta && row.meta.fill ? row.meta.fill : ""}}`
+      )).join("|") + `|active:${{activeViewIdx}}|scope:${{activeScope}}`;
+      if (meshChannelPillsRenderSignature === renderSignature) {{
+        return;
+      }}
+      meshChannelPillsRenderSignature = renderSignature;
+      const pillsHtml = rows.map((row) => {{
+        const active = activeViewIdx === row.index;
+        const dotClass = row.all ? "channel-color-dot is-all" : "channel-color-dot";
+        const unreadLabel = row.unread > 99 ? "99+" : String(row.unread || "");
+        const primaryBadge = row.all ? "" : meshChannelPrimaryBadgeHtml(row.index);
+        return `<button
+          type="button"
+          class="mesh-channel-pill${{active ? " active" : ""}}"
+          role="tab"
+          aria-selected="${{active ? "true" : "false"}}"
+          data-mesh-channel-index="${{escAttr(row.index)}}"
+          title="${{escAttr(row.meta.title === row.label ? row.meta.title : `${{row.meta.title}} • ${{row.label}}`)}}"
+        >
+          <span class="${{dotClass}}" style="${{row.all ? "" : `--channel-dot-fill: ${{row.meta.fill}};`}}" aria-hidden="true"></span>
+          <span class="mesh-channel-pill-label">${{escAttr(row.label)}}</span>
+          ${{primaryBadge}}
+          ${{
+            row.unread > 0
+              ? `<span class="mesh-channel-pill-unread" aria-label="${{escAttr(`${{row.unread}} unread`)}}">(${{escAttr(unreadLabel)}})</span>`
+              : ""
+          }}
+        </button>`;
+      }}).join("");
+      for (const panel of panels) {{
+        const previousMarkup = typeof panel.__meshLastInnerHtml_mesh_channel_pills === "string"
+          ? panel.__meshLastInnerHtml_mesh_channel_pills
+          : "";
+        if (previousMarkup === pillsHtml) continue;
+        panel.innerHTML = pillsHtml;
+        panel.__meshLastInnerHtml_mesh_channel_pills = pillsHtml;
+      }}
+    }}
+
+    function meshChannelLabelForIndex(rawIndex, {{ verbose = false, compact = false, allowAll = true }} = {{}}) {{
+      const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
+      if (idx === meshChannelAllIndex) {{
+        return compact ? "All" : "All channels";
+      }}
+      const name = meshChannelConfiguredName(idx, meshChannelOptions);
+      if (name) return compact ? name : verbose ? `Ch ${{idx}} (${{name}})` : name;
+      return `Ch ${{idx}}`;
+    }}
+
+    function activeMeshChannelFilterIndex() {{
+      return normalizeMeshChannelIndex(activeMeshChannelIndex, {{ allowAll: true }});
+    }}
+
+    function activeMeshChannelSendIndex() {{
+      return normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+    }}
+
+    function currentMeshChannelViewLabel() {{
+      return meshChannelViewMenuLabel(activeMeshChannelIndex);
+    }}
+
+    function currentMeshChannelSendLabel() {{
+      const idx = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      return meshChannelSendLabelForIndex(idx);
+    }}
+
+    function meshChannelSendLabelForIndex(rawIndex) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      const match = meshChannelOptionByIndex(idx, meshChannelSendOptions);
+      return meshChannelSendOptionLabel(match ? {{ ...match, index: idx }} : {{ index: idx }});
+    }}
+
+    function meshChannelAppRoutingRows() {{
+      return [
+        {{
+          id: "files",
+          label: "Files",
+          description: "Peer file transfer sessions",
+        }},
+        {{
+          id: "games",
+          label: "Games",
+          description: "Reversi, Checkers, and Chess link traffic",
+        }},
+        {{
+          id: "bbs",
+          label: "BBS",
+          description: "Directory beacons and board posts",
+        }},
+      ];
+    }}
+
+    function normalizeMeshChannelAppId(rawAppId) {{
+      const token = String(rawAppId == null ? "" : rawAppId).trim().toLowerCase();
+      if (token === "files") return "files";
+      if (token === "games") return "games";
+      if (token === "bbs") return "bbs";
+      return "";
+    }}
+
+    function normalizeMeshChannelAppSendMode(rawMode) {{
+      const token = String(rawMode == null ? "" : rawMode).trim().toLowerCase();
+      if (token === "fixed" || token === "locked" || token === "pin") return "fixed";
+      return "global";
+    }}
+
+    function meshChannelDefaultAppSendPrefs() {{
+      const sendIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
+      return {{
+        files: {{ mode: "global", channel_index: sendIndex }},
+        games: {{ mode: "global", channel_index: sendIndex }},
+        bbs: {{ mode: "global", channel_index: sendIndex }},
+      }};
+    }}
+
+    function coerceMeshChannelAppSendPrefs(rawPrefs) {{
+      const defaults = meshChannelDefaultAppSendPrefs();
+      const source = (rawPrefs && typeof rawPrefs === "object") ? rawPrefs : {{}};
+      const next = {{}};
+      for (const row of meshChannelAppRoutingRows()) {{
+        const appId = row.id;
+        const fallback = defaults[appId] || {{ mode: "global", channel_index: 0 }};
+        const rawApp = (source[appId] && typeof source[appId] === "object")
+          ? source[appId]
+          : {{}};
+        next[appId] = {{
+          mode: normalizeMeshChannelAppSendMode(rawApp.mode ?? rawApp.send_mode ?? fallback.mode),
+          channel_index: normalizeMeshChannelIndex(
+            rawApp.channel_index
+            ?? rawApp.channelIndex
+            ?? rawApp.send_index
+            ?? rawApp.sendIndex
+            ?? fallback.channel_index
+          ),
+        }};
+      }}
+      return next;
+    }}
+
+    function persistMeshChannelAppSendPrefs() {{
+      try {{
+        window.localStorage.setItem(
+          meshChannelAppSendPrefsStorageKey,
+          JSON.stringify(coerceMeshChannelAppSendPrefs(meshChannelAppSendPrefs))
+        );
+      }} catch (_err) {{}}
+    }}
+
+    function loadMeshChannelAppSendPrefs() {{
+      let parsed = null;
+      try {{
+        const raw = window.localStorage.getItem(meshChannelAppSendPrefsStorageKey);
+        parsed = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+        parsed = null;
+      }}
+      meshChannelAppSendPrefs = coerceMeshChannelAppSendPrefs(parsed);
+    }}
+
+    function meshChannelAppSendPreference(appId) {{
+      const normalizedAppId = normalizeMeshChannelAppId(appId);
+      const defaults = meshChannelDefaultAppSendPrefs();
+      if (!normalizedAppId) {{
+        return {{
+          mode: "global",
+          channel_index: normalizeMeshChannelIndex(activeMeshSendChannelIndex),
+        }};
+      }}
+      const source = (meshChannelAppSendPrefs && typeof meshChannelAppSendPrefs === "object")
+        ? meshChannelAppSendPrefs
+        : defaults;
+      const raw = (source[normalizedAppId] && typeof source[normalizedAppId] === "object")
+        ? source[normalizedAppId]
+        : defaults[normalizedAppId];
+      return {{
+        mode: normalizeMeshChannelAppSendMode(raw && raw.mode),
+        channel_index: normalizeMeshChannelIndex(
+          raw && (raw.channel_index ?? raw.channelIndex ?? raw.send_index ?? raw.sendIndex)
+        ),
+      }};
+    }}
+
+    function meshChannelAppUsesFixedChannel(appId) {{
+      return meshChannelAppSendPreference(appId).mode === "fixed";
+    }}
+
+    function meshChannelEffectiveSendIndexForApp(appId) {{
+      const normalizedAppId = normalizeMeshChannelAppId(appId);
+      if (!normalizedAppId) return activeMeshChannelSendIndex();
+      const pref = meshChannelAppSendPreference(normalizedAppId);
+      if (pref.mode === "fixed") {{
+        return normalizeMeshChannelIndex(pref.channel_index);
+      }}
+      return activeMeshChannelSendIndex();
+    }}
+
+    function meshChannelEffectiveSendLabelForApp(appId) {{
+      return meshChannelSendLabelForIndex(meshChannelEffectiveSendIndexForApp(appId));
+    }}
+
+    function setMeshChannelAppSendPreference(appId, nextPref, persist = true) {{
+      const normalizedAppId = normalizeMeshChannelAppId(appId);
+      if (!normalizedAppId) return;
+      const currentPrefs = coerceMeshChannelAppSendPrefs(meshChannelAppSendPrefs);
+      const merged = {{
+        ...meshChannelAppSendPreference(normalizedAppId),
+        ...(nextPref && typeof nextPref === "object" ? nextPref : {{}}),
+      }};
+      currentPrefs[normalizedAppId] = {{
+        mode: normalizeMeshChannelAppSendMode(merged.mode),
+        channel_index: normalizeMeshChannelIndex(merged.channel_index ?? merged.channelIndex),
+      }};
+      meshChannelAppSendPrefs = currentPrefs;
+      if (persist) {{
+        persistMeshChannelAppSendPrefs();
+      }}
+      syncMeshChannelSendControl();
+      if (latestState) {{
+        if (activeLayoutView === "files") {{
+          renderFilesView(latestState);
+        }} else if (activeLayoutView === "games") {{
+          renderGamesView(latestState);
+        }} else if (activeLayoutView === "bbs") {{
+          renderBbsView(latestState);
+        }} else if (isChannelsViewActive()) {{
+          renderChannelsView(latestState);
+        }}
+      }}
+    }}
+
+    function setMeshChannelAppSendMode(appId, mode, persist = true) {{
+      setMeshChannelAppSendPreference(appId, {{ mode: normalizeMeshChannelAppSendMode(mode) }}, persist);
+    }}
+
+    function setMeshChannelAppSendIndex(appId, channelIndex, persist = true) {{
+      setMeshChannelAppSendPreference(
+        appId,
+        {{ channel_index: normalizeMeshChannelIndex(channelIndex) }},
+        persist
+      );
+    }}
+
+    function syncMeshChannelMismatchWarning() {{
+      const wrap = document.querySelector(".chat-send-channel-wrap");
+      const warningEl = document.getElementById("chat-channel-mismatch-warning");
+      if (!(wrap instanceof HTMLElement)) return;
+
+      const viewIdx = activeMeshChannelFilterIndex();
+      const sendIdx = activeMeshChannelSendIndex();
+      const mismatched = viewIdx !== meshChannelAllIndex && sendIdx !== viewIdx;
+      const warningText = mismatched
+        ? `Sending on ${{currentMeshChannelSendLabel()}} while viewing ${{currentMeshChannelViewLabel()}}. You may send something you cannot see here.`
+        : "";
+
+      wrap.classList.toggle("mismatch", mismatched);
+      wrap.title = mismatched
+        ? warningText
+        : "Choose which configured message channel to use for outgoing chat. This sets the encryption group used for sends and does NOT change your LoRa frequency slot.";
+      wrap.setAttribute("aria-label", mismatched ? warningText : "Outgoing chat channel");
+
+      if (warningEl instanceof HTMLElement) {{
+        warningEl.hidden = !mismatched;
+        warningEl.textContent = warningText;
+      }}
+    }}
+
+    function meshChannelSendContext(options = {{}}) {{
+      const appId = normalizeMeshChannelAppId(options && options.appId);
+      const sendMode = appId ? meshChannelAppSendPreference(appId).mode : "global";
+      const sendIndex = appId
+        ? meshChannelEffectiveSendIndexForApp(appId)
+        : activeMeshChannelSendIndex();
+      return {{
+        appId,
+        sendMode,
+        sendIndex,
+        sendLabel: meshChannelSendLabelForIndex(sendIndex),
+      }};
+    }}

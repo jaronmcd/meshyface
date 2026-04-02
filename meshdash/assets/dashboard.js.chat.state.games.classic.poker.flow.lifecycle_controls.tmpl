@@ -1,0 +1,49 @@
+    function startNewPokerGame(options = {{}}) {{
+      const preferredCount = normalizePokerPlayerCount(
+        options.player_count ?? options.playerCount ?? getPokerPlayerCountFromControl(),
+        pokerDefaultPlayers
+      );
+      const controlRules = getPokerRulesFromControls();
+      const preferredRules = normalizePokerRules({{
+        starting_stack: options.starting_stack ?? options.startingStack,
+        ante: options.ante,
+        small_blind: options.small_blind ?? options.smallBlind,
+        big_blind: options.big_blind ?? options.bigBlind,
+      }}, controlRules);
+      pokerState = createNewPokerState(preferredCount, preferredRules);
+      const selectEl = document.getElementById("poker-player-count-select");
+      if (selectEl instanceof HTMLSelectElement) {{
+        selectEl.value = String(preferredCount);
+      }}
+      syncPokerRuleControls(preferredRules);
+      const autoDeal = !(
+        options
+        && (options.auto_deal === false || options.autoDeal === false)
+      );
+      if (autoDeal) {{
+        dealPokerHand();
+      }} else if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+    }}
+
+    function advancePokerPhase() {{
+      const state = ensurePokerState();
+      if (state.phase === "betting") {{
+        const seat = pokerCurrentSeat();
+        if (!seat) {{
+          pokerAdvanceBettingTurn(state);
+          if (activeLayoutView === "games") renderGamesView(latestState);
+          return;
+        }}
+        const callAmount = seat ? pokerCurrentCallAmount(state, seat) : 0;
+        applyPokerBettingAction(callAmount > 0 ? "call" : "check");
+        return;
+      }}
+      if (state.phase === "draw") {{
+        commitPokerDrawTurn();
+        return;
+      }}
+      dealPokerHand();
+    }}
+

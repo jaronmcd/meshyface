@@ -1,0 +1,355 @@
+    function formatConsoleLine(entry, verbosity = 0) {{
+      const s = entry.summary || {{}};
+      const packet = entry && entry.packet && typeof entry.packet === "object"
+        ? entry.packet
+        : {{}};
+      const hops = (s.hop_start != null && s.hop_limit != null)
+        ? Number(s.hop_start) - Number(s.hop_limit)
+        : "n/a";
+      const packetId = packet.id ?? packet.packet_id ?? packet.message_id ?? s.packet_id ?? "";
+      const channel = packet.channel ?? s.channel ?? "";
+      const channelLabel = channel === "" ? "n/a" : String(channel);
+      const fromValue = String(
+        s.from ?? packet.from ?? packet.fromId ?? ""
+      ).trim();
+      const toValue = String(
+        s.to ?? packet.to ?? packet.toId ?? ""
+      ).trim();
+      const toLower = toValue.toLowerCase();
+      const isBroadcastTarget = (
+        toLower === "^all"
+        || toLower === "all"
+        || toLower === "broadcast"
+        || toLower === "!ffffffff"
+        || toLower === "ffffffff"
+        || toLower === "0xffffffff"
+        || toLower === "4294967295"
+      );
+      const scopeLabel = toValue ? (isBroadcastTarget ? "^all" : "p2p") : "n/a";
+      const textSnippetRaw = String(
+        s.text ?? s.decoded_text ?? s.payload_text ?? packet.text ?? ""
+      ).trim();
+      const textSnippet = textSnippetRaw ? compactInlineMessage(textSnippetRaw, 88) : "";
+      const emojiGlyph = String(s.emoji ?? packet.emoji ?? "").trim();
+      const replyIdNum = Number(s.reply_id ?? packet.reply_id ?? packet.replyId ?? NaN);
+      const replyId = Number.isFinite(replyIdNum) && replyIdNum > 0 ? Math.trunc(replyIdNum) : null;
+      const rawPayload = String(s.payload_hex ?? packet.payload ?? "").trim();
+      const routeParts = [];
+      if (s.hop_start != null) routeParts.push(`hop_start=${{s.hop_start}}`);
+      if (s.hop_limit != null) routeParts.push(`hop_limit=${{s.hop_limit}}`);
+      if (s.priority != null) routeParts.push(`priority=${{s.priority}}`);
+      if (s.want_ack != null) routeParts.push(`want_ack=${{s.want_ack}}`);
+
+      const sanitizeConsolePreviewValue = (value, depth = 0) => {{
+        if (depth > 4) return "[depth-limit]";
+        if (Array.isArray(value)) {{
+          const limited = value.slice(0, 6).map((item) => sanitizeConsolePreviewValue(item, depth + 1));
+          if (value.length > limited.length) {{
+            limited.push(`... +${{value.length - limited.length}} items`);
+          }}
+          return limited;
+        }}
+        if (value && typeof value === "object") {{
+          const out = {{}};
+          for (const [key, rawVal] of Object.entries(value)) {{
+            const keyLower = String(key || "").toLowerCase();
+            if (keyLower === "raw") continue;
+            out[key] = sanitizeConsolePreviewValue(rawVal, depth + 1);
+          }}
+          return out;
+        }}
+        if (typeof value === "string") {{
+          const squashed = value
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n")
+            .replace(/\\r\\n|\\n|\\r/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          return squashed.length > 96
+            ? `${{squashed.slice(0, 96)}}... (+${{squashed.length - 96}} chars)`
+            : squashed;
+        }}
+        return value;
+      }};
+      const compactConsoleFragment = (value, maxChars = consolePacketPreviewMaxChars) => {{
+        const text = String(value == null ? "" : value)
+          .replace(/\\r\\n|\\n|\\r/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length <= maxChars) return text;
+        const keep = Math.max(72, maxChars - 1);
+        const hidden = Math.max(0, text.length - keep);
+        return `${{text.slice(0, keep).trimEnd()}}… (+${{hidden}} chars)`;
+      }};
+      const packetPreview = (() => {{
+        try {{
+          const cleaned = sanitizeConsolePreviewValue(packet);
+          const json = JSON.stringify(cleaned || {{}});
+          return compactConsoleFragment(json);
+        }} catch (_err) {{
+          return "";
+        }}
+      }})();
+      const summaryPreview = (() => {{
+        try {{
+          const cleaned = sanitizeConsolePreviewValue(s);
+          const json = JSON.stringify(cleaned || {{}});
+          return compactConsoleFragment(json);
+        }} catch (_err) {{
+          return "";
+        }}
+      }})();
+      const pushJsonBlock = (lines, label, value, sanitize = false) => {{
+        let raw = "";
+        try {{
+          const source = sanitize ? sanitizeConsolePreviewValue(value ?? {{}}) : (value ?? {{}});
+          raw = JSON.stringify(source, null, 2) || "";
+        }} catch (_err) {{
+          raw = "";
+        }}
+        if (!raw) return;
+        lines.push(`  ${{label}}=`);
+        for (const jsonLine of String(raw).split("\n")) {{
+          lines.push(`    ${{jsonLine}}`);
+        }}
+      }};
+
+      const selectedLayers = (consoleLiveLayers instanceof Set && consoleLiveLayers.size)
+        ? new Set([1, 2, 3].filter((layer) => consoleLiveLayers.has(layer)))
+        : null;
+      if (selectedLayers) {{
+        const lines = [];
+        if (selectedLayers.has(1)) {{
+          const l1Parts = [
+            "l1",
+            `${{s.from || "n/a"}} -> ${{s.to || "n/a"}}`,
+            `snr=${{s.rx_snr ?? "n/a"}}`,
+            `rssi=${{s.rx_rssi ?? "n/a"}}`,
+            `hops=${{hops}}`,
+          ];
+          if (channel !== "") l1Parts.push(`ch=${{channel}}`);
+          if (packetId !== "") l1Parts.push(`id=${{packetId}}`);
+          lines.push(l1Parts.join(" "));
+          if (verbosity >= 1 && packetPreview) {{
+            lines.push(`  l1.pkt=${{packetPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            pushJsonBlock(lines, "l1.json", packet, true);
+          }}
+          if (verbosity >= 4) {{
+            pushJsonBlock(lines, "l1.raw", packet, false);
+          }}
+        }}
+        if (selectedLayers.has(2)) {{
+          const l2Parts = [
+            "l2",
+            `port=${{s.portnum || "n/a"}}`,
+          ];
+          if (s.want_ack != null) l2Parts.push(`want_ack=${{s.want_ack}}`);
+          if (s.priority != null) l2Parts.push(`priority=${{s.priority}}`);
+          if (replyId != null) l2Parts.push(`reply=${{replyId}}`);
+          lines.push(l2Parts.join(" "));
+          if (routeParts.length) {{
+            lines.push(`  l2.route=${{routeParts.join(" ")}}`);
+          }}
+          if (verbosity >= 1 && summaryPreview) {{
+            lines.push(`  l2.summary=${{summaryPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            pushJsonBlock(lines, "l2.json", s, true);
+          }}
+        }}
+        if (selectedLayers.has(3)) {{
+          const l3Parts = [
+            "l3",
+            `scope=${{scopeLabel}}`,
+            `from=${{fromValue || "n/a"}}`,
+            `to=${{toValue || "n/a"}}`,
+            `ch=${{channelLabel}}`,
+          ];
+          if (textSnippet) {{
+            l3Parts.push(`text=\"${{textSnippet.replace(/\"/g, "'")}}\"`);
+          }} else {{
+            l3Parts.push("text=n/a");
+          }}
+          if (emojiGlyph) l3Parts.push(`emoji=${{emojiGlyph}}`);
+          if (replyId != null) l3Parts.push(`reply=${{replyId}}`);
+          lines.push(l3Parts.join(" "));
+          if (rawPayload) {{
+            lines.push(`  l3.payload=${{compactConsoleFragment(rawPayload, 220)}}`);
+          }}
+          if (verbosity >= 2 && summaryPreview) {{
+            lines.push(`  l3.summary=${{summaryPreview}}`);
+          }}
+          if (verbosity >= 3) {{
+            const decoded = (packet && typeof packet.decoded === "object") ? packet.decoded : {{}};
+            pushJsonBlock(lines, "l3.json", decoded, true);
+          }}
+        }}
+        return lines;
+      }}
+
+      const parts = [
+        `${{s.from || "n/a"}} -> ${{s.to || "n/a"}}`,
+        `port=${{s.portnum || "n/a"}}`,
+        `snr=${{s.rx_snr ?? "n/a"}}`,
+        `rssi=${{s.rx_rssi ?? "n/a"}}`,
+        `hops=${{hops}}`,
+      ];
+      if (channel !== "") parts.push(`ch=${{channel}}`);
+      if (packetId !== "") parts.push(`id=${{packetId}}`);
+      if (textSnippet) parts.push(`text=\"${{textSnippet.replace(/\"/g, "'")}}\"`);
+      const lines = [parts.join(" ")];
+      if (verbosity >= 1 && packetPreview) {{
+        lines.push(`  pkt=${{packetPreview}}`);
+      }}
+      if (verbosity >= 2 && summaryPreview) {{
+        lines.push(`  summary=${{summaryPreview}}`);
+        if (routeParts.length) {{
+          lines.push(`  route=${{routeParts.join(" ")}}`);
+        }}
+        if (rawPayload) {{
+          lines.push(`  payload=${{compactConsoleFragment(rawPayload, 220)}}`);
+        }}
+      }}
+      if (verbosity >= 3) {{
+        let prettyJson = "";
+        try {{
+          prettyJson = JSON.stringify(sanitizeConsolePreviewValue(entry ?? {{}}), null, 2) || "";
+        }} catch (_err) {{
+          try {{
+            prettyJson = JSON.stringify(sanitizeConsolePreviewValue(s ?? {{}}), null, 2) || "";
+          }} catch (_err2) {{
+            prettyJson = "";
+          }}
+        }}
+        if (prettyJson) {{
+          lines.push("  json=");
+          for (const jsonLine of String(prettyJson).split("\n")) {{
+            lines.push(`    ${{jsonLine}}`);
+          }}
+        }}
+      }}
+      if (verbosity >= 4) {{
+        let rawJson = "";
+        try {{
+          rawJson = JSON.stringify(entry ?? {{}}, null, 2) || "";
+        }} catch (_err) {{
+          rawJson = "";
+        }}
+        if (rawJson) {{
+          lines.push("  raw=");
+          for (const jsonLine of String(rawJson).split("\n")) {{
+            lines.push(`    ${{jsonLine}}`);
+          }}
+        }}
+      }}
+      return lines;
+    }}
+
+    function formatConsoleTimestamp(msValue) {{
+      const ms = Number(msValue);
+      const dt = Number.isFinite(ms) ? new Date(ms) : new Date();
+      if (!Number.isFinite(dt.getTime())) {{
+        return "n/a";
+      }}
+      const pad2 = (value) => String(Math.trunc(Math.max(0, Number(value) || 0))).padStart(2, "0");
+      const hour = pad2(dt.getHours());
+      const minute = pad2(dt.getMinutes());
+      const second = pad2(dt.getSeconds());
+      return `${{hour}}:${{minute}}:${{second}}`;
+    }}
+
+    function formatConsoleRenderedLine(line, loggedAtMs = Date.now()) {{
+      const body = String(line == null ? "" : line);
+      if (isZorkConsoleInteractiveSession(consoleInteractiveSession)) {{
+        return body;
+      }}
+      if (!consoleShowTimestamps) {{
+        return body;
+      }}
+      const timestamp = formatConsoleTimestamp(loggedAtMs);
+      return `[${{timestamp}}] ${{body}}`;
+    }}
+
+    function appendConsoleLine(key, line, loggedAtMs = Date.now(), renderNow = false) {{
+      if (!key || consoleSeen.has(key)) return;
+      consoleSeen.add(key);
+      consoleKeyQueue.push(key);
+      consoleLines.push(formatConsoleRenderedLine(line, loggedAtMs));
+
+      while (consoleLines.length > consoleMaxLines) {{
+        consoleLines.shift();
+        const oldKey = consoleKeyQueue.shift();
+        if (oldKey) {{
+          consoleSeen.delete(oldKey);
+        }}
+      }}
+      markConsoleLinesDirty();
+      persistConsoleSessionState();
+      if (renderNow) {{
+        renderConsoleBuffer();
+      }}
+    }}
+
+    async function runConsoleCommandLine(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      const zorkPromptInput = isZorkConsoleInteractiveSession(consoleInteractiveSession) && !line.startsWith("/");
+      const promptLabel = zorkPromptInput ? ">" : consolePromptLabel;
+      const renderedInput = formatConsolePromptEchoLine(promptLabel, line);
+      appendConsoleEventLine(renderedInput);
+      if (!line) return;
+      pushConsoleHistoryEntry(line);
+      if (consoleRunningCommand) {{
+        appendConsoleEventLine(
+          `[console] "${{consoleRunningCommand.name}}" is running. Press Ctrl+C to stop before starting a new command.`
+        );
+        return;
+      }}
+      if (consoleInteractiveSession) {{
+        const consoleEscape = line.startsWith("/") ? String(line.slice(1) || "").trim() : "";
+        if (consoleEscape) {{
+          const parsedEscape = parseConsoleCommandLine(consoleEscape);
+          if (parsedEscape.error) {{
+            appendConsoleEventLine(`[console] parse error: ${{parsedEscape.error}}`);
+            return;
+          }}
+          await executeConsoleCommand(parsedEscape, consoleEscape);
+          return;
+        }}
+        try {{
+          const result = await sendConsoleInteractiveSessionLine(line);
+          const text = String(result == null ? "" : result).trim();
+          if (text) {{
+            appendConsoleEventLine(text);
+          }}
+        }} catch (err) {{
+          const msg = err instanceof Error ? err.message : String(err || "unknown error");
+          const activeSession = consoleInteractiveSession;
+          if (
+            activeSession
+            && String(activeSession.mode || "") === "standalone"
+            && isStandaloneConsoleSessionExpiredMessage(msg)
+          ) {{
+            stopConsoleInteractiveSession("server session expired", false);
+            appendConsoleEventLine("[zork] session expired on server. Console mode restored. Type \"zork\" to start again.");
+            const retryParsed = parseConsoleCommandLine(line);
+            if (!retryParsed.error) {{
+              ensureConsoleCommandsRegistered();
+              if (consoleCommandRegistry.has(retryParsed.command)) {{
+                await executeConsoleCommand(retryParsed, line);
+              }}
+            }}
+            return;
+          }}
+          appendConsoleEventLine(`[${{String((activeSession && activeSession.name) || "session")}}] error: ${{msg}}`);
+        }}
+        return;
+      }}
+      const parsed = parseConsoleCommandLine(line);
+      if (parsed.error) {{
+        appendConsoleEventLine(`[console] parse error: ${{parsed.error}}`);
+        return;
+      }}
+      await executeConsoleCommand(parsed, line);
+    }}

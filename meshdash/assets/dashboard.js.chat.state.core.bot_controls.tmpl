@@ -1,0 +1,132 @@
+    function isBotsCommandEditorFocused() {{
+      if (activeLayoutView !== "bots") return false;
+      const activeEl = document.activeElement;
+      if (!(activeEl instanceof HTMLElement)) return false;
+      const activeId = String(activeEl.id || "");
+      return (
+        activeId === "bots-command-ping-triggers"
+        || activeId === "bots-command-joke-triggers"
+        || activeId === "bots-command-joke-lines"
+        || activeId === "bots-command-joke-near-guess-lines"
+      );
+    }}
+
+    function renderBotsView(state = latestState) {{
+      applyServerBotSettingsFromState(state);
+      void refreshPacketBotRequestHistory(state);
+      // Polling updates run every refresh interval; avoid clobbering in-progress
+      // textarea edits/selections while the joke editor has focus.
+      if (!isBotsCommandEditorFocused()) {{
+        renderManagedBotCommandList();
+        syncChatWhoisQuickActionControls();
+      }}
+      syncBotsReviewTabUi();
+      const listEl = document.getElementById("bots-history-list");
+      const totalEl = document.getElementById("bots-history-total");
+      const pendingEl = document.getElementById("bots-history-pending");
+      const respondedEl = document.getElementById("bots-history-responded");
+      if (!(listEl instanceof HTMLElement)) return;
+
+      const entries = mergedBotRequestHistoryEntries(state);
+      const total = entries.length;
+      const responded = entries.reduce((acc, item) => (
+        acc + ((item && (item.response_message_id || item.responded)) ? 1 : 0)
+      ), 0);
+      const pending = Math.max(0, total - responded);
+
+      if (totalEl instanceof HTMLElement) totalEl.textContent = String(total);
+      if (pendingEl instanceof HTMLElement) pendingEl.textContent = String(pending);
+      if (respondedEl instanceof HTMLElement) respondedEl.textContent = String(responded);
+
+      if (entries.length === 0) {{
+        const loadingHistorical = !!packetBotRequestHistoryInFlight;
+        listEl.innerHTML = loadingHistorical
+          ? '<div class="bots-history-empty">Loading historical bot usage from packet history...</div>'
+          : '<div class="bots-history-empty">No tracked bot requests yet. Send a <code>whois</code> or <code>ping</code> command, or wait for mesh bot traffic.</div>';
+        return;
+      }}
+
+      const nodeLabel = buildBotNodeLabelResolver(state);
+
+      const rows = entries.map((entry) => {{
+        let statusClass = "pending";
+        let statusLabel = "Pending";
+        if (entry.response_message_id || entry.responded) {{
+          statusClass = "responded";
+          statusLabel = "Responded";
+        }} else if (entry.response_error) {{
+          statusClass = "pending";
+          statusLabel = "Error";
+        }} else if (entry.respond_enabled === false) {{
+          statusClass = "pending";
+          statusLabel = "Observed";
+        }}
+        const sentLabel = formatLocalChatTime(entry.sent_unix, entry.sent_at || "n/a");
+        const destLabel = entry.destination === "^all" ? "All" : nodeLabel(entry.destination);
+        const fromLabel = nodeLabel(entry.from_id || "");
+        const hasChannelIndex = Number.isInteger(entry.channel_index) && Number(entry.channel_index) >= 0;
+        const channelLabel = hasChannelIndex
+          ? meshChannelLabelForIndex(entry.channel_index, {{ allowAll: false }})
+          : "Channel ?";
+        const channelBadge = hasChannelIndex
+          ? meshChannelBadgeHtml(entry.channel_index, channelLabel, {{
+              allowAll: false,
+              extraClass: "bots-history-channel",
+              title: meshChannelLabelForIndex(entry.channel_index, {{ verbose: true, allowAll: false }}),
+            }})
+          : `<span>${{escAttr(channelLabel)}}</span>`;
+        const replyHint = entry.reply_attached ? "reply attached" : "new request";
+        const responseMeta = entry.response_message_id
+          ? buildResponseTelemetryMetaHtml(entry.sent_ms, entry.response_ms, entry.response_hops)
+          : "";
+        const responseText = String(entry.response_text || "").trim();
+        const responsePreview = responseText
+          ? compactInlineMessage(responseText, 200)
+          : "(no text)";
+        const responseBlock = entry.response_message_id
+          ? `<div class="bots-history-response"><strong>${{escAttr(nodeLabel(entry.response_from))}}:</strong> ${{escAttr(responsePreview)}}</div>`
+          : (
+            entry.response_error
+              ? `<div class="bots-history-response"><strong>error:</strong> ${{escAttr(entry.response_error)}}</div>`
+              : ""
+          );
+        return `<article class="bots-history-item">
+          <div class="bots-history-item-head">
+            <span class="bots-history-command">${{escAttr(entry.command)}}</span>
+            <span class="bots-history-status-pill ${{statusClass}}">${{statusLabel}}</span>
+          </div>
+          <div class="bots-history-meta">
+            <span>${{escAttr(sentLabel)}}</span>
+            <span>from ${{escAttr(fromLabel || "n/a")}}</span>
+            ${{channelBadge}}
+            <span>to ${{escAttr(destLabel)}}</span>
+            <span>${{escAttr(replyHint)}}</span>
+          </div>
+          ${{responseMeta}}
+          ${{responseBlock}}
+        </article>`;
+      }});
+      listEl.innerHTML = rows.join("");
+    }}
+
+    function bindBotHistoryControls() {{
+      const clearBtn = document.getElementById("bots-history-clear-btn");
+      if (clearBtn instanceof HTMLButtonElement && clearBtn.dataset.bound !== "1") {{
+        clearBtn.dataset.bound = "1";
+        clearBtn.addEventListener("click", () => {{
+          clearBotRequestHistory();
+          setChatSendStatus("Cleared bot request history.");
+        }});
+      }}
+    }}
+
+    function bindBotsReviewControls() {{
+      const historyBtn = document.getElementById("bots-tab-history-btn");
+      if (historyBtn instanceof HTMLButtonElement && historyBtn.dataset.bound !== "1") {{
+        historyBtn.dataset.bound = "1";
+        historyBtn.addEventListener("click", () => {{
+          activeBotsReviewTab = "history";
+          syncBotsReviewTabUi();
+        }});
+      }}
+    }}

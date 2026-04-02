@@ -46,6 +46,7 @@ class RenderHtmlFn(Protocol):
         node_history_max_points: int,
         revision_label: str,
         revision_title: str,
+        reset_ticker_scale_on_restart: bool = True,
         light_theme_vars: dict | None = None,
         dark_theme_vars: dict | None = None,
     ) -> str:
@@ -72,6 +73,11 @@ class OnlineActivityFn(Protocol):
         ...
 
 
+class SummaryMetricsHistoryFn(Protocol):
+    def __call__(self, hours_override: Optional[int] = None) -> dict[str, object]:
+        ...
+
+
 class SendChatFn(Protocol):
     def __call__(
         self,
@@ -92,7 +98,10 @@ class MakeHttpHandlerFn(Protocol):
         state_fn: StateFn,
         node_history_fn: NodeHistoryFn | None = None,
         online_activity_fn: OnlineActivityFn | None = None,
+        summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
         send_chat_fn: SendChatFn | None = None,
+        api_token: str | None = None,
+        private_mode: bool = False,
         default_node_history_hours: int = 72,
         to_int_fn: ToIntFn = ...,
     ) -> object:
@@ -265,6 +274,16 @@ class BuildOnlineActivityLoaderFn(Protocol):
         *,
         default_hours: int,
     ) -> OnlineActivityFn:
+        ...
+
+
+class BuildSummaryMetricsLoaderFn(Protocol):
+    def __call__(
+        self,
+        history_store: object | None,
+        *,
+        default_hours: int,
+    ) -> SummaryMetricsHistoryFn:
         ...
 
 

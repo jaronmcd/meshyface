@@ -1,6 +1,7 @@
 from typing import Optional
 
 from .helpers_core import to_int as _to_int
+from .helpers_emoji import emoji_codepoint_from_any as _emoji_codepoint_from_any
 
 
 def extract_reply_id(decoded: object) -> Optional[int]:
@@ -16,23 +17,7 @@ def extract_reply_id(decoded: object) -> Optional[int]:
 def extract_emoji_codepoint(decoded: object) -> Optional[int]:
     if not isinstance(decoded, dict):
         return None
-    raw = decoded.get("emoji")
-    if raw is None:
-        return None
-
-    if isinstance(raw, str):
-        clean = raw.strip()
-        if not clean:
-            return None
-        as_int = _to_int(clean)
-        if as_int is not None:
-            return as_int if as_int > 0 else None
-        return ord(clean[0])
-
-    as_int = _to_int(raw)
-    if as_int is None or as_int <= 0:
-        return None
-    return as_int
+    return _emoji_codepoint_from_any(decoded.get("emoji"))
 
 
 def calculate_hops(hop_start: object, hop_limit: object) -> Optional[int]:

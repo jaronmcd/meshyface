@@ -83,6 +83,91 @@ def test_collect_local_state_falls_back_to_getnode_when_needed():
     assert len(state["channels"]) == 1
 
 
+def test_collect_local_state_includes_local_position_from_node_registry():
+    local = types.SimpleNamespace(
+        nodeNum=2,
+        localConfig={"lora": {"modem_preset": "MEDIUM_FAST"}},
+        moduleConfig={"foo": "bar"},
+        channels=[{"name": "primary"}],
+    )
+    iface = _iface_with_local(local_node=local)
+    iface.myInfo = {"my_node_num": 2}
+
+    state = collect_local_state(iface)
+
+    assert state["local_node_num"] == 2
+    assert state["local_node_info"]["num"] == 2
+    assert state["local_position"]["latitude"] == 44.98
+    assert state["local_position"]["longitude"] == -93.26
+
+
+def test_collect_local_state_includes_local_stats_from_node_registry():
+    local = types.SimpleNamespace(
+        nodeNum=2,
+        localConfig={"lora": {"modem_preset": "MEDIUM_FAST"}},
+        moduleConfig={"foo": "bar"},
+        channels=[{"name": "primary"}],
+    )
+    iface = _iface_with_local(local_node=local)
+    iface.myInfo = {"my_node_num": 2}
+    iface.nodesByNum[2]["localStats"] = {
+        "heap_total_bytes": 1000,
+        "heap_free_bytes": 625,
+    }
+
+    state = collect_local_state(iface)
+
+    assert state["local_stats"]["heap_total_bytes"] == 1000
+    assert state["local_stats"]["heap_free_bytes"] == 625
+
+
+def test_collect_local_state_includes_local_stats_from_local_node_when_registry_missing():
+    local = types.SimpleNamespace(
+        nodeNum=2,
+        localStats={"heap_total_bytes": 2048, "heap_free_bytes": 1536},
+        localConfig={"lora": {"modem_preset": "MEDIUM_FAST"}},
+        moduleConfig={"foo": "bar"},
+        channels=[{"name": "primary"}],
+    )
+    iface = _iface_with_local(local_node=local)
+    iface.myInfo = {"my_node_num": 2}
+    iface.nodesByNum[2].pop("localStats", None)
+    iface.nodesByNum[2].pop("local_stats", None)
+
+    state = collect_local_state(iface)
+
+    assert state["local_stats"]["heap_total_bytes"] == 2048
+    assert state["local_stats"]["heap_free_bytes"] == 1536
+
+
+def test_collect_local_state_dedupes_repeated_channel_slots_by_index():
+    repeated_channels = [
+        {"role": "PRIMARY", "settings": {"name": "primary"}},
+        {"index": 1, "role": "DISABLED"},
+        {"index": 2, "role": "DISABLED"},
+        {"index": 3, "role": "DISABLED"},
+        {"index": 4, "role": "DISABLED"},
+        {"index": 5, "role": "DISABLED"},
+        {"index": 6, "role": "DISABLED"},
+        {"index": 7, "role": "DISABLED"},
+    ] * 4
+    local = types.SimpleNamespace(
+        localConfig={"lora": {"modem_preset": "LONG_FAST"}},
+        moduleConfig={"foo": "bar"},
+        channels=repeated_channels,
+    )
+    iface = _iface_with_local(local_node=local)
+
+    state = collect_local_state(iface)
+
+    channels = state["channels"]
+    assert len(channels) == 8
+    assert channels[0]["index"] == 0
+    assert channels[0]["role"] == "PRIMARY"
+    assert channels[0]["settings"]["name"] == "primary"
+    assert [channel["index"] for channel in channels[1:]] == [1, 2, 3, 4, 5, 6, 7]
+
+
 def test_build_state_merges_saved_counts_and_redacts_secrets():
     iface = _iface_with_local()
     tracker = _DummyTracker()

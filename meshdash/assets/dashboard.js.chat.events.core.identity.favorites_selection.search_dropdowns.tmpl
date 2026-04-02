@@ -1,0 +1,249 @@
+    function normalizeSearchQuery(value) {{
+      return String(value == null ? "" : value).trim().toLowerCase();
+    }}
+
+    function globalNodeSearchQuery() {{
+      return normalizeSearchQuery(chatUserSearchQuery);
+    }}
+
+    function syncGlobalNodeSearchInputs(query, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const valueText = normalizeSearchQuery(query);
+      const sourceInputId = String(opts.sourceInputId || "").trim();
+      const skipSourceInput = opts.skipSourceInput === true;
+      const inputIds = [
+        "chat-user-search-input",
+        "nodes-search-input",
+        "favorites-search-input",
+        "saved-node-search-input",
+        "favorite-menu-node-search-input",
+        "remote-node-search-input",
+      ];
+      for (const inputId of inputIds) {{
+        if (!inputId) continue;
+        if (skipSourceInput && sourceInputId && inputId === sourceInputId) continue;
+        const input = document.getElementById(inputId);
+        if (!(input instanceof HTMLInputElement)) continue;
+        if (input.value !== valueText) {{
+          input.value = valueText;
+        }}
+      }}
+    }}
+
+    function setGlobalNodeSearchQuery(value, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const query = normalizeSearchQuery(value);
+      const changed = query !== globalNodeSearchQuery();
+      chatUserSearchQuery = query;
+      nodesSearchQuery = query;
+      favoritesSearchQuery = query;
+      savedNodeSearchQuery = query;
+      favoriteMenuNodeSearchQuery = query;
+      remoteNodeSearchTerm = query;
+      if (opts.syncInputs !== false) {{
+        syncGlobalNodeSearchInputs(query, opts);
+      }}
+      return changed;
+    }}
+
+    function nodeSearchKeywordText(nodeId, nodeName, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const terms = [];
+      const pushTerm = (value) => {{
+        const normalized = normalizeSearchQuery(
+          value == null ? "" : String(value).replace(/\s+/g, " ")
+        );
+        if (!normalized || terms.includes(normalized)) return;
+        terms.push(normalized);
+      }};
+
+      pushTerm(nodeId);
+      pushTerm(nodeName);
+
+      const node = opts.node && typeof opts.node === "object" ? opts.node : null;
+      if (node) {{
+        pushTerm(node.short_name);
+        pushTerm(node.long_name);
+        pushTerm(node.role);
+        pushTerm(node.hardware);
+        pushTerm(node.hardware_model);
+        pushTerm(node.num);
+      }}
+
+      const extras = Array.isArray(opts.extraValues)
+        ? opts.extraValues
+        : (opts.extraValues == null ? [] : [opts.extraValues]);
+      for (const extra of extras) {{
+        pushTerm(extra);
+      }}
+
+      if (typeof nodeTagEntryForNode === "function") {{
+        const tagEntry = nodeTagEntryForNode(nodeId);
+        if (tagEntry && tagEntry.preset) {{
+          pushTerm(tagEntry.preset.name);
+          pushTerm(tagEntry.preset.id);
+        }}
+      }}
+
+      const includeNotes = opts.includeNotes !== false;
+      if (includeNotes) {{
+        const noteEntry = (typeof nodeNoteEntry === "function")
+          ? nodeNoteEntry(nodeId)
+          : null;
+        const noteText = noteEntry && noteEntry.note != null
+          ? noteEntry.note
+          : "";
+        pushTerm(noteText);
+      }}
+
+      return terms.join(" ");
+    }}
+
+    function matchesIdOrNameQuery(nodeId, nodeName, query, options = null) {{
+      if (!query) return true;
+      return nodeSearchKeywordText(nodeId, nodeName, options).includes(query);
+    }}
+
+    function closeSavedNodeSearchDropdown() {{
+      if (savedNodeSearchBlurTimer !== null) {{
+        clearTimeout(savedNodeSearchBlurTimer);
+        savedNodeSearchBlurTimer = null;
+      }}
+      savedNodeSearchOpen = false;
+      const dropdown = document.getElementById("saved-node-search-dropdown");
+      if (dropdown instanceof HTMLElement) {{
+        dropdown.hidden = true;
+      }}
+    }}
+
+    function closeFavoriteMenuNodeSearchDropdown() {{
+      if (favoriteMenuNodeSearchBlurTimer !== null) {{
+        clearTimeout(favoriteMenuNodeSearchBlurTimer);
+        favoriteMenuNodeSearchBlurTimer = null;
+      }}
+      favoriteMenuNodeSearchOpen = false;
+      const dropdown = document.getElementById("favorite-menu-node-search-dropdown");
+      if (dropdown instanceof HTMLElement) {{
+        dropdown.hidden = true;
+      }}
+    }}
+
+    function buildNodeSearchResults(state, query, limit = 250) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const nodeById = new Map();
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isSelectableNodeId(nodeId)) continue;
+        nodeById.set(nodeId, node);
+      }}
+
+      const orderedNodeIds = [];
+      const seenNodeIds = new Set();
+      const pushNodeId = (nodeId) => {{
+        const cleanNodeId = normalizeNodeId(nodeId);
+        if (!isSelectableNodeId(cleanNodeId) || seenNodeIds.has(cleanNodeId)) return;
+        seenNodeIds.add(cleanNodeId);
+        orderedNodeIds.push(cleanNodeId);
+      }};
+
+      for (const node of nodes) {{
+        pushNodeId(node && node.id);
+      }}
+      if (typeof favoriteNodeIds !== "undefined" && favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
+        favoriteNodeIds.forEach((nodeId) => {{
+          pushNodeId(nodeId);
+        }});
+      }}
+      if (typeof nodeNotesById !== "undefined" && nodeNotesById && typeof nodeNotesById.forEach === "function") {{
+        nodeNotesById.forEach((_entry, nodeId) => {{
+          pushNodeId(nodeId);
+        }});
+      }}
+      pushNodeId(selectedNodeId || "");
+
+      const maxRows = Math.max(1, Number(limit) || 250);
+      const results = [];
+      for (const nodeId of orderedNodeIds) {{
+        const node = nodeById.get(nodeId);
+        const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
+        if (!matchesIdOrNameQuery(nodeId, name, query, {{ node }})) continue;
+        results.push({{
+          nodeId,
+          name: String(name || nodeId),
+        }});
+        if (results.length >= maxRows) break;
+      }}
+      return results;
+    }}
+
+    function renderSavedNodeSearchDropdown(state = latestState) {{
+      const input = document.getElementById("saved-node-search-input");
+      const dropdown = document.getElementById("saved-node-search-dropdown");
+      if (!(input instanceof HTMLInputElement) || !(dropdown instanceof HTMLElement)) return;
+
+      if (activeLayoutView !== "saved") {{
+        dropdown.hidden = true;
+        return;
+      }}
+
+      const hasFocus = document.activeElement === input || dropdown.contains(document.activeElement);
+      if (!savedNodeSearchOpen || !hasFocus) {{
+        dropdown.hidden = true;
+        return;
+      }}
+
+      const query = globalNodeSearchQuery();
+      const rows = buildNodeSearchResults(state, query, 250);
+      if (!rows.length) {{
+        dropdown.innerHTML = '<div class="node-search-empty">No nodes match this search.</div>';
+        dropdown.hidden = false;
+        return;
+      }}
+
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      dropdown.innerHTML = rows.map((row) => {{
+        const selectedClass = row.nodeId === selectedId ? " selected-node" : "";
+        return `<button type="button" class="node-search-item${{selectedClass}}" data-node-id="${{escAttr(row.nodeId)}}" role="option" aria-selected="${{row.nodeId === selectedId ? "true" : "false"}}"><span class="node-search-name">${{escAttr(row.name)}}</span><span class="node-search-id">${{escAttr(row.nodeId)}}</span></button>`;
+      }}).join("");
+      dropdown.hidden = false;
+    }}
+
+    function renderFavoriteMenuNodeSearchDropdown(state = latestState) {{
+      const input = document.getElementById("favorite-menu-node-search-input");
+      const dropdown = document.getElementById("favorite-menu-node-search-dropdown");
+      const selectedHost = document.getElementById("favorite-menu-selected-list");
+      if (
+        !(input instanceof HTMLInputElement)
+        || !(dropdown instanceof HTMLElement)
+        || !(selectedHost instanceof HTMLElement)
+      ) {{
+        return;
+      }}
+
+      if (!favoriteMenuOpen) {{
+        dropdown.hidden = true;
+        return;
+      }}
+
+      const hasFocus = document.activeElement === input || dropdown.contains(document.activeElement);
+      if (!favoriteMenuNodeSearchOpen || !hasFocus) {{
+        dropdown.hidden = true;
+        return;
+      }}
+
+      const query = globalNodeSearchQuery();
+      const rows = buildNodeSearchResults(state, query, 250);
+      if (!rows.length) {{
+        dropdown.innerHTML = '<div class="node-search-empty">No nodes match this search.</div>';
+        dropdown.hidden = false;
+        return;
+      }}
+
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      dropdown.innerHTML = rows.map((row) => {{
+        const selectedClass = row.nodeId === selectedId ? " selected-node" : "";
+        return `<button type="button" class="node-search-item${{selectedClass}}" data-node-id="${{escAttr(row.nodeId)}}" role="option" aria-selected="${{row.nodeId === selectedId ? "true" : "false"}}"><span class="node-search-name">${{escAttr(row.name)}}</span><span class="node-search-id">${{escAttr(row.nodeId)}}</span></button>`;
+      }}).join("");
+      dropdown.hidden = false;
+    }}

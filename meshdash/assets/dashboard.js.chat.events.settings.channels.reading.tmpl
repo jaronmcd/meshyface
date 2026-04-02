@@ -1,0 +1,230 @@
+    let channelsTableFillRaf = 0;
+    const channelSettingsDraftByIndex = new Map();
+
+    function normalizeChannelDraftIndex(value) {{
+      const idx = Number(value);
+      if (!Number.isInteger(idx) || idx < 0) return null;
+      return idx;
+    }}
+
+    function channelDraftForIndex(index) {{
+      const idx = normalizeChannelDraftIndex(index);
+      if (idx == null) return null;
+      const draft = channelSettingsDraftByIndex.get(idx);
+      return draft && typeof draft === "object" ? draft : null;
+    }}
+
+    function clearChannelDraft(index) {{
+      const idx = normalizeChannelDraftIndex(index);
+      if (idx == null) return;
+      channelSettingsDraftByIndex.delete(idx);
+    }}
+
+    function updateChannelDraftFromRow(row) {{
+      if (!(row instanceof HTMLElement)) return;
+      const idx = normalizeChannelDraftIndex(row.dataset.channelIndex);
+      if (idx == null) return;
+      const getInput = (field) => row.querySelector(`[data-field=\"${{field}}\"]`);
+      const nameEl = getInput("name");
+      const uplinkEl = getInput("uplink_enabled");
+      const downlinkEl = getInput("downlink_enabled");
+      const pskEl = getInput("psk");
+      channelSettingsDraftByIndex.set(idx, {{
+        name: nameEl instanceof HTMLInputElement ? String(nameEl.value || "") : "",
+        uplink_enabled: uplinkEl instanceof HTMLInputElement && uplinkEl.type === "checkbox" ? !!uplinkEl.checked : false,
+        downlink_enabled: downlinkEl instanceof HTMLInputElement && downlinkEl.type === "checkbox" ? !!downlinkEl.checked : false,
+        psk: pskEl instanceof HTMLInputElement ? String(pskEl.value || "") : "",
+      }});
+    }}
+
+    function syncChannelsTableFillRows() {{
+      const tbody = document.getElementById("settings-channels-tbody");
+      const table = document.getElementById("settings-channels-table");
+      if (!(tbody instanceof HTMLElement) || !(table instanceof HTMLTableElement)) return;
+      const wrapper = table.closest(".channels-activity-table-wrap");
+      if (!(wrapper instanceof HTMLElement)) return;
+
+      Array.from(tbody.querySelectorAll("tr.settings-channels-filler-row")).forEach((row) => row.remove());
+
+      const realRows = Array.from(tbody.querySelectorAll("tr")).filter((row) => !row.classList.contains("settings-channels-filler-row"));
+      if (!realRows.length) return;
+      if (realRows.length === 1 && realRows[0].querySelector(".settings-channels-empty")) return;
+
+      const sampleRow = realRows.find((row) => row instanceof HTMLElement && row.offsetHeight > 0);
+      const rowHeight = sampleRow instanceof HTMLElement
+        ? Math.max(32, Math.round(sampleRow.getBoundingClientRect().height))
+        : 46;
+      const columnCount = Math.max(1, table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells.length : 14);
+      const wrapperHeight = Math.max(0, Math.floor(wrapper.clientHeight));
+      const tableHeight = Math.max(0, Math.ceil(table.getBoundingClientRect().height));
+      const missingPx = Math.max(0, wrapperHeight - tableHeight);
+      const fillerRows = Math.max(0, Math.ceil(missingPx / rowHeight));
+
+      for (let i = 0; i < fillerRows; i += 1) {{
+        const tr = document.createElement("tr");
+        tr.className = "settings-channels-filler-row";
+        tr.setAttribute("aria-hidden", "true");
+        for (let col = 0; col < columnCount; col += 1) {{
+          const td = document.createElement("td");
+          td.innerHTML = "&nbsp;";
+          tr.appendChild(td);
+        }}
+        tbody.appendChild(tr);
+      }}
+    }}
+
+    function scheduleChannelsTableFillRows() {{
+      if (channelsTableFillRaf) {{
+        cancelAnimationFrame(channelsTableFillRaf);
+      }}
+      channelsTableFillRaf = requestAnimationFrame(() => {{
+        channelsTableFillRaf = 0;
+        syncChannelsTableFillRows();
+      }});
+    }}
+
+    async function postChannelSettingsPayload(payload, pendingLabel, successLabel) {{
+      if (settingsApplyInFlight) return {{ ok: false, data: null }};
+      settingsApplyInFlight = true;
+      setSettingsButtonsDisabled(true);
+      setChannelsStatusText(pendingLabel);
+      try {{
+        const resp = await fetch(channelSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(payload),
+        }});
+
+        const text = await resp.text();
+        let parsed = null;
+        try {{
+          parsed = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+
+        if (!resp.ok) {{
+          const errMsg = parsed && parsed.error ? String(parsed.error) : (text || `HTTP ${{resp.status}}`);
+          setChannelsStatusText(`Channel update failed: ${{errMsg}}`);
+          appendConsoleLine(`channels|${{Date.now()}}|error`, `[channels] update failed: ${{errMsg}}`);
+          return {{ ok: false, data: parsed }};
+        }}
+
+        const rebootHint = parsed && parsed.reboot_expected ? " Radio may reconnect." : "";
+        const fieldsHint =
+          parsed && Array.isArray(parsed.applied_fields) && parsed.applied_fields.length
+            ? ` Applied: ${{parsed.applied_fields.join(", ")}}.`
+            : "";
+        setChannelsStatusText(`Applied. ${{successLabel}}.${{rebootHint}}${{fieldsHint}}`);
+        appendConsoleLine(
+          `channels|${{Date.now()}}|ok`,
+          `[channels] ${{successLabel}}.${{rebootHint}}${{fieldsHint}}`
+        );
+        clearSettingsDirty();
+        return {{ ok: true, data: parsed }};
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        setChannelsStatusText(`Channel update error: ${{msg}}`);
+        appendConsoleLine(`channels|${{Date.now()}}|error`, `[channels] update error: ${{msg}}`);
+        return {{ ok: false, data: null }};
+      }} finally {{
+        settingsApplyInFlight = false;
+        setSettingsButtonsDisabled(false);
+      }}
+    }}
+
+    function readChannelRowSettings(row) {{
+      if (!(row instanceof HTMLElement)) return null;
+      const getInput = (field) => row.querySelector(`[data-field=\"${{field}}\"]`);
+      const nameEl = getInput("name");
+      const uplinkEl = getInput("uplink_enabled");
+      const downlinkEl = getInput("downlink_enabled");
+      const pskEl = getInput("psk");
+
+      const settings = {{}};
+      if (nameEl instanceof HTMLInputElement) {{
+        settings.name = String(nameEl.value || "").trim();
+      }}
+      if (uplinkEl instanceof HTMLInputElement && uplinkEl.type === "checkbox") {{
+        settings.uplink_enabled = !!uplinkEl.checked;
+      }}
+      if (downlinkEl instanceof HTMLInputElement && downlinkEl.type === "checkbox") {{
+        settings.downlink_enabled = !!downlinkEl.checked;
+      }}
+      if (pskEl instanceof HTMLInputElement) {{
+        const pskValue = String(pskEl.value || "").trim();
+        if (pskValue) settings.psk = pskValue;
+      }}
+      return settings;
+    }}
+
+    async function handleChannelSave(index) {{
+      const idx = Number(index);
+      const row = document.querySelector(`#settings-channels-tbody tr[data-channel-index=\"${{idx}}\"]`);
+      if (!(row instanceof HTMLElement)) return;
+
+      const role = String(row.dataset.channelRole || "");
+      const roleText = String(role || "").trim();
+      const roleUpper = roleText.toUpperCase();
+      const isDisabledRole = (
+        roleUpper === "DISABLED"
+        || roleUpper === "CHANNEL_ROLE_DISABLED"
+        || (Number.isInteger(Number(roleText)) && Number(roleText) === 0)
+      );
+      const settings = readChannelRowSettings(row) || {{}};
+
+      if (isDisabledRole && !settings.name && !channelsExperimentalEnabled) {{
+        setChannelsStatusText("Channel name is required to add a channel unless Experimental is enabled.");
+        return;
+      }}
+
+      const payload = {{
+        action: "upsert",
+        channel_index: idx,
+        settings,
+        allow_experimental: !!channelsExperimentalEnabled,
+      }};
+
+      if (isDisabledRole) {{
+        payload.role = "SECONDARY";
+      }}
+
+      const label = isDisabledRole ? `Adding channel ${{idx}}…` : `Saving channel ${{idx}}…`;
+      const res = await postChannelSettingsPayload(payload, label, `Channel ${{idx}} updated`);
+      if (res.ok) {{
+        clearChannelDraft(idx);
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 700);
+      }}
+    }}
+
+    async function handleChannelDisable(index) {{
+      const idx = Number(index);
+      if (!Number.isFinite(idx) || idx <= 0) return;
+
+      const payload = {{
+        action: "disable",
+        channel_index: idx,
+      }};
+      const res = await postChannelSettingsPayload(payload, `Disabling channel ${{idx}}…`, `Channel ${{idx}} disabled`);
+      if (res.ok) {{
+        clearChannelDraft(idx);
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 700);
+      }}
+    }}
+
+    async function handleChannelExportUrl() {{
+      const payload = {{
+        action: "export_url",
+        include_all: true,
+      }};
+      const res = await postChannelSettingsPayload(payload, "Exporting channel URL…", "Channel URL exported");
+      if (res.ok && res.data && typeof res.data.url === "string") {{
+        const ok = await copyTextToClipboard(res.data.url);
+        setChannelsStatusText(
+          ok ? "Channel URL copied to clipboard." : "Channel URL generated. (Clipboard copy blocked by browser.)"
+        );
+      }}
+    }}

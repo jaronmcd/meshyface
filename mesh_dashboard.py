@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 from typing import Optional
 
@@ -29,6 +30,7 @@ from meshdash.config import (
     DEFAULT_NODE_HISTORY_MAX_POINTS,
     DEFAULT_PACKET_LIMIT,
     DEFAULT_REFRESH_MS,
+    DEFAULT_RESET_TICKER_SCALE_ON_RESTART,
     SENSITIVE_FIELD_NAMES,
     UNKNOWN_GIT_COMMIT,
 )
@@ -55,6 +57,7 @@ from meshdash.state import build_state as _build_state_helper, build_state_lite 
 from meshdash.services import (
     build_node_history_loader as _build_node_history_loader,
     build_online_activity_loader as _build_online_activity_loader,
+    build_summary_metrics_loader as _build_summary_metrics_loader,
     send_chat_message as _send_chat_message_helper,
 )
 from meshdash.theme_presets import (
@@ -63,6 +66,12 @@ from meshdash.theme_presets import (
 from meshdash.theme_settings import ThemePresetSettings as _ThemePresetSettings
 from meshdash.cli import build_dashboard_parser as _build_dashboard_parser_helper
 from meshdash.dashboard_runtime import run_dashboard_runtime as _run_dashboard_runtime_helper
+from meshdash.history.db import (
+    open_and_initialize_history_connection as _open_and_initialize_history_connection_helper,
+)
+from meshdash.history_backfill import (
+    backfill_environment_metric_rollups as _backfill_environment_metric_rollups_helper,
+)
 from meshdash.history_store import HistoryStore
 from meshdash.revision import RevisionInfo
 from meshdash.tracker import DashboardTracker, seed_tracker_from_node_db as _seed_tracker_from_node_db_helper
@@ -132,12 +141,20 @@ def _build_render_html_fn_with_theme(
     return _render_html_with_theme
 
 
-def _build_make_http_handler_with_theme_settings(theme_settings: _ThemePresetSettings):
+def _build_make_http_handler_with_theme_settings(
+    theme_settings: _ThemePresetSettings,
+    *,
+    api_token: object = None,
+    private_mode: bool = False,
+):
+    clean_api_token = str(api_token or "").strip() or None
+
     def _make_http_handler_with_theme_settings(
         html_text: str,
         state_fn,
         node_history_fn=None,
         online_activity_fn=None,
+        summary_metrics_fn=None,
         send_chat_fn=None,
         default_node_history_hours: int = 72,
         to_int_fn=_to_int,
@@ -147,14 +164,69 @@ def _build_make_http_handler_with_theme_settings(theme_settings: _ThemePresetSet
             state_fn=state_fn,
             node_history_fn=node_history_fn,
             online_activity_fn=online_activity_fn,
+            summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             get_theme_settings_fn=theme_settings.get_settings_payload,
             set_theme_preset_fn=theme_settings.set_selected_preset,
+            api_token=clean_api_token,
+            private_mode=bool(private_mode),
             default_node_history_hours=default_node_history_hours,
             to_int_fn=to_int_fn,
         )
 
     return _make_http_handler_with_theme_settings
+
+
+def _resolve_backfill_history_db_path(raw_history_db: object) -> tuple[str, list[str]]:
+    resolved = os.path.abspath(os.path.expanduser(str(raw_history_db or DEFAULT_HISTORY_DB)))
+    if ".radio-" in os.path.basename(resolved):
+        return resolved, []
+    root, ext = os.path.splitext(resolved)
+    candidate_pattern = f"{root}.radio-*{ext}"
+    candidates = [path for path in glob.glob(candidate_pattern) if os.path.isfile(path)]
+    if not candidates:
+        return resolved, []
+    candidates.sort(key=lambda path: os.path.getmtime(path), reverse=True)
+    return candidates[0], candidates
+
+
+def run_environment_rollup_backfill(args: argparse.Namespace) -> None:
+    selected_db_path, candidates = _resolve_backfill_history_db_path(getattr(args, "history_db", ""))
+    reset_existing = bool(getattr(args, "backfill_environment_rollups_reset", False))
+    if candidates:
+        print(
+            f"Backfill DB selected: {selected_db_path} "
+            f"(found {len(candidates)} profiled DB candidate(s))."
+        )
+    else:
+        print(f"Backfill DB selected: {selected_db_path}")
+    conn = _open_and_initialize_history_connection_helper(
+        db_path=selected_db_path,
+        retention_seconds=max(0, int(getattr(args, "history_retention_days", 0))) * 86400,
+        event_retention_seconds=max(0, int(getattr(args, "history_event_retention_days", 0))) * 86400,
+        rollup_retention_seconds=max(0, int(getattr(args, "history_rollup_retention_days", 0))) * 86400,
+        max_rows=max(100, int(getattr(args, "history_max_rows", 100))),
+        event_max_rows=max(1000, int(getattr(args, "history_event_max_rows", 1000))),
+    )
+    try:
+        result = _backfill_environment_metric_rollups_helper(
+            conn,
+            reset_existing=reset_existing,
+            commit_every=1000,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    print(
+        "Environment rollup backfill complete: "
+        f"scanned={int(result.get('scanned_packets', 0))}, "
+        f"usable={int(result.get('usable_packets', 0))}, "
+        f"bad={int(result.get('bad_rows', 0))}, "
+        f"rows_before={int(result.get('before_rows', 0))}, "
+        f"rows_after={int(result.get('after_rows', 0))}, "
+        f"rows_delta={int(result.get('delta_rows', 0))}"
+    )
 
 
 def run_dashboard(args: argparse.Namespace) -> None:
@@ -177,6 +249,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
         sensitive_field_names=SENSITIVE_FIELD_NAMES,
         build_node_history_loader_fn=_build_node_history_loader,
         build_online_activity_loader_fn=_build_online_activity_loader,
+        build_summary_metrics_loader_fn=_build_summary_metrics_loader,
         send_chat_message_fn=_send_chat_message_helper,
         send_emoji_reaction_packet_fn=_send_emoji_reaction_packet_helper,
         mesh_pb2_module=mesh_pb2,
@@ -190,7 +263,11 @@ def run_dashboard(args: argparse.Namespace) -> None:
             args,
             theme_preset_settings=theme_preset_settings,
         ),
-        make_http_handler_fn=_build_make_http_handler_with_theme_settings(theme_preset_settings),
+        make_http_handler_fn=_build_make_http_handler_with_theme_settings(
+            theme_preset_settings,
+            api_token=getattr(args, "api_token", None),
+            private_mode=bool(getattr(args, "private_mode", False)),
+        ),
         default_node_history_hours=DEFAULT_NODE_HISTORY_HOURS,
         guess_lan_ipv4_fn=_guess_lan_ipv4_helper,
         default_chat_max_bytes=DEFAULT_CHAT_MAX_BYTES,
@@ -207,6 +284,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
         build_state_fn=runtime_dependencies.build_state_fn,
         build_node_history_loader_fn=runtime_dependencies.build_node_history_loader_fn,
         build_online_activity_loader_fn=runtime_dependencies.build_online_activity_loader_fn,
+        build_summary_metrics_loader_fn=runtime_dependencies.build_summary_metrics_loader_fn,
         send_chat_message_fn=runtime_dependencies.send_chat_message_fn,
         send_reaction_packet_fn=runtime_dependencies.send_reaction_packet_fn,
         get_local_node_id_fn=runtime_dependencies.get_local_node_id_fn,
@@ -232,6 +310,7 @@ def main() -> None:
         default_http_port=DEFAULT_HTTP_PORT,
         default_refresh_ms=DEFAULT_REFRESH_MS,
         default_packet_limit=DEFAULT_PACKET_LIMIT,
+        default_reset_ticker_scale_on_restart=DEFAULT_RESET_TICKER_SCALE_ON_RESTART,
         default_history_db=DEFAULT_HISTORY_DB,
         env_history_db=os.environ.get("MESH_DASH_HISTORY_DB"),
         default_history_max_rows=DEFAULT_HISTORY_MAX_ROWS,
@@ -244,8 +323,13 @@ def main() -> None:
         env_theme_presets=os.environ.get("MESH_DASH_THEME_PRESETS"),
         env_theme_preset=os.environ.get("MESH_DASH_THEME_PRESET"),
         env_theme_settings_file=os.environ.get("MESH_DASH_THEME_SETTINGS_FILE"),
+        env_private_mode=os.environ.get("MESH_DASH_PRIVATE_MODE"),
+        env_api_token=os.environ.get("MESH_DASH_API_TOKEN"),
     )
     args = parser.parse_args()
+    if bool(getattr(args, "backfill_environment_rollups", False)):
+        run_environment_rollup_backfill(args)
+        return
     _apply_default_gateway_helper(args, default_mesh_port=DEFAULT_MESH_PORT)
     run_dashboard(args)
 

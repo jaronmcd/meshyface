@@ -73,7 +73,14 @@ def test_build_chat_entry_from_packet_returns_none_without_text_or_reaction():
 
 
 def test_build_chat_entry_from_packet_builds_reaction_row():
-    packet = {"rxTime": 100, "channel": 1, "hopStart": 5, "hopLimit": 3}
+    packet = {
+        "rxTime": 100,
+        "channel": 1,
+        "hopStart": 5,
+        "hopLimit": 3,
+        "rxSnr": 11.0,
+        "rxRssi": -25,
+    }
     entry = build_chat_entry_from_packet(
         packet=packet,
         decoded={"portnum": "TEXT_MESSAGE_APP", "text": ""},
@@ -95,3 +102,5 @@ def test_build_chat_entry_from_packet_builds_reaction_row():
     assert entry["emoji"] == "👍"
     assert entry["emoji_codepoint"] == 128077
     assert entry["is_reaction"] is True
+    assert entry["rx_snr"] == 11.0
+    assert entry["rx_rssi"] == -25

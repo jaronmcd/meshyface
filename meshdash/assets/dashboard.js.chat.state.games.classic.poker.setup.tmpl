@@ -1,0 +1,304 @@
+    function normalizePokerPlayerCount(valueRaw, fallback = pokerDefaultPlayers) {{
+      const fallbackCount = Math.max(pokerMinPlayers, Math.min(pokerMaxPlayers, Math.trunc(Number(fallback) || pokerDefaultPlayers)));
+      const value = Math.trunc(Number(valueRaw) || fallbackCount);
+      if (!Number.isInteger(value)) return fallbackCount;
+      if (value < pokerMinPlayers) return pokerMinPlayers;
+      if (value > pokerMaxPlayers) return pokerMaxPlayers;
+      return value;
+    }}
+
+    function normalizePokerChipAmount(valueRaw, fallback = 0, minValue = 0, maxValue = Number.MAX_SAFE_INTEGER) {{
+      const fallbackAmount = Math.max(minValue, Math.min(maxValue, Math.trunc(Number(fallback) || 0)));
+      const value = Math.trunc(Number(valueRaw));
+      if (!Number.isFinite(value)) return fallbackAmount;
+      if (value < minValue) return minValue;
+      if (value > maxValue) return maxValue;
+      return value;
+    }}
+
+    function normalizePokerIndex(valueRaw, fallback = -1) {{
+      const fallbackValue = Math.trunc(Number(fallback) || 0);
+      const value = Number(valueRaw);
+      if (!Number.isFinite(value)) return fallbackValue;
+      return Math.trunc(value);
+    }}
+
+    function normalizePokerRules(rulesRaw = {{}}, fallbackRaw = null) {{
+      const fallbackSource = fallbackRaw && typeof fallbackRaw === "object"
+        ? fallbackRaw
+        : {{
+          starting_stack: pokerDefaultStartingStack,
+          ante: pokerDefaultAnte,
+          small_blind: pokerDefaultSmallBlind,
+          big_blind: pokerDefaultBigBlind,
+        }};
+      const source = rulesRaw && typeof rulesRaw === "object" ? rulesRaw : {{}};
+      const startingStack = normalizePokerChipAmount(
+        source.starting_stack ?? source.startingStack,
+        fallbackSource.starting_stack,
+        pokerMinStartingStack,
+        pokerMaxStartingStack
+      );
+      const ante = normalizePokerChipAmount(
+        source.ante,
+        fallbackSource.ante,
+        0,
+        pokerMaxAnte
+      );
+      const smallBlind = normalizePokerChipAmount(
+        source.small_blind ?? source.smallBlind,
+        fallbackSource.small_blind,
+        0,
+        pokerMaxSmallBlind
+      );
+      const bigBlindBase = normalizePokerChipAmount(
+        source.big_blind ?? source.bigBlind,
+        fallbackSource.big_blind,
+        0,
+        pokerMaxBigBlind
+      );
+      const bigBlind = Math.max(smallBlind, bigBlindBase);
+      return {{
+        starting_stack: startingStack,
+        ante,
+        small_blind: smallBlind,
+        big_blind: bigBlind,
+      }};
+    }}
+
+    function createStandardCardDeck() {{
+      const deck = [];
+      for (const suit of standardCardSuits) {{
+        for (const rank of standardCardRanks) {{
+          deck.push(`${{rank}}${{suit}}`);
+        }}
+      }}
+      return deck;
+    }}
+
+    function shuffleCardDeck(cardsRaw) {{
+      const deck = Array.isArray(cardsRaw) ? [...cardsRaw] : [];
+      for (let idx = deck.length - 1; idx > 0; idx -= 1) {{
+        const swapIdx = Math.floor(Math.random() * (idx + 1));
+        const temp = deck[idx];
+        deck[idx] = deck[swapIdx];
+        deck[swapIdx] = temp;
+      }}
+      return deck;
+    }}
+
+    function parseStandardCard(cardRaw) {{
+      const token = String(cardRaw || "").trim().toUpperCase();
+      if (token.length !== 2) return null;
+      const rank = token[0];
+      const suit = token[1];
+      if (!standardCardRanks.includes(rank) || !standardCardSuits.includes(suit)) return null;
+      return {{
+        token,
+        rank,
+        suit,
+        rank_value: standardCardRanks.indexOf(rank) + 2,
+        suit_symbol: standardCardSuitSymbols[suit] || suit,
+        suit_color: standardCardSuitColors[suit] || "black",
+      }};
+    }}
+
+    function pokerRankDisplayToken(rankRaw) {{
+      const rank = String(rankRaw || "").trim().toUpperCase();
+      return rank === "T" ? "10" : rank;
+    }}
+
+    function pokerRankWord(rankValueRaw) {{
+      const rankValue = Math.trunc(Number(rankValueRaw) || 0);
+      if (rankValue === 14) return "Ace";
+      if (rankValue === 13) return "King";
+      if (rankValue === 12) return "Queen";
+      if (rankValue === 11) return "Jack";
+      if (rankValue === 10) return "10";
+      if (rankValue >= 2 && rankValue <= 9) return String(rankValue);
+      return "?";
+    }}
+
+    function pokerPhaseLabel(phaseRaw) {{
+      const phase = String(phaseRaw || "").trim().toLowerCase();
+      if (phase === "betting") return "Betting";
+      if (phase === "draw") return "Draw";
+      if (phase === "showdown") return "Showdown";
+      return "Deal";
+    }}
+
+    function createPokerSeat(seatIndex, startingStackRaw = pokerDefaultStartingStack) {{
+      const index = Math.max(0, Math.trunc(Number(seatIndex) || 0));
+      return {{
+        seat: index,
+        name: `Player ${{index + 1}}`,
+        hand: [],
+        selected_discards: [],
+        draw_count: 0,
+        draw_done: false,
+        hand_eval: null,
+        stack: normalizePokerChipAmount(startingStackRaw, pokerDefaultStartingStack, pokerMinStartingStack, Number.MAX_SAFE_INTEGER),
+        contributed: 0,
+        round_bet: 0,
+        round_acted: false,
+        folded: false,
+        blind_posted: "",
+        last_payout: 0,
+        in_hand: false,
+      }};
+    }}
+
+    function createNewPokerState(playerCountRaw = pokerDefaultPlayers, rulesRaw = null) {{
+      const playerCount = normalizePokerPlayerCount(playerCountRaw, pokerDefaultPlayers);
+      const rules = normalizePokerRules(rulesRaw);
+      return {{
+        player_count: playerCount,
+        seats: Array.from({{ length: playerCount }}, (_unused, index) => createPokerSeat(index, rules.starting_stack)),
+        deck: [],
+        discard_pile: [],
+        phase: "deal",
+        hand_number: 0,
+        dealer_index: playerCount - 1,
+        draw_order: [],
+        draw_index: 0,
+        betting_order: [],
+        betting_index: 0,
+        current_bet: 0,
+        current_player: -1,
+        winners: [],
+        starting_stack: rules.starting_stack,
+        ante: rules.ante,
+        small_blind: rules.small_blind,
+        big_blind: rules.big_blind,
+        pot_total: 0,
+        notice: "Set seats and deal the first hand.",
+        last_action: "",
+      }};
+    }}
+
+    function getPokerPlayerCountFromControl() {{
+      const selectEl = document.getElementById("poker-player-count-select");
+      if (selectEl instanceof HTMLSelectElement) {{
+        return normalizePokerPlayerCount(selectEl.value, pokerDefaultPlayers);
+      }}
+      return normalizePokerPlayerCount(pokerState && pokerState.player_count, pokerDefaultPlayers);
+    }}
+
+    function getPokerRulesFromControls() {{
+      const fallback = pokerState && typeof pokerState === "object"
+        ? pokerState
+        : {{
+          starting_stack: pokerDefaultStartingStack,
+          ante: pokerDefaultAnte,
+          small_blind: pokerDefaultSmallBlind,
+          big_blind: pokerDefaultBigBlind,
+        }};
+      const startingStackEl = document.getElementById("poker-starting-stack-input");
+      const anteEl = document.getElementById("poker-ante-input");
+      const smallBlindEl = document.getElementById("poker-small-blind-input");
+      const bigBlindEl = document.getElementById("poker-big-blind-input");
+      return normalizePokerRules({{
+        starting_stack: startingStackEl instanceof HTMLInputElement ? startingStackEl.value : fallback.starting_stack,
+        ante: anteEl instanceof HTMLInputElement ? anteEl.value : fallback.ante,
+        small_blind: smallBlindEl instanceof HTMLInputElement ? smallBlindEl.value : fallback.small_blind,
+        big_blind: bigBlindEl instanceof HTMLInputElement ? bigBlindEl.value : fallback.big_blind,
+      }}, fallback);
+    }}
+
+    function syncPokerRuleControls(rulesRaw = null) {{
+      const fallback = pokerState && typeof pokerState === "object"
+        ? pokerState
+        : {{
+          starting_stack: pokerDefaultStartingStack,
+          ante: pokerDefaultAnte,
+          small_blind: pokerDefaultSmallBlind,
+          big_blind: pokerDefaultBigBlind,
+        }};
+      const rules = normalizePokerRules(rulesRaw, fallback);
+      const startingStackEl = document.getElementById("poker-starting-stack-input");
+      if (startingStackEl instanceof HTMLInputElement && document.activeElement !== startingStackEl) startingStackEl.value = String(rules.starting_stack);
+      const anteEl = document.getElementById("poker-ante-input");
+      if (anteEl instanceof HTMLInputElement && document.activeElement !== anteEl) anteEl.value = String(rules.ante);
+      const smallBlindEl = document.getElementById("poker-small-blind-input");
+      if (smallBlindEl instanceof HTMLInputElement && document.activeElement !== smallBlindEl) smallBlindEl.value = String(rules.small_blind);
+      const bigBlindEl = document.getElementById("poker-big-blind-input");
+      if (bigBlindEl instanceof HTMLInputElement && document.activeElement !== bigBlindEl) bigBlindEl.value = String(rules.big_blind);
+    }}
+
+    function getPokerBetAmountFromControl(fallbackRaw = 1) {{
+      const fallback = normalizePokerChipAmount(fallbackRaw, 1, 1, Number.MAX_SAFE_INTEGER);
+      const betAmountEl = document.getElementById("poker-bet-amount-input");
+      if (betAmountEl instanceof HTMLInputElement) {{
+        return normalizePokerChipAmount(betAmountEl.value, fallback, 1, Number.MAX_SAFE_INTEGER);
+      }}
+      return fallback;
+    }}
+
+    function ensurePokerState() {{
+      if (!pokerState || typeof pokerState !== "object") {{
+        pokerState = createNewPokerState(getPokerPlayerCountFromControl(), getPokerRulesFromControls());
+      }}
+      const targetCount = normalizePokerPlayerCount(pokerState.player_count, pokerDefaultPlayers);
+      const rules = normalizePokerRules(pokerState, getPokerRulesFromControls());
+      pokerState.player_count = targetCount;
+      pokerState.starting_stack = rules.starting_stack;
+      pokerState.ante = rules.ante;
+      pokerState.small_blind = rules.small_blind;
+      pokerState.big_blind = rules.big_blind;
+      pokerState.pot_total = normalizePokerChipAmount(pokerState.pot_total, 0, 0, Number.MAX_SAFE_INTEGER);
+      if (!Array.isArray(pokerState.seats) || pokerState.seats.length !== targetCount) {{
+        pokerState.seats = Array.from({{ length: targetCount }}, (_unused, index) => createPokerSeat(index, rules.starting_stack));
+      }} else {{
+        pokerState.seats = pokerState.seats.map((seatRaw, index) => {{
+          const baseSeat = createPokerSeat(index, rules.starting_stack);
+          const seat = seatRaw && typeof seatRaw === "object" ? seatRaw : baseSeat;
+          const selected = Array.from(new Set(
+            (Array.isArray(seat.selected_discards) ? seat.selected_discards : [])
+              .map((value) => normalizePokerIndex(value, -1))
+              .filter((value) => value >= 0 && value < pokerHandSize)
+          )).sort((a, b) => a - b);
+          return {{
+            seat: index,
+            name: String(seat.name || `Player ${{index + 1}}`).trim() || `Player ${{index + 1}}`,
+            hand: Array.isArray(seat.hand) ? seat.hand.map((card) => String(card || "").trim().toUpperCase()).slice(0, pokerHandSize) : [],
+            selected_discards: selected,
+            draw_count: Math.max(0, Math.trunc(Number(seat.draw_count) || 0)),
+            draw_done: !!seat.draw_done,
+            hand_eval: seat.hand_eval && typeof seat.hand_eval === "object" ? seat.hand_eval : null,
+            stack: normalizePokerChipAmount(seat.stack, baseSeat.stack, 0, Number.MAX_SAFE_INTEGER),
+            contributed: normalizePokerChipAmount(seat.contributed, 0, 0, Number.MAX_SAFE_INTEGER),
+            round_bet: normalizePokerChipAmount(seat.round_bet, 0, 0, Number.MAX_SAFE_INTEGER),
+            round_acted: !!seat.round_acted,
+            folded: !!seat.folded,
+            blind_posted: String(seat.blind_posted || "").trim(),
+            last_payout: normalizePokerChipAmount(seat.last_payout, 0, 0, Number.MAX_SAFE_INTEGER),
+            in_hand: !!seat.in_hand,
+          }};
+        }});
+      }}
+      if (!Array.isArray(pokerState.deck)) pokerState.deck = [];
+      if (!Array.isArray(pokerState.discard_pile)) pokerState.discard_pile = [];
+      pokerState.draw_order = Array.from(new Set(
+        (Array.isArray(pokerState.draw_order) ? pokerState.draw_order : [])
+          .map((value) => normalizePokerIndex(value, -1))
+          .filter((value) => value >= 0 && value < targetCount)
+      ));
+      pokerState.draw_index = Math.max(0, Math.trunc(Number(pokerState.draw_index) || 0));
+      pokerState.betting_order = Array.from(new Set(
+        (Array.isArray(pokerState.betting_order) ? pokerState.betting_order : [])
+          .map((value) => normalizePokerIndex(value, -1))
+          .filter((value) => value >= 0 && value < targetCount)
+      ));
+      pokerState.betting_index = Math.max(0, Math.trunc(Number(pokerState.betting_index) || 0));
+      pokerState.current_bet = normalizePokerChipAmount(pokerState.current_bet, 0, 0, Number.MAX_SAFE_INTEGER);
+      pokerState.current_player = normalizePokerIndex(pokerState.current_player, -1);
+      pokerState.winners = Array.from(new Set(
+        (Array.isArray(pokerState.winners) ? pokerState.winners : [])
+          .map((value) => normalizePokerIndex(value, -1))
+          .filter((value) => value >= 0 && value < targetCount)
+      ));
+      pokerState.notice = String(pokerState.notice || "Set seats and deal the first hand.");
+      pokerState.last_action = String(pokerState.last_action || "");
+      return pokerState;
+    }}
+

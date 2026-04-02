@@ -14,6 +14,7 @@ from .history_store_nodes import (
     load_online_activity,
 )
 from .history_store_packets import load_recent_packets
+from .history_store_summary import load_summary_metrics
 
 __all__ = [
     "load_recent_packets",
@@ -21,6 +22,7 @@ __all__ = [
     "load_connections",
     "load_node_history",
     "load_online_activity",
+    "load_summary_metrics",
     "load_node_saved_counts",
     "load_node_capabilities",
 ]

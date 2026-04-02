@@ -27,6 +27,7 @@ def test_initialize_history_store_runtime_sets_fields_and_opens_connection():
     )
 
     assert store.db_path == "/tmp/history.sqlite3"
+    assert store.local_node_id == ""
     assert store.max_rows == 100
     assert store.retention_seconds == 7 * 86400
     assert store.event_max_rows == 1000

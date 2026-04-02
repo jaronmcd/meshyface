@@ -1,0 +1,240 @@
+    function buildNodeTickerSummary(state = latestState) {{
+      const telemetry = resolveLocalNodeTelemetry(state);
+      const localId = telemetry.localId;
+      const latestSignal = resolveLatestRadioSignalSnapshot(state);
+      const snrDbRaw = Number(
+        (latestSignal && latestSignal.snrDb != null)
+          ? latestSignal.snrDb
+          : telemetry.snrDb
+      );
+      const snrDb = Number.isFinite(snrDbRaw)
+        ? Math.round(snrDbRaw * 10) / 10
+        : null;
+      const rssiDbmRaw = Number(
+        (latestSignal && latestSignal.rssiDbm != null)
+          ? latestSignal.rssiDbm
+          : telemetry.rssiDbm
+      );
+      const rssiDbm = Number.isFinite(rssiDbmRaw) ? Math.trunc(rssiDbmRaw) : null;
+      const hopsText = Number.isFinite(telemetry.hops) ? String(telemetry.hops) : "n/a";
+      const routeText = Number.isFinite(telemetry.hops)
+        ? (telemetry.hops <= 0 ? "direct" : `${{telemetry.hops}}-hop`)
+        : "n/a";
+      const snrText = Number.isFinite(snrDb)
+        ? `${{formatTickerNumber(snrDb, 1)}}dB`
+        : "n/a";
+      const rssiText = Number.isFinite(rssiDbm)
+        ? `${{rssiDbm}}dBm`
+        : "n/a";
+      const rowPrefs = nodeTickerRowPreferences();
+      const rows = [
+      ];
+      if (rowPrefs.snr) rows.push({{ key: "SNR", value: snrText }});
+      if (rowPrefs.rssi) rows.push({{ key: "RSSI", value: rssiText }});
+      if (rowPrefs.route) rows.push({{ key: "Route", value: routeText }});
+      if (rowPrefs.hops) rows.push({{ key: "Hops", value: hopsText }});
+      const rowsHtml = rows
+        .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+        .join("");
+
+      const compactParts = [];
+      if (rssiText !== "n/a") compactParts.push(rssiText);
+      if (snrText !== "n/a") compactParts.push(snrText);
+      const text = compactParts.join(" · ") || "Signal n/a";
+
+      const titleParts = [];
+      if (isCanonicalNodeId(localId)) {{
+        titleParts.push(`node ${{telemetry.nodeName}} (${{localId}})`);
+      }} else {{
+        titleParts.push(`node ${{telemetry.nodeName}}`);
+      }}
+      titleParts.push(`rssi ${{rssiText}}`);
+      titleParts.push(`snr ${{snrText}}`);
+      if (Number.isFinite(telemetry.hops)) {{
+        titleParts.push(`hops ${{telemetry.hops}}`);
+      }}
+      titleParts.push(`route ${{routeText}}`);
+      titleParts.push(`LoRa preset ${{telemetry.presetText}}`);
+
+      return {{
+        text: text || "n/a",
+        rows,
+        rows_html: rowsHtml,
+        title: titleParts.join(" | "),
+        has_rows: rows.length > 0,
+        snr_db: snrDb,
+        rssi_dbm: rssiDbm,
+      }};
+    }}
+
+    function buildSystemTickerSummary(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const localState = settingsLocalStateFrom(safeState);
+      const localInfo = localState && typeof localState === "object" && localState.local_node_info && typeof localState.local_node_info === "object"
+        ? localState.local_node_info
+        : null;
+      const myInfo = safeState.my_info && typeof safeState.my_info === "object"
+        ? safeState.my_info
+        : null;
+      const metadata = safeState.metadata && typeof safeState.metadata === "object"
+        ? safeState.metadata
+        : null;
+
+      const firstValue = (roots, paths) => firstNestedValue(roots, paths);
+      const firstFiniteNumber = (roots, paths) => firstFiniteNestedNumber(roots, paths);
+
+      const localStatsCandidate = firstValue([localState, localInfo], [
+        "local_stats",
+        "localStats",
+      ]);
+      const localStats = localStatsCandidate && typeof localStatsCandidate === "object"
+        ? localStatsCandidate
+        : null;
+      const localMetrics = localInfo
+        ? (localInfo.deviceMetrics || localInfo.device_metrics || localInfo.metrics || null)
+        : null;
+      const memoryInfo = firstValue([localStats, localMetrics, localInfo], [
+        "memory",
+        "memory_info",
+        "system",
+        "system_metrics",
+      ]);
+
+      const normalizePercent = (rawValue) => {{
+        const num = Number(rawValue);
+        if (!Number.isFinite(num)) return null;
+        let percent = null;
+        if (num > 0 && num <= 1) {{
+          percent = num * 100;
+        }} else if (num > 1 && num <= 100) {{
+          percent = num;
+        }}
+        if (!Number.isFinite(percent) || percent <= 0) return null;
+        return Math.max(0, Math.min(100, percent));
+      }};
+      const percentText = (rawValue) => {{
+        const percent = normalizePercent(rawValue);
+        if (!Number.isFinite(percent)) return "n/a";
+        const digits = percent < 10 && !Number.isInteger(percent) ? 1 : 0;
+        return `${{formatTickerNumber(percent, digits)}}%`;
+      }};
+
+      const heapValue = firstValue([memoryInfo, localStats, localMetrics, localInfo], [
+        "heap",
+        "heap_percent",
+        "heapPercent",
+        "heap_usage",
+        "heapUsage",
+        "heap_usage_percent",
+        "heapUsagePercent",
+      ]);
+      const heapTotalBytes = firstFiniteNumber([localStats, localInfo], [
+        "heap_total_bytes",
+        "heapTotalBytes",
+        "localStats.heap_total_bytes",
+        "localStats.heapTotalBytes",
+        "local_stats.heap_total_bytes",
+        "local_stats.heapTotalBytes",
+      ]);
+      const heapFreeBytes = firstFiniteNumber([localStats, localInfo], [
+        "heap_free_bytes",
+        "heapFreeBytes",
+        "localStats.heap_free_bytes",
+        "localStats.heapFreeBytes",
+        "local_stats.heap_free_bytes",
+        "local_stats.heapFreeBytes",
+      ]);
+      const heapDerivedPercent = (
+        Number.isFinite(heapTotalBytes)
+        && Number.isFinite(heapFreeBytes)
+        && heapTotalBytes > 0
+        && heapFreeBytes >= 0
+        && heapFreeBytes <= heapTotalBytes
+      )
+        ? ((heapTotalBytes - heapFreeBytes) / heapTotalBytes) * 100
+        : null;
+      const psramValue = firstValue([memoryInfo, localStats, localMetrics, localInfo], [
+        "psram",
+        "psram_percent",
+        "psramPercent",
+        "psram_usage",
+        "psramUsage",
+        "psram_usage_percent",
+        "psramUsagePercent",
+      ]);
+      const flashValue = firstValue([memoryInfo, localStats, localMetrics, localInfo], [
+        "flash",
+        "flash_percent",
+        "flashPercent",
+        "flash_usage",
+        "flashUsage",
+        "flash_usage_percent",
+        "flashUsagePercent",
+      ]);
+
+      const firmwareValue = firstValue([localInfo, myInfo], [
+        "firmware_version",
+        "firmwareVersion",
+        "user.firmware_version",
+        "user.firmwareVersion",
+        "version",
+        "hw_version",
+        "hwVersion",
+      ]);
+      const firmwareText = String(firmwareValue == null ? "" : firmwareValue).trim() || "n/a";
+      const metadataVersionValue = firstValue([metadata], [
+        "firmware_version",
+        "firmwareVersion",
+        "version",
+      ]);
+      const metadataVersionText = String(metadataVersionValue == null ? "" : metadataVersionValue).trim();
+      const resolvedVersionText = firmwareText !== "n/a"
+        ? firmwareText
+        : (metadataVersionText || "n/a");
+      const hwModelValue = firstValue([localInfo, myInfo, metadata], [
+        "user.hwModel",
+        "user.hw_model",
+        "hwModel",
+        "hw_model",
+        "hardware_model",
+        "device_model",
+        "deviceModel",
+        "board",
+      ]);
+      const hwModelText = String(hwModelValue == null ? "" : hwModelValue).trim() || "n/a";
+      const resolvedHeapValue = heapValue != null ? heapValue : heapDerivedPercent;
+      const heapText = percentText(resolvedHeapValue);
+      const psramText = percentText(psramValue);
+      const flashText = percentText(flashValue);
+      const rows = [];
+      if (heapText !== "n/a") {{
+        rows.push({{ key: "Heap", value: heapText }});
+      }}
+      if (psramText !== "n/a") {{
+        rows.push({{ key: "PSRAM", value: psramText }});
+      }}
+      if (flashText !== "n/a") {{
+        rows.push({{ key: "Flash", value: flashText }});
+      }}
+      if (resolvedVersionText !== "n/a") {{
+        rows.push({{ key: "Ver", value: resolvedVersionText }});
+      }}
+      if (hwModelText !== "n/a") {{
+        rows.push({{ key: "HW", value: hwModelText }});
+      }}
+      const rowsHtml = rows
+        .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+        .join("");
+      const titleParts = rows.map((row) => `${{row.key}}=${{row.value}}`);
+      return {{
+        rows,
+        rows_html: rowsHtml,
+        text: rows.length
+          ? rows.map((row) => `${{row.key}} ${{row.value}}`).join(" · ")
+          : "n/a",
+        title: rows.length
+          ? titleParts.join(" | ")
+          : "System metrics not exposed by this radio/feed",
+      }};
+    }}
+

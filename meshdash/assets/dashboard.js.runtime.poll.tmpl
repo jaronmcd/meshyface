@@ -1,0 +1,327 @@
+    function shouldHydrateNodeNavigatorRoster(state = latestState) {{
+      if (isChatWorkspaceLayoutView(activeLayoutView)) return false;
+      const safeState = (state && typeof state === "object") ? state : null;
+      if (!safeState) return false;
+      const query = (typeof globalNodeSearchQuery === "function")
+        ? String(globalNodeSearchQuery() || "").trim()
+        : "";
+      if (query) return false;
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      if (nodes.length <= 0) return false;
+      const rosterModel = Array.isArray(chatRosterModel) ? chatRosterModel : [];
+      if (rosterModel.length <= 0) return true;
+      return activeChatChannel === "all" && nodes.length > rosterModel.length;
+    }}
+
+    async function poll() {{
+      try {{
+        const stateUrlBase = "/api/state?lite=1";
+        const stateUrl = forceStateReloadOnce
+          ? `${{stateUrlBase}}&_=${{Date.now()}}`
+          : stateUrlBase;
+        forceStateReloadOnce = false;
+        const headers = {{}};
+        if (stateEtag && stateUrl === stateUrlBase) {{
+          headers["If-None-Match"] = stateEtag;
+        }}
+        const resp = await fetch(stateUrl, {{ cache: "no-store", headers }});
+        if (resp.status === 304) {{
+          if (!latestState || typeof latestState !== "object") {{
+            // Rare startup edge: conditional/cached response before we have any local snapshot.
+            // Force one cache-busted retry so sidebar panels can hydrate immediately.
+            if (activeLayoutView === "network") {{
+              renderNodesPlaceholder("Syncing nodes...");
+            }}
+            stateEtag = "";
+            forceStateReloadOnce = true;
+            requestImmediatePoll(20);
+            return;
+          }}
+          // Nothing changed; keep the existing state and skip expensive DOM work.
+          // Still allow an on-demand node-history fetch if the user just changed selection.
+          lastPollSuccessUnix = Math.floor(Date.now() / 1000);
+          lastPollError = "";
+          lastPollErrorUnix = 0;
+          renderSelfRadioPill(latestState);
+          const hidden304 = (typeof document !== "undefined") && !!document.hidden;
+          const mapVisible304 = activeLayoutView === "saved" || activeLayoutView === "network";
+          const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
+          const drawerHistoryVisible304 = (
+            typeof isChatNodeDetailsDrawerExpanded === "function"
+            && isChatNodeDetailsDrawerExpanded()
+          );
+          const historyTargetId304 = activeLayoutView === "saved"
+            ? resolveSavedViewNodeId(latestState)
+            : normalizeNodeId(selectedNodeId || "");
+          const historyRelevant304 = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible304)
+            && (mapDataFocus !== "activity" || drawerHistoryVisible304)
+            && isSelectableNodeId(historyTargetId304);
+          const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
+          const nodes304 = Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          const traffic304 = (latestState.traffic && typeof latestState.traffic === "object")
+            ? latestState.traffic
+            : {{}};
+          if (hidden304) {{
+            scheduleFileTransferMaintenance(latestState);
+            return;
+          }}
+          renderSummary(latestState);
+          if (mapVisible304) {{
+            renderMap(nodes304, traffic304.edges || [], cachedHistory304);
+          }}
+          if (activeLayoutView === "network") {{
+            renderNodes(nodes304);
+          }}
+          if (trafficVisible304) {{
+            renderTraffic(traffic304, nodes304, cachedHistory304);
+          }}
+          if (activeLayoutView === "files") {{
+            renderFilesView(latestState);
+          }}
+          if (activeLayoutView === "bbs") {{
+            renderBbsView(latestState);
+          }}
+          if (activeLayoutView === "history") {{
+            renderHistoryChat(traffic304);
+            renderEncription(traffic304);
+            void refreshHistoryPanels(false);
+          }}
+          if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
+            renderChannelsView(latestState);
+          }}
+          if (activeLayoutView === "environment") {{
+            void renderEnvironmentMetricsView(false);
+          }}
+          if (activeLayoutView === "bots") {{
+            renderBotsView(latestState);
+          }}
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+          if (activeLayoutView === "remote") {{
+            renderRemoteView(latestState);
+          }}
+          if (activeLayoutView === "saved") {{
+            const loadingId304 = (activeLayoutView === "saved" && historyRelevant304 && !cachedHistory304)
+              ? historyTargetId304
+              : null;
+            renderFavorites(latestState, cachedHistory304, loadingId304);
+          }}
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(latestState);
+          }}
+          if (shouldHydrateNodeNavigatorRoster(latestState)) {{
+            renderChat(latestState);
+          }}
+          if (
+            typeof syncChatNodeDetailsDrawer === "function"
+            && typeof isChatNodeDetailsDrawerExpanded === "function"
+            && isChatNodeDetailsDrawerExpanded()
+          ) {{
+            syncChatNodeDetailsDrawer(latestState, {{
+              fetchHistory: false,
+            }});
+          }}
+          if (historyRelevant304) {{
+            const cached = nodeHistoryCache.get(historyTargetId304);
+            const nowMs = Date.now();
+            const ttlMs = Math.max(refreshMs * 2, 8000);
+            const stale = !(cached && cached.data) || (nowMs - (cached.fetchedAt || 0)) >= ttlMs;
+            if (stale) {{
+              void refreshSelectedNodeHistory(false);
+            }}
+          }}
+          scheduleFileTransferMaintenance(latestState);
+          tickFreshnessUI(latestState);
+          return;
+        }}
+        if (!resp.ok) throw new Error(`API ${{resp.status}}`);
+        const newEtag = resp.headers && resp.headers.get ? resp.headers.get("ETag") : null;
+        if (newEtag) {{
+          stateEtag = String(newEtag);
+        }}
+        const state = await resp.json();
+        latestState = state;
+        lastPollSuccessUnix = Math.floor(Date.now() / 1000);
+        lastPollError = "";
+        lastPollErrorUnix = 0;
+        applyServerBotSettingsFromState(state);
+        syncBackendBotRequestHistory(state);
+        const nextLocalNodeId = resolveLocalNodeId(state);
+        if (isCanonicalNodeId(nextLocalNodeId)) {{
+          resolvedLocalNodeId = nextLocalNodeId;
+        }}
+        pruneSelfFromManualDirectPeers(state);
+        syncBotRequestHistoryWithMessages((state.traffic || {{}}).recent_chat || [], state);
+        syncReversiNetworkState(state);
+        syncBoardGameNetworkState("checkers", state);
+        syncBoardGameNetworkState("chess", state);
+        syncBbsNetworkState(state);
+        renderSelfRadioPill(state);
+        const hiddenStatePoll = (typeof document !== "undefined") && !!document.hidden;
+        if (hiddenStatePoll) {{
+          // Keep background bookkeeping current without paying the full render cost
+          // while the tab is not visible.
+          chatChangeCatchupArmed = true;
+          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          scheduleFileTransferMaintenance(state);
+          return;
+        }}
+        if (!summaryMetricsHydrated && !summaryMetricsHydrateInFlight) {{
+          summaryMetricsHydrateInFlight = hydrateSummaryMetricTickers()
+            .finally(() => {{
+              summaryMetricsHydrateInFlight = null;
+            }});
+        }}
+
+        const mapVisible = activeLayoutView === "saved" || activeLayoutView === "network";
+        const trafficVisible = mapVisible || activeLayoutView === "history";
+        const drawerHistoryVisible = (
+          typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        );
+        const historyTargetId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(state)
+          : normalizeNodeId(selectedNodeId || "");
+        const historyRelevant = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible)
+          && (mapDataFocus !== "activity" || drawerHistoryVisible)
+          && isSelectableNodeId(historyTargetId);
+        const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
+
+        if (mapVisible && !mapBootstrapFocusDone) {{
+          const bootstrap = applyMapBootstrapFocus(state.nodes || [], state);
+          if (bootstrap.didFocus) {{
+            mapBootstrapFocusDone = true;
+            if (activeLayoutView === "network") {{
+              // Network view should start from the broadest useful overview and not
+              // immediately fight that bootstrap focus with a second auto-fit.
+              fitDone = true;
+            }}
+            // Let the map paint at the initial focus target before heavier render work.
+            await nextAnimationFrame();
+          }}
+        }}
+
+        let weeklySummary = null;
+        if (activeLayoutView === "history") {{
+          try {{
+            weeklySummary = await fetchSummaryMetrics(weeklySummaryHours);
+          }} catch (summaryErr) {{
+            weeklySummary = {{
+              error: summaryErr instanceof Error
+                ? summaryErr.message
+                : String(summaryErr || "unknown error"),
+            }};
+          }}
+        }}
+        // Summary metrics now live in the global header ticker row, so keep them
+        // refreshed for every active view.
+        renderSummary(state);
+
+        if (mapVisible) {{
+          renderMap(state.nodes || [], (state.traffic || {{}}).edges || [], cachedHistory);
+        }}
+
+        if (activeLayoutView === "network") {{
+          renderNodes(state.nodes || []);
+        }}
+
+        if (trafficVisible) {{
+          renderTraffic(state.traffic || {{}}, state.nodes || [], cachedHistory);
+        }}
+        if (activeLayoutView === "files") {{
+          renderFilesView(state);
+        }}
+        if (activeLayoutView === "history") {{
+          renderHistoryChat(state.traffic || {{}});
+          renderEncription(state.traffic || {{}});
+          if (weeklySummary && !weeklySummary.error) {{
+            renderWeeklySummary(weeklySummary);
+          }} else if (weeklySummary && weeklySummary.error) {{
+            renderWeeklySummaryError(weeklySummary.error);
+          }} else {{
+            renderWeeklySummaryLoading();
+          }}
+        }}
+
+        if (!isChatWorkspaceLayoutView(activeLayoutView) && shouldHydrateNodeNavigatorRoster(state)) {{
+          renderChat(state);
+        }}
+
+        if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+          renderChat(state);
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(state);
+          }}
+        }} else if (activeLayoutView === "bbs") {{
+          renderBbsView(state);
+        }} else if (activeLayoutView === "bots") {{
+          renderBotsView(state);
+        }} else if (activeLayoutView === "games") {{
+          renderGamesView(state);
+        }} else if (activeLayoutView === "remote") {{
+          renderRemoteView(state);
+          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          renderChatChangeSummary();
+          bindChatChangeSummaryControls();
+        }} else {{
+          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          renderChatChangeSummary();
+          bindChatChangeSummaryControls();
+        }}
+        if (
+          typeof syncChatNodeDetailsDrawer === "function"
+          && typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        ) {{
+          syncChatNodeDetailsDrawer(state, {{
+            fetchHistory: false,
+          }});
+        }}
+
+        if (activeLayoutView === "saved") {{
+          const loadingId = (activeLayoutView === "saved" && historyRelevant && !cachedHistory)
+            ? historyTargetId
+            : null;
+          renderFavorites(state, cachedHistory, loadingId);
+        }}
+
+        if (activeLayoutView === "environment") {{
+          void renderEnvironmentMetricsView(false);
+        }}
+
+        if (activeLayoutView === "settings") {{
+          renderSettings(state);
+          if (activeSettingsTab === "data") {{
+            renderPackets(state);
+          }} else if (activeSettingsTab === "channels") {{
+            renderChannelsView(state);
+          }}
+        }}
+
+        if (activeLayoutView === "console") {{
+          renderConsole(state.traffic || {{}});
+        }}
+
+        if (historyRelevant) {{
+          const cached = nodeHistoryCache.get(historyTargetId);
+          const nowMs = Date.now();
+          const ttlMs = Math.max(refreshMs * 2, 8000);
+          const stale = !(cached && cached.data) || (nowMs - (cached.fetchedAt || 0)) >= ttlMs;
+          if (stale) {{
+            void refreshSelectedNodeHistory(false);
+          }}
+        }}
+
+
+        scheduleFileTransferMaintenance(state);
+        tickFreshnessUI(state);
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        lastPollError = msg;
+        lastPollErrorUnix = Math.floor(Date.now() / 1000);
+        setText("updated-at", `error: ${{msg}}`);
+        renderTargetRadioStatus(latestState || {{}});
+        appendConsoleLine(`error|${{Date.now()}}|${{msg}}`, `[poll error] ${{msg}}`);
+      }}
+    }}

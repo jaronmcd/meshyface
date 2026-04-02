@@ -1,0 +1,148 @@
+    function parseTrackedBotCommandFromText(text) {{
+      const raw = String(text || "").trim();
+      if (!raw) return null;
+      const parts = raw.split(/\\s+/).filter((part) => !!part);
+      if (parts.length === 0) return null;
+      const prefixRaw = String(parts[0] || "").trim().toLowerCase();
+      const canonicalPrefix = canonicalTrackedBotCommandHead(prefixRaw) || prefixRaw;
+      if (knownBotSingleWordCommands.has(canonicalPrefix)) {{
+        if (parts.length !== 1) return null;
+        return {{
+          command: raw,
+          prefix: canonicalPrefix,
+          suffix: "",
+          head: canonicalPrefix,
+          kind: "single",
+        }};
+      }}
+      if (!knownBotArgumentCommands.has(canonicalPrefix)) return null;
+      const allowsNoArgs = canonicalPrefix === "ping" || canonicalPrefix === "!ping" || canonicalPrefix === "#ping";
+      if (!allowsNoArgs && parts.length < 2) return null;
+      const targetToken = String(parts[1] || "").trim();
+      const isWeatherCommand = canonicalPrefix === "wx" || canonicalPrefix === "!wx" || canonicalPrefix === "#wx";
+      const suffix = isWeatherCommand ? targetToken : nodeIdSuffixForWhois(targetToken);
+      return {{
+        command: raw,
+        prefix: knownWhoisCommandPrefixes.has(canonicalPrefix) ? normalizeWhoisCommandPrefix(canonicalPrefix) : canonicalPrefix,
+        suffix,
+        head: canonicalPrefix,
+        kind: "argument",
+      }};
+    }}
+
+    function recordBotRequestHistoryFromSend(requestBody, payload) {{
+      if (!chatBotHistoryEnabled || !chatBotCommandsEnabled) return;
+      const parsed = parseTrackedBotCommandFromText(requestBody && requestBody.text);
+      if (!parsed) return;
+      const sentMs = (
+        parseDashboardTimeToMs(payload && payload.sent_at)
+        || parseDashboardTimeToMs(payload && payload.rx_time)
+        || Date.now()
+      );
+      const sentUnix = (
+        parseDashboardTimeToUnix(payload && payload.sent_at)
+        || parseDashboardTimeToUnix(payload && payload.rx_time)
+        || Math.floor(sentMs / 1000)
+      );
+      const messageId = messageIdOfChatPacket(payload || {{}});
+      const replyId = parsePositiveMessageId(
+        (payload && (payload.reply_id ?? payload.replyId))
+        ?? (requestBody && requestBody.reply_id)
+      );
+      const entry = normalizeBotRequestHistoryEntry({{
+        id: makeBotRequestHistoryId(parsed.suffix),
+        command: parsed.command,
+        command_head: parsed.head,
+        prefix: parsed.prefix,
+        suffix: parsed.suffix,
+        destination: requestBody && requestBody.destination,
+        channel_index: requestBody && requestBody.channel_index,
+        reply_id: replyId,
+        reply_attached: Number.isInteger(replyId) && replyId > 0,
+        message_id: messageId,
+        sent_at: (payload && payload.sent_at) || "",
+        sent_ms: sentMs,
+        sent_unix: sentUnix,
+      }});
+      if (!entry) return;
+      botRequestHistory = pruneBotRequestHistoryEntries([entry, ...(botRequestHistory || [])], sentUnix);
+      persistBotRequestHistory();
+      if (activeLayoutView === "bots") {{
+        renderBotsView(latestState);
+      }}
+    }}
+
+    function syncBotRequestHistoryWithMessages(messages, state = latestState) {{
+      if (!chatBotHistoryEnabled || !chatBotCommandsEnabled) return false;
+      if (!Array.isArray(botRequestHistory) || botRequestHistory.length === 0) return false;
+      const responseByReplyId = new Map();
+      for (const msg of (Array.isArray(messages) ? messages : [])) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (msg.local_echo === true || msg.localEcho === true) continue;
+        const messageId = messageIdOfChatPacket(msg);
+        const replyId = replyIdOfChatPacket(msg);
+        if (!messageId || !replyId) continue;
+        if (messageId === replyId) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        if (isSelfNodeId(fromId)) continue;
+        const msgMs = latestTimestampMs(
+          msg.rx_time,
+          msg.captured_at,
+          msg.sent_at,
+          msg.created_at
+        ) || Date.now();
+        const unix = latestUnixTimestamp(
+          msg.rx_time,
+          msg.captured_at,
+          msg.sent_at,
+          msg.created_at
+        ) || 0;
+        const existing = responseByReplyId.get(replyId);
+        if (existing && Number(existing.ms || 0) > msgMs) continue;
+        responseByReplyId.set(replyId, {{
+          messageId,
+          ms: msgMs,
+          unix,
+          hops: hopCountOfChatPacket(msg),
+          fromId,
+          toId: normalizeNodeId(msg.to || msg.destination || ""),
+          text: String(msg.text ?? msg.decoded_text ?? msg.payload_text ?? "").trim(),
+        }});
+      }}
+      if (responseByReplyId.size === 0) return false;
+      let changed = false;
+      const next = [];
+      for (const entry of botRequestHistory) {{
+        const normalized = normalizeBotRequestHistoryEntry(entry);
+        if (!normalized) continue;
+        if (!normalized.response_message_id && normalized.message_id) {{
+          const match = responseByReplyId.get(normalized.message_id);
+          if (match) {{
+            normalized.response_message_id = match.messageId;
+            normalized.response_ms = Number(match.ms) > 0 ? Number(match.ms) : null;
+            normalized.response_unix = Number(match.unix) > 0 ? Number(match.unix) : normalized.sent_unix;
+            normalized.response_hops = Number.isInteger(match.hops) ? Number(match.hops) : null;
+            normalized.response_from = match.fromId;
+            normalized.response_to = match.toId;
+            normalized.response_text = match.text;
+            changed = true;
+          }}
+        }}
+        next.push(normalized);
+      }}
+      if (!changed) return false;
+      botRequestHistory = pruneBotRequestHistoryEntries(next);
+      persistBotRequestHistory();
+      if (activeLayoutView === "bots") {{
+        renderBotsView(state);
+      }}
+      return true;
+    }}
+
+    function clearBotRequestHistory() {{
+      botRequestHistory = [];
+      persistBotRequestHistory();
+      if (activeLayoutView === "bots") {{
+        renderBotsView(latestState);
+      }}
+    }}

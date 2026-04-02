@@ -1,0 +1,93 @@
+    function normalizeSortValue(raw) {{
+      const text = String(raw == null ? "" : raw).trim();
+      if (!text) return {{ kind: "empty", value: "" }};
+
+      const numericText = text.replace(/,/g, "");
+      if (/^-?\\d+(\\.\\d+)?$/.test(numericText)) {{
+        return {{ kind: "num", value: Number.parseFloat(numericText) }};
+      }}
+
+      const epoch = Date.parse(text);
+      if (!Number.isNaN(epoch)) {{
+        return {{ kind: "date", value: epoch }};
+      }}
+
+      return {{ kind: "str", value: text.toLowerCase() }};
+    }}
+
+    function compareSortValues(a, b) {{
+      const priority = {{ empty: 0, num: 1, date: 2, str: 3 }};
+      if (a.kind !== b.kind) {{
+        return (priority[a.kind] ?? 99) - (priority[b.kind] ?? 99);
+      }}
+      if (a.value < b.value) return -1;
+      if (a.value > b.value) return 1;
+      return 0;
+    }}
+
+    function cellSortRaw(cell) {{
+      if (!cell) return "";
+      return cell.getAttribute("data-sort") || cell.textContent || "";
+    }}
+
+    function updateSortIndicators(tableId) {{
+      const table = document.getElementById(tableId);
+      if (!(table instanceof HTMLTableElement)) return;
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      headers.forEach((th) => {{
+        th.classList.remove("sorted-asc", "sorted-desc");
+      }});
+
+      const state = tableSortState[tableId];
+      if (!state) return;
+      const target = headers[state.index];
+      if (!target) return;
+      target.classList.add(state.dir === "asc" ? "sorted-asc" : "sorted-desc");
+    }}
+
+    function bindSortableHeader(tableId) {{
+      const table = document.getElementById(tableId);
+      if (!(table instanceof HTMLTableElement) || table.dataset.sortBound === "1") return;
+      table.dataset.sortBound = "1";
+
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      headers.forEach((th, index) => {{
+        th.classList.add("sortable");
+        th.addEventListener("click", () => {{
+          const state = tableSortState[tableId] || {{ index, dir: "asc" }};
+          if (state.index === index) {{
+            state.dir = state.dir === "asc" ? "desc" : "asc";
+          }} else {{
+            state.index = index;
+            state.dir = index === 0 ? "desc" : "asc";
+          }}
+          tableSortState[tableId] = state;
+          sortTableRows(tableId);
+        }});
+      }});
+
+      updateSortIndicators(tableId);
+    }}
+
+    function sortTableRows(tableId) {{
+      const table = document.getElementById(tableId);
+      if (!(table instanceof HTMLTableElement)) return;
+      const tbody = table.tBodies[0];
+      if (!tbody) return;
+      const state = tableSortState[tableId];
+      if (!state) return;
+
+      const rows = Array.from(tbody.rows);
+      rows.sort((aRow, bRow) => {{
+        const aCell = aRow.cells[state.index];
+        const bCell = bRow.cells[state.index];
+        const aValue = normalizeSortValue(cellSortRaw(aCell));
+        const bValue = normalizeSortValue(cellSortRaw(bCell));
+        const cmp = compareSortValues(aValue, bValue);
+        return state.dir === "asc" ? cmp : -cmp;
+      }});
+
+      rows.forEach((row) => tbody.appendChild(row));
+      updateSortIndicators(tableId);
+    }}
+

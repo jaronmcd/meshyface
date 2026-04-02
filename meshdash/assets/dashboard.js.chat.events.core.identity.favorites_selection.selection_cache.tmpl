@@ -1,0 +1,572 @@
+    function favoriteMenuTagChipHtml(nodeId, extraClass = "") {{
+      const tagEntry = nodeTagEntryForNode(nodeId);
+      const styleVars = tagEntry ? nodeTagStyleVars(tagEntry) : "";
+      const styleAttr = styleVars ? ` style="${{escAttr(styleVars)}}"` : "";
+      const title = tagEntry && tagEntry.preset
+        ? `Tag: ${{normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")}}`
+        : "No tag";
+      return `<span class="favorite-menu-tag-chip ${{extraClass}}${{tagEntry ? " is-tagged" : ""}}"${{styleAttr}} title="${{escAttr(title)}}" aria-hidden="true"></span>`;
+    }}
+
+    function favoriteMenuTagEditorHtml(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return "";
+      const currentTag = nodeTagEntryForNode(cleanNodeId);
+      const currentPreset = currentTag && currentTag.preset
+        ? currentTag.preset
+        : nodeTagPresetForId(activeNodeTagPresetId) || defaultNodeTagPreset();
+      const selectedPresetId = currentTag && currentTag.presetId
+        ? currentTag.presetId
+        : normalizeNodeTagPresetId(activeNodeTagPresetId || currentPreset.id || "tag-default", "tag-default");
+      const presets = nodeTagPresetEntries();
+      const optionsHtml = presets.map((preset) => {{
+        const presetId = normalizeNodeTagPresetId(preset.id, "tag-default");
+        const selectedAttr = presetId === selectedPresetId ? " selected" : "";
+        return `<option value="${{escAttr(presetId)}}"${{selectedAttr}}>${{escAttr(preset.name)}}</option>`;
+      }}).join("");
+      return `<div id="favorite-menu-tag-editor" class="favorite-menu-tag-editor" data-node-id="${{escAttr(cleanNodeId)}}">
+        <div class="favorite-menu-tag-editor-row">
+          <label for="favorite-menu-tag-preset-select" class="favorite-menu-tag-editor-label">Preset</label>
+          <select id="favorite-menu-tag-preset-select" class="favorite-menu-tag-preset-select">
+            ${{optionsHtml}}
+          </select>
+        </div>
+        <div class="favorite-menu-tag-editor-row">
+          <label for="favorite-menu-tag-name-input" class="favorite-menu-tag-editor-label">Name</label>
+          <input id="favorite-menu-tag-name-input" class="favorite-menu-tag-editor-input" type="text" maxlength="40" value="${{escAttr(normalizeNodeTagPresetName(currentPreset.name, "Tagged"))}}" placeholder="Tag name" />
+        </div>
+        <div class="favorite-menu-tag-editor-row favorite-menu-tag-editor-row-inline">
+          <label for="favorite-menu-tag-color-input" class="favorite-menu-tag-editor-label">Color</label>
+          <input id="favorite-menu-tag-color-input" class="favorite-menu-tag-color-input" type="color" value="${{escAttr(normalizeNodeTagColor(currentPreset.color, "#2aa85a"))}}" />
+          <label for="favorite-menu-tag-vibrance-input" class="favorite-menu-tag-editor-label">Vibrance</label>
+          <input id="favorite-menu-tag-vibrance-input" class="favorite-menu-tag-vibrance-input" type="range" min="0" max="100" step="1" value="${{escAttr(clampNodeTagVibrance(currentPreset.vibrance, 70))}}" />
+          <span id="favorite-menu-tag-vibrance-value" class="favorite-menu-tag-vibrance-value">${{escAttr(clampNodeTagVibrance(currentPreset.vibrance, 70))}}%</span>
+          <span id="favorite-menu-tag-preview" class="favorite-menu-tag-chip favorite-menu-tag-chip-preview" style="${{escAttr(nodeTagStyleVars({{ preset: currentPreset }}))}}" aria-hidden="true"></span>
+        </div>
+        <div class="favorite-menu-tag-editor-actions">
+          <button id="favorite-menu-tag-save-preset-btn" class="btn btn-secondary" type="button">Save Preset</button>
+          <button id="favorite-menu-tag-assign-btn" class="btn btn-secondary" type="button">Assign</button>
+          <button id="favorite-menu-tag-clear-btn" class="btn btn-secondary" type="button">Clear Tag</button>
+        </div>
+        <div id="favorite-menu-tag-status" class="favorite-menu-tag-status"></div>
+      </div>`;
+    }}
+
+    function bindFavoriteMenuTagEditorControls(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      const host = document.getElementById("favorite-menu-tag-editor");
+      if (!(host instanceof HTMLElement)) return;
+      if (normalizeNodeId(host.dataset.nodeId || "") !== cleanNodeId) return;
+      const presetSelect = document.getElementById("favorite-menu-tag-preset-select");
+      const nameInput = document.getElementById("favorite-menu-tag-name-input");
+      const colorInput = document.getElementById("favorite-menu-tag-color-input");
+      const vibranceInput = document.getElementById("favorite-menu-tag-vibrance-input");
+      const vibranceValue = document.getElementById("favorite-menu-tag-vibrance-value");
+      const preview = document.getElementById("favorite-menu-tag-preview");
+      const statusEl = document.getElementById("favorite-menu-tag-status");
+      const savePresetBtn = document.getElementById("favorite-menu-tag-save-preset-btn");
+      const assignBtn = document.getElementById("favorite-menu-tag-assign-btn");
+      const clearBtn = document.getElementById("favorite-menu-tag-clear-btn");
+      if (!(presetSelect instanceof HTMLSelectElement)) return;
+      if (!(nameInput instanceof HTMLInputElement)) return;
+      if (!(colorInput instanceof HTMLInputElement)) return;
+      if (!(vibranceInput instanceof HTMLInputElement)) return;
+      if (!(vibranceValue instanceof HTMLElement)) return;
+      if (!(preview instanceof HTMLElement)) return;
+      if (!(statusEl instanceof HTMLElement)) return;
+      if (!(savePresetBtn instanceof HTMLButtonElement)) return;
+      if (!(assignBtn instanceof HTMLButtonElement)) return;
+      if (!(clearBtn instanceof HTMLButtonElement)) return;
+
+      const setStatus = (text) => {{
+        statusEl.textContent = String(text == null ? "" : text);
+      }};
+
+      const applyPreview = () => {{
+        const color = normalizeNodeTagColor(colorInput.value, "#2aa85a");
+        const vibrance = clampNodeTagVibrance(vibranceInput.value, 70);
+        vibranceValue.textContent = `${{vibrance}}%`;
+        const styleVars = nodeTagStyleVars({{
+          preset: {{
+            color,
+            vibrance,
+          }},
+        }});
+        preview.setAttribute("style", styleVars);
+      }};
+
+      const loadPresetIntoEditor = (presetId) => {{
+        const preset = nodeTagPresetForId(presetId);
+        if (!preset) return;
+        nameInput.value = normalizeNodeTagPresetName(preset.name, "Tagged");
+        colorInput.value = normalizeNodeTagColor(preset.color, "#2aa85a");
+        vibranceInput.value = String(clampNodeTagVibrance(preset.vibrance, 70));
+        applyPreview();
+      }};
+
+      const persistPresetFromEditor = (preferredId = "") => {{
+        const preset = upsertNodeTagPreset(
+          nameInput.value,
+          colorInput.value,
+          vibranceInput.value,
+          {{ preferredId }}
+        );
+        setActiveNodeTagPreset(preset.id, true);
+        renderStarredNodeSelect(latestState || {{}});
+        setStatus(`Preset saved: ${{preset.name}}`);
+        return preset;
+      }};
+
+      if (presetSelect.dataset.bound !== "1") {{
+        presetSelect.dataset.bound = "1";
+        presetSelect.addEventListener("change", () => {{
+          const presetId = normalizeNodeTagPresetId(presetSelect.value || "", "");
+          setActiveNodeTagPreset(presetId, true);
+          loadPresetIntoEditor(presetId);
+          setStatus("");
+        }});
+      }}
+      if (nameInput.dataset.bound !== "1") {{
+        nameInput.dataset.bound = "1";
+        nameInput.addEventListener("input", () => {{
+          applyPreview();
+          setStatus("");
+        }});
+      }}
+      if (colorInput.dataset.bound !== "1") {{
+        colorInput.dataset.bound = "1";
+        colorInput.addEventListener("input", () => {{
+          applyPreview();
+          setStatus("");
+        }});
+      }}
+      if (vibranceInput.dataset.bound !== "1") {{
+        vibranceInput.dataset.bound = "1";
+        vibranceInput.addEventListener("input", () => {{
+          applyPreview();
+          setStatus("");
+        }});
+      }}
+      if (savePresetBtn.dataset.bound !== "1") {{
+        savePresetBtn.dataset.bound = "1";
+        savePresetBtn.addEventListener("click", () => {{
+          const preferredId = normalizeNodeTagPresetId(presetSelect.value || "", "");
+          persistPresetFromEditor(preferredId);
+        }});
+      }}
+      if (assignBtn.dataset.bound !== "1") {{
+        assignBtn.dataset.bound = "1";
+        assignBtn.addEventListener("click", () => {{
+          const preferredId = normalizeNodeTagPresetId(presetSelect.value || "", "");
+          const preset = persistPresetFromEditor(preferredId);
+          const presetId = normalizeNodeTagPresetId(preset && preset.id, "");
+          if (!presetId || !nodeTagPresetsById.has(presetId)) return;
+          assignNodeTagPresetToNode(cleanNodeId, presetId);
+          refreshFavoriteToggleButtons();
+          if (latestState) {{
+            renderFavorites(latestState);
+          }} else {{
+            renderStarredNodeSelect({{}});
+          }}
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{
+              fetchHistory: false,
+            }});
+          }}
+        }});
+      }}
+      if (clearBtn.dataset.bound !== "1") {{
+        clearBtn.dataset.bound = "1";
+        clearBtn.addEventListener("click", () => {{
+          clearNodeTagForNode(cleanNodeId);
+          refreshFavoriteToggleButtons();
+          if (latestState) {{
+            renderFavorites(latestState);
+          }} else {{
+            renderStarredNodeSelect({{}});
+          }}
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{
+              fetchHistory: false,
+            }});
+          }}
+        }});
+      }}
+
+      applyPreview();
+    }}
+
+    function renderStarredNodeSelect(state) {{
+      const selectedList = document.getElementById("favorite-menu-selected-list");
+      const list = document.getElementById("favorite-menu-saved-list");
+      if (!(list instanceof HTMLElement)) return;
+
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
+      const resolveEntryName = (nodeId) => {{
+        const normalized = normalizeNodeId(nodeId);
+        const node = nodesById.get(normalized);
+        return preferredNodeName(node) || nodeNameCache.get(normalized) || `Node ${{normalized}}`;
+      }};
+      const entries = Array.from(favoriteNodeIds)
+        .map((nodeId) => {{
+          const name = resolveEntryName(nodeId);
+          const tagEntry = nodeTagEntryForNode(nodeId);
+          const tagName = tagEntry && tagEntry.preset
+            ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
+            : "Tagged";
+          return {{ id: nodeId, name, tagName, tagEntry }};
+        }})
+        .sort((a, b) => {{
+          const tagDiff = String(a.tagName || "").localeCompare(String(b.tagName || ""));
+          if (tagDiff !== 0) return tagDiff;
+          const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+          if (nameDiff !== 0) return nameDiff;
+          return String(a.id || "").localeCompare(String(b.id || ""));
+        }});
+      const selectedNodeValue = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      const showSelectedTopRow = !!selectedNodeValue;
+
+      if (selectedList instanceof HTMLElement) {{
+        if (showSelectedTopRow) {{
+          closeFavoriteMenuNodeSearchDropdown();
+          const selectedName = resolveEntryName(selectedNodeValue);
+          const selectedTagChip = favoriteMenuTagChipHtml(selectedNodeValue, "favorite-menu-selected-chip");
+          const title = `Selected: ${{selectedName}} (${{selectedNodeValue}}). Click to clear selection.`;
+          selectedList.innerHTML = `<div class="favorite-menu-selected-stack">
+            <button type="button" role="listitem" class="favorite-menu-saved-item favorite-menu-selected-item active" data-node-id="${{escAttr(selectedNodeValue)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
+              <span class="favorite-menu-saved-main">
+                <span class="favorite-menu-selected-prefix">Selected</span>
+                ${{selectedTagChip}}
+                <span class="favorite-menu-saved-name">${{escAttr(selectedName)}}</span>
+              </span>
+              <span class="favorite-menu-saved-id">${{escAttr(selectedNodeValue)}}</span>
+            </button>
+          </div>`;
+        }} else {{
+          let searchInput = document.getElementById("favorite-menu-node-search-input");
+          let searchDropdown = document.getElementById("favorite-menu-node-search-dropdown");
+          const hasSearchControls = (
+            searchInput instanceof HTMLInputElement
+            && searchDropdown instanceof HTMLElement
+            && selectedList.contains(searchInput)
+            && selectedList.contains(searchDropdown)
+          );
+          if (!hasSearchControls) {{
+            selectedList.innerHTML = `<div class="favorite-menu-node-search-wrap">
+              <input
+                id="favorite-menu-node-search-input"
+                class="list-search-input"
+                type="search"
+                placeholder="Search by ID, name, or notes"
+                autocomplete="off"
+              />
+              <div id="favorite-menu-node-search-dropdown" class="node-search-dropdown favorite-menu-node-search-dropdown" hidden></div>
+            </div>`;
+            searchInput = document.getElementById("favorite-menu-node-search-input");
+            searchDropdown = document.getElementById("favorite-menu-node-search-dropdown");
+          }}
+          if (searchInput instanceof HTMLInputElement) {{
+            searchInput.value = globalNodeSearchQuery();
+          }}
+          bindFavoriteMenuNodeSearchControls();
+          renderFavoriteMenuNodeSearchDropdown(safeState);
+        }}
+      }}
+      if (!entries.length) {{
+        list.innerHTML = '<div class="favorite-menu-saved-empty">No tagged nodes yet.</div>';
+        return;
+      }}
+      list.innerHTML = entries.map((entry) => {{
+        const title = `${{entry.name}} (${{entry.id}})`;
+        const tagChip = favoriteMenuTagChipHtml(entry.id);
+        return `<button type="button" role="listitem" class="favorite-menu-saved-item" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}">
+          <span class="favorite-menu-saved-main">
+            ${{tagChip}}
+            <span class="favorite-menu-saved-name">${{escAttr(entry.name)}}</span>
+          </span>
+          <span class="favorite-menu-saved-id">${{escAttr(entry.id)}}</span>
+        </button>`;
+      }}).join("");
+    }}
+
+    function refreshFavoriteToggleButtons() {{
+      const activePreset = nodeTagPresetForId(activeNodeTagPresetId) || nodeTagPresetForId("tag-default");
+      const activePresetLabel = activePreset
+        ? normalizeNodeTagPresetName(activePreset.name, "Tagged")
+        : "tag";
+      for (const btn of document.querySelectorAll(".favorite-toggle-btn")) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const nodeId = normalizeNodeId(btn.dataset.nodeId || "");
+        const tagEntry = nodeTagEntryForNode(nodeId);
+        const active = !!tagEntry;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+        const title = active
+          ? `Clear tag (${{normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")}})`
+          : `Tag node with ${{activePresetLabel}}`;
+        btn.title = title;
+        btn.setAttribute("aria-label", title);
+        const styleVars = active ? nodeTagStyleVars(tagEntry) : "";
+        if (styleVars) {{
+          btn.setAttribute("style", styleVars);
+        }} else {{
+          btn.removeAttribute("style");
+        }}
+        const icon = btn.querySelector(".favorite-toggle-icon");
+        if (icon) {{
+          icon.textContent = "";
+        }}
+        const cell = btn.closest && btn.closest("td");
+        if (cell instanceof HTMLElement) {{
+          cell.setAttribute("data-sort", active ? "1" : "0");
+        }}
+      }}
+      const visibleMetaFieldIds = (typeof normalizeChatNodeNavigatorMetaFieldIdsPref === "function")
+        ? normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{ fallbackToDefaults: false }})
+        : [];
+      const showTagBadge = Array.isArray(visibleMetaFieldIds)
+        && visibleMetaFieldIds.includes("favorite");
+      for (const member of document.querySelectorAll("#chat-room-list .chat-member-item")) {{
+        if (!(member instanceof HTMLElement)) continue;
+        const nodeId = normalizeNodeId(member.dataset.nodeId || "");
+        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintOutlineSeed, nodeId || "unknown")
+          : String(member.dataset.nodeTintOutlineSeed || nodeId || "unknown").trim();
+        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintStartSeed, tintOutlineSeed)
+          : String(member.dataset.nodeTintStartSeed || tintOutlineSeed).trim();
+        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(member.dataset.nodeTintEndSeed, tintStartSeed || tintOutlineSeed)
+          : String(member.dataset.nodeTintEndSeed || tintStartSeed || tintOutlineSeed).trim();
+        const tagEntry = nodeTagEntryForNode(nodeId);
+        const active = !!tagEntry;
+        const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
+        member.classList.toggle("tagged-node", active);
+        const nameLeft = member.querySelector(".chat-member-name-left");
+        const existingChip = nameLeft instanceof HTMLElement
+          ? nameLeft.querySelector(".chat-member-tag-chip")
+          : null;
+        if (active && tagEntry && tagEntry.preset) {{
+          const color = normalizeNodeTagColor(tagEntry.preset.color, "#2aa85a");
+          const vibranceRatio = (clampNodeTagVibrance(tagEntry.preset.vibrance, 70) / 100).toFixed(3);
+          const tintHue = nodeTagTintHue(tagEntry, autoNodeHue);
+          const tagLabel = normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged");
+          const tagStyleVars = nodeTagStyleVars(tagEntry);
+          if (typeof applyNodeTintStyleVars === "function") {{
+            applyNodeTintStyleVars(member, nodeId, {{
+              scope: "member",
+              fallbackHue: 145,
+              tagActive: true,
+              hue: tintHue,
+              tintStartHue: tintHue,
+              tintEndHue: tintHue,
+              outlineHue: tintHue,
+              outlineSeed: tintOutlineSeed,
+              tintStartSeed,
+              tintEndSeed,
+            }});
+          }} else {{
+            member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(tintHue) || autoNodeHue)))));
+          }}
+          member.style.setProperty("--node-tag-color", color);
+          member.style.setProperty("--node-tag-vibrance", vibranceRatio);
+          if (showTagBadge) {{
+            if (existingChip instanceof HTMLElement) {{
+              existingChip.textContent = tagLabel;
+              existingChip.title = `Tag: ${{tagLabel}}`;
+              if (tagStyleVars) {{
+                existingChip.setAttribute("style", tagStyleVars);
+              }} else {{
+                existingChip.removeAttribute("style");
+              }}
+            }} else if (nameLeft instanceof HTMLElement) {{
+              const chip = document.createElement("span");
+              chip.className = "chat-member-tag-chip";
+              chip.textContent = tagLabel;
+              chip.title = `Tag: ${{tagLabel}}`;
+              if (tagStyleVars) {{
+                chip.setAttribute("style", tagStyleVars);
+              }}
+              nameLeft.appendChild(chip);
+            }}
+          }} else if (existingChip instanceof HTMLElement) {{
+            existingChip.remove();
+          }}
+        }} else {{
+          if (typeof applyNodeTintStyleVars === "function") {{
+            applyNodeTintStyleVars(member, nodeId, {{
+              scope: "member",
+              fallbackHue: 145,
+              tagActive: false,
+              hue: autoNodeHue,
+              outlineSeed: tintOutlineSeed,
+              tintStartSeed,
+              tintEndSeed,
+            }});
+          }} else {{
+            if (typeof shouldUseUniqueNodeColors !== "function" || shouldUseUniqueNodeColors(false)) {{
+              member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(autoNodeHue) || 145)))));
+            }} else {{
+              member.style.removeProperty("--chat-member-node-hue");
+            }}
+          }}
+          member.style.removeProperty("--node-tag-color");
+          member.style.removeProperty("--node-tag-vibrance");
+          if (existingChip instanceof HTMLElement) {{
+            existingChip.remove();
+          }}
+        }}
+      }}
+      for (const row of document.querySelectorAll("#chat-feed .chat-feed-item")) {{
+        if (!(row instanceof HTMLElement)) continue;
+        const rowCandidates = [
+          row.dataset.fromNodeId,
+          row.dataset.nodeId,
+          row.dataset.replyName,
+        ];
+        let rowNodeId = "";
+        let tagEntry = null;
+        for (const candidate of rowCandidates) {{
+          const clean = normalizeNodeId(candidate || "");
+          if (!isSelectableNodeId(clean)) continue;
+          const entry = nodeTagEntryForNode(clean);
+          if (entry && entry.preset) {{
+            rowNodeId = clean;
+            tagEntry = entry;
+            break;
+          }}
+          if (!rowNodeId) {{
+            rowNodeId = clean;
+          }}
+        }}
+        if (!isSelectableNodeId(rowNodeId)) continue;
+        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(row.dataset.nodeTintOutlineSeed, rowNodeId || "unknown")
+          : String(row.dataset.nodeTintOutlineSeed || rowNodeId || "unknown").trim();
+        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(row.dataset.nodeTintStartSeed, tintOutlineSeed)
+          : String(row.dataset.nodeTintStartSeed || tintOutlineSeed).trim();
+        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(row.dataset.nodeTintEndSeed, tintStartSeed || tintOutlineSeed)
+          : String(row.dataset.nodeTintEndSeed || tintStartSeed || tintOutlineSeed).trim();
+        const active = !!(tagEntry && tagEntry.preset);
+        const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(rowNodeId, 210) : 210;
+        const nodeHue = active
+          ? nodeTagTintHue(tagEntry, autoNodeHue)
+          : autoNodeHue;
+        row.classList.toggle("tagged-node", active);
+        if (typeof applyNodeTintStyleVars === "function") {{
+          const feedTintOptions = {{
+            scope: "feed",
+            fallbackHue: 210,
+            tagActive: active,
+            hue: nodeHue,
+            outlineSeed: tintOutlineSeed,
+            tintStartSeed,
+            tintEndSeed,
+          }};
+          if (active) {{
+            feedTintOptions.tintStartHue = nodeHue;
+            feedTintOptions.tintEndHue = nodeHue;
+            feedTintOptions.outlineHue = nodeHue;
+          }}
+          applyNodeTintStyleVars(row, rowNodeId, feedTintOptions);
+        }} else {{
+          if (typeof shouldUseUniqueNodeColors !== "function" || shouldUseUniqueNodeColors(active)) {{
+            row.style.setProperty("--chat-feed-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || autoNodeHue)))));
+          }} else {{
+            row.style.removeProperty("--chat-feed-node-hue");
+          }}
+        }}
+        if (active && tagEntry && tagEntry.preset) {{
+          const color = normalizeNodeTagColor(tagEntry.preset.color, "#2aa85a");
+          const vibranceRatio = (clampNodeTagVibrance(tagEntry.preset.vibrance, 70) / 100).toFixed(3);
+          row.style.setProperty("--node-tag-color", color);
+          row.style.setProperty("--node-tag-vibrance", vibranceRatio);
+        }} else {{
+          row.style.removeProperty("--node-tag-color");
+          row.style.removeProperty("--node-tag-vibrance");
+        }}
+      }}
+      syncMapTitleFavoriteToggle();
+      renderSavedRailStatus();
+
+      const nodesSort = tableSortState["nodes-table"];
+      if (nodesSort && Number(nodesSort.index) === 9) {{
+        sortTableRows("nodes-table");
+      }}
+    }}
+
+    function refreshMuteToggleButtons() {{
+      for (const btn of document.querySelectorAll(".mute-toggle-btn")) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const nodeId = normalizeNodeId(btn.dataset.nodeId || "");
+        const active = isMutedNode(nodeId);
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+        const title = active ? "Unmute this user in chat feed" : "Mute this user in chat feed";
+        btn.title = title;
+        btn.setAttribute("aria-label", title);
+        const icon = btn.querySelector(".mute-toggle-icon");
+        if (icon) {{
+          icon.textContent = active ? "🔇" : "🔊";
+        }}
+        const label = btn.querySelector(".chat-node-details-mute-label");
+        if (label) {{
+          label.textContent = active ? "Muted" : "Mute";
+        }}
+      }}
+    }}
+
+    function toggleFavoriteNode(nodeId, forceActive = null) {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) return;
+      const targetActive = forceActive == null ? !nodeTagEntryForNode(normalized) : !!forceActive;
+      if (targetActive) {{
+        const preferredPresetId = normalizeNodeTagPresetId(activeNodeTagPresetId || "tag-default", "tag-default");
+        const fallbackPreset = nodeTagPresetForId(preferredPresetId) || nodeTagPresetForId("tag-default") || defaultNodeTagPreset();
+        const ensurePreset = nodeTagPresetsById.has(fallbackPreset.id)
+          ? fallbackPreset
+          : upsertNodeTagPreset(fallbackPreset.name, fallbackPreset.color, fallbackPreset.vibrance, {{ preferredId: fallbackPreset.id }});
+        assignNodeTagPresetToNode(normalized, ensurePreset.id, {{ persist: false }});
+      }} else {{
+        clearNodeTagForNode(normalized, {{ persist: false }});
+      }}
+      persistFavoriteNodes();
+      refreshFavoriteToggleButtons();
+      if (latestState) {{
+        renderFavorites(latestState);
+      }} else {{
+        renderStarredNodeSelect({{}});
+      }}
+      if (typeof setChatSendStatus === "function") {{
+        const statusText = targetActive
+          ? `Tagged node ${{normalized}}.`
+          : `Cleared tag for node ${{normalized}}.`;
+        setChatSendStatus(statusText);
+      }}
+    }}
+
+    function toggleMutedNode(nodeId, forceActive = null) {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized) || isSelfNodeId(normalized)) return;
+      const targetActive = forceActive == null ? !mutedNodeIds.has(normalized) : !!forceActive;
+      if (targetActive) {{
+        mutedNodeIds.add(normalized);
+      }} else {{
+        mutedNodeIds.delete(normalized);
+      }}
+      persistMutedNodes();
+      if (latestState) {{
+        renderChat(latestState);
+      }} else {{
+        refreshMuteToggleButtons();
+      }}
+      setChatSendStatus(
+        targetActive
+          ? `Muted ${{normalized}} in chat feed.`
+          : `Unmuted ${{normalized}} in chat feed.`
+      );
+    }}

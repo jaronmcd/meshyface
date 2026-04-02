@@ -1,0 +1,93 @@
+    function startNewReversiGame() {{
+      if (reversiLink.mode === "connected" || reversiLink.mode === "pending_host") {{
+        resetReversiNetworkLink("Started a fresh local game. Peer link closed.", {{ keepPeer: true }});
+      }}
+      reversiState = createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+    }}
+
+    async function sendReversiMoveToPeer(row, col) {{
+      if (!reversiIsNetworkLinked()) return false;
+      const seq = Math.max(0, Math.trunc(Number(reversiLink.local_move_seq) || 0)) + 1;
+      const sessionChannelRaw = Number(reversiLink.channel_index);
+      const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
+        ? sessionChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const sent = await sendReversiProtocolMessage(
+        "move",
+        [reversiLink.session_id, seq, row, col],
+        {{ destination_id: reversiLink.peer_id, channel_index: sessionChannel }}
+      );
+      if (!sent) {{
+        updateReversiLinkStatus("Move applied locally, but network send failed.");
+        return false;
+      }}
+      reversiLink.local_move_seq = seq;
+      return true;
+    }}
+
+    function applyReversiMove(rowRaw, colRaw, options = {{}}) {{
+      if (!reversiState || typeof reversiState !== "object") return false;
+      if (reversiState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      if (!inReversiBounds(row, col)) return false;
+      if (source !== "remote" && reversiLink.mode === "pending_host") {{
+        updateReversiLinkStatus("Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") {{
+          renderGamesView(latestState);
+        }}
+        return false;
+      }}
+      if (reversiIsNetworkLinked()) {{
+        const currentPlayer = Number(reversiState.current_player) === reversiPiece.white
+          ? reversiPiece.white
+          : reversiPiece.black;
+        const expectedPlayer = source === "remote"
+          ? reversiLink.remote_color
+          : reversiLink.local_color;
+        if (currentPlayer !== expectedPlayer) {{
+          if (source !== "remote") {{
+            updateReversiLinkStatus(
+              `Waiting for ${{reversiNodeLabel(reversiLink.peer_id)}} to move.`
+            );
+            if (activeLayoutView === "games") {{
+              renderGamesView(latestState);
+            }}
+          }}
+          return false;
+        }}
+      }}
+      const moveKey = `${{row}},${{col}}`;
+      const flips = reversiLegalMoveMap.get(moveKey);
+      if (!Array.isArray(flips) || flips.length < 1) return false;
+      const player = Number(reversiState.current_player) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      reversiState.board[row][col] = player;
+      for (const [flipRow, flipCol] of flips) {{
+        if (!inReversiBounds(flipRow, flipCol)) continue;
+        reversiState.board[flipRow][flipCol] = player;
+      }}
+      reversiState.last_move = [row, col];
+      reversiState.move_count = Math.max(0, Math.trunc(Number(reversiState.move_count) || 0)) + 1;
+      reversiState.current_player = reversiOpponent(player);
+      reversiState.notice = `${{reversiPlayerLabel(player)}} played ${{reversiCellLabel(row, col)}} and flipped ${{flips.length}} disc${{flips.length === 1 ? "" : "s"}}.`;
+      reversiState.game_over = false;
+      reversiState.winner = reversiPiece.empty;
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+      if (source !== "remote" && reversiIsNetworkLinked() && !suppressOutbound) {{
+        void sendReversiMoveToPeer(row, col);
+      }}
+      if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+      return true;
+    }}

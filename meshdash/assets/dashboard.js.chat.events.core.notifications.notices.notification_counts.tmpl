@@ -1,0 +1,88 @@
+    function collectSystemNotificationRows() {{
+      const rows = [];
+      const appendChannel = (channelKey) => {{
+        const normalizedChannel = normalizeChatChannel(channelKey);
+        const notices = Array.isArray(chatChangeNoticesByChannel[normalizedChannel])
+          ? chatChangeNoticesByChannel[normalizedChannel]
+          : [];
+        const ackSet = chatChangeAcknowledgedKeySetForChannel(normalizedChannel);
+        for (const notice of notices) {{
+          const normalized = normalizeChatChangeNotice(notice);
+          if (!normalized || normalized.systemRelevant !== true) continue;
+          rows.push({{
+            ...normalized,
+            channel: normalizedChannel,
+            seen: ackSet instanceof Set ? ackSet.has(normalized.key) : false,
+          }});
+        }}
+      }};
+      appendChannel("all");
+      rows.sort((a, b) => {{
+        const aUnix = Number(a && a.unix);
+        const bUnix = Number(b && b.unix);
+        const safeA = Number.isFinite(aUnix) ? aUnix : 0;
+        const safeB = Number.isFinite(bUnix) ? bUnix : 0;
+        if (safeB !== safeA) return safeB - safeA;
+        const aKey = String(a && a.key ? a.key : "");
+        const bKey = String(b && b.key ? b.key : "");
+        return bKey.localeCompare(aKey);
+      }});
+      return rows.slice(0, historyNotificationMaxRows);
+    }}
+
+    function totalSystemNotificationCount() {{
+      return collectSystemNotificationRows()
+        .filter((row) => row && row.seen !== true)
+        .length;
+    }}
+
+    function chatChangeAcknowledgedKeySetForChannel(channelKey) {{
+      const key = normalizeChatChannel(channelKey);
+      const set = chatChangeAcknowledgedKeysByChannel[key];
+      return set instanceof Set ? set : null;
+    }}
+
+    function markChatChangeAlertsAcknowledged(channelKey = null) {{
+      const markOne = (key) => {{
+        const ackSet = chatChangeAcknowledgedKeySetForChannel(key);
+        if (!(ackSet instanceof Set)) return;
+        for (const notice of chatChangeNoticesForChannel(key)) {{
+          const noticeKey = String(notice && notice.key ? notice.key : "").trim();
+          if (!noticeKey) continue;
+          ackSet.add(noticeKey);
+        }}
+      }};
+      if (channelKey == null) {{
+        markOne("all");
+        markOne("direct");
+      }} else {{
+        markOne(channelKey);
+      }}
+      persistChatChangeNotices();
+      syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
+      if (latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
+        renderChat(latestState);
+        if (activeLayoutView === "chatlabs") {{
+          renderChatLabsView(latestState);
+        }}
+      }} else {{
+        syncChatChangeAutoDismiss();
+      }}
+    }}
+
+    function chatChangeUnacknowledgedCountForChannel(channelKey) {{
+      const notices = chatChangeNoticesForChannel(channelKey);
+      if (!notices.length) return 0;
+      const ackSet = chatChangeAcknowledgedKeySetForChannel(channelKey);
+      if (!(ackSet instanceof Set)) return notices.length;
+      let count = 0;
+      for (const notice of notices) {{
+        const noticeKey = String(notice && notice.key ? notice.key : "").trim();
+        if (!noticeKey) continue;
+        if (!ackSet.has(noticeKey)) {{
+          count += 1;
+        }}
+      }}
+      return count;
+    }}

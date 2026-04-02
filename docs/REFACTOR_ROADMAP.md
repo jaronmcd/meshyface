@@ -1,5 +1,8 @@
 # Mesh Dashboard Refactor Roadmap
 
+Doc status: historical-log
+Last reviewed: 2026-03-14
+
 > **Status note:** this document is intentionally detailed and reads like an engineering log.
 > Most of the modularization work described below has already landed in `meshdash/`.
 > For current, forward‑looking work (especially **Rooms**), start with:
@@ -52,9 +55,10 @@ Split `_render_html()` into composable builders while keeping server behavior un
   - `meshdash/html_sections.py`
   - `meshdash/html_template.py` (orchestrator)
 - Extracted large template bodies into asset templates:
-  - `meshdash/assets/dashboard.css.tmpl`
-  - `meshdash/assets/dashboard.js.tmpl`
   - `meshdash/assets/dashboard.html.tmpl`
+  - CSS now assembled from `meshdash/assets/dashboard.css.*.tmpl`
+  - JS now assembled from `meshdash/assets/dashboard.js.*.tmpl`
+  - `dashboard.css.tmpl` / `dashboard.js.tmpl` remain compatibility stubs for template contracts.
 - Added cached asset loader:
   - `meshdash/html_assets.py`
 - Added/updated HTML renderer coverage:

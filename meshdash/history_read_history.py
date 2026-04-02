@@ -2,12 +2,17 @@ import time
 from datetime import datetime
 
 from .history_read_contracts import (
+    BuildSummaryMetricsPayloadFn,
     BuildNodeHistoryPayloadFn,
     BuildOnlineActivityPayloadFn,
+    FetchSummaryMetricsRowsFn,
     FetchNodeHistoryRowsFn,
     FetchOnlineActivityRowsFn,
     HistoryPayload,
     TimezoneLabelFn,
+)
+from .history_summary_sampling import (
+    summary_metrics_query_limit as _summary_metrics_query_limit,
 )
 from .runtime_types import NowUnixFn
 from .sql_contracts import SqlConnection
@@ -31,11 +36,12 @@ def load_node_history_data(
             window_hours=hours,
             metric_rows=[],
             position_rows=[],
+            packet_rows=[],
         )
 
     limit = max(20, min(10000, int(max_points)))
     cutoff = int(now_unix_fn()) - (hours * 3600)
-    rows, position_rows = fetch_node_history_rows_fn(
+    rows, position_rows, packet_rows = fetch_node_history_rows_fn(
         conn,
         node_id=clean_node_id,
         cutoff=cutoff,
@@ -46,6 +52,7 @@ def load_node_history_data(
         window_hours=hours,
         metric_rows=rows,
         position_rows=position_rows,
+        packet_rows=packet_rows,
     )
 
 
@@ -69,4 +76,26 @@ def load_online_activity_data(
         hour_rows=rows,
         distinct_nodes=distinct_nodes,
         timezone_label=timezone_label_fn(),
+    )
+
+
+def load_summary_metrics_history_data(
+    conn: SqlConnection,
+    *,
+    window_hours: int,
+    fetch_summary_metrics_rows_fn: FetchSummaryMetricsRowsFn,
+    build_summary_metrics_payload_fn: BuildSummaryMetricsPayloadFn,
+    now_unix_fn: NowUnixFn = time.time,
+) -> HistoryPayload:
+    hours = max(1, min(24 * 365, int(window_hours)))
+    cutoff = int(now_unix_fn()) - (hours * 3600)
+    limit = _summary_metrics_query_limit(hours)
+    rows = fetch_summary_metrics_rows_fn(
+        conn,
+        cutoff=cutoff,
+        limit=limit,
+    )
+    return build_summary_metrics_payload_fn(
+        window_hours=hours,
+        rows=rows,
     )

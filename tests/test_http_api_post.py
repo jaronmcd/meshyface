@@ -13,16 +13,22 @@ class _Handler:
 def test_build_post_route_dependencies_sets_expected_defaults():
     send_chat_fn = lambda **_kwargs: {"ok": True}
     set_theme_preset_fn = lambda _preset_name: {"ok": True}
+    play_standalone_zork_fn = lambda **_kwargs: {"ok": True}
     deps = build_post_route_dependencies(
         send_chat_fn=send_chat_fn,
         set_theme_preset_fn=set_theme_preset_fn,
+        play_standalone_zork_fn=play_standalone_zork_fn,
     )
 
     assert deps.send_chat_fn is send_chat_fn
     assert deps.set_theme_preset_fn is set_theme_preset_fn
+    assert deps.play_standalone_zork_fn is play_standalone_zork_fn
     assert callable(deps.validate_content_length_fn)
     assert callable(deps.parse_chat_send_request_fn)
     assert callable(deps.parse_theme_settings_request_fn)
+    assert callable(deps.parse_custom_telemetry_settings_request_fn)
+    assert callable(deps.parse_bot_settings_request_fn)
+    assert callable(deps.parse_standalone_zork_request_fn)
     assert callable(deps.write_json_response_fn)
 
 

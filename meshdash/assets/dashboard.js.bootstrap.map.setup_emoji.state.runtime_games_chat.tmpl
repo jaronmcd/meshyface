@@ -1,0 +1,142 @@
+    let checkersLink = {{
+      mode: "local",
+      role: "",
+      session_id: "",
+      peer_id: "",
+      channel_index: 0,
+      local_color: "black",
+      remote_color: "white",
+      local_move_seq: 0,
+      remote_move_seq: 0,
+      status: "Local hotseat mode.",
+    }};
+    let chessState = null;
+    let chessLegalMoves = [];
+    let chessSelectedCell = null;
+    let chessPeerId = "";
+    let chessHostColorPreference = "white";
+    let chessPendingInvites = [];
+    let chessSelectedInviteKey = "";
+    let chessSeenNetworkMessageKeys = new Set();
+    let chessSeenNetworkMessageOrder = [];
+    let chessLink = {{
+      mode: "local",
+      role: "",
+      session_id: "",
+      peer_id: "",
+      channel_index: 0,
+      local_color: "white",
+      remote_color: "black",
+      local_move_seq: 0,
+      remote_move_seq: 0,
+      status: "Local hotseat mode.",
+    }};
+    let pokerState = null;
+    let gamesQuickChatSessionKey = "";
+    let gamesQuickChatRows = [];
+    let gamesQuickChatSeenKeys = new Set();
+    let gamesQuickChatSeenOrder = [];
+    let gamesQuickChatComposeOpen = false;
+    let gamesQuickChatDraft = "";
+    let reversiPeerId = "";
+    let reversiHostColorPreference = reversiPiece.black;
+    let reversiPendingInvites = [];
+    let reversiSelectedInviteKey = "";
+    let reversiSeenNetworkMessageKeys = new Set();
+    let reversiSeenNetworkMessageOrder = [];
+    let reversiLink = {{
+      mode: "local",
+      role: "",
+      session_id: "",
+      peer_id: "",
+      channel_index: 0,
+      local_color: reversiPiece.black,
+      remote_color: reversiPiece.white,
+      local_move_seq: 0,
+      remote_move_seq: 0,
+      status: "Local hotseat mode.",
+    }};
+    let activeChatChannel = "all";
+    let chatDirectActivePeerId = "";
+    let chatPendingDirectAck = null;
+    let peerDmMenuOpen = false;
+    let peerDmActivePeerId = "";
+    const peerDmDraftByPeer = new Map();
+    let chatNotificationScope = "all";
+    let chatWhoisQuickActionEnabled = true;
+    let chatWhoisQuickActionPrefix = "whois";
+    let chatWhoisQuickActionThreadReply = true;
+    let chatBotCommandsEnabled = true;
+    let chatBotHistoryEnabled = true;
+    let botRequestHistory = [];
+    let backendBotRequestHistory = [];
+    let packetBotRequestHistory = [];
+    let packetBotRequestHistoryFetchedAtMs = 0;
+    let packetBotRequestHistoryInFlight = null;
+    let activeBotsReviewTab = "history";
+    let activeBotCommandSettingsId = "";
+    let botTrafficSnifferCommandHeads = [...defaultBotTrafficSnifferCommandHeads];
+    let serverBotSettings = {{
+      available: false,
+      enabled: true,
+      log_enabled: true,
+      game_enabled: false,
+      game_public_start_enabled: false,
+      hard_disabled_incoming_commands: [],
+      ping_triggers: [],
+      ping_response_template: "",
+      pull_reel_symbols: [],
+      pull_response_template: "",
+      joke_triggers: [],
+      zork_triggers: [],
+      joke_lines: [],
+      joke_near_guess_lines: [],
+      joke_delay_punchline_enabled: false,
+      active_game_sessions: 0,
+      commands: [],
+      disabled_commands: [],
+    }};
+    let botSettingsSaveInFlight = false;
+    let queuedComposerSend = false;
+    let queuedComposerFocus = false;
+    let meshChannelSendMenuOpen = false;
+    let activeMeshChannelIndex = 0;
+    let activeMeshSendChannelIndex = 0;
+    let meshChannelOptions = [];
+    let meshChannelSendOptions = [];
+    let meshChannelAppSendPrefs = {{}};
+    let channelsAppRoutingExpanded = false;
+    let meshChannelOptionsSignature = "";
+    let meshChannelPillsRenderSignature = "";
+    let meshChannelOptionsFetchedAt = 0;
+    let chatEmojiMode = "compose";
+    let chatEmojiPickerGroup = chatEmojiDefaultGroup;
+    let chatEmojiSearchQuery = "";
+    let chatEmojiUsageCounts = new Map();
+    let chatEmojiTopPinnedChoices = [];
+    let chatEmojiTopDragEmoji = "";
+    let chatReactionTargetId = null;
+    let chatReactionPickerExpanded = false;
+    let chatEmojiAnchorElement = null;
+    let chatReplyTargetId = null;
+    let chatReplyTargetName = "";
+    let chatReplyTargetText = "";
+    let chatReactionPopoverAnchor = null;
+    let chatReactionPopoverHideTimer = null;
+    let chatImmediatePollTimer = null;
+    let nodesSearchQuery = "";
+    let savedNodeSearchQuery = "";
+    let savedNodeSearchOpen = false;
+    let savedNodeSearchBlurTimer = null;
+    let favoriteMenuNodeSearchQuery = "";
+    let favoriteMenuNodeSearchOpen = false;
+    let favoriteMenuNodeSearchBlurTimer = null;
+    let chatUserSearchQuery = "";
+    let chatPeerAddPanelOpen = false;
+    let chatViewMode = "default";
+    let chatTrendsViewEnabled = false;
+    let themePreference = "auto";
+    let tickerDensity = "compact";
+    let themePresetSelected = "default";
+    let weeklySummaryMetric = "packets";
+    let weeklySummaryNodeSeriesEnabled = {{ ...weeklySummaryNodeSeriesDefaults }};

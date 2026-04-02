@@ -1,0 +1,241 @@
+    function resolveSignalHeatProfile() {{
+      const presetRaw = latestState && latestState.summary
+        ? String(latestState.summary.modem_preset || "")
+        : "";
+      const preset = presetRaw.trim().toUpperCase();
+      if (preset.startsWith("LONG_")) {{
+        return {{
+          snrMin: -16,
+          snrMax: 8,
+          rssiMin: -128,
+          rssiMax: -92,
+          label: preset || "LONG_*",
+        }};
+      }}
+      if (preset.startsWith("SHORT_")) {{
+        return {{
+          snrMin: -10,
+          snrMax: 12,
+          rssiMin: -120,
+          rssiMax: -84,
+          label: preset || "SHORT_*",
+        }};
+      }}
+      if (preset.startsWith("MEDIUM_")) {{
+        return {{
+          snrMin: -12,
+          snrMax: 10,
+          rssiMin: -125,
+          rssiMax: -88,
+          label: preset,
+        }};
+      }}
+      return {{
+        snrMin: signalHeatProfileDefaults.snrMin,
+        snrMax: signalHeatProfileDefaults.snrMax,
+        rssiMin: signalHeatProfileDefaults.rssiMin,
+        rssiMax: signalHeatProfileDefaults.rssiMax,
+        label: preset || "DEFAULT",
+      }};
+    }}
+
+    function normalizeSignalForHeat(rawValue, minValue, maxValue) {{
+      const raw = Number(rawValue);
+      if (!Number.isFinite(raw)) return null;
+      const min = Number(minValue);
+      const max = Number(maxValue);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+      const clamped = Math.max(min, Math.min(max, raw));
+      return (clamped - min) / (max - min);
+    }}
+
+    function signalHeatAgeFactor(
+      node,
+      nowUnix = Math.floor(Date.now() / 1000),
+      modeConfig = null,
+      ageSeconds = null
+    ) {{
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const includeUnknownAge = !!(config && config.includeUnknownAge);
+      const resolvedAgeSeconds = Number.isFinite(ageSeconds)
+        ? ageSeconds
+        : signalHeatNodeAgeSeconds(node, nowUnix);
+      if (!Number.isFinite(resolvedAgeSeconds)) {{
+        return includeUnknownAge ? 0.35 : 0;
+      }}
+      const freshFullRaw = Number(config && config.freshFullSeconds);
+      const freshDropRaw = Number(config && config.freshDropSeconds);
+      const tailRaw = Number(config && config.tailWeight);
+      const freshFullSeconds = Math.max(0, Number.isFinite(freshFullRaw) ? freshFullRaw : 0);
+      const freshDropSeconds = Math.max(
+        freshFullSeconds + 1,
+        Number.isFinite(freshDropRaw) ? freshDropRaw : freshFullSeconds + 1
+      );
+      const tailWeight = clampUnitInterval(Number.isFinite(tailRaw) ? tailRaw : 0.03);
+      if (resolvedAgeSeconds <= freshFullSeconds) {{
+        return 1;
+      }}
+      if (resolvedAgeSeconds >= freshDropSeconds) {{
+        return tailWeight;
+      }}
+      const span = freshDropSeconds - freshFullSeconds;
+      if (span <= 0) {{
+        return tailWeight;
+      }}
+      const ratio = (resolvedAgeSeconds - freshFullSeconds) / span;
+      return 1 - (clampUnitInterval(ratio) * (1 - tailWeight));
+    }}
+
+    function signalHeatSignalScore(node, profile) {{
+      // Score that reflects raw signal quality (SNR/RSSI) but not freshness.
+      if (!node || typeof node !== "object") return null;
+      const activeProfile = profile || signalHeatProfileDefaults;
+      const snrWeight = normalizeSignalForHeat(node.snr, activeProfile.snrMin, activeProfile.snrMax);
+      const rssiWeight = normalizeSignalForHeat(node.rssi, activeProfile.rssiMin, activeProfile.rssiMax);
+      let signalWeight = null;
+      if (Number.isFinite(snrWeight) && Number.isFinite(rssiWeight)) {{
+        // Use both when available so the score reflects the full reported signal context.
+        signalWeight = ((snrWeight * 0.62) + (rssiWeight * 0.38));
+      }} else if (Number.isFinite(snrWeight)) {{
+        signalWeight = snrWeight;
+      }} else if (Number.isFinite(rssiWeight)) {{
+        signalWeight = rssiWeight;
+      }}
+      if (!Number.isFinite(signalWeight)) return null;
+      const greenBiasedSignal = Math.pow(
+        clampUnitInterval(signalWeight),
+        1 + (clampUnitInterval(signalHeatDevKnobs.greenBias) * 0.55)
+      );
+      return clampUnitInterval(greenBiasedSignal);
+    }}
+
+    function signalHeatWeight(node, profile, nowUnix, modeConfig = null, ageSeconds = null) {{
+      // Final weight used for intensity (includes freshness decay).
+      const signalScore = signalHeatSignalScore(node, profile);
+      if (!Number.isFinite(signalScore)) return null;
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const resolvedAgeSeconds = Number.isFinite(ageSeconds)
+        ? ageSeconds
+        : signalHeatNodeAgeSeconds(node, nowUnix);
+      if (!signalHeatNodeWithinWindow(resolvedAgeSeconds, config)) {{
+        return null;
+      }}
+      const ageWeight = signalHeatAgeFactor(node, nowUnix, config, resolvedAgeSeconds);
+      const freshnessWeight = signalHeatDevKnobs.freshnessFloor + (ageWeight * signalHeatDevKnobs.freshnessGain);
+      return clampUnitInterval(signalScore * freshnessWeight);
+    }}
+
+    function resolveSignalHeatBucketIndex(signalScore) {{
+      const score = clampUnitInterval(signalScore);
+      for (let i = 0; i < signalHeatBucketDefs.length; i++) {{
+        const bucket = signalHeatBucketDefs[i];
+        const min = Number(bucket && bucket.min);
+        const max = Number(bucket && bucket.max);
+        if (!Number.isFinite(min) || !Number.isFinite(max)) continue;
+        if (score >= min && score < max) {{
+          return i;
+        }}
+      }}
+      return Math.max(0, signalHeatBucketDefs.length - 1);
+    }}
+
+    function collectSignalHeatmapBuckets(nodes, profile) {{
+      const buckets = signalHeatBucketDefs.map(() => []);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const modeConfig = resolveSignalHeatModeConfig();
+      const intensityFloor = signalHeatDevKnobs.intensityFloor;
+      for (const node of (nodes || [])) {{
+        const lat = Number(node && node.lat);
+        const lon = Number(node && node.lon);
+        if (!isValidMapCoord(lat, lon)) continue;
+        const ageSeconds = signalHeatNodeAgeSeconds(node, nowUnix);
+        if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) continue;
+
+        const signalScore = signalHeatSignalScore(node, profile);
+        if (!Number.isFinite(signalScore)) continue;
+
+        const weight = signalHeatWeight(node, profile, nowUnix, modeConfig, ageSeconds);
+        if (!Number.isFinite(weight)) continue;
+
+        const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
+        const intensity = intensityFloor + (eased * (1 - intensityFloor));
+        const idx = resolveSignalHeatBucketIndex(signalScore);
+        const bucket = signalHeatBucketDefs[idx] || {};
+        const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
+        const baseMul = Number(bucket && bucket.intensityMul);
+        const intensityMul = 1 + (((Number.isFinite(baseMul) ? baseMul : 1) - 1) * signalGain);
+        const adjusted = clampUnitInterval(intensity * intensityMul);
+        const points = buckets[idx] || buckets[0];
+        points.push([lat, lon, Math.max(intensityFloor, adjusted)]);
+      }}
+      return buckets;
+    }}
+
+    function collectSavedNodeHeatmapBuckets(nodes, profile) {{
+      const buckets = signalHeatBucketDefs.map(() => []);
+      const selectedId = resolveSavedViewNodeId(latestState);
+      if (!(activeLayoutView === "saved" && isSelectableNodeId(selectedId))) {{
+        return buckets;
+      }}
+      const selectedNode = (nodes || []).find((node) => normalizeNodeId(node && node.id) === selectedId);
+      if (!selectedNode) {{
+        return buckets;
+      }}
+      const lat = Number(selectedNode.lat);
+      const lon = Number(selectedNode.lon);
+      if (!isValidMapCoord(lat, lon)) {{
+        return buckets;
+      }}
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const modeConfig = resolveSignalHeatModeConfig();
+      const ageSeconds = signalHeatNodeAgeSeconds(selectedNode, nowUnix);
+      if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) {{
+        return buckets;
+      }}
+      const weight = signalHeatWeight(selectedNode, profile, nowUnix, modeConfig, ageSeconds);
+      if (!Number.isFinite(weight)) {{
+        return buckets;
+      }}
+      const intensityFloor = signalHeatDevKnobs.intensityFloor;
+      const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
+      const intensity = intensityFloor + (eased * (1 - intensityFloor));
+      // Saved/Node view uses a simple singular footprint for the selected node.
+      buckets[0].push([lat, lon, Math.max(intensityFloor, clampUnitInterval(intensity))]);
+      return buckets;
+    }}
+
+    function resolveSignalHeatVisualOptions(pointsCount) {{
+      const geoLocked = signalHeatDevKnobs.geoRadiusLock >= 0.5;
+      const zoom = Number(map.getZoom());
+      const safeCount = Number.isFinite(pointsCount) ? Math.max(0, Math.round(pointsCount)) : 0;
+      let radius = signalHeatDevKnobs.radius;
+      let blur = signalHeatDevKnobs.blur;
+
+      if (geoLocked) {{
+        const center = map.getCenter();
+        const centerLat = center && Number.isFinite(center.lat) ? center.lat : 0;
+        const metersPerPixel = metersPerPixelAtLatitude(centerLat, zoom);
+        const targetMeters = Math.max(100, signalHeatDevKnobs.coverageKm * 1000);
+        radius = clampNumber(Math.round(targetMeters / Math.max(1, metersPerPixel)), 10, 96, signalHeatDevKnobs.radius);
+        blur = clampNumber(Math.round(radius * signalHeatDevKnobs.blurRatio), 8, 80, signalHeatDevKnobs.blur);
+      }} else {{
+        if (safeCount >= 36 || (safeCount >= 24 && zoom >= 11)) {{
+          radius = Math.max(16, radius - 2);
+          blur = Math.max(12, blur - 2);
+        }} else if (safeCount >= 18 || zoom >= 10) {{
+          radius = Math.max(15, radius - 1);
+          blur = Math.max(11, blur - 1);
+        }}
+        if (zoom >= 13) {{
+          radius = Math.max(14, radius - 2);
+          blur = Math.max(10, blur - 2);
+        }}
+      }}
+
+      return {{
+        radius,
+        blur,
+        minOpacity: signalHeatDevKnobs.minOpacity,
+      }};
+    }}
+

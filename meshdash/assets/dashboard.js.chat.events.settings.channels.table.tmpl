@@ -1,0 +1,473 @@
+    function setSettingsButtonsDisabled(disabled) {{
+      for (const id of [
+        "settings-tab-core-btn",
+        "settings-tab-device-btn",
+        "settings-tab-connectivity-btn",
+        "settings-tab-location-btn",
+        "settings-tab-telemetry-btn",
+        "settings-tab-security-btn",
+        "settings-tab-advanced-btn",
+        "settings-tab-data-btn",
+        "settings-tab-tickers-btn",
+        "settings-apply-lora",
+        "settings-time-sync-enabled",
+        "settings-time-sync-timezone",
+        "settings-set-time",
+        "settings-apply-owner",
+        "settings-apply-device-role",
+        "settings-apply-device-broadcast",
+        "settings-apply-device-extra",
+        "settings-apply-power",
+        "settings-apply-display",
+        "settings-apply-network",
+        "settings-apply-bluetooth",
+        "settings-apply-security",
+        "bots-command-hard-disable-all",
+        "settings-apply-mqtt",
+        "settings-apply-serial",
+        "settings-apply-ext-notify",
+        "settings-apply-position",
+        "settings-apply-telemetry",
+        "settings-custom-telemetry-rules",
+        "settings-apply-custom-telemetry",
+        "settings-refresh-custom-telemetry",
+        "settings-apply-led-heartbeat",
+        "settings-set-fixed-position",
+        "settings-clear-fixed-position",
+        "settings-reset",
+        "settings-apply-local",
+        "settings-apply-module",
+        "settings-reset-nodedb",
+        "settings-reset-dashboard-db",
+        "settings-regenerate-node-id",
+        "settings-export-channel-url",
+        "channels-fetch-settings-btn",
+        "settings-channels-import-url-join-btn",
+        "settings-channels-import-url-add-btn",
+        "settings-channels-create-private-btn",
+        "settings-channels-advanced-toggle",
+        "settings-ticker-enabled",
+        "settings-ticker-move-up",
+        "settings-ticker-move-down",
+        "settings-ticker-label",
+        "settings-ticker-show-trend",
+        "settings-ticker-battery-window-hours",
+        "settings-ticker-node-row-snr",
+        "settings-ticker-node-row-rssi",
+        "settings-ticker-node-row-route",
+        "settings-ticker-node-row-hops",
+        "settings-ticker-node-packet-trend-enabled",
+        "settings-ticker-oneshot-node-online-enabled",
+        "settings-ticker-oneshot-node-online-favorites-only",
+        "settings-ticker-reset-selected",
+        "settings-ticker-reset-all",
+      ]) {{
+        const el = document.getElementById(id);
+        if (el instanceof HTMLButtonElement) {{
+          el.disabled = !!disabled;
+        }} else if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {{
+          el.disabled = !!disabled;
+        }}
+      }}
+      const positionSource = document.getElementById("settings-position-source");
+      if (positionSource instanceof HTMLSelectElement) {{
+        positionSource.disabled = !!disabled;
+      }}
+      const tickerList = document.getElementById("settings-ticker-list");
+      if (tickerList instanceof HTMLElement) {{
+        for (const btn of tickerList.querySelectorAll(".settings-ticker-item")) {{
+          if (btn instanceof HTMLButtonElement) {{
+            btn.disabled = !!disabled;
+          }}
+        }}
+      }}
+    }}
+
+    async function copyTextToClipboard(text) {{
+      const value = String(text || "");
+      if (!value) return false;
+
+      try {{
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
+          await navigator.clipboard.writeText(value);
+          return true;
+        }}
+      }} catch (_err) {{
+        // Fallback below.
+      }}
+
+      try {{
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return !!ok;
+      }} catch (_err) {{
+        return false;
+      }}
+    }}
+
+    function renderChannelsTable(localState, observedByIndex = null, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const tbody = document.getElementById("settings-channels-tbody");
+      if (!(tbody instanceof HTMLElement)) return;
+
+      const activeEl = document.activeElement;
+      let focusedFieldState = null;
+      if (activeEl instanceof HTMLInputElement && tbody.contains(activeEl)) {{
+        const activeRow = activeEl.closest("tr[data-channel-index]");
+        if (activeRow instanceof HTMLElement) {{
+          const focusIndex = normalizeChannelDraftIndex(activeRow.dataset.channelIndex);
+          const focusField = String(activeEl.dataset.field || "").trim();
+          if (focusIndex != null && focusField) {{
+            focusedFieldState = {{
+              index: focusIndex,
+              field: focusField,
+              selectionStart: Number.isFinite(activeEl.selectionStart) ? activeEl.selectionStart : null,
+              selectionEnd: Number.isFinite(activeEl.selectionEnd) ? activeEl.selectionEnd : null,
+            }};
+          }}
+        }}
+      }}
+
+      // Meshtastic channel roles are usually strings (PRIMARY/SECONDARY/DISABLED),
+      // but some protobuf -> JSON conversions may yield numeric enums.
+      const channelRoleIsDisabled = (roleRaw) => {{
+        const roleText = String(roleRaw == null ? "" : roleRaw).trim();
+        const upper = roleText.toUpperCase();
+        if (upper === "DISABLED" || upper === "CHANNEL_ROLE_DISABLED") return true;
+        const num = Number(roleText);
+        return Number.isInteger(num) && num === 0;
+      }};
+
+      const observed = observedByIndex instanceof Map ? observedByIndex : new Map();
+      const channels = localState && Array.isArray(localState.channels) ? localState.channels : null;
+      tbody.innerHTML = "";
+
+      if ((!channels || !channels.length) && !observed.size) {{
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 14;
+        td.className = "settings-channels-empty";
+        td.textContent = "No channel data. Click “Fetch settings” to load channels from the radio.";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }}
+
+      const sorted = channels ? [...channels].sort((a, b) => {{
+        const ai = Number(a && a.index != null ? a.index : 0);
+        const bi = Number(b && b.index != null ? b.index : 0);
+        return ai - bi;
+      }}) : [];
+
+      const localByIndex = new Map();
+      for (const ch of sorted) {{
+        const idx = Number(ch && ch.index != null ? ch.index : NaN);
+        if (!Number.isInteger(idx) || idx < 0 || localByIndex.has(idx)) continue;
+        localByIndex.set(idx, ch);
+      }}
+
+      const normalizedLocalOptions = collectMeshChannelOptionsFromLocalState(localState, {{
+        includeFallback: true,
+        fallbackCount: 8,
+      }});
+      for (const opt of normalizedLocalOptions) {{
+        const idx = Number(opt && opt.index);
+        if (!Number.isInteger(idx) || idx < 0) continue;
+        const fallbackRole = opt && typeof opt.role === "string" && opt.role
+          ? opt.role
+          : (idx === 0 ? "PRIMARY" : "DISABLED");
+        const fallbackSettings = {{
+          name: opt && typeof opt.name === "string" ? opt.name : "",
+        }};
+        if (opt && opt.hasPsk) {{
+          fallbackSettings.psk = "<redacted>";
+        }}
+        if (!localByIndex.has(idx)) {{
+          localByIndex.set(idx, {{
+            index: idx,
+            role: fallbackRole,
+            settings: fallbackSettings,
+          }});
+          continue;
+        }}
+        const existing = localByIndex.get(idx);
+        if (!(existing && typeof existing === "object")) continue;
+        if (!existing.role && fallbackRole) {{
+          existing.role = fallbackRole;
+        }}
+        const existingSettings = (existing.settings && typeof existing.settings === "object")
+          ? existing.settings
+          : (existing.settings = {{}});
+        if (!existingSettings.name && fallbackSettings.name) {{
+          existingSettings.name = fallbackSettings.name;
+        }}
+        if (!existingSettings.psk && fallbackSettings.psk) {{
+          existingSettings.psk = fallbackSettings.psk;
+        }}
+      }}
+
+      // Reflect common Meshtastic expectations:
+      // - channels are consecutive 0..N
+      // - disable happens from the end (highest active index)
+      let lastActiveIndex = 0;
+      for (const ch of localByIndex.values()) {{
+        const idx = Number(ch && ch.index != null ? ch.index : 0);
+        const role = ch && ch.role != null ? ch.role : "";
+        if (!channelRoleIsDisabled(role) && Number.isFinite(idx) && idx > lastActiveIndex) {{
+          lastActiveIndex = idx;
+        }}
+      }}
+      const nextAvailableIndex = lastActiveIndex + 1;
+
+      if (localByIndex.size > 0 && !localByIndex.has(nextAvailableIndex)) {{
+        localByIndex.set(nextAvailableIndex, {{
+          index: nextAvailableIndex,
+          role: "DISABLED",
+          settings: {{}},
+        }});
+      }}
+
+      const unionIndexes = Array.from(new Set([
+        ...localByIndex.keys(),
+        ...observed.keys(),
+      ]))
+        .filter((idx) => Number.isInteger(Number(idx)) && Number(idx) >= 0)
+        .sort((a, b) => Number(a) - Number(b));
+
+      for (const rawIndex of unionIndexes) {{
+        const idx = Number(rawIndex);
+        const ch = localByIndex.get(idx) || null;
+        const bucket = observed.get(idx) || null;
+        const hasLocalConfig = !!ch;
+        const role = String(ch && ch.role != null ? ch.role : "");
+        const isDisabledRole = hasLocalConfig && channelRoleIsDisabled(role);
+        const settings = ch && typeof ch.settings === "object" && ch.settings ? ch.settings : {{}};
+        const evidenceKind = isDisabledRole
+          ? "disabled"
+          : (hasLocalConfig && bucket)
+            ? "observed-local"
+            : hasLocalConfig
+              ? "local-only"
+              : "observed-only";
+        const evidence = channelEvidenceMeta(evidenceKind);
+        const latestLabel = bucket && bucket.lastSeenUnix > 0
+          ? formatLocalChatTime(bucket.lastSeenUnix, bucket.lastSeenText || "n/a", nowUnix)
+          : "n/a";
+        const latestTitle = bucket && bucket.lastSeenUnix > 0
+          ? [
+              bucket.lastSeenText ? `Raw: ${{bucket.lastSeenText}}` : "",
+              new Date(bucket.lastSeenUnix * 1000).toLocaleString(),
+            ].filter((part) => !!part).join(" | ")
+          : "No recent packet timestamps";
+
+        const draft = channelDraftForIndex(idx);
+        const nameValue = draft && typeof draft.name === "string"
+          ? draft.name
+          : String(settings.name || "");
+        const uplinkEnabled = draft && typeof draft.uplink_enabled === "boolean"
+          ? draft.uplink_enabled
+          : !!settings.uplink_enabled;
+        const downlinkEnabled = draft && typeof draft.downlink_enabled === "boolean"
+          ? draft.downlink_enabled
+          : !!settings.downlink_enabled;
+        const pskValue = draft && typeof draft.psk === "string"
+          ? draft.psk
+          : "";
+
+        const tr = document.createElement("tr");
+        tr.dataset.channelIndex = String(idx);
+        tr.dataset.channelRole = role;
+
+        const tdIndex = document.createElement("td");
+        tdIndex.textContent = String(idx);
+        if (idx === 0) {{
+          const primaryBadge = document.createElement("span");
+          primaryBadge.className = "mesh-channel-primary-badge settings-channel-primary-badge";
+          primaryBadge.textContent = "P";
+          primaryBadge.title = "Primary channel";
+          primaryBadge.setAttribute("aria-label", "Primary channel");
+          tdIndex.appendChild(document.createTextNode(" "));
+          tdIndex.appendChild(primaryBadge);
+        }}
+        tr.appendChild(tdIndex);
+
+        const tdRole = document.createElement("td");
+        tdRole.textContent = hasLocalConfig ? (role || "") : "Observed";
+        tr.appendChild(tdRole);
+
+        const tdName = document.createElement("td");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.className = "settings-input";
+        nameInput.value = nameValue;
+        nameInput.placeholder = !hasLocalConfig
+          ? "Observed only"
+          : isDisabledRole
+            ? "New channel name"
+            : "";
+        nameInput.disabled = !hasLocalConfig;
+        nameInput.dataset.field = "name";
+        tdName.appendChild(nameInput);
+        tr.appendChild(tdName);
+
+        const tdUplink = document.createElement("td");
+        tdUplink.className = "settings-channel-mqtt";
+        const uplink = document.createElement("input");
+        uplink.type = "checkbox";
+        uplink.checked = uplinkEnabled;
+        uplink.disabled = !hasLocalConfig;
+        uplink.dataset.field = "uplink_enabled";
+        uplink.title = "MQTT uplink (internet bridge). Not LoRa TX/RX.";
+        tdUplink.appendChild(uplink);
+        tr.appendChild(tdUplink);
+
+        const tdDownlink = document.createElement("td");
+        tdDownlink.className = "settings-channel-mqtt";
+        const downlink = document.createElement("input");
+        downlink.type = "checkbox";
+        downlink.checked = downlinkEnabled;
+        downlink.disabled = !hasLocalConfig;
+        downlink.dataset.field = "downlink_enabled";
+        downlink.title = "MQTT downlink (internet bridge). Not LoRa TX/RX.";
+        tdDownlink.appendChild(downlink);
+        tr.appendChild(tdDownlink);
+
+        const tdPsk = document.createElement("td");
+        const psk = document.createElement("input");
+        psk.type = "text";
+        psk.className = "settings-input";
+        psk.value = pskValue;
+        psk.disabled = !hasLocalConfig;
+        const pskHint = !hasLocalConfig
+          ? "n/a"
+          : (settings.psk && String(settings.psk) === "<redacted>")
+            ? "<redacted>"
+            : "leave blank to keep";
+        psk.placeholder = pskHint;
+        psk.dataset.field = "psk";
+        tdPsk.appendChild(psk);
+        tr.appendChild(tdPsk);
+
+        if (hasLocalConfig) {{
+          const captureDraft = () => {{
+            updateChannelDraftFromRow(tr);
+          }};
+          nameInput.addEventListener("input", captureDraft);
+          nameInput.addEventListener("change", captureDraft);
+          uplink.addEventListener("change", captureDraft);
+          downlink.addEventListener("change", captureDraft);
+          psk.addEventListener("input", captureDraft);
+          psk.addEventListener("change", captureDraft);
+        }}
+
+        const tdActions = document.createElement("td");
+        const actions = document.createElement("div");
+        actions.className = "settings-channels-actions";
+
+        if (hasLocalConfig) {{
+          const saveBtn = document.createElement("button");
+          saveBtn.type = "button";
+          saveBtn.className = "btn btn-secondary";
+          saveBtn.dataset.channelAction = "save";
+          saveBtn.dataset.channelIndex = String(idx);
+          saveBtn.textContent = isDisabledRole ? "Add" : "Save";
+          if (isDisabledRole && idx !== nextAvailableIndex) {{
+            saveBtn.disabled = true;
+            saveBtn.title = `Add channels in order. Next available slot is ${{nextAvailableIndex}}.`;
+          }}
+          actions.appendChild(saveBtn);
+
+          if (idx > 0 && !isDisabledRole) {{
+            const disableBtn = document.createElement("button");
+            disableBtn.type = "button";
+            disableBtn.className = "btn btn-danger";
+            disableBtn.dataset.channelAction = "disable";
+            disableBtn.dataset.channelIndex = String(idx);
+            disableBtn.textContent = "Disable";
+            if (idx !== lastActiveIndex) {{
+              disableBtn.disabled = true;
+              disableBtn.title = `Disable channels from the end. Last active slot is ${{lastActiveIndex}}.`;
+            }} else {{
+              disableBtn.title = `Disable channel ${{idx}}.`;
+            }}
+            actions.appendChild(disableBtn);
+          }}
+        }} else {{
+          const placeholder = document.createElement("span");
+          placeholder.className = "channels-action-placeholder";
+          placeholder.textContent = "Observed only";
+          actions.appendChild(placeholder);
+        }}
+
+        tdActions.appendChild(actions);
+        tr.appendChild(tdActions);
+
+        const tdEvidence = document.createElement("td");
+        const evidencePill = document.createElement("span");
+        evidencePill.className = `channels-evidence-pill ${{evidence.className}}`.trim();
+        evidencePill.textContent = evidence.label;
+        evidencePill.title = evidence.title;
+        tdEvidence.appendChild(evidencePill);
+        tr.appendChild(tdEvidence);
+
+        const tdPackets = document.createElement("td");
+        tdPackets.textContent = String(bucket ? bucket.packetCount : 0);
+        tr.appendChild(tdPackets);
+
+        const tdEveryone = document.createElement("td");
+        tdEveryone.textContent = String(bucket ? bucket.everyoneCount : 0);
+        tr.appendChild(tdEveryone);
+
+        const tdDirect = document.createElement("td");
+        tdDirect.textContent = String(bucket ? bucket.directCount : 0);
+        tr.appendChild(tdDirect);
+
+        const tdNodes = document.createElement("td");
+        tdNodes.textContent = String(bucket ? bucket.nodeIds.size : 0);
+        tr.appendChild(tdNodes);
+
+        const tdPorts = document.createElement("td");
+        tdPorts.textContent = bucket ? formatChannelTopPorts(bucket.portCounts, 3) : "n/a";
+        tdPorts.title = bucket ? formatChannelTopPorts(bucket.portCounts, 5) : "No recent packet evidence";
+        tr.appendChild(tdPorts);
+
+        const tdLatest = document.createElement("td");
+        tdLatest.textContent = latestLabel;
+        tdLatest.title = latestTitle;
+        tr.appendChild(tdLatest);
+
+        tbody.appendChild(tr);
+      }}
+
+      scheduleChannelsTableFillRows();
+
+      if (focusedFieldState) {{
+        const restoreFocus = () => {{
+          const row = tbody.querySelector(`tr[data-channel-index=\"${{focusedFieldState.index}}\"]`);
+          if (!(row instanceof HTMLElement)) return;
+          const field = row.querySelector(`[data-field=\"${{focusedFieldState.field}}\"]`);
+          if (!(field instanceof HTMLInputElement)) return;
+          field.focus({{ preventScroll: true }});
+          if (
+            field.type === "text"
+            || field.type === "search"
+            || field.type === "url"
+            || field.type === "tel"
+            || field.type === "password"
+          ) {{
+            const start = Number.isFinite(focusedFieldState.selectionStart) ? focusedFieldState.selectionStart : field.value.length;
+            const end = Number.isFinite(focusedFieldState.selectionEnd) ? focusedFieldState.selectionEnd : start;
+            field.setSelectionRange(start, end);
+          }}
+        }};
+        restoreFocus();
+        requestAnimationFrame(restoreFocus);
+      }}
+    }}

@@ -1,0 +1,578 @@
+    function bindChatFeedClicks() {{
+      const feed = document.getElementById("chat-feed");
+      if (!(feed instanceof HTMLElement) || feed.dataset.feedClickBound === "1") return;
+      feed.dataset.feedClickBound = "1";
+      feed.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".chat-feed-item");
+        if (!(item instanceof HTMLElement) || !feed.contains(item)) return;
+
+        const retryBtn = target.closest(".chat-retry-btn");
+        if (retryBtn instanceof HTMLButtonElement) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (chatSendInFlight) return;
+          retryChatMessage({{
+            text: retryBtn.dataset.retryText || "",
+            destination: retryBtn.dataset.retryDestination || "^all",
+            channel_index: Number(retryBtn.dataset.retryChannel || "0"),
+            reply_id: Number(retryBtn.dataset.retryReplyId || ""),
+            retry_of: Number(retryBtn.dataset.retryOf || ""),
+          }});
+          return;
+        }}
+
+        const whoisBtn = target.closest(".chat-whois-btn");
+        if (whoisBtn) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (!chatBotCommandsEnabled) {{
+            setChatSendStatus("Whois quick action is unavailable.", true);
+            return;
+          }}
+          const whoisTargetId = normalizeNodeId(
+            whoisBtn instanceof HTMLElement
+              ? (whoisBtn.dataset.whoisTargetId || item.dataset.fromNodeId || "")
+              : (item.dataset.fromNodeId || "")
+          );
+          const whoisSuffix = nodeIdSuffixForWhois(whoisTargetId);
+          if (!isCanonicalNodeId(whoisTargetId) || !whoisSuffix) {{
+            setChatSendStatus("Cannot build Whois command: sender ID is unavailable.", true);
+            return;
+          }}
+          const command = buildWhoisCommandForNode(whoisTargetId);
+          const input = document.getElementById("chat-input");
+          if (!(input instanceof HTMLInputElement)) {{
+            setChatSendStatus("Cannot prepare Whois command: chat input is unavailable.", true);
+            return;
+          }}
+          if (chatWhoisQuickActionThreadReply) {{
+            const replyId = Number(item.dataset.messageId || "");
+            if (Number.isInteger(replyId) && replyId > 0) {{
+              const replyName = item.dataset.replyName || "Unknown node";
+              const replyText = item.dataset.replyText || "";
+              setChatReplyTarget(replyId, replyName, replyText);
+            }} else {{
+              clearChatReplyTarget();
+            }}
+          }} else {{
+            clearChatReplyTarget();
+          }}
+          input.value = command;
+          input.focus();
+          input.setSelectionRange(command.length, command.length);
+          input.dispatchEvent(new Event("input", {{ bubbles: true }}));
+          setChatSendStatus(
+            `Prepared ${{command}} for ${{whoisTargetId}}${{chatWhoisQuickActionThreadReply ? " (reply attached)" : ""}}.`
+          );
+          return;
+        }}
+
+        const replyBtn = target.closest(".chat-reply-btn");
+        if (replyBtn) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const replyId = Number(item.dataset.messageId || "");
+          const replyName = item.dataset.replyName || "Unknown node";
+          const replyText = item.dataset.replyText || "";
+          if (chatMainDirectModeEnabled && activeChatChannel === "direct" && item.classList.contains("chat-selectable")) {{
+            selectNode(item.dataset.nodeId || "", false, false);
+          }}
+          setChatReplyTarget(replyId, replyName, replyText);
+          return;
+        }}
+
+        const ackBtn = target.closest(".chat-ack-btn");
+        if (ackBtn) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const ackOptions = chatAckOptionsFromButton(
+            ackBtn instanceof HTMLElement ? ackBtn : null
+          );
+          if (ackOptions) {{
+            void sendChatAck(ackOptions);
+          }}
+          return;
+        }}
+
+        if (target.closest("a.chat-link")) {{
+          // Let browser open the link (target=_blank) without selecting/replying.
+          return;
+        }}
+
+        if (target.closest("button")) {{
+          return;
+        }}
+
+        if (item.classList.contains("chat-selectable")) {{
+          selectNode(item.dataset.nodeId || "", true);
+        }}
+      }});
+    }}
+
+    function bindChatReactionControls() {{
+      bindReactionPopover();
+      const bindFeedReactionDelegates = (feedId) => {{
+        const feed = document.getElementById(feedId);
+        if (!(feed instanceof HTMLElement)) return;
+        if (feed.dataset.reactionDelegatedBound === "1") return;
+        feed.dataset.reactionDelegatedBound = "1";
+
+        const reactButtonFromTarget = (target) => {{
+          if (!(target instanceof Element)) return null;
+          const btn = target.closest(".chat-react-btn");
+          if (!(btn instanceof HTMLButtonElement)) return null;
+          if (!feed.contains(btn)) return null;
+          return btn;
+        }};
+        const summaryButtonFromTarget = (target) => {{
+          if (!(target instanceof Element)) return null;
+          const summary = target.closest(".chat-reaction-summary");
+          if (!(summary instanceof HTMLButtonElement)) return null;
+          if (!feed.contains(summary)) return null;
+          return summary;
+        }};
+
+        feed.addEventListener("click", (ev) => {{
+          const reactBtn = reactButtonFromTarget(ev.target);
+          if (reactBtn) {{
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (chatSendInFlight) return;
+            const panel = document.getElementById("chat-emoji-panel");
+            const replyId = Number(reactBtn.dataset.replyId || "");
+            if (!Number.isInteger(replyId) || replyId <= 0) {{
+              setChatSendStatus("Cannot react: target message id is missing.", true);
+              return;
+            }}
+            const panelOpenForSameTarget = (
+              panel instanceof HTMLElement
+              && !panel.hidden
+              && chatEmojiMode === "react"
+              && Number.isInteger(chatReactionTargetId)
+              && chatReactionTargetId === replyId
+              && chatEmojiAnchorElement === reactBtn
+            );
+            if (panelOpenForSameTarget) {{
+              closeChatEmojiPanel();
+              return;
+            }}
+            openChatEmojiPanel("react", replyId, reactBtn);
+            return;
+          }}
+
+          const summary = summaryButtonFromTarget(ev.target);
+          if (!(summary instanceof HTMLButtonElement)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          clearReactionPopoverHideTimer();
+          openReactionPopoverForSummary(summary);
+        }});
+
+        feed.addEventListener("pointerover", (ev) => {{
+          const summary = summaryButtonFromTarget(ev.target);
+          if (!(summary instanceof HTMLButtonElement)) return;
+          const related = ev.relatedTarget;
+          if (related instanceof Node && summary.contains(related)) {{
+            return;
+          }}
+          clearReactionPopoverHideTimer();
+          openReactionPopoverForSummary(summary);
+        }});
+
+        feed.addEventListener("pointerout", (ev) => {{
+          const summary = summaryButtonFromTarget(ev.target);
+          if (!(summary instanceof HTMLButtonElement)) return;
+          const related = ev.relatedTarget;
+          const popover = reactionPopoverElement();
+          if (related instanceof Node) {{
+            if (summary.contains(related)) {{
+              return;
+            }}
+            if (popover instanceof HTMLElement && popover.contains(related)) {{
+              return;
+            }}
+          }}
+          scheduleReactionPopoverHide(120);
+        }});
+
+        feed.addEventListener("focusin", (ev) => {{
+          const summary = summaryButtonFromTarget(ev.target);
+          if (!(summary instanceof HTMLButtonElement)) return;
+          clearReactionPopoverHideTimer();
+          openReactionPopoverForSummary(summary);
+        }});
+
+        feed.addEventListener("focusout", (ev) => {{
+          const summary = summaryButtonFromTarget(ev.target);
+          if (!(summary instanceof HTMLButtonElement)) return;
+          const related = ev.relatedTarget;
+          const popover = reactionPopoverElement();
+          if (related instanceof Node) {{
+            if (summary.contains(related)) {{
+              return;
+            }}
+            if (popover instanceof HTMLElement && popover.contains(related)) {{
+              return;
+            }}
+          }}
+          scheduleReactionPopoverHide(80);
+        }});
+      }};
+
+      bindFeedReactionDelegates("chat-feed");
+      bindFeedReactionDelegates("chat-labs-feed");
+    }}
+
+    function bindChatRetryControls() {{
+      // Retry clicks are handled via delegated `#chat-feed` listener in bindChatFeedClicks().
+    }}
+
+    function bindFavoriteMenuControls() {{
+      const toggleBtn = document.getElementById("favorite-menu-toggle-btn");
+      if (toggleBtn instanceof HTMLButtonElement && toggleBtn.dataset.bound !== "1") {{
+        toggleBtn.dataset.bound = "1";
+        toggleBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nextOpen = !favoriteMenuOpen;
+          setFavoriteMenuOpen(nextOpen);
+          if (nextOpen) {{
+            setChatChangeMenuOpen(false);
+            setChatSettingsMenuOpen(false);
+            renderStarredNodeSelect(latestState || {{}});
+          }}
+        }});
+      }}
+
+      const menu = document.getElementById("favorite-menu");
+      if (menu instanceof HTMLElement && menu.dataset.bound !== "1") {{
+        menu.dataset.bound = "1";
+        menu.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".favorite-menu-saved-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
+          if (item.classList.contains("favorite-menu-selected-item")) {{
+            clearNodeSelection();
+            setFavoriteMenuOpen(false);
+            return;
+          }}
+          if (!isSelectableNodeId(nodeId)) return;
+          selectNode(nodeId, true, false);
+          setFavoriteMenuOpen(false);
+        }});
+      }}
+
+      if (document.body.dataset.favoriteMenuDocBound !== "1") {{
+        document.body.dataset.favoriteMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!favoriteMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setFavoriteMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#favorite-menu-toggle-btn") || target.closest("#favorite-menu")) {{
+            return;
+          }}
+          setFavoriteMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape" || !favoriteMenuOpen) return;
+          setFavoriteMenuOpen(false);
+        }});
+      }}
+    }}
+
+    function bindFavoriteToggleControls() {{
+      if (document.body.dataset.favoritesBound === "1") return;
+      document.body.dataset.favoritesBound = "1";
+      document.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const btn = target.closest(".favorite-toggle-btn");
+        if (!(btn instanceof HTMLButtonElement)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleFavoriteNode(btn.dataset.nodeId || "");
+      }}, true);
+    }}
+
+    function bindMuteToggleControls() {{
+      if (document.body.dataset.muteBound === "1") return;
+      document.body.dataset.muteBound = "1";
+      document.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const btn = target.closest(".mute-toggle-btn");
+        if (!(btn instanceof HTMLButtonElement)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleMutedNode(btn.dataset.nodeId || "");
+      }}, true);
+    }}
+
+    function rerenderNodeSearchDependents(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : null;
+      if (!safeState) return;
+      renderChat(safeState);
+      if (activeLayoutView === "network") {{
+        renderNodes(safeState.nodes || []);
+      }}
+      if (activeLayoutView === "saved") {{
+        renderFavorites(safeState);
+      }}
+      if (activeLayoutView === "remote") {{
+        renderRemoteView(safeState);
+      }}
+      renderSavedNodeSearchDropdown(safeState);
+      renderFavoriteMenuNodeSearchDropdown(safeState);
+    }}
+
+    function bindFavoritesControls() {{
+      bindSearchTextInput("favorites-search-input", {{
+        value: globalNodeSearchQuery(),
+        normalize: normalizeSearchQuery,
+        onInput: (query) => {{
+          const changed = setGlobalNodeSearchQuery(query, {{
+            sourceInputId: "favorites-search-input",
+            skipSourceInput: true,
+          }});
+          if (changed && latestState) {{
+            rerenderNodeSearchDependents(latestState);
+          }}
+        }},
+      }});
+    }}
+
+    function bindFavoriteMenuNodeSearchControls() {{
+      const input = document.getElementById("favorite-menu-node-search-input");
+      const dropdown = document.getElementById("favorite-menu-node-search-dropdown");
+      if (!(input instanceof HTMLInputElement) || !(dropdown instanceof HTMLElement)) return;
+
+      if (input.dataset.bound !== "1") {{
+        input.dataset.bound = "1";
+        const openFavoriteNodeSearch = () => {{
+          if (favoriteMenuNodeSearchBlurTimer !== null) {{
+            clearTimeout(favoriteMenuNodeSearchBlurTimer);
+            favoriteMenuNodeSearchBlurTimer = null;
+          }}
+          setGlobalNodeSearchQuery(input.value, {{
+            sourceInputId: "favorite-menu-node-search-input",
+            skipSourceInput: true,
+          }});
+          favoriteMenuNodeSearchOpen = true;
+          renderFavoriteMenuNodeSearchDropdown(latestState);
+        }};
+        input.addEventListener("focus", openFavoriteNodeSearch);
+        input.addEventListener("click", openFavoriteNodeSearch);
+        input.addEventListener("input", () => {{
+          const changed = setGlobalNodeSearchQuery(input.value, {{
+            sourceInputId: "favorite-menu-node-search-input",
+            skipSourceInput: true,
+          }});
+          favoriteMenuNodeSearchOpen = true;
+          if (changed && latestState) {{
+            rerenderNodeSearchDependents(latestState);
+          }}
+          renderFavoriteMenuNodeSearchDropdown(latestState);
+        }});
+        input.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Escape") {{
+            ev.preventDefault();
+            closeFavoriteMenuNodeSearchDropdown();
+          }}
+        }});
+        input.addEventListener("blur", () => {{
+          if (favoriteMenuNodeSearchBlurTimer !== null) {{
+            clearTimeout(favoriteMenuNodeSearchBlurTimer);
+          }}
+          favoriteMenuNodeSearchBlurTimer = window.setTimeout(() => {{
+            favoriteMenuNodeSearchBlurTimer = null;
+            closeFavoriteMenuNodeSearchDropdown();
+          }}, 120);
+        }});
+      }}
+      input.value = globalNodeSearchQuery();
+
+      if (dropdown.dataset.bound !== "1") {{
+        dropdown.dataset.bound = "1";
+        dropdown.addEventListener("mousedown", (ev) => {{
+          ev.preventDefault();
+          if (favoriteMenuNodeSearchBlurTimer !== null) {{
+            clearTimeout(favoriteMenuNodeSearchBlurTimer);
+            favoriteMenuNodeSearchBlurTimer = null;
+          }}
+        }});
+        dropdown.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".node-search-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
+          if (!isSelectableNodeId(nodeId)) return;
+          selectNode(nodeId, true, false);
+          closeFavoriteMenuNodeSearchDropdown();
+          setFavoriteMenuOpen(false);
+        }});
+      }}
+
+      if (document.body.dataset.favoriteNodeSearchOutsideBound !== "1") {{
+        document.body.dataset.favoriteNodeSearchOutsideBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          const inputEl = document.getElementById("favorite-menu-node-search-input");
+          const dropdownEl = document.getElementById("favorite-menu-node-search-dropdown");
+          if (!(inputEl instanceof HTMLInputElement) || !(dropdownEl instanceof HTMLElement)) return;
+          const target = ev.target;
+          if (!(target instanceof Node)) return;
+          if (inputEl.contains(target) || dropdownEl.contains(target)) return;
+          closeFavoriteMenuNodeSearchDropdown();
+        }});
+      }}
+      renderFavoriteMenuNodeSearchDropdown(latestState);
+    }}
+
+    function bindSavedNodeSearchControls() {{
+      const input = document.getElementById("saved-node-search-input");
+      const dropdown = document.getElementById("saved-node-search-dropdown");
+      if (!(input instanceof HTMLInputElement) || !(dropdown instanceof HTMLElement)) return;
+
+      if (input.dataset.bound !== "1") {{
+        input.dataset.bound = "1";
+        const openSavedNodeSearch = () => {{
+          if (savedNodeSearchBlurTimer !== null) {{
+            clearTimeout(savedNodeSearchBlurTimer);
+            savedNodeSearchBlurTimer = null;
+          }}
+          setGlobalNodeSearchQuery(input.value, {{
+            sourceInputId: "saved-node-search-input",
+            skipSourceInput: true,
+          }});
+          savedNodeSearchOpen = true;
+          renderSavedNodeSearchDropdown(latestState);
+        }};
+        input.addEventListener("focus", openSavedNodeSearch);
+        // Clicking an already-focused input does not fire "focus" again.
+        // Reopen on click so the list pops every time the user clicks it.
+        input.addEventListener("click", openSavedNodeSearch);
+        input.addEventListener("input", () => {{
+          const changed = setGlobalNodeSearchQuery(input.value, {{
+            sourceInputId: "saved-node-search-input",
+            skipSourceInput: true,
+          }});
+          savedNodeSearchOpen = true;
+          if (changed && latestState) {{
+            rerenderNodeSearchDependents(latestState);
+          }}
+          renderSavedNodeSearchDropdown(latestState);
+        }});
+        input.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Escape") {{
+            ev.preventDefault();
+            closeSavedNodeSearchDropdown();
+          }}
+        }});
+        input.addEventListener("blur", () => {{
+          if (savedNodeSearchBlurTimer !== null) {{
+            clearTimeout(savedNodeSearchBlurTimer);
+          }}
+          savedNodeSearchBlurTimer = window.setTimeout(() => {{
+            savedNodeSearchBlurTimer = null;
+            closeSavedNodeSearchDropdown();
+          }}, 120);
+        }});
+      }}
+      input.value = globalNodeSearchQuery();
+
+      if (dropdown.dataset.bound !== "1") {{
+        dropdown.dataset.bound = "1";
+        dropdown.addEventListener("mousedown", (ev) => {{
+          ev.preventDefault();
+          if (savedNodeSearchBlurTimer !== null) {{
+            clearTimeout(savedNodeSearchBlurTimer);
+            savedNodeSearchBlurTimer = null;
+          }}
+        }});
+        dropdown.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".node-search-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
+          if (!isSelectableNodeId(nodeId)) return;
+          selectNode(nodeId, true, false);
+          closeSavedNodeSearchDropdown();
+        }});
+      }}
+
+      if (document.body.dataset.savedNodeSearchOutsideBound !== "1") {{
+        document.body.dataset.savedNodeSearchOutsideBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          const inputEl = document.getElementById("saved-node-search-input");
+          const dropdownEl = document.getElementById("saved-node-search-dropdown");
+          if (!(inputEl instanceof HTMLInputElement) || !(dropdownEl instanceof HTMLElement)) return;
+          const target = ev.target;
+          if (!(target instanceof Node)) return;
+          if (inputEl.contains(target) || dropdownEl.contains(target)) return;
+          closeSavedNodeSearchDropdown();
+        }});
+      }}
+      renderSavedNodeSearchDropdown(latestState);
+    }}
+
+    function bindNodeListSearchControls() {{
+      bindSearchTextInput("nodes-search-input", {{
+        value: globalNodeSearchQuery(),
+        normalize: normalizeSearchQuery,
+        onInput: (query) => {{
+          const changed = setGlobalNodeSearchQuery(query, {{
+            sourceInputId: "nodes-search-input",
+            skipSourceInput: true,
+          }});
+          if (changed && latestState) {{
+            rerenderNodeSearchDependents(latestState);
+          }}
+        }},
+      }});
+
+      bindSearchTextInput("chat-user-search-input", {{
+        value: globalNodeSearchQuery(),
+        normalize: normalizeSearchQuery,
+        onInput: (query) => {{
+          const changed = setGlobalNodeSearchQuery(query, {{
+            sourceInputId: "chat-user-search-input",
+            skipSourceInput: true,
+          }});
+          if (changed && latestState) {{
+            rerenderNodeSearchDependents(latestState);
+          }}
+        }},
+      }});
+    }}
+
+    map.on("click", () => {{
+      if (mapWheelJustArmed) {{
+        mapWheelJustArmed = false;
+        return;
+      }}
+      clearNodeSelection();
+    }});
+
+    map.on("popupopen", () => {{
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (!isSelectableNodeId(selectedId)) return;
+      if (normalizeNodeId(networkNodeInfoCollapsedNodeId || "") === selectedId) {{
+        networkNodeInfoCollapsedNodeId = "";
+      }}
+    }});
+
+    map.on("popupclose", () => {{
+      if ((Number(networkNodeInfoPopupProgrammaticDepth) || 0) > 0) return;
+      if (activeLayoutView !== "network") return;
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (!isSelectableNodeId(selectedId)) return;
+      networkNodeInfoCollapsedNodeId = selectedId;
+    }});

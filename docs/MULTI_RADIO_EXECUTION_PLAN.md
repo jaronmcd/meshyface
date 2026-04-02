@@ -1,6 +1,13 @@
 # Multi-Radio V2 Execution Plan (This Branch)
 
-Branch: `feat/multi-radio-integration`
+Doc status: proposal
+Last reviewed: 2026-03-14
+
+Status (audited 2026-03-14):
+
+1. Planning document only (V2 proposal).
+2. This repository branch does not currently implement the V2 multi-radio schema/sync APIs described below.
+3. Original target branch reference (`feat/multi-radio-integration`) is historical context.
 
 Objective:
 
@@ -15,7 +22,7 @@ Reviewed: `/home/j/Downloads/mesh_py-meshyface-alpha-codex-handoff.zip`
 High-confidence findings:
 
 1. ZIP is mostly repo parity plus architecture docs.
-2. Most useful artifact: `docs/MULTI_RADIO_V2_CODEX_HANDOFF.md` in ZIP.
+2. Most useful artifact was `MULTI_RADIO_V2_CODEX_HANDOFF.md` in the reviewed ZIP (not checked into this repo).
 3. Key corrections we must enforce in implementation:
    - Canonical key must not depend on decode-only fields.
    - Sync queue must support typed items (MVP uses `event`; `observation` is post-MVP).

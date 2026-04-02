@@ -1,0 +1,497 @@
+    function packetConsoleKey(entry) {{
+      const summary = entry.summary || {{}};
+      let packetPart = "";
+      try {{
+        packetPart = JSON.stringify(entry.packet || {{}});
+      }} catch (_err) {{
+        packetPart = "";
+      }}
+      return [
+        summary.captured_at || "",
+        summary.from || "",
+        summary.to || "",
+        summary.portnum || "",
+        summary.rx_time || "",
+        String(summary.rx_snr ?? ""),
+        String(summary.rx_rssi ?? ""),
+        packetPart,
+      ].join("|");
+    }}
+
+    function consoleCommandInputElement() {{
+      const input = document.getElementById("console-command-input");
+      return input instanceof HTMLInputElement ? input : null;
+    }}
+
+    function consoleCommandInputValue() {{
+      const input = consoleCommandInputElement();
+      return input ? String(input.value || "") : "";
+    }}
+
+    function formatConsolePromptInputLine(promptLabel, draftValue) {{
+      const prompt = String(promptLabel == null ? "" : promptLabel).trim() || "$";
+      const draft = String(draftValue == null ? "" : draftValue);
+      const separator = /[$>]$/.test(prompt) ? "" : " ";
+      const promptWithSeparator = `${{prompt}}${{separator}}`;
+      const input = consoleCommandInputElement();
+      const focused = input instanceof HTMLInputElement && document.activeElement === input;
+      if (!(activeLayoutView === "console" && focused)) {{
+        return escAttr(`${{promptWithSeparator}}${{draft}}`);
+      }}
+      const rawCaretIndex = input instanceof HTMLInputElement ? input.selectionStart : draft.length;
+      const caretIndex = Math.max(
+        0,
+        Math.min(
+          draft.length,
+          Math.trunc(Number.isFinite(rawCaretIndex) ? rawCaretIndex : draft.length)
+        )
+      );
+      const beforeCaret = draft.slice(0, caretIndex);
+      const afterCaret = draft.slice(caretIndex);
+      const caretClass = consoleCursorVisible ? "console-caret" : "console-caret is-hidden";
+      return `${{escAttr(`${{promptWithSeparator}}${{beforeCaret}}`)}}<span class="${{caretClass}}" aria-hidden="true"></span>${{escAttr(afterCaret)}}`;
+    }}
+
+    function formatConsolePromptEchoLine(promptLabel, commandText) {{
+      const prompt = String(promptLabel == null ? "" : promptLabel).trim() || "$";
+      const body = String(commandText == null ? "" : commandText).trim();
+      if (!body) return prompt;
+      const separator = /[$>]$/.test(prompt) ? "" : " ";
+      return `${{prompt}}${{separator}}${{body}}`;
+    }}
+
+    function startConsoleCursorBlink() {{
+      if (consoleCursorBlinkTimer !== null) return;
+      consoleCursorBlinkTimer = window.setInterval(() => {{
+        consoleCursorVisible = !consoleCursorVisible;
+        if (activeLayoutView === "console") {{
+          const input = consoleCommandInputElement();
+          const focused = input instanceof HTMLInputElement && document.activeElement === input;
+          const pre = document.getElementById("live-console");
+          if (pre instanceof HTMLElement && hasConsoleSelectionWithin(pre)) {{
+            consoleRenderDeferred = true;
+            return;
+          }}
+          if (focused && pre instanceof HTMLElement) {{
+            const caret = pre.querySelector(".console-caret");
+            if (caret instanceof HTMLElement) {{
+              caret.classList.toggle("is-hidden", !consoleCursorVisible);
+              return;
+            }}
+          }}
+          renderConsolePromptBuffer(false);
+        }}
+      }}, 530);
+    }}
+
+    function parseConsoleFilterExpression(rawFilterText) {{
+      let raw = String(rawFilterText == null ? "" : rawFilterText).trim();
+      if (!raw) {{
+        return {{
+          needle: "",
+          before: 0,
+          after: 0,
+        }};
+      }}
+      let before = 0;
+      let after = 0;
+      const clamp = (value) => Math.max(0, Math.min(50, Math.trunc(Number(value) || 0)));
+      raw = raw.replace(/(^|\s)-([cCabB])\s*(\d+)\b/g, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "c") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "a") {{
+          after = Math.max(after, count);
+        }} else if (mode === "b") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      raw = raw.replace(/(^|\s)--(context|after-context|before-context)\s*=?\s*(\d+)\b/gi, (_match, prefix, flag, countText) => {{
+        const count = clamp(countText);
+        const mode = String(flag || "").toLowerCase();
+        if (mode === "context") {{
+          before = Math.max(before, count);
+          after = Math.max(after, count);
+        }} else if (mode === "after-context") {{
+          after = Math.max(after, count);
+        }} else if (mode === "before-context") {{
+          before = Math.max(before, count);
+        }}
+        return String(prefix || " ");
+      }});
+      return {{
+        needle: raw.trim(),
+        before,
+        after,
+      }};
+    }}
+
+    function filterConsoleLinesWithContext(lines, filterExpr) {{
+      const source = Array.isArray(lines) ? lines : [];
+      const parsed = (filterExpr && typeof filterExpr === "object") ? filterExpr : {{
+        needle: "",
+        before: 0,
+        after: 0,
+      }};
+      const needle = String(parsed.needle == null ? "" : parsed.needle).trim().toLowerCase();
+      const before = Math.max(0, Math.trunc(Number(parsed.before) || 0));
+      const after = Math.max(0, Math.trunc(Number(parsed.after) || 0));
+      if (!needle) {{
+        return {{
+          lines: source.slice(),
+          active: false,
+          needle: "",
+        }};
+      }}
+      const matchIndexes = [];
+      for (let i = 0; i < source.length; i += 1) {{
+        const lineText = String(source[i] == null ? "" : source[i]).toLowerCase();
+        if (lineText.includes(needle)) {{
+          matchIndexes.push(i);
+        }}
+      }}
+      if (!matchIndexes.length) {{
+        return {{
+          lines: [],
+          active: true,
+          needle,
+        }};
+      }}
+      if (before < 1 && after < 1) {{
+        return {{
+          lines: matchIndexes.map((index) => source[index]),
+          active: true,
+          needle,
+        }};
+      }}
+      const ranges = [];
+      for (const idx of matchIndexes) {{
+        const start = Math.max(0, idx - before);
+        const end = Math.min(source.length - 1, idx + after);
+        if (!ranges.length || start > ranges[ranges.length - 1].end + 1) {{
+          ranges.push({{ start, end }});
+        }} else {{
+          ranges[ranges.length - 1].end = Math.max(ranges[ranges.length - 1].end, end);
+        }}
+      }}
+      const out = [];
+      for (let r = 0; r < ranges.length; r += 1) {{
+        if (r > 0) {{
+          out.push("[filter] --");
+        }}
+        const range = ranges[r];
+        for (let i = range.start; i <= range.end; i += 1) {{
+          out.push(source[i]);
+        }}
+      }}
+      return {{
+        lines: out,
+        active: true,
+        needle,
+      }};
+    }}
+
+    function markConsoleLinesDirty() {{
+      const nextVersion = Math.trunc(Number(consoleLinesVersion) || 0) + 1;
+      consoleLinesVersion = nextVersion > 2147483600 ? 1 : nextVersion;
+      consoleFilteredLinesCacheKey = "";
+      consoleFilteredLinesCacheResult = null;
+      consoleRenderedLogCacheKey = "";
+      consoleRenderedLogCacheHtml = "";
+      consoleRenderedFrameCacheKey = "";
+    }}
+
+    function resolveConsoleFilterExpression(rawFilterText = consoleFilterText) {{
+      const raw = String(rawFilterText == null ? "" : rawFilterText);
+      if (raw === consoleFilterExprCacheRaw && consoleFilterExprCacheParsed && typeof consoleFilterExprCacheParsed === "object") {{
+        return consoleFilterExprCacheParsed;
+      }}
+      const parsed = parseConsoleFilterExpression(raw);
+      consoleFilterExprCacheRaw = raw;
+      consoleFilterExprCacheParsed = parsed;
+      return parsed;
+    }}
+
+    function resolveFilteredConsoleLines(filterExpr = null) {{
+      const parsed = (filterExpr && typeof filterExpr === "object")
+        ? filterExpr
+        : resolveConsoleFilterExpression(consoleFilterText);
+      const needle = String(parsed.needle == null ? "" : parsed.needle).trim().toLowerCase();
+      const before = Math.max(0, Math.trunc(Number(parsed.before) || 0));
+      const after = Math.max(0, Math.trunc(Number(parsed.after) || 0));
+      const cacheKey = `${{consoleLinesVersion}}|${{needle}}|${{before}}|${{after}}`;
+      if (cacheKey === consoleFilteredLinesCacheKey && consoleFilteredLinesCacheResult) {{
+        return {{
+          result: consoleFilteredLinesCacheResult,
+          cacheKey,
+        }};
+      }}
+      const filtered = filterConsoleLinesWithContext(consoleLines, {{
+        needle,
+        before,
+        after,
+      }});
+      consoleFilteredLinesCacheKey = cacheKey;
+      consoleFilteredLinesCacheResult = filtered;
+      return {{
+        result: filtered,
+        cacheKey,
+      }};
+    }}
+
+    function resolveConsoleRenderedLogHtml(filteredResult, baseCacheKey = "") {{
+      const filtered = (filteredResult && typeof filteredResult === "object")
+        ? filteredResult
+        : {{
+          lines: [],
+          active: false,
+          needle: "",
+        }};
+      const needle = String(filtered.needle == null ? "" : filtered.needle);
+      const visibleLines = Array.isArray(filtered.lines) ? filtered.lines : [];
+      const logCacheKey = `${{baseCacheKey}}|${{filtered.active ? 1 : 0}}|${{needle}}|${{visibleLines.length}}`;
+      if (logCacheKey === consoleRenderedLogCacheKey) {{
+        return consoleRenderedLogCacheHtml;
+      }}
+      const rendered = visibleLines.map((line) => escAttr(String(line == null ? "" : line)));
+      if (filtered.active && visibleLines.length < 1) {{
+        rendered.push(escAttr(`[filter] no matches for "${{needle}}"`));
+      }}
+      const joined = rendered.join("\n");
+      const html = joined ? `${{joined}}\n` : "";
+      consoleRenderedLogCacheKey = logCacheKey;
+      consoleRenderedLogCacheHtml = html;
+      return html;
+    }}
+
+    function applyConsoleAutoscroll(pre, forceScroll = false) {{
+      if (!(pre instanceof HTMLElement)) return;
+      const input = consoleCommandInputElement();
+      const typingFocused = input instanceof HTMLInputElement && document.activeElement === input;
+      if (consoleAutoscroll || forceScroll) {{
+        pre.scrollLeft = 0;
+        pre.scrollTop = pre.scrollHeight;
+      }}
+      if (consoleAutoscroll || forceScroll || typingFocused) {{
+        ensureConsolePromptVisible(pre, 0);
+      }}
+    }}
+
+    function ensureConsolePromptVisible(pre, reservePx = 0) {{
+      if (!(pre instanceof HTMLElement)) return;
+      const promptEl = document.getElementById("live-console-prompt-line");
+      if (!(promptEl instanceof HTMLElement) || !pre.contains(promptEl)) return;
+      const preRect = pre.getBoundingClientRect();
+      const promptRect = promptEl.getBoundingClientRect();
+      if (!(preRect.height > 0) || !(promptRect.height > 0)) return;
+      let paddingBottom = 0;
+      try {{
+        const styles = window.getComputedStyle(pre);
+        paddingBottom = Math.max(0, Number.parseFloat(styles.paddingBottom) || 0);
+      }} catch (_err) {{
+      }}
+      const requestedReserve = Math.max(0, Number(reservePx) || 0);
+      const promptReserve = Math.ceil(paddingBottom + 3);
+      const reserve = Math.max(requestedReserve, promptReserve);
+      const visibleBottom = preRect.bottom - reserve;
+      if (promptRect.bottom > visibleBottom) {{
+        const deltaDown = Math.ceil(promptRect.bottom - visibleBottom);
+        pre.scrollTop = Math.max(0, pre.scrollTop + deltaDown);
+        return;
+      }}
+      const visibleTop = preRect.top + 2;
+      if (promptRect.top < visibleTop) {{
+        const deltaUp = Math.ceil(visibleTop - promptRect.top);
+        pre.scrollTop = Math.max(0, pre.scrollTop - deltaUp);
+      }}
+    }}
+
+    function applyConsoleBottomAnchor(pre) {{
+      if (!(pre instanceof HTMLElement)) return;
+      const baseTopPadding = 12;
+      const baseBottomPadding = 10;
+      pre.style.setProperty("--console-pad-top", `${{baseTopPadding}}px`);
+      pre.style.setProperty("--console-pad-bottom", `${{baseBottomPadding}}px`);
+      const viewportHeight = Math.max(0, pre.clientHeight || 0);
+      if (viewportHeight < 1) return;
+      const logEl = document.getElementById("live-console-log-lines");
+      const promptEl = document.getElementById("live-console-prompt-line");
+      const tailEl = pre.querySelector(".console-tail-spacer");
+      let contentHeight = 0;
+      if (logEl instanceof HTMLElement && pre.contains(logEl)) {{
+        contentHeight += Math.max(0, Math.ceil(logEl.scrollHeight || logEl.offsetHeight || 0));
+      }}
+      if (promptEl instanceof HTMLElement && pre.contains(promptEl)) {{
+        contentHeight += Math.max(0, Math.ceil(promptEl.scrollHeight || promptEl.offsetHeight || 0));
+      }}
+      if (tailEl instanceof HTMLElement && pre.contains(tailEl)) {{
+        contentHeight += Math.max(0, Math.ceil(tailEl.scrollHeight || tailEl.offsetHeight || 0));
+      }}
+      if (contentHeight < 1) {{
+        let lineHeight = 13;
+        try {{
+          const styles = window.getComputedStyle(pre);
+          const parsedLineHeight = Number.parseFloat(styles.lineHeight);
+          if (Number.isFinite(parsedLineHeight) && parsedLineHeight > 0) {{
+            lineHeight = parsedLineHeight;
+          }} else {{
+            const parsedFontSize = Number.parseFloat(styles.fontSize);
+            if (Number.isFinite(parsedFontSize) && parsedFontSize > 0) {{
+              lineHeight = parsedFontSize * 1.3;
+            }}
+          }}
+        }} catch (_err) {{
+        }}
+        const fallbackText = String(pre.textContent || "");
+        const fallbackLineCount = Math.max(1, fallbackText.split("\n").length);
+        contentHeight = Math.ceil(fallbackLineCount * lineHeight);
+      }}
+      const anchoredTopPadding = Math.max(
+        baseTopPadding,
+        Math.floor(viewportHeight - baseBottomPadding - contentHeight)
+      );
+      if (anchoredTopPadding !== baseTopPadding) {{
+        pre.style.setProperty("--console-pad-top", `${{anchoredTopPadding}}px`);
+      }}
+    }}
+
+    function scheduleConsoleAnchorRefresh(pre, forceScroll = false) {{
+      if (!(pre instanceof HTMLElement)) return;
+      if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") return;
+      if (consoleAnchorRefreshRaf !== null) {{
+        try {{
+          window.cancelAnimationFrame(consoleAnchorRefreshRaf);
+        }} catch (_err) {{
+        }}
+      }}
+      consoleAnchorRefreshRaf = window.requestAnimationFrame(() => {{
+        consoleAnchorRefreshRaf = null;
+        applyConsoleBottomAnchor(pre);
+        applyConsoleAutoscroll(pre, forceScroll);
+      }});
+    }}
+
+    function renderConsolePromptBuffer(forceScroll = false) {{
+      const pre = document.getElementById("live-console");
+      if (!(pre instanceof HTMLElement)) return;
+      const zorkWordWrapActive = isZorkConsoleInteractiveSession(consoleInteractiveSession);
+      pre.classList.toggle("zork-word-wrap", zorkWordWrapActive);
+      if (!forceScroll && hasConsoleSelectionWithin(pre)) {{
+        consoleRenderDeferred = true;
+        return;
+      }}
+      consoleRenderDeferred = false;
+      const promptEl = document.getElementById("live-console-prompt-line");
+      if (!(promptEl instanceof HTMLElement) || !pre.contains(promptEl)) {{
+        renderConsoleBuffer(forceScroll);
+        return;
+      }}
+      const promptHtml = formatConsolePromptInputLine(consolePromptLabel, consoleCommandInputValue());
+      if (consoleRenderedPromptHtml !== promptHtml || promptEl.innerHTML !== promptHtml) {{
+        promptEl.innerHTML = promptHtml;
+        consoleRenderedPromptHtml = promptHtml;
+        consoleRenderedFrameCacheKey = "";
+      }}
+      applyConsoleBottomAnchor(pre);
+      applyConsoleAutoscroll(pre, forceScroll);
+      scheduleConsoleAnchorRefresh(pre, forceScroll);
+    }}
+
+    function renderConsoleBufferNow(forceScroll = false) {{
+      const pre = document.getElementById("live-console");
+      if (!(pre instanceof HTMLElement)) return;
+      const zorkWordWrapActive = isZorkConsoleInteractiveSession(consoleInteractiveSession);
+      pre.classList.toggle("zork-word-wrap", zorkWordWrapActive);
+      if (!forceScroll && hasConsoleSelectionWithin(pre)) {{
+        consoleRenderDeferred = true;
+        return;
+      }}
+      consoleRenderDeferred = false;
+      const filterExpr = resolveConsoleFilterExpression(consoleFilterText);
+      const filteredPayload = resolveFilteredConsoleLines(filterExpr);
+      const logHtml = resolveConsoleRenderedLogHtml(filteredPayload.result, filteredPayload.cacheKey);
+      const promptHtml = formatConsolePromptInputLine(consolePromptLabel, consoleCommandInputValue());
+      const frameCacheKey = `${{consoleRenderedLogCacheKey}}|${{promptHtml}}`;
+      const promptEl = document.getElementById("live-console-prompt-line");
+      const hasPromptSpan = promptEl instanceof HTMLElement && pre.contains(promptEl);
+      if (frameCacheKey !== consoleRenderedFrameCacheKey || !hasPromptSpan) {{
+        pre.innerHTML = `<span id="live-console-log-lines">${{logHtml}}</span><span id="live-console-prompt-line">${{promptHtml}}</span><span class="console-tail-spacer" aria-hidden="true"></span>`;
+        consoleRenderedFrameCacheKey = frameCacheKey;
+      }}
+      consoleRenderedPromptHtml = promptHtml;
+      applyConsoleBottomAnchor(pre);
+      applyConsoleAutoscroll(pre, forceScroll);
+      scheduleConsoleAnchorRefresh(pre, forceScroll);
+    }}
+
+    function renderConsoleBuffer(forceScroll = false) {{
+      const shouldForce = !!forceScroll;
+      consoleRenderPendingForceScroll = consoleRenderPendingForceScroll || shouldForce;
+      if (consoleRenderRaf !== null) return;
+      if (shouldForce) {{
+        const forceNow = !!consoleRenderPendingForceScroll;
+        consoleRenderPendingForceScroll = false;
+        renderConsoleBufferNow(forceNow);
+        return;
+      }}
+      consoleRenderRaf = window.requestAnimationFrame(() => {{
+        consoleRenderRaf = null;
+        const forceNext = !!consoleRenderPendingForceScroll;
+        consoleRenderPendingForceScroll = false;
+        renderConsoleBufferNow(forceNext);
+      }});
+    }}
+
+    function clearConsoleOutput({{ renderNow = true }} = {{}}) {{
+      consoleLines.length = 0;
+      consoleKeyQueue.length = 0;
+      consoleSeen.clear();
+      markConsoleLinesDirty();
+      persistConsoleSessionState();
+      if (renderNow) {{
+        renderConsoleBuffer(true);
+      }}
+    }}
+
+    function appendConsoleEventLine(line, loggedAtMs = Date.now(), renderNow = true) {{
+      consoleEventCounter += 1;
+      const key = `event|${{Math.floor(Number(loggedAtMs) || Date.now())}}|${{consoleEventCounter}}`;
+      appendConsoleLine(key, line, loggedAtMs, renderNow);
+    }}
+
+    function normalizeConsoleFontSize(value) {{
+      const clean = String(value == null ? "" : value).trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(consoleFontSizePxByKey, clean) ? clean : "md";
+    }}
+
+    function persistConsoleFontSizePreference() {{
+      try {{
+        window.localStorage.setItem(consoleFontSizeStorageKey, normalizeConsoleFontSize(consoleFontSize));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadConsoleFontSizePreference() {{
+      try {{
+        consoleFontSize = normalizeConsoleFontSize(window.localStorage.getItem(consoleFontSizeStorageKey) || "md");
+      }} catch (_err) {{
+        consoleFontSize = "md";
+      }}
+    }}
+
+    function applyConsoleFontSizePreference() {{
+      const pre = document.getElementById("live-console");
+      const key = normalizeConsoleFontSize(consoleFontSize);
+      const px = Number(consoleFontSizePxByKey[key]) || 12;
+      if (pre instanceof HTMLElement) {{
+        pre.style.fontSize = `${{px}}px`;
+      }}
+      const input = consoleCommandInputElement();
+      if (input instanceof HTMLInputElement) {{
+        input.style.fontSize = `${{Math.max(8, px)}}px`;
+      }}
+      consoleFontSize = key;
+    }}

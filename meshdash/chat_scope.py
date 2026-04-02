@@ -27,7 +27,15 @@ def chat_scope_for_destination(to_id: object) -> str:
         return "all"
 
     lowered = dest.lower()
-    if lowered in ("^all", "all", "broadcast"):
+    if lowered in (
+        "^all",
+        "all",
+        "broadcast",
+        "!ffffffff",
+        "ffffffff",
+        "0xffffffff",
+        "4294967295",
+    ):
         return "all"
 
     return "direct"

@@ -72,6 +72,22 @@ def add_history_args(
             "Disabled by default to avoid stale carry-over heatmap/state."
         ),
     )
+    parser.add_argument(
+        "--backfill-environment-rollups",
+        action="store_true",
+        help=(
+            "One-shot mode: backfill environment_metrics_1m from saved packet history "
+            "and exit (no dashboard server)."
+        ),
+    )
+    parser.add_argument(
+        "--backfill-environment-rollups-reset",
+        action="store_true",
+        help=(
+            "When used with --backfill-environment-rollups, clear existing "
+            "environment_metrics_1m rows before rebuilding."
+        ),
+    )
 
 
 def add_node_history_args(

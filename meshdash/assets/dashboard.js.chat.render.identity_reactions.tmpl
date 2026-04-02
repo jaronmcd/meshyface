@@ -1,0 +1,402 @@
+    function renderChat(state) {{
+      syncTopbarChatContext(state);
+      const chatRenderStartMs = (
+        chatPerfEnabled
+        && typeof window.performance !== "undefined"
+        && typeof window.performance.now === "function"
+      ) ? window.performance.now() : 0;
+      const traffic = state.traffic || {{}};
+      const s = state.summary || {{}};
+      const botRequests = Array.isArray(state.bot_requests) ? state.bot_requests : [];
+      const chatScroller = getChatScroller();
+      const shouldStickBottom = !!(chatScroller && (chatStickToBottom || isNearBottom(chatScroller)));
+      const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+      const historyCapsObj = (state && state.history_caps && typeof state.history_caps === "object")
+        ? state.history_caps
+        : null;
+      updateNodeNameCache(nodes);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const localNodeId = resolveLocalNodeId(state);
+      const nodesById = new Map(
+        nodes.map((node) => [normalizeNodeId(node.id || ""), node])
+      );
+      const nodeIdByNum = new Map();
+      for (const node of nodes) {{
+        const nodeNum = parseNodeNum(node && node.num);
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!Number.isInteger(nodeNum) || nodeNum < 0) continue;
+        if (!isCanonicalNodeId(nodeId)) continue;
+        if (!nodeIdByNum.has(nodeNum)) {{
+          nodeIdByNum.set(nodeNum, nodeId);
+        }}
+      }}
+      const historyCapsById = new Map(
+        Object.entries(historyCapsObj || {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+      );
+      const latestChatTouchByNode = mapLatestChatTouchInfo(traffic.recent_chat || []);
+      const freshnessSnapshotCache = new Map();
+      const nodeIdentityCache = new Map();
+      const endpointPartsCache = new Map();
+      const buildMacrosPreviewFeedItems = (previewLines) => {{
+        const lines = Array.isArray(previewLines) ? previewLines.slice(0, 120) : [];
+        if (lines.length <= 0) return [];
+        let renderedLines = lines;
+        let sendViewSuffix = " · send view";
+        if (typeof encodeAsciiMacroLineForSend === "function") {{
+          const sendSettings = (typeof macrosAsciiSettingsFromInputs === "function")
+            ? macrosAsciiSettingsFromInputs()
+            : null;
+          const useSpaceReplacement = !!(
+            sendSettings
+            && typeof sendSettings === "object"
+            && sendSettings.useSpaceReplacement
+          );
+          const replacementChar = (
+            sendSettings
+            && typeof sendSettings === "object"
+            && sendSettings.spaceReplacementChar != null
+          )
+            ? String(sendSettings.spaceReplacementChar)
+            : "";
+          renderedLines = lines.map((line) => encodeAsciiMacroLineForSend(line, {{
+            useSpaceReplacement,
+            spaceReplacementChar: replacementChar,
+          }}));
+          if (useSpaceReplacement && replacementChar) {{
+            sendViewSuffix = ` · send view: spaces→${{replacementChar}}`;
+          }}
+        }}
+        const previewUnix = Number.isFinite(macrosPreviewUpdatedAtUnix) && macrosPreviewUpdatedAtUnix > 0
+          ? Math.floor(macrosPreviewUpdatedAtUnix)
+          : nowUnix;
+        const previewRawTime = new Date(previewUnix * 1000).toISOString();
+        const previewTimeText = formatLocalChatTime(previewUnix, previewRawTime, nowUnix);
+        const previewTitle = macrosPreviewSourceLabel
+          ? `ASCII macro preview${{sendViewSuffix}} · ${{macrosPreviewSourceLabel}}`
+          : `ASCII macro preview${{sendViewSuffix}}`;
+        const selfNodeId = resolveLocalNodeId(state);
+        const senderShort = selfRadioProfileShortLabel(selfNodeId || "macr").slice(0, 4) || "macr";
+        const senderShortHtml = escAttr(String(senderShort)).replace(/ /g, "&nbsp;");
+        return renderedLines.map((line, idx) => {{
+          const safeLine = String(line == null ? "" : line);
+          const copyHtml = escAttr(safeLine)
+            .replace(/\t/g, "&nbsp;&nbsp;")
+            .replace(/ /g, "&nbsp;");
+          const title = `${{previewTitle}} · line ${{idx + 1}}`;
+          return `<div class="chat-feed-item chat-feed-item-monitor-exact chat-feed-item-macro-preview" data-macro-line="${{escAttr(idx + 1)}}" title="${{escAttr(title)}}"><span class="chat-entry-msg"><span class="chat-monitor-prefix">[${{escAttr(previewTimeText)}}]</span><span class="chat-monitor-network-tag">[ ][MF]</span><span class="short-name status-online" style="background:#bcef75" title="${{escAttr(previewTitle)}}">${{senderShortHtml}}</span><span class="chat-entry-copy chat-monitor-text">${{copyHtml || "&nbsp;"}}</span></span></div>`;
+        }});
+      }};
+
+      function resolveChatNodeFreshness(nodeId) {{
+        const clean = normalizeNodeId(nodeId);
+        if (!clean || !isSelectableNodeId(clean)) {{
+          return {{
+            id: "",
+            node: null,
+            historyCaps: null,
+            lastSeenUnix: null,
+            status: "unknown",
+          }};
+        }}
+        if (freshnessSnapshotCache.has(clean)) {{
+          return freshnessSnapshotCache.get(clean);
+        }}
+        const node = nodesById.get(clean);
+        const historyCaps = historyCapsById.get(clean);
+        const chatTouch = latestChatTouchByNode.get(clean) || null;
+        const lastSeenUnix = computeNodeFreshnessUnix(node, historyCaps, chatTouch);
+        const snapshot = {{
+          id: clean,
+          node,
+          historyCaps,
+          lastSeenUnix,
+          status: freshnessStatus(lastSeenUnix, nowUnix),
+        }};
+        freshnessSnapshotCache.set(clean, snapshot);
+        return snapshot;
+      }}
+
+      const nodeIdentityMeta = (nodeId, options = {{}}) => {{
+        const showHops = !(options && options.showHops === false);
+        const snapshot = resolveChatNodeFreshness(nodeId);
+        const clean = snapshot.id;
+        if (!clean) {{
+          return {{ html: "", title: "" }};
+        }}
+        const cacheKey = `${{clean}}|hops:${{showHops ? "1" : "0"}}`;
+        if (nodeIdentityCache.has(cacheKey)) {{
+          return nodeIdentityCache.get(cacheKey);
+        }}
+        const node = snapshot.node;
+        const historyCaps = snapshot.historyCaps;
+        if ((!node || typeof node !== "object") && (!historyCaps || typeof historyCaps !== "object")) {{
+          return {{ html: "", title: "" }};
+        }}
+        const chipStateClass = snapshot.status === "online" ? "online" : "offline";
+
+        const chips = [];
+        const titleParts = [];
+        const liveHasPosition = !!node
+          && typeof node.lat === "number"
+          && Number.isFinite(node.lat)
+          && typeof node.lon === "number"
+          && Number.isFinite(node.lon);
+        const historyHasPosition = !!historyCaps && historyCaps.has_position === true;
+        if (liveHasPosition || historyHasPosition) {{
+          chips.push(`<span class="chat-name-chip gps ${{chipStateClass}}" title="GPS position available">&#x1F4CD;</span>`);
+          titleParts.push(liveHasPosition ? "GPS available" : "GPS last known");
+        }}
+
+        const batteryRaw = Number(
+          (node && node.battery_level != null)
+            ? node.battery_level
+            : (historyCaps && historyCaps.battery_level)
+        );
+        if (Number.isFinite(batteryRaw)) {{
+          const batteryPct = Math.max(0, Math.min(100, Math.round(batteryRaw)));
+          chips.push(`<span class="chat-name-chip battery ${{chipStateClass}}" title="Battery level">${{batteryPct}}%</span>`);
+          titleParts.push(
+            (node && node.battery_level != null)
+              ? `Battery ${{batteryPct}}%`
+              : `Battery last known ${{batteryPct}}%`
+          );
+        }}
+
+        if (showHops) {{
+          const hopsRaw = Number(
+            (node && node.hops_away != null)
+              ? node.hops_away
+            : (historyCaps && historyCaps.last_hops)
+          );
+          if (Number.isFinite(hopsRaw) && hopsRaw >= 0) {{
+            const hops = Math.trunc(hopsRaw);
+            chips.push(`<span class="chat-name-chip hops ${{chipStateClass}}" title="Hops away">${{hops}}h</span>`);
+            titleParts.push(
+              (node && node.hops_away != null)
+                ? `${{hops}} hop${{hops === 1 ? "" : "s"}} away`
+                : `${{hops}} hop${{hops === 1 ? "" : "s"}} last known`
+            );
+          }}
+        }}
+
+        const identity = {{
+          html: chips.join(""),
+          title: titleParts.join(", "),
+        }};
+        nodeIdentityCache.set(cacheKey, identity);
+        return identity;
+      }};
+
+      const chatEndpointParts = (nodeId, _messageUnixHint = null) => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!clean) {{
+          return {{ label: "n/a", idTag: "", title: "n/a", status: "unknown", metaHtml: "", lastSeenUnix: null }};
+        }}
+        if (endpointPartsCache.has(clean)) {{
+          return endpointPartsCache.get(clean);
+        }}
+        let endpoint = null;
+        if (clean === "^all") {{
+          endpoint = {{ label: "All", idTag: "", title: "^all", status: "unknown", metaHtml: "", lastSeenUnix: null }};
+        }} else if (clean === "local") {{
+          endpoint = {{ label: "Local", idTag: "", title: "local", status: "online", metaHtml: "", lastSeenUnix: nowUnix }};
+        }} else {{
+          const snapshot = resolveChatNodeFreshness(clean);
+          const node = snapshot.node;
+          const fallbackName = isCanonicalNodeId(clean) ? clean : "Unknown node";
+          const name = preferredNodeName(node) || nodeNameCache.get(clean) || fallbackName;
+          const meta = nodeIdentityMeta(clean);
+          endpoint = {{
+            label: name,
+            idTag: clean,
+            title: `${{name}} (${{clean}})${{meta.title ? ` - ${{meta.title}}` : ""}}`,
+            status: snapshot.status,
+            metaHtml: meta.html,
+            lastSeenUnix: snapshot.lastSeenUnix,
+          }};
+        }}
+        endpointPartsCache.set(clean, endpoint);
+        return endpoint;
+      }};
+
+      const resolveMessageNodeId = (value) => {{
+        const clean = normalizeNodeId(value);
+        if (!clean) return "";
+        if (isCanonicalNodeId(clean)) return clean;
+        if (clean === "^all" || clean === "local" || clean === "Unknown" || clean === "n/a") {{
+          return clean;
+        }}
+        const nodeNum = parseNodeNum(value);
+        if (Number.isInteger(nodeNum) && nodeIdByNum.has(nodeNum)) {{
+          return nodeIdByNum.get(nodeNum) || clean;
+        }}
+        return clean;
+      }};
+
+      const participants = new Map();
+      const touchParticipant = (meta, msgTimeUnix) => {{
+        if (!meta || !meta.idTag || !isSelectableNodeId(meta.idTag)) return;
+        if (activeChatChannel === "direct" && isCanonicalNodeId(localNodeId) && meta.idTag === localNodeId) {{
+          return;
+        }}
+        const messageUnix = parseDashboardTimeToUnix(msgTimeUnix);
+        const existing = participants.get(meta.idTag);
+        if (!existing) {{
+          participants.set(meta.idTag, {{
+            id: meta.idTag,
+            name: meta.label || meta.idTag,
+            // Keep status tied to node freshness only (not chat message recency),
+            // so selection/channel rerenders cannot flip roster colors.
+            status: freshnessStatus(meta.lastSeenUnix, nowUnix),
+            lastSeenUnix: meta.lastSeenUnix,
+            lastMessageUnix: messageUnix || null,
+          }});
+          return;
+        }}
+        if (meta.label && meta.label !== "Unknown node") {{
+          existing.name = meta.label;
+        }}
+        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, meta.lastSeenUnix);
+        existing.status = freshnessStatus(existing.lastSeenUnix, nowUnix);
+        if (messageUnix && (!existing.lastMessageUnix || messageUnix > existing.lastMessageUnix)) {{
+          existing.lastMessageUnix = messageUnix;
+        }}
+      }};
+
+      const touchNodeById = (nodeId, msgTimeUnix = null) => {{
+        const clean = normalizeNodeId(nodeId);
+        if (!isSelectableNodeId(clean)) return;
+        if (activeChatChannel === "direct" && isCanonicalNodeId(localNodeId) && clean === localNodeId) {{
+          return;
+        }}
+        const snapshot = resolveChatNodeFreshness(clean);
+        const node = snapshot.node;
+        const name = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
+        const messageUnix = parseDashboardTimeToUnix(msgTimeUnix);
+        const existing = participants.get(clean);
+        if (!existing) {{
+          participants.set(clean, {{
+            id: clean,
+            name,
+            status: snapshot.status,
+            lastSeenUnix: snapshot.lastSeenUnix,
+            lastMessageUnix: messageUnix || null,
+          }});
+          return;
+        }}
+        if (name && name !== "Unknown node") {{
+          existing.name = name;
+        }}
+        existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, snapshot.lastSeenUnix);
+        existing.status = freshnessStatus(existing.lastSeenUnix, nowUnix);
+        if (messageUnix && (!existing.lastMessageUnix || messageUnix > existing.lastMessageUnix)) {{
+          existing.lastMessageUnix = messageUnix;
+        }}
+      }};
+
+      const messageIdOf = messageIdOfChatPacket;
+      const replyIdOf = replyIdOfChatPacket;
+
+      const emojiFromCodepointValue = (value) => {{
+        const codepoint = Number(value);
+        if (!Number.isInteger(codepoint) || codepoint <= 0) return "";
+        // Ignore plain ASCII so reply text can't be interpreted as reactions.
+        if (codepoint <= 0x7F) return "";
+        try {{
+          const glyph = String.fromCodePoint(codepoint);
+          // Filter non-printable control chars (often bad legacy payload values).
+          for (const ch of glyph) {{
+            const cp = ch.codePointAt(0);
+            if (!Number.isInteger(cp)) continue;
+            if ((cp >= 0 && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)) {{
+              return "";
+            }}
+          }}
+          return glyph;
+        }} catch (_err) {{
+          return "";
+        }}
+      }};
+
+      const reactionVariationSelectors = new Set([0xFE0E, 0xFE0F]);
+
+      const emojiFromAny = (rawValue) => {{
+        if (rawValue == null) return "";
+        if (typeof rawValue === "number") {{
+          return emojiFromCodepointValue(rawValue);
+        }}
+        const raw = String(rawValue).trim();
+        if (!raw) return "";
+
+        // Decimal codepoint payloads (int or int-as-string).
+        if (/^\\d+$/.test(raw)) {{
+          return emojiFromCodepointValue(raw);
+        }}
+        // Hex codepoint payloads like "U+1F44D" or "1F44D".
+        const hex = raw.toUpperCase().replace(/^U\\+/, "");
+        if (/^[0-9A-F]{4,8}$/.test(hex)) {{
+          return emojiFromCodepointValue(parseInt(hex, 16));
+        }}
+
+        // Already a glyph/text payload; reject control chars.
+        for (const ch of raw) {{
+          const cp = ch.codePointAt(0);
+          if (!Number.isInteger(cp)) continue;
+          if ((cp >= 0 && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)) {{
+            return "";
+          }}
+        }}
+        return raw;
+      }};
+
+      const canonicalReactionEmoji = (rawValue) => {{
+        const glyph = emojiFromAny(rawValue);
+        if (!glyph) return "";
+        // Preserve keycap sequences (e.g. 3️⃣, #️⃣, *️⃣) as-is.
+        const keycapMatch = glyph.match(/^([0-9#*])(?:\uFE0F)?\u20E3$/u);
+        if (keycapMatch) {{
+          return `${{keycapMatch[1]}}\uFE0F\u20E3`;
+        }}
+        for (const ch of glyph) {{
+          const cp = ch.codePointAt(0);
+          if (!Number.isInteger(cp)) continue;
+          if (reactionVariationSelectors.has(cp)) continue;
+          return emojiFromCodepointValue(cp);
+        }}
+        return "";
+      }};
+
+      const emojiFromTextPayload = (rawValue) => {{
+        const text = String(rawValue == null ? "" : rawValue).trim();
+        if (!text) return "";
+        // Do not treat regular chat text as emoji fallback.
+        if (text.length > 8 || /\\s/.test(text)) return "";
+        if (/^[0-9A-Za-z.,;:!?'"`~_\\-]+$/.test(text)) return "";
+        const glyph = canonicalReactionEmoji(text);
+        if (!glyph) return "";
+        // Keep fallback conservative: one emoji (optionally with variation/joiners).
+        const clusters = Array.from(glyph);
+        if (clusters.length > 4) return "";
+        return glyph;
+      }};
+
+      const emojiOf = (msg) => {{
+        if (!msg || typeof msg !== "object") return "";
+        // Prefer explicit numeric codepoint when present, matching Meshtastic's
+        // Data.emoji reaction field semantics.
+        const fromCodepoint = canonicalReactionEmoji(msg.emoji_codepoint ?? msg.emojiCodepoint);
+        if (fromCodepoint) return fromCodepoint;
+        const direct = canonicalReactionEmoji(msg.emoji);
+        if (direct) return direct;
+        return emojiFromTextPayload(msg.text ?? msg.decoded_text ?? msg.payload_text);
+      }};
+
+      const isReactionMessage = (msg) => {{
+        if (!msg || typeof msg !== "object") return false;
+        if (msg.is_reaction === true) return true;
+        const replyId = replyIdOf(msg);
+        const emoji = emojiOf(msg);
+        return !!(replyId && emoji);
+      }};

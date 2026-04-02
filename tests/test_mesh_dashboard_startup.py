@@ -92,9 +92,15 @@ def test_build_make_http_handler_with_theme_settings_binds_theme_callbacks(monke
 
     monkeypatch.setattr(md, "_make_http_handler_helper", _fake_make_http_handler_helper)
     settings = _Settings()
-    build_handler = md._build_make_http_handler_with_theme_settings(settings)
+    build_handler = md._build_make_http_handler_with_theme_settings(
+        settings,
+        api_token="s3cr3t",
+        private_mode=True,
+    )
     handler_obj = build_handler("<html>", lambda: {"ok": True})
 
     assert handler_obj is not None
     assert calls["get_theme_settings_fn"]() == {"ok": True, "selected_preset": "default"}
     assert calls["set_theme_preset_fn"]("forest") == {"ok": True, "selected_preset": "forest"}
+    assert calls["api_token"] == "s3cr3t"
+    assert calls["private_mode"] is True

@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 
+from .file_transfer_protocol import is_file_transfer_protocol_chat_entry as _is_file_transfer_protocol_chat_entry
 from .helpers import safe_json_loads as _safe_json_loads, to_int as _to_int
 
 HistoryRow = tuple[object, ...]
@@ -20,7 +21,7 @@ def decode_recent_chat_rows(rows: Iterable[HistoryRow]) -> list[HistoryPayload]:
     out: list[HistoryPayload] = []
     for (message_json,) in reversed(list(rows)):
         entry = _safe_json_loads(message_json, {})
-        if isinstance(entry, dict):
+        if isinstance(entry, dict) and not _is_file_transfer_protocol_chat_entry(entry):
             out.append(entry)
     return out
 

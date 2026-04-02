@@ -1,0 +1,211 @@
+    function renderWeeklySummary(summaryHistory) {{
+      const metricKey = normalizeWeeklySummaryMetric(weeklySummaryMetric);
+      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, weeklySummaryNodeSeriesEnabled);
+      const payload = (summaryHistory && typeof summaryHistory === "object") ? summaryHistory : {{}};
+      const points = Array.isArray(payload.points) ? payload.points : [];
+      const rows = [];
+      const packetRateMetric = metricKey === "packets";
+      const nodesMetric = metricKey === "nodes";
+      const linksMetric = metricKey === "links";
+      let prevPacketBucketUnix = null;
+      let prevPacketTotal = null;
+      let prevLiveCounter = null;
+      let packetPendingBreak = false;
+      const continuitySeries = new Set(["known_nodes", "saved_nodes", "position_nodes", "real_edge_count"]);
+      const continuityStateBySeries = new Map();
+      const continuityAdjustedValue = (seriesKey, rawValue, resetBreak) => {{
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric)) return null;
+        if (!continuitySeries.has(seriesKey)) return numeric;
+        let state = continuityStateBySeries.get(seriesKey);
+        if (!(state && typeof state === "object")) {{
+          state = {{ offset: 0, lastAdjusted: null }};
+          continuityStateBySeries.set(seriesKey, state);
+        }}
+        if (
+          resetBreak
+          && Number.isFinite(state.lastAdjusted)
+          && (numeric + 1 < Number(state.lastAdjusted))
+        ) {{
+          // Re-anchor continuity at reset without compounding prior offsets.
+          state.offset = Number(state.lastAdjusted) - numeric;
+        }}
+        const adjusted = numeric + Number(state.offset || 0);
+        state.lastAdjusted = adjusted;
+        return adjusted;
+      }};
+      for (const point of points) {{
+        if (!point || typeof point !== "object") continue;
+        const bucketUnix = Number(point.bucket_unix);
+        const bucketText = String(point.bucket_time || "").trim();
+        const liveCounter = Number(point.live_packet_count);
+        const resetBreak = hasLiveCounterReset(prevLiveCounter, liveCounter);
+        if (Number.isFinite(liveCounter)) {{
+          prevLiveCounter = liveCounter;
+        }}
+        if (packetRateMetric) {{
+          const packetTotal = liveCounter;
+          if (!Number.isFinite(bucketUnix) || !Number.isFinite(packetTotal) || bucketUnix <= 0) continue;
+          if (Number.isFinite(prevPacketBucketUnix) && Number.isFinite(prevPacketTotal) && bucketUnix > prevPacketBucketUnix) {{
+            if (hasLiveCounterReset(prevPacketTotal, packetTotal)) {{
+              packetPendingBreak = true;
+              prevPacketBucketUnix = bucketUnix;
+              prevPacketTotal = packetTotal;
+              continue;
+            }}
+            const spanMinutes = Math.max(1 / 60, (bucketUnix - prevPacketBucketUnix) / 60);
+            const packetRate = Math.max(0, (packetTotal - prevPacketTotal) / spanMinutes);
+            rows.push({{
+              value: packetRate,
+              totalValue: packetTotal,
+              bucketText,
+              bucketUnix,
+              breakBefore: packetPendingBreak,
+            }});
+            packetPendingBreak = false;
+          }}
+          prevPacketBucketUnix = bucketUnix;
+          prevPacketTotal = packetTotal;
+          continue;
+        }}
+        if (linksMetric) {{
+          const value = continuityAdjustedValue("real_edge_count", point.real_edge_count, resetBreak);
+          if (!Number.isFinite(value)) continue;
+          rows.push({{
+            value,
+            bucketText,
+            bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
+          }});
+          continue;
+        }}
+        if (!nodesMetric) {{
+          continue;
+        }}
+        const onlineValue = Number(point.online_node_count);
+        const knownRawValue = Number(point.node_count);
+        const savedRawValue = Number(point.saved_node_count);
+        const positionRawValue = Number(point.nodes_with_position);
+        const knownValue = continuityAdjustedValue("known_nodes", knownRawValue, resetBreak);
+        const savedValue = continuityAdjustedValue("saved_nodes", savedRawValue, resetBreak);
+        const positionValue = continuityAdjustedValue("position_nodes", positionRawValue, resetBreak);
+        const primaryValue = Number.isFinite(onlineValue) ? onlineValue : knownValue;
+        if (!Number.isFinite(primaryValue)) continue;
+        const seriesValues = {{}};
+        if (Number.isFinite(onlineValue)) seriesValues.online_nodes = onlineValue;
+        if (Number.isFinite(knownValue)) seriesValues.known_nodes = knownValue;
+        if (Number.isFinite(savedValue)) seriesValues.saved_nodes = savedValue;
+        if (Number.isFinite(positionValue)) seriesValues.position_nodes = positionValue;
+        rows.push({{
+          value: primaryValue,
+          series: seriesValues,
+          knownNodeCount: Number.isFinite(knownRawValue) ? knownRawValue : null,
+          savedNodeCount: Number.isFinite(savedRawValue) ? savedRawValue : null,
+          positionNodeCount: Number.isFinite(positionRawValue) ? positionRawValue : null,
+          bucketText,
+          bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
+        }});
+      }}
+      let chartRows = rows;
+      if (nodesMetric && rows.length > 0) {{
+        const firstPositiveIndex = rows.findIndex((row) => Number(row && row.value) > 0);
+        if (firstPositiveIndex > 0) {{
+          chartRows = rows.slice(firstPositiveIndex);
+        }}
+      }}
+
+      const caption = document.getElementById("weekly-summary-caption");
+      const overview = document.getElementById("weekly-summary-overview");
+      const svg = document.getElementById("weekly-summary-chart");
+      const empty = document.getElementById("weekly-summary-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
+      if (!(overview instanceof HTMLElement)) return;
+
+      const emptyMessage = packetRateMetric
+        ? "Need at least two saved samples to estimate packets/min."
+        : "No weekly summary history yet.";
+
+      if (chartRows.length === 0) {{
+        overview.innerHTML = "";
+        renderWeeklySummaryChartRows([], metricMeta, emptyMessage);
+        if (caption) {{
+          caption.textContent = `Weekly trend for ${{metricMeta.label}}. ${{emptyMessage}}`;
+        }}
+        return;
+      }}
+
+      const rendered = renderWeeklySummaryChartRows(chartRows, metricMeta, emptyMessage);
+      if (!rendered) {{
+        overview.innerHTML = "";
+        if (caption) {{
+          caption.textContent = `Weekly trend for ${{metricMeta.label}}. ${{emptyMessage}}`;
+        }}
+        return;
+      }}
+
+      const firstValue = Number(chartRows[0].value);
+      const lastValue = Number(chartRows[chartRows.length - 1].value);
+      const delta = lastValue - firstValue;
+      const values = chartRows.map((row) => Number(row.value)).filter((value) => Number.isFinite(value));
+      const avg = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+      const averageDecimals = metricKey === "nodes" || metricKey === "links"
+        ? Math.max(1, Number(metricMeta.decimals) || 0)
+        : metricMeta.decimals;
+      const windowHours = Number(payload.window_hours);
+      const startLabel = chartRows[0].bucketText || "";
+      const endLabel = chartRows[chartRows.length - 1].bucketText || "";
+      if (caption) {{
+        const selectedNodeSeriesLabels = Array.isArray(metricMeta && metricMeta.seriesOrder)
+          ? metricMeta.seriesOrder.map((seriesKey) => (
+            String((metricMeta.seriesLabels && metricMeta.seriesLabels[seriesKey]) || seriesKey)
+          ))
+          : [];
+        const compareNote = nodesMetric
+          ? (selectedNodeSeriesLabels.length > 1
+            ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
+            : ` Showing ${{selectedNodeSeriesLabels[0] || "Online Nodes"}} line.`)
+          : "";
+        caption.textContent = `Weekly trend for ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
+      }}
+      const items = [
+        ["Metric", metricMeta.label],
+        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : weeklySummaryHours}}h`],
+        ["Samples", String(chartRows.length)],
+        ["Latest", formatMetricValue(lastValue, metricMeta.decimals)],
+        ["Delta", formatMetricValue(delta, metricMeta.decimals)],
+        ["Average", formatMetricValue(avg, averageDecimals)],
+        ["Peak", formatMetricValue(Math.max(...values), metricMeta.decimals)],
+        ["Range", `${{startLabel || "n/a"}} to ${{endLabel || "n/a"}}`],
+      ];
+      if (packetRateMetric) {{
+        const latestTotal = Number(chartRows[chartRows.length - 1] && chartRows[chartRows.length - 1].totalValue);
+        if (Number.isFinite(latestTotal)) {{
+          items.push(["Total Packets", formatMetricValue(latestTotal, 0)]);
+        }}
+      }} else if (nodesMetric) {{
+        const latestRow = chartRows[chartRows.length - 1] || null;
+        const latestKnownNodes = Number(latestRow && latestRow.knownNodeCount);
+        const latestSavedNodes = Number(latestRow && latestRow.savedNodeCount);
+        const latestPositionNodes = Number(latestRow && latestRow.positionNodeCount);
+        if (Number.isFinite(latestKnownNodes)) {{
+          items.push(["Known Nodes (Radio)", formatMetricValue(latestKnownNodes, 0)]);
+        }}
+        if (Number.isFinite(latestSavedNodes)) {{
+          items.push(["Saved Nodes (DB)", formatMetricValue(latestSavedNodes, 0)]);
+        }}
+        if (Number.isFinite(latestPositionNodes)) {{
+          items.push(["Nodes With Position", formatMetricValue(latestPositionNodes, 0)]);
+        }}
+        if (Number.isFinite(latestSavedNodes) && Number.isFinite(latestKnownNodes)) {{
+          if (latestKnownNodes > 0) {{
+            const ratioPercent = (latestSavedNodes / latestKnownNodes) * 100;
+            items.push(["Saved / Known", `${{formatMetricValue(ratioPercent, 1)}}%`]);
+          }} else {{
+            items.push(["Saved / Known", "n/a"]);
+          }}
+        }}
+      }}
+      overview.innerHTML = items.map(([k, v]) => (
+        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+      )).join("");
+    }}
+

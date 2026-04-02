@@ -1,0 +1,299 @@
+    function savedDetailText(value, fallback = "n/a") {{
+      const text = String(value == null ? "" : value).trim();
+      if (text) return text;
+      return String(fallback == null ? "n/a" : fallback);
+    }}
+
+    function savedDetailPercent(value, decimals = 1) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return "n/a";
+      return `${{num.toFixed(decimals)}}%`;
+    }}
+
+    function savedDetailCoord(lat, lon) {{
+      const latNum = Number(lat);
+      const lonNum = Number(lon);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return "n/a";
+      return `${{latNum.toFixed(5)}}, ${{lonNum.toFixed(5)}}`;
+    }}
+
+    function savedDetailDurationHours(startUnix, endUnix) {{
+      const start = Number(startUnix);
+      const end = Number(endUnix);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return "n/a";
+      const hours = (end - start) / 3600;
+      return `${{hours.toFixed(1)}}h`;
+    }}
+
+    function savedDetailAge(unix, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(unix);
+      if (!Number.isFinite(ts) || ts <= 0) return "n/a";
+      const ageSec = Math.max(0, Math.floor(nowUnix - ts));
+      if (ageSec < 90) return `${{ageSec}}s ago`;
+      const ageMin = ageSec / 60;
+      if (ageMin < 90) return `${{Math.round(ageMin)}}m ago`;
+      const ageHr = ageMin / 60;
+      if (ageHr < 48) return `${{ageHr.toFixed(ageHr < 10 ? 1 : 0)}}h ago`;
+      const ageDay = ageHr / 24;
+      return `${{ageDay.toFixed(ageDay < 10 ? 1 : 0)}}d ago`;
+    }}
+
+    function savedDetailSectionHtml(title, items, note = "") {{
+      const rows = items.map(([label, value]) => (
+        `<div class="saved-node-stat">
+          <div class="saved-node-stat-k">${{escAttr(label)}}</div>
+          <div class="saved-node-stat-v">${{escAttr(savedDetailText(value))}}</div>
+        </div>`
+      )).join("");
+      const noteHtml = note
+        ? `<div class="saved-node-note">${{escAttr(note)}}</div>`
+        : "";
+      return `<section class="saved-node-section">
+        <h3 class="saved-node-section-title">${{escAttr(title)}}</h3>
+        <div class="saved-node-grid">${{rows}}</div>
+        ${{noteHtml}}
+      </section>`;
+    }}
+
+    function savedDetailNameHistorySectionHtml(entries, {{
+      loading = false,
+      maxRows = 12,
+    }} = {{}}) {{
+      const safeEntries = Array.isArray(entries) ? entries : [];
+      const safeMaxRows = Math.max(1, Math.trunc(Number(maxRows) || 12));
+      let bodyHtml = "";
+      if (loading && safeEntries.length === 0) {{
+        bodyHtml = '<div class="saved-node-name-history-empty">Name history is loading...</div>';
+      }} else if (safeEntries.length === 0) {{
+        bodyHtml = '<div class="saved-node-name-history-empty">No saved name updates yet.</div>';
+      }} else {{
+        const shown = safeEntries.slice(-safeMaxRows).reverse();
+        bodyHtml = `<ul class="saved-node-name-history-list">${{shown.map((entry) => {{
+          const shortName = savedDetailText(entry && entry.short_name, "n/a");
+          const longName = savedDetailText(entry && entry.long_name, "n/a");
+          const when = savedDetailText(entry && entry.time);
+          const source = savedDetailText(entry && entry.source_portnum);
+          return `<li class="saved-node-name-history-item">
+            <div class="saved-node-name-history-main">
+              <div class="saved-node-name-history-short">${{escAttr(shortName)}}</div>
+              <div class="saved-node-name-history-long">${{escAttr(longName)}}</div>
+            </div>
+            <div class="saved-node-name-history-meta">${{escAttr(when)}}</div>
+            <div class="saved-node-name-history-meta">${{escAttr(source)}}</div>
+          </li>`;
+        }}).join("")}}</ul>`;
+      }}
+      const note = safeEntries.length > safeMaxRows
+        ? `Showing newest ${{safeMaxRows}} of ${{safeEntries.length}} saved name updates.`
+        : "Newest first.";
+      return `<section class="saved-node-section">
+        <h3 class="saved-node-section-title">Name History</h3>
+        ${{bodyHtml}}
+        <div class="saved-node-note">${{escAttr(note)}}</div>
+      </section>`;
+    }}
+
+    function computeSavedChatStats(nodeId, messages) {{
+      const stats = {{
+        touches: 0,
+        sent: 0,
+        received: 0,
+        broadcastSent: 0,
+        directSent: 0,
+        reactionsSent: 0,
+        peers: new Set(),
+        lastChatText: "n/a",
+        lastChatUnix: null,
+      }};
+      for (const msg of (messages || [])) {{
+        const fromId = normalizeNodeId(msg && msg.from);
+        const toId = normalizeNodeId(msg && msg.to);
+        const isTouch = fromId === nodeId || toId === nodeId;
+        if (!isTouch) continue;
+        stats.touches += 1;
+
+        const timeText = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+        const timeUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+        if (Number.isFinite(timeUnix) && (!Number.isFinite(stats.lastChatUnix) || timeUnix > stats.lastChatUnix)) {{
+          stats.lastChatUnix = timeUnix;
+          stats.lastChatText = timeText || "n/a";
+        }}
+
+        const replyId = Number(msg && (msg.reply_id ?? msg.replyId));
+        const emoji = String((msg && msg.emoji) || "").trim();
+        const isReaction = msg && msg.is_reaction === true
+          ? true
+          : (Number.isFinite(replyId) && replyId > 0 && !!emoji);
+
+        if (fromId === nodeId) {{
+          stats.sent += 1;
+          if (isReaction) stats.reactionsSent += 1;
+          if (classifyMessageChannel(msg) === "direct") {{
+            stats.directSent += 1;
+          }} else {{
+            stats.broadcastSent += 1;
+          }}
+          if (isSelectableNodeId(toId)) {{
+            stats.peers.add(toId);
+          }}
+        }}
+        if (toId === nodeId) {{
+          stats.received += 1;
+          if (isSelectableNodeId(fromId)) {{
+            stats.peers.add(fromId);
+          }}
+        }}
+      }}
+      return stats;
+    }}
+
+    function mapLatestChatTouchInfo(messages) {{
+      const latestByNodeId = new Map();
+      const updateTouch = (rawNodeId, timeUnix, timeText) => {{
+        const nodeId = normalizeNodeId(rawNodeId);
+        if (!isSelectableNodeId(nodeId)) return;
+        if (!Number.isFinite(timeUnix) || timeUnix <= 0) return;
+        const existing = latestByNodeId.get(nodeId);
+        if (!existing || timeUnix > existing.unix) {{
+          latestByNodeId.set(nodeId, {{
+            unix: Math.trunc(timeUnix),
+            text: String(timeText || "").trim() || "n/a",
+          }});
+        }}
+      }};
+
+      for (const msg of (messages || [])) {{
+        const timeUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+        const timeText = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+        const isLocalEcho = !!(msg && (msg.local_echo === true || msg.localEcho === true));
+        const deliveryState = normalizeDeliveryState(msg && (msg.delivery_state ?? msg.deliveryState));
+        updateTouch(msg && msg.from, timeUnix, timeText);
+        // Do not treat an outbound local echo as proof that the destination exists.
+        // A manual/fake direct target should stay unknown until we have real evidence,
+        // such as an actual mesh packet touching that node or an ACKed direct send.
+        if (!isLocalEcho || deliveryState === "acked") {{
+          updateTouch(msg && msg.to, timeUnix, timeText);
+        }}
+      }}
+      return latestByNodeId;
+    }}
+
+    function resolveNodeFreshness(node, caps, historySummary = null, chatTouch = null) {{
+      const candidates = [];
+      const liveLastSeenUnix = nodeLastHeardUnix(node);
+      if (Number.isFinite(liveLastSeenUnix) && liveLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(liveLastSeenUnix),
+          text: String((node && node.last_heard) || "").trim(),
+          source: "live",
+        }});
+      }}
+
+      const capsLastSeenUnix = Number(caps && caps.last_seen_unix);
+      if (Number.isFinite(capsLastSeenUnix) && capsLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(capsLastSeenUnix),
+          text: String((caps && (caps.last_seen || caps.last_position_time)) || "").trim(),
+          source: "caps",
+        }});
+      }}
+
+      const historyLastSeenUnix = parseDashboardTimeToUnix(historySummary && historySummary.last_seen);
+      if (Number.isFinite(historyLastSeenUnix) && historyLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(historyLastSeenUnix),
+          text: String((historySummary && historySummary.last_seen) || "").trim(),
+          source: "history",
+        }});
+      }}
+
+      const chatLastSeenUnix = Number(chatTouch && chatTouch.unix);
+      if (Number.isFinite(chatLastSeenUnix) && chatLastSeenUnix > 0) {{
+        candidates.push({{
+          unix: Math.trunc(chatLastSeenUnix),
+          text: String((chatTouch && chatTouch.text) || "").trim(),
+          source: "chat",
+        }});
+      }}
+
+      if (candidates.length === 0) {{
+        return {{ unix: null, text: "n/a", source: "unknown" }};
+      }}
+      candidates.sort((a, b) => b.unix - a.unix);
+      const freshest = candidates[0];
+      return {{
+        unix: freshest.unix,
+        text: freshest.text || "n/a",
+        source: freshest.source,
+      }};
+    }}
+
+    function nodeFreshnessSourceLabel(source) {{
+      const key = String(source || "").toLowerCase();
+      if (key === "chat") return "Chat traffic";
+      if (key === "live") return "Live node state";
+      if (key === "caps") return "History capabilities";
+      if (key === "history") return "History summary";
+      return "Unknown";
+    }}
+
+    function computeSavedLinkStats(nodeId, edges) {{
+      const stats = {{
+        links: 0,
+        peers: new Set(),
+        lifetimePackets: 0,
+        sessionPackets: 0,
+        hopsWeighted: 0,
+        hopsWeight: 0,
+        lastSeenText: "n/a",
+        lastSeenUnix: null,
+        ports: new Set(),
+        topPeer: "",
+        topPeerPackets: 0,
+      }};
+      for (const edge of (edges || [])) {{
+        const fromId = normalizeNodeId(edge && edge.from);
+        const toId = normalizeNodeId(edge && edge.to);
+        if (fromId !== nodeId && toId !== nodeId) continue;
+        stats.links += 1;
+
+        const peerId = fromId === nodeId ? toId : fromId;
+        if (isSelectableNodeId(peerId)) {{
+          stats.peers.add(peerId);
+        }}
+
+        const lifetimeCount = Number(edge && (edge.lifetime_count ?? edge.count));
+        const sessionCount = Number(edge && (edge.session_count ?? edge.count));
+        if (Number.isFinite(lifetimeCount) && lifetimeCount > 0) {{
+          stats.lifetimePackets += lifetimeCount;
+          if (lifetimeCount > stats.topPeerPackets && isSelectableNodeId(peerId)) {{
+            stats.topPeerPackets = lifetimeCount;
+            stats.topPeer = peerId;
+          }}
+        }}
+        if (Number.isFinite(sessionCount) && sessionCount > 0) {{
+          stats.sessionPackets += sessionCount;
+        }}
+
+        const avgHops = Number(edge && edge.avg_hops);
+        const hopsWeight = Number.isFinite(lifetimeCount) && lifetimeCount > 0 ? lifetimeCount : 1;
+        if (Number.isFinite(avgHops)) {{
+          stats.hopsWeighted += avgHops * hopsWeight;
+          stats.hopsWeight += hopsWeight;
+        }}
+
+        const lastText = String((edge && edge.last_rx_time) || "").trim();
+        const lastUnix = parseDashboardTimeToUnix(lastText);
+        if (Number.isFinite(lastUnix) && (!Number.isFinite(stats.lastSeenUnix) || lastUnix > stats.lastSeenUnix)) {{
+          stats.lastSeenUnix = lastUnix;
+          stats.lastSeenText = lastText || "n/a";
+        }}
+
+        for (const port of (edge && Array.isArray(edge.portnums) ? edge.portnums : [])) {{
+          const cleanPort = String(port || "").trim();
+          if (cleanPort) stats.ports.add(cleanPort);
+        }}
+      }}
+      return stats;
+    }}
+

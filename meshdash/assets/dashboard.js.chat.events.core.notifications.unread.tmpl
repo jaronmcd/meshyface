@@ -1,0 +1,473 @@
+    function chatSenderLabelFromMessage(msg, nodesById) {{
+      if (!msg || typeof msg !== "object") return "Unknown node";
+      const senderId = normalizeNodeId(msg.from || "");
+      if (senderId === "^all") return "All";
+      if (senderId === "local") return "Local";
+      const explicitName = String(msg.from_name ?? msg.fromName ?? "").trim();
+      if (explicitName) return explicitName;
+      const node = nodesById.get(senderId);
+      const preferred = preferredNodeName(node);
+      if (preferred) return preferred;
+      return senderId || "Unknown node";
+    }}
+
+    function collectChatMessageEntries(state) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const botRequests = Array.isArray(safeState.bot_requests) ? safeState.bot_requests : [];
+      const traffic = safeState.traffic && typeof safeState.traffic === "object"
+        ? safeState.traffic
+        : {{}};
+      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const activeMeshIdx = (typeof activeMeshChannelFilterIndex === "function")
+        ? activeMeshChannelFilterIndex()
+        : meshChannelAllIndex;
+      const nodesLength = nodes.length;
+      const botRequestsLength = botRequests.length;
+      const recentChatLength = recentChat.length;
+      const recentChatTailKey = recentChatLength > 0
+        ? String(chatMessageKey(recentChat[recentChatLength - 1]) || "")
+        : "";
+      const cachedEntries = (chatMessageEntriesCache && typeof chatMessageEntriesCache === "object")
+        ? chatMessageEntriesCache
+        : null;
+      if (
+        cachedEntries
+        && cachedEntries.nodesRef === nodes
+        && cachedEntries.botRequestsRef === botRequests
+        && cachedEntries.recentChatRef === recentChat
+        && cachedEntries.localNodeId === localNodeId
+        && cachedEntries.meshFilterIndex === activeMeshIdx
+        && cachedEntries.nodesLength === nodesLength
+        && cachedEntries.botRequestsLength === botRequestsLength
+        && cachedEntries.recentChatLength === recentChatLength
+        && cachedEntries.recentChatTailKey === recentChatTailKey
+        && Array.isArray(cachedEntries.entries)
+      ) {{
+        return cachedEntries.entries;
+      }}
+      const hasLocalNodeId = isCanonicalNodeId(localNodeId);
+      const nodesById = new Map(
+        nodes.map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
+      );
+      const meshBotRequestByMessageId = new Map();
+      const meshBotResponseByMessageId = new Map();
+      for (const rawRow of botRequests) {{
+        if (!rawRow || typeof rawRow !== "object") continue;
+        const source = String(rawRow.source || "").trim().toLowerCase();
+        if (source !== "mesh") continue;
+        const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
+        const responseMessageId = parsePositiveMessageId(
+          rawRow.response_message_id ?? rawRow.responseMessageId
+        );
+        if (requestMessageId) {{
+          meshBotRequestByMessageId.set(String(requestMessageId), rawRow);
+        }}
+        if (responseMessageId) {{
+          meshBotResponseByMessageId.set(String(responseMessageId), rawRow);
+        }}
+      }}
+      const messageSenderById = new Map();
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (!messageMatchesActiveMeshChannel(msg)) continue;
+        if (isFileTransferProtocolMessage(msg)) continue;
+        const msgId = Number(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
+        if (!Number.isInteger(msgId) || msgId <= 0) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        if (!fromId) continue;
+        messageSenderById.set(String(msgId), fromId);
+      }}
+      const entries = [];
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (isFileTransferProtocolMessage(msg)) continue;
+        const key = chatMessageKey(msg);
+        if (!key) continue;
+        const channel = classifyMessageChannel(msg);
+        const isReaction = isReactionLikeChatMessage(msg);
+        const kind = normalizeChatMessageKind(msg, isReaction);
+        const msgId = messageIdOfChatPacket(msg);
+        const meshChannelIndex = messageMeshChannelIndex(msg);
+        const fromId = normalizeNodeId(
+          msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)
+            ? (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)
+            : ""
+        );
+        const toId = normalizeNodeId(
+          msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)
+            ? (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)
+            : ""
+        );
+        const replyIdRaw = Number(msg && (msg.reply_id ?? msg.replyId));
+        const replyId = Number.isInteger(replyIdRaw) && replyIdRaw > 0
+          ? Math.trunc(replyIdRaw)
+          : null;
+        const replyTargetSenderId = replyId != null
+          ? normalizeNodeId(messageSenderById.get(String(replyId)) || "")
+          : "";
+        const botRequestRow = msgId != null
+          ? meshBotRequestByMessageId.get(String(msgId)) || null
+          : null;
+        const botResponseRow = msgId != null
+          ? meshBotResponseByMessageId.get(String(msgId)) || null
+          : null;
+        const botRequestFromId = normalizeNodeId(
+          (botRequestRow && (botRequestRow.from_id ?? botRequestRow.fromId))
+            ? (botRequestRow.from_id ?? botRequestRow.fromId)
+            : ""
+        );
+        const botRequestToId = normalizeNodeId(
+          (botRequestRow && (botRequestRow.to_id ?? botRequestRow.toId))
+            ? (botRequestRow.to_id ?? botRequestRow.toId)
+            : ""
+        );
+        const botResponseToId = normalizeNodeId(
+          (botResponseRow && (botResponseRow.response_to ?? botResponseRow.responseTo ?? botResponseRow.to_id ?? botResponseRow.toId))
+            ? (botResponseRow.response_to ?? botResponseRow.responseTo ?? botResponseRow.to_id ?? botResponseRow.toId)
+            : ""
+        );
+        const senderIsSelf = hasLocalNodeId && fromId === localNodeId;
+        const directToSelf = hasLocalNodeId && channel === "direct" && toId === localNodeId;
+        const referencesSelfMessage = hasLocalNodeId && !!replyId && replyTargetSenderId === localNodeId;
+        const botPeerNodeId = normalizeNodeId(
+          (botResponseRow && (botResponseRow.from_id ?? botResponseRow.fromId ?? botResponseRow.response_from ?? botResponseRow.responseFrom))
+          || (botRequestRow && (botRequestRow.from_id ?? botRequestRow.fromId))
+          || ""
+        );
+        const botInteractionRelevantToLocal = hasLocalNodeId && (
+          (botRequestRow && (botRequestFromId === localNodeId || botRequestToId === localNodeId))
+          || (botResponseRow && botResponseToId === localNodeId)
+        );
+        const systemRelevant = hasLocalNodeId && (
+          (!senderIsSelf && (directToSelf || referencesSelfMessage))
+          || botInteractionRelevantToLocal
+        );
+        const peerNodeId = channel === "direct"
+          ? normalizeNodeId(
+            senderIsSelf
+              ? (toId || botPeerNodeId || fromId || "")
+              : (fromId || toId || "")
+          )
+          : "";
+        entries.push({{
+          key,
+          focusKey: isReaction ? chatChangeFocusKeyFromMessage(msg, key) : key,
+          channel,
+          meshChannelIndex,
+          targetChatChannel: channel,
+          peerNodeId,
+          sender: chatSenderLabelFromMessage(msg, nodesById),
+          preview: chatChangePreviewFromMessage(msg, isReaction),
+          kind,
+          countsUnread: !senderIsSelf,
+          selfRelevant: systemRelevant,
+          systemRelevant,
+          unix: latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at),
+        }});
+      }}
+      chatMessageEntriesCache = {{
+        nodesRef: nodes,
+        botRequestsRef: botRequests,
+        recentChatRef: recentChat,
+        localNodeId,
+        meshFilterIndex: activeMeshIdx,
+        nodesLength,
+        botRequestsLength,
+        recentChatLength,
+        recentChatTailKey,
+        entries,
+      }};
+      return entries;
+    }}
+
+    function isChatEntryVisibleInCurrentContext(entry) {{
+      if (!entry || typeof entry !== "object") return false;
+      if (document.hidden || !tabHasFocus) return false;
+      if (!isChatWorkspaceLayoutView(activeLayoutView)) return false;
+      const entryChannel = normalizeChatChannel(entry.channel || entry.targetChatChannel || "all");
+      if (entryChannel !== activeChatChannel) return false;
+      if (entryChannel !== "direct") {{
+        const activeMeshIdx = activeMeshChannelFilterIndex();
+        const entryMeshIdx = normalizeMeshChannelIndex(entry.meshChannelIndex);
+        if (activeMeshIdx !== meshChannelAllIndex && entryMeshIdx !== activeMeshIdx) return false;
+      }}
+      if (entryChannel !== "direct") return true;
+      const selectedPeerId = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      const entryPeerId = normalizeNodeId(entry.peerNodeId || "");
+      if (!selectedPeerId || !entryPeerId) return false;
+      return selectedPeerId === entryPeerId;
+    }}
+
+    function isTabInactiveForNotifications() {{
+      return document.hidden || !tabHasFocus;
+    }}
+
+    function syncChatUnreadFromEntries(entries, options = {{}}) {{
+      const clearActiveWhenInChat = options.clearActiveWhenInChat !== false;
+      const keyedMessages = Array.isArray(entries) ? entries : [];
+      const catchupNoticeArmed = chatChangeCatchupArmed;
+      chatChangeCatchupArmed = false;
+      const tabInactive = isTabInactiveForNotifications();
+      if (!chatUnreadInitialized) {{
+        for (const entry of keyedMessages) {{
+          rememberSeenChatMessage(entry.key);
+        }}
+        chatUnreadInitialized = true;
+        syncChatRailUnread();
+        syncMeshChannelViewControl();
+        return;
+      }}
+
+      const freshByChannel = {{ all: 0, direct: 0 }};
+      const freshByMeshChannel = {{ all: Object.create(null), direct: Object.create(null) }};
+      const latestSenderByChannel = {{ all: "", direct: "" }};
+      for (const entry of keyedMessages) {{
+        if (!rememberSeenChatMessage(entry.key)) continue;
+        if (
+          entry.countsUnread !== false
+          && entry.channel === "all"
+          && !isChatWorkspaceLayoutView(activeLayoutView)
+          && typeof publishTopbarUpdateTickerEvent === "function"
+        ) {{
+          const sender = String(entry.sender || "").trim() || "Unknown node";
+          const preview = String(entry.preview || "").replace(/\s+/g, " ").trim();
+          const tickerText = preview
+            ? `${{sender}}: ${{preview}}`
+            : `${{sender}}`;
+          publishTopbarUpdateTickerEvent(
+            tickerText,
+            `oneshot:public:${{String(entry.key || "").trim()}}`,
+            {{ mode: "oneshot" }}
+          );
+        }}
+        const key = entry.channel === "direct" ? "direct" : "all";
+        const entryVisible = isChatEntryVisibleInCurrentContext(entry);
+        const shouldNotify = catchupNoticeArmed || tabInactive || !entryVisible;
+        const systemRelevant = !!(entry && entry.systemRelevant === true);
+        if (shouldNotify && systemRelevant) {{
+          trackChatChangeNotice({{
+            key: entry.key,
+            focusKey: entry.focusKey || entry.key,
+            channel: key,
+            targetChatChannel: entry.targetChatChannel || key,
+            peerNodeId: entry.peerNodeId || "",
+            sender: entry.sender,
+            preview: entry.preview,
+            kind: entry.kind,
+            selfRelevant: entry.selfRelevant === true,
+            systemRelevant,
+            unix: entry.unix,
+          }});
+        }}
+        if (!shouldNotify || entry.countsUnread === false) continue;
+        freshByChannel[key] += 1;
+        const meshIdx = normalizeMeshChannelIndex(entry.meshChannelIndex);
+        freshByMeshChannel[key][meshIdx] = Number(freshByMeshChannel[key][meshIdx] || 0) + 1;
+        latestSenderByChannel[key] = String(entry.sender || "").trim();
+      }}
+
+      for (const key of ["all", "direct"]) {{
+        for (const [rawIdx, count] of Object.entries(freshByMeshChannel[key])) {{
+          addChatMeshChannelUnread(key, rawIdx, count);
+        }}
+      }}
+      if (freshByChannel.all > 0) {{
+        setChatChannelUnreadLatest("all", latestSenderByChannel.all || chatUnreadLatestByChannel.all || "");
+      }}
+      if (freshByChannel.direct > 0) {{
+        setChatChannelUnreadLatest("direct", latestSenderByChannel.direct || chatUnreadLatestByChannel.direct || "");
+      }}
+
+      const canClearActiveChat = (
+        isChatWorkspaceLayoutView(activeLayoutView)
+        && clearActiveWhenInChat
+        && !tabInactive
+        && !catchupNoticeArmed
+      );
+      if (canClearActiveChat) {{
+        clearVisibleChatUnread(activeChatChannel);
+      }} else {{
+        syncChatUnreadAggregates();
+      }}
+    }}
+
+    function syncChatUnreadFromState(state, options = {{}}) {{
+      syncChatUnreadFromEntries(collectChatMessageEntries(state), options);
+    }}
+
+    function rememberSeenChatMessage(key) {{
+      if (!key || chatSeenMessageKeys.has(key)) return false;
+      chatSeenMessageKeys.add(key);
+      chatSeenMessageOrder.push(key);
+      if (chatSeenMessageOrder.length > 6000) {{
+        while (chatSeenMessageOrder.length > 4500) {{
+          const stale = chatSeenMessageOrder.shift();
+          if (stale) chatSeenMessageKeys.delete(stale);
+        }}
+      }}
+      return true;
+    }}
+
+    function setChatChannelUnread(channelKey, count) {{
+      const key = normalizeChatChannel(channelKey);
+      const safe = Math.max(0, Math.min(999, Math.trunc(Number(count) || 0)));
+      chatUnreadByChannel[key] = safe;
+    }}
+
+    function unreadMeshBucket(channelKey) {{
+      const key = normalizeChatChannel(channelKey);
+      if (!chatUnreadByMeshChannel[key] || typeof chatUnreadByMeshChannel[key] !== "object") {{
+        chatUnreadByMeshChannel[key] = Object.create(null);
+      }}
+      return chatUnreadByMeshChannel[key];
+    }}
+
+    function getChatMeshChannelUnread(channelKey, rawIndex) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      return Math.max(0, Math.trunc(Number(unreadMeshBucket(channelKey)[idx] || 0)));
+    }}
+
+    function setChatMeshChannelUnread(channelKey, rawIndex, count) {{
+      const idx = normalizeMeshChannelIndex(rawIndex);
+      const bucket = unreadMeshBucket(channelKey);
+      const safe = Math.max(0, Math.min(999, Math.trunc(Number(count) || 0)));
+      if (safe > 0) {{
+        bucket[idx] = safe;
+      }} else {{
+        delete bucket[idx];
+      }}
+    }}
+
+    function addChatMeshChannelUnread(channelKey, rawIndex, delta) {{
+      setChatMeshChannelUnread(
+        channelKey,
+        rawIndex,
+        getChatMeshChannelUnread(channelKey, rawIndex) + Number(delta || 0)
+      );
+    }}
+
+    function recomputeChatUnreadScope(channelKey) {{
+      const key = normalizeChatChannel(channelKey);
+      const total = Object.values(unreadMeshBucket(key)).reduce(
+        (sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)),
+        0
+      );
+      setChatChannelUnread(key, total);
+      if (total <= 0) {{
+        setChatChannelUnreadLatest(key, "");
+      }}
+    }}
+
+    function syncChatUnreadAggregates() {{
+      recomputeChatUnreadScope("all");
+      recomputeChatUnreadScope("direct");
+      syncChatRailUnread();
+      syncMeshChannelViewControl();
+    }}
+
+    function setChatChannelUnreadLatest(channelKey, name) {{
+      const key = normalizeChatChannel(channelKey);
+      const clean = String(name || "").replace(/\\s+/g, " ").trim();
+      chatUnreadLatestByChannel[key] = clean;
+    }}
+
+    function totalChatUnread() {{
+      return Math.max(0, Number(chatUnreadByChannel.all || 0))
+        + Math.max(0, Number(chatUnreadByChannel.direct || 0));
+    }}
+
+    function totalChatChangeNotices() {{
+      return totalSystemNotificationCount();
+    }}
+
+    function syncChatRailUnread() {{
+      chatUnreadCount = Math.min(999, totalChatUnread());
+      setChatRailUnread(chatUnreadCount);
+    }}
+
+    function syncDocumentUnreadTitle(count) {{
+      const unreadCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const systemCount = Math.max(0, Math.trunc(Number(totalSystemNotificationCount()) || 0));
+      const attentionCount = Math.max(unreadCount, systemCount);
+      const attentionBadge = attentionCount > 99 ? "99+" : String(attentionCount);
+      const nextTitle = attentionCount > 0
+        ? `(${{attentionBadge}}) ${{baseDocumentTitle}}`
+        : baseDocumentTitle;
+      if (document.title !== nextTitle) {{
+        document.title = nextTitle;
+      }}
+    }}
+
+    function setChatRailUnread(count) {{
+      const unreadCount = Math.max(0, Math.trunc(Number(count) || 0));
+      const missedCount = Math.max(0, Math.trunc(Number(totalChatChangeNotices()) || 0));
+      const attentionCount = Math.max(unreadCount, missedCount);
+      syncDocumentUnreadTitle(unreadCount);
+      const btn = document.querySelector('.teams-rail .rail-btn[data-view="chat"]');
+      if (!(btn instanceof HTMLButtonElement)) return;
+      if (!btn.dataset.baseTitle) {{
+        btn.dataset.baseTitle = btn.getAttribute("title") || "Teams-style chat workspace";
+      }}
+      const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
+      btn.textContent = unreadCount > 0 ? `Chat (${{unreadLabel}})` : "Chat";
+      // Keep unread count in the label/title only; avoid unread highlight that
+      // can be mistaken for selected state in the rail.
+      btn.classList.remove("has-unread");
+      const baseTitle = btn.dataset.baseTitle || "Teams-style chat workspace";
+      const titleParts = [baseTitle];
+      if (unreadCount > 0) {{
+        titleParts.push(`${{unreadCount}} unread chat message${{unreadCount === 1 ? "" : "s"}}.`);
+      }}
+      if (missedCount > 0) {{
+        titleParts.push(`${{missedCount}} missed update${{missedCount === 1 ? "" : "s"}}.`);
+      }}
+      btn.title = titleParts.join(" ");
+      btn.setAttribute("aria-label", btn.title);
+    }}
+
+    function clearChatUnread(channelKey = null) {{
+      if (channelKey == null) {{
+        chatUnreadByMeshChannel.all = Object.create(null);
+        chatUnreadByMeshChannel.direct = Object.create(null);
+        setChatChannelUnread("all", 0);
+        setChatChannelUnread("direct", 0);
+        setChatChannelUnreadLatest("all", "");
+        setChatChannelUnreadLatest("direct", "");
+      }} else {{
+        chatUnreadByMeshChannel[normalizeChatChannel(channelKey)] = Object.create(null);
+        setChatChannelUnread(channelKey, 0);
+        setChatChannelUnreadLatest(channelKey, "");
+      }}
+      syncChatRailUnread();
+      syncMeshChannelViewControl();
+    }}
+
+    function clearVisibleChatUnread(channelKey = activeChatChannel) {{
+      const key = normalizeChatChannel(channelKey);
+      const activeIdx = activeMeshChannelFilterIndex();
+      if (key === "direct" || activeIdx === meshChannelAllIndex) {{
+        chatUnreadByMeshChannel[key] = Object.create(null);
+      }} else {{
+        setChatMeshChannelUnread(key, activeIdx, 0);
+      }}
+      recomputeChatUnreadScope(key);
+      syncChatRailUnread();
+      syncMeshChannelViewControl();
+    }}
+
+    function persistSplitState() {{
+      try {{
+        window.localStorage.setItem(
+          splitStorageKey,
+          JSON.stringify({{
+            col_pct: splitPct,
+            top_px: splitTopPx,
+            mid_px: splitMidPx,
+            low_px: splitLowPx,
+          }})
+        );
+      }} catch (_err) {{
+      }}
+    }}

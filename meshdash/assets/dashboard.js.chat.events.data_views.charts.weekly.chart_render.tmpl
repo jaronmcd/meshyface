@@ -1,0 +1,314 @@
+    function renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage) {{
+      const svg = document.getElementById("weekly-summary-chart");
+      const empty = document.getElementById("weekly-summary-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) {{
+        return false;
+      }}
+
+      const chartState = historyTrendCharts.weekly;
+      bindHistoryTrendChartZoom(
+        chartState,
+        () => rerenderWeeklySummaryChartFromCache(),
+        "Weekly trend chart"
+      );
+
+      const sourceRows = Array.isArray(rows) ? rows : [];
+      chartState.points = sourceRows;
+      const visible = getVisibleHistoryTrendRows(chartState, sourceRows);
+      const plotRows = visible.rows;
+      const chartLabel = `${{metricMeta.label}} trend chart`;
+      setHistoryTrendChartTitle(svg, chartLabel, visible.zoomed);
+
+      const fallbackMessage = String(emptyMessage || "No weekly summary history yet.").trim();
+      const seriesDefs = [];
+      if (metricMeta && Array.isArray(metricMeta.seriesOrder) && metricMeta.seriesOrder.length > 0) {{
+        const labels = (metricMeta.seriesLabels && typeof metricMeta.seriesLabels === "object")
+          ? metricMeta.seriesLabels
+          : {{}};
+        const styles = (metricMeta.seriesStyles && typeof metricMeta.seriesStyles === "object")
+          ? metricMeta.seriesStyles
+          : {{}};
+        for (const key of metricMeta.seriesOrder) {{
+          if (!key) continue;
+          const style = (styles && typeof styles[key] === "object") ? styles[key] : {{}};
+          seriesDefs.push({{
+            key: String(key),
+            label: String(labels[key] || key),
+            tone: String(style.tone || ""),
+            dashed: style.dashed === true,
+            width: Number(style.width),
+            color: String(style.color || "").trim(),
+            labelColor: String(style.labelColor || "").trim(),
+            readValue: (row) => row && row.series && row.series[key],
+          }});
+        }}
+      }} else {{
+        seriesDefs.push({{
+          key: "primary",
+          label: String(metricMeta && metricMeta.label ? metricMeta.label : "Series"),
+          tone: "line",
+          dashed: false,
+          width: 2.3,
+          readValue: (row) => row && row.value,
+        }});
+        seriesDefs.push({{
+          key: "compare",
+          label: String(metricMeta && metricMeta.compareLabel ? metricMeta.compareLabel : "Comparison"),
+          tone: "compare",
+          dashed: true,
+          width: 2.0,
+          readValue: (row) => row && row.compareValue,
+        }});
+      }}
+
+      const seriesEntries = [];
+      for (let s = 0; s < seriesDefs.length; s += 1) {{
+        const def = seriesDefs[s];
+        const values = [];
+        const points = [];
+        let pendingBreak = false;
+        for (let i = 0; i < plotRows.length; i += 1) {{
+          if (plotRows[i] && plotRows[i].breakBefore) {{
+            pendingBreak = true;
+          }}
+          const rawValue = def.readValue(plotRows[i]);
+          if (rawValue === null || rawValue === undefined) continue;
+          const value = Number(rawValue);
+          if (!Number.isFinite(value)) continue;
+          values.push(value);
+          points.push({{
+            idx: i,
+            value,
+            breakBefore: pendingBreak,
+          }});
+          pendingBreak = false;
+        }}
+        if (!points.length) continue;
+        seriesEntries.push({{
+          ...def,
+          index: s,
+          values,
+          points,
+        }});
+      }}
+
+      if (!seriesEntries.length) {{
+        svg.innerHTML = "";
+        empty.hidden = false;
+        empty.textContent = fallbackMessage;
+        renderTimeline(
+          chartState.timelineId,
+          plotRows,
+          historyTrendChartLayout.padLeft,
+          historyTrendChartLayout.padRight,
+          historyTrendChartLayout.width,
+          (row) => timelinePointUnix(row, "bucketUnix", ["bucketText"])
+        );
+        return false;
+      }}
+      empty.hidden = true;
+
+      const smoothingWindow = normalizeSmoothingWindow(
+        metricMeta && metricMeta.smoothingWindow,
+        plotRows.length
+      );
+      const trendWindow = normalizeSmoothingWindow(
+        smoothingWindow <= 1
+          ? 1
+          : Math.max(
+              smoothingWindow,
+              Math.round(Math.max(3, smoothingWindow) * 2.2)
+            ),
+        plotRows.length
+      );
+      const rawBucketWidthPx = 1.05;
+      const trendBucketWidthPx = 4.0;
+      const trendTension = 0.28;
+      const plottedSeriesEntries = seriesEntries.map((entry) => {{
+        const rawPoints = entry.points.map((point) => ({{ ...point }}));
+        const plottedPoints = smoothSeriesPointsWithBreaks(entry.points, trendWindow);
+        const rawValues = rawPoints
+          .map((point) => Number(point && point.value))
+          .filter((value) => Number.isFinite(value));
+        const plottedValues = plottedPoints
+          .map((point) => Number(point && point.value))
+          .filter((value) => Number.isFinite(value));
+        return {{
+          ...entry,
+          rawPoints,
+          rawValues,
+          plottedPoints,
+          plottedValues,
+        }};
+      }});
+
+      const allValues = plottedSeriesEntries.flatMap((entry) => (
+        entry.rawValues.concat(entry.plottedValues)
+      ));
+      let minVal = Math.min(...allValues);
+      let maxVal = Math.max(...allValues);
+      if ((maxVal - minVal) < 1e-6) {{
+        maxVal = minVal + 1;
+      }}
+
+      const width = historyTrendChartLayout.width;
+      const height = historyTrendChartLayout.height;
+      const padLeft = historyTrendChartLayout.padLeft;
+      const padRight = historyTrendChartLayout.padRight;
+      const padTop = historyTrendChartLayout.padTop;
+      const padBottom = historyTrendChartLayout.padBottom;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+      const n = plotRows.length;
+      const dayBoundaries = [];
+      if (n > 1) {{
+        let lastDayKey = "";
+        for (let i = 0; i < plotRows.length; i += 1) {{
+          const unixTs = timelinePointUnix(plotRows[i], "bucketUnix", ["bucketText"]);
+          const dayKey = timelineDayKey(unixTs);
+          if (!dayKey) continue;
+          if (!lastDayKey) {{
+            lastDayKey = dayKey;
+            continue;
+          }}
+          if (dayKey !== lastDayKey) {{
+            dayBoundaries.push({{
+              idx: i,
+              unixTs,
+            }});
+            lastDayKey = dayKey;
+          }}
+        }}
+      }}
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const chartPalette = darkTheme
+        ? {{
+            grid: "#324152",
+            line: "#58c878",
+            compare: "#79c0ff",
+            aux1: "#f3b36b",
+            aux2: "#6fcad8",
+            aux3: "#d0e18a",
+            label: "#9ce7b8",
+            compareLabel: "#a4d0ff",
+            aux1Label: "#f6c88e",
+            aux2Label: "#8ddde8",
+            aux3Label: "#dde8a8",
+          }}
+        : {{
+            grid: "#dce8df",
+            line: "#1f6f53",
+            compare: "#265d7b",
+            aux1: "#a95f27",
+            aux2: "#2f6e78",
+            aux3: "#6d7a2f",
+            label: "#1f6f53",
+            compareLabel: "#265d7b",
+            aux1Label: "#a95f27",
+            aux2Label: "#2f6e78",
+            aux3Label: "#6d7a2f",
+          }};
+      const toneFallbacks = ["line", "compare", "aux1", "aux2", "aux3"];
+      const toneStroke = (tone, index) => {{
+        const key = tone && chartPalette[tone] ? tone : toneFallbacks[index] || "compare";
+        return chartPalette[key] || chartPalette.compare;
+      }};
+      const toneLabel = (tone, index) => {{
+        const key = tone && chartPalette[`${{tone}}Label`] ? `${{tone}}Label` : `${{toneFallbacks[index] || "compare"}}Label`;
+        return chartPalette[key] || chartPalette.compareLabel;
+      }};
+      const buildLinearPath = (points) => (
+        points.map((pt, idx) => (
+          `${{idx === 0 || pt.breakBefore ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
+        )).join(" ")
+      );
+      const enrichSeries = plottedSeriesEntries.map((entry, index) => {{
+        const stroke = toneStroke(entry.tone, index);
+        const labelColor = toneLabel(entry.tone, index);
+        const resolvedStroke = entry.color || stroke;
+        const resolvedLabelColor = entry.labelColor || labelColor;
+        const widthPx = Number.isFinite(Number(entry.width))
+          ? Math.max(1.2, Number(entry.width))
+          : (index === 0 ? 2.3 : 2.0);
+        const dashText = entry.dashed ? "5 3" : "";
+        const dashAttr = dashText ? ` stroke-dasharray="${{dashText}}"` : "";
+        const toScreenPoint = (point) => {{
+          const x = padLeft + ((Math.max(0, point.idx) / Math.max(1, n - 1)) * plotW);
+          const y = padTop + ((maxVal - point.value) / (maxVal - minVal)) * plotH;
+          return {{
+            x,
+            y,
+            breakBefore: !!point.breakBefore,
+          }};
+        }};
+        const rawPointsXY = entry.rawPoints.map((point) => toScreenPoint(point));
+        const trendPointsXY = entry.plottedPoints.map((point) => toScreenPoint(point));
+        const rawPlotPoints = aggregatePointsByXPixels(rawPointsXY, rawBucketWidthPx);
+        const trendPlotPoints = aggregatePointsByXPixels(trendPointsXY, trendBucketWidthPx);
+        const rawPath = buildLinearPath(rawPlotPoints);
+        const trendLinearPath = buildLinearPath(trendPlotPoints);
+        const trendPath = buildSmoothSvgPath(trendPlotPoints, trendTension) || trendLinearPath;
+        const rawWidthPx = Math.max(0.8, widthPx * 0.58);
+        const rawOpacity = entry.dashed ? 0.16 : 0.2;
+        return {{
+          ...entry,
+          stroke: resolvedStroke,
+          labelColor: resolvedLabelColor,
+          widthPx,
+          rawWidthPx,
+          rawOpacity,
+          trendOpacity: 1,
+          dashAttr,
+          rawPath,
+          trendPath,
+        }};
+      }});
+      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisLabelColor = enrichSeries[0] ? enrichSeries[0].labelColor : chartPalette.label;
+      const axisLines = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const axisLabels = axisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{axisLabelColor}}">${{formatMetricValue(tick.value, metricMeta.decimals)}}</text>`;
+      }}).join("");
+      const dayGuideLines = dayBoundaries.map((boundary) => {{
+        const x = padLeft + ((Math.max(0, boundary.idx) / Math.max(1, n - 1)) * plotW);
+        return `<line x1="${{x.toFixed(2)}}" y1="${{padTop}}" x2="${{x.toFixed(2)}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1" stroke-dasharray="2 3" stroke-opacity="${{darkTheme ? "0.45" : "0.65"}}"></line>`;
+      }}).join("");
+      const legendX = Math.max(padLeft + 8, width - padRight - 260);
+      const legendItems = enrichSeries.slice(0, 5).map((entry, index) => {{
+        const y = padTop + 8 + (index * 14);
+        return `
+          <line x1="${{legendX}}" y1="${{y}}" x2="${{legendX + 22}}" y2="${{y}}" stroke="${{entry.stroke}}" stroke-width="${{entry.widthPx.toFixed(1)}}"${{entry.dashAttr}}></line>
+          <text x="${{legendX + 28}}" y="${{y + 3}}" font-size="10" fill="${{entry.labelColor}}">${{entry.label}}</text>
+        `;
+      }}).join("");
+      const paths = enrichSeries.map((entry) => (
+        `
+          <path d="${{entry.rawPath}}" fill="none" stroke="${{entry.stroke}}" stroke-width="${{entry.rawWidthPx.toFixed(1)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{entry.rawOpacity.toFixed(2)}}"></path>
+          <path d="${{entry.trendPath}}" fill="none" stroke="${{entry.stroke}}" stroke-width="${{entry.widthPx.toFixed(1)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{entry.trendOpacity.toFixed(2)}}"${{entry.dashAttr}}></path>
+        `
+      )).join("");
+      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
+        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
+        ${{dayGuideLines}}
+        ${{paths}}
+        ${{axisLabels}}
+        ${{legendItems}}
+      `;
+      renderTimeline(
+        chartState.timelineId,
+        plotRows,
+        padLeft,
+        padRight,
+        width,
+        (row) => timelinePointUnix(row, "bucketUnix", ["bucketText"])
+      );
+      return true;
+    }}
+

@@ -1,0 +1,1298 @@
+      if (activeChatChannel === "all" && participants.size === 0) {{
+        for (const msg of baseMessages) {{
+          if (classifyMessageChannel(msg) !== "all") continue;
+          touchNodeById(msg.from, latestUnixTimestamp(msg.rx_time, msg.captured_at));
+        }}
+      }}
+      if (activeChatChannel === "direct") {{
+        for (const peerId of manualDirectPeerIds) {{
+          if (!isCanonicalNodeId(peerId)) continue;
+          if (isCanonicalNodeId(localNodeId) && peerId === localNodeId) continue;
+          const snapshot = resolveChatNodeFreshness(peerId);
+          const node = snapshot.node;
+          const name = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+          const existing = participants.get(peerId);
+          if (!existing) {{
+            participants.set(peerId, {{
+              id: peerId,
+              name,
+              status: snapshot.status,
+              lastSeenUnix: snapshot.lastSeenUnix,
+              lastMessageUnix: null,
+              p2pPinned: true,
+            }});
+            continue;
+          }}
+          existing.p2pPinned = true;
+          if (name && name !== "Unknown node") {{
+            existing.name = name;
+          }}
+          existing.lastSeenUnix = latestUnixTimestamp(existing.lastSeenUnix, snapshot.lastSeenUnix);
+          existing.status = freshnessStatus(existing.lastSeenUnix, nowUnix);
+        }}
+      }}
+      if (activeChatChannel === "direct" && isCanonicalNodeId(selectedNodeId)) {{
+        touchNodeById(selectedNodeId);
+      }}
+      for (const node of nodes) {{
+        touchNodeById(node && node.id);
+      }}
+      if (historyCapsById && typeof historyCapsById.keys === "function") {{
+        for (const nodeId of historyCapsById.keys()) {{
+          touchNodeById(nodeId);
+        }}
+      }}
+      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
+        favoriteNodeIds.forEach((nodeId) => {{
+          touchNodeById(nodeId);
+        }});
+      }}
+      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
+        nodeNotesById.forEach((_entry, nodeId) => {{
+          touchNodeById(nodeId);
+        }});
+      }}
+      const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
+        if (!(element instanceof HTMLElement)) return false;
+        const nextMarkup = String(markup == null ? "" : markup);
+        const propName = `__meshLastInnerHtml_${{cacheKey}}`;
+        const previousMarkup = (typeof element[propName] === "string") ? element[propName] : null;
+        if (previousMarkup === nextMarkup) return false;
+        element.innerHTML = nextMarkup;
+        element[propName] = nextMarkup;
+        return true;
+      }};
+      const feed = document.getElementById("chat-feed");
+      if (feed) {{
+        feed.classList.toggle("chat-feed-view-monitor", chatViewMode === "monitor");
+        feed.dataset.chatViewMode = chatViewMode === "monitor" ? "monitor" : "default";
+        const macrosViewMode = String(macrosLeftViewMode || "preview").trim().toLowerCase() === "live"
+          ? "live"
+          : "preview";
+        if (activeLayoutView === "macros") {{
+          feed.dataset.macrosFeedMode = macrosViewMode;
+        }} else {{
+          delete feed.dataset.macrosFeedMode;
+        }}
+        const meshFilterIndex = (typeof activeMeshChannelFilterIndex === "function")
+          ? activeMeshChannelFilterIndex()
+          : meshChannelAllIndex;
+        const hasMeshFilter = meshFilterIndex !== meshChannelAllIndex;
+        const meshFilterLabel = (typeof meshChannelLabelForIndex === "function")
+          ? meshChannelLabelForIndex(meshFilterIndex, {{ allowAll: true }})
+          : (hasMeshFilter ? `Ch ${{meshFilterIndex}}` : "All channels");
+        let emptyText = (activeChatChannel === "direct" && !isCanonicalNodeId(directSelectedId))
+          ? "Select a user to view peer-to-peer messages."
+          : `No ${{channelLabel(activeChatChannel).toLowerCase()}} messages yet.`;
+        if (activeChatChannel !== "direct" && hasMeshFilter) {{
+          emptyText += ` Filtered to ${{String(meshFilterLabel || "").trim() || "selected channel"}}; switch to All channels to see everything.`;
+        }}
+        const showMacroPreview = activeLayoutView === "macros" && macrosViewMode === "preview";
+        const showTrendsView = activeLayoutView === "chat" && !!chatTrendsViewEnabled;
+        const macroPreviewRows = showMacroPreview
+          ? buildMacrosPreviewFeedItems(macrosPreviewLines)
+          : [];
+        const trendRows = showTrendsView
+          ? (Array.isArray(trendFeedItems) ? trendFeedItems : [])
+          : [];
+        closeReactionPopover(true);
+        let nextFeedHtml = "";
+        if (showMacroPreview) {{
+          nextFeedHtml = macroPreviewRows.length > 0
+            ? macroPreviewRows.join("")
+            : '<div class="chat-feed-empty">Generate ASCII in MACROS Studio on the right to preview line-by-line output here.</div>';
+        }} else if (showTrendsView) {{
+          nextFeedHtml = trendRows.length > 0
+            ? trendRows.join("")
+            : '<div class="chat-feed-empty">No trends yet. Add hashtags like #events, #repair, or #weather to seed trends.</div>';
+        }} else {{
+          nextFeedHtml = feedItems.length > 0
+            ? feedItems.join("")
+            : `<div class="chat-feed-empty">${{emptyText}}</div>`;
+        }}
+        setElementHtmlIfChanged(feed, nextFeedHtml, "chat-feed");
+      }}
+      renderChatChangeSummary(nowUnix);
+
+      const rosterQuery = globalNodeSearchQuery();
+      const roomList = document.getElementById("chat-room-list");
+      const rosterAll = (() => {{
+        const rows = Array.from(participants.values());
+        if (typeof sortChatNodeNavigatorParticipants === "function") {{
+          return sortChatNodeNavigatorParticipants(rows, nodesById, nowUnix);
+        }}
+        return rows.sort((a, b) => {{
+          const pinDiff = Number(!!b.p2pPinned) - Number(!!a.p2pPinned);
+          if (pinDiff !== 0) return pinDiff;
+          const rankDiff = statusRank(a.status) - statusRank(b.status);
+          if (rankDiff !== 0) return rankDiff;
+          const aTime = a.lastMessageUnix || 0;
+          const bTime = b.lastMessageUnix || 0;
+          if (aTime !== bTime) return bTime - aTime;
+          return String(a.name || a.id).localeCompare(String(b.name || b.id));
+        }});
+      }})();
+      const roster = rosterAll;
+      // Preserve the full (unfiltered) roster so tickFreshnessUI() can compute canonical
+      // online/aging/stale counts even when the user is search-filtering the roster DOM.
+      chatRosterModel = rosterAll;
+      const rosterFiltered = roster.filter((item) => (
+        matchesIdOrNameQuery(item.id, item.name, rosterQuery, {{
+          node: nodesById.get(normalizeNodeId(item.id)),
+        }})
+      ));
+      const buildNodePacketSparklinePath = (bucketValuesRaw, width = 56, height = 12) => {{
+        const buckets = Array.isArray(bucketValuesRaw)
+          ? bucketValuesRaw.map((value) => Math.max(0, Number(value) || 0))
+          : [];
+        const plotWidth = Math.max(12, Number(width) || 56);
+        const plotHeight = Math.max(8, Number(height) || 12);
+        const baselineY = Math.max(1, plotHeight - 1);
+        if (buckets.length <= 0) {{
+          return `M 0 ${{baselineY.toFixed(2)}} L ${{plotWidth.toFixed(2)}} ${{baselineY.toFixed(2)}}`;
+        }}
+        const maxValue = Math.max(0, ...buckets);
+        const padY = 1;
+        const usableHeight = Math.max(2, plotHeight - (padY * 2));
+        const points = buckets.map((value, idx) => {{
+          const x = buckets.length <= 1
+            ? (plotWidth / 2)
+            : ((idx / Math.max(1, buckets.length - 1)) * plotWidth);
+          const y = maxValue > 0
+            ? (padY + ((maxValue - value) / maxValue) * usableHeight)
+            : baselineY;
+          return {{
+            x,
+            y,
+          }};
+        }});
+        if (typeof buildSmoothSvgPath === "function") {{
+          const smoothPath = buildSmoothSvgPath(points, 0.2);
+          if (smoothPath) {{
+            return smoothPath;
+          }}
+        }}
+        return points.map((point, idx) => (
+          `${{idx === 0 ? "M" : "L"}} ${{point.x.toFixed(2)}} ${{point.y.toFixed(2)}}`
+        )).join(" ");
+      }};
+      const classifyNodePacketSparklineTrend = (bucketValuesRaw) => {{
+        const buckets = Array.isArray(bucketValuesRaw)
+          ? bucketValuesRaw.map((value) => Math.max(0, Number(value) || 0))
+          : [];
+        if (buckets.length <= 1) return "trend-flat";
+        const segmentSize = Math.max(1, Math.trunc(buckets.length / 3));
+        const startSlice = buckets.slice(0, segmentSize);
+        const endSlice = buckets.slice(-segmentSize);
+        const avg = (rows) => {{
+          const list = Array.isArray(rows) ? rows : [];
+          if (list.length === 0) return 0;
+          const total = list.reduce((sum, value) => sum + (Number(value) || 0), 0);
+          return total / Math.max(1, list.length);
+        }};
+        const startAvg = avg(startSlice);
+        const endAvg = avg(endSlice);
+        const delta = endAvg - startAvg;
+        const threshold = Math.max(0.5, Math.max(...buckets, 0) * 0.15);
+        if (delta > threshold) return "trend-up";
+        if (delta < -threshold) return "trend-down";
+        return "trend-flat";
+      }};
+      const onlineCount = rosterAll.filter((item) => item.status === "online").length;
+      const warnCount = rosterAll.filter((item) => item.status === "warn").length;
+      const staleCount = rosterAll.filter((item) => item.status === "stale").length;
+      const syncPendingDirectAckStatus = () => {{
+        const pending = (
+          chatPendingDirectAck && typeof chatPendingDirectAck === "object"
+        ) ? chatPendingDirectAck : null;
+        if (!pending) return;
+        const pendingMessageId = Number(pending.messageId);
+        const pendingDest = normalizeNodeId(pending.destination || "");
+        if (!Number.isInteger(pendingMessageId) || pendingMessageId <= 0 || !isCanonicalNodeId(pendingDest)) {{
+          chatPendingDirectAck = null;
+          return;
+        }}
+        const pendingChannelIndex = Math.max(0, Math.trunc(Number(pending.channelIndex) || 0));
+        const pendingChannelLabel = meshChannelViewMenuLabel(pendingChannelIndex, {{
+          verbose: false,
+          allowAll: false,
+        }});
+        const pendingSentUnix = latestUnixTimestamp(
+          pending.sentUnix,
+          Math.floor(Date.now() / 1000)
+        );
+        let pendingMsg = null;
+        for (let idx = baseMessages.length - 1; idx >= 0; idx -= 1) {{
+          const candidate = baseMessages[idx];
+          if (!candidate || typeof candidate !== "object") continue;
+          const messageId = Number(messageIdOfChatPacket(candidate));
+          if (!Number.isInteger(messageId) || messageId <= 0 || messageId !== pendingMessageId) continue;
+          pendingMsg = candidate;
+          break;
+        }}
+        if (pendingMsg) {{
+          const deliveryState = normalizeDeliveryState(
+            pendingMsg && (pendingMsg.delivery_state ?? pendingMsg.deliveryState)
+          );
+          const deliveryErrorRaw = String(
+            (pendingMsg && (pendingMsg.delivery_error ?? pendingMsg.deliveryError)) || ""
+          ).trim();
+          const deliveryError = (typeof trimInlineError === "function")
+            ? trimInlineError(deliveryErrorRaw, 96)
+            : deliveryErrorRaw;
+          const updateRawTime = String(
+            (pendingMsg && (pendingMsg.delivery_updated_at || pendingMsg.rx_time || pendingMsg.captured_at)) || ""
+          ).trim();
+          const updateUnix = latestUnixTimestamp(
+            pendingMsg && pendingMsg.delivery_updated_unix,
+            pendingMsg && pendingMsg.delivery_updated_at,
+            pendingMsg && pendingMsg.rx_time,
+            pendingMsg && pendingMsg.captured_at
+          );
+          const updateTime = formatLocalChatTime(updateUnix, updateRawTime || "n/a", nowUnix);
+          if (deliveryState === "acked") {{
+            setChatSendStatus(`Delivered direct to ${{pendingDest}} on ${{pendingChannelLabel}} at ${{updateTime}}`);
+            chatPendingDirectAck = null;
+            return;
+          }}
+          if (deliveryState === "nak" || deliveryState === "timeout" || deliveryState === "error") {{
+            const failPrefix = deliveryState === "timeout"
+              ? "Direct timed out"
+              : "Direct failed";
+            setChatSendStatus(
+              deliveryError
+                ? `${{failPrefix}} to ${{pendingDest}} on ${{pendingChannelLabel}}: ${{deliveryError}}`
+                : `${{failPrefix}} to ${{pendingDest}} on ${{pendingChannelLabel}}`,
+              true
+            );
+            chatPendingDirectAck = null;
+            return;
+          }}
+        }}
+        if (isCanonicalNodeId(localNodeId)) {{
+          for (let idx = baseMessages.length - 1; idx >= 0; idx -= 1) {{
+            const msg = baseMessages[idx];
+            if (!msg || typeof msg !== "object") continue;
+            if (classifyMessageChannel(msg) !== "direct") continue;
+            const endpoints = endpointsForMessage(msg);
+            const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+            const toId = normalizeNodeId(endpoints && endpoints.toId);
+            if (fromId !== pendingDest || toId !== localNodeId) continue;
+            const peerReplyUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+            if (peerReplyUnix <= 0 || peerReplyUnix < pendingSentUnix) continue;
+            const replyTime = formatLocalChatTime(peerReplyUnix, "n/a", nowUnix);
+            setChatSendStatus(`Direct to ${{pendingDest}} reached peer (reply seen at ${{replyTime}}).`);
+            chatPendingDirectAck = null;
+            return;
+          }}
+        }}
+      }};
+      syncPendingDirectAckStatus();
+      const isKnownPeerNode = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isCanonicalNodeId(peerId)) return false;
+        if (isCanonicalNodeId(localNodeId) && peerId === localNodeId) return false;
+        if (manualDirectPeerIds.has(peerId)) return true;
+        if (nodesById.has(peerId)) return true;
+        if (isSelectableNodeId(selectedNodeId) && normalizeNodeId(selectedNodeId) === peerId) return true;
+        if (isCanonicalNodeId(chatDirectActivePeerId) && normalizeNodeId(chatDirectActivePeerId) === peerId) return true;
+        return false;
+      }};
+      const directBucketForPeer = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        const bucketRaw = directMessagesByPeer.get(peerId);
+        return Array.isArray(bucketRaw) ? bucketRaw : [];
+      }};
+      const isPinnedDirectPeerVisible = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isKnownPeerNode(peerId)) return false;
+        if (directBucketForPeer(peerId).length > 0) return true;
+        if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId) && normalizeNodeId(selectedNodeId) === peerId) {{
+          return true;
+        }}
+        if (isCanonicalNodeId(peerDmActivePeerId) && normalizeNodeId(peerDmActivePeerId) === peerId) {{
+          return true;
+        }}
+        return false;
+      }};
+      const directConversationPeerIds = new Set();
+      for (const peerIdRaw of directMessagesByPeer.keys()) {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isPinnedDirectPeerVisible(peerId)) continue;
+        directConversationPeerIds.add(peerId);
+      }}
+      for (const peerIdRaw of manualDirectPeerIds) {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isPinnedDirectPeerVisible(peerId)) continue;
+        directConversationPeerIds.add(peerId);
+      }}
+      if (isCanonicalNodeId(chatDirectActivePeerId)) {{
+        const activePeer = normalizeNodeId(chatDirectActivePeerId);
+        if (isPinnedDirectPeerVisible(activePeer)) {{
+          directConversationPeerIds.add(activePeer);
+        }}
+      }}
+      const unreadDirectByPeer = new Map();
+      const directAckSet = chatChangeAcknowledgedKeySetForChannel("direct");
+      for (const notice of chatChangeNoticesForChannel("direct")) {{
+        const noticeKey = String((notice && notice.key) || "").trim();
+        if (directAckSet instanceof Set && noticeKey && directAckSet.has(noticeKey)) continue;
+        const peerId = normalizeNodeId(notice && notice.peerNodeId);
+        if (!directConversationPeerIds.has(peerId)) continue;
+        if (directBucketForPeer(peerId).length <= 0) continue;
+        unreadDirectByPeer.set(peerId, (unreadDirectByPeer.get(peerId) || 0) + 1);
+      }}
+      const directConversationRows = Array.from(directConversationPeerIds)
+        .map((peerId) => {{
+          const bucket = directBucketForPeer(peerId);
+          const lastMsg = bucket.length > 0 ? bucket[bucket.length - 1] : null;
+          const lastUnix = lastMsg
+            ? latestUnixTimestamp(lastMsg && lastMsg.rx_time, lastMsg && lastMsg.captured_at)
+            : 0;
+          const lastRaw = lastMsg
+            ? String((lastMsg && (lastMsg.rx_time || lastMsg.captured_at)) || "").trim()
+            : "";
+          const endpoints = lastMsg ? endpointsForMessage(lastMsg) : {{ fromId: "", toId: "" }};
+          const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+          const isOwnLast = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+          const textPreview = lastMsg
+            ? compactInlineMessage(lastMsg && lastMsg.text, 72)
+            : "";
+          const emojiPreview = lastMsg ? String(emojiOf(lastMsg) || "").trim() : "";
+          const previewCore = textPreview || emojiPreview || "No direct messages yet.";
+          const preview = isOwnLast ? `You: ${{previewCore}}` : previewCore;
+          const node = nodesById.get(peerId);
+          const name = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+          const unread = Math.max(0, Number(unreadDirectByPeer.get(peerId) || 0));
+          return {{
+            id: peerId,
+            name,
+            preview,
+            unread,
+            lastUnix: Number.isFinite(lastUnix) ? lastUnix : 0,
+            lastRaw,
+          }};
+        }})
+        .sort((a, b) => {{
+          const unreadDiff = Number(b.unread || 0) - Number(a.unread || 0);
+          if (unreadDiff !== 0) return unreadDiff;
+          const timeDiff = Number(b.lastUnix || 0) - Number(a.lastUnix || 0);
+          if (timeDiff !== 0) return timeDiff;
+          return String(a.name || a.id).localeCompare(String(b.name || b.id));
+        }});
+      const directUnreadTotal = directConversationRows.reduce(
+        (sum, row) => sum + Math.max(0, Number(row.unread || 0)),
+        0
+      );
+      updatePeerDmBadge(directUnreadTotal);
+      const peerDmMenuList = document.getElementById("peer-dm-menu-list");
+      if (peerDmMenuList instanceof HTMLElement) {{
+        const nextPeerDmMenuHtml = directConversationRows.length > 0
+          ? directConversationRows.map((row) => {{
+              const lastSeenText = row.lastUnix > 0
+                ? formatLocalChatTime(row.lastUnix, row.lastRaw || "n/a", nowUnix)
+                : "no traffic";
+              const unreadChip = row.unread > 0
+                ? `<span class="peer-dm-menu-unread" title="${{row.unread}} unread">${{row.unread > 99 ? "99+" : row.unread}}</span>`
+                : "";
+              const activeClass = normalizeNodeId(peerDmActivePeerId || "") === row.id ? " is-active" : "";
+              return `<button type="button" class="peer-dm-menu-item${{activeClass}}" data-peer-node-id="${{escAttr(row.id)}}" title="${{escAttr(`${{row.name}} (${{row.id}})` )}}">
+                <span class="peer-dm-menu-item-main">
+                  <span class="peer-dm-menu-peer">${{escAttr(row.name)}}</span>
+                  <span class="peer-dm-menu-preview">${{escAttr(row.preview)}}</span>
+                </span>
+                <span class="peer-dm-menu-meta">
+                  <span>${{escAttr(lastSeenText)}}</span>
+                  ${{unreadChip}}
+                </span>
+              </button>`;
+            }}).join("")
+          : '<div class="peer-dm-menu-empty">No peer-to-peer conversations yet.</div>';
+        setElementHtmlIfChanged(peerDmMenuList, nextPeerDmMenuHtml, "peer-dm-menu-list");
+      }}
+      const peerDmHost = document.getElementById("peer-dm-popout-host");
+      const priorPopoutInput = document.getElementById("peer-dm-popout-input");
+      const priorPopoutWindow = document.querySelector("#peer-dm-popout-host .peer-dm-popout-window");
+      const priorPopoutPeerId = normalizeNodeId(
+        priorPopoutWindow instanceof HTMLElement
+          ? (priorPopoutWindow.dataset.peerNodeId || "")
+          : (peerDmActivePeerId || "")
+      );
+      const preservePopoutInputFocus = (
+        priorPopoutInput instanceof HTMLInputElement
+        && document.activeElement === priorPopoutInput
+      );
+      const priorPopoutSelectionStart = preservePopoutInputFocus
+        ? Number(priorPopoutInput.selectionStart)
+        : null;
+      const priorPopoutSelectionEnd = preservePopoutInputFocus
+        ? Number(priorPopoutInput.selectionEnd)
+        : null;
+      let activePopoutPeerId = normalizeNodeId(peerDmActivePeerId || "");
+      const activePopoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
+      const activePopoutHasMessages = (
+        Array.isArray(activePopoutBucketRaw)
+        && activePopoutBucketRaw.length > 0
+      );
+      const activePopoutIsKnownPeer = isKnownPeerNode(activePopoutPeerId);
+      if (
+        !isCanonicalNodeId(activePopoutPeerId)
+        || (
+          !activePopoutIsKnownPeer
+          && !directConversationPeerIds.has(activePopoutPeerId)
+          && !activePopoutHasMessages
+        )
+      ) {{
+        activePopoutPeerId = "";
+        peerDmActivePeerId = "";
+      }}
+      if (peerDmHost instanceof HTMLElement) {{
+        if (!isCanonicalNodeId(activePopoutPeerId)) {{
+          peerDmHost.innerHTML = "";
+        }} else {{
+          const popoutNode = nodesById.get(activePopoutPeerId);
+          const popoutName = preferredNodeName(popoutNode) || nodeNameCache.get(activePopoutPeerId) || activePopoutPeerId;
+          const popoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
+          const popoutBucket = Array.isArray(popoutBucketRaw) ? popoutBucketRaw : [];
+          const popoutMessages = popoutBucket.length > chatFeedMaxEntries
+            ? popoutBucket.slice(-chatFeedMaxEntries)
+            : popoutBucket;
+          const popoutDraft = String(peerDmDraftByPeer.get(activePopoutPeerId) || "");
+          const popoutFileState = summarizePeerDmFileTransferState(activePopoutPeerId);
+          const popoutFilePercent = popoutFileState
+            ? Math.max(0, Math.min(100, Math.round(Number(popoutFileState.percent) || 0)))
+            : 0;
+          const popoutFileText = popoutFileState
+            ? String(popoutFileState.text || "").trim()
+            : "";
+          const popoutFilePhase = popoutFileState ? String(popoutFileState.phase || "").trim().toLowerCase() : "";
+          const popoutFileLabel = popoutFileState && popoutFileState.fileName
+            ? normalizeFileTransferName(popoutFileState.fileName)
+            : "";
+          const popoutFileProgressTitle = popoutFileLabel
+            ? `File transfer: ${{popoutFileLabel}}`
+            : "File transfer";
+          const popoutThreadChannelIndex = (() => {{
+            for (let idx = popoutBucket.length - 1; idx >= 0; idx -= 1) {{
+              const candidate = popoutBucket[idx];
+              if (!candidate || typeof candidate !== "object") continue;
+              const explicitIdx = (typeof explicitMessageMeshChannelIndex === "function")
+                ? explicitMessageMeshChannelIndex(candidate)
+                : null;
+              if (Number.isInteger(explicitIdx) && explicitIdx >= 0) {{
+                return Math.trunc(explicitIdx);
+              }}
+            }}
+            const sendCtx = meshChannelSendContext();
+            return normalizeMeshChannelIndex(sendCtx && sendCtx.sendIndex);
+          }})();
+          const popoutThreadChannelLabel = meshChannelLabelForIndex(
+            popoutThreadChannelIndex,
+            {{ compact: true, allowAll: false }}
+          );
+          const popoutThreadChannelMeta = meshChannelColorMeta(popoutThreadChannelIndex, {{ allowAll: false }});
+          const popoutThreadChannelStyle = `--peer-dm-channel-fill: ${{popoutThreadChannelMeta.fill}}; --peer-dm-channel-rgb: ${{hexColorRgbTriplet(popoutThreadChannelMeta.fill)}};`;
+          const popoutMessageRows = popoutMessages.length > 0
+            ? popoutMessages.map((msg) => {{
+                const endpoints = endpointsForMessage(msg);
+                const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+                const isOwn = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+                const fromMeta = chatEndpointParts(fromId, latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at));
+                const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
+                const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+                const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+                const timeLabel = formatLocalChatTime(msgUnix, rawTime || "n/a", nowUnix);
+                const isLocalEcho = msg && (msg.local_echo === true || msg.localEcho === true);
+                const deliveryState = normalizeDeliveryState(msg && (msg.delivery_state ?? msg.deliveryState));
+                const deliveryError = String((msg && (msg.delivery_error ?? msg.deliveryError)) || "").trim();
+                const compactDeliveryError = (typeof trimInlineError === "function")
+                  ? trimInlineError(deliveryError, 72)
+                  : (deliveryError.length > 72 ? `${{deliveryError.slice(0, 69)}}...` : deliveryError);
+                const deliverySuffix = (() => {{
+                  if (!isOwn || !isLocalEcho) return "";
+                  if (!deliveryState || deliveryState === "sent" || deliveryState === "acked") return "";
+                  if (deliveryState === "pending") return " • awaiting ACK";
+                  if (deliveryState === "nak") {{
+                    return compactDeliveryError
+                      ? ` • failed (${{compactDeliveryError}})`
+                      : " • failed";
+                  }}
+                  if (deliveryState === "error") {{
+                    return compactDeliveryError
+                      ? ` • error (${{compactDeliveryError}})`
+                      : " • error";
+                  }}
+                  return ` • ${{deliveryState}}`;
+                }})();
+                const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
+                  || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
+                return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}">
+                  <div class="peer-dm-popout-msg-meta"><span>${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
+                  <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
+                </div>`;
+              }}).join("")
+            : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
+          peerDmHost.innerHTML = `<section
+            class="peer-dm-popout-window"
+            data-peer-node-id="${{escAttr(activePopoutPeerId)}}"
+            data-peer-dm-channel-index="${{escAttr(popoutThreadChannelIndex)}}"
+            style="${{escAttr(popoutThreadChannelStyle)}}"
+          >
+            <header class="peer-dm-popout-head">
+              <div class="peer-dm-popout-title">
+                <span class="peer-dm-popout-name">${{escAttr(popoutName)}}</span>
+                <span class="peer-dm-popout-id-row">
+                  <span class="peer-dm-popout-id">${{escAttr(activePopoutPeerId)}}</span>
+                  <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(popoutThreadChannelLabel)}}</span>
+                </span>
+              </div>
+              <div class="peer-dm-popout-actions">
+                <button type="button" id="peer-dm-popout-open-main-btn" class="peer-dm-popout-btn" title="Focus this peer in the node list">Focus node</button>
+                <button type="button" id="peer-dm-popout-close-btn" class="peer-dm-popout-btn" title="Close this peer window">&times;</button>
+              </div>
+            </header>
+            <div id="peer-dm-popout-body" class="peer-dm-popout-body">${{popoutMessageRows}}</div>
+            <div class="peer-dm-popout-composer">
+              <input id="peer-dm-popout-input" class="peer-dm-popout-input" type="text" autocomplete="off" placeholder="Direct message to ${{escAttr(activePopoutPeerId)}}..." value="${{escAttr(popoutDraft)}}" />
+              <button type="button" id="peer-dm-popout-send-btn" class="peer-dm-popout-send-btn"${{chatSendInFlight ? " disabled" : ""}}>Send</button>
+              <div class="peer-dm-popout-file-row">
+                <input id="peer-dm-popout-file-input" class="peer-dm-popout-file-input" type="file" hidden />
+                <button type="button" id="peer-dm-popout-file-attach-btn" class="peer-dm-popout-file-btn"${{fileTransferSendInFlight ? " disabled" : ""}}>Attach file</button>
+                <button type="button" id="peer-dm-popout-file-manage-btn" class="peer-dm-popout-file-manage-btn" title="Open the full Files workspace">Open Files</button>
+              </div>
+              <div
+                id="peer-dm-popout-file-progress"
+                class="peer-dm-popout-file-progress${{popoutFileState && popoutFileState.isError ? " is-error" : ""}}${{popoutFilePhase === "delivered" ? " is-success" : ""}}"
+                title="${{escAttr(popoutFileProgressTitle)}}"
+                ${{popoutFileState ? "" : "hidden"}}
+              >
+                <div class="peer-dm-popout-file-progress-head">
+                  <span id="peer-dm-popout-file-progress-text" class="peer-dm-popout-file-progress-text">${{escAttr(popoutFileText || "No file transfer activity yet.")}}</span>
+                  <span id="peer-dm-popout-file-progress-pct" class="peer-dm-popout-file-progress-pct">${{escAttr(`${{popoutFilePercent}}%`)}}</span>
+                </div>
+                <div class="peer-dm-popout-file-progress-meter">
+                  <span id="peer-dm-popout-file-progress-fill" style="width:${{escAttr(String(popoutFilePercent))}}%;"></span>
+                </div>
+              </div>
+              <div id="peer-dm-popout-status" class="peer-dm-popout-status" hidden></div>
+            </div>
+          </section>`;
+          const openMainBtn = document.getElementById("peer-dm-popout-open-main-btn");
+          if (openMainBtn instanceof HTMLButtonElement) {{
+            openMainBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              setPeerDmMenuOpen(false);
+              applyLayoutView("chat", true);
+              applyChatChannel("all", true);
+              selectNode(activePopoutPeerId, true, false);
+            }});
+          }}
+          const closeBtn = document.getElementById("peer-dm-popout-close-btn");
+          if (closeBtn instanceof HTMLButtonElement) {{
+            closeBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              peerDmActivePeerId = "";
+              if (peerDmHost instanceof HTMLElement) {{
+                peerDmHost.innerHTML = "";
+              }}
+            }});
+          }}
+          const popoutInput = document.getElementById("peer-dm-popout-input");
+          const popoutSendBtn = document.getElementById("peer-dm-popout-send-btn");
+          const popoutFileInput = document.getElementById("peer-dm-popout-file-input");
+          const popoutFileAttachBtn = document.getElementById("peer-dm-popout-file-attach-btn");
+          const popoutFileManageBtn = document.getElementById("peer-dm-popout-file-manage-btn");
+          const popoutFileProgress = document.getElementById("peer-dm-popout-file-progress");
+          const popoutFileProgressText = document.getElementById("peer-dm-popout-file-progress-text");
+          const popoutFileProgressPct = document.getElementById("peer-dm-popout-file-progress-pct");
+          const popoutFileProgressFill = document.getElementById("peer-dm-popout-file-progress-fill");
+          const popoutStatus = document.getElementById("peer-dm-popout-status");
+          const setPopoutStatus = (text, isError = false) => {{
+            if (!(popoutStatus instanceof HTMLElement)) return;
+            const label = String(text || "").trim();
+            if (!label) {{
+              popoutStatus.textContent = "";
+              popoutStatus.classList.remove("is-error");
+              popoutStatus.hidden = true;
+              return;
+            }}
+            popoutStatus.textContent = label;
+            popoutStatus.classList.toggle("is-error", !!isError);
+            popoutStatus.hidden = false;
+          }};
+          const renderPopoutFileTransferState = () => {{
+            const snapshot = summarizePeerDmFileTransferState(activePopoutPeerId);
+            if (!(popoutFileProgress instanceof HTMLElement)) return;
+            if (!snapshot) {{
+              popoutFileProgress.hidden = true;
+              popoutFileProgress.classList.remove("is-error");
+              popoutFileProgress.classList.remove("is-success");
+              if (popoutFileProgressText instanceof HTMLElement) {{
+                popoutFileProgressText.textContent = "";
+              }}
+              if (popoutFileProgressPct instanceof HTMLElement) {{
+                popoutFileProgressPct.textContent = "";
+              }}
+              if (popoutFileProgressFill instanceof HTMLElement) {{
+                popoutFileProgressFill.style.width = "0%";
+              }}
+              return;
+            }}
+            const pct = Math.max(0, Math.min(100, Math.round(Number(snapshot.percent) || 0)));
+            const text = String(snapshot.text || "").trim() || "File transfer active";
+            const phase = String(snapshot.phase || "").trim().toLowerCase();
+            popoutFileProgress.hidden = false;
+            popoutFileProgress.classList.toggle("is-error", !!snapshot.isError);
+            popoutFileProgress.classList.toggle("is-success", phase === "delivered" && !snapshot.isError);
+            const fileLabel = snapshot.fileName
+              ? normalizeFileTransferName(snapshot.fileName)
+              : "file transfer";
+            popoutFileProgress.title = `File transfer: ${{fileLabel}}`;
+            if (popoutFileProgressText instanceof HTMLElement) {{
+              popoutFileProgressText.textContent = text;
+            }}
+            if (popoutFileProgressPct instanceof HTMLElement) {{
+              popoutFileProgressPct.textContent = `${{pct}}%`;
+            }}
+            if (popoutFileProgressFill instanceof HTMLElement) {{
+              popoutFileProgressFill.style.width = `${{pct}}%`;
+            }}
+          }};
+          const latestOwnDirectEcho = (() => {{
+            for (let idx = popoutBucket.length - 1; idx >= 0; idx -= 1) {{
+              const msg = popoutBucket[idx];
+              if (!(msg && (msg.local_echo === true || msg.localEcho === true))) continue;
+              const endpoints = endpointsForMessage(msg);
+              const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+              const toId = normalizeNodeId(endpoints && endpoints.toId);
+              if (isCanonicalNodeId(localNodeId) && fromId !== localNodeId) continue;
+              if (isCanonicalNodeId(activePopoutPeerId) && toId !== activePopoutPeerId) continue;
+              return msg;
+            }}
+            return null;
+          }})();
+          if (latestOwnDirectEcho) {{
+            const deliveryState = normalizeDeliveryState(
+              latestOwnDirectEcho && (latestOwnDirectEcho.delivery_state ?? latestOwnDirectEcho.deliveryState)
+            );
+            const deliveryErrorRaw = String(
+              (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_error ?? latestOwnDirectEcho.deliveryError)) || ""
+            ).trim();
+            const deliveryError = (typeof trimInlineError === "function")
+              ? trimInlineError(deliveryErrorRaw, 92)
+              : deliveryErrorRaw;
+            const updateRawTime = String(
+              (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_updated_at || latestOwnDirectEcho.rx_time || latestOwnDirectEcho.captured_at)) || ""
+            ).trim();
+            const updateUnix = latestUnixTimestamp(
+              latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_unix,
+              latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_at,
+              latestOwnDirectEcho && latestOwnDirectEcho.rx_time,
+              latestOwnDirectEcho && latestOwnDirectEcho.captured_at
+            );
+            const updateTime = formatLocalChatTime(updateUnix, updateRawTime || "n/a", nowUnix);
+            if (deliveryState === "pending") {{
+              setPopoutStatus(`Awaiting ACK · ${{updateTime}}`);
+            }} else if (deliveryState === "acked") {{
+              setPopoutStatus(`Delivered · ${{updateTime}}`);
+            }} else if (deliveryState === "nak" || deliveryState === "timeout" || deliveryState === "error") {{
+              const base = deliveryState === "timeout" ? "Delivery timeout" : "Delivery failed";
+              setPopoutStatus(
+                deliveryError ? `${{base}} · ${{deliveryError}}` : base,
+                true
+              );
+            }} else if (deliveryState === "sent") {{
+              setPopoutStatus(`Sent · ${{updateTime}}`);
+            }} else {{
+              setPopoutStatus("");
+            }}
+          }} else {{
+            setPopoutStatus("");
+          }}
+          renderPopoutFileTransferState();
+          const submitPopoutMessage = async () => {{
+            if (!(popoutInput instanceof HTMLInputElement)) return;
+            if (!isCanonicalNodeId(activePopoutPeerId)) return;
+            if (chatSendInFlight) return;
+            const text = String(popoutInput.value || "").trim();
+            if (!text) return;
+            setPopoutStatus("Sending...");
+            const sendChannelIndex = normalizeMeshChannelIndex(popoutThreadChannelIndex);
+            const sendChannelLabel = meshChannelLabelForIndex(
+              sendChannelIndex,
+              {{ compact: true, allowAll: false }}
+            );
+            const payload = await sendChatPayload(
+              {{
+                text,
+                destination: activePopoutPeerId,
+                channel_index: sendChannelIndex,
+              }},
+              null,
+              {{
+                statusFn: setPopoutStatus,
+                showSendingStatus: false,
+                showSuccessStatus: false,
+                showErrorStatus: true,
+              }}
+            );
+            if (!(payload && payload.ok)) return;
+            peerDmDraftByPeer.delete(activePopoutPeerId);
+            popoutInput.value = "";
+            const awaitingAck = (
+              payload.ack_requested === true
+              && normalizeDeliveryState(payload.delivery_state) === "pending"
+            );
+            if (awaitingAck) {{
+              setPopoutStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}} (awaiting ACK)`);
+            }} else {{
+              setPopoutStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}}`);
+            }}
+            if (latestState) {{
+              renderChat(latestState);
+            }}
+          }};
+          if (popoutInput instanceof HTMLInputElement) {{
+            popoutInput.addEventListener("input", () => {{
+              const nextDraft = String(popoutInput.value || "");
+              if (nextDraft.trim()) {{
+                peerDmDraftByPeer.set(activePopoutPeerId, nextDraft);
+              }} else {{
+                peerDmDraftByPeer.delete(activePopoutPeerId);
+              }}
+            }});
+            popoutInput.addEventListener("keydown", (ev) => {{
+              if (ev.key !== "Enter" || ev.shiftKey) return;
+              ev.preventDefault();
+              void submitPopoutMessage();
+            }});
+            if (preservePopoutInputFocus && priorPopoutPeerId === activePopoutPeerId) {{
+              const valueLen = String(popoutInput.value || "").length;
+              const nextSelectionStart = Number.isFinite(priorPopoutSelectionStart)
+                ? Math.max(0, Math.min(valueLen, Math.trunc(Number(priorPopoutSelectionStart))))
+                : valueLen;
+              const nextSelectionEnd = Number.isFinite(priorPopoutSelectionEnd)
+                ? Math.max(nextSelectionStart, Math.min(valueLen, Math.trunc(Number(priorPopoutSelectionEnd))))
+                : nextSelectionStart;
+              window.requestAnimationFrame(() => {{
+                if (popoutInput.disabled) return;
+                try {{
+                  popoutInput.focus({{ preventScroll: true }});
+                }} catch (_err) {{
+                  popoutInput.focus();
+                }}
+                try {{
+                  popoutInput.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+                }} catch (_err) {{
+                }}
+              }});
+            }}
+          }}
+          if (popoutSendBtn instanceof HTMLButtonElement) {{
+            popoutSendBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              void submitPopoutMessage();
+            }});
+          }}
+          if (popoutFileAttachBtn instanceof HTMLButtonElement) {{
+            popoutFileAttachBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              if (fileTransferSendInFlight) return;
+              if (!(popoutFileInput instanceof HTMLInputElement)) return;
+              popoutFileInput.click();
+            }});
+          }}
+          if (popoutFileInput instanceof HTMLInputElement) {{
+            popoutFileInput.addEventListener("change", () => {{
+              if (!isCanonicalNodeId(activePopoutPeerId)) {{
+                popoutFileInput.value = "";
+                return;
+              }}
+              const file = popoutFileInput.files && popoutFileInput.files[0]
+                ? popoutFileInput.files[0]
+                : null;
+              if (!file) return;
+              void (async () => {{
+                const result = await sendFileTransferToDestination(file, activePopoutPeerId, {{
+                  statusFn: () => {{}},
+                  progressFn: () => {{
+                    renderPopoutFileTransferState();
+                  }},
+                  manageBusy: true,
+                  persistDestination: true,
+                  peerId: activePopoutPeerId,
+                }});
+                popoutFileInput.value = "";
+                renderPopoutFileTransferState();
+                if (result && result.ok) {{
+                  setPopoutStatus(`File transfer started on ${{result.sendLabel}}.`);
+                }}
+              }})();
+            }});
+          }}
+          if (popoutFileManageBtn instanceof HTMLButtonElement) {{
+            popoutFileManageBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              if (!isCanonicalNodeId(activePopoutPeerId)) return;
+              setFileTransferDestination(activePopoutPeerId);
+              applyLayoutView("files", true);
+              setFileTransferStatus(`Destination set to ${{activePopoutPeerId}}`);
+              if (latestState) {{
+                renderFilesView(latestState);
+              }}
+            }});
+          }}
+          const popoutBody = document.getElementById("peer-dm-popout-body");
+          if (popoutBody instanceof HTMLElement) {{
+            popoutBody.scrollTop = popoutBody.scrollHeight;
+          }}
+        }}
+      }}
+      if (roomList instanceof HTMLElement) {{
+        const nextRoomListHtml = rosterFiltered.length > 0
+          ? rosterFiltered.map((item) => (
+              (() => {{
+                try {{
+                const nodeId = normalizeNodeId(item.id);
+                const snapshot = resolveChatNodeFreshness(nodeId);
+                const node = nodesById.get(nodeId);
+                const nodeProjection = nodeExplorerBuildProjection(
+                  node || {{ id: nodeId, long_name: item.name }},
+                  {{ nowUnix }}
+                );
+                const caps = (
+                  historyCapsById && typeof historyCapsById.get === "function"
+                    ? historyCapsById.get(nodeId)
+                    : null
+                );
+                const statusKey = normalizeFreshnessKey(item.status);
+                const statusLabel = statusKey === "online"
+                  ? "Online"
+                  : (statusKey === "warn" ? "Aging" : (statusKey === "stale" ? "Stale" : "Unknown"));
+                const lastSeenText = Number.isFinite(snapshot.lastSeenUnix)
+                  ? `${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}} (${{formatIdleAge(snapshot.lastSeenUnix, nowUnix)}})`
+                  : "n/a";
+                const roleText = String((node && node.role) || "").trim() || "n/a";
+                const hardwareText = String((node && (node.hardware_model || node.hardware)) || "").trim() || "n/a";
+                const batteryRaw = Number(
+                  (node && node.battery_level != null)
+                    ? node.battery_level
+                    : (caps && caps.battery_level)
+                );
+                const batteryText = Number.isFinite(batteryRaw)
+                  ? `${{Math.max(0, Math.min(100, Math.round(batteryRaw)))}}%`
+                  : "n/a";
+                const hopsRaw = Number(
+                  (node && node.hops_away != null)
+                    ? node.hops_away
+                    : (caps && caps.last_hops)
+                );
+                const hopsText = Number.isFinite(hopsRaw) && hopsRaw >= 0
+                  ? String(Math.trunc(hopsRaw))
+                  : "n/a";
+                const hasLivePosition = (
+                  node
+                  && Number.isFinite(Number(node.lat))
+                  && Number.isFinite(Number(node.lon))
+                );
+                const gpsText = hasLivePosition
+                  ? `${{Number(node.lat).toFixed(5)}}, ${{Number(node.lon).toFixed(5)}}`
+                  : ((caps && caps.has_position === true) ? "history only" : "n/a");
+                const noteEntry = (typeof nodeNoteEntry === "function") ? nodeNoteEntry(nodeId) : null;
+                const noteText = String((noteEntry && noteEntry.note) || "").trim();
+                const idleText = Number.isFinite(snapshot.lastSeenUnix)
+                  ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
+                  : "n/a";
+                const showPacketTrend = nodeNavigatorPacketTrendEnabled();
+                const showPacketDirection = (typeof normalizeChatNodeNavigatorShowPacketDirectionPref === "function")
+                  ? normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection)
+                  : !!chatNodeNavigatorShowPacketDirection;
+                const showPacketTrendRow = showPacketTrend && showPacketDirection;
+                const packetTicker = (
+                  packetTickerByNode instanceof Map
+                    ? (packetTickerByNode.get(nodeId) || null)
+                    : null
+                );
+                const packetSparkline = (
+                  packetSparklineByNode instanceof Map
+                    ? (packetSparklineByNode.get(nodeId) || null)
+                    : null
+                );
+                const packetSparklineBuckets = Array.isArray(packetSparkline && packetSparkline.buckets)
+                  ? packetSparkline.buckets
+                  : [];
+                const packetSparklineWindowSec = Math.max(
+                  60,
+                  Math.trunc(Number(packetSparkline && packetSparkline.windowSec) || 3600)
+                );
+                const packetSparklineWindowMin = Math.max(1, Math.round(packetSparklineWindowSec / 60));
+                const packetTotal = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.total) || 0));
+                const packetRecent5m = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.recent5m) || 0));
+                const packetTxTotal = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.txTotal) || 0));
+                const packetTxRecent5m = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.txRecent5m) || 0));
+                const packetRxTotal = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.rxTotal) || 0));
+                const packetRxRecent5m = Math.max(0, Math.trunc(Number(packetTicker && packetTicker.rxRecent5m) || 0));
+                const packetLastUnix = Number(packetTicker && packetTicker.lastPacketUnix);
+                const packetLastTxUnix = Number(packetTicker && packetTicker.lastTxUnix);
+                const packetLastRxUnix = Number(packetTicker && packetTicker.lastRxUnix);
+                const packetLastText = (
+                  Number.isFinite(packetLastUnix) && packetLastUnix > 0
+                    ? `${{formatLocalChatTime(packetLastUnix, "n/a", nowUnix)}} (${{formatIdleAge(packetLastUnix, nowUnix)}})`
+                    : "n/a"
+                );
+                const packetLastTxText = (
+                  Number.isFinite(packetLastTxUnix) && packetLastTxUnix > 0
+                    ? `${{formatLocalChatTime(packetLastTxUnix, "n/a", nowUnix)}} (${{formatIdleAge(packetLastTxUnix, nowUnix)}})`
+                    : "n/a"
+                );
+                const packetLastRxText = (
+                  Number.isFinite(packetLastRxUnix) && packetLastRxUnix > 0
+                    ? `${{formatLocalChatTime(packetLastRxUnix, "n/a", nowUnix)}} (${{formatIdleAge(packetLastRxUnix, nowUnix)}})`
+                    : "n/a"
+                );
+                const packetTickerDetail = packetTotal > 0
+                  ? `Radio packets: RX ${{packetRxRecent5m}} / TX ${{packetTxRecent5m}} in 5m, RX ${{packetRxTotal}} / TX ${{packetTxTotal}} total, last any ${{packetLastText}}, last RX ${{packetLastRxText}}, last TX ${{packetLastTxText}}. Trend window: ${{packetSparklineWindowMin}}m`
+                  : "Radio packets: none in current packet buffer";
+                const idleLine = `Idle: ${{idleText}}`;
+                const tooltipLines = [
+                  `${{item.name}} (${{item.id}})`,
+                  `Status: ${{statusLabel}}`,
+                  `Last seen: ${{lastSeenText}}`,
+                  idleLine,
+                  `Role: ${{roleText}}`,
+                  `Hardware: ${{hardwareText}}`,
+                  `Battery: ${{batteryText}}`,
+                  `Hops: ${{hopsText}}`,
+                  `GPS: ${{gpsText}}`,
+                  `Saved P2P: ${{item.p2pPinned ? "yes" : "no"}}`,
+                ];
+                if (showPacketTrendRow) {{
+                  tooltipLines.splice(4, 0, packetTickerDetail);
+                }}
+                if (noteText) {{
+                  tooltipLines.push(`Notes: ${{noteText}}`);
+                }}
+                const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
+                  fallbackToDefaults: false,
+                }});
+                const showTagBadge = Array.isArray(visibleMetaFieldIds)
+                  && visibleMetaFieldIds.includes("favorite");
+                const tagEntry = (typeof nodeTagEntryForNode === "function")
+                  ? nodeTagEntryForNode(nodeId)
+                  : null;
+                const tagActive = !!(tagEntry && tagEntry.preset);
+                const tagLabel = tagActive
+                  ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
+                  : "";
+                if (tagLabel) {{
+                  tooltipLines.push(`Tag: ${{tagLabel}}`);
+                }}
+                const memberTitle = tooltipLines.join("\n");
+                const removeBtn = (activeChatChannel === "direct" && item.p2pPinned)
+                  ? `<button type="button" class="chat-peer-remove-btn" data-node-id="${{escAttr(item.id)}}" title="Remove from peer-to-peer list" aria-label="Remove ${{escAttr(item.id)}} from peer-to-peer list">&times;</button>`
+                  : "";
+                const idleRowTitle = Number.isFinite(snapshot.lastSeenUnix)
+                  ? `Last seen ${{formatLocalChatTime(snapshot.lastSeenUnix, "n/a", nowUnix)}}`
+                  : "Last seen n/a";
+                const idleRowHtml = `<span class="chat-member-idle-time" title="${{escAttr(idleRowTitle)}}">Idle: ${{escAttr(idleText)}}</span>`;
+                let packetDirectionHtml = "";
+                let packetSparkWrapHtml = "";
+                if (showPacketTrendRow) {{
+                  const packetSparklinePath = buildNodePacketSparklinePath(packetSparklineBuckets, 56, 12);
+                  const packetSparklineTrend = classifyNodePacketSparklineTrend(packetSparklineBuckets);
+                  const packetRowTitle = packetTotal > 0
+                    ? `Packet trend: last ${{packetSparklineWindowMin}}m. RX ${{packetRxRecent5m}} / TX ${{packetTxRecent5m}} in last 5m, RX ${{packetRxTotal}} / TX ${{packetTxTotal}} total. Last any ${{packetLastText}}. Last RX ${{packetLastRxText}}. Last TX ${{packetLastTxText}}`
+                    : `No packets from this node in the current packet buffer. Trend window: ${{packetSparklineWindowMin}}m`;
+                  packetDirectionHtml = `<span class="chat-member-packet-direction" title="Per-node radio packet direction in last 5 minutes">RX ${{packetRxRecent5m}} · TX ${{packetTxRecent5m}}</span>`;
+                  packetSparkWrapHtml = `<span class="chat-member-packet-spark-wrap">
+                  <span class="chat-member-packet-trend metric-ticker ${{packetSparklineTrend}}" title="${{escAttr(packetRowTitle)}}">
+                  <svg class="metric-ticker-chart chat-member-packet-sparkline" viewBox="0 0 56 12" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <path d="${{escAttr(packetSparklinePath)}}" />
+                  </svg>
+                </span>
+                </span>`;
+                }}
+                const memberMetaRowHtml = `<span class="chat-member-meta-row">${{idleRowHtml}}${{packetDirectionHtml}}</span>`;
+                const memberFieldsRowHtml = (() => {{
+                  const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
+                  if (!Array.isArray(visibleFieldIds) || visibleFieldIds.length <= 0) return "";
+                  const chips = [];
+                  for (const fieldIdRaw of visibleFieldIds) {{
+                    const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw);
+                    if (!fieldId) continue;
+                    if (fieldId === "favorite") continue;
+                    const def = nodeExplorerFieldDef(fieldId);
+                    const field = nodeProjection && nodeProjection.fields
+                      ? nodeProjection.fields[fieldId]
+                      : null;
+                    if (!def || !field) continue;
+                    const chipLabel = String(def.label || fieldId).trim() || fieldId;
+                    const chipValue = String((field.text != null) ? field.text : "n/a").trim() || "n/a";
+                    const chipTitle = `${{chipLabel}}: ${{String((field.title != null) ? field.title : chipValue)}}`;
+                    chips.push(`<span class="chat-member-metadata-chip" title="${{escAttr(chipTitle)}}">
+                      <span class="chat-member-metadata-key">${{escAttr(chipLabel)}}</span>
+                      <span class="chat-member-metadata-value">${{escAttr(chipValue)}}</span>
+                    </span>`);
+                  }}
+                  if (chips.length <= 0) return "";
+                  return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
+                }})();
+                const actionButtonsHtml = removeBtn || "";
+                const shortNameSeedRaw = String(
+                  (node && (node.short_name || node.shortName || (node.user && (node.user.short_name || node.user.shortName))))
+                  || (nodeProjection && nodeProjection.node && (nodeProjection.node.short_name || nodeProjection.node.shortName || (nodeProjection.node.user && (nodeProjection.node.user.short_name || nodeProjection.node.user.shortName))))
+                  || ""
+                ).trim();
+                const longNameSeedRaw = String(
+                  (node && (node.long_name || node.longName || (node.user && (node.user.long_name || node.user.longName))))
+                  || (nodeProjection && nodeProjection.node && (nodeProjection.node.long_name || nodeProjection.node.longName || (nodeProjection.node.user && (nodeProjection.node.user.long_name || nodeProjection.node.user.longName))))
+                  || (nodeProjection && nodeProjection.name)
+                  || item.name
+                  || ""
+                ).trim();
+                const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(nodeId || item.id || "", item.id || nodeId || "unknown")
+                  : String(nodeId || item.id || "unknown").trim();
+                const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(shortNameSeedRaw, tintOutlineSeed)
+                  : String(shortNameSeedRaw || tintOutlineSeed).trim();
+                const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(longNameSeedRaw, item.name || tintStartSeed || tintOutlineSeed)
+                  : String(longNameSeedRaw || item.name || tintStartSeed || tintOutlineSeed).trim();
+                const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
+                const nodeHue = tagActive
+                  ? nodeTagTintHue(tagEntry, autoNodeHue)
+                  : autoNodeHue;
+                const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
+                const memberTintOptions = {{
+                  scope: "member",
+                  fallbackHue: 145,
+                  tagActive,
+                  hue: nodeHue,
+                  outlineSeed: tintOutlineSeed,
+                  tintStartSeed,
+                  tintEndSeed,
+                }};
+                if (tagActive) {{
+                  memberTintOptions.tintStartHue = nodeHue;
+                  memberTintOptions.tintEndHue = nodeHue;
+                  memberTintOptions.outlineHue = nodeHue;
+                }}
+                const memberTintStyle = (typeof nodeTintStyleVars === "function")
+                  ? `${{nodeTintStyleVars(nodeId, memberTintOptions)}}${{tagStyleVars}}`
+                  : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || 145)))}};${{tagStyleVars}}`;
+                const tagClass = tagActive ? " tagged-node" : "";
+                const tagChipHtml = (showTagBadge && tagActive)
+                  ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
+                  : "";
+                const packetSparkClass = packetSparkWrapHtml ? " has-packet-spark" : "";
+                const actionRowHtml = actionButtonsHtml
+                  ? `<span class="chat-member-actions">${{actionButtonsHtml}}</span>`
+                  : "";
+                return `<div class="chat-member-item status-${{item.status}}${{selectedNodeId === item.id ? " selected-node" : ""}}${{tagClass}}${{packetSparkClass}}" data-node-id="${{escAttr(item.id)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
+                <span class="chat-member-status status-${{item.status}}">●</span>
+                <span class="chat-member-main">
+                  <span class="chat-member-name-row">
+                    <span class="chat-member-name-left">
+                      <span class="chat-member-name status-${{item.status}}">${{escAttr(item.name)}}</span>
+                      ${{tagChipHtml}}
+                    </span>
+                    ${{actionRowHtml}}
+                  </span>
+                  ${{memberMetaRowHtml}}
+                  ${{memberFieldsRowHtml}}
+                </span>
+                ${{packetSparkWrapHtml}}
+              </div>`;
+                }} catch (err) {{
+                const fallbackId = normalizeNodeId(item && item.id);
+                const fallbackName = String((item && item.name) || fallbackId || "Unknown node");
+                const fallbackHue = (typeof nodeTintHue === "function") ? nodeTintHue(fallbackId || "unknown", 145) : 145;
+                const fallbackOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(fallbackId || "unknown", "unknown")
+                  : String(fallbackId || "unknown").trim();
+                const fallbackStartSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText("", fallbackOutlineSeed)
+                  : fallbackOutlineSeed;
+                const fallbackEndSeed = (typeof normalizeNodeTintSeedText === "function")
+                  ? normalizeNodeTintSeedText(fallbackName, fallbackStartSeed || fallbackOutlineSeed)
+                  : String(fallbackName || fallbackStartSeed || fallbackOutlineSeed).trim();
+                const fallbackTintStyle = (typeof nodeTintStyleVars === "function")
+                  ? nodeTintStyleVars(fallbackId || "unknown", {{
+                    scope: "member",
+                    fallbackHue: 145,
+                    tagActive: false,
+                    hue: fallbackHue,
+                    outlineSeed: fallbackOutlineSeed,
+                    tintStartSeed: fallbackStartSeed,
+                    tintEndSeed: fallbackEndSeed,
+                  }})
+                  : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)))}};`;
+                try {{
+                  if (typeof console !== "undefined" && typeof console.error === "function") {{
+                    console.error("Node navigator row render failed", fallbackId || item, err);
+                  }}
+                }} catch (_consoleErr) {{
+                }}
+                return `<div class="chat-member-item status-unknown${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" data-node-tint-outline-seed="${{escAttr(fallbackOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(fallbackStartSeed)}}" data-node-tint-end-seed="${{escAttr(fallbackEndSeed)}}" style="${{escAttr(fallbackTintStyle)}}" title="Node navigator fallback row">
+                <span class="chat-member-status status-unknown">●</span>
+                <span class="chat-member-main">
+                  <span class="chat-member-name-row">
+                    <span class="chat-member-name-left">
+                      <span class="chat-member-name status-unknown">${{escAttr(fallbackName)}}</span>
+                    </span>
+                    <span class="chat-member-actions"></span>
+                  </span>
+                  <span class="chat-member-idle-time">Idle: n/a</span>
+                </span>
+              </div>`;
+                }}
+              }})()
+            )).join("")
+          : (rosterQuery
+              ? '<div class="chat-member-empty">No users match this search.</div>'
+              : '<div class="chat-member-empty">No users discovered yet.</div>');
+        setElementHtmlIfChanged(roomList, nextRoomListHtml, "chat-room-list");
+        if (roomList.dataset.memberClickBound !== "1") {{
+          roomList.dataset.memberClickBound = "1";
+          roomList.addEventListener("click", (ev) => {{
+            const target = ev.target;
+            if (!(target instanceof Element)) return;
+            const removeBtn = target.closest(".chat-peer-remove-btn");
+            if (removeBtn instanceof HTMLButtonElement) {{
+              ev.preventDefault();
+              ev.stopPropagation();
+              const nodeId = normalizeNodeId(removeBtn.dataset.nodeId || "");
+              if (!isCanonicalNodeId(nodeId)) return;
+              const removed = removeManualDirectPeer(nodeId);
+              if (!removed) return;
+              setChatSendStatus(`Peer ${{nodeId}} removed from peer-to-peer list.`);
+              renderChatPeerAddPanel(latestState);
+              return;
+            }}
+            if (target.closest("button")) return;
+            const member = target.closest(".chat-member-item");
+            if (!(member instanceof HTMLElement) || !roomList.contains(member)) return;
+            const nodeId = normalizeNodeId(member.dataset.nodeId || "");
+            if (!isSelectableNodeId(nodeId)) {{
+              selectNode(nodeId, true);
+              return;
+            }}
+            selectNode(nodeId, true);
+          }});
+        }}
+      }}
+      const leftSub = document.getElementById("chat-left-sub");
+      if (leftSub) {{
+        leftSub.textContent = `Scope: ${{channelLabel(activeChatChannel)}} • View Ch: ${{currentMeshChannelViewLabel()}} • Send Ch: ${{currentMeshChannelSendLabel()}} • ${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale`;
+      }}
+
+      renderChatReplyContext();
+      bindChatAutoScroll();
+      bindChatFeedClicks();
+      bindChatReactionControls();
+      bindChatRetryControls();
+      bindChatChangeSummaryControls();
+      syncChatChangeAutoDismiss();
+      renderChatPeerAddPanel(state);
+      highlightNodeSelection();
+      syncChatNodeDetailsDrawer(state, {{
+        fetchHistory: false,
+      }});
+      if (pendingSelectionScroll) {{
+        scrollSelectionIntoView();
+      }} else if (chatScroller instanceof HTMLElement && shouldStickBottom) {{
+        requestAnimationFrame(() => {{
+          chatScroller.scrollTop = chatScroller.scrollHeight;
+          chatStickToBottom = true;
+          syncChatChangeAutoDismiss();
+        }});
+      }}
+      const chatRenderElapsedMs = (
+        chatRenderStartMs > 0
+        && typeof window.performance !== "undefined"
+        && typeof window.performance.now === "function"
+      ) ? Math.max(0, window.performance.now() - chatRenderStartMs) : 0;
+      recordChatPerfSample(chatRenderElapsedMs, feedItems.length, rosterFiltered.length);
+
+      const applyChatFeedSearchFilter = () => {{
+        if (!(feed instanceof HTMLElement)) return;
+        const queryRaw = String(chatFeedSearchQuery == null ? "" : chatFeedSearchQuery);
+        const queryLabel = queryRaw.trim();
+        const query = queryLabel.toLowerCase();
+        const cachedFeedRows = Array.isArray(feed.__meshChatFeedSearchRows)
+          ? feed.__meshChatFeedSearchRows
+          : [];
+        const needsRowRefresh = (
+          cachedFeedRows.length <= 0
+          || cachedFeedRows.some((row) => !(row instanceof HTMLElement) || !row.isConnected || row.parentElement == null)
+        );
+        const feedRows = needsRowRefresh
+          ? Array.from(feed.querySelectorAll(".chat-feed-item")).filter((row) => row instanceof HTMLElement)
+          : cachedFeedRows;
+        if (needsRowRefresh) {{
+          feed.__meshChatFeedSearchRows = feedRows;
+        }}
+        let visibleRows = 0;
+        if (!query) {{
+          for (const row of feedRows) {{
+            if (!(row instanceof HTMLElement)) continue;
+            row.hidden = false;
+            row.classList.remove("chat-feed-search-hidden");
+            visibleRows += 1;
+          }}
+        }} else {{
+        for (const row of feedRows) {{
+          if (!(row instanceof HTMLElement)) continue;
+          let haystack = String(row.__meshSearchHaystack || "");
+          if (!haystack) {{
+            const rowName = String(row.dataset.replyName || "");
+            const rowText = String(row.dataset.replyText || "");
+            haystack = `${{rowName}} ${{rowText}} ${{row.textContent || ""}}`.toLowerCase();
+            row.__meshSearchHaystack = haystack;
+          }}
+          const matches = !query || haystack.includes(query);
+          row.hidden = !matches;
+          row.classList.toggle("chat-feed-search-hidden", !matches);
+          if (matches) visibleRows += 1;
+        }}
+        }}
+        let searchEmpty = feed.querySelector(".chat-feed-empty.chat-feed-search-empty");
+        if (query && feedRows.length > 0 && visibleRows <= 0) {{
+          if (!(searchEmpty instanceof HTMLElement)) {{
+            searchEmpty = document.createElement("div");
+            searchEmpty.className = "chat-feed-empty chat-feed-search-empty";
+            feed.appendChild(searchEmpty);
+          }}
+          searchEmpty.textContent = `No messages match "${{queryLabel}}".`;
+        }} else if (searchEmpty instanceof HTMLElement) {{
+          searchEmpty.remove();
+        }}
+      }};
+
+      const caption = document.getElementById("chat-caption");
+      let searchInput = document.getElementById("chat-feed-search-input");
+      if (!(searchInput instanceof HTMLInputElement) && caption instanceof HTMLElement) {{
+        searchInput = caption.querySelector("#chat-feed-search-input");
+      }}
+      if (searchInput instanceof HTMLInputElement) {{
+        if (document.activeElement !== searchInput && searchInput.value !== String(chatFeedSearchQuery || "")) {{
+          searchInput.value = String(chatFeedSearchQuery || "");
+        }}
+        if (searchInput.dataset.bound !== "1") {{
+          searchInput.dataset.bound = "1";
+          searchInput.addEventListener("input", () => {{
+            chatFeedSearchQuery = String(searchInput.value || "").slice(0, 120);
+            applyChatFeedSearchFilter();
+          }});
+        }}
+      }}
+      applyChatFeedSearchFilter();
+      if (caption instanceof HTMLElement) {{
+        if (chatPerfEnabled) {{
+          caption.title = `Chat render avg ${{chatPerfStats.avgMs.toFixed(1)}}ms, max ${{chatPerfStats.maxMs.toFixed(1)}}ms, samples ${{chatPerfStats.samples}}`;
+        }} else {{
+          caption.removeAttribute("title");
+        }}
+      }}
+    }}

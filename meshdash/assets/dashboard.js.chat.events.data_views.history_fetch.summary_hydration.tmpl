@@ -1,0 +1,158 @@
+    async function fetchOnlineActivity(hoursOverride = nodeHistoryHours) {{
+      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
+      const cacheKey = String(cleanHours);
+      const cached = onlineActivityCache.get(cacheKey);
+      const nowMs = Date.now();
+      // Online activity is an aggregate rollup; refresh less frequently.
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 5, 30000)) {{
+        return cached.data;
+      }}
+      const url = `/api/history/online?hours=${{encodeURIComponent(cleanHours)}}`;
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`online activity API ${{resp.status}}`);
+      const data = await resp.json();
+      onlineActivityCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    async function fetchSummaryMetrics(hoursOverride = nodeHistoryHours) {{
+      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
+      const cacheKey = String(cleanHours);
+      const cached = summaryMetricsCache.get(cacheKey);
+      const nowMs = Date.now();
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 10, 60000)) {{
+        return cached.data;
+      }}
+      const url = `/api/history/summary?hours=${{encodeURIComponent(cleanHours)}}`;
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`summary metrics API ${{resp.status}}`);
+      const data = await resp.json();
+      summaryMetricsCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    async function fetchConsoleHistorySearch(opts = null) {{
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const queryText = String(options.queryText ?? options.query ?? "").trim();
+      const params = new URLSearchParams();
+      params.set("q", queryText);
+      const limit = Number(options.limit);
+      const before = Number(options.before);
+      const after = Number(options.after);
+      const scanLimit = Number(options.scanLimit);
+      const scope = String(options.scope || "").trim().toLowerCase();
+      const source = String(options.source || "").trim().toLowerCase();
+      if (Number.isFinite(limit) && limit > 0) {{
+        params.set("limit", String(Math.trunc(limit)));
+      }}
+      if (Number.isFinite(before) && before >= 0) {{
+        params.set("before", String(Math.trunc(before)));
+      }}
+      if (Number.isFinite(after) && after >= 0) {{
+        params.set("after", String(Math.trunc(after)));
+      }}
+      if (Number.isFinite(scanLimit) && scanLimit > 0) {{
+        params.set("scan", String(Math.trunc(scanLimit)));
+      }}
+      if (scope) {{
+        params.set("scope", scope);
+      }}
+      if (source) {{
+        params.set("source", source);
+      }}
+      const resp = await fetch(`/api/history/search?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`history search API ${{resp.status}}`);
+      const payload = await resp.json();
+      return (payload && typeof payload === "object") ? payload : {{}};
+    }}
+
+    function hydrateTickerSeriesFromSummaryMetrics(historyPayload) {{
+      const payload = (historyPayload && typeof historyPayload === "object") ? historyPayload : {{}};
+      const points = sliceSummaryPointsAfterLiveCounterReset(payload.points);
+      const byKey = new Map([
+        ["nodes", []],
+        ["online_nodes", []],
+        ["live_packets", []],
+        ["live_packets_per_min", []],
+        ["real_links", []],
+      ]);
+      for (const point of points) {{
+        if (!point || typeof point !== "object") continue;
+        const bucketUnix = Number(point.bucket_unix);
+        if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+        const bucketMs = Math.floor(bucketUnix) * 1000;
+        const nodeCount = Number(point.node_count);
+        const onlineCount = Number(point.online_node_count);
+        const livePackets = Number(point.live_packet_count);
+        const realLinks = Number(point.real_edge_count);
+        if (Number.isFinite(nodeCount)) {{
+          byKey.get("nodes").push({{ ms: bucketMs, value: nodeCount }});
+        }}
+        if (Number.isFinite(onlineCount)) {{
+          byKey.get("online_nodes").push({{ ms: bucketMs, value: onlineCount }});
+        }}
+        if (Number.isFinite(livePackets)) {{
+          byKey.get("live_packets").push({{ ms: bucketMs, value: livePackets }});
+        }}
+        if (Number.isFinite(realLinks)) {{
+          byKey.get("real_links").push({{ ms: bucketMs, value: realLinks }});
+        }}
+      }}
+
+      const livePacketTotals = byKey.get("live_packets") || [];
+      const livePacketRates = derivePacketsPerMinuteSeriesFromTotals(livePacketTotals);
+      if (livePacketRates.length > 0) {{
+        byKey.set("live_packets_per_min", livePacketRates);
+      }}
+
+      const cutoffMs = Date.now() - metricTickerWindowMs;
+      let loadedAny = false;
+      for (const [metricKey, series] of byKey.entries()) {{
+        if (!Array.isArray(series) || series.length === 0) continue;
+        series.sort((a, b) => Number(a.ms) - Number(b.ms));
+        trimMetricTickerPoints(series, cutoffMs);
+        metricTickerSeries.set(metricKey, series);
+        loadedAny = true;
+      }}
+      if (loadedAny && typeof scheduleMetricTickerSeriesPersist === "function") {{
+        scheduleMetricTickerSeriesPersist();
+      }}
+    }}
+
+    async function hydrateSummaryMetricTickers(hoursOverride = Math.max(2, Math.min(24, nodeHistoryHours))) {{
+      try {{
+        const data = await fetchSummaryMetrics(hoursOverride);
+        hydrateTickerSeriesFromSummaryMetrics(data);
+        summaryMetricsHydrated = true;
+        if (latestState) {{
+          renderSummary(latestState);
+        }}
+      }} catch (_err) {{
+        summaryMetricsHydrated = false;
+      }}
+    }}
+
+    async function refreshHistoryPanels(force = false) {{
+      if (activeLayoutView !== "history") return;
+      setMapDataMode("activity");
+      const weeklyKey = String(weeklySummaryHours);
+      if (force) {{
+        summaryMetricsCache.delete(weeklyKey);
+      }}
+      const cachedWeekly = summaryMetricsCache.get(weeklyKey);
+      if (cachedWeekly && cachedWeekly.data) {{
+        renderWeeklySummary(cachedWeekly.data);
+      }} else {{
+        renderWeeklySummaryLoading();
+      }}
+
+      try {{
+        const weekly = await fetchSummaryMetrics(weeklySummaryHours);
+        if (activeLayoutView !== "history") return;
+        renderWeeklySummary(weekly);
+      }} catch (reason) {{
+        if (activeLayoutView !== "history") return;
+        const message = reason instanceof Error ? reason.message : String(reason || "unknown error");
+        renderWeeklySummaryError(message);
+      }}
+    }}

@@ -1,5 +1,14 @@
 # Meshyface Product Plan (working title)
 
+Doc status: active-planning
+Last reviewed: 2026-03-14
+
+Status (reviewed 2026-03-14):
+
+1. This is a direction/intent doc, not an implementation checklist.
+2. Current runtime truth lives in code plus `docs/CHANNELS.md` and `docs/REPO_STRUCTURE.md`.
+3. Rooms remain planned work in this branch.
+
 ## North Star
 
 Build a **Teams‑like chat experience for Meshtastic networks** with a splash of **90’s chatroom culture**:
@@ -16,6 +25,13 @@ Build a **Teams‑like chat experience for Meshtastic networks** with a splash o
 3. Live + historical telemetry side-by-side
 4. Persistent state for replay and benchmarking
 5. LAN-hosted, low-friction deployment
+
+## Current Reality Snapshot (This Branch)
+
+- Chat, direct messages, ACK flow, delivery state, and reactions are implemented.
+- Chat supports scope switching (`Everyone` / `Peer-to-peer`) and independent View Ch/Send Ch handling.
+- Frontend templating is already modularized (`dashboard.js.*.tmpl`, `dashboard.css.*.tmpl`).
+- Rooms protocol/discovery behavior is not implemented end-to-end yet.
 
 ## Milestones
 
@@ -52,7 +68,7 @@ Build a **Teams‑like chat experience for Meshtastic networks** with a splash o
 2. Improve testability with pure helper functions + pytest
 3. Incrementally split large modules only after test coverage is in place
 4. Keep all deprecated tools in `archive/` with clear labels
-5. Execute staged modularization in `docs/REFACTOR_ROADMAP.md`
+5. Treat `docs/REFACTOR_ROADMAP.md` as historical implementation log, not pending mandatory work.
 
 ## Definition of Done For New Features
 

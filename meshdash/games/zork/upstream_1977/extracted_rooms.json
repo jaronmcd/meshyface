@@ -1,0 +1,3506 @@
+{
+  "source": "/home/j/mesh_py/meshdash/games/zork/upstream_1977/zork-master/zork/dung.56",
+  "room_count": 144,
+  "rooms": [
+    {
+      "code": "PASS1",
+      "short_name": "East-West Passage",
+      "long_desc": "You are in a narrow east-west passageway.  There is a narrow stairway\nleading down at the north end of the room.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CAROU"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MTROL"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RAVI1"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "RAVI1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "WHOUS",
+      "short_name": "West of House",
+      "long_desc": "You are in an open field west of a big white house, with a boarded\nfront door.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "NHOUS"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "SHOUS"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "nexit",
+          "message": "The door is locked, and there is evidently no key."
+        }
+      ],
+      "visible_object_codes": [
+        "FDOOR",
+        "MAILB"
+      ]
+    },
+    {
+      "code": "NHOUS",
+      "short_name": "North of House",
+      "long_desc": "You are facing the north side of a white house.  There is no door here,\nand all the windows are barred.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "WHOUS"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "EHOUS"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FORE3"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "nexit",
+          "message": "The windows are all barred."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "SHOUS",
+      "short_name": "South of House",
+      "long_desc": "You are facing the south side of a white house. There is no door here,\nand all the windows are barred.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "WHOUS"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "EHOUS"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE2"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "nexit",
+          "message": "The windows are all barred."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "EHOUS",
+      "short_name": "Behind House",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "NHOUS"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "SHOUS"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "WEST",
+          "kind": "cexit",
+          "condition": "KITCHEN-WINDOW",
+          "target": "KITCH"
+        },
+        {
+          "direction": "ENTER",
+          "kind": "cexit",
+          "condition": "KITCHEN-WINDOW",
+          "target": "KITCH"
+        }
+      ],
+      "visible_object_codes": [
+        "WIND1"
+      ]
+    },
+    {
+      "code": "KITCH",
+      "short_name": "Kitchen",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "KITCHEN-WINDOW",
+          "target": "EHOUS"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LROOM"
+        },
+        {
+          "direction": "EXIT",
+          "kind": "cexit",
+          "condition": "KITCHEN-WINDOW",
+          "target": "EHOUS"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "ATTIC"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "Only Santa Claus climbs down chimneys."
+        }
+      ],
+      "visible_object_codes": [
+        "BOTTL",
+        "SBAG",
+        "WIND2"
+      ]
+    },
+    {
+      "code": "ATTIC",
+      "short_name": "Attic",
+      "long_desc": "You are in the attic.  The only exit is stairs that lead down.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "KITCH"
+        }
+      ],
+      "visible_object_codes": [
+        "BRICK",
+        "KNIFE",
+        "ROPE"
+      ]
+    },
+    {
+      "code": "LROOM",
+      "short_name": "Living Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "KITCH"
+        },
+        {
+          "direction": "WEST",
+          "kind": "cexit",
+          "condition": "MAGIC-FLAG",
+          "target": "BLROO",
+          "message": "The door is nailed shut."
+        },
+        {
+          "direction": "DOWN",
+          "kind": "cexit",
+          "condition": "TRAP-DOOR",
+          "target": "CELLA"
+        }
+      ],
+      "visible_object_codes": [
+        "DOOR",
+        "LAMP",
+        "PAPER",
+        "RUG",
+        "SWORD",
+        "TCASE",
+        "WDOOR"
+      ]
+    },
+    {
+      "code": "CELLA",
+      "short_name": "Cellar",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MTROL"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CHAS2"
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "TRAP-DOOR",
+          "target": "LROOM",
+          "message": "The trap door has been barred from the other side."
+        },
+        {
+          "direction": "WEST",
+          "kind": "nexit",
+          "message": "You try to ascend the ramp, but it is impossible, and you slide back down."
+        }
+      ],
+      "visible_object_codes": [
+        "TDOOR"
+      ]
+    },
+    {
+      "code": "MTROL",
+      "short_name": "The Troll Room",
+      "long_desc": "You are in a small room with passages off in all directions. \nBloodstains and deep scratches (perhaps made by an axe) mar the\nwalls.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "CELLA"
+        },
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "TROLL-FLAG",
+          "target": "CRAW4"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "cexit",
+          "condition": "TROLL-FLAG",
+          "target": "PASS1"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "cexit",
+          "condition": "TROLL-FLAG",
+          "target": "MAZE1"
+        }
+      ],
+      "visible_object_codes": [
+        "TROLL"
+      ]
+    },
+    {
+      "code": "MAZE1",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MTROL"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE1"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZE2"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE2",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZE1"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE4"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE3",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE2"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE4"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MAZE5"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE4",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE3"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "DEAD1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD1",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZE4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE5",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "DEAD2"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE3"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MAZE6"
+        }
+      ],
+      "visible_object_codes": [
+        "BAGCO",
+        "BLANT",
+        "BONES",
+        "KEYS",
+        "RKNIF"
+      ]
+    },
+    {
+      "code": "DEAD2",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE5"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE6",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "MAZE5"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE7"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE6"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MAZE9"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE7",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MAZ14"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE6"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "DEAD1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE8"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZ15"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE8",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MAZE7"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE8"
+        },
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "DEAD3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD3",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE8"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZE9",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAZE6"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZ11"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "MAZ10"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZ13"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ12"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "MAZE9"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZ10",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE9"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ13"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MAZ11"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZ11",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MGRAT"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "MAZ10"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "MAZ13"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MAZ12"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MGRAT",
+      "short_name": "Grating Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MAZ11"
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "KEY-FLAG",
+          "target": "CLEAR",
+          "message": "The grating is locked"
+        }
+      ],
+      "visible_object_codes": [
+        "GRAT2"
+      ]
+    },
+    {
+      "code": "MAZ12",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZE5"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MAZ11"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZ13"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MAZE9"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "DEAD4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD4",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZ12"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZ13",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAZE9"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "MAZ12"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZ10"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ11"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZ14",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ15"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "MAZ14"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MAZE7"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZE7"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MAZ15",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ14"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MAZE7"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "CYCLO"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FORE1",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FORE1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "FORE3"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE2"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FORE4",
+      "short_name": "",
+      "long_desc": "You are in a large forest, with trees obstructing all views except\nto the east, where a small clearing may be seen through the trees.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CLTOP"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FORE5"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE4"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE2"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FORE5",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FORE5"
+        },
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "CLTOP"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE4"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE2"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FORE2",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "SHOUS"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE4"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FORE3",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FORE2"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "NHOUS"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CLEAR",
+      "short_name": "Clearing",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "EHOUS"
+        },
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "FORE5"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CLEAR"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE3"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE2"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "cexit",
+          "condition": "KEY-FLAG",
+          "target": "MGRAT"
+        }
+      ],
+      "visible_object_codes": [
+        "GRAT1",
+        "LEAVE"
+      ]
+    },
+    {
+      "code": "RAVI1",
+      "short_name": "Deep Ravine",
+      "long_desc": "You are in a deep ravine at a crossing with an east-west crawlway. \nSome stone steps are at the south of the ravine and a steep staircase\ndescends.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "PASS1"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RESES"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CHAS1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "CRAW1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CRAW1",
+      "short_name": "Rocky Crawl",
+      "long_desc": "You are in a crawlway with a three-foot high ceiling.  Your footing\nis very unsure here due to the assortment of rocks underfoot. \nPassages can be seen in the east, west, and northwest corners of the\npassage.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "RAVI1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "DOME"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "EGYPT"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "RESES",
+      "short_name": "Reservoir South",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "cexit",
+          "condition": "EGYPT-FLAG",
+          "target": "RAVI1",
+          "message": "The coffin will not fit through this passage."
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "STREA"
+        },
+        {
+          "direction": "CROSS",
+          "kind": "cexit",
+          "condition": "LOW-TIDE",
+          "target": "RESEN",
+          "message": "You are not equipped for swimming."
+        },
+        {
+          "direction": "NORTH",
+          "kind": "cexit",
+          "condition": "LOW-TIDE",
+          "target": "RESEN",
+          "message": "You are not equipped for swimming."
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "EGYPT-FLAG",
+          "target": "CANY1",
+          "message": "The stairs are too steep for carrying the coffin."
+        }
+      ],
+      "visible_object_codes": [
+        "TRUNK"
+      ]
+    },
+    {
+      "code": "RESEN",
+      "short_name": "Reservoir North",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "ATLAN"
+        },
+        {
+          "direction": "CROSS",
+          "kind": "cexit",
+          "condition": "LOW-TIDE",
+          "target": "RESES",
+          "message": "You are not equipped for swimming."
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "cexit",
+          "condition": "LOW-TIDE",
+          "target": "RESES",
+          "message": "You are not equipped for swimming."
+        }
+      ],
+      "visible_object_codes": [
+        "PUMP"
+      ]
+    },
+    {
+      "code": "STREA",
+      "short_name": "Stream",
+      "long_desc": "You are standing on a path beside a flowing stream.  The path\ntravels to the north and the east.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "RESES"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "ICY"
+        }
+      ],
+      "visible_object_codes": [
+        "FUSE"
+      ]
+    },
+    {
+      "code": "EGYPT",
+      "short_name": "Egyptian Room",
+      "long_desc": "You are in a room which looks like an Egyptian tomb.  There is an\nascending staircase in the room as well as doors, east and south.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "ICY"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "LEDG3"
+        },
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "EGYPT-FLAG",
+          "target": "CRAW1",
+          "message": "The passage is too narrow to accomodate coffins."
+        }
+      ],
+      "visible_object_codes": [
+        "COFFI"
+      ]
+    },
+    {
+      "code": "ICY",
+      "short_name": "Glacier Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "STREA"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "EGYPT"
+        },
+        {
+          "direction": "WEST",
+          "kind": "cexit",
+          "condition": "GLACIER-FLAG",
+          "target": "RUBYR"
+        }
+      ],
+      "visible_object_codes": [
+        "ICE"
+      ]
+    },
+    {
+      "code": "RUBYR",
+      "short_name": "Ruby Room",
+      "long_desc": "You are in a small chamber behind the remains of the Great Glacier.\nTo the south and west are small passageways.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LAVA"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "ICY"
+        }
+      ],
+      "visible_object_codes": [
+        "RUBY"
+      ]
+    },
+    {
+      "code": "ATLAN",
+      "short_name": "Atlantis Room",
+      "long_desc": "You are in an ancient room, long buried by the Reservoir.  There are\nexits here to the southeast and upward.",
+      "exits": [
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "RESEN"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "CAVE1"
+        }
+      ],
+      "visible_object_codes": [
+        "TRIDE"
+      ]
+    },
+    {
+      "code": "CANY1",
+      "short_name": "Deep Canyon",
+      "long_desc": "You are on the south edge of a deep canyon.  Passages lead off\nto the east, south, and northwest.  You can hear the sound of\nflowing water below.",
+      "exits": [
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "RESES"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "DAM"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CAROU"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "ECHO",
+      "short_name": "Loud Room",
+      "long_desc": "You are in a large room with a ceiling which cannot be detected from\nthe ground. There is a narrow passage from east to west and a stone\nstairway leading upward.  The room is extremely noisy.  In fact, it is\ndifficult to hear yourself think.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CHAS3"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "PASS5"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "CAVE3"
+        }
+      ],
+      "visible_object_codes": [
+        "BAR"
+      ]
+    },
+    {
+      "code": "MIRR1",
+      "short_name": "Mirror Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "PASS3"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW2"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CAVE1"
+        }
+      ],
+      "visible_object_codes": [
+        "REFL1"
+      ]
+    },
+    {
+      "code": "MIRR2",
+      "short_name": "Mirror Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "PASS4"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW3"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CAVE2"
+        }
+      ],
+      "visible_object_codes": [
+        "REFL2"
+      ]
+    },
+    {
+      "code": "CAVE1",
+      "short_name": "Cave",
+      "long_desc": "You are in a small cave with an entrance to the north and a stairway\nleading down.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MIRR1"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "ATLAN"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CAVE2",
+      "short_name": "Cave",
+      "long_desc": "You are in a tiny cave with entrances west and north, and a dark,\nforbidding staircase leading down.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW3"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MIRR2"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "LLD1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CRAW2",
+      "short_name": "Steep Crawlway",
+      "long_desc": "You are in a steep and narrow crawlway.  There are two exits nearby to\nthe south and southwest.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MIRR1"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "PASS3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CRAW3",
+      "short_name": "Narrow Crawlway",
+      "long_desc": "You are in a narrow crawlway.  The crawlway leads from north to south.\nHowever the south passage divides to the south and southwest.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CAVE2"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MIRR2"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MGRAI"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "PASS3",
+      "short_name": "Cold Passage",
+      "long_desc": "You are in a cold and damp corridor where a long east-west passageway\nintersects with a northward path.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MIRR1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "SLIDE"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW2"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "PASS4",
+      "short_name": "Winding Passage",
+      "long_desc": "You are in a winding passage.  It seems that there is only an exit\non the east end although the whirring from the round room can be\nheard faintly to the north.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MIRR2"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "nexit",
+          "message": "You hear the whir of the carousel room but can find no entrance."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "SLIDE",
+      "short_name": "Slide Room",
+      "long_desc": "You are in a small chamber, which appears to have been part of a\ncoal mine. On the south wall of the chamber the letters \"Granite\nWall\" are etched in the rock. To the east is a long passage and\nthere is a steep metal slide twisting downward. From the appearance\nof the slide, an attempt to climb up it would be impossible.  To the\nnorth is a small opening.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "PASS3"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CELLA"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "ENTRA"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "ENTRA",
+      "short_name": "Mine Entrance",
+      "long_desc": "You are standing at the entrance of what might have been a coal\nmine. To the northeast and the northwest are entrances to the mine,\nand there is another exit on the south end of the room.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "SLIDE"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "SQUEE"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "TSHAF"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "SQUEE",
+      "short_name": "Squeaky Room",
+      "long_desc": "You are a small room.  Strange squeaky sounds may be heard coming from\nthe passage at the west end.  You may also escape to the south.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "BATS"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "ENTRA"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "TSHAF",
+      "short_name": "Shaft Room",
+      "long_desc": "You are in a large room, in the middle of which is a small shaft\ndescending through the floor into darkness below.  To the west and\nthe north are exits from this room.  Constructed over the top of the\nshaft is a metal framework to which a heavy iron chain is attached.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "You wouldn't fit and would die if you could."
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "ENTRA"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "TUNNE"
+        }
+      ],
+      "visible_object_codes": [
+        "TBASK"
+      ]
+    },
+    {
+      "code": "TUNNE",
+      "short_name": "Wooden Tunnel",
+      "long_desc": "You are in a narrow tunnel with large wooden beams running across\nthe ceiling and around the walls.  A path from the south splits into\npaths running west and northeast.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "TSHAF"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "SMELL"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MINE1"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "SMELL",
+      "short_name": "Smelly Room",
+      "long_desc": "You are in a small non-descript room.  However, from the direction\nof a small descending staircase a foul odor can be detected.  To the\neast is a narrow path.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "BOOM"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "TUNNE"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "BOOM",
+      "short_name": "Gas Room",
+      "long_desc": "You are in a small room which smells strongly of coal gas.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "SMELL"
+        }
+      ],
+      "visible_object_codes": [
+        "BRACE"
+      ]
+    },
+    {
+      "code": "TLADD",
+      "short_name": "Ladder Top",
+      "long_desc": "You are in a very small room.  In the corner is a rickety wooden\nladder, leading downward.  It might be safe to descend.  There is\nalso a staircase leading upward.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "BLADD"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MINE7"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE1",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MINE4"
+        },
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "MINE2"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "TUNNE"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE2",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MINE1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MINE5"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MINE3"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MINE4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE3",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MINE2"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MINE5"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MINE5"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE4",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MINE5"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "MINE6"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MINE1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MINE2"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE5",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "MINE6"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MINE7"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MINE2"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MINE3"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MINE3"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MINE4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE6",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "MINE4"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "MINE5"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "MINE7"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "MINE7",
+      "short_name": "",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MINE1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MINE5"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "TLADD"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "MINE6"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "BLADD",
+      "short_name": "Ladder Bottom",
+      "long_desc": "You are in a rather wide room.  On one side is the bottom of a\nnarrow wooden ladder.  To the northeast and the south are passages\nleaving the room.",
+      "exits": [
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "DEAD7"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "TIMBE"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "TLADD"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD7",
+      "short_name": "Dead End",
+      "long_desc": "Dead End",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "BLADD"
+        }
+      ],
+      "visible_object_codes": [
+        "COAL"
+      ]
+    },
+    {
+      "code": "TIMBE",
+      "short_name": "Timber Room",
+      "long_desc": "You are in a long and narrow passage, which is cluttered with broken\ntimbers.  A wide passage comes from the north and turns at the \nsouthwest corner of the room into a very narrow passageway.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "BLADD"
+        },
+        {
+          "direction": "SW",
+          "kind": "cexit",
+          "condition": "EMPTY-HANDED",
+          "target": "BSHAF"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "BSHAF",
+      "short_name": "Lower Shaft",
+      "long_desc": "You are in a small square room which is at the bottom of a long\nshaft. To the east is a passageway and to the northeast a very narrow\npassage. In the shaft can be seen a heavy iron chain.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MACHI"
+        },
+        {
+          "direction": "OUT",
+          "kind": "cexit",
+          "condition": "EMPTY-HANDED",
+          "target": "TIMBE"
+        },
+        {
+          "direction": "NE",
+          "kind": "cexit",
+          "condition": "EMPTY-HANDED",
+          "target": "TIMBE"
+        },
+        {
+          "direction": "UP",
+          "kind": "nexit",
+          "message": "Not a chance."
+        },
+        {
+          "direction": "CLIMB",
+          "kind": "nexit",
+          "message": "The chain is not climbable."
+        }
+      ],
+      "visible_object_codes": [
+        "FBASK"
+      ]
+    },
+    {
+      "code": "MACHI",
+      "short_name": "Machine Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "BSHAF"
+        }
+      ],
+      "visible_object_codes": [
+        "MACHI",
+        "MSWIT"
+      ]
+    },
+    {
+      "code": "BATS",
+      "short_name": "Bat Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "SQUEE"
+        }
+      ],
+      "visible_object_codes": [
+        "BAT",
+        "JADE"
+      ]
+    },
+    {
+      "code": "DOME",
+      "short_name": "Dome Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CRAW1"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "cexit",
+          "condition": "DOME-FLAG",
+          "target": "MTORC",
+          "message": "You cannot go down without fracturing many bones."
+        },
+        {
+          "direction": "CLIMB",
+          "kind": "cexit",
+          "condition": "DOME-FLAG",
+          "target": "MTORC",
+          "message": "You cannot go down without fracturing many bones."
+        }
+      ],
+      "visible_object_codes": [
+        "RAILI"
+      ]
+    },
+    {
+      "code": "MTORC",
+      "short_name": "Torch Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "nexit",
+          "message": "You cannot reach the rope."
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MTORC"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CRAW4"
+        }
+      ],
+      "visible_object_codes": [
+        "TORCH"
+      ]
+    },
+    {
+      "code": "CRAW4",
+      "short_name": "North-South Crawlway",
+      "long_desc": "You are in a north-south crawlway; a passage goes to the east also.\nThere is a hole above, but it provides no opportunities for climbing.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CHAS2"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "STUDI"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MTROL"
+        },
+        {
+          "direction": "UP",
+          "kind": "nexit",
+          "message": "Not even a human fly could get up it."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CHAS2",
+      "short_name": "West of Chasm",
+      "long_desc": "You are on the west edge of a chasm, the bottom of which cannot be\nseen. The east side is sheer rock, providing no exits.  A narrow\npassage goes west, and the path you are on continues to the north and\nsouth.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "CELLA"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW4"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "GALLE"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "The chasm probably leads straight to the infernal regions."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CAROU",
+      "short_name": "Round room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "CAVE4",
+          "message": ""
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "CAVE4",
+          "message": ""
+        },
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "MGRAI",
+          "message": ""
+        },
+        {
+          "direction": "WEST",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "PASS1",
+          "message": ""
+        },
+        {
+          "direction": "NW",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "CANY1",
+          "message": ""
+        },
+        {
+          "direction": "NE",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "PASS5",
+          "message": ""
+        },
+        {
+          "direction": "SE",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "PASS4",
+          "message": ""
+        },
+        {
+          "direction": "SW",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "MAZE1",
+          "message": ""
+        },
+        {
+          "direction": "EXIT",
+          "kind": "cexit",
+          "condition": "CAROUSEL-FLIP",
+          "target": "PASS3",
+          "message": ""
+        }
+      ],
+      "visible_object_codes": [
+        "IRBOX"
+      ]
+    },
+    {
+      "code": "PASS5",
+      "short_name": "North-South Passage",
+      "long_desc": "You are in a high north-south passage, which forks to the northeast.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CHAS1"
+        },
+        {
+          "direction": "NE",
+          "kind": "room",
+          "target": "ECHO"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CAROU"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CHAS1",
+      "short_name": "Chasm",
+      "long_desc": "A chasm runs southwest to northeast.  You are on the south edge; the\npath exits to the south and to the east.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "RAVI1"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "PASS5"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "Are you out of your mind?"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CAVE3",
+      "short_name": "Damp Cave",
+      "long_desc": "You are in a cave.  Passages exit to the south and to the east, but\nthe cave narrows to a crack to the west.  The earth is particularly\ndamp here.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "ECHO"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "DAM"
+        },
+        {
+          "direction": "WEST",
+          "kind": "nexit",
+          "message": "It is too narrow for most insects."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CHAS3",
+      "short_name": "Ancient Chasm",
+      "long_desc": "A chasm, evidently produced by an ancient river, runs through the\ncave here.  Passages lead off in all directions.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "ECHO"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "TCAVE"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "DEAD5"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "DEAD6"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD5",
+      "short_name": "Dead end",
+      "long_desc": "Dead end",
+      "exits": [
+        {
+          "direction": "SW",
+          "kind": "room",
+          "target": "CHAS3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "DEAD6",
+      "short_name": "Dead end",
+      "long_desc": "Dead end",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CHAS3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CAVE4",
+      "short_name": "Engravings Cave",
+      "long_desc": "You have entered a cave with passages leading north and southeast.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CAROU"
+        },
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "RIDDL"
+        }
+      ],
+      "visible_object_codes": [
+        "ENGRA"
+      ]
+    },
+    {
+      "code": "RIDDL",
+      "short_name": "Riddle Room",
+      "long_desc": "This is a room which is bare on all sides.  There is an exit down. \nTo the east is a great door made of stone.  Above the stone, the\nfollowing words are written: 'No man shall enter this room without\nsolving this riddle:\n  What is tall as a house,\n\t  round as a cup, \n\t  and all the king's horses can't draw it up?'",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CAVE4"
+        },
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "RIDDLE-FLAG",
+          "target": "MPEAR",
+          "message": "Your way is blocked by an invisible force."
+        }
+      ],
+      "visible_object_codes": [
+        "SDOOR"
+      ]
+    },
+    {
+      "code": "MPEAR",
+      "short_name": "Pearl Room",
+      "long_desc": "This is a former broom closet.  The exits are to the east and west.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "BWELL"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "RIDDL"
+        }
+      ],
+      "visible_object_codes": [
+        "PEARL"
+      ]
+    },
+    {
+      "code": "LLD1",
+      "short_name": "Entrance to Hades",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "LLD-FLAG",
+          "target": "LLD2",
+          "message": "Some invisible force prevents you from passing through the gate."
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "CAVE2"
+        },
+        {
+          "direction": "ENTER",
+          "kind": "cexit",
+          "condition": "LLD-FLAG",
+          "target": "LLD2",
+          "message": "Some invisible force prevents you from passing through the gate."
+        }
+      ],
+      "visible_object_codes": [
+        "CORPS",
+        "GATES",
+        "GHOST"
+      ]
+    },
+    {
+      "code": "LLD2",
+      "short_name": "Land of the Living Dead",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "TOMB"
+        },
+        {
+          "direction": "EXIT",
+          "kind": "room",
+          "target": "LLD1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LLD1"
+        }
+      ],
+      "visible_object_codes": [
+        "BODIE"
+      ]
+    },
+    {
+      "code": "MGRAI",
+      "short_name": "Grail Room",
+      "long_desc": "You are standing in a small circular room with a pedestal.  A set of\nstairs leads up, and passages leave to the east and west.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "CAROU"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CRAW3"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "TEMP1"
+        }
+      ],
+      "visible_object_codes": [
+        "GRAIL"
+      ]
+    },
+    {
+      "code": "TEMP1",
+      "short_name": "Temple",
+      "long_desc": "You are in the west end of a large temple.  On the south wall is an \nancient inscription, probably a prayer in a long-forgotten language. \nThe north wall is solid granite.  The entrance at the west end of the\nroom is through huge marble pillars.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MGRAI"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "TEMP2"
+        }
+      ],
+      "visible_object_codes": [
+        "BELL",
+        "PRAYE"
+      ]
+    },
+    {
+      "code": "TEMP2",
+      "short_name": "Altar",
+      "long_desc": "You are in the east end of a large temple.  In front of you is what\nappears to be an altar.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "TEMP1"
+        }
+      ],
+      "visible_object_codes": [
+        "BOOK",
+        "CANDL"
+      ]
+    },
+    {
+      "code": "DAM",
+      "short_name": "Dam",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CANY1"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "DOCK"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "CAVE3"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "LOBBY"
+        }
+      ],
+      "visible_object_codes": [
+        "BOLT",
+        "BUBBL",
+        "DAM"
+      ]
+    },
+    {
+      "code": "LOBBY",
+      "short_name": "Dam Lobby",
+      "long_desc": "This room appears to have been the waiting room for groups touring\nthe dam.  There are exits here to the north and east marked\n'Private', though the doors are open, and an exit to the south.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "DAM"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "MAINT"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "MAINT"
+        }
+      ],
+      "visible_object_codes": [
+        "GUIDE",
+        "MATCH"
+      ]
+    },
+    {
+      "code": "MAINT",
+      "short_name": "Maintenance Room",
+      "long_desc": "You are in what appears to have been the maintenance room for Flood\nControl Dam #3, judging by the assortment of tool chests around the\nroom.  Apparently, this room has been ransacked recently, for most of\nthe valuable equipment is gone. On the wall in front of you is a\npanel of buttons, which are labelled in EBCDIC. However, they are of\ndifferent colors:  Blue, Yellow, Brown, and Red. The doors to this\nroom are in the west and south ends.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "LOBBY"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LOBBY"
+        }
+      ],
+      "visible_object_codes": [
+        "BLBUT",
+        "BRBUT",
+        "LEAK",
+        "RBUTT",
+        "SCREW",
+        "TUBE",
+        "WRENC",
+        "YBUTT"
+      ]
+    },
+    {
+      "code": "CYCLO",
+      "short_name": "Cyclops Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAZ15"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "cexit",
+          "condition": "MAGIC-FLAG",
+          "target": "BLROO",
+          "message": "The north wall is solid rock."
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "CYCLOPS-FLAG",
+          "target": "TREAS",
+          "message": "The cyclops doesn't look like he'll let you past."
+        }
+      ],
+      "visible_object_codes": [
+        "CYCLO"
+      ]
+    },
+    {
+      "code": "BLROO",
+      "short_name": "Strange Passage",
+      "long_desc": "You are in a long passage.  To the south is one entrance.  On the\neast there is an old wooden door, with a large hole in it (about\ncyclops sized).",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CYCLO"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "LROOM"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "TREAS",
+      "short_name": "Treasure Room",
+      "long_desc": "This is a large room, whose north wall is solid granite.  A number\nof discarded bags, which crumble at your touch, are scattered about\non the floor.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CYCLO"
+        }
+      ],
+      "visible_object_codes": [
+        "CHALI"
+      ]
+    },
+    {
+      "code": "STUDI",
+      "short_name": "Studio",
+      "long_desc": "You are in what appears to have been an artist's studio.  The walls\nand floors are splattered with paints of 69 different colors. \nStrangely enough, nothing of value is hanging here.  At the north and\nnorthwest of the room are open doors (also covered with paint).  An\nextremely dark and narrow chimney leads up from a fireplace; although\nyou might be able to get up it, it seems unlikely you could get back\ndown.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CRAW4"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "GALLE"
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "LIGHT-LOAD",
+          "target": "KITCH",
+          "message": "The chimney is too narrow for you and all of your baggage."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "GALLE",
+      "short_name": "Gallery",
+      "long_desc": "You are in an art gallery.  Most of the paintings which were here\nhave been stolen by vandals with exceptional taste.  The vandals\nleft through either the north or south exits.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CHAS2"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "STUDI"
+        }
+      ],
+      "visible_object_codes": [
+        "PAINT"
+      ]
+    },
+    {
+      "code": "DOCK",
+      "short_name": "Dam Base",
+      "long_desc": "You are at the base of Flood Control Dam #3, which looms above you\nand to the north.  The river Frigid is flowing by here.  Across the\nriver are the White Cliffs which seem to form a giant wall stretching\nfrom north to south along the east shore of the river as it winds its\nway downstream.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "DAM"
+        },
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "DAM"
+        },
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR1"
+        }
+      ],
+      "visible_object_codes": [
+        "IBOAT",
+        "STICK"
+      ]
+    },
+    {
+      "code": "RIVR1",
+      "short_name": "",
+      "long_desc": "You are on the River Frigid in the vicinity of the Dam.  The river\nflows quietly here.  There is a landing on the west shore.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "DOCK"
+        },
+        {
+          "direction": "LAND",
+          "kind": "room",
+          "target": "DOCK"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RIVR2"
+        },
+        {
+          "direction": "EAST",
+          "kind": "unknown"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "RIVR2",
+      "short_name": "",
+      "long_desc": "The River turns a corner here making it impossible to see the\nDam.  The White Cliffs loom on the east bank and large rocks prevent\nlanding on the west.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RIVR3"
+        },
+        {
+          "direction": "EAST",
+          "kind": "unknown"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "RIVR3",
+      "short_name": "",
+      "long_desc": "The river descends here into a valley.  There is a narrow beach on\nthe east below the cliffs and there is some shore on the west which\nmay be suitable.  In the distance a faint rumbling can be heard.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RIVR4"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "WCLF1"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "RCAVE"
+        },
+        {
+          "direction": "LAND",
+          "kind": "nexit",
+          "message": "You must specify which direction here."
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "WCLF1",
+      "short_name": "White Cliffs Beach",
+      "long_desc": "You are on a narrow strip of beach which runs along the base of the\nWhite Cliffs. The only path here is a narrow one, heading south\nalong the Cliffs.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "cexit",
+          "condition": "DEFLATE",
+          "target": "WCLF2"
+        },
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR3"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "WCLF2",
+      "short_name": "White Cliffs Beach",
+      "long_desc": "You are on a rocky, narrow strip of beach beside the Cliffs.  A\nnarrow path leads north along the shore.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "cexit",
+          "condition": "DEFLATE",
+          "target": "WCLF1"
+        },
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "RIVR4",
+      "short_name": "",
+      "long_desc": "The river is running faster here and the sound ahead appears to be\nthat of rushing water.  On the west shore is a sandy beach.  A small\narea of beach can also be seen below the Cliffs.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "RIVR5"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "WCLF2"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "BEACH"
+        },
+        {
+          "direction": "LAND",
+          "kind": "nexit",
+          "message": "Specify the direction to land."
+        }
+      ],
+      "visible_object_codes": [
+        "BUOY"
+      ]
+    },
+    {
+      "code": "RIVR5",
+      "short_name": "",
+      "long_desc": "The sound of rushing water is nearly unbearable here.  On the west\nshore is a large landing area.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "FCHMP"
+        },
+        {
+          "direction": "LAND",
+          "kind": "room",
+          "target": "FANTE"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FCHMP",
+      "short_name": "Moby lossage",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "nexit",
+          "message": ""
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FANTE",
+      "short_name": "Shore",
+      "long_desc": "You are on the shore of the River.  The river here seems somewhat\ntreacherous.  A path travels from north to south here, the south end\nquickly turning around a sharp corner.",
+      "exits": [
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR5"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "BEACH"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FALLS"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "BEACH",
+      "short_name": "Sandy Beach",
+      "long_desc": "You are on a large sandy beach at the shore of the river, which is\nflowing quickly by.  A path runs beside the river to the south here.",
+      "exits": [
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR4"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FANTE"
+        }
+      ],
+      "visible_object_codes": [
+        "STATU"
+      ]
+    },
+    {
+      "code": "RCAVE",
+      "short_name": "Rocky Shore",
+      "long_desc": "You are on the west shore of the river.  An entrance to a cave is\nto the northwest.  The shore is very rocky here.",
+      "exits": [
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "RIVR3"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "TCAVE"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "TCAVE",
+      "short_name": "Small Cave",
+      "long_desc": "You are in a small cave whose exits are on the south and northwest.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "RCAVE"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "CHAS3"
+        }
+      ],
+      "visible_object_codes": [
+        "GUANO",
+        "SHOVE"
+      ]
+    },
+    {
+      "code": "BARRE",
+      "short_name": "Barrel",
+      "long_desc": "You are in a barrel.  Congratulations.  Etched into the side of the\nbarrel is the word 'Geronimo!'.",
+      "exits": [
+        {
+          "direction": "EXIT",
+          "kind": "room",
+          "target": "FALLS"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "FALLS",
+      "short_name": "Aragain Falls",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "cexit",
+          "condition": "RAINBOW",
+          "target": "RAINB"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "FCHMP"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "FANTE"
+        },
+        {
+          "direction": "ENTER",
+          "kind": "room",
+          "target": "BARRE"
+        },
+        {
+          "direction": "UP",
+          "kind": "cexit",
+          "condition": "RAINBOW",
+          "target": "RAINB"
+        }
+      ],
+      "visible_object_codes": [
+        "BARRE",
+        "RAINB"
+      ]
+    },
+    {
+      "code": "RAINB",
+      "short_name": "Rainbow Room",
+      "long_desc": "You are on top of a rainbow (I bet you never thought you would walk\non a rainbow), with a magnificent view of the Falls.  The rainbow\ntravels east-west here.  There is an NBC Commissary here.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "POG"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FALLS"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "POG",
+      "short_name": "End of Rainbow",
+      "long_desc": "You are on a small beach on the continuation of the Frigid River\npast the Falls.  The beach is narrow due to the presence of the White\nCliffs.  The river canyon opens here and sunlight shines in from\nabove. A rainbow crosses over the falls to the west and a narrow path\ncontinues to the southeast.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "unknown"
+        },
+        {
+          "direction": "NW",
+          "kind": "unknown"
+        },
+        {
+          "direction": "WEST",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SE",
+          "kind": "room",
+          "target": "CLBOT"
+        }
+      ],
+      "visible_object_codes": [
+        "POT",
+        "RAINB"
+      ]
+    },
+    {
+      "code": "CLBOT",
+      "short_name": "Canyon Bottom",
+      "long_desc": "You are beneath the walls of the river canyon which may be climbable\nhere.  There is a small stream here, which is the lesser part of the\nrunoff of Aragain Falls. To the north is a narrow path.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "CLMID"
+        },
+        {
+          "direction": "CLIMB",
+          "kind": "room",
+          "target": "CLMID"
+        },
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "POG"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CLMID",
+      "short_name": "Rocky Ledge",
+      "long_desc": "You are on a ledge about halfway up the wall of the river canyon.\nYou can see from here that the main flow from Aragain Falls twists\nalong a passage which it is impossible to enter.  Below you is the\ncanyon bottom.  Above you is more cliff, which still appears\nclimbable.",
+      "exits": [
+        {
+          "direction": "UP",
+          "kind": "room",
+          "target": "CLTOP"
+        },
+        {
+          "direction": "CLIMB",
+          "kind": "room",
+          "target": "CLTOP"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CLBOT"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "CLTOP",
+      "short_name": "Canyon View",
+      "long_desc": "You are at the top of the Great Canyon on its south wall.  From here\nthere is a marvelous view of the Canyon and parts of the Frigid River\nupstream.  Across the canyon, the walls of the White Cliffs still\nappear to loom far above.  Following the Canyon upstream (north and\nnorthwest), Aragain Falls may be seen, complete with rainbow. \nFortunately, my vision is better than average and I can discern the\ntop of the Flood Control Dam #3 far to the distant north.  To the\nwest and south can be seen an immense forest, stretching for miles\naround.  It is possible to climb down into the canyon from here.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "room",
+          "target": "CLMID"
+        },
+        {
+          "direction": "CLIMB",
+          "kind": "room",
+          "target": "CLMID"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "FORE4"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "FORE5"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "VLBOT",
+      "short_name": "Volcano Bottom",
+      "long_desc": "You are at the bottom of a large dormant volcano.  High above you\nlight may be seen entering from the cone of the volcano.  The only\nexit here is to the north.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "LAVA"
+        }
+      ],
+      "visible_object_codes": [
+        "BALLO"
+      ]
+    },
+    {
+      "code": "VAIR1",
+      "short_name": "",
+      "long_desc": "You are about one hundred feet above the bottom of the volcano.  The\ntop of the volcano is clearly visible here.",
+      "exits": [],
+      "visible_object_codes": []
+    },
+    {
+      "code": "VAIR2",
+      "short_name": "",
+      "long_desc": "You are about two hundred feet above the volcano floor.  Looming\nabove is the rim of the volcano.  There is a small ledge on the west\nside.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LEDG2"
+        },
+        {
+          "direction": "LAND",
+          "kind": "room",
+          "target": "LEDG2"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "VAIR3",
+      "short_name": "",
+      "long_desc": "You are high above the floor of the volcano.  From here the rim of\nthe volcano looks very narrow and you are very near it.  To the \neast is what appears to be a viewing ledge, too thin to land on.",
+      "exits": [],
+      "visible_object_codes": []
+    },
+    {
+      "code": "VAIR4",
+      "short_name": "",
+      "long_desc": "You are near the rim of the volcano which is only about 15 feet\nacross.  To the west, there is a place to land on a wide ledge.",
+      "exits": [
+        {
+          "direction": "LAND",
+          "kind": "room",
+          "target": "LEDG4"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "LEDG4"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "LEDG2",
+      "short_name": "Narrow Ledge",
+      "long_desc": "You are on a narrow ledge overlooking the inside of an old dormant\nvolcano.  This ledge appears to be about in the middle between the\nfloor below and the rim above. There is an exit here to the south.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "I wouldn't jump from here."
+        },
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "VAIR2"
+        },
+        {
+          "direction": "WEST",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "LIBRA"
+        }
+      ],
+      "visible_object_codes": [
+        "HOOK1",
+        "ZORKM"
+      ]
+    },
+    {
+      "code": "LIBRA",
+      "short_name": "Library",
+      "long_desc": "You are in a room which must have been a large library, probably\nfor the royal family.  All of the shelves appear to have been gnawed\nto pieces by unfriendly gnomes.  To the north is an exit.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "LEDG2"
+        },
+        {
+          "direction": "OUT",
+          "kind": "room",
+          "target": "LEDG2"
+        }
+      ],
+      "visible_object_codes": [
+        "BLBK",
+        "GRBK",
+        "PUBK",
+        "WHBK"
+      ]
+    },
+    {
+      "code": "LEDG3",
+      "short_name": "Volcano View",
+      "long_desc": "You are on a ledge in the middle of a large volcano.  Below you\nthe volcano bottom can be seen and above is the rim of the volcano.\nA couple of ledges can be seen on the other side of the volcano;\nit appears that this ledge is intermediate in elevation between\nthose on the other side.  The exit from this room is to the east.",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "I wouldn't try that."
+        },
+        {
+          "direction": "CROSS",
+          "kind": "nexit",
+          "message": "It is impossible to cross this distance."
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "EGYPT"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "LEDG4",
+      "short_name": "Wide Ledge",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "It's a long way down."
+        },
+        {
+          "direction": "LAUNC",
+          "kind": "room",
+          "target": "VAIR4"
+        },
+        {
+          "direction": "WEST",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "SAFE"
+        }
+      ],
+      "visible_object_codes": [
+        "HOOK2"
+      ]
+    },
+    {
+      "code": "SAFE",
+      "short_name": "Dusty Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "LEDG4"
+        }
+      ],
+      "visible_object_codes": [
+        "SAFE",
+        "SSLOT"
+      ]
+    },
+    {
+      "code": "LAVA",
+      "short_name": "Lava Room",
+      "long_desc": "You are in a small room, whose walls are formed by an old lava flow.\nThere are exits here to the west and the south.",
+      "exits": [
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "VLBOT"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "RUBYR"
+        }
+      ],
+      "visible_object_codes": []
+    },
+    {
+      "code": "TOMB",
+      "short_name": "Tomb of the Unknown Implementer",
+      "long_desc": "You are in the Tomb of the Unknown Implementer.\nA hollow voice says:  \"That's not a bug, it's a feature!\"",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "LLD2"
+        }
+      ],
+      "visible_object_codes": [
+        "COKES",
+        "HEADS",
+        "LISTS",
+        "TOMB"
+      ]
+    },
+    {
+      "code": "MAGNE",
+      "short_name": "Low Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "unknown"
+        },
+        {
+          "direction": "WEST",
+          "kind": "unknown"
+        },
+        {
+          "direction": "NE",
+          "kind": "unknown"
+        },
+        {
+          "direction": "NW",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SW",
+          "kind": "unknown"
+        },
+        {
+          "direction": "SE",
+          "kind": "unknown"
+        },
+        {
+          "direction": "EAST",
+          "kind": "unknown"
+        }
+      ],
+      "visible_object_codes": [
+        "RBTLB",
+        "ROBOT"
+      ]
+    },
+    {
+      "code": "CMACH",
+      "short_name": "Machine Room",
+      "long_desc": "",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MAGNE"
+        },
+        {
+          "direction": "SOUTH",
+          "kind": "room",
+          "target": "CAGER"
+        }
+      ],
+      "visible_object_codes": [
+        "RNBUT",
+        "SQBUT",
+        "TRBUT"
+      ]
+    },
+    {
+      "code": "CAGER",
+      "short_name": "Dingy Closet",
+      "long_desc": "You are in a dingy closet adjacent to the machine room.  On one wall\nis a small sticker which says\n\t\tProtected by\n\t\t  FROBOZZ\n\t     Magic Alarm Company\n\t      (Hello, footpad!)\n",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "room",
+          "target": "CMACH"
+        }
+      ],
+      "visible_object_codes": [
+        "SPHER"
+      ]
+    },
+    {
+      "code": "CAGED",
+      "short_name": "Cage",
+      "long_desc": "You are trapped inside an iron cage.",
+      "exits": [
+        {
+          "direction": "NORTH",
+          "kind": "nexit",
+          "message": ""
+        }
+      ],
+      "visible_object_codes": [
+        "CAGE"
+      ]
+    },
+    {
+      "code": "TWELL",
+      "short_name": "Top of Well",
+      "long_desc": "You are at the top of the well.  Well done.  There are etchings on\nthe side of the well. There is a small crack across the floor at the\nentrance to a room on the east, but it can be crossed easily.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "ALICE"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "nexit",
+          "message": "It's a long way down!"
+        }
+      ],
+      "visible_object_codes": [
+        "ETCH2"
+      ]
+    },
+    {
+      "code": "BWELL",
+      "short_name": "Circular Room",
+      "long_desc": "You are in a damp circular room, whose walls are made of brick and\nmortar.  The roof of this room is not visible, but there appear to be\nsome etchings on the walls.  There is a passageway to the west.",
+      "exits": [
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "MPEAR"
+        },
+        {
+          "direction": "UP",
+          "kind": "nexit",
+          "message": "The walls cannot be climbed."
+        }
+      ],
+      "visible_object_codes": [
+        "BUCKE",
+        "ETCH1"
+      ]
+    },
+    {
+      "code": "ALICE",
+      "short_name": "Tea Room",
+      "long_desc": "You are in a small square room, in the center of which is a large\noblong table, no doubt set for afternoon tea.  It is clear from the\nobjects on the table that the users were indeed mad.  In the eastern\ncorner of the room is a small hole (no more that four inches high). \nThere are passageways leading away to the west and the northwest.",
+      "exits": [
+        {
+          "direction": "EAST",
+          "kind": "nexit",
+          "message": "Only a mouse could get in there."
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "TWELL"
+        },
+        {
+          "direction": "NW",
+          "kind": "room",
+          "target": "MAGNE"
+        }
+      ],
+      "visible_object_codes": [
+        "ATABL",
+        "BLICE",
+        "ECAKE",
+        "ORICE",
+        "RDICE"
+      ]
+    },
+    {
+      "code": "ALISM",
+      "short_name": "Posts Room",
+      "long_desc": "You are in an enormous room, in the center of which are four wooden\nposts delineating a rectanular area, above which is what appears to\nbe a wooden roof.  In fact, all objects in this room appear to be\nabnormally large. To the east is a passageway.  There is a large\nchasm on the west and the northwest.",
+      "exits": [
+        {
+          "direction": "NW",
+          "kind": "unknown"
+        },
+        {
+          "direction": "EAST",
+          "kind": "room",
+          "target": "ALITR"
+        },
+        {
+          "direction": "WEST",
+          "kind": "unknown"
+        },
+        {
+          "direction": "DOWN",
+          "kind": "unknown"
+        }
+      ],
+      "visible_object_codes": [
+        "POSTS"
+      ]
+    },
+    {
+      "code": "ALITR",
+      "short_name": "Pool Room",
+      "long_desc": "You are in a large room, one half of which is depressed.  There is a\nlarge leak in the ceiling through which brown colored goop is\nfalling.  The only exit to this room is to the west.",
+      "exits": [
+        {
+          "direction": "EXIT",
+          "kind": "room",
+          "target": "ALISM"
+        },
+        {
+          "direction": "WEST",
+          "kind": "room",
+          "target": "ALISM"
+        }
+      ],
+      "visible_object_codes": [
+        "FLASK",
+        "POOL",
+        "SAFFR"
+      ]
+    }
+  ]
+}

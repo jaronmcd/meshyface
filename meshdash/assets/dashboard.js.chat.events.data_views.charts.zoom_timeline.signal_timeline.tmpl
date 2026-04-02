@@ -1,0 +1,12 @@
+    function setSignalTimelineMessage(message) {{
+      setTimelineMessage("signal-timeline", message);
+    }}
+
+    function signalPointUnix(point) {{
+      return timelinePointUnix(point, "bucket_unix", ["bucket_time", "bucket_local"]);
+    }}
+
+    function renderSignalTimeline(rows, padLeft, padRight, width) {{
+      renderTimeline("signal-timeline", rows, padLeft, padRight, width, (row) => signalPointUnix(row));
+    }}
+

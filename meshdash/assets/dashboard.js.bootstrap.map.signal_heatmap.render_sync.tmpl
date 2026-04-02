@@ -1,0 +1,150 @@
+    function updateSignalHeatmapControl(
+      pointsCount = null,
+      supported = supportsSignalHeatmap(),
+      profileLabel = ""
+    ) {{
+      const wrap = document.getElementById("map-heatmap-wrap");
+      const toggle = document.getElementById("map-heatmap-toggle");
+      const modeWrap = document.getElementById("map-heatmap-mode-wrap");
+      const modeSelect = document.getElementById("map-heatmap-mode");
+      const modeConfig = resolveSignalHeatModeConfig();
+      const modeLabel = String(modeConfig && modeConfig.label ? modeConfig.label : "Coverage");
+      const maxAgeSeconds = Number(modeConfig && modeConfig.maxAgeSeconds);
+      const fadeSeconds = Number(modeConfig && modeConfig.freshDropSeconds);
+      const maxAgeMinutes = Math.max(
+        1,
+        Math.round((Number.isFinite(maxAgeSeconds) ? Math.max(0, maxAgeSeconds) : 0) / 60)
+      );
+      const fadeMinutes = Math.max(
+        1,
+        Math.round((Number.isFinite(fadeSeconds) ? Math.max(0, fadeSeconds) : 0) / 60)
+      );
+      const inMapHeatContext = (
+        activeLayoutView === "network"
+        || activeLayoutView === "saved"
+      );
+      if (wrap instanceof HTMLElement) {{
+        wrap.hidden = !inMapHeatContext;
+        wrap.classList.toggle("disabled", !supported);
+        const profileText = profileLabel ? `Tuned for ${{profileLabel}}.` : "";
+        const modeText = ` Mode: ${{modeLabel}} (heard within ~${{maxAgeMinutes}}m).`;
+        const fadeText = ` Freshness decays over ~${{fadeMinutes}}m.`;
+        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5
+          ? " Coverage is geo-locked (km-stable across zoom/latitude)."
+          : "";
+        const devText = " Dev knobs: window.meshHeatmapDev.get()/set()/reset().";
+        const savedModeText = activeLayoutView === "saved"
+          ? " In Node view this shows only the selected node's signal footprint."
+          : "";
+        const baseTitle = supported
+          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}}${{modeText}}${{fadeText}}${{savedModeText}}${{geoText}}${{devText}}`
+          : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
+        if (Number.isFinite(pointsCount)) {{
+          wrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
+        }} else {{
+          wrap.title = baseTitle;
+        }}
+      }}
+      if (modeWrap instanceof HTMLElement) {{
+        modeWrap.hidden = !inMapHeatContext;
+        modeWrap.classList.toggle("disabled", !supported);
+        modeWrap.title = supported
+          ? `Heatmap recency mode. ${{modeLabel}} currently keeps nodes heard within about ${{maxAgeMinutes}} minutes.`
+          : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
+      }}
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = signalHeatmapEnabled;
+        toggle.disabled = !supported;
+      }}
+      if (modeSelect instanceof HTMLSelectElement) {{
+        modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
+        modeSelect.disabled = !supported;
+      }}
+    }}
+
+    function syncSignalHeatmapLayer(nodes, forceHide = false) {{
+      const layers = ensureSignalHeatmapLayers();
+      const profile = resolveSignalHeatProfile();
+      const supported = Array.isArray(layers) && layers.length > 0;
+      const savedSingleNodeMode = activeLayoutView === "saved"
+        && isSelectableNodeId(resolveSavedViewNodeId(latestState));
+      const buckets = supported
+        ? (
+            savedSingleNodeMode
+              ? collectSavedNodeHeatmapBuckets(nodes, profile)
+              : collectSignalHeatmapBuckets(nodes, profile)
+          )
+        : [];
+      const pointsCount = supported
+        ? buckets.reduce((acc, pts) => acc + (Array.isArray(pts) ? pts.length : 0), 0)
+        : 0;
+      updateSignalHeatmapControl(pointsCount, supported, profile.label || "");
+      if (!supported) {{
+        return;
+      }}
+      const baseVisual = resolveSignalHeatVisualOptions(pointsCount);
+      const shouldShow = !(forceHide && !savedSingleNodeMode)
+        && signalHeatmapEnabled
+        && pointsCount > 0;
+
+      for (let i = 0; i < layers.length; i++) {{
+        const layer = layers[i];
+        if (savedSingleNodeMode && i > 0) {{
+          layer.setLatLngs([]);
+          if (map.hasLayer(layer)) {{
+            map.removeLayer(layer);
+          }}
+          continue;
+        }}
+        const bucket = signalHeatBucketDefs[i] || {{}};
+        const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
+        const baseRadiusMul = Number(bucket.radiusMul);
+        const baseBlurMul = Number(bucket.blurMul);
+        const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
+        const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
+        const visual = savedSingleNodeMode
+          ? {{
+              radius: clampNumber(
+                Math.round(baseVisual.radius * 1.3),
+                10,
+                160,
+                baseVisual.radius
+              ),
+              blur: clampNumber(
+                Math.round(baseVisual.blur * 1.2),
+                8,
+                140,
+                baseVisual.blur
+              ),
+              minOpacity: Math.max(baseVisual.minOpacity, 0.42),
+            }}
+          : {{
+              radius: clampNumber(
+                Math.round(baseVisual.radius * radiusMul),
+                10,
+                160,
+                baseVisual.radius
+              ),
+              blur: clampNumber(
+                Math.round(baseVisual.blur * blurMul),
+                8,
+                140,
+                baseVisual.blur
+              ),
+              minOpacity: baseVisual.minOpacity,
+            }};
+        if (typeof layer.setOptions === "function") {{
+          layer.setOptions(visual);
+        }}
+        layer.setLatLngs((buckets[i] || []));
+        if (shouldShow) {{
+          if (!map.hasLayer(layer)) {{
+            layer.addTo(map);
+          }}
+          forceHeatLayerPointerPassthrough(layer);
+        }} else if (map.hasLayer(layer)) {{
+          map.removeLayer(layer);
+        }}
+      }}
+    }}
+

@@ -5,6 +5,7 @@ from .runtime_types import (
     MakeHttpHandlerFn,
     NodeHistoryFn,
     OnlineActivityFn,
+    SummaryMetricsHistoryFn,
     RawGetLocalNodeIdFn,
     SendChatFn,
     SendReactionPacketFn,
@@ -82,6 +83,7 @@ def build_http_handler_factory(
         state_fn: StateFn,
         node_history_fn: NodeHistoryFn | None = None,
         online_activity_fn: OnlineActivityFn | None = None,
+        summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
         send_chat_fn: SendChatFn | None = None,
     ) -> object:
         return make_http_handler_fn(
@@ -89,6 +91,7 @@ def build_http_handler_factory(
             state_fn=state_fn,
             node_history_fn=node_history_fn,
             online_activity_fn=online_activity_fn,
+            summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             default_node_history_hours=default_node_history_hours,
             to_int_fn=to_int_fn,

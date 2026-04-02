@@ -23,6 +23,7 @@ def test_decode_recent_packets_rows_filters_invalid_summary_and_reverses_order()
 def test_decode_recent_chat_rows_filters_invalid_entries_and_reverses_order():
     rows = [
         (json.dumps({"text": "latest"}),),
+        (json.dumps({"text": "MF_FILE_V1|A|mtest123|0|4|AA=="}),),
         (json.dumps(["bad"]),),
         (json.dumps({"text": "oldest"}),),
     ]

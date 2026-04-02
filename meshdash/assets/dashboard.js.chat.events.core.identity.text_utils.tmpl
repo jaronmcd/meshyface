@@ -1,0 +1,84 @@
+    function escAttr(value) {{
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }}
+
+    function splitTrailingUrlPunctuation(urlText) {{
+      let url = String(urlText || "");
+      let trailing = "";
+      const trimSimple = new Set([".", ",", "!", "?", ";", ":"]);
+      const maybeUnbalancedPairs = [
+        [")", "("],
+        ["]", "["],
+        ["}", "{"],
+      ];
+      while (url) {{
+        const last = url.slice(-1);
+        if (trimSimple.has(last)) {{
+          trailing = `${{last}}${{trailing}}`;
+          url = url.slice(0, -1);
+          continue;
+        }}
+        let trimmed = false;
+        for (const [closeChar, openChar] of maybeUnbalancedPairs) {{
+          if (last !== closeChar) continue;
+          const opens = url.split(openChar).length - 1;
+          const closes = url.split(closeChar).length - 1;
+          if (closes > opens) {{
+            trailing = `${{last}}${{trailing}}`;
+            url = url.slice(0, -1);
+            trimmed = true;
+          }}
+          break;
+        }}
+        if (trimmed) continue;
+        break;
+      }}
+      return {{ url, trailing }};
+    }}
+
+    function chatPlainTextToHtml(value, linkify = false) {{
+      const raw = String(value == null ? "" : value);
+      if (!raw) return "";
+
+      const escapeWithBreaks = (textValue) => {{
+        const escaped = escAttr(textValue);
+        return escaped.split("\\n").join("<br/>").split("\n").join("<br/>");
+      }};
+
+      if (!linkify) {{
+        return escapeWithBreaks(raw);
+      }}
+
+      const parts = [];
+      const urlRe = /https?:\/\/[^\x00-\x20<>"'`]+/gi;
+      let start = 0;
+      for (const match of raw.matchAll(urlRe)) {{
+        const index = Number(match.index);
+        if (!Number.isFinite(index) || index < start) continue;
+        const token = String(match[0] || "");
+        if (!token) continue;
+        if (index > start) {{
+          parts.push(escapeWithBreaks(raw.slice(start, index)));
+        }}
+        const split = splitTrailingUrlPunctuation(token);
+        const href = String(split.url || "");
+        const suffix = String(split.trailing || "");
+        const hrefLower = href.toLowerCase();
+        if (href && (hrefLower.startsWith("http://") || hrefLower.startsWith("https://"))) {{
+          parts.push(`<a class="chat-link" href="${{escAttr(href)}}" target="_blank" rel="noopener noreferrer">${{escAttr(href)}}</a>`);
+          if (suffix) parts.push(escapeWithBreaks(suffix));
+        }} else {{
+          parts.push(escapeWithBreaks(token));
+        }}
+        start = index + token.length;
+      }}
+      if (start < raw.length) {{
+        parts.push(escapeWithBreaks(raw.slice(start)));
+      }}
+      return parts.join("");
+    }}
+

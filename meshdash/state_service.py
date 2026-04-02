@@ -1,16 +1,21 @@
+import time
 from collections.abc import Mapping
 from typing import Dict, Optional
 
 from .revision import RevisionInfo, coerce_revision_info
 from .helpers import (
     redact_secrets as _redact_secrets,
+    to_int as _to_int,
     to_jsonable as _to_jsonable,
 )
+from .history_node_names import build_name_change_chat_entries as _build_name_change_chat_entries_helper
 from .nodes_identity import get_local_node_id as _get_local_node_id_helper
 from .nodes import (
+    parse_utc_text_to_unix as _parse_utc_text_to_unix_helper,
     utc_now as _utc_now,
 )
 from .runtime_types import ToJsonableFn, UtcNowFn
+from .radio_connection_status import get_radio_connection_status as _get_radio_connection_status_helper
 from .state_node_contracts import CollectedNodes, coerce_collected_nodes
 from .state_payload_contracts import DashboardStatePayload, StateTrafficPayload
 from .state_service_contracts import (
@@ -19,6 +24,7 @@ from .state_service_contracts import (
     CollectLocalStateFn,
     CollectLocalStateSafeFn,
     CollectNodesFn,
+    GetRadioConnectionStatusFn,
     LoadTrackerNodeCapabilitiesSafeFn,
     LoadTrackerNodeSavedCountsSafeFn,
     LoadTrackerSnapshotSafeFn,
@@ -43,6 +49,23 @@ from .state_summary import (
     modem_preset_from_local_state as _modem_preset_from_local_state_helper,
 )
 from .tracker_snapshot_contracts import coerce_tracker_snapshot, empty_tracker_snapshot
+
+_MODEM_PRESET_ENUM_BY_NUMBER: dict[int, str] = {
+    0: "LONG_FAST",
+    1: "LONG_SLOW",
+    2: "VERY_LONG_SLOW",
+    3: "MEDIUM_SLOW",
+    4: "MEDIUM_FAST",
+    5: "SHORT_SLOW",
+    6: "SHORT_FAST",
+    7: "LONG_MODERATE",
+    8: "SHORT_TURBO",
+    9: "LONG_TURBO",
+}
+_MODEM_PRESET_NORMALIZED_KEYS: dict[str, str] = {
+    str(name).replace("_", "").upper(): name for name in _MODEM_PRESET_ENUM_BY_NUMBER.values()
+}
+_ONLINE_NODE_WINDOW_SECONDS = 10 * 60
 
 
 def _to_jsonable_safe(
@@ -97,6 +120,182 @@ def _coerce_nested_mapping_rows(
     return out
 
 
+def _tracker_radio_link_error(tracker: object) -> Optional[str]:
+    # Tracker implementations may expose radio link state when available.
+    connected = getattr(tracker, "radio_link_connected", None)
+    if connected is not False:
+        return None
+    changed_raw = getattr(tracker, "radio_link_changed_unix", None)
+    try:
+        changed_unix = int(changed_raw) if changed_raw is not None else None
+    except Exception:
+        changed_unix = None
+    age_text = ""
+    if changed_unix is not None and changed_unix > 0:
+        try:
+            age_seconds = max(0, int(time.time()) - changed_unix)
+            age_text = f" ({age_seconds}s)"
+        except Exception:
+            age_text = ""
+    reason_raw = getattr(tracker, "radio_link_error", None)
+    reason = str(reason_raw).strip() if reason_raw else ""
+    if reason:
+        return f"radio link lost{age_text}: {reason}"
+    return f"radio link lost{age_text}"
+
+
+def _chat_entry_sort_unix(entry: object) -> Optional[int]:
+    if not isinstance(entry, Mapping):
+        return None
+    for value in (
+        entry.get("rx_time_unix"),
+        entry.get("time_unix"),
+    ):
+        unix_value = _to_int(value)
+        if unix_value is not None and unix_value > 0:
+            return int(unix_value)
+    for value in (
+        entry.get("rx_time"),
+        entry.get("captured_at"),
+        entry.get("time"),
+    ):
+        unix_value = _parse_utc_text_to_unix_helper(value)
+        if unix_value is not None and unix_value > 0:
+            return int(unix_value)
+    return None
+
+
+def _count_online_nodes(
+    node_rows: list[dict[str, object]],
+    *,
+    now_unix: int,
+    freshness_window_seconds: int = _ONLINE_NODE_WINDOW_SECONDS,
+) -> int:
+    count = 0
+    for row in node_rows:
+        if not isinstance(row, Mapping):
+            continue
+        last_seen_unix = _to_int(row.get("last_heard_unix"))
+        if last_seen_unix is None:
+            last_seen_unix = _to_int(row.get("last_heard_epoch"))
+        if last_seen_unix is None:
+            last_seen_unix = _parse_utc_text_to_unix_helper(row.get("last_heard"))
+        if last_seen_unix is None or last_seen_unix <= 0:
+            continue
+        age_seconds = max(0, int(now_unix) - int(last_seen_unix))
+        if age_seconds <= max(30, int(freshness_window_seconds)):
+            count += 1
+    return count
+
+
+def _merge_recent_chat_entries(
+    *,
+    recent_chat: list[dict[str, object]],
+    recent_packets: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    name_change_entries = _build_name_change_chat_entries_helper(recent_packets=recent_packets)
+    if not name_change_entries:
+        return list(recent_chat)
+
+    decorated_entries: list[tuple[tuple[int, int, int], dict[str, object]]] = []
+    for order, entry in enumerate(recent_chat):
+        sort_unix = _chat_entry_sort_unix(entry)
+        sort_key = (1 if sort_unix is None else 0, 0 if sort_unix is None else int(sort_unix), order)
+        decorated_entries.append((sort_key, entry))
+
+    base_order = len(decorated_entries)
+    for offset, entry in enumerate(name_change_entries):
+        sort_unix = _chat_entry_sort_unix(entry)
+        sort_key = (1 if sort_unix is None else 0, 0 if sort_unix is None else int(sort_unix), base_order + offset)
+        decorated_entries.append((sort_key, entry))
+
+    decorated_entries.sort(key=lambda item: item[0])
+    return [entry for _, entry in decorated_entries]
+
+
+def _normalize_modem_preset(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            number = int(value)
+        except Exception:
+            number = None
+        if number is not None:
+            mapped = _MODEM_PRESET_ENUM_BY_NUMBER.get(number)
+            if mapped:
+                return mapped
+            return str(number)
+
+    text = str(value or "").strip()
+    if not text:
+        return None
+    numeric_text = text
+    if numeric_text.startswith("+"):
+        numeric_text = numeric_text[1:]
+    if numeric_text.isdigit():
+        mapped = _MODEM_PRESET_ENUM_BY_NUMBER.get(int(numeric_text))
+        if mapped:
+            return mapped
+        return numeric_text
+    upper = text.upper()
+    upper = upper.split(".")[-1]
+    upper = upper.replace("MODEMPRESET_", "")
+    upper = upper.replace("CONFIG_LORACONFIG_MODEMPRESET_", "")
+    upper = upper.replace("-", "_").replace(" ", "_")
+    if upper in _MODEM_PRESET_ENUM_BY_NUMBER.values():
+        return upper
+    collapsed = upper.replace("_", "")
+    mapped = _MODEM_PRESET_NORMALIZED_KEYS.get(collapsed)
+    if mapped:
+        return mapped
+    return text
+
+
+def _modem_preset_from_local_config(local_config: object) -> Optional[str]:
+    if not isinstance(local_config, Mapping):
+        return None
+    lora = local_config.get("lora")
+    if isinstance(lora, Mapping):
+        return _normalize_modem_preset(lora.get("modem_preset"))
+    return None
+
+
+def _modem_preset_quick_from_iface(iface: object) -> Optional[str]:
+    """Best-effort lightweight modem preset lookup for lite polling."""
+    local = getattr(iface, "localNode", None)
+    if local is None:
+        get_node = getattr(iface, "getNode", None)
+        if callable(get_node):
+            try:
+                local = get_node("^local")
+            except Exception:
+                local = None
+    if local is None:
+        return None
+
+    local_config = getattr(local, "localConfig", None)
+    from_mapping = _modem_preset_from_local_config(local_config)
+    if from_mapping:
+        return from_mapping
+
+    lora = getattr(local_config, "lora", None)
+    if isinstance(lora, Mapping):
+        preset = _normalize_modem_preset(lora.get("modem_preset"))
+        if preset:
+            return preset
+    elif lora is not None:
+        preset = _normalize_modem_preset(getattr(lora, "modem_preset", None))
+        if preset:
+            return preset
+
+    if isinstance(local, Mapping):
+        return _modem_preset_from_local_config(local.get("local_config"))
+    return None
+
+
 def build_dashboard_state_typed(
     *,
     iface: object,
@@ -111,6 +310,7 @@ def build_dashboard_state_typed(
     modem_preset_from_local_state_fn: ModemPresetFromLocalStateFn = _modem_preset_from_local_state_helper,
     apply_node_saved_counts_fn: ApplyNodeSavedCountsFn = _apply_node_saved_counts_helper,
     build_summary_payload_fn: BuildSummaryPayloadFn = _build_summary_payload_helper,
+    get_radio_connection_status_fn: GetRadioConnectionStatusFn = _get_radio_connection_status_helper,
     load_tracker_snapshot_safe_fn: LoadTrackerSnapshotSafeFn = _load_tracker_snapshot_safe_helper,
     load_tracker_node_saved_counts_safe_fn: LoadTrackerNodeSavedCountsSafeFn = _load_tracker_node_saved_counts_safe_helper,
     load_tracker_node_capabilities_safe_fn: LoadTrackerNodeCapabilitiesSafeFn = _load_tracker_node_capabilities_safe_helper,
@@ -152,6 +352,9 @@ def build_dashboard_state_typed(
         tracker_data = empty_tracker_snapshot()
         if tracker_error is None:
             tracker_error = str(exc)
+    radio_link_error = _tracker_radio_link_error(tracker)
+    if radio_link_error:
+        tracker_error = f"{tracker_error} | {radio_link_error}" if tracker_error else radio_link_error
 
     node_saved_counts_raw, node_saved_counts_error = load_tracker_node_saved_counts_safe_fn(tracker)
     try:
@@ -217,7 +420,16 @@ def build_dashboard_state_typed(
         my_info, my_info_error = None, None
         metadata, metadata_error = None, None
         local_state, local_error = {}, None
-        modem_preset = None
+        modem_preset = _modem_preset_quick_from_iface(iface)
+
+    radio_connection_status: dict[str, object] | None = None
+    try:
+        radio_connection_status_raw = get_radio_connection_status_fn(iface)
+        if isinstance(radio_connection_status_raw, Mapping):
+            radio_connection_status = dict(radio_connection_status_raw)
+    except Exception:
+        radio_connection_status = None
+
     summary_error: Optional[str] = None
     try:
         summary = build_summary_payload_fn(
@@ -245,11 +457,30 @@ def build_dashboard_state_typed(
             modem_preset=modem_preset,
         )
 
+    # Keep radio and DB-known node counts explicit in the summary payload.
+    summary_saved_node_count = _to_int(summary.get("saved_node_count"))
+    if summary_saved_node_count is None:
+        summary_saved_node_count = len(node_saved_counts)
+    summary["saved_node_count"] = max(0, int(summary_saved_node_count))
+    summary_online_node_count = _to_int(summary.get("online_node_count"))
+    if summary_online_node_count is None:
+        summary_online_node_count = _count_online_nodes(
+            nodes.rows,
+            now_unix=int(time.time()),
+        )
+    summary["online_node_count"] = max(0, int(summary_online_node_count))
+    if isinstance(radio_connection_status, Mapping) and radio_connection_status:
+        summary["radio_connection"] = dict(radio_connection_status)
+
+    merged_recent_chat = _merge_recent_chat_entries(
+        recent_chat=tracker_data.recent_chat,
+        recent_packets=tracker_data.recent_packets,
+    )
     traffic_payload = StateTrafficPayload(
         edges=tracker_data.edges,
         port_counts=tracker_data.port_counts,
         recent_packets=tracker_data.recent_packets,
-        recent_chat=tracker_data.recent_chat,
+        recent_chat=merged_recent_chat,
     )
     state_payload = DashboardStatePayload(
         generated_at=utc_now_fn(),
@@ -290,6 +521,7 @@ def build_dashboard_state(
     modem_preset_from_local_state_fn: ModemPresetFromLocalStateFn = _modem_preset_from_local_state_helper,
     apply_node_saved_counts_fn: ApplyNodeSavedCountsFn = _apply_node_saved_counts_helper,
     build_summary_payload_fn: BuildSummaryPayloadFn = _build_summary_payload_helper,
+    get_radio_connection_status_fn: GetRadioConnectionStatusFn = _get_radio_connection_status_helper,
     load_tracker_snapshot_safe_fn: LoadTrackerSnapshotSafeFn = _load_tracker_snapshot_safe_helper,
     load_tracker_node_saved_counts_safe_fn: LoadTrackerNodeSavedCountsSafeFn = _load_tracker_node_saved_counts_safe_helper,
     load_tracker_node_capabilities_safe_fn: LoadTrackerNodeCapabilitiesSafeFn = _load_tracker_node_capabilities_safe_helper,
@@ -310,6 +542,7 @@ def build_dashboard_state(
         modem_preset_from_local_state_fn=modem_preset_from_local_state_fn,
         apply_node_saved_counts_fn=apply_node_saved_counts_fn,
         build_summary_payload_fn=build_summary_payload_fn,
+        get_radio_connection_status_fn=get_radio_connection_status_fn,
         load_tracker_snapshot_safe_fn=load_tracker_snapshot_safe_fn,
         load_tracker_node_saved_counts_safe_fn=load_tracker_node_saved_counts_safe_fn,
         load_tracker_node_capabilities_safe_fn=load_tracker_node_capabilities_safe_fn,
@@ -339,6 +572,7 @@ def build_dashboard_state_lite(
     modem_preset_from_local_state_fn: ModemPresetFromLocalStateFn = _modem_preset_from_local_state_helper,
     apply_node_saved_counts_fn: ApplyNodeSavedCountsFn = _apply_node_saved_counts_helper,
     build_summary_payload_fn: BuildSummaryPayloadFn = _build_summary_payload_helper,
+    get_radio_connection_status_fn: GetRadioConnectionStatusFn = _get_radio_connection_status_helper,
     load_tracker_snapshot_safe_fn: LoadTrackerSnapshotSafeFn = _load_tracker_snapshot_safe_helper,
     load_tracker_node_saved_counts_safe_fn: LoadTrackerNodeSavedCountsSafeFn = _load_tracker_node_saved_counts_safe_helper,
     load_tracker_node_capabilities_safe_fn: LoadTrackerNodeCapabilitiesSafeFn = _load_tracker_node_capabilities_safe_helper,
@@ -365,6 +599,7 @@ def build_dashboard_state_lite(
         modem_preset_from_local_state_fn=modem_preset_from_local_state_fn,
         apply_node_saved_counts_fn=apply_node_saved_counts_fn,
         build_summary_payload_fn=build_summary_payload_fn,
+        get_radio_connection_status_fn=get_radio_connection_status_fn,
         load_tracker_snapshot_safe_fn=load_tracker_snapshot_safe_fn,
         load_tracker_node_saved_counts_safe_fn=load_tracker_node_saved_counts_safe_fn,
         load_tracker_node_capabilities_safe_fn=load_tracker_node_capabilities_safe_fn,

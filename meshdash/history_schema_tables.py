@@ -112,6 +112,41 @@ TABLE_SCHEMA_STATEMENTS = [
       PRIMARY KEY(bucket_unix, from_id, to_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS summary_metrics_1m (
+      bucket_unix INTEGER PRIMARY KEY,
+      node_count INTEGER NOT NULL DEFAULT 0,
+      saved_node_count INTEGER NOT NULL DEFAULT 0,
+      online_node_count INTEGER NOT NULL DEFAULT 0,
+      nodes_with_position INTEGER NOT NULL DEFAULT 0,
+      live_packet_count INTEGER NOT NULL DEFAULT 0,
+      real_edge_count INTEGER NOT NULL DEFAULT 0,
+      last_seen_unix INTEGER NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS environment_metrics_1m (
+      bucket_unix INTEGER NOT NULL,
+      node_id TEXT NOT NULL,
+      node_label TEXT,
+      metric_key TEXT NOT NULL,
+      metric_label TEXT NOT NULL,
+      sample_count INTEGER NOT NULL,
+      value_sum REAL NOT NULL,
+      value_min REAL,
+      value_max REAL,
+      last_value REAL,
+      last_seen_unix INTEGER NOT NULL,
+      PRIMARY KEY(bucket_unix, node_id, metric_key)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dashboard_settings (
+      key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL,
+      updated_unix INTEGER NOT NULL
+    )
+    """,
 
     # Fast per-node rollup of history storage totals.
     #

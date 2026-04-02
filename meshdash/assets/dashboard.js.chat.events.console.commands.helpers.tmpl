@@ -1,0 +1,282 @@
+    async function executeConsoleCommand(parsed, line) {{
+      ensureConsoleCommandsRegistered();
+      const commandDef = consoleCommandRegistry.get(parsed.command);
+      if (!commandDef) {{
+        appendConsoleEventLine(`[console] unknown command: ${{parsed.command}} (try "help")`);
+        return;
+      }}
+      const parseVerbosityArgs = (rawArgs) => {{
+        const source = Array.isArray(rawArgs) ? rawArgs : [];
+        const cleaned = [];
+        let verbosity = 0;
+        for (const token of source) {{
+          const text = String(token == null ? "" : token).trim();
+          const match = text.match(/^-v{1,4}$/i);
+          if (match) {{
+            const level = Math.max(0, Math.min(4, text.length - 1));
+            verbosity = Math.max(verbosity, level);
+            continue;
+          }}
+          cleaned.push(token);
+        }}
+        return {{ args: cleaned, verbosity }};
+      }};
+      const parsedArgs = Array.isArray(parsed.args) ? parsed.args : [];
+      const supportsVerbosity = !!commandDef.supportsVerbosity;
+      let commandArgs = parsedArgs;
+      let commandVerbosity = 0;
+      if (supportsVerbosity) {{
+        const parsedVerbosity = parseVerbosityArgs(parsedArgs);
+        commandArgs = parsedVerbosity.args;
+        commandVerbosity = parsedVerbosity.verbosity;
+      }} else {{
+        const hasVerbosityToken = parsedArgs.some((token) => /^-v{1,4}$/i.test(String(token == null ? "" : token).trim()));
+        if (hasVerbosityToken) {{
+          appendConsoleEventLine(`[${{parsed.command}}] -v is only supported for utility commands.`);
+          return;
+        }}
+      }}
+      try {{
+        const result = await commandDef.run({{
+          line,
+          command: parsed.command,
+          args: commandArgs,
+          verbosity: commandVerbosity,
+          options: parsed.options,
+          comparisons: parsed.comparisons,
+          state: latestState,
+          wildcardMatches,
+          append: (msg) => appendConsoleEventLine(msg),
+        }});
+        if (Array.isArray(result)) {{
+          for (const lineOut of result) {{
+            const text = String(lineOut == null ? "" : lineOut).trimEnd();
+            if (text) appendConsoleEventLine(text);
+          }}
+          return;
+        }}
+        if (result && typeof result === "object") {{
+          if (typeof result.message === "string" && result.message.trim()) {{
+            appendConsoleEventLine(result.message.trim());
+            return;
+          }}
+          try {{
+            appendConsoleEventLine(JSON.stringify(result));
+            return;
+          }} catch (_err) {{
+            return;
+          }}
+        }}
+        const text = String(result == null ? "" : result).trim();
+        if (text) {{
+          appendConsoleEventLine(text);
+        }}
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        appendConsoleEventLine(`[${{parsed.command}}] error: ${{msg}}`);
+      }}
+    }}
+
+    function registerConsoleCommand(commandDef) {{
+      if (!commandDef || typeof commandDef !== "object") return;
+      const name = String(commandDef.name || "").trim().toLowerCase();
+      if (!name) return;
+      const run = typeof commandDef.run === "function"
+        ? commandDef.run
+        : () => `[${{name}}] not implemented`;
+      consoleCommandRegistry.set(name, {{
+        name,
+        usage: String(commandDef.usage || name).trim() || name,
+        description: String(commandDef.description || "").trim(),
+        supportsVerbosity: !!commandDef.supportsVerbosity,
+        run,
+      }});
+    }}
+
+    function formatConsoleListTime(unixSeconds) {{
+      const ts = Number(unixSeconds);
+      if (!Number.isFinite(ts) || ts <= 0) return "n/a";
+      try {{
+        return new Date(Math.floor(ts) * 1000).toISOString().replace("T", " ").replace(".000Z", "Z");
+      }} catch (_err) {{
+        return "n/a";
+      }}
+    }}
+
+    function collectConsoleNodePortMap(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const packets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
+      const byNodeId = new Map();
+      const addPort = (nodeId, portValue) => {{
+        const cleanId = normalizeNodeId(nodeId || "");
+        const cleanPort = String(portValue == null ? "" : portValue).trim();
+        if (!cleanId || !cleanPort || cleanId === "^all") return;
+        let bucket = byNodeId.get(cleanId);
+        if (!(bucket instanceof Set)) {{
+          bucket = new Set();
+          byNodeId.set(cleanId, bucket);
+        }}
+        bucket.add(cleanPort);
+      }};
+      for (const entry of packets) {{
+        const summary = (entry && typeof entry.summary === "object") ? entry.summary : {{}};
+        const packet = (entry && typeof entry.packet === "object") ? entry.packet : {{}};
+        const port = summary.portnum ?? packet.portnum ?? "";
+        if (!String(port == null ? "" : port).trim()) continue;
+        addPort(summary.from ?? packet.from ?? "", port);
+        addPort(summary.to ?? packet.to ?? "", port);
+      }}
+      return byNodeId;
+    }}
+
+    function formatConsolePortSummary(ports, maxPorts = 3) {{
+      const list = Array.isArray(ports) ? ports.filter((port) => !!String(port || "").trim()) : [];
+      if (!list.length) return "n/a";
+      const cap = Math.max(1, Math.floor(Number(maxPorts) || 3));
+      const head = list.slice(0, cap).join(",");
+      if (list.length <= cap) return head;
+      return `${{head}} +${{list.length - cap}}`;
+    }}
+
+    function collectConsoleNodeRows(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const portsByNodeId = collectConsoleNodePortMap(safeState);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const rows = [];
+      for (const node of nodes) {{
+        if (!node || typeof node !== "object") continue;
+        const nodeId = normalizeNodeId(node.id || node.node_id || node.nodeId || "");
+        if (!nodeId) continue;
+        const nodeName = preferredNodeName(node) || String(nodeLabel(node) || "Unknown");
+        const lastSeenUnix = nodeLastHeardUnix(node);
+        const status = freshnessStatus(lastSeenUnix, nowUnix);
+        const hopsNum = Number(node.hops_away);
+        const ports = Array.from(portsByNodeId.get(nodeId) || [])
+          .map((port) => String(port == null ? "" : port).trim())
+          .filter((port) => !!port)
+          .sort((a, b) => a.localeCompare(b));
+        const lat = Number(node.lat);
+        const lon = Number(node.lon);
+        const hasGps = isValidMapCoord(lat, lon);
+        rows.push({{
+          id: nodeId,
+          name: nodeName,
+          status,
+          hops: Number.isFinite(hopsNum) ? Math.trunc(hopsNum) : null,
+          lastSeenUnix: Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : null,
+          ports,
+          hasGps,
+          raw: node,
+        }});
+      }}
+      rows.sort((a, b) => {{
+        const statusCmp = statusRank(a.status) - statusRank(b.status);
+        if (statusCmp !== 0) return statusCmp;
+        const aLast = Number(a.lastSeenUnix || 0);
+        const bLast = Number(b.lastSeenUnix || 0);
+        if (aLast !== bLast) return bLast - aLast;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      }});
+      return rows;
+    }}
+
+    function parseConsoleLiveLayerCsv(rawValue) {{
+      const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+      if (!clean) {{
+        return {{ layers: [], error: "" }};
+      }}
+      const tokens = clean
+        .split(/[,\s]+/)
+        .map((token) => String(token == null ? "" : token).trim())
+        .filter((token) => !!token);
+      if (!tokens.length) {{
+        return {{ layers: [], error: "" }};
+      }}
+      const layers = [];
+      for (const token of tokens) {{
+        const match = token.match(/^l?([123])$/i);
+        if (!match) {{
+          return {{ layers: [], error: token }};
+        }}
+        layers.push(Number(match[1]));
+      }}
+      return {{ layers, error: "" }};
+    }}
+
+    function parseConsoleLiveLayerSelection(ctx) {{
+      const rawArgs = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const options = (ctx && ctx.options && typeof ctx.options === "object") ? ctx.options : {{}};
+      const selectedLayers = new Set();
+      const unknownArgs = [];
+      const unknownOptions = [];
+
+      for (const arg of rawArgs) {{
+        const clean = String(arg == null ? "" : arg).trim();
+        if (!clean) continue;
+        const shortMatch = clean.match(/^-l([123])$/i);
+        if (shortMatch) {{
+          selectedLayers.add(Number(shortMatch[1]));
+          continue;
+        }}
+        unknownArgs.push(clean);
+      }}
+
+      const parseBoolLike = (rawValue) => {{
+        if (rawValue === true) return true;
+        if (rawValue === false) return false;
+        const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+        if (!clean || clean === "1" || clean === "true" || clean === "yes" || clean === "on") return true;
+        if (clean === "0" || clean === "false" || clean === "no" || clean === "off") return false;
+        return null;
+      }};
+
+      const addUnknownOption = (key, rawValue) => {{
+        const valueText = String(rawValue == null ? "" : rawValue).trim();
+        unknownOptions.push(valueText ? `${{key}}=${{valueText}}` : key);
+      }};
+
+      for (const [rawKey, rawValue] of Object.entries(options)) {{
+        const key = String(rawKey == null ? "" : rawKey).trim().toLowerCase();
+        if (!key) continue;
+        if (key === "layer" || key === "layers") {{
+          const parsedLayers = parseConsoleLiveLayerCsv(rawValue);
+          if (parsedLayers.error) {{
+            addUnknownOption(key, rawValue);
+            continue;
+          }}
+          for (const layer of parsedLayers.layers) {{
+            selectedLayers.add(layer);
+          }}
+          continue;
+        }}
+        if (key === "l1" || key === "l2" || key === "l3") {{
+          const enabled = parseBoolLike(rawValue);
+          if (enabled == null) {{
+            addUnknownOption(key, rawValue);
+            continue;
+          }}
+          if (enabled) {{
+            selectedLayers.add(Number(key.slice(1)));
+          }}
+          continue;
+        }}
+        addUnknownOption(key, rawValue);
+      }}
+
+      return {{
+        layers: selectedLayers.size ? selectedLayers : null,
+        unknownArgs,
+        unknownOptions,
+      }};
+    }}
+
+    function formatConsoleLiveLayerLabel(layers) {{
+      if (!(layers instanceof Set) || layers.size < 1) return "";
+      const ordered = [1, 2, 3]
+        .filter((layer) => layers.has(layer))
+        .map((layer) => `l${{layer}}`);
+      return ordered.length ? ` layers=${{ordered.join(",")}}` : "";
+    }}
+

@@ -1,0 +1,557 @@
+    const refreshMs = {refresh_ms};
+    const nodeHistoryHours = {node_history_hours};
+    const nodeHistoryMaxPoints = {node_history_max_points};
+    const resetTickerScaleOnRestart = Number({reset_ticker_scale_on_restart}) === 1;
+    const dashboardMapDefaultCenter = Object.freeze([39.5, -98.35]);
+    const dashboardMapDefaultZoom = 4;
+    const dashboardMapDefaultLeafletOptions = Object.freeze({{
+      preferCanvas: true,
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false,
+      inertia: false,
+      // Wheel zoom should work out of the box. (We previously guarded this to avoid
+      // hijacking page scroll, but that can feel broken and isn't worth the friction.)
+      scrollWheelZoom: true,
+    }});
+
+    function normalizeDashboardMapCenter(center) {{
+      if (Array.isArray(center) && center.length >= 2) {{
+        const lat = Number(center[0]);
+        const lon = Number(center[1]);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {{
+          return [lat, lon];
+        }}
+      }}
+      return [dashboardMapDefaultCenter[0], dashboardMapDefaultCenter[1]];
+    }}
+
+    function createDashboardLeafletMap(containerId, options = null) {{
+      const input = options && typeof options === "object" ? options : {{}};
+      const center = normalizeDashboardMapCenter(input.center);
+      const zoomRaw = Number(input.zoom);
+      const zoom = Number.isFinite(zoomRaw) ? zoomRaw : dashboardMapDefaultZoom;
+      const leafletOverrides = input.leaflet && typeof input.leaflet === "object"
+        ? input.leaflet
+        : {{}};
+      const leafletOptions = Object.assign({{}}, dashboardMapDefaultLeafletOptions, leafletOverrides);
+      return L.map(containerId, leafletOptions).setView(center, zoom);
+    }}
+
+    const map = createDashboardLeafletMap("map");
+
+    // Leaflet.heat (via simpleheat) uses a fixed shadow offset of 200px when
+    // generating its blurred circle stamp.
+    //
+    // When radius+blur grows past ~200px that offset isn't enough to keep the
+    // *solid* fill portion off-canvas, so you can get the infamous "quarter pizza
+    // slice" artifacts (hard 90° wedges) during zoom/pan.
+    //
+    // We patch simpleheat.radius() to use a dynamic offset that always pushes the
+    // solid fill off-canvas while keeping the blurred shadow centered.
+    function patchSimpleHeatForLargeRadii() {{
+      if (!window.simpleheat || !window.simpleheat.prototype) return false;
+      const proto = window.simpleheat.prototype;
+      if (proto.__meshPatchedRadiusV2) return true;
+      proto.__meshPatchedRadiusV2 = true;
+
+      proto.radius = function (radius, blur) {{
+        const r = Number(radius);
+        const b = Number.isFinite(Number(blur)) ? Number(blur) : 15;
+        const safeRadius = Number.isFinite(r) ? Math.max(0, r) : this.defaultRadius;
+        const safeBlur = Number.isFinite(b) ? Math.max(0, b) : 15;
+        const e = (safeRadius + safeBlur);
+
+        const circle = this._circle = document.createElement("canvas");
+        const ctx = circle.getContext("2d");
+        this._r = e;
+        circle.width = circle.height = 2 * e;
+
+        // Match upstream behavior for small circles; scale up when e is large.
+        // Offset must be > e so the filled arc is fully off-canvas.
+        const offset = Math.max(200, Math.ceil(e * 2));
+        ctx.shadowOffsetX = ctx.shadowOffsetY = offset;
+        ctx.shadowBlur = safeBlur;
+        ctx.shadowColor = "black";
+
+        ctx.beginPath();
+        ctx.arc(e - offset, e - offset, safeRadius, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.fill();
+        return this;
+      }};
+
+      return true;
+    }}
+    patchSimpleHeatForLargeRadii();
+    const mapTileConfigs = {{
+      light: {{
+        url: "https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png",
+        options: {{
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors",
+        }},
+      }},
+      dark: {{
+        url: "https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png",
+        options: {{
+          maxZoom: 20,
+          subdomains: "abcd",
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        }},
+      }},
+    }};
+
+    function normalizeDashboardMapTileTheme(themeName) {{
+      return themeName === "dark" ? "dark" : "light";
+    }}
+
+    function createDashboardMapTileLayer(themeName, optionOverrides = null) {{
+      const theme = normalizeDashboardMapTileTheme(themeName);
+      const cfg = mapTileConfigs[theme] || mapTileConfigs.light;
+      const overrides = optionOverrides && typeof optionOverrides === "object"
+        ? optionOverrides
+        : {{}};
+      const layerOptions = Object.assign({{}}, (cfg && cfg.options) || {{}}, overrides);
+      return {{
+        theme,
+        layer: L.tileLayer(cfg.url, layerOptions),
+      }};
+    }}
+
+    const mapOfflineGridPaneName = "mapOfflineGridPane";
+    const mapOfflineAtlasEndpoint = "/api/offline/atlas";
+    const mapOfflineLandmarkCoverageKm = 32;
+    const mapOfflineLandmarkMinSpacingPx = 34;
+    const mapOfflineLandmarkMaxSpacingPx = 110;
+
+    const mapElement = document.getElementById("map");
+    const settingsFixedMapElement = document.getElementById("settings-fixed-map");
+    const settingsFixedMapDefaultCenter = [dashboardMapDefaultCenter[0], dashboardMapDefaultCenter[1]];
+    const settingsFixedMapDefaultZoom = dashboardMapDefaultZoom;
+    const mapFrameElement = mapElement ? mapElement.closest(".map-frame") : null;
+    const topbarElement = document.querySelector(".topbar");
+    const topbarNotifyCornerElement = document.querySelector(".topbar-notify-corner");
+    const nodeLayer = L.layerGroup().addTo(map);
+    const edgeLayer = L.layerGroup().addTo(map);
+    const trailLayer = L.layerGroup().addTo(map);
+    const signalHeatmapPaneName = "signalHeatmapPane";
+    const signalHeatmapGradient = {{
+      0.02: "#1f4f79",
+      0.24: "#2f855a",
+      0.58: "#45ad69",
+      0.82: "#d1a02d",
+      1.0: "#b22222",
+    }};
+    const signalHeatmapLayerOptions = {{
+      maxZoom: 14,
+      gradient: signalHeatmapGradient,
+    }};
+
+    // Leaflet.heat applies a single radius/blur per layer (not per point).
+    // To make stronger signals "reach farther" we bucket points by signal score
+    // and render multiple heat layers with different radii.
+    //
+    // If we only increase radius for strong signals they can look like a bright "bomb".
+    // The strongest buckets therefore *trade a little peak intensity for spread*
+    // (intensityMul < 1), which reads more like "coverage" than "explosion".
+    const signalHeatBucketDefs = [
+      { id: "vweak",  min: 0.0,  max: 0.22, radiusMul: 0.72, blurMul: 0.86, intensityMul: 1.00 },
+      { id: "weak",   min: 0.22, max: 0.44, radiusMul: 0.92, blurMul: 0.95, intensityMul: 1.00 },
+      { id: "mid",    min: 0.44, max: 0.66, radiusMul: 1.18, blurMul: 1.06, intensityMul: 1.00 },
+      { id: "strong", min: 0.66, max: 0.84, radiusMul: 1.62, blurMul: 1.18, intensityMul: 0.96 },
+      { id: "vstrong",min: 0.84, max: 1.01, radiusMul: 2.20, blurMul: 1.34, intensityMul: 0.90 },
+    ];
+    const signalHeatModeDefaults = {{
+      live: {{
+        label: "Live only",
+        freshFullSeconds: 60,
+        freshDropSeconds: 8 * 60,
+        maxAgeSeconds: 15 * 60,
+        tailWeight: 0.02,
+        includeUnknownAge: false,
+      }},
+      coverage: {{
+        label: "Coverage",
+        freshFullSeconds: 4 * 60,
+        freshDropSeconds: 30 * 60,
+        maxAgeSeconds: 120 * 60,
+        tailWeight: 0.03,
+        includeUnknownAge: false,
+      }},
+    }};
+    const signalHeatmapModeAccepted = new Set(Object.keys(signalHeatModeDefaults));
+    const signalHeatProfileDefaults = {{
+      snrMin: -12,
+      snrMax: 10,
+      rssiMin: -125,
+      rssiMax: -88,
+    }};
+    const signalHeatDevKnobsStorageKey = "meshDashboardSignalHeatDevKnobsV3";
+    const consoleSessionStorageKey = "meshDashboardConsoleSessionV1";
+    const consoleFontSizeStorageKey = "meshDashboardConsoleFontSizeV1";
+    const signalHeatDevKnobDefaults = {{
+      radius: 26,
+      blur: 20,
+      radiusSignalGain: 1,
+      minOpacity: 0.46,
+      intensityFloor: 0.015,
+      intensityGamma: 1.22,
+      freshnessFloor: 0.18,
+      freshnessGain: 0.82,
+      greenBias: 0.62,
+      geoRadiusLock: 1,
+      coverageKm: 2.8,
+      blurRatio: 0.78,
+    }};
+    const signalHeatDevKnobBounds = {{
+      radius: [14, 46],
+      blur: [10, 36],
+      radiusSignalGain: [0, 1],
+      minOpacity: [0.04, 0.88],
+      intensityFloor: [0, 0.3],
+      intensityGamma: [0.6, 2.4],
+      freshnessFloor: [0, 1],
+      freshnessGain: [0, 1],
+      greenBias: [0, 1],
+      geoRadiusLock: [0, 1],
+      coverageKm: [0.25, 24],
+      blurRatio: [0.35, 1.4],
+    }};
+    const nodeMarkers = new Map();
+    const nodeMarkerMeta = new Map();
+    const edgeLines = new Map();
+    const edgeLineMeta = new Map();
+    const selectionStorageKey = "meshDashboardSelectedNodeId";
+    const favoritesStorageKey = "meshDashboardFavoriteNodeIdsV1";
+    const nodeTagsStorageKey = "meshDashboardNodeTagsV1";
+    const nodeTagPresetsStorageKey = "meshDashboardNodeTagPresetsV1";
+    const nodeTagQuickPresetStorageKey = "meshDashboardNodeTagQuickPresetV1";
+    const mutedNodesStorageKey = "meshDashboardMutedNodeIdsV1";
+    const nodeNameCacheStorageKey = "meshDashboardNodeNameCacheV1";
+    const nodeNotesStorageKey = "meshDashboardNodeNotesV1";
+    const nodesTableColWidthsStorageKey = "meshDashboardNodesTableColWidthsV1";
+    const portsTableColWidthsStorageKey = "meshDashboardPortsTableColWidthsV1";
+    const linksTableColWidthsStorageKey = "meshDashboardLinksTableColWidthsV1";
+    const historyChatTableColWidthsStorageKey = "meshDashboardHistoryChatTableColWidthsV1";
+    const packetsTableColWidthsStorageKey = "meshDashboardPacketsTableColWidthsV1";
+    const encriptionPacketsTableColWidthsStorageKey = "meshDashboardEncriptionPacketsTableColWidthsV1";
+    const encriptionTrafficTableColWidthsStorageKey = "meshDashboardEncriptionTrafficTableColWidthsV1";
+    const splitStorageKey = "meshDashboardLayoutSplitState";
+    const networkNodesSplitStorageKey = "meshDashboardNetworkNodesSplitPct";
+    const savedNodeSplitStorageKey = "meshDashboardSavedNodePanePct";
+    const savedNodeHistorySplitStorageKey = "meshDashboardSavedNodeMainPct";
+    const historyActivitySplitStorageKey = "meshDashboardHistoryActivityTopPct";
+    const historyChatSplitStorageKey = "meshDashboardHistoryChatMainPct";
+    const botsMainSplitStorageKey = "meshDashboardBotsMainPanePct";
+    const botsCommandSplitStorageKey = "meshDashboardBotsCommandListPct";
+    const chatPanelSplitStorageKey = "meshDashboardChatPanelWidthPx";
+    const macrosPanelSplitStorageKey = "meshDashboardMacrosPanelWidthPx";
+    const layoutViewStorageKey = "meshDashboardLayoutView";
+    const chatChannelStorageKey = "meshDashboardChatChannel";
+    const chatNotificationScopeStorageKey = "meshDashboardChatNotificationScopeV1";
+    const chatTrendsViewStorageKey = "meshDashboardChatTrendsViewEnabledV1";
+    const chatWhoisQuickActionEnabledStorageKey = "meshDashboardWhoisQuickActionEnabledV1";
+    const chatWhoisQuickActionPrefixStorageKey = "meshDashboardWhoisQuickActionPrefixV1";
+    const chatWhoisQuickActionThreadReplyStorageKey = "meshDashboardWhoisQuickActionThreadReplyV1";
+    const chatBotCommandsEnabledStorageKey = "meshDashboardBotCommandsEnabledV1";
+    const chatBotHistoryEnabledStorageKey = "meshDashboardBotHistoryEnabledV1";
+    const botRequestLogStorageKey = "meshDashboardBotRequestLogV1";
+    const botTrafficSnifferCommandsStorageKey = "meshDashboardBotTrafficSnifferCommandsV1";
+    const reversiStateStorageKey = "meshDashboardReversiStateV1";
+    const chatChangeLogStorageKey = "meshDashboardChatChangeLogV1";
+    const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
+    const meshChannelSendIndexStorageKey = "meshDashboardMeshChannelSendIndexV1";
+    const meshChannelAppSendPrefsStorageKey = "meshDashboardMeshChannelAppSendPrefsV1";
+    const channelsAppRoutingExpandedStorageKey = "meshDashboardChannelsAppRoutingExpandedV1";
+    const channelsUiModeStorageKey = "meshDashboardChannelsUiModeV1";
+    const channelsExperimentalStorageKey = "meshDashboardChannelsExperimentalV1";
+    const chatDirectPeersStorageKey = "meshDashboardDirectPeersV1";
+    const chatNodeNavigatorPrefsStorageKey = "meshDashboardChatNodeNavigatorPrefsV1";
+    const chatPerfStorageKey = "meshDashboardChatPerfMetricsV1";
+    const themeStorageKey = "meshDashboardThemePreference";
+    const tickerDensityStorageKey = "meshDashboardTickerDensityV1";
+    const signalHeatmapStorageKey = "meshDashboardSignalHeatmapEnabledV1";
+    const signalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV1";
+    const mapPacketLinesStorageKey = "meshDashboardMapPacketLinesEnabledV1";
+    const networkLegacyExplorerStorageKey = "meshDashboardNetworkLegacyExplorerEnabledV1";
+    const mapBasemapModeStorageKey = "meshDashboardMapBasemapModeV1";
+    const settingsPositionSourceStorageKey = "meshDashboardSettingsPositionSourceV1";
+    const settingsFixedPositionCacheStorageKey = "meshDashboardSettingsFixedPositionCacheV1";
+    const settingsTabStorageKey = "meshDashboardSettingsTabV1";
+    const settingsUniqueNodeColorsStorageKey = "meshDashboardSettingsUniqueNodeColorsV1";
+    const settingsTimeSyncEnabledStorageKey = "meshDashboardSettingsTimeSyncEnabledV1";
+    const settingsTimeSyncTimezoneStorageKey = "meshDashboardSettingsTimeSyncTimezoneV1";
+    const tickerPreferencesStorageKey = "meshDashboardTickerPreferencesV1";
+    const themeSettingsEndpoint = "/api/settings/theme";
+    const radioSettingsEndpoint = "/api/settings/radio";
+    const channelSettingsEndpoint = "/api/settings/channels";
+    const botSettingsEndpoint = "/api/settings/bot";
+    const customTelemetrySettingsEndpoint = "/api/settings/custom_telemetry";
+    const deviceRoleOptions = [
+      "CLIENT",
+      "CLIENT_MUTE",
+      "ROUTER",
+      "ROUTER_CLIENT",
+      "REPEATER",
+      "TRACKER",
+      "SENSOR",
+      "TAK",
+      "CLIENT_HIDDEN",
+      "LOST_AND_FOUND",
+      "TAK_TRACKER",
+      "ROUTER_LATE",
+      "CLIENT_BASE",
+    ];
+    const deviceRoleByNumber = new Map(deviceRoleOptions.map((name, index) => [index, name]));
+    const deviceRebroadcastModeOptions = [
+      "ALL",
+      "ALL_SKIP_DECODING",
+      "LOCAL_ONLY",
+      "KNOWN_ONLY",
+      "NONE",
+      "CORE_PORTNUMS_ONLY",
+    ];
+    const deviceRebroadcastModeByNumber = new Map(deviceRebroadcastModeOptions.map((name, index) => [index, name]));
+    const deviceBuzzerModeOptions = [
+      "ALL_ENABLED",
+      "DISABLED",
+      "NOTIFICATIONS_ONLY",
+      "SYSTEM_ONLY",
+      "DIRECT_MSG_ONLY",
+    ];
+    const deviceBuzzerModeByNumber = new Map(deviceBuzzerModeOptions.map((name, index) => [index, name]));
+    const displayUnitsOptions = ["METRIC", "IMPERIAL"];
+    const displayUnitsByNumber = new Map(displayUnitsOptions.map((name, index) => [index, name]));
+    const displayModeOptions = ["DEFAULT", "TWOCOLOR", "INVERTED", "COLOR"];
+    const displayModeByNumber = new Map(displayModeOptions.map((name, index) => [index, name]));
+    const bluetoothPairingModeOptions = ["RANDOM_PIN", "FIXED_PIN", "NO_PIN"];
+    const bluetoothPairingModeByNumber = new Map(bluetoothPairingModeOptions.map((name, index) => [index, name]));
+    const networkAddressModeOptions = ["DHCP", "STATIC"];
+    const networkAddressModeByNumber = new Map(networkAddressModeOptions.map((name, index) => [index, name]));
+    const serialModeOptions = [
+      "DEFAULT",
+      "SIMPLE",
+      "PROTO",
+      "TEXTMSG",
+      "NMEA",
+      "CALTOPO",
+      "WS85",
+      "VE_DIRECT",
+      "MS_CONFIG",
+      "LOG",
+      "LOGTEXT",
+    ];
+    const serialModeByNumber = new Map(serialModeOptions.map((name, index) => [index, name]));
+    const serialBaudOptions = [
+      "BAUD_DEFAULT",
+      "BAUD_110",
+      "BAUD_300",
+      "BAUD_600",
+      "BAUD_1200",
+      "BAUD_2400",
+      "BAUD_4800",
+      "BAUD_9600",
+      "BAUD_19200",
+      "BAUD_38400",
+      "BAUD_57600",
+      "BAUD_115200",
+      "BAUD_230400",
+      "BAUD_460800",
+      "BAUD_576000",
+      "BAUD_921600",
+    ];
+    const serialBaudByNumber = new Map(serialBaudOptions.map((name, index) => [index, name]));
+    const loraFemLnaModeOptions = ["DISABLED", "ENABLED", "NOT_PRESENT"];
+    const loraFemLnaModeByNumber = new Map(loraFemLnaModeOptions.map((name, index) => [index, name]));
+    const recommendedNodeBroadcastSecs = 6 * 60 * 60;
+    const recommendedPositionBroadcastSecs = 12 * 60 * 60;
+    const recommendedGpsUpdateSecs = 60 * 60;
+    const themeAcceptedModes = new Set(["auto", "dark", "light"]);
+    const chatBottomStickThresholdPx = 28;
+    const chatWarnWindowSeconds = 10 * 60;
+    const chatStaleWindowSeconds = 30 * 60;
+    const chatRosterMaxEntries = 180;
+    const chatFeedMaxEntries = 320;
+    const chatChangeNoticeMaxEntries = 120;
+    const chatChangeSummaryMaxRows = 8;
+    const botRequestLogMaxEntries = 320;
+    const botRequestLogMaxAgeSeconds = 14 * 24 * 60 * 60;
+    const chatChangeAutoDismissVisibleMs = 2200;
+    const chatChangeAutoDismissFadeMs = 480;
+    const chatChangeAutoDismissMinVisibleRatio = 0.68;
+    const historyNotificationMaxRows = 180;
+    const chatPerfEmaAlpha = 0.2;
+    const metricTickerWindowMs = 60 * 60 * 1000;
+    const metricTickerMaxPoints = 240;
+    const metricTickerSeries = new Map();
+    const tickerCatalog = [
+      {{ id: "target", defaultLabel: "Target", metric: false }},
+      {{ id: "known_nodes", defaultLabel: "Known Nodes", metric: true }},
+      {{ id: "online_nodes", defaultLabel: "Nodes Online", metric: true }},
+      {{ id: "packets_per_min", defaultLabel: "Packets / min", metric: true }},
+      {{ id: "channel_util", defaultLabel: "Channel Util", metric: true }},
+      {{ id: "battery", defaultLabel: "Battery", metric: true }},
+      {{ id: "temperature", defaultLabel: "Temp", metric: true }},
+      {{ id: "humidity", defaultLabel: "Humidity", metric: true }},
+      {{ id: "pressure", defaultLabel: "Pressure", metric: true }},
+      {{ id: "wifi", defaultLabel: "Wi-Fi", metric: true }},
+      {{ id: "node", defaultLabel: "Link", metric: true }},
+      {{ id: "chat_channels", defaultLabel: "Chat Channels", metric: false }},
+      {{ id: "chat_roster", defaultLabel: "Roster Health", metric: false }},
+      {{ id: "gps", defaultLabel: "GPS", metric: false }},
+      {{ id: "system", defaultLabel: "System", metric: false }},
+      {{ id: "time", defaultLabel: "Time", metric: false }},
+    ];
+    const tickerCatalogById = new Map(tickerCatalog.map((entry) => [entry.id, entry]));
+    const tickerMetricIds = new Set(tickerCatalog.filter((entry) => entry.metric).map((entry) => entry.id));
+    const tickerDefaultOrder = tickerCatalog.map((entry) => entry.id);
+    const tickerDefaultTrendVisibility = Object.fromEntries(
+      tickerCatalog.map((entry) => [entry.id, !!entry.metric])
+    );
+    const tickerDefaultBatteryWindowHours = 6;
+    const nodeTickerRowKeys = ["snr", "rssi", "route", "hops"];
+    const nodeTickerDefaultRows = {{
+      snr: false,
+      rssi: false,
+      route: false,
+      hops: false,
+    }};
+    const weeklySummaryHours = 24 * 7;
+    const weeklySummaryMetricStorageKey = "meshDashboardWeeklySummaryMetricV1";
+    const weeklySummaryNodeSeriesStorageKey = "meshDashboardWeeklySummaryNodeSeriesV1";
+    const weeklySummaryNodesCompareLegacyStorageKey = "meshDashboardWeeklySummaryNodesCompareV1";
+    const weeklySummaryNodeSeriesOrder = [
+      "online_nodes",
+      "known_nodes",
+      "saved_nodes",
+      "position_nodes",
+    ];
+    const weeklySummaryNodeSeriesControlIds = {{
+      online_nodes: "weekly-summary-node-line-online",
+      known_nodes: "weekly-summary-node-line-known",
+      saved_nodes: "weekly-summary-node-line-saved",
+      position_nodes: "weekly-summary-node-line-position",
+    }};
+    const weeklySummaryNodeSeriesLabels = {{
+      online_nodes: "Online Nodes",
+      known_nodes: "Known Nodes (Radio)",
+      saved_nodes: "Saved Nodes (DB)",
+      position_nodes: "Nodes With Position",
+    }};
+    const weeklySummaryNodeSeriesStyles = {{
+      online_nodes: {{ tone: "line", dashed: false, width: 2.4 }},
+      known_nodes: {{ tone: "compare", dashed: true, width: 2.1 }},
+      saved_nodes: {{ tone: "aux1", dashed: false, width: 2.0 }},
+      position_nodes: {{ tone: "aux2", dashed: true, width: 1.9 }},
+    }};
+    const weeklySummaryNodeSeriesPaletteNames = {{
+      online_nodes: "bluish green",
+      known_nodes: "sky blue",
+      saved_nodes: "orange",
+      position_nodes: "reddish purple",
+    }};
+    const weeklySummaryNodeSeriesDefaults = {{
+      online_nodes: true,
+      known_nodes: true,
+      saved_nodes: true,
+      position_nodes: true,
+    }};
+    const weeklySummaryMetricCatalog = new Map([
+      ["packets", { label: "Packets / min", decimals: 1, smoothingWindow: 19 }],
+      ["nodes", { label: "Nodes", decimals: 0, smoothingWindow: 13 }],
+      ["links", { label: "Directed Links", decimals: 0, smoothingWindow: 1 }],
+    ]);
+    // Generated from Unicode emoji-test.txt and served lazily via /api/chat/emoji-catalog.
+    const chatEmojiCatalogEndpoint = "/api/chat/emoji-catalog";
+    const chatEmojiCatalogFallback = Object.freeze({
+      version: "17.0",
+      date: "2025-08-04, 20:55:31 GMT",
+      groups: [],
+      codepoint_keyword_map: {},
+    });
+    let chatEmojiDataVersion = String(chatEmojiCatalogFallback.version || "unknown");
+    let chatEmojiDataDate = String(chatEmojiCatalogFallback.date || "");
+    let chatEmojiGroups = [];
+    let chatEmojiGroupsById = new Map();
+    let chatEmojiAllChoices = [];
+    let chatEmojiTotalChoices = 0;
+    let chatEmojiChoiceSet = new Set();
+    let chatEmojiDefaultGroup = "all";
+    const chatEmojiPickerStateStorageKey = "meshDashboardEmojiPickerStateV2";
+    const chatEmojiUsageStorageKey = "meshDashboardEmojiUsageV1";
+    const chatEmojiTopUsageCount = 8;
+    const chatEmojiUsagePersistMax = 128;
+    const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊"];
+    const chatEmojiNodesByGroup = new Map();
+    const chatEmojiSearchCache = new Map();
+    const chatEmojiSearchMetaByEmoji = new Map();
+    const chatEmojiSearchTokensByEmoji = new Map();
+    const chatEmojiCodepointIgnoredSet = new Set([0x200d, 0xfe0e, 0xfe0f, 0x20e3]);
+    const chatEmojiChoiceOrder = new Map();
+    const chatEmojiGroupKeywordAliases = {{
+      "smileys-emotion": "emotion emotions feeling feelings mood moods face faces smile smiles happy joy laugh crying sad grief love affection",
+      "people-body": "people person persons human humans body bodies hand hands face faces family families gesture gestures",
+      "animals-nature": "animal animals pet pets nature wildlife creature creatures plant plants flower flowers tree trees weather outdoors",
+      "food-drink": "food foods drink drinks meal meals fruit fruits vegetable vegetables snack snacks cooking kitchen",
+      "travel-places": "travel place places location locations map maps city cities transport transportation vehicle vehicles weather",
+      "activities": "activity activities sport sports game games fun party celebration music art hobby hobbies",
+      "objects": "object objects tool tools item items gear tech technology clothes clothing office household",
+      "symbols": "symbol symbols sign signs icon icons math arrows warning warnings status",
+      "flags": "flag flags country countries nation nations state states regional region",
+    }};
+    const chatEmojiQueryKeywordAliases = {{
+      "emotion": "smile smiley face mood feelings happy sad love",
+      "emotions": "emotion smile smiley face mood feelings",
+      "feeling": "emotion feelings mood smile face",
+      "feelings": "emotion feeling mood smile face",
+      "mood": "emotion feelings happy sad angry love laugh cry",
+      "happy": "smile joy laugh grin celebration",
+      "sad": "cry crying tears upset gloomy",
+      "angry": "mad rage annoyed upset",
+      "love": "heart hearts kiss affection",
+      "animal": "animals nature pet pets wildlife bird cat dog chicken",
+      "animals": "animal nature pet pets wildlife bird cat dog chicken",
+      "pet": "pets animal animals cat dog",
+      "pets": "pet animal animals cat dog",
+      "food": "foods meal meals eat hungry snack drink",
+      "foods": "food meal meals eat hungry snack drink",
+      "party": "celebrate celebration confetti birthday",
+      "celebrate": "party celebration confetti",
+      "celebration": "party celebrate confetti",
+    }};
+    let chatEmojiCodepointKeywordMap = {};
+    const chatEmojiSearchAliases = {{
+      "👍": "thumb thumbs up thumbsup thumbs-up like approve yes ok",
+      "👎": "thumbs down thumbsdown thumbs-down dislike no reject",
+      "❤️": "heart love like favorite fav",
+      "😂": "laugh lol lmao tears joy funny",
+      "🤣": "rolling laugh rofl funny",
+      "😭": "cry crying tears sad upset",
+      "🙏": "pray prayer thanks thank you please",
+      "🔥": "fire lit hot",
+      "💯": "100 hundred perfect",
+      "✅": "check checked done correct yes",
+      "❌": "x cross wrong no stop",
+      "🎉": "party celebrate celebration congrats congratulations",
+      "👏": "clap clapping applause",
+      "😀": "smile happy grinning",
+      "😃": "smile happy grin",
+      "😄": "smile happy",
+      "😁": "grin happy",
+      "😊": "smile blush happy",
+      "😍": "heart eyes love",
+      "😢": "cry sad tear",
+      "😎": "cool sunglasses",
+      "🤔": "think thinking unsure",
+      "🤝": "handshake agreement deal",
+      "👌": "ok okay good",
+      "👀": "eyes look watch",
+      "⚠️": "warning alert caution",
+      "⭐": "star favorite fav",
+      "💪": "muscle strong strength",
+      "✌️": "peace victory",
+    }};
+    let chatEmojiCatalogLoaded = false;
+    let chatEmojiCatalogLoadPromise = null;
+    let chatEmojiCatalogLoadError = "";

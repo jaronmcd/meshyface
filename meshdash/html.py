@@ -12,6 +12,7 @@ def render_html(
     node_history_max_points: int,
     revision_label: str,
     revision_title: str,
+    reset_ticker_scale_on_restart: bool = True,
     light_theme_vars: dict | None = None,
     dark_theme_vars: dict | None = None,
 ) -> str:
@@ -24,6 +25,7 @@ def render_html(
         history_retention_days=history_retention_days,
         node_history_hours=node_history_hours,
         node_history_max_points=node_history_max_points,
+        reset_ticker_scale_on_restart=reset_ticker_scale_on_restart,
         revision_label=revision_label,
         revision_title=revision_title,
         light_theme_vars=light_theme_vars,

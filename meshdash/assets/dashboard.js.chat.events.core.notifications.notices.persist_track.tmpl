@@ -1,0 +1,108 @@
+        const ackSet = chatChangeAcknowledgedKeysByChannel[channelKey];
+        if (ackSet instanceof Set) {{
+          for (const rawKey of ackSet) {{
+            const key = String(rawKey || "").trim();
+            if (!key || !keySet.has(key)) continue;
+            acknowledged.push(key);
+          }}
+        }}
+        return {{
+          notices: encoded,
+          acknowledged,
+        }};
+      }};
+      const payload = {{
+        version: 1,
+        channels: {{
+          all: encodeChannel("all"),
+          direct: encodeChannel("direct"),
+        }},
+      }};
+      try {{
+        window.localStorage.setItem(chatChangeLogStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadChatChangeNotices() {{
+      let payload = null;
+      try {{
+        const raw = window.localStorage.getItem(chatChangeLogStorageKey);
+        payload = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+        payload = null;
+      }}
+      const channels = (payload && typeof payload === "object" && payload.channels && typeof payload.channels === "object")
+        ? payload.channels
+        : null;
+      const hydrateChannel = (channelKey) => {{
+        const normalizedKey = normalizeChatChannel(channelKey);
+        const list = chatChangeNoticesByChannel[normalizedKey];
+        const keySet = chatChangeNoticeKeysByChannel[normalizedKey];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[normalizedKey];
+        if (!Array.isArray(list) || !(keySet instanceof Set) || !(ackSet instanceof Set)) return;
+        list.length = 0;
+        keySet.clear();
+        ackSet.clear();
+        const channelPayload = channels && typeof channels[normalizedKey] === "object"
+          ? channels[normalizedKey]
+          : null;
+        const rawNotices = Array.isArray(channelPayload && channelPayload.notices)
+          ? channelPayload.notices
+          : [];
+        for (const rawNotice of rawNotices) {{
+          const normalized = normalizeChatChangeNotice(rawNotice);
+          if (!normalized || keySet.has(normalized.key)) continue;
+          list.push(normalized);
+          keySet.add(normalized.key);
+        }}
+        while (list.length > chatChangeNoticeMaxEntries) {{
+          const dropped = list.shift();
+          if (dropped && dropped.key) {{
+            keySet.delete(String(dropped.key));
+          }}
+        }}
+        const rawAck = Array.isArray(channelPayload && channelPayload.acknowledged)
+          ? channelPayload.acknowledged
+          : [];
+        for (const rawAckKey of rawAck) {{
+          const ackKey = String(rawAckKey || "").trim();
+          if (!ackKey || !keySet.has(ackKey)) continue;
+          ackSet.add(ackKey);
+        }}
+      }};
+      hydrateChannel("all");
+      hydrateChannel("direct");
+      renderHistoryNotificationLog();
+    }}
+
+    function trackChatChangeNotice(entry) {{
+      if (!entry || typeof entry !== "object") return;
+      const channel = normalizeChatChannel(entry.channel);
+      const key = String(entry.key || "").trim();
+      if (!key) return;
+      const keySet = chatChangeNoticeKeysByChannel[channel];
+      const list = chatChangeNoticesByChannel[channel];
+      const ackSet = chatChangeAcknowledgedKeysByChannel[channel];
+      if (!(keySet instanceof Set) || !Array.isArray(list)) return;
+      if (keySet.has(key)) return;
+      const normalized = normalizeChatChangeNotice(entry, key);
+      if (!normalized) return;
+      list.push(normalized);
+      keySet.add(key);
+      while (list.length > chatChangeNoticeMaxEntries) {{
+        const dropped = list.shift();
+        if (dropped && dropped.key) {{
+          keySet.delete(String(dropped.key));
+          if (ackSet instanceof Set) {{
+            ackSet.delete(String(dropped.key));
+          }}
+        }}
+      }}
+      persistChatChangeNotices();
+      // The chat rail/title count only unread chat messages now, but notification
+      // history still needs an immediate rerender when new missed updates arrive.
+      syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
+    }}
+

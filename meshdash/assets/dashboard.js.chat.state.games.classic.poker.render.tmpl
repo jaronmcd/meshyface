@@ -1,0 +1,264 @@
+    function pokerSeatShouldReveal(state, seatIndexRaw) {{
+      const seatIndex = Math.trunc(Number(seatIndexRaw) || 0);
+      if (!state || typeof state !== "object") return false;
+      if (state.phase === "showdown") return true;
+      return (state.phase === "draw" || state.phase === "betting") && seatIndex === Number(state.current_player);
+    }}
+
+    function pokerSeatSlotLayout(playerCountRaw) {{
+      const playerCount = normalizePokerPlayerCount(playerCountRaw, pokerDefaultPlayers);
+      if (playerCount <= 2) return [0, 3];
+      if (playerCount === 3) return [0, 1, 2];
+      return [0, 1, 2, 3];
+    }}
+
+    function pokerPotChipModel(potTotalRaw) {{
+      const total = normalizePokerChipAmount(potTotalRaw, 0, 0, Number.MAX_SAFE_INTEGER);
+      if (total <= 0) {{
+        return [{{ label: "0", tone: "empty" }}];
+      }}
+      let remaining = total;
+      const chips = [];
+      const denoms = [
+        {{ value: 100, tone: "high" }},
+        {{ value: 25, tone: "mid" }},
+        {{ value: 5, tone: "low" }},
+        {{ value: 1, tone: "base" }},
+      ];
+      for (const denom of denoms) {{
+        const count = Math.floor(remaining / denom.value);
+        if (count <= 0) continue;
+        remaining -= count * denom.value;
+        if (count <= 3) {{
+          for (let idx = 0; idx < count; idx += 1) {{
+            chips.push({{ label: String(denom.value), tone: denom.tone }});
+          }}
+        }} else {{
+          chips.push({{ label: `${{denom.value}}x${{count}}`, tone: denom.tone }});
+        }}
+      }}
+      return chips.slice(0, 10);
+    }}
+
+    function renderPokerTable() {{
+      const tableEl = document.getElementById("poker-table");
+      if (!(tableEl instanceof HTMLElement)) return;
+      const state = ensurePokerState();
+      const seatSlots = pokerSeatSlotLayout(state.player_count);
+      const seatsBySlot = new Map();
+      for (const seat of state.seats) {{
+        const seatIndex = Math.trunc(Number(seat.seat) || 0);
+        const inHand = !!seat.in_hand && Array.isArray(seat.hand) && seat.hand.length > 0;
+        const revealCards = inHand && pokerSeatShouldReveal(state, seatIndex);
+        const isActive = (state.phase === "draw" || state.phase === "betting") && inHand && seatIndex === Number(state.current_player);
+        const seatClasses = ["poker-seat"];
+        if (isActive) seatClasses.push("is-active");
+        if (seat.folded) seatClasses.push("is-folded");
+        const stackAmount = normalizePokerChipAmount(seat.stack, 0, 0, Number.MAX_SAFE_INTEGER);
+        const contributed = normalizePokerChipAmount(seat.contributed, 0, 0, Number.MAX_SAFE_INTEGER);
+        const roundBet = normalizePokerChipAmount(seat.round_bet, 0, 0, Number.MAX_SAFE_INTEGER);
+        const payout = normalizePokerChipAmount(seat.last_payout, 0, 0, Number.MAX_SAFE_INTEGER);
+        const selectedSet = new Set(
+          (Array.isArray(seat.selected_discards) ? seat.selected_discards : [])
+            .map((value) => normalizePokerIndex(value, -1))
+            .filter((value) => value >= 0 && value < pokerHandSize)
+        );
+        const hand = inHand && Array.isArray(seat.hand) ? seat.hand.slice(0, pokerHandSize) : [];
+        while (hand.length < pokerHandSize) hand.push("");
+        const cardsHtml = hand.map((cardRaw, cardIndex) => {{
+          const parsed = parseStandardCard(cardRaw);
+          const canToggle = isActive && parsed && state.phase === "draw";
+          const classes = ["poker-card"];
+          if (!inHand || !revealCards || !parsed) {{
+            classes.push("is-face-down");
+          }} else if (parsed.suit_color === "red") {{
+            classes.push("is-red");
+          }}
+          if (canToggle && selectedSet.has(cardIndex)) classes.push("is-selected");
+          const title = (!inHand)
+            ? `${{seat.name}} card ${{cardIndex + 1}}: no hand`
+            : ((revealCards && parsed)
+            ? `${{seat.name}} card ${{cardIndex + 1}}: ${{pokerRankDisplayToken(parsed.rank)}}${{parsed.suit_symbol}}`
+            : `${{seat.name}} hidden card ${{cardIndex + 1}}`);
+          const body = (revealCards && parsed)
+            ? `<span class="poker-card-rank" aria-hidden="true">${{escAttr(pokerRankDisplayToken(parsed.rank))}}</span><span class="poker-card-suit" aria-hidden="true">${{escAttr(parsed.suit_symbol)}}</span>`
+            : '<span class="poker-card-back" aria-hidden="true">BACK</span>';
+          return `<button class="${{escAttr(classes.join(" "))}}" type="button" data-seat="${{seatIndex}}" data-card="${{cardIndex}}" title="${{escAttr(title)}}"${{canToggle ? "" : " disabled"}}>${{body}}</button>`;
+        }}).join("");
+        const rankLabel = (
+          state.phase === "showdown"
+          && seat.hand_eval
+          && typeof seat.hand_eval === "object"
+          && String(seat.hand_eval.name || "").trim()
+        ) ? String(seat.hand_eval.name || "").trim() : "";
+        let seatNote = "";
+        if (state.phase === "betting") {{
+          if (seat.folded) {{
+            seatNote = "Folded";
+          }} else if (!inHand) {{
+            seatNote = stackAmount > 0 ? "Sitting out" : "Busted";
+          }} else if (isActive) {{
+            const callAmount = pokerCurrentCallAmount(state, seat);
+            seatNote = callAmount > 0
+              ? `To act: call ${{callAmount}}`
+              : "To act: check or bet";
+          }} else if (seat.round_acted) {{
+            seatNote = roundBet > 0 ? `In for ${{roundBet}}` : "Checked";
+          }} else {{
+            seatNote = "Waiting to act";
+          }}
+        }} else if (state.phase === "draw") {{
+          if (!inHand) {{
+            seatNote = stackAmount > 0 ? "Sitting out" : "Busted";
+          }} else if (isActive) {{
+            const selectedCount = selectedSet.size;
+            seatNote = selectedCount > 0
+              ? `${{selectedCount}} selected to draw`
+              : "Select cards or press Stand pat";
+          }} else if (seat.draw_done) {{
+            seatNote = seat.draw_count > 0
+              ? `Drew ${{seat.draw_count}}`
+              : "Stood pat";
+          }} else {{
+            seatNote = "Waiting";
+          }}
+        }} else if (state.phase === "showdown" && Array.isArray(state.winners) && state.winners.includes(seatIndex)) {{
+          seatNote = payout > 0 ? `Winner +${{payout}}` : "Winner";
+        }} else if (state.phase === "showdown" && seat.folded) {{
+          seatNote = "Folded";
+        }} else if (!inHand) {{
+          seatNote = stackAmount > 0 ? "Sat out" : "Busted";
+        }} else if (state.phase === "showdown") {{
+          seatNote = "No payout";
+        }} else if (state.phase === "deal") {{
+          seatNote = "Ready";
+        }}
+        const seatMetaBits = [isActive ? "Drawing now" : `Seat ${{seatIndex + 1}}`, `Stack ${{stackAmount}}`];
+        if (state.phase === "betting" && isActive) seatMetaBits[0] = "Betting now";
+        if (contributed > 0) seatMetaBits.push(`In ${{contributed}}`);
+        if (String(seat.blind_posted || "").trim()) seatMetaBits.push(String(seat.blind_posted).trim());
+        if (payout > 0) seatMetaBits.push(`+${{payout}}`);
+        const turnTag = `<span class="poker-seat-meta">${{escAttr(seatMetaBits.join(" | "))}}</span>`;
+        const slot = Math.max(0, Math.min(3, Math.trunc(Number(seatSlots[seatIndex] ?? seatIndex) || 0)));
+        seatsBySlot.set(slot,
+          `<section class="${{escAttr(seatClasses.join(" "))}}" aria-label="${{escAttr(seat.name)}}">
+            <div class="poker-seat-head">
+              <strong class="poker-seat-name">${{escAttr(seat.name)}}</strong>
+              ${{turnTag}}
+            </div>
+            <div class="poker-seat-rank">${{escAttr(rankLabel || "\u00a0")}}</div>
+            <div class="poker-cards">${{cardsHtml}}</div>
+            <div class="poker-seat-note">${{escAttr(seatNote || "\u00a0")}}</div>
+          </section>`
+        );
+      }}
+      const slotHtml = [0, 1, 2, 3].map((slot) => {{
+        const seatHtml = seatsBySlot.get(slot) || `
+          <section class="poker-seat poker-seat-empty" aria-hidden="true">
+            <div class="poker-seat-head">
+              <strong class="poker-seat-name">Open Seat</strong>
+              <span class="poker-seat-meta">Corner</span>
+            </div>
+            <div class="poker-seat-rank">\u00a0</div>
+            <div class="poker-cards"></div>
+            <div class="poker-seat-note">\u00a0</div>
+          </section>
+        `;
+        return `<div class="poker-seat-slot poker-seat-slot-${{slot}}">${{seatHtml}}</div>`;
+      }}).join("");
+      const potTotal = normalizePokerChipAmount(state.pot_total, 0, 0, Number.MAX_SAFE_INTEGER);
+      const potChips = pokerPotChipModel(potTotal)
+        .map((chip, index) => `<span class="poker-pot-chip is-${{escAttr(chip.tone)}}" style="--chip-level:${{index}}">${{escAttr(chip.label)}}</span>`)
+        .join("");
+      tableEl.innerHTML = `
+        ${{slotHtml}}
+        <div class="poker-pot-center" aria-label="Poker pot">
+          <div class="poker-pot-title">Pot</div>
+          <div class="poker-pot-chip-row">${{potChips}}</div>
+          <div class="poker-pot-amount">${{potTotal}}</div>
+        </div>
+      `;
+    }}
+
+    function renderPokerStatus() {{
+      const state = ensurePokerState();
+      const statusEl = document.getElementById("poker-status-text");
+      const turnSeat = pokerCurrentSeat();
+      const winnerNames = Array.isArray(state.winners)
+        ? state.winners
+          .map((seatIndex) => state.seats.find((seat) => Number(seat.seat) === Number(seatIndex)))
+          .filter((seat) => !!seat)
+          .map((seat) => seat.name)
+        : [];
+      const turnLabel = (state.phase === "draw" || state.phase === "betting")
+        ? (turnSeat ? turnSeat.name : "-")
+        : (winnerNames.length > 0 ? winnerNames.join(", ") : "-");
+      setText("poker-cards-left", Math.max(0, Math.trunc(Number(state.deck && state.deck.length) || 0)));
+      setText("poker-hand-count", Math.max(0, Math.trunc(Number(state.hand_number) || 0)));
+      const potTotal = normalizePokerChipAmount(state.pot_total, 0, 0, Number.MAX_SAFE_INTEGER);
+      const currentBet = normalizePokerChipAmount(state.current_bet, 0, 0, Number.MAX_SAFE_INTEGER);
+      setText("poker-pot-total", potTotal);
+      setText("poker-pot-main-total", potTotal);
+      setText("poker-current-bet-main", currentBet);
+      setText("poker-phase-label", pokerPhaseLabel(state.phase));
+      setText("poker-turn-label", turnLabel);
+      setText("poker-blinds-label", `${{normalizePokerChipAmount(state.small_blind, pokerDefaultSmallBlind, 0, Number.MAX_SAFE_INTEGER)}}/${{normalizePokerChipAmount(state.big_blind, pokerDefaultBigBlind, 0, Number.MAX_SAFE_INTEGER)}}`);
+      if (statusEl instanceof HTMLElement) {{
+        statusEl.textContent = String(state.notice || "Set seats and deal the first hand.");
+      }}
+      const selectEl = document.getElementById("poker-player-count-select");
+      if (selectEl instanceof HTMLSelectElement) {{
+        selectEl.value = String(normalizePokerPlayerCount(state.player_count, pokerDefaultPlayers));
+      }}
+      syncPokerRuleControls(state);
+      const bettingActive = state.phase === "betting" && !!turnSeat;
+      const callAmount = bettingActive ? pokerCurrentCallAmount(state, turnSeat) : 0;
+      const checkCallBtn = document.getElementById("poker-check-call-btn");
+      if (checkCallBtn instanceof HTMLButtonElement) {{
+        checkCallBtn.textContent = callAmount > 0 ? `Call ${{callAmount}}` : "Check";
+        checkCallBtn.disabled = !bettingActive;
+      }}
+      const betRaiseBtn = document.getElementById("poker-bet-raise-btn");
+      if (betRaiseBtn instanceof HTMLButtonElement) {{
+        betRaiseBtn.textContent = normalizePokerChipAmount(state.current_bet, 0, 0, Number.MAX_SAFE_INTEGER) > 0 ? "Raise" : "Bet";
+        betRaiseBtn.disabled = !bettingActive || normalizePokerChipAmount(turnSeat && turnSeat.stack, 0, 0, Number.MAX_SAFE_INTEGER) <= 0;
+      }}
+      const foldBtn = document.getElementById("poker-fold-btn");
+      if (foldBtn instanceof HTMLButtonElement) {{
+        foldBtn.disabled = !bettingActive;
+      }}
+      const betAmountEl = document.getElementById("poker-bet-amount-input");
+      if (betAmountEl instanceof HTMLInputElement) {{
+        const fallbackRaise = Math.max(1, normalizePokerChipAmount(state.big_blind, 1, 1, Number.MAX_SAFE_INTEGER));
+        if (document.activeElement !== betAmountEl) {{
+          betAmountEl.value = String(getPokerBetAmountFromControl(fallbackRaise));
+        }}
+        betAmountEl.min = "1";
+        betAmountEl.max = String(
+          bettingActive
+            ? Math.max(1, normalizePokerChipAmount(turnSeat && turnSeat.stack, 1, 1, Number.MAX_SAFE_INTEGER))
+            : fallbackRaise
+        );
+        betAmountEl.disabled = !bettingActive;
+      }}
+      const actionBtn = document.getElementById("poker-next-phase-btn");
+      if (actionBtn instanceof HTMLButtonElement) {{
+        if (state.phase === "betting" && turnSeat) {{
+          actionBtn.textContent = callAmount > 0 ? `Call ${{callAmount}}` : "Check";
+        }} else if (state.phase === "betting") {{
+          actionBtn.textContent = "Continue";
+        }} else if (state.phase === "draw" && turnSeat) {{
+          const selectedCount = Array.isArray(turnSeat.selected_discards) ? turnSeat.selected_discards.length : 0;
+          actionBtn.textContent = selectedCount > 0
+            ? `Draw ${{selectedCount}}`
+            : "Stand pat (end turn)";
+        }} else if (state.phase === "draw") {{
+          actionBtn.textContent = "Showdown";
+        }} else if (state.phase === "showdown") {{
+          actionBtn.textContent = "Next hand";
+        }} else {{
+          actionBtn.textContent = "Deal hand";
+        }}
+      }}
+    }}
+

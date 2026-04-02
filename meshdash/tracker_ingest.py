@@ -11,6 +11,23 @@ from .runtime_types import (
     TrackerParsedPacket,
 )
 
+
+def _normalize_packet_node_id(value: object) -> object:
+    text = str(value or "").strip()
+    if not text:
+        return value
+    lowered = text.lower()
+    if lowered in ("^all", "all", "broadcast", "!ffffffff", "ffffffff", "0xffffffff", "4294967295"):
+        return "^all"
+    if text.startswith("!") and len(text) == 9:
+        raw = text[1:]
+        if all(ch in "0123456789abcdefABCDEF" for ch in raw):
+            return f"!{raw.lower()}"
+    if len(text) == 8 and all(ch in "0123456789abcdefABCDEF" for ch in text):
+        return f"!{text.lower()}"
+    return text
+
+
 def parse_tracker_packet(
     packet: TrackerPacket,
     interface: object,
@@ -24,8 +41,12 @@ def parse_tracker_packet(
     extract_emoji_codepoint_fn: ExtractEmojiCodepointFn,
     emoji_from_codepoint_fn: EmojiFromCodepointFn,
 ) -> TrackerParsedPacket:
-    from_id = packet.get("fromId") or get_node_id_from_num_fn(interface, packet.get("from"))
-    to_id = packet.get("toId") or get_node_id_from_num_fn(interface, packet.get("to"))
+    from_id = _normalize_packet_node_id(
+        packet.get("fromId") or get_node_id_from_num_fn(interface, packet.get("from"))
+    )
+    to_id = _normalize_packet_node_id(
+        packet.get("toId") or get_node_id_from_num_fn(interface, packet.get("to"))
+    )
     rx_time = to_int_fn(packet.get("rxTime"))
     hops = calculate_hops_fn(packet.get("hopStart"), packet.get("hopLimit"))
 

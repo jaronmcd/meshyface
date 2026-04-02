@@ -80,3 +80,82 @@ def test_parse_tracker_packet_falls_back_to_node_lookup_and_handles_non_dict_dec
     assert parsed["emoji_codepoint"] is None
     assert parsed["emoji_glyph"] is None
     assert parsed["is_reaction"] is False
+
+
+def test_parse_tracker_packet_normalizes_broadcast_alias_to_all():
+    packet = {
+        "id": "101",
+        "fromId": "!ABCDEF12",
+        "toId": "!FFFFFFFF",
+        "rxTime": "123",
+        "decoded": {
+            "portnum": "TEXT_MESSAGE_APP",
+            "text": "hello",
+        },
+    }
+
+    parsed = parse_tracker_packet(
+        packet,
+        interface=object(),
+        get_node_id_from_num_fn=lambda _iface, _num: None,
+        to_int_fn=lambda v: int(v) if v is not None else None,
+        calculate_hops_fn=lambda _start, _limit: None,
+        extract_packet_position_fn=lambda _packet: None,
+        extract_packet_battery_level_fn=lambda _packet: None,
+        extract_reply_id_fn=lambda _decoded: None,
+        extract_emoji_codepoint_fn=lambda _decoded: None,
+        emoji_from_codepoint_fn=lambda _value: None,
+    )
+
+    assert parsed["from_id"] == "!abcdef12"
+    assert parsed["to_id"] == "^all"
+
+
+def test_parse_tracker_packet_normalizes_plain_hex_node_ids_without_bang():
+    packet = {
+        "id": "102",
+        "fromId": "A1B2C3D4",
+        "toId": "0F0E0D0C",
+        "decoded": {"portnum": "TEXT_MESSAGE_APP"},
+    }
+
+    parsed = parse_tracker_packet(
+        packet,
+        interface=object(),
+        get_node_id_from_num_fn=lambda _iface, _num: None,
+        to_int_fn=lambda v: int(v) if v is not None else None,
+        calculate_hops_fn=lambda _start, _limit: None,
+        extract_packet_position_fn=lambda _packet: None,
+        extract_packet_battery_level_fn=lambda _packet: None,
+        extract_reply_id_fn=lambda _decoded: None,
+        extract_emoji_codepoint_fn=lambda _decoded: None,
+        emoji_from_codepoint_fn=lambda _value: None,
+    )
+
+    assert parsed["from_id"] == "!a1b2c3d4"
+    assert parsed["to_id"] == "!0f0e0d0c"
+
+
+def test_parse_tracker_packet_preserves_empty_lookup_node_id():
+    packet = {
+        "id": "103",
+        "from": 1,
+        "to": 2,
+        "decoded": {"portnum": "TEXT_MESSAGE_APP"},
+    }
+
+    parsed = parse_tracker_packet(
+        packet,
+        interface=object(),
+        get_node_id_from_num_fn=lambda _iface, _num: "",
+        to_int_fn=lambda v: int(v) if v is not None else None,
+        calculate_hops_fn=lambda _start, _limit: None,
+        extract_packet_position_fn=lambda _packet: None,
+        extract_packet_battery_level_fn=lambda _packet: None,
+        extract_reply_id_fn=lambda _decoded: None,
+        extract_emoji_codepoint_fn=lambda _decoded: None,
+        emoji_from_codepoint_fn=lambda _value: None,
+    )
+
+    assert parsed["from_id"] == ""
+    assert parsed["to_id"] == ""

@@ -17,10 +17,15 @@ def prepare_chat_send_input(
     normalize_single_emoji_fn: NormalizeSingleEmojiFn,
     to_int_fn: ToIntFn,
 ) -> PreparedChatInput:
-    clean_text = str(text or "").strip()
+    raw_text = str(text or "")
+    clean_text = raw_text
+    raw_emoji = str(emoji or "").strip()
     clean_reply_id = to_int_fn(reply_id)
     clean_retry_of = to_int_fn(retry_of)
     clean_emoji, clean_emoji_codepoint = normalize_single_emoji_fn(emoji)
+
+    if clean_reply_id is not None and clean_reply_id > 0 and raw_emoji and not clean_emoji:
+        raise ValueError("Emoji reactions must use a single-codepoint emoji")
 
     has_reaction = bool(
         clean_reply_id is not None and clean_reply_id > 0 and clean_emoji and clean_emoji_codepoint
@@ -29,9 +34,9 @@ def prepare_chat_send_input(
         raise ValueError("Emoji reactions require a valid reply_id")
     if clean_reply_id is not None and clean_reply_id <= 0:
         raise ValueError("reply_id must be a positive packet id")
-    if has_reaction and clean_text:
+    if has_reaction and clean_text.strip():
         raise ValueError("Emoji reactions must not include text")
-    if not clean_text and not has_reaction:
+    if not clean_text.strip() and not has_reaction:
         raise ValueError("Message cannot be empty")
 
     if clean_text:

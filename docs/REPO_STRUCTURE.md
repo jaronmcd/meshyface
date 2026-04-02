@@ -1,5 +1,8 @@
 # Repository Structure
 
+Doc status: active-runtime
+Last reviewed: 2026-03-14
+
 This repo is deliberately “boring” in the best way:
 
 - One Python process (`mesh_dashboard.py`) runs a tiny HTTP server + Meshtastic connection.
@@ -87,7 +90,7 @@ This is where “what we heard on the mesh” turns into UI‑friendly state.
 ### Frontend templates
 
 - `html_template.py` / `html_sections.py` / `html_css.py` / `html_js.py`: render pipeline.
-- `assets/dashboard.html.tmpl`, `assets/dashboard.css.tmpl`, `assets/dashboard.js.tmpl`: UI source of truth.
+- `assets/dashboard.html.tmpl`, `assets/dashboard.css.*.tmpl`, `assets/dashboard.js.*.tmpl`: UI source of truth (`dashboard.css.tmpl`, `dashboard.js.tmpl`, `dashboard.js.bootstrap.tmpl`, `dashboard.js.chat.tmpl`, `dashboard.js.chat.state.tmpl`, `dashboard.js.chat.state.games.tmpl`, `dashboard.js.chat.state.messaging.tmpl`, `dashboard.js.chat.events.tmpl`, `dashboard.js.chat.events.core.tmpl`, `dashboard.js.chat.events.console.tmpl`, `dashboard.js.chat.events.settings_map.tmpl`, `dashboard.js.chat.events.settings.tmpl`, `dashboard.js.chat.events.data_views.tmpl`, `dashboard.js.runtime.tmpl`, and `dashboard.js.runtime.views.tmpl` are compatibility stubs; runtime CSS is assembled from `dashboard.css.base.tmpl` + `dashboard.css.layout.tmpl` + `dashboard.css.components.tmpl`; runtime JS is assembled from `dashboard.js.bootstrap.map.tmpl` + `dashboard.js.bootstrap.tickers.tmpl` + `dashboard.js.bootstrap.shared.tmpl` + `dashboard.js.ui.shared_controls.tmpl` + `dashboard.js.chat.state.core.tmpl` + `dashboard.js.chat.state.channels.tmpl` + `dashboard.js.chat.state.games.reversi_local.tmpl` + `dashboard.js.chat.state.games.classic.tmpl` + `dashboard.js.chat.state.games.network.tmpl` + `dashboard.js.chat.state.games.ui.tmpl` + `dashboard.js.chat.state.messaging.peers.tmpl` + `dashboard.js.chat.state.messaging.emoji_search.tmpl` + `dashboard.js.chat.state.messaging.send_flow.tmpl` + `dashboard.js.chat.state.messaging.emoji_ui.tmpl` + `dashboard.js.chat.state.files.tmpl` + `dashboard.js.chat.events.core.identity.tmpl` + `dashboard.js.chat.events.core.layout_tables.tmpl` + `dashboard.js.chat.events.core.notifications.tmpl` + `dashboard.js.chat.events.core.navigation.tmpl` + `dashboard.js.chat.events.console.session.tmpl` + `dashboard.js.chat.events.console.commands.tmpl` + `dashboard.js.chat.events.console.formatting.tmpl` + `dashboard.js.chat.events.console.ui.tmpl` + `dashboard.js.chat.events.settings.state_normalize.tmpl` + `dashboard.js.chat.events.settings.channels.tmpl` + `dashboard.js.chat.events.settings.apply_actions.tmpl` + `dashboard.js.chat.events.settings.bindings.tmpl` + `dashboard.js.chat.events.map_selection.tmpl` + `dashboard.js.chat.events.bindings.tmpl` + `dashboard.js.chat.events.data_views.summary_map.tmpl` + `dashboard.js.chat.events.data_views.nodes_saved.tmpl` + `dashboard.js.chat.events.data_views.charts.tmpl` + `dashboard.js.chat.events.data_views.history_fetch.tmpl` + `dashboard.js.chat.render.tmpl` + `dashboard.js.runtime.views.packet_channels.tmpl` + `dashboard.js.runtime.views.encryption.tmpl` + `dashboard.js.runtime.views.raw_data.tmpl` + `dashboard.js.runtime.poll.tmpl` + `dashboard.js.runtime.boot.tmpl`).
 - `theme.py`, `theme_presets.py`, `theme_settings.py`: runtime theme switching.
 
 ## Where Rooms plug in
@@ -103,7 +106,7 @@ Rooms are mostly a **classification + filtering** problem:
   - Current send API is `/api/chat/send` (`meshdash/api_chat.py` + `meshdash/services_chat.py`).
   - Reuse the low‑level `_sendPacket` pattern in `meshdash/mesh_ops.py` (currently used for emoji reactions).
 - **UI:** add a Rooms navigator + feed filtering.
-  - Current channel switcher (“Everyone”, “Peer‑to‑peer”) lives in `assets/dashboard.js.tmpl`.
+- Current channel switcher (“Everyone”, “Peer‑to‑peer”) lives in `assets/dashboard.js.chat.render.tmpl`.
   - Rooms will likely become additional “channels” in the left rail, discovered from traffic.
 
 The concrete plan and protocol are in:

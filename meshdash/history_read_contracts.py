@@ -34,7 +34,7 @@ class FetchNodeHistoryRowsFn(Protocol):
         node_id: str,
         cutoff: int,
         limit: int,
-    ) -> tuple[HistoryRows, HistoryRows]: ...
+    ) -> tuple[HistoryRows, HistoryRows, HistoryRows]: ...
 
 
 class BuildNodeHistoryPayloadFn(Protocol):
@@ -45,6 +45,7 @@ class BuildNodeHistoryPayloadFn(Protocol):
         window_hours: int,
         metric_rows: Iterable[HistoryRow],
         position_rows: Iterable[HistoryRow],
+        packet_rows: Iterable[HistoryRow],
     ) -> HistoryPayload: ...
 
 
@@ -65,6 +66,25 @@ class BuildOnlineActivityPayloadFn(Protocol):
         hour_rows: Iterable[HistoryRow],
         distinct_nodes: int,
         timezone_label: str,
+    ) -> HistoryPayload: ...
+
+
+class FetchSummaryMetricsRowsFn(Protocol):
+    def __call__(
+        self,
+        conn: SqlConnection,
+        *,
+        cutoff: int,
+        limit: int,
+    ) -> HistoryRows: ...
+
+
+class BuildSummaryMetricsPayloadFn(Protocol):
+    def __call__(
+        self,
+        *,
+        window_hours: int,
+        rows: Iterable[HistoryRow],
     ) -> HistoryPayload: ...
 
 

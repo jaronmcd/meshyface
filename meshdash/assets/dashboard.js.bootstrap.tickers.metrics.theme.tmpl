@@ -1,0 +1,213 @@
+    function normalizeThemeMode(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      return themeAcceptedModes.has(clean) ? clean : "auto";
+    }}
+
+    function normalizeThemeTokens(rawTokens) {{
+      if (!rawTokens || typeof rawTokens !== "object" || Array.isArray(rawTokens)) {{
+        return null;
+      }}
+      const normalized = {{}};
+      for (const [key, value] of Object.entries(rawTokens)) {{
+        const cleanKey = String(key || "").trim();
+        if (!cleanKey.startsWith("--")) {{
+          continue;
+        }}
+        normalized[cleanKey] = String(value ?? "");
+      }}
+      return Object.keys(normalized).length > 0 ? normalized : null;
+    }}
+
+    function normalizeThemePreset(rawPreset) {{
+      if (!rawPreset || typeof rawPreset !== "object" || Array.isArray(rawPreset)) {{
+        return null;
+      }}
+      const light = normalizeThemeTokens(rawPreset.light);
+      const dark = normalizeThemeTokens(rawPreset.dark);
+      if (!light || !dark) {{
+        return null;
+      }}
+      return {{ light, dark }};
+    }}
+
+    function normalizeThemePresetCatalog(rawCatalog) {{
+      const normalized = {{}};
+      if (rawCatalog && typeof rawCatalog === "object" && !Array.isArray(rawCatalog)) {{
+        for (const [name, rawPreset] of Object.entries(rawCatalog)) {{
+          const cleanName = String(name || "").trim();
+          if (!cleanName) continue;
+          const preset = normalizeThemePreset(rawPreset);
+          if (!preset) continue;
+          normalized[cleanName] = preset;
+        }}
+      }}
+      if (!Object.prototype.hasOwnProperty.call(normalized, "default")) {{
+        normalized.default = {{ light: {{}}, dark: {{}} }};
+      }}
+      return normalized;
+    }}
+
+    function normalizeThemePresetName(rawName, catalog = themePresetCatalog) {{
+      const clean = String(rawName || "").trim();
+      if (clean && Object.prototype.hasOwnProperty.call(catalog, clean)) {{
+        return clean;
+      }}
+      return "default";
+    }}
+
+    function orderedThemePresetNames(rawNames, catalog) {{
+      const seen = new Set();
+      const ordered = [];
+      if (Array.isArray(rawNames)) {{
+        for (const name of rawNames) {{
+          const clean = String(name || "").trim();
+          if (!clean || seen.has(clean) || !Object.prototype.hasOwnProperty.call(catalog, clean)) {{
+            continue;
+          }}
+          seen.add(clean);
+          ordered.push(clean);
+        }}
+      }}
+      for (const name of Object.keys(catalog)) {{
+        if (seen.has(name)) continue;
+        seen.add(name);
+        ordered.push(name);
+      }}
+      ordered.sort((a, b) => {{
+        if (a === "default") return -1;
+        if (b === "default") return 1;
+        return a.localeCompare(b);
+      }});
+      return ordered;
+    }}
+
+    function applyThemePresetTokens(resolvedTheme) {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      const preset = themePresetCatalog[selected] || themePresetCatalog.default || {{ light: {{}}, dark: {{}} }};
+      const tokenMap = resolvedTheme === "dark" ? (preset.dark || {{}}) : (preset.light || {{}});
+      const nextKeys = new Set(Object.keys(tokenMap));
+      for (const key of themePresetAppliedKeys) {{
+        if (!nextKeys.has(key)) {{
+          document.documentElement.style.removeProperty(key);
+        }}
+      }}
+      for (const [key, value] of Object.entries(tokenMap)) {{
+        document.documentElement.style.setProperty(key, String(value));
+      }}
+      themePresetAppliedKeys.clear();
+      for (const key of nextKeys) {{
+        themePresetAppliedKeys.add(key);
+      }}
+    }}
+
+    function updateThemePresetControl(availablePresets = null) {{
+      const select = document.getElementById("theme-preset-select");
+      if (!(select instanceof HTMLSelectElement)) {{
+        return;
+      }}
+      const names = orderedThemePresetNames(
+        availablePresets,
+        themePresetCatalog,
+      );
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      select.innerHTML = "";
+      for (const name of names) {{
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      }}
+      select.value = selected;
+      select.disabled = names.length <= 1;
+      select.title = names.length > 1
+        ? "Select runtime color preset"
+        : "Only one preset is available";
+    }}
+
+    function applyThemeSettingsPayload(payload) {{
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {{
+        return false;
+      }}
+      const normalizedCatalog = normalizeThemePresetCatalog(payload.presets);
+      themePresetCatalog = normalizedCatalog;
+      themePresetSelected = normalizeThemePresetName(payload.selected_preset, normalizedCatalog);
+      updateThemePresetControl(payload.available_presets);
+      applyThemePreference(themePreference, false);
+      return true;
+    }}
+
+    async function loadThemeSettingsFromServer(logErrors = true) {{
+      try {{
+        const resp = await fetch(themeSettingsEndpoint, {{ cache: "no-store" }});
+        if (!resp.ok) {{
+          throw new Error(`API ${{resp.status}}`);
+        }}
+        const payload = await resp.json();
+        if (!payload || payload.ok === false) {{
+          const message = payload && payload.error ? payload.error : "Invalid theme settings payload";
+          throw new Error(String(message));
+        }}
+        return applyThemeSettingsPayload(payload);
+      }} catch (err) {{
+        if (logErrors) {{
+          const msg = err instanceof Error ? err.message : String(err || "unknown error");
+          appendConsoleLine(`theme-settings-load|${{Date.now()}}|${{msg}}`, `[theme settings] load failed: ${{msg}}`);
+        }}
+      }}
+      return false;
+    }}
+
+    async function saveThemePresetSelection(presetName) {{
+      const clean = String(presetName || "").trim();
+      if (!clean) {{
+        return false;
+      }}
+      try {{
+        const resp = await fetch(themeSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ preset_name: clean }}),
+        }});
+        const payload = await resp.json().catch(() => ({{ ok: false, error: `API ${{resp.status}}` }}));
+        if (!resp.ok || !payload || payload.ok === false) {{
+          const message = payload && payload.error ? payload.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        return applyThemeSettingsPayload(payload);
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        appendConsoleLine(`theme-settings-save|${{Date.now()}}|${{msg}}`, `[theme settings] save failed: ${{msg}}`);
+        updateThemePresetControl();
+      }}
+      return false;
+    }}
+
+    function bindThemePresetSelector() {{
+      const select = document.getElementById("theme-preset-select");
+      if (!(select instanceof HTMLSelectElement)) {{
+        return;
+      }}
+      if (select.dataset.bound === "1") {{
+        return;
+      }}
+      select.dataset.bound = "1";
+      updateThemePresetControl();
+      select.addEventListener("change", async () => {{
+        const selected = String(select.value || "").trim();
+        if (!selected) {{
+          updateThemePresetControl();
+          return;
+        }}
+        select.disabled = true;
+        await saveThemePresetSelection(selected);
+        updateThemePresetControl();
+      }});
+    }}
+
+    function systemPreferredTheme() {{
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {{
+        return "dark";
+      }}
+      return "light";
+    }}
+

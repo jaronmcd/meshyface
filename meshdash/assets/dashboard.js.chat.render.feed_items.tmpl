@@ -1,0 +1,703 @@
+      const monitorRoleColorByName = {{
+        CLIENT_HIDDEN: "#A9CBE8",
+        SENSOR: "#A8D5BA",
+        TRACKER: "#99e67f",
+        CLIENT_MUTE: "#bcef75",
+        CLIENT: "#f3ef74",
+        CLIENT_BASE: "#fdbf79",
+        REPEATER: "#fa997b",
+        ROUTER_LATE: "#ff5061",
+        ROUTER: "#ff0019",
+        LOST_AND_FOUND: "#C3A8E8",
+      }};
+      const trendStopwords = new Set([
+        "about", "after", "again", "also", "and", "any", "are", "back", "been", "before", "being",
+        "but", "can", "cant", "did", "does", "dont", "each", "for", "from", "get", "got", "had",
+        "has", "have", "here", "how", "just", "like", "made", "make", "mesh", "more", "need",
+        "now", "only", "other", "our", "out", "over", "really", "same", "some", "still", "than",
+        "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "time",
+        "today", "too", "very", "want", "well", "were", "what", "when", "with", "would", "your",
+      ]);
+      const trendWordRegex = /[a-z0-9][a-z0-9_-]{2,}/ig;
+      const trendHashtagRegex = /#([a-z0-9][a-z0-9_-]{1,31})/ig;
+      const tokenizeTrendFallback = (rawText) => {{
+        const text = String(rawText || "").toLowerCase();
+        const tokens = [];
+        const seen = new Set();
+        let match = null;
+        while ((match = trendWordRegex.exec(text)) !== null) {{
+          const token = String(match[0] || "").trim().toLowerCase();
+          if (!token || token.length < 3) continue;
+          if (trendStopwords.has(token)) continue;
+          if (seen.has(token)) continue;
+          seen.add(token);
+          tokens.push(token);
+          if (tokens.length >= 8) break;
+        }}
+        trendWordRegex.lastIndex = 0;
+        return tokens;
+      }};
+      const extractHashtags = (rawText) => {{
+        const text = String(rawText || "").toLowerCase();
+        const tags = [];
+        const seen = new Set();
+        let match = null;
+        while ((match = trendHashtagRegex.exec(text)) !== null) {{
+          const token = String(match[1] || "").trim().toLowerCase();
+          if (!token) continue;
+          if (seen.has(token)) continue;
+          seen.add(token);
+          tags.push(token);
+          if (tags.length >= 6) break;
+        }}
+        trendHashtagRegex.lastIndex = 0;
+        return tags;
+      }};
+      const trendFeedItems = (() => {{
+        if (!chatTrendsViewEnabled || activeLayoutView !== "chat") return [];
+        const messageRows = Array.isArray(visibleMessages) ? visibleMessages : [];
+        if (messageRows.length <= 0) return [];
+        const metadataRows = [];
+        const tokenFrequency = new Map();
+        for (const msg of messageRows) {{
+          if (!(msg && typeof msg === "object")) continue;
+          if (isReactionMessage(msg)) continue;
+          const textRaw = String(msg.text || "").trim();
+          if (!textRaw) continue;
+          const hashtags = extractHashtags(textRaw);
+          const fallbackTokens = tokenizeTrendFallback(textRaw);
+          for (const token of fallbackTokens) {{
+            tokenFrequency.set(token, (tokenFrequency.get(token) || 0) + 1);
+          }}
+          metadataRows.push({{
+            msg,
+            textRaw,
+            hashtags,
+            fallbackTokens,
+          }});
+        }}
+        if (metadataRows.length <= 0) return [];
+
+        const buckets = new Map();
+        for (const row of metadataRows) {{
+          const hashtags = Array.isArray(row.hashtags) ? row.hashtags : [];
+          const fallbackTokens = Array.isArray(row.fallbackTokens) ? row.fallbackTokens : [];
+          const fallbackToken = fallbackTokens
+            .slice()
+            .sort((a, b) => {{
+              const aFreq = Number(tokenFrequency.get(a) || 0);
+              const bFreq = Number(tokenFrequency.get(b) || 0);
+              if (aFreq !== bFreq) return bFreq - aFreq;
+              return String(a).localeCompare(String(b));
+            }})
+            .find((token) => Number(tokenFrequency.get(token) || 0) >= 2)
+            || fallbackTokens[0]
+            || "";
+          const trendToken = hashtags[0] ? `#${{hashtags[0]}}` : (fallbackToken || "misc");
+          const trendKind = hashtags[0] ? "hashtag" : (fallbackToken ? "keyword" : "fallback");
+          const bucketKey = `${{trendKind}}:${{trendToken}}`;
+          let bucket = buckets.get(bucketKey);
+          if (!bucket) {{
+            bucket = {{
+              key: trendToken,
+              kind: trendKind,
+              count: 0,
+              latestUnix: 0,
+              latestTimeRaw: "",
+              latestText: "",
+              latestSender: "",
+              latestMessageId: "",
+            }};
+            buckets.set(bucketKey, bucket);
+          }}
+          bucket.count += 1;
+          const msg = row.msg;
+          const msgUnix = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+          const rawTimeText = String(msg.rx_time || msg.captured_at || "").trim();
+          const endpoints = endpointsForMessage(msg);
+          const fromMeta = chatEndpointParts(endpoints.fromId, msgUnix);
+          const messageId = messageIdOf(msg);
+          if (!Number.isFinite(bucket.latestUnix) || msgUnix >= bucket.latestUnix) {{
+            bucket.latestUnix = Number.isFinite(msgUnix) ? msgUnix : 0;
+            bucket.latestTimeRaw = rawTimeText;
+            bucket.latestText = compactInlineMessage(row.textRaw, 96);
+            bucket.latestSender = String(fromMeta.label || endpoints.fromId || "Unknown node");
+            bucket.latestMessageId = Number.isInteger(messageId) && messageId > 0 ? String(messageId) : "";
+          }}
+        }}
+
+        return Array.from(buckets.values())
+          .sort((a, b) => (Number(b.latestUnix || 0) - Number(a.latestUnix || 0)) || (Number(b.count || 0) - Number(a.count || 0)))
+          .map((bucket) => {{
+            const latestUnix = Number(bucket.latestUnix || 0);
+            const timeText = formatLocalChatTime(latestUnix, bucket.latestTimeRaw || "n/a", nowUnix);
+            const countLabel = `${{bucket.count}} msg${{bucket.count === 1 ? "" : "s"}}`;
+            const kindLabel = bucket.kind === "hashtag"
+              ? "Hashtag trend"
+              : (bucket.kind === "keyword" ? "Keyword trend" : "Trend");
+            const preview = bucket.latestText || "(no text)";
+            const sender = bucket.latestSender || "Unknown node";
+            const title = `${{kindLabel}} · ${{bucket.key}} · ${{countLabel}} · latest from ${{sender}}`;
+            return `<div class="chat-feed-item chat-feed-item-trend" data-trend-key="${{escAttr(bucket.key)}}" data-trend-kind="${{escAttr(bucket.kind)}}" data-message-id="${{escAttr(bucket.latestMessageId)}}" title="${{escAttr(title)}}">
+              <div class="chat-feed-line">
+                <div class="chat-feed-summary">
+                  <span class="chat-trend-tag kind-${{escAttr(bucket.kind)}}">${{escAttr(bucket.key)}}</span>
+                  <span class="chat-trend-count">${{escAttr(countLabel)}}</span>
+                  <span class="chat-trend-by">${{escAttr(sender)}}:</span>
+                  <span class="chat-trend-preview">${{escAttr(preview)}}</span>
+                </div>
+                <span class="chat-feed-side">
+                  <span class="chat-feed-time" title="${{escAttr(title)}}">${{escAttr(timeText)}}</span>
+                </span>
+              </div>
+            </div>`;
+          }});
+      }})();
+      const nodeIdByLabel = new Map();
+      const normalizeNodeLabelLookupKey = (value) => String(value == null ? "" : value).trim().toLowerCase();
+      const rememberNodeLabelId = (labelValue, nodeId) => {{
+        const key = normalizeNodeLabelLookupKey(labelValue);
+        if (!key) return;
+        if (!isCanonicalNodeId(nodeId)) return;
+        if (!nodeIdByLabel.has(key)) {{
+          nodeIdByLabel.set(key, nodeId);
+        }}
+      }};
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isCanonicalNodeId(nodeId)) continue;
+        rememberNodeLabelId(preferredNodeName(node), nodeId);
+        rememberNodeLabelId(node && node.long_name, nodeId);
+        rememberNodeLabelId(node && node.longName, nodeId);
+        rememberNodeLabelId(node && node.short_name, nodeId);
+        rememberNodeLabelId(node && node.shortName, nodeId);
+        rememberNodeLabelId(node && node.user && node.user.long_name, nodeId);
+        rememberNodeLabelId(node && node.user && node.user.short_name, nodeId);
+        rememberNodeLabelId(nodeNameCache.get(nodeId), nodeId);
+      }}
+      const resolveChatFeedNodeId = (value) => {{
+        const clean = normalizeNodeId(value);
+        if (!clean) return "";
+        if (isCanonicalNodeId(clean)) return clean;
+        if (clean === "^all" || clean === "local" || clean === "Unknown" || clean === "n/a") {{
+          return clean;
+        }}
+        const nodeNum = parseNodeNum(value);
+        if (Number.isInteger(nodeNum) && nodeIdByNum.has(nodeNum)) {{
+          const resolvedByNum = normalizeNodeId(nodeIdByNum.get(nodeNum));
+          if (isCanonicalNodeId(resolvedByNum)) {{
+            return resolvedByNum;
+          }}
+        }}
+        const resolvedByLabel = normalizeNodeId(nodeIdByLabel.get(normalizeNodeLabelLookupKey(clean)) || "");
+        if (isCanonicalNodeId(resolvedByLabel)) {{
+          return resolvedByLabel;
+        }}
+        return clean;
+      }};
+      const resolveNodeTagEntryForCandidates = (candidates) => {{
+        if (typeof nodeTagEntryForNode !== "function") {{
+          return {{ entry: null, matchedNodeId: "" }};
+        }}
+        const source = Array.isArray(candidates) ? candidates : [];
+        for (const candidate of source) {{
+          const clean = normalizeNodeId(candidate);
+          if (!isSelectableNodeId(clean)) continue;
+          const entry = nodeTagEntryForNode(clean);
+          if (entry && entry.preset) {{
+            return {{ entry, matchedNodeId: clean }};
+          }}
+        }}
+        return {{ entry: null, matchedNodeId: "" }};
+      }};
+      const feedItems = visibleMessages.map((msg) => {{
+        const endpoints = endpointsForMessage(msg);
+        const sourceNodeRaw = endpoints.fromId;
+        const fallbackNodeRaw = endpoints.toId;
+        const sourceNodeResolved = resolveChatFeedNodeId(sourceNodeRaw);
+        const fallbackNodeResolved = resolveChatFeedNodeId(fallbackNodeRaw);
+        const sourceNode = sourceNodeResolved || sourceNodeRaw;
+        const fallbackNode = fallbackNodeResolved || fallbackNodeRaw;
+        if (typeof isMutedNode === "function" && isMutedNode(sourceNode)) {{
+          return "";
+        }}
+        const messageKind = normalizeChatMessageKind(msg);
+        const isStatusMessage = messageKind === "status";
+        const primarySelectable = isSelectableNodeId(sourceNode) ? sourceNode : "";
+        const fallbackSelectable = isSelectableNodeId(fallbackNode) ? fallbackNode : "";
+        const nodeId = primarySelectable || fallbackSelectable;
+        const selectableClass = nodeId ? "chat-selectable" : "";
+        const msgTimeUnix = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+        const fromMeta = chatEndpointParts(sourceNode, msgTimeUnix);
+        const toMeta = chatEndpointParts(fallbackNode, msgTimeUnix);
+        const fromStatusKey = normalizeFreshnessKey(fromMeta.status);
+        const fromStatusLabel = fromStatusKey === "online"
+          ? "Online"
+          : (fromStatusKey === "warn" ? "Aging" : (fromStatusKey === "stale" ? "Stale" : "Unknown"));
+        const fromStatusDotTitle = `Sender status: ${{fromStatusLabel}}`;
+        const rawTimeText = String(msg.rx_time || msg.captured_at || "").trim();
+        const timeText = formatLocalChatTime(msgTimeUnix, rawTimeText || "n/a", nowUnix);
+        const localTimeTitle = Number.isFinite(msgTimeUnix)
+          ? new Date(Math.floor(msgTimeUnix) * 1000).toLocaleString()
+          : "";
+        const timeTitle = [localTimeTitle ? `Local: ${{localTimeTitle}}` : "", rawTimeText ? `Raw: ${{rawTimeText}}` : ""]
+          .filter((part) => !!part)
+          .join(" | ");
+        const textHtml = chatPlainTextToHtml(msg.text || "", true);
+        const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);
+        const textCompact = compactInlineMessage(msg.text || "", 140);
+        const messageId = messageIdOf(msg);
+        const packetEntry = messageId ? packetSummaryById.get(String(messageId)) : null;
+        const packetSummary = (packetEntry && packetEntry.summary && typeof packetEntry.summary === "object")
+          ? packetEntry.summary
+          : {};
+        const packetRaw = (packetEntry && packetEntry.packet && typeof packetEntry.packet === "object")
+          ? packetEntry.packet
+          : {};
+        const hopNum = (
+          hopCountOfChatPacket(msg)
+          ?? hopCountOfChatPacket(packetSummary)
+          ?? hopCountOfChatPacket(packetRaw)
+        );
+        const hasHop = hopNum != null;
+        const explicitMsgMeshIdx = (typeof explicitMessageMeshChannelIndex === "function")
+          ? explicitMessageMeshChannelIndex(msg)
+          : null;
+        const packetMeshIdx = (typeof explicitPacketChannelIndex === "function")
+          ? explicitPacketChannelIndex(packetEntry)
+          : null;
+        const activeFilterMeshIdx = (typeof activeMeshChannelFilterIndex === "function")
+          ? activeMeshChannelFilterIndex()
+          : meshChannelAllIndex;
+        const meshIdx = (() => {{
+          const explicitValid = Number.isInteger(explicitMsgMeshIdx) && explicitMsgMeshIdx >= 0;
+          const packetValid = Number.isInteger(packetMeshIdx) && packetMeshIdx >= 0;
+          // Prefer packet-derived channel when it provides a non-default channel
+          // and chat-row channel is default/unknown.
+          if (packetValid && (!explicitValid || (explicitMsgMeshIdx === 0 && packetMeshIdx > 0))) {{
+            return packetMeshIdx;
+          }}
+          if (explicitValid) {{
+            return explicitMsgMeshIdx;
+          }}
+          if (Number.isInteger(activeFilterMeshIdx) && activeFilterMeshIdx > 0) {{
+            return activeFilterMeshIdx;
+          }}
+          return messageMeshChannelIndex(msg);
+        }})();
+        const hasMeshTint = Number.isInteger(meshIdx) && meshIdx > 0;
+        const meshTintClass = hasMeshTint ? " channel-tinted" : "";
+        const meshEdgeClass = (hasMeshTint && typeof meshChannelEdgeClass === "function")
+          ? ` ${{meshChannelEdgeClass(meshIdx, {{ allowAll: false }})}}`
+          : "";
+        const tagMatch = resolveNodeTagEntryForCandidates([
+          sourceNodeRaw,
+          sourceNodeResolved,
+          sourceNode,
+          nodeId,
+          fromMeta && fromMeta.idTag,
+          fromMeta && fromMeta.label,
+          fallbackNodeRaw,
+          fallbackNodeResolved,
+          fallbackNode,
+        ]);
+        const tintTagEntry = tagMatch.entry;
+        const tintNodeId = normalizeNodeId(tagMatch.matchedNodeId || sourceNode || nodeId || sourceNodeRaw || "");
+        const tagActive = !!(tintTagEntry && tintTagEntry.preset);
+        const tagStyleVars = (tagActive && typeof nodeTagStyleVars === "function")
+          ? nodeTagStyleVars(tintTagEntry)
+          : "";
+        const tintSeedNode = (
+          nodesById.get(normalizeNodeId(tintNodeId))
+          || nodesById.get(normalizeNodeId(sourceNode))
+          || nodesById.get(normalizeNodeId(nodeId))
+          || null
+        );
+        const feedShortNameSeedRaw = String(
+          (tintSeedNode && (tintSeedNode.short_name || tintSeedNode.shortName || (tintSeedNode.user && (tintSeedNode.user.short_name || tintSeedNode.user.shortName))))
+          || ""
+        ).trim();
+        const feedLongNameSeedRaw = String(
+          (tintSeedNode && (tintSeedNode.long_name || tintSeedNode.longName || (tintSeedNode.user && (tintSeedNode.user.long_name || tintSeedNode.user.longName))))
+          || fromMeta.label
+          || ""
+        ).trim();
+        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(tintNodeId || sourceNode || nodeId || "", nodeId || sourceNode || "unknown")
+          : String(tintNodeId || sourceNode || nodeId || "unknown").trim();
+        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(feedShortNameSeedRaw, tintOutlineSeed)
+          : String(feedShortNameSeedRaw || tintOutlineSeed).trim();
+        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
+          ? normalizeNodeTintSeedText(feedLongNameSeedRaw, fromMeta.label || tintStartSeed || tintOutlineSeed)
+          : String(feedLongNameSeedRaw || fromMeta.label || tintStartSeed || tintOutlineSeed).trim();
+        const autoNodeTintHue = (typeof nodeTintHue === "function")
+          ? nodeTintHue(tintNodeId, 210)
+          : 210;
+        const nodeTintHueValue = (tintTagEntry && typeof nodeTagTintHue === "function")
+          ? nodeTagTintHue(tintTagEntry, autoNodeTintHue)
+          : autoNodeTintHue;
+        const nodeTintOptions = {{
+          scope: "feed",
+          fallbackHue: 210,
+          tagActive,
+          hue: nodeTintHueValue,
+          outlineSeed: tintOutlineSeed,
+          tintStartSeed,
+          tintEndSeed,
+        }};
+        if (tagActive) {{
+          nodeTintOptions.tintStartHue = nodeTintHueValue;
+          nodeTintOptions.tintEndHue = nodeTintHueValue;
+          nodeTintOptions.outlineHue = nodeTintHueValue;
+        }}
+        const nodeTintStyle = (typeof nodeTintStyleVars === "function")
+          ? nodeTintStyleVars(tintNodeId, nodeTintOptions)
+          : `--chat-feed-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeTintHueValue) || 210)))}};`;
+        const rowTintStyleParts = [];
+        if (hasMeshTint) {{
+          rowTintStyleParts.push(meshChannelTintStyle(meshIdx, {{ allowAll: false }}));
+        }}
+        rowTintStyleParts.push(nodeTintStyle);
+        if (tagStyleVars) {{
+          rowTintStyleParts.push(tagStyleVars);
+        }}
+        const combinedRowTintStyle = rowTintStyleParts
+          .filter((value) => !!value)
+          .join(" ");
+        const rowTintStyleAttr = ` style="${{escAttr(combinedRowTintStyle)}}"`;
+        const hopStart = firstFiniteNestedNumber(
+          [msg, packetSummary, packetRaw],
+          [
+            "hop_start",
+            "hopStart",
+            "hopstart",
+            "routing.hop_start",
+            "routing.hopStart",
+            "routing.hopstart",
+          ]
+        );
+        const hopLimit = firstFiniteNestedNumber(
+          [msg, packetSummary, packetRaw],
+          [
+            "hop_limit",
+            "hopLimit",
+            "hoplimit",
+            "routing.hop_limit",
+            "routing.hopLimit",
+            "routing.hoplimit",
+          ]
+        );
+        const hopLabel = hasHop
+          ? `${{hopNum}} hop${{hopNum === 1 ? "" : "s"}}`
+          : "";
+        const hopTitle = (
+          Number.isFinite(hopStart) && Number.isFinite(hopLimit)
+            ? `hopStart=${{Math.trunc(hopStart)}}, hopLimit=${{Math.trunc(hopLimit)}}`
+            : "Hop count"
+        );
+        const canReply = Number.isInteger(messageId) && messageId > 0;
+        const replyToId = replyIdOf(msg);
+        let replyTooltipSummary = "";
+        let replyTooltipPreview = "";
+        let replyInlineLabel = "";
+        let replyInlineText = "";
+        let replyInlineMissing = false;
+        if (Number.isInteger(replyToId) && replyToId > 0) {{
+          const parentMsg = messageIndex.get(String(replyToId));
+          if (parentMsg) {{
+            const parentFromMeta = chatEndpointParts(endpointsForMessage(parentMsg).fromId);
+            const parentLabel = parentFromMeta.label || "Unknown node";
+            const parentPreview = (
+              compactInlineMessage(parentMsg.text || "", 110)
+              || emojiOf(parentMsg)
+            );
+            replyTooltipSummary = `Replying to ${{parentLabel}}`;
+            replyTooltipPreview = parentPreview;
+            replyInlineLabel = parentLabel;
+            replyInlineText = parentPreview || "Original text not retained locally.";
+          }} else {{
+            const parentPacketEntry = packetSummaryById.get(String(replyToId));
+            if (parentPacketEntry && typeof parentPacketEntry === "object") {{
+              const parentSummary = (parentPacketEntry.summary && typeof parentPacketEntry.summary === "object")
+                ? parentPacketEntry.summary
+                : {{}};
+              const parentPacket = (parentPacketEntry.packet && typeof parentPacketEntry.packet === "object")
+                ? parentPacketEntry.packet
+                : {{}};
+              const parentDecoded = (parentPacket.decoded && typeof parentPacket.decoded === "object")
+                ? parentPacket.decoded
+                : {{}};
+              const parentEndpoints = packetEndpointIds(parentPacketEntry);
+              const parentUnix = latestUnixTimestamp(
+                parentSummary.rx_time_unix,
+                parentSummary.captured_at,
+                parentSummary.rx_time,
+                parentPacketEntry && (parentPacketEntry.captured_at || parentPacketEntry.rx_time),
+              );
+              const parentFromMeta = chatEndpointParts(parentEndpoints.fromId, parentUnix);
+              replyTooltipSummary = `Replying to ${{parentFromMeta.label || `packet #${{replyToId}}`}}`;
+              const parentText = compactInlineMessage(
+                parentSummary.decoded_text ?? parentDecoded.text ?? "",
+                110
+              );
+              const parentChannelIndex = explicitPacketChannelIndex(parentPacketEntry);
+              const metaParts = [`Packet #${{replyToId}}`];
+              if (Number.isInteger(parentChannelIndex) && parentChannelIndex >= 0) {{
+                metaParts.push(meshChannelViewMenuLabel(parentChannelIndex));
+              }}
+              const parentTimeRaw = String(parentSummary.rx_time || parentSummary.captured_at || "").trim();
+              if (parentTimeRaw) {{
+                metaParts.push(formatLocalChatTime(parentUnix, parentTimeRaw, nowUnix));
+              }}
+              replyTooltipPreview = parentText || metaParts.join(" • ") || "Original packet retained without decoded text.";
+              replyInlineLabel = parentFromMeta.label || `packet #${{replyToId}}`;
+              replyInlineText = parentText || "Original text not retained locally.";
+            }} else {{
+              replyTooltipSummary = `Reply to #${{replyToId}}`;
+              replyTooltipPreview = "Original packet not retained locally.";
+              replyInlineLabel = `#${{replyToId}}`;
+              replyInlineText = "Original packet not retained locally.";
+              replyInlineMissing = true;
+            }}
+          }}
+        }}
+        const messageReactions = messageId ? reactionBuckets.get(String(messageId)) : null;
+        const reactionGroups = messageReactions
+          ? Array.from(messageReactions.values())
+              .sort((a, b) => (b.count - a.count) || String(a.emoji).localeCompare(String(b.emoji)))
+              .map((bucket) => ({{
+                emoji: String(bucket.emoji || "").trim(),
+                count: Math.max(0, Number(bucket.count || 0)),
+                names: Array.from(new Set(bucket.names)).slice(0, 40),
+              }}))
+              .filter((bucket) => !!bucket.emoji && Number.isFinite(bucket.count) && bucket.count > 0)
+          : [];
+        const reactionTotal = reactionGroups.reduce((sum, bucket) => sum + Math.max(0, Number(bucket.count || 0)), 0);
+        const reactionSummaryTitle = reactionGroups.map((bucket) => `${{bucket.emoji}} ${{bucket.count}}`).join(" • ");
+        const reactionSummaryIcons = reactionGroups
+          .slice(0, 4)
+          .map((bucket) => `<span class="chat-reaction-summary-emoji">${{escAttr(bucket.emoji)}}</span>`)
+          .join("");
+        const reactionSummary = reactionGroups.length > 0
+          ? `<button type="button" class="chat-reaction-summary" data-reaction-summary="${{escAttr(JSON.stringify(reactionGroups))}}" aria-label="${{escAttr(`Reactions: ${{reactionSummaryTitle}}`)}}" title="${{escAttr(reactionSummaryTitle)}}">
+              <span class="chat-reaction-summary-icons">${{reactionSummaryIcons}}</span>
+              <span class="chat-reaction-summary-total">${{reactionTotal}}</span>
+            </button>`
+          : "";
+        const isLocalEcho = msg.local_echo === true || msg.localEcho === true;
+        const deliveryState = normalizeDeliveryState(msg.delivery_state ?? msg.deliveryState);
+        const deliveryError = String(msg.delivery_error ?? msg.deliveryError ?? "").trim();
+        const deliveryAckMeta = (
+          isLocalEcho && Number.isInteger(messageId) && messageId > 0
+            ? (deliveryAckByRequestId.get(String(messageId)) || null)
+            : null
+        );
+        const deliveryAckDetail = (
+          isLocalEcho && deliveryState === "acked"
+            ? buildDeliveredAckDetail(msg, deliveryAckMeta)
+            : ""
+        );
+        const deliveryLabel = isLocalEcho ? deliveryStateLabel(deliveryState) : "";
+        const deliveryTitle = isLocalEcho ? deliveryStateTitle(deliveryState, deliveryError, deliveryAckDetail) : "";
+        const deliveryChip = (isLocalEcho && deliveryLabel)
+          ? `<span class="chat-delivery-pill state-${{escAttr(deliveryState)}}" title="${{escAttr(deliveryTitle)}}">${{escAttr(deliveryLabel)}}</span>`
+          : "";
+        const rxSnrRaw = Number(
+          packetSummary.rx_snr
+          ?? packetSummary.rxSnr
+          ?? packetSummary.snr
+          ?? msg.rx_snr
+          ?? msg.rxSnr
+          ?? msg.snr
+        );
+        const rxSnr = Number.isFinite(rxSnrRaw) ? rxSnrRaw : null;
+        const rxRssiRaw = Number(
+          packetSummary.rx_rssi
+          ?? packetSummary.rxRssi
+          ?? packetSummary.rssi
+          ?? msg.rx_rssi
+          ?? msg.rxRssi
+          ?? msg.rssi
+        );
+        const rxRssi = Number.isFinite(rxRssiRaw) ? rxRssiRaw : null;
+        const portnumText = String(msg.portnum ?? packetSummary.portnum ?? "").trim() || "n/a";
+        const ackText = `${{formatHopCountLabel(hopNum, "hop count n/a")}}.`;
+        const ackHopCount = hasHop ? Math.trunc(hopNum) : "";
+        const ackHopStart = Number.isFinite(hopStart) ? Math.trunc(hopStart) : "";
+        const ackHopLimit = Number.isFinite(hopLimit) ? Math.trunc(hopLimit) : "";
+        const ackReceivedUnix = (Number.isFinite(msgTimeUnix) && msgTimeUnix > 0)
+          ? Math.floor(msgTimeUnix)
+          : "";
+        const ackDestination = (() => {{
+          const normalizedTo = normalizeNodeId(fallbackNode);
+          if (!normalizedTo || normalizedTo === "^all") return "^all";
+          const normalizedFrom = normalizeNodeId(sourceNode);
+          if (isCanonicalNodeId(normalizedFrom) && !isSelfNodeId(normalizedFrom)) {{
+            return normalizedFrom;
+          }}
+          if (isCanonicalNodeId(normalizedTo) && !isSelfNodeId(normalizedTo)) {{
+            return normalizedTo;
+          }}
+          return "^all";
+        }})();
+        const ackTargetLabel = ackDestination === "^all"
+          ? "Everyone"
+          : (fromMeta.label || ackDestination);
+        const retryReplyId = Number.isInteger(replyToId) && replyToId > 0 ? replyToId : "";
+        const replyButton = canReply
+          ? `<button type="button" class="chat-reply-btn" data-message-id="${{escAttr(messageId)}}" title="Reply to this message">Reply</button>`
+          : "";
+        const canAck = canReply && !isStatusMessage && !isLocalEcho && !isSelfNodeId(sourceNode);
+        const ackButton = canAck
+          ? `<button type="button" class="chat-ack-btn" data-ack-reply-id="${{escAttr(messageId)}}" data-ack-text="${{escAttr(ackText)}}" data-ack-text-mode="pong" data-ack-destination="${{escAttr(ackDestination)}}" data-ack-channel="${{escAttr(meshIdx)}}" data-ack-target-label="${{escAttr(ackTargetLabel)}}" data-ack-source-id="${{escAttr(sourceNode)}}" data-ack-source-label="${{escAttr(fromMeta.label || "")}}" data-ack-received-unix="${{escAttr(ackReceivedUnix)}}" data-ack-hop-count="${{escAttr(ackHopCount)}}" data-ack-hop-start="${{escAttr(ackHopStart)}}" data-ack-hop-limit="${{escAttr(ackHopLimit)}}" data-ack-rx-snr="${{escAttr(rxSnr == null ? "" : rxSnr)}}" data-ack-rx-rssi="${{escAttr(rxRssi == null ? "" : rxRssi)}}" title="Quick ACK reply (ping-style): ${{escAttr(ackText)}}">Ack</button>`
+          : "";
+        const whoisButton = "";
+        const hasReactions = reactionGroups.length > 0;
+        const reactButton = messageId
+          ? `<button type="button" class="chat-react-btn${{hasReactions ? " has-reactions" : ""}}" data-reply-id="${{escAttr(messageId)}}" title="Add reaction" aria-label="Add reaction">+</button>`
+          : "";
+        const retryButton = (
+          isLocalEcho
+          && isRetryableDeliveryState(deliveryState)
+          && String(msg.text || "").trim()
+        )
+          ? `<button type="button" class="chat-retry-btn" data-retry-text="${{escAttr(String(msg.text || ""))}}" data-retry-destination="${{escAttr(String(msg.to || "^all"))}}" data-retry-channel="${{escAttr(msg.channel ?? 0)}}" data-retry-reply-id="${{escAttr(retryReplyId)}}" data-retry-of="${{escAttr(messageId || "")}}" title="Retry this message">Retry</button>`
+          : "";
+        const reactionRowParts = [];
+        if (reactButton) reactionRowParts.push(reactButton);
+        if (replyButton) reactionRowParts.push(replyButton);
+        if (ackButton) reactionRowParts.push(ackButton);
+        const tailButtons = [];
+        if (whoisButton) tailButtons.push(whoisButton);
+        if (tailButtons.length > 0) {{
+          reactionRowParts.push(`<span class="chat-reply-tail">${{tailButtons.join("")}}</span>`);
+        }}
+        const reactionSummaryRow = reactionSummary
+          ? `<div class="chat-reaction-summary-row">${{reactionSummary}}</div>`
+          : "";
+        const reactionRow = reactionRowParts.length > 0
+          ? `<div class="chat-reaction-row">${{reactionRowParts.join("")}}</div>`
+          : "";
+        const selectedFeedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
+        const tagClass = tagActive ? " tagged-node" : "";
+        const messageKey = chatMessageKey(msg);
+        const hasChangeMarker = !!messageKey && activeChangeFocusKeys.has(messageKey);
+        const changeClass = hasChangeMarker ? " has-change-marker" : "";
+        const statusClass = isStatusMessage ? " kind-status" : "";
+        const changeBadge = hasChangeMarker
+          ? '<span class="chat-feed-new-pill" title="Changed while you were away">NEW</span>'
+          : "";
+        const statusBadge = isStatusMessage
+          ? '<span class="chat-feed-status-pill" title="Status update">Status</span>'
+          : "";
+        const messageTooltipParts = [
+          `From: ${{fromMeta.label}}${{fromMeta.idTag ? ` (${{fromMeta.idTag}})` : ""}}`,
+          `To: ${{toMeta.label}}${{toMeta.idTag ? ` (${{toMeta.idTag}})` : ""}}`,
+          `Channel: ${{meshChannelLabelForIndex(meshIdx, {{ verbose: true, allowAll: false }})}}`,
+          `Port: ${{portnumText}}`,
+        ];
+        if (messageId) {{
+          messageTooltipParts.push(`Packet: #${{messageId}}`);
+        }}
+        if (Number.isInteger(replyToId) && replyToId > 0) {{
+          messageTooltipParts.push(`Reply to: #${{replyToId}}`);
+          if (replyTooltipSummary) {{
+            messageTooltipParts.push(replyTooltipSummary);
+          }}
+          if (replyTooltipPreview) {{
+            messageTooltipParts.push(`Reply context: ${{replyTooltipPreview}}`);
+          }}
+        }}
+        if (timeText) {{
+          messageTooltipParts.push(`Time: ${{timeText}}`);
+        }}
+        if (rawTimeText && rawTimeText !== timeText) {{
+          messageTooltipParts.push(`Raw time: ${{rawTimeText}}`);
+        }}
+        if (hasHop) {{
+          messageTooltipParts.push(`Hops: ${{hopTitle === "Hop count" ? hopLabel : `${{hopLabel}} (${{hopTitle}})`}}`);
+        }}
+        if (deliveryLabel) {{
+          messageTooltipParts.push(`Delivery: ${{deliveryTitle || deliveryLabel}}`);
+        }}
+        if (deliveryError) {{
+          messageTooltipParts.push(`Delivery error: ${{trimInlineError(deliveryError, 160)}}`);
+        }}
+        if (isStatusMessage) {{
+          messageTooltipParts.push("Kind: status");
+        }}
+        if (textCompact) {{
+          messageTooltipParts.push(`Message: ${{textCompact}}`);
+        }}
+        const messageTooltip = messageTooltipParts.join("\n");
+        const replyInline = replyInlineLabel
+          ? `<span class="chat-reply-inline${{replyInlineMissing ? " missing" : ""}}">
+              <span class="chat-reply-inline-label">↪ ${{escAttr(replyInlineLabel)}}</span>
+              <span class="chat-reply-inline-text">${{escAttr(replyInlineText)}}</span>
+            </span>`
+          : "";
+        const monitorMode = chatViewMode === "monitor";
+        const sourceNodeEntry = nodesById.get(normalizeNodeId(sourceNode)) || null;
+        const sourceRole = String(
+          (sourceNodeEntry && sourceNodeEntry.role != null)
+            ? sourceNodeEntry.role
+            : ""
+        ).trim().toUpperCase();
+        const monitorBadgeColor = monitorRoleColorByName[sourceRole]
+          || monitorRoleColorByName.CLIENT
+          || "#cccccc";
+        const monitorSenderTag = (() => {{
+          if (isCanonicalNodeId(fromMeta.idTag || "")) {{
+            return String(fromMeta.idTag).replace(/^!+/, "").slice(-4).toLowerCase();
+          }}
+          const compactLabel = compactInlineMessage(fromMeta.label || "node", 12);
+          return compactLabel.replace(/[\[\]]/g, "").slice(-4).toLowerCase();
+        }})();
+        const monitorShortTagHtml = escAttr(String(monitorSenderTag || "node").padStart(4, " ")).replace(/ /g, "&nbsp;");
+        const monitorReplyInline = replyInlineLabel
+          ? `<span class="chat-entry-reply${{replyInlineMissing ? " missing" : ""}}">[in reply to ${{escAttr(replyInlineLabel)}}]</span>`
+          : "";
+        const monitorPrefix = `<span class="chat-monitor-prefix">[${{escAttr(timeText)}}]</span>`;
+        const monitorViewClass = monitorMode ? " chat-view-monitor" : "";
+        if (monitorMode) {{
+          const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selectedFeedClass}}${{tagClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}`;
+          return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
+            <span class="chat-entry-msg">
+              ${{monitorPrefix}}
+              ${{monitorNetworkTag}}
+              <span class="short-name status-${{fromStatusKey}}" style="background:${{escAttr(monitorBadgeColor)}}" title="${{escAttr(fromMeta.title)}}">${{monitorShortTagHtml}}</span>
+              ${{monitorReplyInline}}
+              <span class="chat-entry-copy chat-monitor-text">${{textHtmlMonitor || "&nbsp;"}}</span>
+            </span>
+          </div>`;
+        }}
+        const summaryBody = isStatusMessage
+          ? `${{replyInline}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`
+          : `${{replyInline}}${{statusBadge}}
+              <span class="chat-endpoint chat-feed-author" title="${{escAttr(fromMeta.title)}}">
+                <span class="node-status-dot chat-feed-status-dot status-${{fromStatusKey}}" title="${{escAttr(fromStatusDotTitle)}}" aria-hidden="true">●</span>
+                <span class="chat-name status-${{fromMeta.status}}">${{escAttr(fromMeta.label)}}</span>
+              </span>
+              <span class="chat-feed-colon">:</span>
+              <span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`;
+        const sideHtml = monitorMode
+          ? ""
+          : `<span class="chat-feed-side">
+              ${{retryButton}}
+              ${{deliveryChip}}
+              <span class="chat-feed-time" title="${{escAttr(timeTitle || timeText)}}">${{escAttr(timeText)}}</span>
+            </span>`;
+        const extraRows = monitorMode ? "" : `${{reactionSummaryRow}}${{reactionRow}}`;
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{tagClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}"${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
+          <div class="chat-feed-line">
+            <div class="chat-feed-summary">
+              ${{changeBadge}}
+              ${{summaryBody}}
+            </div>
+            ${{sideHtml}}
+          </div>
+          ${{extraRows}}
+        </div>`;
+      }}).filter((item) => !!item);

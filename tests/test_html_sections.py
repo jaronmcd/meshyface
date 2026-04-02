@@ -17,10 +17,13 @@ def test_build_html_shell_injects_style_js_and_header_tokens():
     assert "<style>\n/* style-css */\n  </style>" in html
     assert "<script>\n// app-js\n  </script>" in html
     assert "<title>Meshyface</title>" in html
-    assert '<h1 class="topbar-heading">Meshyface' in html
-    assert 'id="self-radio-pill"' in html
+    assert '<h1 class="topbar-heading">' in html
+    assert '<span class="topbar-heading-app">Meshyface</span>' in html
+    assert 'id="self-radio-profile"' in html
+    assert 'id="favorite-menu-toggle-btn"' in html
     assert ">n/a<" in html
     assert 'title="rev-title">Rev: test<' in html
     assert "Packet buffer: 250" in html
     assert "Refresh: 3000 ms" in html
     assert 'id="theme-preset-select"' in html
+    assert 'id="m-target-radio-status"' in html

@@ -1,0 +1,347 @@
+    const consoleMaxLines = 1200;
+    const consolePacketPreviewMaxChars = 140;
+    const consoleCommandHistoryMax = 120;
+    const consoleFontSizePxByKey = Object.freeze({{ sm: 10, md: 12, lg: 14, xl: 16 }});
+    const consoleCommandRegistry = new Map();
+    const tableSortState = {{
+      "nodes-table": {{ index: 0, dir: "desc" }},
+      "links-table": {{ index: 2, dir: "desc" }},
+      "ports-table": {{ index: 1, dir: "desc" }},
+      "history-chat-table": {{ index: 0, dir: "desc" }},
+      "packets-table": {{ index: 0, dir: "desc" }},
+      "encription-packets-table": {{ index: 0, dir: "desc" }},
+      "encription-traffic-table": {{ index: 2, dir: "desc" }},
+    }};
+    const nodeExplorerFieldDefs = Object.freeze([
+      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: true, rosterDefault: true }}),
+      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false }}),
+      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: true }}),
+      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: true }}),
+      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: true }}),
+      Object.freeze({{ id: "saved", label: "Saved", sortable: true, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false }}),
+    ]);
+    const nodeExplorerFieldDefById = new Map(
+      nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
+    );
+    const chatNodeNavigatorDefaultSortKey = "status";
+    const chatNodeNavigatorDefaultSortDir = "asc";
+    const chatNodeNavigatorSortDefs = Object.freeze([
+      Object.freeze({{ id: "status", label: "Status" }}),
+      Object.freeze({{ id: "activity", label: "Recent Message" }}),
+      Object.freeze({{ id: "last_heard", label: "Last Heard" }}),
+      Object.freeze({{ id: "idle", label: "Idle" }}),
+      Object.freeze({{ id: "name", label: "Name" }}),
+      Object.freeze({{ id: "snr", label: "SNR" }}),
+      Object.freeze({{ id: "hops", label: "Hops" }}),
+      Object.freeze({{ id: "battery", label: "Battery" }}),
+      Object.freeze({{ id: "favorite", label: "Tagged" }}),
+      Object.freeze({{ id: "saved", label: "Saved" }}),
+      Object.freeze({{ id: "hardware", label: "HW" }}),
+      Object.freeze({{ id: "id", label: "ID" }}),
+      Object.freeze({{ id: "pos", label: "Pos" }}),
+    ]);
+    const chatNodeNavigatorSortDefById = new Map(
+      chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
+    );
+    function normalizeNodeExplorerFieldId(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return nodeExplorerFieldDefById.has(clean) ? clean : "";
+    }}
+
+    function nodeExplorerFieldDef(fieldId) {{
+      const clean = normalizeNodeExplorerFieldId(fieldId);
+      return clean ? (nodeExplorerFieldDefById.get(clean) || null) : null;
+    }}
+
+    function nodeExplorerRosterMetadataFieldDefs() {{
+      return nodeExplorerFieldDefs.filter((def) => !!(def && def.rosterMeta));
+    }}
+
+    function nodeExplorerDefaultRosterMetadataFieldIds() {{
+      return nodeExplorerFieldDefs
+        .filter((def) => !!(def && def.rosterMeta && def.rosterDefault))
+        .map((def) => String(def.id || ""))
+        .filter((id) => !!id);
+    }}
+
+    function nodeExplorerBuildProjection(nodeInput, options = null) {{
+      const node = nodeInput && typeof nodeInput === "object" ? nodeInput : {{}};
+      const opts = options && typeof options === "object" ? options : {{}};
+      const nowUnix = Number.isFinite(Number(opts.nowUnix))
+        ? Math.trunc(Number(opts.nowUnix))
+        : Math.floor(Date.now() / 1000);
+      const nodeId = (typeof normalizeNodeId === "function")
+        ? normalizeNodeId(node && node.id)
+        : String((node && node.id) || "").trim();
+      const fallbackName = String((node && (node.long_name || node.short_name || node.id)) || "Unknown node").trim() || "Unknown node";
+      const name = (typeof nodeLabel === "function") ? nodeLabel(node) : fallbackName;
+
+      const lastHeardUnixRaw = Number(node && (node.last_heard_unix ?? node.last_heard_epoch ?? 0));
+      const lastHeardUnix = Number.isFinite(lastHeardUnixRaw) ? Math.trunc(lastHeardUnixRaw) : 0;
+      const lastHeardText = String(node && node.last_heard || "").trim() || "n/a";
+      const hardwareText = String((node && (node.hardware_model || node.hardware)) || "").trim() || "n/a";
+      const snrRaw = Number(node && node.snr);
+      const snrNum = Number.isFinite(snrRaw) ? snrRaw : null;
+      const hopsRaw = Number(node && node.hops_away);
+      const hopsNum = Number.isFinite(hopsRaw) ? Math.trunc(hopsRaw) : null;
+      const batteryRaw = Number(node && node.battery_level);
+      const batteryNum = Number.isFinite(batteryRaw) ? Math.max(0, Math.min(100, Math.round(batteryRaw))) : null;
+      const savedPacketsRaw = Number(node && node.saved_packets);
+      const savedPackets = Number.isFinite(savedPacketsRaw)
+        ? Math.max(0, Math.trunc(savedPacketsRaw))
+        : 0;
+      const savedPointsRaw = Number(node && node.saved_points);
+      const savedPoints = Number.isFinite(savedPointsRaw)
+        ? Math.max(0, Math.trunc(savedPointsRaw))
+        : 0;
+      const savedTitle = savedPoints > 0
+        ? `${{savedPackets}} packets across ${{savedPoints}} minute buckets`
+        : "No saved history yet";
+      const latRaw = Number(node && node.lat);
+      const lonRaw = Number(node && node.lon);
+      const hasPosition = Number.isFinite(latRaw) && Number.isFinite(lonRaw);
+      const posText = hasPosition
+        ? `${{latRaw.toFixed(5)}}, ${{lonRaw.toFixed(5)}}`
+        : "n/a";
+      const tagEntry = (typeof nodeTagEntryForNode === "function")
+        ? nodeTagEntryForNode(nodeId)
+        : null;
+      const favorite = !!tagEntry;
+      const tagName = favorite
+        ? normalizeNodeTagPresetName(tagEntry.preset && tagEntry.preset.name, "Tagged")
+        : "n/a";
+      const tagTitle = favorite
+        ? `Tag: ${{tagName}}`
+        : "No tag";
+      const status = (typeof freshnessStatus === "function")
+        ? freshnessStatus(lastHeardUnix, nowUnix)
+        : "unknown";
+      const statusSort = (typeof statusRank === "function")
+        ? statusRank(status)
+        : 99;
+
+      const fields = {{
+        last_heard: {{ sort: lastHeardUnix, text: lastHeardText, title: lastHeardText }},
+        id: {{ sort: nodeId, text: nodeId || "n/a", title: String((node && (node.id || nodeId)) || "n/a") }},
+        name: {{ sort: name, text: name, title: name }},
+        hardware: {{ sort: hardwareText, text: hardwareText, title: hardwareText }},
+        snr: {{ sort: (snrNum == null ? "" : snrNum), text: (snrNum == null ? "n/a" : String(snrNum)), title: (snrNum == null ? "n/a" : `${{snrNum}} dB`) }},
+        hops: {{ sort: (hopsNum == null ? "" : hopsNum), text: (hopsNum == null ? "n/a" : String(hopsNum)), title: (hopsNum == null ? "n/a" : String(hopsNum)) }},
+        battery: {{ sort: (batteryNum == null ? "" : batteryNum), text: (batteryNum == null ? "n/a" : String(batteryNum)), title: (batteryNum == null ? "n/a" : `${{batteryNum}}%`) }},
+        saved: {{ sort: savedPackets, text: String(savedPackets), title: savedTitle }},
+        pos: {{ sort: (hasPosition ? latRaw : ""), text: posText, title: posText }},
+        favorite: {{ sort: favorite ? 1 : 0, text: tagName, title: tagTitle }},
+      }};
+
+      return {{
+        node,
+        nodeId,
+        name,
+        status,
+        statusSort,
+        fields,
+      }};
+    }}
+
+    function nodeExplorerProjectionFrom(source, options = null) {{
+      if (source && typeof source === "object" && source.fields && source.node) {{
+        return source;
+      }}
+      return nodeExplorerBuildProjection(source, options);
+    }}
+    const wheelActivationLeaseMs = 1400;
+    function isChatWorkspaceLayoutView(viewName) {{
+      const clean = String(viewName || "").trim().toLowerCase();
+      return clean === "chat" || clean === "macros" || clean === "chatlabs";
+    }}
+    function isChannelsViewActive(viewName = activeLayoutView, settingsTab = activeSettingsTab) {{
+      const cleanView = String(viewName || "").trim().toLowerCase();
+      if (cleanView === "channels") return true;
+      if (cleanView !== "settings") return false;
+      const cleanTab = String(settingsTab || "").trim().toLowerCase();
+      return cleanTab === "channels";
+    }}
+    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "bbs", "bots", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
+    const reversiBoardSize = 8;
+    const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
+    const reversiDirections = Object.freeze([
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],            [0, 1],
+      [1, -1],  [1, 0],   [1, 1],
+    ]);
+    const reversiProtocolVersion = "rv1";
+    const reversiMaxSeenNetworkMessages = 2400;
+    const reversiInviteMaxRows = 6;
+    const reversiInviteStaleSeconds = 15 * 60;
+    const checkersProtocolVersion = "ck1";
+    const checkersMaxSeenNetworkMessages = 2400;
+    const chessProtocolVersion = "ch1";
+    const chessMaxSeenNetworkMessages = 2400;
+    const checkersBoardSize = 8;
+    const chessBoardSize = 8;
+    const chessFiles = "abcdefgh";
+    const pokerMinPlayers = 2;
+    const pokerMaxPlayers = 4;
+    const pokerDefaultPlayers = 4;
+    const pokerHandSize = 5;
+    const pokerDefaultStartingStack = 200;
+    const pokerDefaultAnte = 1;
+    const pokerDefaultSmallBlind = 0;
+    const pokerDefaultBigBlind = 0;
+    const pokerMinStartingStack = 10;
+    const pokerMaxStartingStack = 5000;
+    const pokerMaxAnte = 500;
+    const pokerMaxSmallBlind = 500;
+    const pokerMaxBigBlind = 1000;
+    // Shared standard-card primitives are intentionally reusable for Hold'em/Blackjack.
+    const standardCardRanks = Object.freeze(["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]);
+    const standardCardSuits = Object.freeze(["S", "H", "D", "C"]);
+    const standardCardSuitSymbols = Object.freeze({{
+      S: "\u2660",
+      H: "\u2665",
+      D: "\u2666",
+      C: "\u2663",
+    }});
+    const standardCardSuitColors = Object.freeze({{
+      S: "black",
+      H: "red",
+      D: "red",
+      C: "black",
+    }});
+    const knownChatChannels = new Set(["all", "direct"]);
+    const chatMainDirectModeEnabled = false;
+    const meshChannelAllIndex = -1;
+    const meshChannelColorPalette = [
+      {{ name: "blue", fill: "#0072B2" }},
+      {{ name: "orange", fill: "#E69F00" }},
+      {{ name: "bluish green", fill: "#009E73" }},
+      {{ name: "yellow", fill: "#F0E442" }},
+      {{ name: "sky blue", fill: "#56B4E9" }},
+      {{ name: "vermillion", fill: "#D55E00" }},
+      {{ name: "reddish purple", fill: "#CC79A7" }},
+      {{ name: "gray", fill: "#999999" }},
+    ];
+    const meshChannelNeutralPalette = [
+      {{ name: "light gray", fill: "#BEBEBE" }},
+      {{ name: "silver", fill: "#AEAEAE" }},
+      {{ name: "soft gray", fill: "#9E9E9E" }},
+      {{ name: "gray", fill: "#8F8F8F" }},
+      {{ name: "slate gray", fill: "#808080" }},
+      {{ name: "charcoal gray", fill: "#717171" }},
+      {{ name: "graphite", fill: "#626262" }},
+      {{ name: "dark gray", fill: "#545454" }},
+    ];
+    const knownChatNotificationScopes = new Set(["all", "self"]);
+    const knownWhoisCommandPrefixes = new Set(["whois", "!whois", "#whois"]);
+    const knownBotSingleWordCommands = new Set([
+      "cmd", "!cmd", "#cmd",
+      "help", "!help", "#help",
+      "whoami", "!whoami", "#whoami",
+      "lheard", "!lheard", "#lheard",
+      "joke", "!joke", "#joke",
+      "pull", "!pull", "#pull",
+      "zork", "!zork", "#zork",
+    ]);
+    const knownBotArgumentCommands = new Set([
+      "whois", "!whois", "#whois",
+      "whohas", "!whohas", "#whohas",
+      "ping", "!ping", "#ping",
+      "wx", "!wx", "#wx",
+    ]);
+    const botCommandAliasByName = new Map([
+      ["test", "ping"],
+    ]);
+    const defaultBotTrafficSnifferCommandHeads = [
+      "cmd",
+      "help",
+      "whoami",
+      "whois",
+      "whohas",
+      "ping",
+      "joke",
+      "pull",
+      "wx",
+      "lheard",
+      "zork",
+    ];
+    const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
+    const fileTransferProtocolPrefix = "MF_FILE_V1";
+    const fileTransferChatMaxBytes = 220;
+    const fileTransferMaxFileBytes = 12 * 1024;
+    const fileTransferChunkBytes = 64;
+    const fileTransferCompressionCodecRaw = "raw";
+    const fileTransferCompressionCodecLzss = "lzss";
+    const fileTransferCompressionEnabled = true;
+    const fileTransferCompressionMinInputBytes = 160;
+    const fileTransferCompressionMinSavingsBytes = 32;
+    const fileTransferCompressionMinSavingsRatio = 0.92;
+    const fileTransferCompressionWindowBytes = 1024;
+    const fileTransferCompressionMinMatchBytes = 4;
+    const fileTransferCompressionMaxMatchBytes = 130;
+    const fileTransferDestinationStorageKey = "meshDashboardFileTransferDestinationV1";
+    const fileTransferInterFrameDelayMs = 320;
+    const fileTransferInterFrameDelayMinMs = 180;
+    const fileTransferInterFrameDelayMaxMs = 900;
+    const fileTransferInterFrameDelayRecoverMultiplier = 0.88;
+    const fileTransferInterFrameDelayBackoffMultiplier = 1.12;
+    const fileTransferInitialChunkBurst = 6;
+    const fileTransferShortTransferChunkThreshold = 28;
+    const fileTransferShortInitialBurstExtraChunks = 2;
+    const fileTransferShortEndgameResendIntervalMs = 850;
+    const fileTransferShortCwndBackoffFloorChunks = 4;
+    const fileTransferNoAckBurstMin = 4;
+    const fileTransferNoAckBurstMax = 10;
+    const fileTransferNoAckMetaResendEveryRetries = 3;
+    const fileTransferRtoInitialMs = 3000;
+    const fileTransferRtoMinMs = 1100;
+    const fileTransferRtoMaxMs = 45000;
+    const fileTransferRttAlpha = 0.125;
+    const fileTransferRttBeta = 0.25;
+    const fileTransferCwndInitialChunks = 6;
+    const fileTransferCwndMinChunks = 2;
+    const fileTransferCwndMaxChunks = 18;
+    const fileTransferSsthreshInitialChunks = 9;
+    const fileTransferAckResendIntervalMs = 2500;
+    const fileTransferAckPeriodicRefreshMs = 5000;
+    const fileTransferAckPeriodicRefreshMax = 6;
+    const fileTransferAckPeriodicRefreshWindowMs = 45 * 1000;
+    const fileTransferAckWaitBeforeRetryMs = 4000;
+    const fileTransferAckFinalGraceMs = 15 * 1000;
+    const fileTransferAckProgressStallFailMs = 3 * 60 * 1000;
+    const fileTransferAckActiveTransferWindowSec = 4 * 60;
+    const fileTransferAckUnknownLockChannel = true;
+    const fileTransferEndgameMissingChunkThreshold = 4;
+    const fileTransferEndgameResendIntervalMs = 1200;
+    const fileTransferEndgameDuplicateSends = 3;
+    const fileTransferRetryRecoveryIntervalMs = 12000;
+    const fileTransferMaintenanceHeartbeatMs = 1500;
+    const fileTransferRetryErrorLogIntervalMs = 5000;
+    const fileTransferAckUnknownProbeStagnationThreshold = 6;
+    const fileTransferAckUnknownProbeRotateIntervalMs = 25 * 1000;
+    const fileTransferAckUnknownWarnIntervalMs = 30 * 1000;
+    const fileTransferMaintenanceCooldownMs = 900;
+    const fileTransferOutgoingMaxRetries = 8;
+    const fileTransferConsoleMaxEntries = 240;
+    const bbsProtocolVersion = "bbs1";
+    const bbsMaxSeenNetworkMessages = 2200;
+    const bbsBoardMaxPosts = 260;
+    const bbsBoardDirectoryMaxRows = 32;
+    const bbsBoardStaleSeconds = 45 * 60;
+    const bbsHostAnnounceIntervalMs = 90 * 1000;
+    const bbsStorageKey = "meshDashboardBbsV1";
+    const bbsMaxTitleChars = 42;
+    const bbsMaxMotdChars = 120;
+    const bbsMaxPostChars = 220;
+    const knownDeliveryStates = new Set(["pending", "sent", "acked", "nak", "timeout", "error"]);
+    const botCityHintMaxDistanceKm = 120;
+    const requesterPositionMaxAgeSeconds = 24 * 3600;
+    const reactionPopoverMaxNames = 12;
+    const sortableTables = new Set(Object.keys(tableSortState));
+    const consoleLines = [];
+    const consoleKeyQueue = [];
+    const consoleSeen = new Set();
+    const wheelPaneSelector = ".scroll, details pre";

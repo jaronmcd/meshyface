@@ -1,0 +1,234 @@
+    function bindWeeklySummaryMetricControl() {{
+      const select = document.getElementById("weekly-summary-metric");
+      if (!(select instanceof HTMLSelectElement)) return;
+      if (select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+      select.value = normalizeWeeklySummaryMetric(weeklySummaryMetric);
+      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
+      select.addEventListener("change", () => {{
+        applyWeeklySummaryMetric(select.value || "packets", true);
+        if (activeLayoutView === "history") {{
+          void refreshHistoryPanels(false);
+        }}
+      }});
+    }}
+
+    function bindWeeklySummaryNodeSeriesControls() {{
+      for (const key of weeklySummaryNodeSeriesOrder) {{
+        const toggleId = weeklySummaryNodeSeriesControlIds[key];
+        const toggle = document.getElementById(toggleId);
+        if (!(toggle instanceof HTMLInputElement)) continue;
+        if (toggle.dataset.bound === "1") continue;
+        toggle.dataset.bound = "1";
+        toggle.checked = !!weeklySummaryNodeSeriesEnabled[key];
+        toggle.addEventListener("change", () => {{
+          const nextSeries = {{}};
+          for (const innerKey of weeklySummaryNodeSeriesOrder) {{
+            const innerToggleId = weeklySummaryNodeSeriesControlIds[innerKey];
+            const innerToggle = document.getElementById(innerToggleId);
+            if (innerToggle instanceof HTMLInputElement) {{
+              nextSeries[innerKey] = innerToggle.checked;
+            }}
+          }}
+          applyWeeklySummaryNodeSeries(nextSeries, true);
+        }});
+      }}
+      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
+    }}
+
+    function loadThemePreference() {{
+      let stored = "auto";
+      try {{
+        stored = window.localStorage.getItem(themeStorageKey) || "auto";
+      }} catch (_err) {{
+      }}
+      applyThemePreference(stored, false);
+    }}
+
+    function loadTickerDensityPreference() {{
+      let stored = "compact";
+      try {{
+        stored = window.localStorage.getItem(tickerDensityStorageKey) || "compact";
+      }} catch (_err) {{
+      }}
+      applyTickerDensity(stored, false);
+    }}
+
+    function loadWeeklySummaryMetricPreference() {{
+      let stored = "packets";
+      try {{
+        stored = window.localStorage.getItem(weeklySummaryMetricStorageKey) || "packets";
+      }} catch (_err) {{
+      }}
+      applyWeeklySummaryMetric(stored, false);
+    }}
+
+    function loadWeeklySummaryNodeSeriesPreference() {{
+      let storedJson = "";
+      try {{
+        storedJson = window.localStorage.getItem(weeklySummaryNodeSeriesStorageKey) || "";
+      }} catch (_err) {{
+      }}
+      if (storedJson) {{
+        try {{
+          const parsed = JSON.parse(storedJson);
+          applyWeeklySummaryNodeSeries(parsed, false);
+          return;
+        }} catch (_err) {{
+        }}
+      }}
+      let legacyCompare = "0";
+      try {{
+        legacyCompare = window.localStorage.getItem(weeklySummaryNodesCompareLegacyStorageKey) || "0";
+      }} catch (_err) {{
+      }}
+      if (normalizeWeeklySummaryNodesCompare(legacyCompare)) {{
+        applyWeeklySummaryNodeSeries({{
+          online_nodes: true,
+          known_nodes: true,
+          saved_nodes: true,
+          position_nodes: true,
+        }}, false);
+      }} else {{
+        applyWeeklySummaryNodeSeries({{
+          online_nodes: true,
+          known_nodes: false,
+          saved_nodes: false,
+          position_nodes: false,
+        }}, false);
+      }}
+    }}
+
+    function updateMapPacketLinesControl() {{
+      const wrap = document.getElementById("map-lines-wrap");
+      const toggle = document.getElementById("map-lines-toggle");
+      const inMapLineContext = activeLayoutView === "network";
+      if (wrap instanceof HTMLElement) {{
+        wrap.hidden = !inMapLineContext;
+        wrap.title = mapPacketLinesEnabled
+          ? "Hide packet lines between nodes."
+          : "Show packet lines between nodes.";
+      }}
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = mapPacketLinesEnabled;
+      }}
+    }}
+
+    function syncNetworkLegacyExplorerLayoutClass() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.classList.toggle("network-legacy-explorer-visible", !!networkLegacyExplorerEnabled);
+    }}
+
+    function updateNetworkLegacyExplorerControl() {{
+      const btn = document.getElementById("network-legacy-explorer-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const inNetworkView = activeLayoutView === "network";
+      btn.hidden = !inNetworkView;
+      btn.classList.toggle("is-active", !!networkLegacyExplorerEnabled);
+      btn.textContent = networkLegacyExplorerEnabled
+        ? "Legacy Explorer: On"
+        : "Legacy Explorer: Off";
+      btn.title = networkLegacyExplorerEnabled
+        ? "Hide the legacy Network Explorer table and expand the map."
+        : "Show the legacy Network Explorer table beside the map.";
+      btn.setAttribute("aria-pressed", networkLegacyExplorerEnabled ? "true" : "false");
+    }}
+
+    function persistNetworkLegacyExplorerPreference() {{
+      try {{
+        window.localStorage.setItem(networkLegacyExplorerStorageKey, networkLegacyExplorerEnabled ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
+    function applyNetworkLegacyExplorerPreference(enabled, persist = true) {{
+      networkLegacyExplorerEnabled = !!enabled;
+      syncNetworkLegacyExplorerLayoutClass();
+      updateNetworkLegacyExplorerControl();
+      if (persist) {{
+        persistNetworkLegacyExplorerPreference();
+      }}
+      if (activeLayoutView === "network") {{
+        if (networkLegacyExplorerEnabled && latestState) {{
+          renderNodes(Array.isArray(latestState.nodes) ? latestState.nodes : []);
+        }}
+        if (typeof requestMapResizeStabilized === "function") {{
+          requestMapResizeStabilized();
+        }} else if (typeof requestMapResizeNow === "function") {{
+          requestMapResizeNow();
+        }} else if (typeof requestMapResize === "function") {{
+          requestMapResize();
+        }}
+      }}
+    }}
+
+    function loadNetworkLegacyExplorerPreference() {{
+      let enabled = false;
+      try {{
+        const stored = window.localStorage.getItem(networkLegacyExplorerStorageKey);
+        if (stored === "1") {{
+          enabled = true;
+        }} else if (stored === "0") {{
+          enabled = false;
+        }}
+      }} catch (_err) {{
+      }}
+      applyNetworkLegacyExplorerPreference(enabled, false);
+    }}
+
+    function bindNetworkLegacyExplorerControl() {{
+      const btn = document.getElementById("network-legacy-explorer-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {{
+          applyNetworkLegacyExplorerPreference(!networkLegacyExplorerEnabled, true);
+        }});
+      }}
+      updateNetworkLegacyExplorerControl();
+    }}
+
+    function persistMapPacketLinesPreference() {{
+      try {{
+        window.localStorage.setItem(mapPacketLinesStorageKey, mapPacketLinesEnabled ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadMapPacketLinesPreference() {{
+      mapPacketLinesEnabled = true;
+      try {{
+        const stored = window.localStorage.getItem(mapPacketLinesStorageKey);
+        if (stored === "0") {{
+          mapPacketLinesEnabled = false;
+        }} else if (stored === "1") {{
+          mapPacketLinesEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+      updateMapPacketLinesControl();
+    }}
+
+    function bindMapPacketLinesControl() {{
+      const toggle = document.getElementById("map-lines-toggle");
+      if (toggle instanceof HTMLInputElement && toggle.dataset.bound !== "1") {{
+        toggle.dataset.bound = "1";
+        toggle.checked = mapPacketLinesEnabled;
+        toggle.addEventListener("change", () => {{
+          mapPacketLinesEnabled = !!toggle.checked;
+          persistMapPacketLinesPreference();
+          updateMapPacketLinesControl();
+          lastMapSignature = "";
+          lastMapGraphSignature = "";
+          lastMapRenderMode = "";
+          if (latestState && activeLayoutView === "network") {{
+            renderMap(
+              latestState.nodes || [],
+              (latestState.traffic || {{}}).edges || [],
+              null
+            );
+          }}
+        }});
+      }}
+      updateMapPacketLinesControl();
+    }}

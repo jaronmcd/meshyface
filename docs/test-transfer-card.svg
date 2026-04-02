@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="Meshyface transfer test card">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a1a2a"/>
+      <stop offset="55%" stop-color="#11374f"/>
+      <stop offset="100%" stop-color="#1d5b46"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6ef2b3"/>
+      <stop offset="50%" stop-color="#46c6ff"/>
+      <stop offset="100%" stop-color="#f6d46b"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+  </defs>
+
+  <rect width="960" height="540" fill="url(#bg)"/>
+
+  <g opacity="0.24" fill="#9dd8ff">
+    <circle cx="120" cy="82" r="34"/>
+    <circle cx="840" cy="96" r="26"/>
+    <circle cx="710" cy="448" r="40"/>
+    <circle cx="250" cy="422" r="22"/>
+  </g>
+
+  <g opacity="0.7" stroke="#8ac6df" stroke-width="1">
+    <path d="M90 170 H870"/>
+    <path d="M90 230 H870"/>
+    <path d="M90 290 H870"/>
+    <path d="M90 350 H870"/>
+    <path d="M90 410 H870"/>
+  </g>
+
+  <rect x="70" y="58" width="820" height="424" rx="20" fill="none" stroke="#79e2bd" stroke-width="2"/>
+  <rect x="94" y="86" width="772" height="96" rx="14" fill="#0c1e2e" stroke="#3abf8d" stroke-width="1.5"/>
+  <rect x="94" y="198" width="772" height="262" rx="14" fill="#091521" stroke="#2f8da5" stroke-width="1.5"/>
+
+  <rect x="122" y="122" width="716" height="14" rx="7" fill="url(#bar)"/>
+  <rect x="122" y="148" width="438" height="10" rx="5" fill="#2c8096"/>
+  <rect x="122" y="164" width="310" height="10" rx="5" fill="#296579"/>
+
+  <g font-family="monospace" fill="#d9f1ff">
+    <text x="118" y="112" font-size="26" font-weight="700">Meshyface File Transfer Test Card</text>
+    <text x="118" y="254" font-size="18">File: test-transfer-card.svg</text>
+    <text x="118" y="282" font-size="18">Purpose: sanity check transfer + integrity</text>
+    <text x="118" y="310" font-size="18">Expected: image opens and text is readable</text>
+    <text x="118" y="338" font-size="18">Channel: any (suggest matching send/view)</text>
+    <text x="118" y="366" font-size="18">Size target: small enough for chunk tests</text>
+  </g>
+
+  <g>
+    <circle cx="790" cy="398" r="16" fill="#7effc0"/>
+    <circle cx="822" cy="398" r="16" fill="#5fc9ff"/>
+    <circle cx="854" cy="398" r="16" fill="#ffd76e"/>
+  </g>
+
+  <g filter="url(#soft)" opacity="0.52">
+    <ellipse cx="480" cy="488" rx="240" ry="12" fill="#5dc3cc"/>
+  </g>
+
+  <text x="480" y="508" text-anchor="middle" font-family="monospace" font-size="16" fill="#cdefff">
+    meshdash test image
+  </text>
+</svg>

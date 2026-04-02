@@ -1,0 +1,343 @@
+    function safeFileTransferDownloadName(rawName) {{
+      const normalized = normalizeFileTransferName(rawName || "mesh-file.bin");
+      const cleaned = normalized
+        .replace(/[\\x00-\\x1F\\x7F]/g, "")
+        .replace(/[\\\\/:*?"<>|]/g, "_")
+        .replace(/\\s+/g, " ")
+        .trim();
+      return cleaned || "mesh-file.bin";
+    }}
+
+    function fileTransferDirectionMeta(fromId, toId, localNodeId) {{
+      const from = normalizeNodeId(fromId || "");
+      const to = normalizeNodeId(toId || "");
+      const selfId = normalizeNodeId(localNodeId || "");
+      if (isCanonicalNodeId(selfId) && from === selfId) {{
+        return {{
+          className: "outbound",
+          label: "Sent",
+          peerId: to || "",
+        }};
+      }}
+      if (isCanonicalNodeId(selfId) && to === selfId) {{
+        return {{
+          className: "inbound",
+          label: "Recv",
+          peerId: from || "",
+        }};
+      }}
+      return {{
+        className: "other",
+        label: "Seen",
+        peerId: from || to || "",
+      }};
+    }}
+
+    function fileTransferPeerMeta(nodeId, nodesById, localNodeId) {{
+      const clean = normalizeNodeId(nodeId || "");
+      if (!clean) {{
+        return {{ label: "n/a", title: "n/a" }};
+      }}
+      if (clean === "^all") {{
+        return {{ label: "All", title: "Broadcast (^all)" }};
+      }}
+      if (isCanonicalNodeId(localNodeId) && clean === normalizeNodeId(localNodeId)) {{
+        return {{ label: "You", title: `You (${{clean}})` }};
+      }}
+      const node = nodesById instanceof Map ? nodesById.get(clean) : null;
+      const preferred = preferredNodeName(node) || nodeNameCache.get(clean) || "";
+      if (preferred) {{
+        return {{ label: preferred, title: `${{preferred}} (${{clean}})` }};
+      }}
+      return {{ label: clean, title: clean }};
+    }}
+
+    function fileTransferKeyOf(fromId, toId, transferId) {{
+      const from = normalizeNodeId(fromId || "");
+      const to = normalizeNodeId(toId || "");
+      const id = String(transferId || "").trim().toLowerCase();
+      return `${{from}}|${{to}}|${{id}}`;
+    }}
+
+    function fileTransferOutgoingTokenFor(transferId, destination, channelIndex) {{
+      const id = String(transferId || "").trim().toLowerCase();
+      const to = normalizeNodeId(destination || "");
+      const ch = normalizeMeshChannelIndex(channelIndex);
+      return `${{id}}|${{to}}|${{ch}}`;
+    }}
+
+    function fileTransferExplicitChannelIndex(rawIndex) {{
+      if (rawIndex == null || rawIndex === "") return null;
+      const num = Number(rawIndex);
+      return Number.isInteger(num) && num >= 0 ? Math.trunc(num) : null;
+    }}
+
+    function normalizeFileTransferInboundDecision(rawDecision) {{
+      const clean = String(rawDecision || "").trim().toLowerCase();
+      if (clean === "accepted" || clean === "declined") {{
+        return clean;
+      }}
+      return "";
+    }}
+
+    function fileTransferInboundTransferNeedsAccept(fromId, toId, localNodeId) {{
+      const sender = normalizeNodeId(fromId || "");
+      const receiver = normalizeNodeId(toId || "");
+      const local = normalizeNodeId(localNodeId || "");
+      if (!isCanonicalNodeId(local)) return false;
+      if (receiver !== local) return false;
+      if (sender === local) return false;
+      return true;
+    }}
+
+    function fileTransferInboundDecisionForKey(transferKey) {{
+      const key = String(transferKey || "").trim();
+      if (!key) return "";
+      const entry = fileTransferInboundDecisionByKey.get(key);
+      if (!(entry && typeof entry === "object")) return "";
+      const decision = normalizeFileTransferInboundDecision(entry.decision);
+      if (!decision) {{
+        fileTransferInboundDecisionByKey.delete(key);
+        return "";
+      }}
+      return decision;
+    }}
+
+    function setFileTransferInboundDecisionByKey(transferKey, decisionRaw, details = null) {{
+      const key = String(transferKey || "").trim();
+      if (!key) return null;
+      const decision = normalizeFileTransferInboundDecision(decisionRaw);
+      if (!decision) {{
+        fileTransferInboundDecisionByKey.delete(key);
+        fileTransferInboundDecisionPromptByKey.delete(key);
+        return null;
+      }}
+      const info = (details && typeof details === "object") ? details : {{}};
+      const nowMs = Date.now();
+      const prior = fileTransferInboundDecisionByKey.get(key);
+      const priorDecision = normalizeFileTransferInboundDecision(prior && prior.decision);
+      const entry = {{
+        transferKey: key,
+        decision,
+        transferId: String(
+          info.transferId != null
+            ? info.transferId
+            : (prior && prior.transferId != null ? prior.transferId : "")
+        ).trim().toLowerCase(),
+        senderId: normalizeNodeId(
+          info.senderId != null
+            ? info.senderId
+            : (prior && prior.senderId != null ? prior.senderId : "")
+        ),
+        receiverId: normalizeNodeId(
+          info.receiverId != null
+            ? info.receiverId
+            : (prior && prior.receiverId != null ? prior.receiverId : "")
+        ),
+        fileName: normalizeFileTransferName(
+          info.fileName != null
+            ? info.fileName
+            : (prior && prior.fileName ? prior.fileName : "mesh-file.bin")
+        ),
+        totalChunks: Math.max(
+          0,
+          Math.trunc(
+            Number(
+              info.totalChunks != null
+                ? info.totalChunks
+                : (prior && prior.totalChunks != null ? prior.totalChunks : 0)
+            ) || 0
+          )
+        ),
+        decidedAtMs: (
+          priorDecision === decision
+            ? Math.max(0, Math.trunc(Number(prior && prior.decidedAtMs) || 0))
+            : nowMs
+        ) || nowMs,
+        updatedAtMs: nowMs,
+      }};
+      fileTransferInboundDecisionByKey.set(key, entry);
+      if (decision === "accepted") {{
+        fileTransferInboundDecisionPromptByKey.delete(key);
+      }}
+      return entry;
+    }}
+
+    function setFileTransferInboundDecisionForTransfer(transfer, decisionRaw) {{
+      if (!(transfer && typeof transfer === "object")) return null;
+      const key = String(transfer.key || "").trim();
+      if (!key) return null;
+      return setFileTransferInboundDecisionByKey(key, decisionRaw, {{
+        transferId: transfer.transferId,
+        senderId: transfer.fromId,
+        receiverId: transfer.toId,
+        fileName: transfer.fileName,
+        totalChunks: transfer.totalChunks,
+      }});
+    }}
+
+    function pruneFileTransferInboundDecisionState(activeTransferKeys = null, nowMs = Date.now()) {{
+      const active = activeTransferKeys instanceof Set ? activeTransferKeys : null;
+      const staleDecisionMs = 75 * 60 * 1000;
+      const stalePromptMs = 20 * 60 * 1000;
+      for (const [key, entry] of fileTransferInboundDecisionByKey.entries()) {{
+        if (active && active.has(key)) continue;
+        const updatedAtMs = Math.max(0, Math.trunc(Number(entry && entry.updatedAtMs) || 0));
+        if (updatedAtMs <= 0 || (nowMs - updatedAtMs) > staleDecisionMs) {{
+          fileTransferInboundDecisionByKey.delete(key);
+          fileTransferInboundDecisionPromptByKey.delete(key);
+        }}
+      }}
+      for (const [key, promptAtMsRaw] of fileTransferInboundDecisionPromptByKey.entries()) {{
+        if (active && active.has(key)) continue;
+        const promptAtMs = Math.max(0, Math.trunc(Number(promptAtMsRaw) || 0));
+        if (promptAtMs <= 0 || (nowMs - promptAtMs) > stalePromptMs) {{
+          fileTransferInboundDecisionPromptByKey.delete(key);
+        }}
+      }}
+    }}
+
+    function findOutgoingFileTransferSession(transferId, destination, channelIndex = null) {{
+      const id = String(transferId || "").trim().toLowerCase();
+      const to = normalizeNodeId(destination || "");
+      if (!id || !isCanonicalNodeId(to)) return null;
+      const explicitChannel = fileTransferExplicitChannelIndex(channelIndex);
+      if (explicitChannel != null) {{
+        const exactToken = fileTransferOutgoingTokenFor(id, to, explicitChannel);
+        const exactSession = fileTransferOutgoingByToken.get(exactToken);
+        if (exactSession && typeof exactSession === "object") {{
+          return exactSession;
+        }}
+      }}
+      let fallback = null;
+      for (const session of fileTransferOutgoingByToken.values()) {{
+        if (!session || typeof session !== "object") continue;
+        if (String(session.transferId || "") !== id) continue;
+        if (normalizeNodeId(session.destination || "") !== to) continue;
+        if (!fallback || Number(session.createdAtMs || 0) > Number(fallback.createdAtMs || 0)) {{
+          fallback = session;
+        }}
+      }}
+      return fallback;
+    }}
+
+    function candidateAckChannelIndexes(transfer) {{
+      const explicit = fileTransferExplicitChannelIndex(transfer && transfer.channelIndex);
+      if (explicit != null) {{
+        return [explicit];
+      }}
+      const ordered = [];
+      const pushIdx = (raw) => {{
+        const idx = normalizeMeshChannelIndex(raw);
+        if (!Number.isInteger(idx) || idx < 0) return;
+        if (!ordered.includes(idx)) {{
+          ordered.push(idx);
+        }}
+      }};
+      pushIdx(meshChannelEffectiveSendIndexForApp("files"));
+      pushIdx(activeMeshSendChannelIndex);
+      const activeViewIdx = activeMeshChannelFilterIndex();
+      if (activeViewIdx !== meshChannelAllIndex) {{
+        pushIdx(activeViewIdx);
+      }}
+      pushIdx(0);
+      const options = Array.isArray(meshChannelSendOptions) ? meshChannelSendOptions : [];
+      for (const opt of options) {{
+        pushIdx(opt && opt.index);
+      }}
+      return ordered;
+    }}
+
+    function registerOutgoingFileTransferSession(payload) {{
+      const session = (payload && typeof payload === "object") ? payload : {{}};
+      const token = fileTransferOutgoingTokenFor(
+        session.transferId,
+        session.destination,
+        session.channelIndex
+      );
+      const totalChunks = Math.max(1, Math.trunc(Number(session.totalChunks) || 1));
+      const normalized = {{
+        token,
+        transferId: String(session.transferId || "").trim().toLowerCase(),
+        senderId: normalizeNodeId(session.senderId || ""),
+        destination: normalizeNodeId(session.destination || ""),
+        channelIndex: normalizeMeshChannelIndex(session.channelIndex),
+        fileName: normalizeFileTransferName(session.fileName || "mesh-file.bin"),
+        metaFrame: String(session.metaFrame || "").trim(),
+        chunkFrames: Array.isArray(session.chunkFrames) ? session.chunkFrames.slice() : [],
+        totalChunks,
+        createdAtMs: Date.now(),
+        lastSendAtMs: Date.now(),
+        lastRetryAtMs: 0,
+        retryAttempts: 0,
+        retriesSinceProgress: 0,
+        retryChunkCursor: Math.max(0, Math.trunc(Number(session.retryChunkCursor) || 0)),
+        lastRetryErrorAtMs: 0,
+        maxRetries: Math.max(1, Math.trunc(Number(session.maxRetries) || fileTransferOutgoingMaxRetries)),
+        delivered: false,
+        failed: false,
+        deliveredAtMs: 0,
+        failedAtMs: 0,
+        waitingForAccept: !!session.waitingForAccept,
+        acceptedAtMs: Math.max(0, Math.trunc(Number(session.acceptedAtMs) || 0)),
+        acceptProbeAttempts: Math.max(0, Math.trunc(Number(session.acceptProbeAttempts) || 0)),
+        lastAcceptProbeAtMs: Math.max(0, Math.trunc(Number(session.lastAcceptProbeAtMs) || 0)),
+        sentChunks: Math.max(
+          0,
+          Math.min(totalChunks, Math.trunc(Number(session.sentChunks) || 0))
+        ),
+        ackedChunks: 0,
+        srttMs: Math.max(0, Number(session.srttMs) || 0),
+        rttvarMs: Math.max(0, Number(session.rttvarMs) || 0),
+        rtoMs: Math.max(
+          fileTransferRtoMinMs,
+          Math.min(
+            fileTransferRtoMaxMs,
+            Math.trunc(Number(session.rtoMs) || fileTransferRtoInitialMs)
+          )
+        ),
+        cwndChunks: Math.max(
+          fileTransferCwndMinChunks,
+          Math.min(
+            fileTransferCwndMaxChunks,
+            Number(session.cwndChunks) || fileTransferCwndInitialChunks
+          )
+        ),
+        ssthreshChunks: Math.max(
+          fileTransferCwndMinChunks,
+          Math.min(
+            fileTransferCwndMaxChunks,
+            Math.trunc(Number(session.ssthreshChunks) || fileTransferSsthreshInitialChunks)
+          )
+        ),
+        frameGapMs: Math.max(
+          fileTransferInterFrameDelayMinMs,
+          Math.min(
+            fileTransferInterFrameDelayMaxMs,
+            Math.trunc(Number(session.frameGapMs) || fileTransferInterFrameDelayMs)
+          )
+        ),
+        lastWindowSendAtMs: Math.max(0, Math.trunc(Number(session.lastWindowSendAtMs) || 0)),
+        lastCongestionBackoffAtMs: Math.max(0, Math.trunc(Number(session.lastCongestionBackoffAtMs) || 0)),
+        lastAckProgressAtMs: 0,
+        lastAckUnix: null,
+        lastAckChannelIndex: null,
+        lastAckReceivedIndexes: [],
+      }};
+      fileTransferOutgoingByToken.set(token, normalized);
+      return normalized;
+    }}
+
+    function pruneOutgoingFileTransferSessions(nowMs = Date.now()) {{
+      for (const [token, session] of fileTransferOutgoingByToken.entries()) {{
+        const createdAtMs = Number(session && session.createdAtMs) || 0;
+        const delivered = !!(session && session.delivered);
+        const failed = !!(session && session.failed);
+        const terminalAt = Number(session && (session.deliveredAtMs || session.failedAtMs)) || 0;
+        const staleTerminal = (delivered || failed) && terminalAt > 0 && (nowMs - terminalAt) > (25 * 60 * 1000);
+        const staleOpen = !delivered && !failed && createdAtMs > 0 && (nowMs - createdAtMs) > (45 * 60 * 1000);
+        if (staleTerminal || staleOpen) {{
+          fileTransferOutgoingByToken.delete(token);
+        }}
+      }}
+    }}

@@ -15,5 +15,6 @@ class DashboardArgs(Protocol):
     node_history_hours: int
     node_history_max_points: int
     refresh_ms: int
+    reset_ticker_scale_on_restart: bool
     http_host: str
     http_port: int

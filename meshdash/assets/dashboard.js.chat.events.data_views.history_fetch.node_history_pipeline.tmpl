@@ -1,0 +1,223 @@
+    function renderNodeHistoryOverview(history, node) {{
+      const summary = history.summary || {{}};
+      const target = document.getElementById("node-history-overview");
+      if (!target) return;
+      const historyNodeId = normalizeNodeId(history.node_id || "");
+      const fallbackNodeId = resolveSavedViewNodeId(latestState);
+      const label = node ? nodeLabel(node) : (historyNodeId || fallbackNodeId || "node");
+      const items = [
+        ["Node", `${{label}}`],
+        ["Node ID", `${{historyNodeId || fallbackNodeId || "n/a"}}`],
+        ["Points", `${{summary.points ?? (history.points || []).length ?? 0}}`],
+        ["Trail Points", `${{summary.trail_points ?? (history.positions || []).length ?? 0}}`],
+        ["Packets", `${{summary.total_packets ?? 0}}`],
+        ["Window", `${{history.window_hours ?? nodeHistoryHours}}h`],
+        ["Last Seen", `${{summary.last_seen || "n/a"}}`],
+        ["Trail Range", `${{summary.trail_start || "n/a"}} to ${{summary.trail_end || "n/a"}}`],
+        ["SNR Range", `${{formatMetricValue(summary.snr_min, 1)}} to ${{formatMetricValue(summary.snr_max, 1)}} dB`],
+        ["RSSI Range", `${{formatMetricValue(summary.rssi_min, 0)}} to ${{formatMetricValue(summary.rssi_max, 0)}} dBm`],
+      ];
+      target.innerHTML = items.map(([k, v]) => (
+        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+      )).join("");
+    }}
+
+    function renderNodeHistory(history, nodes) {{
+      setMapDataMode("node");
+      const historyNodeId = normalizeNodeId(history.node_id || "");
+      const node = (nodes || []).find((entry) => normalizeNodeId(entry && entry.id) === historyNodeId)
+        || savedViewNodeFrom(nodes, latestState);
+      const caption = document.getElementById("node-history-caption");
+      if (caption) {{
+        const fallbackNodeId = resolveSavedViewNodeId(latestState);
+        const name = node ? nodeLabel(node) : (historyNodeId || fallbackNodeId || "node");
+        const span = history.summary || {{}};
+        const trailPoints = Number.isFinite(Number(span.trail_points))
+          ? Number(span.trail_points)
+          : (Array.isArray(history.positions) ? history.positions.length : 0);
+        const loc = (node && typeof node.lat === "number" && typeof node.lon === "number")
+          ? `Current location: ${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}.`
+          : "No current location available from live node state.";
+        caption.textContent = `${{name}} (${{historyNodeId || fallbackNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}, trail points: ${{trailPoints}}.`;
+      }}
+      renderSignalChart(history.points || []);
+      renderNodeOnlineChart(
+        history.points || [],
+        history.window_hours,
+        Array.isArray(history.packet_timestamps) ? history.packet_timestamps : []
+      );
+      renderNodeHistoryOverview(history, node);
+      setHistoryTab(activeHistoryTab);
+    }}
+
+    async function fetchNodeHistory(nodeId, opts = null) {{
+      if (!isSelectableNodeId(nodeId)) return null;
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const force = options.force === true;
+      const signal = options.signal || undefined;
+      const cached = nodeHistoryCache.get(nodeId);
+      const nowMs = Date.now();
+      // Node history changes much slower than live state; avoid hammering the DB.
+      const ttlMs = Math.max(refreshMs * 2, 8000);
+      if (!force && cached && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
+        return cached.data;
+      }}
+      const url = `/api/history/node?node_id=${{encodeURIComponent(nodeId)}}&hours=${{nodeHistoryHours}}&points=${{nodeHistoryMaxPoints}}`;
+      const resp = await fetch(url, {{ cache: "no-store", signal }});
+      if (!resp.ok) throw new Error(`history API ${{resp.status}}`);
+      const data = await resp.json();
+      nodeHistoryCache.set(nodeId, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
+    function cachedNodeHistory(nodeId) {{
+      const clean = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(clean)) return null;
+      const cached = nodeHistoryCache.get(clean);
+      if (!cached || !cached.data) return null;
+      const dataId = normalizeNodeId(cached.data.node_id || "");
+      if (dataId && dataId !== clean) return null;
+      return cached.data;
+    }}
+
+    function abortNodeHistoryFetch() {{
+      if (nodeHistoryFetchAbort) {{
+        try {{
+          nodeHistoryFetchAbort.abort();
+        }} catch (_err) {{
+        }}
+      }}
+      nodeHistoryFetchAbort = null;
+      nodeHistoryFetchNodeId = "";
+    }}
+
+    function applyNodeHistoryToView(nodeHistory) {{
+      const state = latestState;
+      if (!state) return;
+      const nodes = state.nodes || [];
+      const traffic = (state.traffic || {{}});
+      const edges = traffic.edges || [];
+      const drawerExpanded = (
+        typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+      );
+      const drawerHistoryActive = (
+        typeof isChatNodeDetailsHistoryActive === "function"
+        && isChatNodeDetailsHistoryActive()
+      );
+
+      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+        renderMap(nodes, edges, nodeHistory);
+      }}
+
+      if (activeLayoutView === "network" && pendingMapHistoryFocus) {{
+        const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
+        const selectionId = normalizeNodeId(selectedNodeId || "");
+        if (historyNodeId && selectionId && historyNodeId === selectionId) {{
+          focusSelectedNodeOnMap(nodeHistory);
+          pendingMapHistoryFocus = false;
+        }}
+      }}
+
+      // The signal plot lives in the map-data panel, rendered by renderTraffic.
+      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+        renderTraffic(traffic, nodes, nodeHistory);
+      }}
+
+      if (activeLayoutView === "saved" || drawerExpanded) {{
+        renderSavedNodeDetails(state, nodeHistory);
+      }}
+
+      if (drawerHistoryActive) {{
+        setMapDataMode("node");
+        syncNodeHistoryDock();
+        renderNodeHistory(nodeHistory, nodes);
+      }}
+    }}
+
+    async function refreshSelectedNodeHistory(force = false) {{
+      const nodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : normalizeNodeId(selectedNodeId || "");
+      const drawerExpanded = (
+        typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+      );
+      const drawerHistoryActive = (
+        typeof isChatNodeDetailsHistoryActive === "function"
+        && isChatNodeDetailsHistoryActive()
+      );
+      if (!isSelectableNodeId(nodeId)) {{
+        abortNodeHistoryFetch();
+        return null;
+      }}
+      if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpanded)) {{
+        // No need to load node history unless the map views that can use it are visible.
+        abortNodeHistoryFetch();
+        return null;
+      }}
+      if (mapDataFocus === "activity" && !drawerExpanded) {{
+        // When showing online activity, keep node history idle.
+        abortNodeHistoryFetch();
+        return null;
+      }}
+
+      const nowMs = Date.now();
+      const ttlMs = Math.max(refreshMs * 2, 8000);
+      const cached = nodeHistoryCache.get(nodeId);
+      const cachedData = cached && cached.data ? cached.data : null;
+      const cacheFresh = !!cachedData && (nowMs - (cached.fetchedAt || 0)) < ttlMs;
+
+      if (!force && cacheFresh) {{
+        // Ensure the UI is actually showing the cached history (selection changes can
+        // switch the UI into a loading state without re-rendering the chart).
+        applyNodeHistoryToView(cachedData);
+        return cachedData;
+      }}
+
+      if (!force && nodeHistoryFetchAbort && nodeHistoryFetchNodeId === nodeId) {{
+        return null;
+      }}
+
+      abortNodeHistoryFetch();
+      nodeHistoryFetchSeq += 1;
+      const seq = nodeHistoryFetchSeq;
+      nodeHistoryFetchNodeId = nodeId;
+      nodeHistoryFetchAbort = new AbortController();
+      const signal = nodeHistoryFetchAbort.signal;
+
+      if (!cachedData && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+        renderNodeHistoryLoading(nodeId);
+      }}
+
+      try {{
+        const data = await fetchNodeHistory(nodeId, {{ force: true, signal }});
+        if (seq !== nodeHistoryFetchSeq) return null;
+        const activeNodeId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(latestState)
+          : normalizeNodeId(selectedNodeId || "");
+        if (activeNodeId !== nodeId) return null;
+        const drawerExpandedNow = (
+          typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        );
+        if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpandedNow)) return null;
+        if (mapDataFocus === "activity" && !drawerExpandedNow) return null;
+        applyNodeHistoryToView(data);
+        return data;
+      }} catch (err) {{
+        if (err && err.name === "AbortError") return null;
+        if (seq !== nodeHistoryFetchSeq) return null;
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        const caption = document.getElementById("node-history-caption");
+        if (caption && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+          caption.textContent = `History error for ${{nodeId}}: ${{msg}}`;
+        }}
+        return null;
+      }} finally {{
+        if (seq === nodeHistoryFetchSeq) {{
+          nodeHistoryFetchAbort = null;
+          nodeHistoryFetchNodeId = "";
+        }}
+      }}
+    }}

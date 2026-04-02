@@ -1,5 +1,7 @@
 import threading
 
+import meshdash.history_store_chat as history_store_chat_module
+import meshdash.history_store_connections as history_store_connections_module
 import meshdash.history_store_nodes as history_store_nodes_module
 import meshdash.history_store_packets as history_store_packets_module
 from meshdash.history_store import HistoryStore
@@ -18,8 +20,14 @@ from meshdash.history_store_nodes import (
     load_node_saved_counts as load_node_saved_counts_domain,
 )
 from meshdash.history_store_packets import (
+    load_environment_metrics_history as load_environment_metrics_history_domain,
     load_recent_packets as load_recent_packets_domain,
+    search_packets as search_packets_domain,
     save_packet as save_packet_domain,
+)
+from meshdash.history_store_summary import (
+    load_summary_metrics as load_summary_metrics_domain,
+    save_summary_metrics as save_summary_metrics_domain,
 )
 from meshdash.history_store_reads import (
     load_connections,
@@ -139,6 +147,192 @@ def test_history_store_domain_modules_round_trip_packet_chat_and_connection(tmp_
         store.close()
 
 
+def test_history_store_save_packet_skips_local_admin_noise(tmp_path):
+    db_path = tmp_path / "history_wrappers.radio-a1b2c3d4.sqlite3"
+    store = HistoryStore(
+        db_path=str(db_path),
+        max_rows=5000,
+        retention_days=7,
+        event_max_rows=200000,
+        event_retention_days=30,
+        rollup_retention_days=365,
+    )
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!a1b2c3d4",
+                    "to": "^all",
+                    "rx_time_unix": 1_700_000_100,
+                    "portnum": "ADMIN_APP",
+                },
+                "packet": {
+                    "id": 1_700_000_100,
+                    "fromId": "!a1b2c3d4",
+                    "toId": "^all",
+                    "rxTime": 1_700_000_100,
+                    "decoded": {
+                        "portnum": "ADMIN_APP",
+                    },
+                },
+            },
+        )
+        assert load_recent_packets_domain(store, 10) == []
+        packet_events_count = int(
+            store._conn.execute("SELECT COUNT(*) FROM packet_events").fetchone()[0] or 0
+        )
+        assert packet_events_count == 0
+    finally:
+        store.close()
+
+
+def test_history_store_save_packet_keeps_non_local_telemetry_packets(tmp_path):
+    db_path = tmp_path / "history_wrappers.radio-a1b2c3d4.sqlite3"
+    store = HistoryStore(
+        db_path=str(db_path),
+        max_rows=5000,
+        retention_days=7,
+        event_max_rows=200000,
+        event_retention_days=30,
+        rollup_retention_days=365,
+    )
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!11223344",
+                    "to": "^all",
+                    "rx_time_unix": 1_700_000_101,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "id": 1_700_000_101,
+                    "fromId": "!11223344",
+                    "toId": "^all",
+                    "rxTime": 1_700_000_101,
+                },
+            },
+        )
+        packets = load_recent_packets_domain(store, 10)
+        assert len(packets) == 1
+        assert packets[0]["summary"]["from"] == "!11223344"
+    finally:
+        store.close()
+
+
+def test_history_store_save_packet_throttles_duplicate_local_telemetry_samples(tmp_path):
+    db_path = tmp_path / "history_wrappers.radio-a1b2c3d4.sqlite3"
+    store = HistoryStore(
+        db_path=str(db_path),
+        max_rows=5000,
+        retention_days=7,
+        event_max_rows=200000,
+        event_retention_days=30,
+        rollup_retention_days=365,
+    )
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!a1b2c3d4",
+                    "to": "^all",
+                    "rx_time_unix": 1_700_000_100,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "id": 1_700_000_100,
+                    "fromId": "!a1b2c3d4",
+                    "toId": "^all",
+                    "rxTime": 1_700_000_100,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "telemetry": {
+                            "time": 1_700_000_100,
+                            "deviceMetrics": {
+                                "channelUtilization": 4.0,
+                            },
+                        },
+                    },
+                },
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!a1b2c3d4",
+                    "to": "^all",
+                    "rx_time_unix": 1_700_000_101,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "id": 1_700_000_101,
+                    "fromId": "!a1b2c3d4",
+                    "toId": "^all",
+                    "rxTime": 1_700_000_101,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "telemetry": {
+                            "time": 1_700_000_100,
+                            "deviceMetrics": {
+                                "channelUtilization": 4.0,
+                            },
+                        },
+                    },
+                },
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!a1b2c3d4",
+                    "to": "^all",
+                    "rx_time_unix": 1_700_000_105,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "id": 1_700_000_105,
+                    "fromId": "!a1b2c3d4",
+                    "toId": "^all",
+                    "rxTime": 1_700_000_105,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "telemetry": {
+                            "time": 1_700_000_105,
+                            "deviceMetrics": {
+                                "channelUtilization": 5.0,
+                            },
+                        },
+                    },
+                },
+            },
+        )
+
+        packets = load_recent_packets_domain(store, 10)
+        assert len(packets) == 2
+        packet_events_count = int(
+            store._conn.execute("SELECT COUNT(*) FROM packet_events").fetchone()[0] or 0
+        )
+        assert packet_events_count == 2
+        channel_sample_count = int(
+            store._conn.execute(
+                """
+                SELECT COALESCE(SUM(sample_count), 0)
+                FROM environment_metrics_1m
+                WHERE node_id = '!a1b2c3d4' AND metric_key = 'channel_utilization'
+                """
+            ).fetchone()[0]
+            or 0
+        )
+        assert channel_sample_count == 2
+    finally:
+        store.close()
+
+
 def test_history_store_domain_node_modules_return_mapping_shapes(tmp_path):
     store = _make_store(tmp_path)
     try:
@@ -146,6 +340,339 @@ def test_history_store_domain_node_modules_return_mapping_shapes(tmp_path):
         saved_counts = load_node_saved_counts_domain(store)
         assert isinstance(capabilities, dict)
         assert isinstance(saved_counts, dict)
+    finally:
+        store.close()
+
+
+def test_history_store_domain_summary_metrics_round_trip(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_summary_metrics_domain(
+            store,
+            {
+                "node_count": 12,
+                "saved_node_count": 7,
+                "online_node_count": 4,
+                "nodes_with_position": 9,
+                "live_packet_count": 77,
+                "real_edge_count": 5,
+            },
+        )
+        payload = load_summary_metrics_domain(store, 24)
+        assert payload["window_hours"] == 24
+        assert payload["points"]
+        latest = payload["points"][-1]
+        assert latest["node_count"] == 12
+        assert latest["saved_node_count"] == 7
+        assert latest["online_node_count"] == 4
+        assert latest["nodes_with_position"] == 9
+        assert latest["live_packet_count"] == 77
+        assert latest["real_edge_count"] == 5
+    finally:
+        store.close()
+
+
+def test_history_store_domain_packet_search_supports_scope_and_context(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!a", "to": "^all", "text": "alpha"},
+                "packet": {"id": 1},
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!b", "to": "^all", "text": "needle-hit"},
+                "packet": {"id": 2},
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!c", "to": "^all", "text": "omega"},
+                "packet": {"id": 3},
+            },
+        )
+
+        payload = search_packets_domain(
+            store,
+            "needle-hit",
+            limit=5,
+            before=1,
+            after=1,
+            scope="summary",
+        )
+
+        assert payload["matches"] == 1
+        assert payload["returned_matches"] == 1
+        assert payload["scope"] == "summary"
+        entries = payload["entries"]
+        assert len(entries) == 3
+        assert entries[0]["match"] is False
+        assert entries[1]["match"] is True
+        assert entries[2]["match"] is False
+        assert entries[1]["summary"]["text"] == "needle-hit"
+    finally:
+        store.close()
+
+
+def test_history_store_domain_packet_search_supports_chat_and_combined_sources(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!a", "to": "^all", "text": "needle in packet"},
+                "packet": {"id": 1},
+            },
+        )
+        save_packet_domain(
+            store,
+            {
+                "summary": {"from": "!b", "to": "^all", "text": "packet only"},
+                "packet": {"id": 2},
+            },
+        )
+        save_chat_domain(
+            store,
+            {
+                "from": "!c",
+                "to": "^all",
+                "text": "needle in chat",
+                "rx_time": "2026-03-16 00:00:00Z",
+            },
+        )
+        save_chat_domain(
+            store,
+            {
+                "from": "!d",
+                "to": "^all",
+                "text": "chat only",
+                "rx_time": "2026-03-16 00:00:01Z",
+            },
+        )
+
+        chat_payload = search_packets_domain(
+            store,
+            "needle",
+            limit=5,
+            before=0,
+            after=0,
+            scope="both",
+            source="chat",
+        )
+        assert chat_payload["source"] == "chat"
+        assert chat_payload["matches"] == 1
+        assert chat_payload["returned_matches"] == 1
+        assert chat_payload["scanned_packets"] == 0
+        assert chat_payload["scanned_chat"] >= 2
+        assert chat_payload["entries"]
+        assert chat_payload["entries"][0]["source"] == "chat"
+        assert "needle" in str(chat_payload["entries"][0]["chat"].get("text", "")).lower()
+
+        both_payload = search_packets_domain(
+            store,
+            "needle",
+            limit=10,
+            before=0,
+            after=0,
+            scope="both",
+            source="both",
+        )
+        assert both_payload["source"] == "both"
+        assert both_payload["matches"] >= 2
+        assert both_payload["returned_matches"] >= 2
+        entry_sources = {str(entry.get("source")) for entry in both_payload["entries"] if isinstance(entry, dict)}
+        assert "packet" in entry_sources
+        assert "chat" in entry_sources
+    finally:
+        store.close()
+
+
+def test_history_store_domain_environment_metrics_history_extracts_telemetry_points(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!a1b2c3d4",
+                    "from_short_name": "alpha",
+                    "rx_time_unix": 1_700_000_010,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "fromId": "!a1b2c3d4",
+                    "rxTime": 1_700_000_010,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "telemetry": {
+                            "time": 1_700_000_010,
+                            "environmentMetrics": {
+                                "temperature": 23.4,
+                                "relativeHumidity": 55.2,
+                            },
+                        },
+                    },
+                },
+            },
+        )
+        payload = load_environment_metrics_history_domain(
+            store,
+            window_hours=24,
+            metric="temperature",
+            node_id="!a1b2c3d4",
+            limit=1000,
+        )
+        assert payload["ok"] is True
+        assert payload["points"]
+        assert payload["metrics"][0]["key"] == "temperature"
+        assert payload["nodes"][0]["id"] == "!a1b2c3d4"
+        assert payload["points"][0]["metric_key"] == "temperature"
+        assert payload["points"][0]["node_label"] == "alpha"
+    finally:
+        store.close()
+
+
+def test_history_store_domain_environment_metrics_history_extracts_channel_utilization(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!01020304",
+                    "from_short_name": "delta",
+                    "rx_time_unix": 1_700_000_020,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "fromId": "!01020304",
+                    "rxTime": 1_700_000_020,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "telemetry": {
+                            "time": 1_700_000_020,
+                            "deviceMetrics": {
+                                "channelUtilization": 7.25,
+                                "airUtilTx": 1.5,
+                            },
+                        },
+                    },
+                },
+            },
+        )
+        payload = load_environment_metrics_history_domain(
+            store,
+            window_hours=24,
+            metric="channel_utilization",
+            node_id="!01020304",
+            limit=1000,
+        )
+        assert payload["ok"] is True
+        assert payload["points"]
+        assert payload["metrics"][0]["key"] == "channel_utilization"
+        assert payload["nodes"][0]["id"] == "!01020304"
+        assert payload["points"][0]["metric_key"] == "channel_utilization"
+        assert payload["points"][0]["value"] == 7.25
+    finally:
+        store.close()
+
+
+def test_history_store_domain_environment_metrics_history_extracts_custom_payload_json_metric(tmp_path):
+    store = _make_store(tmp_path)
+    try:
+        saved = store.set_custom_telemetry_settings(
+            [
+                {
+                    "enabled": True,
+                    "metric_key": "soil_temp_c",
+                    "source": "payload_json",
+                    "path": "sensors.soil_temp_c",
+                    "portnum": "TELEMETRY_APP",
+                }
+            ]
+        )
+        assert saved["ok"] is True
+        assert saved["rules"][0]["metric_key"] == "soil_temp_c"
+
+        payload_hex = b'{"sensors":{"soil_temp_c":18.25}}'.hex()
+        save_packet_domain(
+            store,
+            {
+                "summary": {
+                    "from": "!01010101",
+                    "from_short_name": "soilnode",
+                    "rx_time_unix": 1_700_000_030,
+                    "portnum": "TELEMETRY_APP",
+                },
+                "packet": {
+                    "fromId": "!01010101",
+                    "rxTime": 1_700_000_030,
+                    "decoded": {
+                        "portnum": "TELEMETRY_APP",
+                        "payload": payload_hex,
+                    },
+                },
+            },
+        )
+        payload = load_environment_metrics_history_domain(
+            store,
+            window_hours=24,
+            metric="soil_temp_c",
+            node_id="!01010101",
+            limit=1000,
+        )
+        assert payload["ok"] is True
+        assert payload["points"]
+        assert payload["points"][0]["metric_key"] == "soil_temp_c"
+        assert payload["points"][0]["value"] == 18.25
+    finally:
+        store.close()
+
+
+def test_history_store_domain_environment_metrics_history_clamps_future_rollup_timestamps(tmp_path, monkeypatch):
+    store = _make_store(tmp_path)
+    try:
+        now_unix = 1_900_000_000
+        monkeypatch.setattr(history_store_packets_module.time, "time", lambda: float(now_unix))
+        store._conn.execute(
+            """
+            INSERT INTO environment_metrics_1m(
+              bucket_unix, node_id, node_label, metric_key, metric_label,
+              sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                now_unix + 3600,
+                "!01020304",
+                "delta",
+                "temperature",
+                "Temperature",
+                1,
+                22.0,
+                22.0,
+                22.0,
+                22.0,
+                now_unix + 3600,
+            ),
+        )
+        store._conn.commit()
+
+        payload = load_environment_metrics_history_domain(
+            store,
+            window_hours=72,
+            metric="temperature",
+            node_id="!01020304",
+            limit=1000,
+        )
+        assert payload["ok"] is True
+        assert payload["points"] == []
+        assert payload["metrics"] == []
+        assert payload["nodes"] == []
     finally:
         store.close()
 
@@ -322,6 +849,75 @@ class _FailLock:
         return False
 
 
+def test_load_recent_chat_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_load_recent_chat_data(
+        conn,
+        *,
+        limit,
+        fetch_recent_chat_rows_fn,
+        decode_recent_chat_rows_fn,
+    ):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [{"text": "hello"}]
+
+    monkeypatch.setattr(
+        history_store_chat_module,
+        "_load_recent_chat_data_helper",
+        _fake_load_recent_chat_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    rows = load_recent_chat_domain(store, 4)
+
+    assert rows == [{"text": "hello"}]
+    assert calls["conn"] is store._conn
+    assert calls["limit"] == 4
+    assert store._lock.enter_count == 1
+
+
+def test_load_connections_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_load_connections_data(
+        conn,
+        *,
+        fetch_connection_rows_fn,
+        decode_connections_rows_fn,
+    ):
+        calls["conn"] = conn
+        return [{"from": "!a", "to": "!b"}]
+
+    monkeypatch.setattr(
+        history_store_connections_module,
+        "_load_connections_data_helper",
+        _fake_load_connections_data,
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    rows = load_connections_domain(store)
+
+    assert rows == [{"from": "!a", "to": "!b"}]
+    assert calls["conn"] is store._conn
+    assert store._lock.enter_count == 1
+
+
 def test_load_recent_packets_uses_primary_lock_when_read_connection_missing(monkeypatch):
     calls = {}
 
@@ -393,4 +989,92 @@ def test_load_recent_packets_uses_read_lock_when_read_connection_present(monkeyp
     assert rows == [{"ok": True}]
     assert calls["conn"] is store._read_conn
     assert calls["limit"] == 6
+    assert store._read_lock.enter_count == 1
+
+
+def test_search_packets_uses_primary_lock_when_read_connection_missing(monkeypatch):
+    calls = {}
+
+    def _fake_fetch_packet_search_rows(conn, limit):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [
+            (
+                10,
+                1_700_000_000,
+                '{"text":"hello needle"}',
+                '{"decoded":{"text":"hello needle"}}',
+            ),
+        ]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_packet_search_rows_helper",
+        _fake_fetch_packet_search_rows,
+    )
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_chat_search_rows_helper",
+        lambda _conn, _limit: [],
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _CountingLock()
+            self._read_lock = _FailLock()
+            self._read_conn = None
+
+    store = _Store()
+    payload = search_packets_domain(store, "needle", limit=10, before=0, after=0, scan_limit=100)
+
+    assert payload["matches"] == 1
+    assert payload["returned_matches"] == 1
+    assert len(payload["entries"]) == 1
+    assert calls["conn"] is store._conn
+    assert calls["limit"] == 100
+    assert store._lock.enter_count == 1
+
+
+def test_search_packets_uses_read_lock_when_read_connection_present(monkeypatch):
+    calls = {}
+
+    def _fake_fetch_packet_search_rows(conn, limit):
+        calls["conn"] = conn
+        calls["limit"] = limit
+        return [
+            (
+                11,
+                1_700_000_010,
+                '{"text":"needle in summary"}',
+                '{"decoded":{"text":"needle"}}',
+            ),
+        ]
+
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_packet_search_rows_helper",
+        _fake_fetch_packet_search_rows,
+    )
+    monkeypatch.setattr(
+        history_store_packets_module,
+        "_fetch_chat_search_rows_helper",
+        lambda _conn, _limit: [],
+    )
+
+    class _Store:
+        def __init__(self):
+            self._conn = object()
+            self._lock = _FailLock()
+            self._read_lock = _CountingLock()
+            self._read_conn = object()
+
+    store = _Store()
+    payload = search_packets_domain(store, "needle", limit=10, before=0, after=0, scan_limit=90)
+
+    assert payload["matches"] == 1
+    assert payload["returned_matches"] == 1
+    assert len(payload["entries"]) == 1
+    assert calls["conn"] is store._read_conn
+    assert calls["limit"] == 90
     assert store._read_lock.enter_count == 1

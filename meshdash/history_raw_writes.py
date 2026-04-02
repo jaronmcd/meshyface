@@ -16,7 +16,9 @@ class SavePacketEventAndRollupsFn(Protocol):
         conn: SqlConnection,
         summary: dict[str, object],
         *,
+        packet: dict[str, object] | None = None,
         now_unix_fn: NowUnixFn,
+        custom_telemetry_rules: object = None,
     ) -> None:
         ...
 
@@ -27,6 +29,7 @@ def save_packet_record(
     *,
     now_unix_fn: NowUnixFn = time.time,
     save_packet_event_and_rollups_fn: Optional[SavePacketEventAndRollupsFn] = None,
+    custom_telemetry_rules: object = None,
 ) -> None:
     summary = packet_entry.get("summary")
     packet = packet_entry.get("packet")
@@ -38,7 +41,13 @@ def save_packet_record(
         (int(now_unix_fn()), summary_json, packet_json),
     )
     if isinstance(summary, dict) and save_packet_event_and_rollups_fn is not None:
-        save_packet_event_and_rollups_fn(conn, summary, now_unix_fn=now_unix_fn)
+        save_packet_event_and_rollups_fn(
+            conn,
+            summary,
+            packet=packet if isinstance(packet, dict) else None,
+            now_unix_fn=now_unix_fn,
+            custom_telemetry_rules=custom_telemetry_rules,
+        )
 
 
 def save_chat_record(

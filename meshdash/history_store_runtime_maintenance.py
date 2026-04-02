@@ -79,6 +79,9 @@ def maybe_prune_history_store_unlocked(
 def reset_history_store(store: HistoryStoreRuntimeState) -> int:
     with store._lock:
         deleted = _reset_history_connection_helper(store._conn)
+        setattr(store, "_last_local_telemetry_sample_unix", 0)
+        setattr(store, "_custom_telemetry_rules", [])
+        setattr(store, "_custom_telemetry_updated_unix", 0)
 
     # Refresh read connection snapshots to avoid stale WAL readers.
     read_conn = getattr(store, "_read_conn", None)

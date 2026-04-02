@@ -1,0 +1,544 @@
+      const rawMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const rawPackets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
+      const localInfoMessages = Array.isArray(chatLocalInfoRows) ? chatLocalInfoRows : [];
+      const computeMessageEndpoints = (msg) => {{
+        const fromId = resolveMessageNodeId(
+          (msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)) || ""
+        );
+        const toId = resolveMessageNodeId(
+          (msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)) || ""
+        );
+        return {{ fromId, toId }};
+      }};
+      let derived = null;
+      if (chatDerivedCache
+        && chatDerivedCache.rawMessagesRef === rawMessages
+        && chatDerivedCache.rawPacketsRef === rawPackets
+        && chatDerivedCache.localInfoVersion === chatLocalInfoVersion
+        && chatDerivedCache.nodesRef === nodes
+        && chatDerivedCache.historyCapsRef === historyCapsObj
+        && chatDerivedCache.localNodeId === localNodeId
+        && chatDerivedCache.meshChannelIndex === normalizeMeshChannelIndex(activeMeshChannelIndex)
+        && chatDerivedCache.nodePacketTrendEnabled === nodeNavigatorPacketTrendEnabled()) {{
+        derived = chatDerivedCache;
+      }}
+      if (!derived) {{
+        const reactionBucketsLocal = new Map();
+        const baseMessagesLocal = [];
+        const messageIndexLocal = new Map();
+        const messageEndpointsLocal = new WeakMap();
+        const channelCountsLocal = {{ all: 0, direct: 0 }};
+        const channelMessagesLocal = {{ all: [], direct: [] }};
+        const directMessagesByPeerLocal = new Map();
+        const meshBotIndexes = indexMeshBotRequestsByMessageId(botRequests);
+        const meshBotRequestByMessageIdLocal = meshBotIndexes.requestByMessageId;
+        const meshBotResponseByMessageIdLocal = meshBotIndexes.responseByMessageId;
+        const packetMaps = buildPacketSummaryAndRoutingAckMaps(rawPackets);
+        const packetSummaryByIdLocal = packetMaps.packetSummaryById;
+        const deliveryAckByRequestIdLocal = packetMaps.deliveryAckByRequestId;
+        const packetTickerByNodeLocal = new Map();
+        const packetSparklineByNodeLocal = new Map();
+        const includeNodePacketTrend = nodeNavigatorPacketTrendEnabled();
+        const packetSparklineWindowSec = 60 * 60;
+        const packetSparklineBucketCount = 24;
+        const packetSparklineBucketSpanSec = packetSparklineWindowSec / packetSparklineBucketCount;
+        if (includeNodePacketTrend) {{
+          const ensurePacketBucket = (nodeId) => {{
+            if (!isSelectableNodeId(nodeId)) return null;
+            let bucket = packetTickerByNodeLocal.get(nodeId);
+            if (!bucket) {{
+              bucket = {{
+                total: 0,
+                recent5m: 0,
+                txTotal: 0,
+                txRecent5m: 0,
+                rxTotal: 0,
+                rxRecent5m: 0,
+                lastPacketUnix: null,
+                lastTxUnix: null,
+                lastRxUnix: null,
+              }};
+              packetTickerByNodeLocal.set(nodeId, bucket);
+            }}
+            return bucket;
+          }};
+          const ensureSparklineBucket = (nodeId) => {{
+            if (!isSelectableNodeId(nodeId)) return null;
+            let spark = packetSparklineByNodeLocal.get(nodeId);
+            if (!spark) {{
+              spark = {{
+                buckets: new Array(packetSparklineBucketCount).fill(0),
+                windowSec: packetSparklineWindowSec,
+                bucketCount: packetSparklineBucketCount,
+              }};
+              packetSparklineByNodeLocal.set(nodeId, spark);
+            }}
+            return spark;
+          }};
+          const touchPacketDirection = (nodeId, direction, packetUnix, inRecent5m) => {{
+            const bucket = ensurePacketBucket(nodeId);
+            if (!bucket) return;
+            if (direction === "tx") {{
+              bucket.txTotal += 1;
+              bucket.lastTxUnix = latestUnixTimestamp(bucket.lastTxUnix, packetUnix);
+              if (inRecent5m) {{
+                bucket.txRecent5m += 1;
+              }}
+            }} else if (direction === "rx") {{
+              bucket.rxTotal += 1;
+              bucket.lastRxUnix = latestUnixTimestamp(bucket.lastRxUnix, packetUnix);
+              if (inRecent5m) {{
+                bucket.rxRecent5m += 1;
+              }}
+            }}
+            bucket.total = Math.max(0, Math.trunc(Number(bucket.txTotal) || 0) + Math.trunc(Number(bucket.rxTotal) || 0));
+            bucket.recent5m = Math.max(
+              0,
+              Math.trunc(Number(bucket.txRecent5m) || 0) + Math.trunc(Number(bucket.rxRecent5m) || 0)
+            );
+            bucket.lastPacketUnix = latestUnixTimestamp(bucket.lastTxUnix, bucket.lastRxUnix, packetUnix);
+          }};
+          const touchSparkline = (nodeId, packetUnix) => {{
+            if (!Number.isFinite(packetUnix) || packetUnix <= 0) return;
+            const spark = ensureSparklineBucket(nodeId);
+            if (!spark) return;
+            const ageSec = nowUnix - packetUnix;
+            if (ageSec < 0 || ageSec > packetSparklineWindowSec) return;
+            let bucketIndex = Math.floor((packetSparklineWindowSec - ageSec) / packetSparklineBucketSpanSec);
+            if (!Number.isFinite(bucketIndex)) {{
+              bucketIndex = packetSparklineBucketCount - 1;
+            }}
+            bucketIndex = Math.max(0, Math.min(packetSparklineBucketCount - 1, Math.trunc(bucketIndex)));
+            spark.buckets[bucketIndex] = Math.max(0, Math.trunc(Number(spark.buckets[bucketIndex]) || 0) + 1);
+          }};
+          for (const packetEntry of rawPackets) {{
+            const summary = (packetEntry && packetEntry.summary && typeof packetEntry.summary === "object")
+              ? packetEntry.summary
+              : {{}};
+            const packet = (packetEntry && packetEntry.packet && typeof packetEntry.packet === "object")
+              ? packetEntry.packet
+              : {{}};
+            const isRadioPacket = (typeof isMeshRadioActivityPacket === "function")
+              ? isMeshRadioActivityPacket(packetEntry, localNodeId)
+              : true;
+            if (!isRadioPacket) continue;
+            const fromId = normalizeNodeId(
+              summary.from_id
+              ?? summary.fromId
+              ?? summary.from
+              ?? packet.from_id
+              ?? packet.fromId
+              ?? packet.from
+            );
+            const toId = normalizeNodeId(
+              summary.to_id
+              ?? summary.toId
+              ?? summary.to
+              ?? packet.to_id
+              ?? packet.toId
+              ?? packet.to
+              ?? packet.destination
+            );
+            const packetUnix = latestUnixTimestamp(
+              summary.rx_time_unix,
+              summary.captured_at,
+              summary.rx_time,
+              summary.time,
+              packetEntry && (packetEntry.captured_at || packetEntry.rx_time || packetEntry.time),
+              packet.rxTime,
+            );
+            const inRecent5m = (
+              Number.isFinite(packetUnix)
+              && packetUnix > 0
+              && (nowUnix - packetUnix) <= 300
+            );
+            touchPacketDirection(fromId, "tx", packetUnix, inRecent5m);
+            touchPacketDirection(toId, "rx", packetUnix, inRecent5m);
+            touchSparkline(fromId, packetUnix);
+            touchSparkline(toId, packetUnix);
+          }}
+        }}
+
+        const endpointsForBuild = (msg) => {{
+          if (!msg || typeof msg !== "object") return {{ fromId: "", toId: "" }};
+          const cached = messageEndpointsLocal.get(msg);
+          if (cached) return cached;
+          const resolved = computeMessageEndpoints(msg);
+          const fromNeedsBackfill = !resolved.fromId || resolved.fromId === "Unknown" || resolved.fromId === "n/a";
+          const toNeedsBackfill = !resolved.toId || resolved.toId === "Unknown" || resolved.toId === "n/a";
+          if (fromNeedsBackfill || toNeedsBackfill) {{
+            const msgId = messageIdOf(msg);
+            const packetEntry = (msgId != null) ? packetSummaryByIdLocal.get(String(msgId)) : null;
+            if (packetEntry && typeof packetEntry === "object") {{
+              const summary = (packetEntry.summary && typeof packetEntry.summary === "object")
+                ? packetEntry.summary
+                : {{}};
+              const packet = (packetEntry.packet && typeof packetEntry.packet === "object")
+                ? packetEntry.packet
+                : {{}};
+              if (fromNeedsBackfill) {{
+                const fromCandidates = [
+                  summary.from_id,
+                  summary.fromId,
+                  summary.from,
+                  summary.from_num,
+                  summary.fromNum,
+                  packet.from_id,
+                  packet.fromId,
+                  packet.from,
+                ];
+                for (const value of fromCandidates) {{
+                  const normalized = resolveMessageNodeId(value);
+                  if (!normalized || normalized === "Unknown" || normalized === "n/a") continue;
+                  resolved.fromId = normalized;
+                  break;
+                }}
+              }}
+              if (toNeedsBackfill) {{
+                const toCandidates = [
+                  summary.to_id,
+                  summary.toId,
+                  summary.to,
+                  summary.to_num,
+                  summary.toNum,
+                  packet.to_id,
+                  packet.toId,
+                  packet.to,
+                  packet.destination,
+                  packet.dest,
+                ];
+                for (const value of toCandidates) {{
+                  const normalized = resolveMessageNodeId(value);
+                  if (!normalized || normalized === "Unknown" || normalized === "n/a") continue;
+                  resolved.toId = normalized;
+                  break;
+                }}
+              }}
+            }}
+          }}
+          messageEndpointsLocal.set(msg, resolved);
+          return resolved;
+        }};
+
+        const mergedMessages = localInfoMessages.length
+          ? rawMessages.concat(localInfoMessages)
+          : rawMessages;
+        const mergedTimeline = mergedMessages
+          .map((msg, index) => {{
+            const unix = latestUnixTimestamp(
+              msg && msg.rx_time,
+              msg && msg.captured_at,
+            );
+            return {{
+              msg,
+              index,
+              unix: Number.isFinite(unix) ? Math.floor(unix) : null,
+            }};
+          }})
+          .sort((a, b) => {{
+            const aUnix = Number.isFinite(a.unix) ? a.unix : null;
+            const bUnix = Number.isFinite(b.unix) ? b.unix : null;
+            if (aUnix == null && bUnix != null) return -1;
+            if (aUnix != null && bUnix == null) return 1;
+            if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
+              return aUnix - bUnix;
+            }}
+            return a.index - b.index;
+          }});
+
+        for (const timelineRow of mergedTimeline) {{
+          const msg = timelineRow && typeof timelineRow === "object"
+            ? timelineRow.msg
+            : null;
+          if (!(msg && typeof msg === "object")) {{
+            continue;
+          }}
+          const msgChannelKey = classifyMessageChannel(msg) === "direct" ? "direct" : "all";
+          const includeDirectForPopout = !chatMainDirectModeEnabled && msgChannelKey === "direct";
+          if (
+            !messageMatchesActiveMeshChannel(msg)
+            && !(activeChatChannel === "direct" && msgChannelKey === "direct")
+            && !includeDirectForPopout
+          ) {{
+            continue;
+          }}
+          if (isFileTransferProtocolMessage(msg)) {{
+            continue;
+          }}
+          const msgId = messageIdOf(msg);
+          if (msgId) {{
+            // Keep an index entry for every message id, including reactions.
+            // Replies can target reaction packets; without this, context depends
+            // on recent_packets retention and may appear missing across nodes.
+            messageIndexLocal.set(String(msgId), msg);
+          }}
+          if (isReactionMessage(msg)) {{
+            const replyId = replyIdOf(msg);
+            const emoji = emojiOf(msg);
+            if (!replyId || !emoji) continue;
+
+            const key = String(replyId);
+            let perMessage = reactionBucketsLocal.get(key);
+            if (!(perMessage instanceof Map)) {{
+              perMessage = new Map();
+              reactionBucketsLocal.set(key, perMessage);
+            }}
+
+            let bucket = perMessage.get(emoji);
+            if (!bucket) {{
+              bucket = {{
+                emoji,
+                count: 0,
+                reactors: new Set(),
+                names: [],
+                lastUnix: 0,
+              }};
+              perMessage.set(emoji, bucket);
+            }}
+
+            const reactorId = endpointsForBuild(msg).fromId || resolveMessageNodeId(msg.from || "");
+            const reactorMeta = chatEndpointParts(reactorId);
+            const reactorName = reactorMeta.label || reactorId || "Unknown node";
+            const dedupeKey = reactorId || `${{reactorName}}:${{msg.rx_time || msg.captured_at || bucket.count}}`;
+            if (!bucket.reactors.has(dedupeKey)) {{
+              bucket.reactors.add(dedupeKey);
+              bucket.count += 1;
+              bucket.names.push(reactorName);
+            }}
+            const reactionTime = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+            if (reactionTime && reactionTime > bucket.lastUnix) {{
+              bucket.lastUnix = reactionTime;
+            }}
+            continue;
+          }}
+
+          baseMessagesLocal.push(msg);
+          const endpoints = endpointsForBuild(msg);
+          const key = msgChannelKey;
+          channelCountsLocal[key] += 1;
+          channelMessagesLocal[key].push(msg);
+          if (key === "direct") {{
+            const peers = [];
+            if (isCanonicalNodeId(endpoints.fromId)) peers.push(endpoints.fromId);
+            if (isCanonicalNodeId(endpoints.toId) && endpoints.toId !== endpoints.fromId) {{
+              peers.push(endpoints.toId);
+            }}
+            if (peers.length === 0) {{
+              const msgId = messageIdOf(msg);
+              const botRequestRow = msgId != null
+                ? meshBotRequestByMessageIdLocal.get(String(msgId)) || null
+                : null;
+              const botResponseRow = msgId != null
+                ? meshBotResponseByMessageIdLocal.get(String(msgId)) || null
+                : null;
+              const botRow = botResponseRow || botRequestRow;
+              if (botRow && typeof botRow === "object") {{
+                const candidateRaw = [
+                  botRow.response_to,
+                  botRow.responseTo,
+                  botRow.to_id,
+                  botRow.toId,
+                  botRow.from_id,
+                  botRow.fromId,
+                  botRow.response_from,
+                  botRow.responseFrom,
+                ];
+                for (const value of candidateRaw) {{
+                  const candidate = normalizeNodeId(value || "");
+                  if (!isCanonicalNodeId(candidate)) continue;
+                  if (isCanonicalNodeId(localNodeId) && candidate === localNodeId) continue;
+                  if (!peers.includes(candidate)) {{
+                    peers.push(candidate);
+                  }}
+                }}
+              }}
+            }}
+            for (const peerId of peers) {{
+              let bucket = directMessagesByPeerLocal.get(peerId);
+              if (!Array.isArray(bucket)) {{
+                bucket = [];
+                directMessagesByPeerLocal.set(peerId, bucket);
+              }}
+              bucket.push(msg);
+            }}
+          }}
+        }}
+
+        derived = {{
+          rawMessagesRef: rawMessages,
+          rawPacketsRef: rawPackets,
+          localInfoVersion: chatLocalInfoVersion,
+          nodesRef: nodes,
+          historyCapsRef: historyCapsObj,
+          localNodeId,
+          meshChannelIndex: normalizeMeshChannelIndex(activeMeshChannelIndex),
+          reactionBuckets: reactionBucketsLocal,
+          baseMessages: baseMessagesLocal,
+          messageIndex: messageIndexLocal,
+          packetSummaryById: packetSummaryByIdLocal,
+          deliveryAckByRequestId: deliveryAckByRequestIdLocal,
+          packetTickerByNode: packetTickerByNodeLocal,
+          packetSparklineByNode: packetSparklineByNodeLocal,
+          nodePacketTrendEnabled: includeNodePacketTrend,
+          messageEndpoints: messageEndpointsLocal,
+          channelCounts: channelCountsLocal,
+          channelMessages: channelMessagesLocal,
+          directMessagesByPeer: directMessagesByPeerLocal,
+        }};
+        chatDerivedCache = derived;
+      }}
+      const reactionBuckets = derived.reactionBuckets;
+      const baseMessages = derived.baseMessages;
+      const messageIndex = derived.messageIndex;
+      const packetSummaryById = derived.packetSummaryById;
+      const deliveryAckByRequestId = (
+        derived.deliveryAckByRequestId instanceof Map
+          ? derived.deliveryAckByRequestId
+          : new Map()
+      );
+      const messageEndpoints = derived.messageEndpoints;
+      const channelCounts = derived.channelCounts;
+      const channelMessages = derived.channelMessages;
+      const directMessagesByPeer = derived.directMessagesByPeer;
+      const packetTickerByNode = (
+        derived.packetTickerByNode instanceof Map
+          ? derived.packetTickerByNode
+          : new Map()
+      );
+      const packetSparklineByNode = (
+        derived.packetSparklineByNode instanceof Map
+          ? derived.packetSparklineByNode
+          : new Map()
+      );
+      const endpointsForMessage = (msg) => {{
+        if (!msg || typeof msg !== "object") return {{ fromId: "", toId: "" }};
+        const cached = messageEndpoints.get(msg);
+        if (cached) return cached;
+        const resolved = computeMessageEndpoints(msg);
+        messageEndpoints.set(msg, resolved);
+        return resolved;
+      }};
+      const keyedMessages = collectChatMessageEntries(state);
+      syncChatUnreadFromEntries(keyedMessages, {{ clearActiveWhenInChat: true }});
+
+      const channelList = document.getElementById("chat-channel-list");
+      if (channelList) {{
+        const channelEntries = [
+          {{ key: "all", label: "Everyone", count: channelCounts.all }},
+        ];
+        if (chatMainDirectModeEnabled) {{
+          channelEntries.push({{ key: "direct", label: "Peer-to-peer", count: channelCounts.direct }});
+        }}
+        channelList.innerHTML = channelEntries.map((entry) => {{
+          const unread = Math.max(0, Number(chatUnreadByChannel[entry.key] || 0));
+          const unreadLabel = unread > 99 ? "99+" : String(unread);
+          const unreadFrom = String(chatUnreadLatestByChannel[entry.key] || "").trim();
+          const unreadFromLine = (unread > 0 && unreadFrom)
+            ? `<span class="chat-channel-unread-from" title="Latest unread from ${{escAttr(unreadFrom)}}">new: ${{escAttr(unreadFrom)}}</span>`
+            : "";
+          return `<button type="button" class="chat-channel-item${{activeChatChannel === entry.key ? " active" : ""}}" data-channel="${{entry.key}}">
+            <span class="chat-channel-main">
+              <span class="chat-channel-name">${{entry.label}}</span>
+              ${{unreadFromLine}}
+            </span>
+            <span class="chat-channel-meta-wrap">
+              <span class="chat-channel-meta">${{entry.count}}</span>
+              ${{unread > 0 ? `<span class="chat-channel-unread" title="${{unread}} unread">${{unreadLabel}}</span>` : ""}}
+            </span>
+          </button>`;
+        }}).join("");
+        for (const btn of channelList.querySelectorAll(".chat-channel-item")) {{
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.addEventListener("click", () => {{
+            applyChatChannel(btn.dataset.channel || "all", true);
+          }});
+        }}
+      }}
+
+      const explicitDirectSelectedId = (
+        activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId)
+      ) ? normalizeNodeId(selectedNodeId) : "";
+      const hasDirectBucketForPeer = (peerIdRaw) => {{
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        if (!isCanonicalNodeId(peerId)) return false;
+        const bucket = directMessagesByPeer.get(peerId);
+        return Array.isArray(bucket) && bucket.length > 0;
+      }};
+      const noticeSuggestedDirectPeerId = (() => {{
+        if (activeChatChannel !== "direct") return "";
+        const notices = chatChangeNoticesForChannel("direct");
+        for (let idx = notices.length - 1; idx >= 0; idx -= 1) {{
+          const peerId = normalizeNodeId(notices[idx] && notices[idx].peerNodeId);
+          if (!hasDirectBucketForPeer(peerId)) continue;
+          return peerId;
+        }}
+        return "";
+      }})();
+      const fallbackDirectSelectedId = (() => {{
+        if (activeChatChannel !== "direct") return "";
+        if (hasDirectBucketForPeer(explicitDirectSelectedId)) return "";
+        let bestPeerId = "";
+        let bestUnix = -1;
+        for (const [peerIdRaw, bucketRaw] of directMessagesByPeer.entries()) {{
+          const peerId = normalizeNodeId(peerIdRaw || "");
+          if (!isCanonicalNodeId(peerId)) continue;
+          const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
+          if (bucket.length <= 0) continue;
+          const latestMsg = bucket[bucket.length - 1];
+          const unix = latestUnixTimestamp(latestMsg && latestMsg.rx_time, latestMsg && latestMsg.captured_at);
+          const score = Number.isFinite(unix) ? unix : 0;
+          if (!bestPeerId || score > bestUnix) {{
+            bestPeerId = peerId;
+            bestUnix = score;
+          }}
+        }}
+        return bestPeerId;
+      }})();
+      const directSelectedId = (
+        hasDirectBucketForPeer(explicitDirectSelectedId)
+          ? explicitDirectSelectedId
+          : (
+              noticeSuggestedDirectPeerId
+              || fallbackDirectSelectedId
+              || (isCanonicalNodeId(explicitDirectSelectedId) ? explicitDirectSelectedId : "")
+            )
+      );
+      chatDirectActivePeerId = isCanonicalNodeId(directSelectedId) ? directSelectedId : "";
+      updateChatInputPlaceholder();
+      const allChannelMessages = Array.isArray(channelMessages.all) ? channelMessages.all : [];
+      const activeChannelMessages = (
+        activeChatChannel === "direct" ? channelMessages.direct : allChannelMessages
+      );
+      const messages = (() => {{
+        if (activeChatChannel !== "direct") {{
+          return activeChannelMessages;
+        }}
+        if (!isCanonicalNodeId(directSelectedId)) {{
+          return [];
+        }}
+        const directMessages = directMessagesByPeer.get(directSelectedId);
+        return Array.isArray(directMessages) ? directMessages : [];
+      }})();
+      const visibleMessages = messages.length > chatFeedMaxEntries
+        ? messages.slice(-chatFeedMaxEntries)
+        : messages;
+      const showAllMeshChannels = activeMeshChannelFilterIndex() === meshChannelAllIndex;
+      const activeSendMeshIdx = activeMeshChannelSendIndex();
+      const activeChangeFocusKeys = chatChangeFocusKeysForChannel(activeChatChannel);
+      const participantSourceMessages = (activeChatChannel === "direct")
+        ? channelMessages.direct
+        : messages;
+      for (const msg of participantSourceMessages) {{
+        const endpoints = endpointsForMessage(msg);
+        const sourceNode = endpoints.fromId;
+        const fallbackNode = endpoints.toId;
+        const msgTimeUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+        const fromMeta = chatEndpointParts(sourceNode, msgTimeUnix);
+        const toMeta = chatEndpointParts(fallbackNode, msgTimeUnix);
+        touchParticipant(fromMeta, msgTimeUnix);
+        if (activeChatChannel === "direct") {{
+          touchParticipant(toMeta, msgTimeUnix);
+          touchNodeById(sourceNode, msgTimeUnix);
+          touchNodeById(fallbackNode, msgTimeUnix);
+        }}
+      }}

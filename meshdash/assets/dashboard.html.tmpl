@@ -16,63 +16,348 @@
 </head>
 <body>
   <div class="topbar">
-    <h1 class="topbar-heading">{app_heading}<span id="self-radio-pill" class="pill self-radio-pill" title="Connected local radio">n/a</span></h1>
-    <div class="sub">
-      <div class="sub-main">
-        <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
-        <span class="pill">{safety_label}</span>
-        <span class="pill">Packet buffer: {packet_limit}</span>
-        <span class="pill">{history_label}</span>
-        <span class="pill">Refresh: {refresh_ms} ms</span>
-        <button id="theme-toggle-btn" class="theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
-        <label for="theme-preset-select" class="theme-preset-wrap" title="Runtime color preset">
-          <span class="theme-preset-label">Preset</span>
-          <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
-            <option value="default">default</option>
-          </select>
-        </label>
-        <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
-          <span id="disk-label" class="disk-label">Disk free: n/a</span>
-          <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
-        </span>
+    <div class="topbar-notify-corner">
+      <div class="self-radio-menu-wrap topbar-self-radio-menu-wrap">
+        <button
+          id="self-radio-profile"
+          class="topbar-self-profile"
+          type="button"
+          title="Connected local radio: unavailable"
+          aria-label="Connected local radio"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <span id="self-radio-profile-short" class="topbar-self-profile-short">na</span>
+        </button>
+        <div id="self-radio-menu" class="self-radio-menu" hidden>
+          <button
+            id="self-radio-copy-id-btn"
+            class="self-radio-menu-item"
+            type="button"
+            title="Full radio ID unavailable"
+            disabled
+          >
+            Copy full radio ID
+          </button>
+        </div>
       </div>
-      <div class="selection-row">
-        <label for="starred-node-select" class="starred-node-wrap" title="Jump to a starred node">
-          <span class="starred-node-label">Starred</span>
-          <select id="starred-node-select" class="starred-node-select" aria-label="Starred nodes">
-            <option value="">Starred nodes</option>
-          </select>
-        </label>
-        <span class="pill selection-pill" id="selected-node-pill">Selected: none</span>
-        <button id="clear-selection-btn" class="selection-btn" type="button" disabled>Clear</button>
+      <div class="chat-change-menu-wrap topbar-chat-change-menu-wrap">
+        <button
+          id="chat-change-toggle-btn"
+          class="chat-change-toggle-btn"
+          type="button"
+          title="No missed updates"
+          aria-label="Missed updates"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <svg class="chat-change-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 22c1.32 0 2.4-1.08 2.4-2.4h-4.8c0 1.32 1.08 2.4 2.4 2.4Zm7.2-7.2v-5.4c0-3.31-2.05-6.09-4.95-7.08v-.72a2.25 2.25 0 0 0-4.5 0v.72C6.85 3.31 4.8 6.09 4.8 9.4v5.4l-2.1 2.1v1.2h18.6v-1.2l-2.1-2.1Z"/>
+          </svg>
+          <span id="chat-change-badge" class="chat-change-badge" hidden>0</span>
+        </button>
+        <div id="chat-change-summary" class="chat-change-menu" hidden></div>
+      </div>
+      <div class="peer-dm-menu-wrap topbar-peer-dm-menu-wrap">
+        <button
+          id="peer-dm-toggle-btn"
+          class="peer-dm-toggle-btn"
+          type="button"
+          title="Peer conversations"
+          aria-label="Peer conversations"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <svg class="peer-dm-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4.5 5.5h15a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H11l-4.5 3v-3H4.5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/>
+            <path d="M7.5 10.25h9M7.5 13.25h6.5"/>
+          </svg>
+          <span id="peer-dm-badge" class="peer-dm-badge" hidden>0</span>
+        </button>
+        <div id="peer-dm-menu" class="peer-dm-menu" hidden>
+          <div id="peer-dm-menu-list" class="peer-dm-menu-list">
+            <div class="peer-dm-menu-empty">No peer-to-peer conversations yet.</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-settings-menu-wrap topbar-chat-settings-menu-wrap">
+        <button
+          id="chat-settings-toggle-btn"
+          class="chat-settings-toggle-btn"
+          type="button"
+          title="Dashboard settings"
+          aria-label="Dashboard settings"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <svg class="chat-settings-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M19.14 12.94a7.92 7.92 0 0 0 .06-.94 7.92 7.92 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.38 7.38 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.43h-3.84a.5.5 0 0 0-.5.43l-.36 2.54a7.38 7.38 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.85a.5.5 0 0 0 .12.63l2.03 1.58a7.92 7.92 0 0 0-.06.94 7.92 7.92 0 0 0 .06.94l-2.03 1.58a.5.5 0 0 0-.12.63l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .5.43h3.84a.5.5 0 0 0 .5-.43l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58ZM12 15.2A3.2 3.2 0 1 1 12 8.8a3.2 3.2 0 0 1 0 6.4Z"/>
+          </svg>
+        </button>
+        <div id="chat-settings-menu" class="chat-settings-menu" hidden>
+          <section class="chat-settings-section chat-settings-theme-section" aria-label="Theme">
+            <h3 class="chat-settings-section-title">Theme</h3>
+            <button id="theme-toggle-btn" class="theme-btn chat-settings-theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
+            <label for="theme-preset-select" class="theme-preset-wrap chat-settings-theme-preset-wrap" title="Runtime color preset">
+              <span class="theme-preset-label">Preset</span>
+              <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
+                <option value="default">default</option>
+              </select>
+            </label>
+          </section>
+          <section class="chat-settings-section" aria-label="Runtime">
+            <h3 class="chat-settings-section-title">Runtime</h3>
+            <div class="chat-settings-meta-list">
+              <div class="chat-settings-meta-item">{safety_label}</div>
+              <div class="chat-settings-meta-item">Packet buffer: {packet_limit}</div>
+              <div class="chat-settings-meta-item">{history_label}</div>
+              <div class="chat-settings-meta-item">Refresh: {refresh_ms} ms</div>
+            </div>
+            <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
+              <span id="disk-label" class="disk-label">Disk free: n/a</span>
+              <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+            </span>
+          </section>
+          <section class="chat-settings-section" aria-label="Notifications">
+            <h3 class="chat-settings-section-title">Notifications</h3>
+            <div class="chat-settings-meta-list" title="Notification behavior">
+              <div class="chat-settings-meta-item">Chat counter: all inbound chat activity</div>
+              <div class="chat-settings-meta-item">Bell: inbound to you, replies to you, and reactions to you</div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="favorite-menu-wrap topbar-favorite-menu-wrap">
+        <button
+          id="favorite-menu-toggle-btn"
+          class="favorite-menu-toggle-btn"
+          type="button"
+          title="Node menu"
+          aria-label="Node menu"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <svg id="favorite-menu-toggle-icon" class="favorite-menu-toggle-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <rect x="2.5" y="4.5" width="9.5" height="6.5" rx="1.4"></rect>
+            <path d="M5.8 13h2.9m-1.45 0v2m-2.4 0h4.8"></path>
+            <circle class="node-signal-dot" cx="14.7" cy="6.2" r="0.9"></circle>
+            <path d="M16.8 7.2a3.4 3.4 0 0 0-2.1-3.15"></path>
+            <path d="M18.4 8.7a5.4 5.4 0 0 0-3.35-5.05"></path>
+          </svg>
+        </button>
+        <div id="favorite-menu" class="favorite-menu" hidden>
+          <section class="favorite-menu-section" aria-label="Selected node">
+            <h3 class="favorite-menu-title">Selected</h3>
+            <div id="favorite-menu-selected-list" class="favorite-menu-saved-list favorite-menu-selected-list" role="list" aria-label="Selected node">
+              <div class="favorite-menu-node-search-wrap">
+                <input
+                  id="favorite-menu-node-search-input"
+                  class="list-search-input"
+                  type="search"
+                  placeholder="Search by ID or name"
+                  autocomplete="off"
+                />
+                <div id="favorite-menu-node-search-dropdown" class="node-search-dropdown favorite-menu-node-search-dropdown" hidden></div>
+              </div>
+            </div>
+          </section>
+          <section class="favorite-menu-section" aria-label="Tagged nodes">
+            <h3 class="favorite-menu-title">Tagged nodes</h3>
+            <div id="favorite-menu-saved-list" class="favorite-menu-saved-list" role="list" aria-label="Tagged nodes">
+              <div class="favorite-menu-saved-empty">No tagged nodes yet.</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-main-row">
+      <div class="topbar-brand">
+        <h1 class="topbar-heading">
+          <span id="topbar-heading-app" class="topbar-heading-app">{app_heading}</span>
+        </h1>
+        <span id="revision-text" class="sub-text revision-text" title="{revision_title}">{revision_label}</span>
+      </div>
+      <div id="topbar-update-ticker" class="topbar-update-ticker topbar-update-ticker-main" role="status" aria-live="polite" aria-label="Live update ticker" hidden>
+        <div id="topbar-update-viewport" class="topbar-update-viewport">
+          <div id="topbar-update-track" class="topbar-update-track">
+            <span id="topbar-update-text-primary" class="topbar-update-text"></span>
+            <span id="topbar-update-text-secondary" class="topbar-update-text" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+      <span class="topbar-main-spacer" aria-hidden="true"></span>
+    </div>
+    <div class="sub">
+      <div class="summary-ticker-row" aria-label="Summary tickers">
+        <div class="summary-ticker-item summary-ticker-item-target" id="summary-ticker-target" data-ticker-id="target">
+          <div class="label" data-ticker-label>Target</div>
+          <div class="value" id="m-target">n/a</div>
+          <div class="target-radio-status status-warn" id="m-target-radio-status" title="Radio status unavailable">Radio: n/a</div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-known-nodes" data-ticker-id="known_nodes">
+          <div class="label" data-ticker-label>Known Nodes</div>
+          <div class="value" id="m-nodes">0</div>
+          <div class="metric-ticker" id="ticker-nodes" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-nodes">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-nodes">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-nodes" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-online-nodes" data-ticker-id="online_nodes">
+          <div class="label" data-ticker-label>Nodes Online</div>
+          <div class="value" id="m-online-nodes">0</div>
+          <div class="metric-ticker" id="ticker-online-nodes" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-online-nodes">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-online-nodes">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-online-nodes" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-packets" data-ticker-id="packets_per_min">
+          <div class="label" data-ticker-label>Packets / min</div>
+          <div class="value" id="m-live-packets">0</div>
+          <div class="metric-ticker" id="ticker-live-packets" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-live-packets">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-live-packets">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-live-packets" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-channel-util" data-ticker-id="channel_util">
+          <div class="label" data-ticker-label>Channel Util</div>
+          <div class="value" id="m-channel-util">n/a</div>
+          <div class="metric-ticker" id="ticker-channel-util" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-channel-util">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-channel-util">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-channel-util" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-battery" data-ticker-id="battery">
+          <div class="label" data-ticker-label>Battery</div>
+          <div class="value" id="m-battery">n/a</div>
+          <div class="metric-ticker" id="ticker-battery" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-battery">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-battery">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-battery" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-temperature" data-ticker-id="temperature">
+          <div class="label" data-ticker-label>Temp</div>
+          <div class="value" id="m-temperature">n/a</div>
+          <div class="metric-ticker" id="ticker-temperature" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-temperature">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-temperature">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-temperature" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-humidity" data-ticker-id="humidity">
+          <div class="label" data-ticker-label>Humidity</div>
+          <div class="value" id="m-humidity">n/a</div>
+          <div class="metric-ticker" id="ticker-humidity" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-humidity">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-humidity">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-humidity" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-pressure" data-ticker-id="pressure">
+          <div class="label" data-ticker-label>Pressure</div>
+          <div class="value" id="m-pressure">n/a</div>
+          <div class="metric-ticker" id="ticker-pressure" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-pressure">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-pressure">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-pressure" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-wifi" data-ticker-id="wifi">
+          <div class="label" data-ticker-label>Wi-Fi</div>
+          <div class="value wifi-ticker-value" id="m-wifi-ticker">n/a</div>
+          <div class="metric-ticker" id="ticker-wifi" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-wifi">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-wifi">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-wifi" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-node" data-ticker-id="node">
+          <div class="label" data-ticker-label>Link</div>
+          <div class="value node-ticker-value" id="m-node-ticker">n/a</div>
+          <div class="metric-ticker" id="ticker-node-signal" hidden>
+            <span class="metric-ticker-delta" id="ticker-delta-node-signal">n/a</span>
+            <span class="metric-ticker-rate" id="ticker-rate-node-signal">n/a</span>
+            <svg class="metric-ticker-chart" id="ticker-chart-node-signal" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-chat-channels" data-ticker-id="chat_channels">
+          <div class="label" data-ticker-label>Chat Channels</div>
+          <div class="value node-ticker-value" id="m-chat-channels">n/a</div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-chat-roster" data-ticker-id="chat_roster">
+          <div class="label" data-ticker-label>Roster Health</div>
+          <div class="value node-ticker-value" id="m-chat-roster">n/a</div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-gps" data-ticker-id="gps">
+          <div class="label" data-ticker-label>GPS</div>
+          <div class="value node-ticker-value" id="m-gps-ticker">n/a</div>
+        </div>
+        <div class="summary-ticker-item" id="summary-ticker-system" data-ticker-id="system">
+          <div class="label" data-ticker-label>System</div>
+          <div class="value node-ticker-value" id="m-system-ticker">n/a</div>
+        </div>
+        <div class="summary-ticker-item summary-ticker-item-time" id="summary-ticker-time" data-ticker-id="time">
+          <div class="label" data-ticker-label>Time</div>
+          <div class="value time-ticker-value">
+            <div class="time-ticker-row">
+              <span class="time-ticker-key">RADIO TIME</span>
+              <span class="time-ticker-val" id="m-radio-time">n/a</span>
+            </div>
+            <div class="time-ticker-row">
+              <span class="time-ticker-key">UPTIME</span>
+              <span class="time-ticker-val" id="m-uptime">00:00:00</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="workspace-shell">
+  <div class="workspace-shell chat-panel-open">
     <aside class="teams-rail" aria-label="Dashboard views">
-      <div class="teams-rail-title">Views</div>
-      <button class="rail-btn active" data-view="chat" type="button" title="Teams-style chat workspace">Chat</button>
-      <button class="rail-btn" data-view="network" type="button" title="Topology, nodes, and links">Network</button>
-      <button class="rail-btn" data-view="saved" type="button" title="Node details and saved nodes">Node</button>
-      <button class="rail-btn" data-view="packets" type="button" title="Recent packet stream">Packets</button>
-      <button class="rail-btn" data-view="data" type="button" title="Raw node/config views">Data</button>
-      <button class="rail-btn" data-view="settings" type="button" title="Radio + dashboard settings">Settings</button>
-      <button class="rail-btn" data-view="all" type="button" title="Show every panel">All</button>
+      <button class="rail-btn active" data-view="chat" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Teams-style chat workspace">Chat</button>
+      <button class="rail-btn" data-view="network" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Topology, nodes, and links">Network</button>
+      <button class="rail-btn" data-view="console" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Realtime dashboard console">Console</button>
+      <button class="rail-btn" data-view="environment" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Historical sensor telemetry">Sensors</button>
+      <button class="rail-btn" data-view="history" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Network and chat history">History</button>
+      <button class="rail-btn" data-view="apps" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Apps workspace (Macros, Games, Files, BBS, Remote)">Apps</button>
+      <button class="rail-btn" data-view="bots" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Bots workspace and command controls">Bots</button>
+      <button class="rail-btn" data-view="chatlabs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Experimental console-rendered chat workspace">Labs</button>
+      <button class="rail-btn" data-view="settings" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Radio + dashboard settings">Settings</button>
     </aside>
-    <aside id="chat-left-panel" class="chat-left-panel" hidden aria-label="Chat roster">
+    <aside id="chat-left-panel" class="chat-left-panel" aria-label="Global node selection and search">
       <div class="chat-left-head">
-        <div class="chat-left-title">Chat Navigator</div>
-        <div id="chat-left-sub" class="chat-left-sub">Loading…</div>
-      </div>
-      <div class="chat-left-section">
-        <div class="chat-left-label">Channels</div>
-        <div id="chat-channel-list" class="chat-channel-list"></div>
+        <div class="chat-user-search-wrap">
+          <input id="chat-user-search-input" class="list-search-input" type="search" placeholder="Search nodes by ID or name" autocomplete="off" />
+        </div>
       </div>
       <div class="chat-left-section chat-users-section">
         <div class="chat-users-head">
           <div id="chat-users-title" class="chat-left-label">Users</div>
-          <button id="chat-peer-add-toggle-btn" class="chat-peer-add-toggle-btn" type="button" title="Add a peer-to-peer user" hidden>Add</button>
+          <div class="chat-users-head-actions">
+            <button
+              id="chat-node-navigator-menu-btn"
+              class="chat-peer-add-toggle-btn chat-node-navigator-menu-btn"
+              type="button"
+              title="Configure node navigator sort and metadata"
+              aria-expanded="false"
+              aria-controls="chat-node-navigator-menu"
+            >View</button>
+            <button id="chat-peer-add-toggle-btn" class="chat-peer-add-toggle-btn" type="button" title="Add a peer-to-peer user" hidden>Add</button>
+          </div>
+        </div>
+        <div id="chat-node-navigator-menu" class="chat-node-navigator-menu" hidden>
+          <div class="chat-node-navigator-row">
+            <label for="chat-node-navigator-sort-select" class="chat-node-navigator-label">Sort</label>
+            <select id="chat-node-navigator-sort-select" class="chat-peer-input chat-node-navigator-select" aria-label="Sort node navigator list"></select>
+            <button id="chat-node-navigator-sort-dir-btn" class="chat-peer-add-btn chat-node-navigator-sort-dir-btn" type="button" aria-label="Toggle sort direction">Asc</button>
+          </div>
+          <div class="chat-node-navigator-fields-head">Metadata</div>
+          <div id="chat-node-navigator-fields" class="chat-node-navigator-fields"></div>
         </div>
         <div id="chat-peer-add-panel" class="chat-peer-add-panel" hidden>
           <div class="chat-peer-add-row">
@@ -90,35 +375,100 @@
           </div>
         </div>
         <div id="chat-room-list" class="chat-member-list"></div>
-        <div class="chat-left-bottom-bar">
-          <div class="chat-user-search-wrap">
-            <input id="chat-user-search-input" class="list-search-input" type="search" placeholder="Search by ID or name" autocomplete="off" />
+        <section id="chat-node-details-drawer" class="chat-node-details-drawer" hidden>
+          <div class="chat-node-details-head">
+            <div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>
+            <button
+              id="chat-node-details-close-btn"
+              class="chat-node-details-close-btn"
+              type="button"
+              title="Collapse node details"
+              aria-label="Collapse node details"
+            >Collapse</button>
           </div>
-        </div>
+          <div class="chat-node-details-tabs" role="tablist" aria-label="Selected node detail tabs">
+            <button
+              id="chat-node-details-tab-tag"
+              class="chat-node-details-tab-btn chat-node-details-tab-tag-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-drawer-tab="tag"
+              title="Add or edit node tag"
+              aria-label="Add or edit node tag"
+            ><span id="chat-node-details-tab-tag-chip" class="favorite-menu-tag-chip chat-node-details-tab-tag-chip" aria-hidden="true"></span><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>
+            <button
+              id="chat-node-details-tab-details"
+              class="chat-node-details-tab-btn is-active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              data-drawer-tab="details"
+            >Details</button>
+            <button
+              id="chat-node-details-tab-history"
+              class="chat-node-details-tab-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-drawer-tab="history"
+            >History</button>
+            <span class="chat-node-details-tab-spacer" aria-hidden="true"></span>
+            <button
+              id="chat-node-details-mute-btn"
+              class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn"
+              type="button"
+              title="Mute this user in chat feed"
+              aria-pressed="false"
+              hidden
+            ><span class="chat-node-details-mute-label">Mute</span></button>
+            <button
+              id="chat-node-details-dm-btn"
+              class="chat-node-details-action-btn chat-node-details-dm-btn"
+              type="button"
+              title="Open peer message window"
+              hidden
+            >Send message</button>
+          </div>
+          <div
+            id="chat-node-details-panel-details"
+            class="chat-node-details-panel"
+            role="tabpanel"
+            aria-labelledby="chat-node-details-tab-details"
+          >
+            <div id="chat-node-details-content-host" class="chat-node-details-content-host"></div>
+          </div>
+          <div
+            id="chat-node-details-panel-history"
+            class="chat-node-details-panel"
+            role="tabpanel"
+            aria-labelledby="chat-node-details-tab-history"
+            hidden
+          >
+            <div id="chat-node-details-history-host" class="chat-node-details-history-host"></div>
+          </div>
+          <div
+            id="chat-node-details-panel-tag"
+            class="chat-node-details-panel"
+            role="tabpanel"
+            aria-labelledby="chat-node-details-tab-tag"
+            hidden
+          >
+            <div id="chat-node-details-tag-host" class="chat-node-details-tag-host"></div>
+          </div>
+        </section>
       </div>
     </aside>
+    <div id="chat-panel-splitter" class="chat-panel-splitter" title="Drag to resize chat workspace and node navigator" aria-hidden="true"></div>
     <main class="workspace-main">
+  <div id="apps-tabs-bar" class="apps-tabs-bar" role="tablist" aria-label="Apps tabs" hidden>
+    <button class="apps-tab-btn" data-app-view="games" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Games</button>
+    <button class="apps-tab-btn" data-app-view="files" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Files</button>
+    <button class="apps-tab-btn" data-app-view="bbs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>BBS</button>
+    <button class="apps-tab-btn" data-app-view="remote" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Remote</button>
+    <button class="apps-tab-btn is-active" data-app-view="macros" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Macros</button>
+  </div>
   <div id="dashboard-layout" class="layout view-chat">
-    <section class="card summary">
-      <h2>Summary</h2>
-      <div class="body">
-        <div class="metrics">
-          <div class="metric"><div class="label">Target</div><div class="value" id="m-target">n/a</div></div>
-          <div class="metric metric-action" id="metric-known-nodes" role="button" tabindex="0" aria-pressed="false" title="Show online node activity by hour"><div class="label">Known Nodes</div><div class="value" id="m-nodes">0</div></div>
-          <div class="metric"><div class="label">Nodes With Position</div><div class="value" id="m-pos-nodes">0</div></div>
-          <div class="metric"><div class="label">Live Packets</div><div class="value" id="m-live-packets">0</div></div>
-          <div class="metric"><div class="label">Directed Links</div><div class="value" id="m-links">0</div></div>
-          <div class="metric"><div class="label">LoRa Preset</div><div class="value" id="m-modem-preset">n/a</div></div>
-          <div class="metric"><div class="label">Uptime (s)</div><div class="value" id="m-uptime">0</div></div>
-        </div>
-        <div class="summary-updated-row">
-          Updated: <span id="updated-at">n/a</span>
-          <span id="updated-freshness" class="summary-freshness" hidden>Unknown</span>
-          <span id="local-state-error" class="warn"></span>
-        </div>
-      </div>
-    </section>
-
     <section class="card settings" aria-label="Settings">
       <div class="settings-card-head">
         <h2>Settings</h2>
@@ -127,10 +477,126 @@
         </div>
       </div>
       <div class="body">
+        <div class="settings-tabbar" role="tablist" aria-label="Settings categories">
+          <button
+            id="settings-tab-core-btn"
+            class="settings-tab-btn is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            data-settings-tab="core"
+          >
+            Core
+          </button>
+          <button
+            id="settings-tab-device-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="device"
+          >
+            Device
+          </button>
+          <button
+            id="settings-tab-connectivity-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="connectivity"
+          >
+            Connectivity
+          </button>
+          <button
+            id="settings-tab-location-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="location"
+          >
+            Location
+          </button>
+          <button
+            id="settings-tab-telemetry-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="telemetry"
+          >
+            Telemetry
+          </button>
+          <button
+            id="settings-tab-security-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="security"
+          >
+            Security
+          </button>
+          <button
+            id="settings-tab-advanced-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="advanced"
+          >
+            Advanced
+          </button>
+          <button
+            id="settings-tab-channels-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="channels"
+          >
+            Channels
+          </button>
+          <button
+            id="settings-tab-tickers-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="tickers"
+          >
+            Tickers
+          </button>
+          <button
+            id="settings-tab-appearance-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="appearance"
+          >
+            Appearance
+          </button>
+          <button
+            id="settings-tab-data-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="data"
+          >
+            Data
+          </button>
+        </div>
+
         <div class="settings-grid">
-          <div class="settings-panel">
+          <div class="settings-panel" data-settings-tab-panel="core">
             <h3>LoRa / Radio</h3>
-            <div class="settings-fields">
+            <div class="settings-fields channels-local-fields">
+              <div class="settings-help-note">
+                <strong>Frequency slot</strong> tunes the physical RF frequency. <strong>Message channels</strong> (Chat “View Ch” / “Send Ch” + Settings → Channels) are encryption groups.
+              </div>
               <label class="settings-field">
                 <span class="settings-label">Region</span>
                 <select id="settings-lora-region" class="settings-select" autocomplete="off">
@@ -176,6 +642,7 @@
                   <option value="SHORT_FAST">SHORT_FAST</option>
                   <option value="SHORT_SLOW">SHORT_SLOW</option>
                   <option value="SHORT_TURBO">SHORT_TURBO</option>
+                  <option value="LONG_TURBO">LONG_TURBO</option>
                 </select>
               </label>
 
@@ -203,10 +670,82 @@
                 <input id="settings-lora-tx-enabled" type="checkbox" />
                 <span>Transmit enabled</span>
               </label>
+
+              <label class="settings-field">
+                <span class="settings-label">Node Name</span>
+                <div class="settings-row">
+                  <input
+                    id="settings-owner-short-name"
+                    class="settings-input"
+                    type="text"
+                    maxlength="4"
+                    placeholder="Short (max 4)"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <input
+                    id="settings-owner-long-name"
+                    class="settings-input"
+                    type="text"
+                    maxlength="80"
+                    placeholder="Long name"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button id="settings-apply-owner" class="btn btn-secondary" type="button">Apply Name</button>
+                </div>
+              </label>
+              <label class="settings-field">
+                <span class="settings-label">Device Role</span>
+                <div class="settings-row">
+                  <select id="settings-device-role" class="settings-select" autocomplete="off">
+                    <option value="CLIENT">CLIENT</option>
+                    <option value="CLIENT_MUTE">CLIENT_MUTE</option>
+                    <option value="ROUTER">ROUTER</option>
+                    <option value="ROUTER_CLIENT">ROUTER_CLIENT</option>
+                    <option value="REPEATER">REPEATER</option>
+                    <option value="TRACKER">TRACKER</option>
+                    <option value="SENSOR">SENSOR</option>
+                    <option value="TAK">TAK</option>
+                    <option value="CLIENT_HIDDEN">CLIENT_HIDDEN</option>
+                    <option value="LOST_AND_FOUND">LOST_AND_FOUND</option>
+                    <option value="TAK_TRACKER">TAK_TRACKER</option>
+                    <option value="ROUTER_LATE">ROUTER_LATE</option>
+                    <option value="CLIENT_BASE">CLIENT_BASE</option>
+                  </select>
+                  <button id="settings-apply-device-role" class="btn btn-secondary" type="button">Apply Role</button>
+                </div>
+              </label>
+              <label class="settings-field">
+                <span class="settings-label">Node Broadcast Interval (sec)</span>
+                <div class="settings-row">
+                  <input
+                    id="settings-device-node-broadcast-secs"
+                    class="settings-input"
+                    type="number"
+                    min="60"
+                    step="60"
+                    placeholder="21600 (6h)"
+                  />
+                  <button id="settings-apply-device-broadcast" class="btn btn-secondary" type="button">Apply Device</button>
+                </div>
+                <div class="settings-help-note">Recommended: 21600+ seconds (6 hours or more).</div>
+              </label>
+              <label class="settings-field">
+                <span class="settings-label">LED heartbeat</span>
+                <div class="settings-row">
+                  <label class="settings-field settings-inline">
+                    <input id="settings-led-heartbeat-enabled" type="checkbox" />
+                    <span>Enable LED heartbeat blink</span>
+                  </label>
+                  <button id="settings-apply-led-heartbeat" class="btn btn-secondary" type="button">Apply LED</button>
+                </div>
+                <div class="settings-help-note">Maps to device.led_heartbeat_disabled in Meshtastic config.</div>
+              </label>
             </div>
           </div>
 
-          <div class="settings-panel">
+          <div class="settings-panel" data-settings-tab-panel="core">
             <h3>Advanced LoRa</h3>
             <div class="settings-fields">
               <div class="settings-row">
@@ -232,6 +771,14 @@
                 <label class="settings-field">
                   <span class="settings-label">Override frequency (MHz)</span>
                   <input id="settings-lora-override-frequency" class="settings-input" type="number" min="0" step="0.001" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">FEM / LNA mode</span>
+                  <select id="settings-lora-fem-lna-mode" class="settings-select" autocomplete="off">
+                    <option value="DISABLED">DISABLED</option>
+                    <option value="ENABLED">ENABLED</option>
+                    <option value="NOT_PRESENT">NOT_PRESENT</option>
+                  </select>
                 </label>
               </div>
 
@@ -263,9 +810,683 @@
             </div>
           </div>
 
-          <div class="settings-panel">
+          <div class="settings-panel" data-settings-tab-panel="location" hidden>
+            <h3>Location + GPS</h3>
+            <div class="settings-fields">
+              <label class="settings-field">
+                <span class="settings-label">Position Source</span>
+                <select id="settings-position-source" class="settings-select" autocomplete="off">
+                  <option value="none">None</option>
+                  <option value="gps" selected>GPS</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <div id="settings-position-mode-note" class="settings-help-note"></div>
+              <label class="settings-field settings-inline">
+                <input id="settings-position-smart-enabled" type="checkbox" />
+                <span>Smart Position enabled (dynamic position broadcasts)</span>
+              </label>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Position Broadcast Interval (sec)</span>
+                  <input
+                    id="settings-position-broadcast-secs"
+                    class="settings-input"
+                    type="number"
+                    min="60"
+                    step="60"
+                    placeholder="43200 (12h)"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">GPS Update Interval (sec)</span>
+                  <input
+                    id="settings-position-gps-update-secs"
+                    class="settings-input"
+                    type="number"
+                    min="60"
+                    step="60"
+                    placeholder="3600 (1h)"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Position settings</span>
+                  <button id="settings-apply-position" class="btn btn-secondary" type="button">Apply Position</button>
+                </label>
+              </div>
+              <div class="settings-help-note">Recommended: Smart Position OFF, Broadcast 43200+ sec (12h+), GPS update 3600+ sec (1h+).</div>
+              <div id="settings-fixed-controls" class="settings-fixed-controls">
+                <label class="settings-field">
+                  <span class="settings-label">Fixed GPS position (lat, lon, alt m)</span>
+                  <div class="settings-row">
+                    <input
+                      id="settings-fixed-latitude"
+                      class="settings-input"
+                      type="number"
+                      min="-90"
+                      max="90"
+                      step="0.000001"
+                      placeholder="Latitude"
+                    />
+                    <input
+                      id="settings-fixed-longitude"
+                      class="settings-input"
+                      type="number"
+                      min="-180"
+                      max="180"
+                      step="0.000001"
+                      placeholder="Longitude"
+                    />
+                    <input
+                      id="settings-fixed-altitude"
+                      class="settings-input"
+                      type="number"
+                      step="1"
+                      placeholder="Altitude (m)"
+                    />
+                  </div>
+                </label>
+                <div id="settings-fixed-map-wrap" class="settings-fixed-map-wrap">
+                  <div class="settings-fixed-map-head">
+                    <span class="settings-label">Pick on map</span>
+                    <span class="settings-fixed-map-help">Map is only used for Fixed mode. Click map to set fixed latitude + longitude.</span>
+                  </div>
+                  <div id="settings-fixed-map" class="settings-fixed-map" role="img" aria-label="Fixed GPS position map picker"></div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <button id="settings-set-fixed-position" class="btn btn-secondary" type="button">Set Fixed Position</button>
+                <button id="settings-clear-fixed-position" class="btn btn-secondary" type="button">Clear Fixed Position</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="telemetry" hidden>
+            <h3>Telemetry</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">Manage periodic radio telemetry publishing and on-device telemetry screens.</div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-device-enabled" type="checkbox" />
+                  <span>Device telemetry enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-environment-enabled" type="checkbox" />
+                  <span>Environment telemetry enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-air-quality-enabled" type="checkbox" />
+                  <span>Air quality telemetry enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-power-enabled" type="checkbox" />
+                  <span>Power telemetry enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-health-enabled" type="checkbox" />
+                  <span>Health telemetry enabled</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-environment-screen-enabled" type="checkbox" />
+                  <span>Environment screen enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-environment-fahrenheit" type="checkbox" />
+                  <span>Environment display Fahrenheit</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-power-screen-enabled" type="checkbox" />
+                  <span>Power screen enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-health-screen-enabled" type="checkbox" />
+                  <span>Health screen enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-telemetry-air-quality-screen-enabled" type="checkbox" />
+                  <span>Air quality screen enabled</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Device interval (sec)</span>
+                  <input
+                    id="settings-telemetry-device-interval-secs"
+                    class="settings-input"
+                    type="number"
+                    min="0"
+                    step="60"
+                    placeholder="0 = disabled"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Environment interval (sec)</span>
+                  <input
+                    id="settings-telemetry-environment-interval-secs"
+                    class="settings-input"
+                    type="number"
+                    min="0"
+                    step="60"
+                    placeholder="0 = disabled"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Air quality interval (sec)</span>
+                  <input
+                    id="settings-telemetry-air-quality-interval-secs"
+                    class="settings-input"
+                    type="number"
+                    min="0"
+                    step="60"
+                    placeholder="0 = disabled"
+                  />
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Power interval (sec)</span>
+                  <input
+                    id="settings-telemetry-power-interval-secs"
+                    class="settings-input"
+                    type="number"
+                    min="0"
+                    step="60"
+                    placeholder="0 = disabled"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Health interval (sec)</span>
+                  <input
+                    id="settings-telemetry-health-interval-secs"
+                    class="settings-input"
+                    type="number"
+                    min="0"
+                    step="60"
+                    placeholder="0 = disabled"
+                  />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Telemetry settings</span>
+                  <button id="settings-apply-telemetry" class="btn btn-secondary" type="button">Apply Telemetry</button>
+                </label>
+              </div>
+              <div class="settings-help-note">Set all telemetry toggles OFF and intervals to 0 to fully disable telemetry.</div>
+              <div class="settings-help-note">Custom telemetry rules can extract numeric values from decoded fields or JSON payloads and push them into the Sensors view.</div>
+              <label class="settings-field">
+                <span class="settings-label">Custom telemetry rules (JSON array)</span>
+                <textarea
+                  id="settings-custom-telemetry-rules"
+                  class="settings-input settings-textarea"
+                  spellcheck="false"
+                  placeholder='[
+  {
+    "enabled": true,
+    "metric_key": "soil_temp_c",
+    "source": "payload_json",
+    "path": "sensors.soil_temp_c",
+    "portnum": "TELEMETRY_APP",
+    "scale": 1,
+    "offset": 0
+  }
+]'
+                ></textarea>
+              </label>
+              <div class="settings-row">
+                <button id="settings-apply-custom-telemetry" class="btn btn-secondary" type="button">Apply Custom Telemetry</button>
+                <button id="settings-refresh-custom-telemetry" class="btn btn-secondary" type="button">Reload Custom Telemetry</button>
+              </div>
+              <div class="settings-help-note">Rule fields: <code>metric_key</code>, <code>source</code> (<code>decoded</code> or <code>payload_json</code>), optional <code>path</code>, optional <code>portnum</code>, optional <code>scale</code>/<code>offset</code>.</div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="device" hidden>
+            <h3>Device Behavior</h3>
+            <div class="settings-fields">
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Rebroadcast mode</span>
+                  <select id="settings-device-rebroadcast-mode" class="settings-select" autocomplete="off">
+                    <option value="ALL">ALL</option>
+                    <option value="ALL_SKIP_DECODING">ALL_SKIP_DECODING</option>
+                    <option value="LOCAL_ONLY">LOCAL_ONLY</option>
+                    <option value="KNOWN_ONLY">KNOWN_ONLY</option>
+                    <option value="NONE">NONE</option>
+                    <option value="CORE_PORTNUMS_ONLY">CORE_PORTNUMS_ONLY</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Buzzer mode</span>
+                  <select id="settings-device-buzzer-mode" class="settings-select" autocomplete="off">
+                    <option value="ALL_ENABLED">ALL_ENABLED</option>
+                    <option value="DISABLED">DISABLED</option>
+                    <option value="NOTIFICATIONS_ONLY">NOTIFICATIONS_ONLY</option>
+                    <option value="SYSTEM_ONLY">SYSTEM_ONLY</option>
+                    <option value="DIRECT_MSG_ONLY">DIRECT_MSG_ONLY</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-device-double-tap-button" type="checkbox" />
+                  <span>Double tap as button press</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-device-disable-triple-click" type="checkbox" />
+                  <span>Disable GPS triple-click toggle</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Timezone (POSIX TZ)</span>
+                  <input id="settings-device-tzdef" class="settings-input" type="text" placeholder="e.g. CST6CDT,M3.2.0/2,M11.1.0/2" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Device behavior</span>
+                  <button id="settings-apply-device-extra" class="btn btn-secondary" type="button">Apply Device Behavior</button>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="device" hidden>
+            <h3>Power + Display</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">Meshtastic power and display config from current firmware protobuf definitions.</div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-power-saving-enabled" type="checkbox" />
+                  <span>Power saving enabled</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Shutdown on battery (sec)</span>
+                  <input id="settings-power-on-battery-shutdown-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Wait Bluetooth (sec)</span>
+                  <input id="settings-power-wait-bluetooth-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Super deep sleep (sec)</span>
+                  <input id="settings-power-sds-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Light sleep (sec)</span>
+                  <input id="settings-power-ls-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Min wake (sec)</span>
+                  <input id="settings-power-min-wake-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Power settings</span>
+                  <button id="settings-apply-power" class="btn btn-secondary" type="button">Apply Power</button>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Screen on (sec)</span>
+                  <input id="settings-display-screen-on-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Auto carousel (sec)</span>
+                  <input id="settings-display-auto-carousel-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Display units</span>
+                  <select id="settings-display-units" class="settings-select" autocomplete="off">
+                    <option value="METRIC">METRIC</option>
+                    <option value="IMPERIAL">IMPERIAL</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Display mode</span>
+                  <select id="settings-display-mode" class="settings-select" autocomplete="off">
+                    <option value="DEFAULT">DEFAULT</option>
+                    <option value="TWOCOLOR">TWOCOLOR</option>
+                    <option value="INVERTED">INVERTED</option>
+                    <option value="COLOR">COLOR</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-flip-screen" type="checkbox" />
+                  <span>Flip screen</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-heading-bold" type="checkbox" />
+                  <span>Heading bold</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-wake-on-tap" type="checkbox" />
+                  <span>Wake on tap / motion</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-use-12h-clock" type="checkbox" />
+                  <span>Use 12h clock</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-use-long-node-name" type="checkbox" />
+                  <span>Use long node names</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-display-enable-message-bubbles" type="checkbox" />
+                  <span>Message bubbles on screen</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Display settings</span>
+                  <button id="settings-apply-display" class="btn btn-secondary" type="button">Apply Display</button>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="connectivity" hidden>
+            <h3>Network + Bluetooth</h3>
+            <div class="settings-fields">
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-network-wifi-enabled" type="checkbox" />
+                  <span>Wi-Fi enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-network-eth-enabled" type="checkbox" />
+                  <span>Ethernet enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-network-ipv6-enabled" type="checkbox" />
+                  <span>IPv6 enabled</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Wi-Fi SSID</span>
+                  <input id="settings-network-wifi-ssid" class="settings-input" type="text" autocomplete="off" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Wi-Fi password</span>
+                  <input id="settings-network-wifi-psk" class="settings-input" type="password" autocomplete="off" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">NTP server</span>
+                  <input id="settings-network-ntp-server" class="settings-input" type="text" autocomplete="off" />
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Address mode</span>
+                  <select id="settings-network-address-mode" class="settings-select" autocomplete="off">
+                    <option value="DHCP">DHCP</option>
+                    <option value="STATIC">STATIC</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Rsyslog server</span>
+                  <input id="settings-network-rsyslog-server" class="settings-input" type="text" autocomplete="off" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Network settings</span>
+                  <button id="settings-apply-network" class="btn btn-secondary" type="button">Apply Network</button>
+                </label>
+              </div>
+              <div class="settings-row settings-row-time-sync">
+                <div class="settings-time-sync-controls">
+                  <label class="settings-field settings-inline settings-time-sync-toggle">
+                    <input id="settings-time-sync-enabled" type="checkbox" />
+                    <span>Sync radio time via time server</span>
+                  </label>
+                  <label class="settings-field settings-time-sync-timezone">
+                    <span class="settings-label">Display timezone</span>
+                    <select id="settings-time-sync-timezone" class="settings-select"></select>
+                  </label>
+                  <button id="settings-set-time" class="btn btn-secondary" type="button">Set Radio Time</button>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-bluetooth-enabled" type="checkbox" />
+                  <span>Bluetooth enabled</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Pairing mode</span>
+                  <select id="settings-bluetooth-mode" class="settings-select" autocomplete="off">
+                    <option value="RANDOM_PIN">RANDOM_PIN</option>
+                    <option value="FIXED_PIN">FIXED_PIN</option>
+                    <option value="NO_PIN">NO_PIN</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Fixed PIN</span>
+                  <input id="settings-bluetooth-fixed-pin" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Bluetooth settings</span>
+                  <button id="settings-apply-bluetooth" class="btn btn-secondary" type="button">Apply Bluetooth</button>
+                </label>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="connectivity" hidden>
+            <h3>MQTT + Serial + Notifications</h3>
+            <div class="settings-fields">
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-enabled" type="checkbox" />
+                  <span>MQTT enabled</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">MQTT address</span>
+                  <input id="settings-mqtt-address" class="settings-input" type="text" autocomplete="off" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">MQTT root</span>
+                  <input id="settings-mqtt-root" class="settings-input" type="text" autocomplete="off" />
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">MQTT username</span>
+                  <input id="settings-mqtt-username" class="settings-input" type="text" autocomplete="off" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">MQTT password</span>
+                  <input id="settings-mqtt-password" class="settings-input" type="password" autocomplete="off" />
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-encryption-enabled" type="checkbox" />
+                  <span>MQTT encryption enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-json-enabled" type="checkbox" />
+                  <span>MQTT JSON enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-tls-enabled" type="checkbox" />
+                  <span>MQTT TLS enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-proxy-to-client-enabled" type="checkbox" />
+                  <span>Proxy MQTT to client</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-map-reporting-enabled" type="checkbox" />
+                  <span>Map reporting enabled</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Map publish interval (sec)</span>
+                  <input id="settings-mqtt-map-publish-interval-secs" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Map position precision</span>
+                  <input id="settings-mqtt-map-position-precision" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-mqtt-map-report-location" type="checkbox" />
+                  <span>Opt-in map location reporting</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">MQTT settings</span>
+                  <button id="settings-apply-mqtt" class="btn btn-secondary" type="button">Apply MQTT</button>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-serial-enabled" type="checkbox" />
+                  <span>Serial module enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-serial-echo" type="checkbox" />
+                  <span>Serial echo</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-serial-override-console-port" type="checkbox" />
+                  <span>Override console serial port</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Serial mode</span>
+                  <select id="settings-serial-mode" class="settings-select" autocomplete="off">
+                    <option value="DEFAULT">DEFAULT</option>
+                    <option value="SIMPLE">SIMPLE</option>
+                    <option value="PROTO">PROTO</option>
+                    <option value="TEXTMSG">TEXTMSG</option>
+                    <option value="NMEA">NMEA</option>
+                    <option value="CALTOPO">CALTOPO</option>
+                    <option value="WS85">WS85</option>
+                    <option value="VE_DIRECT">VE_DIRECT</option>
+                    <option value="MS_CONFIG">MS_CONFIG</option>
+                    <option value="LOG">LOG</option>
+                    <option value="LOGTEXT">LOGTEXT</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Serial baud</span>
+                  <select id="settings-serial-baud" class="settings-select" autocomplete="off">
+                    <option value="BAUD_DEFAULT">BAUD_DEFAULT</option>
+                    <option value="BAUD_110">BAUD_110</option>
+                    <option value="BAUD_300">BAUD_300</option>
+                    <option value="BAUD_600">BAUD_600</option>
+                    <option value="BAUD_1200">BAUD_1200</option>
+                    <option value="BAUD_2400">BAUD_2400</option>
+                    <option value="BAUD_4800">BAUD_4800</option>
+                    <option value="BAUD_9600">BAUD_9600</option>
+                    <option value="BAUD_19200">BAUD_19200</option>
+                    <option value="BAUD_38400">BAUD_38400</option>
+                    <option value="BAUD_57600">BAUD_57600</option>
+                    <option value="BAUD_115200">BAUD_115200</option>
+                    <option value="BAUD_230400">BAUD_230400</option>
+                    <option value="BAUD_460800">BAUD_460800</option>
+                    <option value="BAUD_576000">BAUD_576000</option>
+                    <option value="BAUD_921600">BAUD_921600</option>
+                  </select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Serial timeout</span>
+                  <input id="settings-serial-timeout" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Serial settings</span>
+                  <button id="settings-apply-serial" class="btn btn-secondary" type="button">Apply Serial</button>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-ext-notify-enabled" type="checkbox" />
+                  <span>External notification enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-ext-notify-alert-message" type="checkbox" />
+                  <span>Alert on message</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-ext-notify-alert-bell" type="checkbox" />
+                  <span>Alert on bell</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-ext-notify-active-high" type="checkbox" />
+                  <span>Active high output</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-ext-notify-use-pwm" type="checkbox" />
+                  <span>Use PWM buzzer path</span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Output duration (ms)</span>
+                  <input id="settings-ext-notify-output-ms" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Output GPIO</span>
+                  <input id="settings-ext-notify-output-pin" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Nag timeout (sec)</span>
+                  <input id="settings-ext-notify-nag-timeout" class="settings-input" type="number" min="0" step="1" />
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Notification settings</span>
+                  <button id="settings-apply-ext-notify" class="btn btn-secondary" type="button">Apply Notifications</button>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-tab-panel="security" hidden>
+            <h3>Security</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">Radio firmware security controls and dashboard inbound protocol lock.</div>
+              <div class="settings-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-security-serial-enabled" type="checkbox" />
+                  <span>Security serial enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-security-debug-log-api-enabled" type="checkbox" />
+                  <span>Debug log API enabled</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-security-admin-channel-enabled" type="checkbox" />
+                  <span>Admin channel enabled</span>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-label">Radio security settings</span>
+                  <button id="settings-apply-security" class="btn btn-secondary" type="button">Apply Radio Security</button>
+                </label>
+              </div>
+              <div class="settings-row">
+                <label class="chat-bot-toggle-wrap bots-master-toggle settings-bot-hard-disable-toggle" for="bots-command-hard-disable-all" title="Hard-disable all incoming bot command handling and incoming file-transfer protocol handling. Outgoing file sends are not blocked.">
+                  <input id="bots-command-hard-disable-all" type="checkbox" />
+                  <span>Hard Disable Incoming Bot Commands + File Transfer Commands</span>
+                </label>
+              </div>
+              <div class="settings-help-note">
+                When enabled, this node ignores incoming bot command triggers and incoming file-transfer protocol frames. Outgoing file sends are still allowed.
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="advanced" hidden>
             <h3>Advanced Config</h3>
             <div class="settings-fields">
+              <div class="settings-help-note">
+                Channel configuration has moved to <strong>Channels</strong> so local channel controls, activity, and tools live in one place.
+              </div>
               <label class="settings-field">
                 <span class="settings-label">Local config section</span>
                 <div class="settings-row">
@@ -309,7 +1530,229 @@
               <div class="settings-row settings-row-danger">
                 <button id="settings-reset-nodedb" class="btn btn-danger" type="button">Reset Radio NodeDB</button>
                 <button id="settings-reset-dashboard-db" class="btn btn-danger" type="button">Reset Dashboard DB</button>
-                <span class="settings-danger-note">Danger zone: resets radio discovery or clears dashboard history.</span>
+                <button id="settings-regenerate-node-id" class="btn btn-danger" type="button">Regenerate Node ID</button>
+                <span class="settings-danger-note">Danger zone: resets radio discovery, clears dashboard history, or full-resets the radio to regenerate node ID.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="channels" hidden>
+            <h3>Message Channels</h3>
+            <div class="channels-dashboard-grid">
+              <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-summary" aria-label="Observed channel summary">
+                <div class="channels-section-head">
+                  <div>
+                    <h3>Observed</h3>
+                    <div id="channels-caption" class="history-caption channels-panel-copy">Recent packet evidence for local and observed message channels.</div>
+                  </div>
+                  <div class="channels-section-actions channels-summary-actions">
+                    <label class="settings-field settings-inline channels-summary-toggle" title="Beginner-friendly view hides MQTT bridge toggles and shows quick actions. Advanced shows everything.">
+                      <input id="settings-channels-advanced-toggle" type="checkbox" />
+                      <span>Advanced</span>
+                    </label>
+                    <label class="settings-field settings-inline channels-summary-toggle" title="Allows adding a new secondary channel with no name. Leave this off unless you intentionally want an unnamed channel.">
+                      <input id="settings-channels-experimental-toggle" type="checkbox" />
+                      <span>Experimental</span>
+                    </label>
+                    <button id="channels-fetch-settings-btn" class="btn btn-secondary" type="button">Fetch radio config</button>
+                  </div>
+                </div>
+                <div id="channels-overview" class="overview-grid"></div>
+                <section class="channels-app-routing" aria-label="App channel routing">
+                  <div class="channels-app-routing-head">
+                    <div class="channels-app-routing-head-main">
+                      <h4>App Channels</h4>
+                      <button
+                        id="channels-app-routing-toggle-btn"
+                        class="btn btn-secondary channels-app-routing-toggle"
+                        type="button"
+                        aria-expanded="false"
+                      >Expand</button>
+                    </div>
+                    <div id="channels-app-routing-summary" class="channels-app-routing-summary">Loading app routing summary...</div>
+                    <div id="channels-app-routing-copy" class="channels-app-routing-copy" hidden>Choose whether Files, Games, and BBS follow global send or stay locked to a fixed channel.</div>
+                  </div>
+                  <div id="channels-app-routing-grid" class="channels-app-routing-grid" hidden>
+                    <div class="channels-app-route-placeholder">Loading app channel routing controls...</div>
+                  </div>
+                </section>
+                <div class="channels-summary-footer">
+                  <div class="settings-help-note channels-current-note">
+                    Blank <strong>PSK</strong> keeps the current key. <strong>Ch 0</strong> may be active with no name.
+                  </div>
+                  <div class="channels-status-row">
+                    <span id="channels-apply-status" class="settings-status channels-status"></span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="channels-dashboard-panel settings-panel channels-dashboard-panel-activity" aria-label="Channel activity">
+                <div class="channels-section-head">
+                  <div>
+                    <h3>Channel Activity</h3>
+                  </div>
+                </div>
+                <div class="channels-activity-table-wrap scroll">
+                  <table class="settings-channels-table" id="settings-channels-table">
+                    <thead>
+                      <tr>
+                        <th>Index</th>
+                        <th>Role</th>
+                        <th>Name</th>
+                        <th class="settings-channel-mqtt">MQTT Up</th>
+                        <th class="settings-channel-mqtt">MQTT Down</th>
+                        <th>PSK (new)</th>
+                        <th>Actions</th>
+                        <th>Evidence</th>
+                        <th>Packets</th>
+                        <th>Everyone</th>
+                        <th>Direct</th>
+                        <th>Nodes</th>
+                        <th>Top ports</th>
+                        <th>Latest</th>
+                      </tr>
+                    </thead>
+                    <tbody id="settings-channels-tbody">
+                      <tr><td colspan="14" class="settings-channels-empty">Fetch settings to load channels.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="tickers" hidden>
+            <h3>Ticker Layout</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Choose which topbar tickers are visible, control their order, and tune minor behavior per ticker.
+              </div>
+              <label class="settings-field settings-inline">
+                <input id="settings-ticker-node-packet-trend-enabled" type="checkbox" />
+                <span>Show node navigator packet trend sparklines</span>
+              </label>
+              <div class="settings-help-note">
+                Adds a tiny per-node packet activity sparkline in the right-side global node list.
+              </div>
+              <label class="settings-field settings-inline">
+                <input id="settings-ticker-oneshot-node-online-enabled" type="checkbox" />
+                <span>Topbar one-shot: node came online</span>
+              </label>
+              <label id="settings-ticker-oneshot-node-online-favorites-only-wrap" class="settings-field settings-inline">
+                <input id="settings-ticker-oneshot-node-online-favorites-only" type="checkbox" />
+                <span>Only for tagged nodes</span>
+              </label>
+              <div class="settings-help-note">
+                Shows a temporary topbar ticker notice when a node transitions to online status.
+              </div>
+              <div class="settings-ticker-shell">
+                <div class="settings-ticker-list-wrap">
+                  <div class="settings-label">Available tickers</div>
+                  <div id="settings-ticker-list" class="settings-ticker-list" role="listbox" aria-label="Available tickers"></div>
+                </div>
+                <div class="settings-ticker-config">
+                  <div id="settings-ticker-config-empty" class="settings-help-note">Select a ticker to configure.</div>
+                  <div id="settings-ticker-config-form" hidden>
+                    <div class="settings-row">
+                      <label class="settings-field settings-inline">
+                        <input id="settings-ticker-enabled" type="checkbox" />
+                        <span>Enabled</span>
+                      </label>
+                      <button id="settings-ticker-move-up" class="btn btn-secondary" type="button">Move Up</button>
+                      <button id="settings-ticker-move-down" class="btn btn-secondary" type="button">Move Down</button>
+                    </div>
+                    <label class="settings-field">
+                      <span class="settings-label">Label override</span>
+                      <input
+                        id="settings-ticker-label"
+                        class="settings-input"
+                        type="text"
+                        maxlength="26"
+                        autocomplete="off"
+                        placeholder="Leave blank to use default label"
+                      />
+                    </label>
+                    <label id="settings-ticker-show-trend-wrap" class="settings-field settings-inline" hidden>
+                      <input id="settings-ticker-show-trend" type="checkbox" />
+                      <span>Show trend delta/rate + sparkline</span>
+                    </label>
+                    <label id="settings-ticker-battery-window-wrap" class="settings-field" hidden>
+                      <span class="settings-label">Battery trend window (hours)</span>
+                      <input id="settings-ticker-battery-window-hours" class="settings-input" type="number" min="1" max="24" step="1" />
+                    </label>
+                    <div id="settings-ticker-node-rows-wrap" class="settings-field" hidden>
+                      <span class="settings-label">Link rows</span>
+                      <label class="settings-field settings-inline">
+                        <input id="settings-ticker-node-row-rssi" type="checkbox" />
+                        <span>RSSI row</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="settings-ticker-node-row-snr" type="checkbox" />
+                        <span>SNR row</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="settings-ticker-node-row-route" type="checkbox" />
+                        <span>Route row</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="settings-ticker-node-row-hops" type="checkbox" />
+                        <span>Hops row</span>
+                      </label>
+                      <div class="settings-help-note">Signal stays as the primary value. Toggle rows to add extra detail.</div>
+                    </div>
+                    <div class="settings-row">
+                      <button id="settings-ticker-reset-selected" class="btn btn-secondary" type="button">Reset Selected</button>
+                      <button id="settings-ticker-reset-all" class="btn btn-secondary" type="button">Reset All Ticker Preferences</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="appearance" hidden>
+            <h3>Appearance</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Control node color styling for chat rows and the node list.
+              </div>
+              <label class="settings-field settings-inline">
+                <input id="settings-appearance-unique-node-colors" type="checkbox" />
+                <span>Use unique node colors in chat and node list</span>
+              </label>
+              <div class="settings-help-note">
+                Off keeps tag colors, but untagged nodes use the shared neutral tint.
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="data" hidden>
+            <h3>Raw Data</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Live raw API responses for diagnostics and debugging.
+              </div>
+              <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
+              <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
+              <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
+              <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
+              <details><summary>channels</summary><pre id="raw-channels"></pre></details>
+              <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
+            </div>
+            <h3>Recent Packets</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Recent decoded packet stream with RF diagnostics (SNR/RSSI) for troubleshooting.
+              </div>
+              <div class="scroll">
+                <table id="packets-table">
+                  <thead>
+                    <tr>
+                      <th>Captured</th><th>From</th><th>To</th><th>Port</th><th>SNR</th><th>RSSI</th><th>Text</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -325,9 +1768,35 @@
 
     <section class="card chat">
       <div class="chat-card-head">
-        <h2>MediumFast Chat</h2>
-        <div id="chat-caption">
-          Showing decoded text messages from recent packets.
+        <div class="chat-card-head-controls">
+          <div class="chat-card-head-actions">
+            <div
+              class="mesh-channel-wrap chat-mesh-channel-wrap"
+              title="Choose which message channel to view in chat. This filters decoded messages only. It does NOT change your LoRa frequency slot."
+            >
+              <select id="mesh-channel-select" class="mesh-channel-select" aria-label="Chat view channel" hidden>
+                <option value="-1">All channels (view)</option>
+              </select>
+              <div id="mesh-channel-pill-strip" class="mesh-channel-pill-strip" role="tablist" aria-label="Chat view channel"></div>
+            </div>
+            <button
+              id="chat-trends-view-btn"
+              class="btn btn-secondary chat-trends-view-btn"
+              type="button"
+              aria-pressed="false"
+              title="Trends view groups messages by hashtag first, then common keywords."
+            >Trends</button>
+          </div>
+        </div>
+        <div id="chat-caption" class="chat-caption-search" role="search" aria-label="Chat search">
+          <input
+            id="chat-feed-search-input"
+            class="list-search-input chat-feed-search-input"
+            type="search"
+            maxlength="120"
+            placeholder="Search visible chat by name or message text..."
+            autocomplete="off"
+          />
         </div>
       </div>
       <div class="body">
@@ -345,22 +1814,861 @@
                   </div>
                 </div>
                 <div class="chat-composer-input-row">
+                  <div
+                    class="mesh-channel-wrap chat-send-channel-wrap"
+                    title="Choose which configured message channel to use for outgoing chat. This sets the encryption group used for sends and does NOT change your LoRa frequency slot."
+                  >
+                    <span id="chat-send-channel-dot" class="channel-color-dot mesh-channel-view-dot" aria-hidden="true"></span>
+                    <button id="chat-send-channel-menu-btn" class="mesh-channel-menu-btn chat-send-channel-menu-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Outgoing chat channel">
+                      Ch 0
+                    </button>
+                    <select id="chat-send-channel-select" class="chat-send-channel-select" aria-label="Outgoing chat channel" hidden>
+                      <option value="0">Ch 0</option>
+                    </select>
+                    <div id="chat-send-channel-menu" class="mesh-channel-menu chat-send-channel-menu" role="listbox" hidden></div>
+                  </div>
                   <input
                     id="chat-input"
                     class="list-search-input"
                     type="search"
                     maxlength="280"
-                    placeholder="Message the room (^all)..."
+                    placeholder="Message the room (^all)... (/macros or /help)"
                     autocomplete="off"
                   />
                   <button id="chat-emoji-btn" type="button" title="Insert emoji" aria-label="Insert emoji" aria-expanded="false">🙂</button>
                   <button id="chat-send-btn" type="button">Send</button>
                 </div>
+                <div id="chat-macro-preview" class="chat-macro-preview" hidden aria-live="polite"></div>
                 <div id="chat-emoji-panel" class="chat-emoji-panel" hidden></div>
               </div>
+              <div id="chat-channel-mismatch-warning" class="chat-channel-mismatch-warning" hidden></div>
               <div id="chat-send-status" class="chat-send-status"></div>
             </div>
             <div id="chat-reaction-popover" class="chat-reaction-popover" hidden></div>
+          </div>
+        </div>
+        <div
+          id="macros-panel-splitter"
+          class="macros-panel-splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize macros log panel"
+        ></div>
+        <div id="macros-right-pane" class="macros-right-pane" aria-label="Macros controls workspace">
+          <div class="macros-right-pane-inner">
+            <div class="macros-studio-head">
+              <h3>MACROS Studio</h3>
+              <p>Build tiny ASCII macros from images or text. Left panel can show emulated send preview or live chat.</p>
+              <div class="macros-left-view-toggle" role="group" aria-label="Macros left panel mode">
+                <button id="macros-left-view-preview-btn" class="btn btn-secondary is-active" type="button">Macro Preview</button>
+                <button id="macros-left-view-live-btn" class="btn btn-secondary" type="button">Live Chat</button>
+              </div>
+              <div class="macros-send-strip">
+                <button id="macros-send-lines-btn" class="btn btn-danger macros-send-primary" type="button">Send Macro</button>
+                <span class="macros-send-strip-note">Transmits current ASCII output to mesh as multiple lines.</span>
+              </div>
+              <div class="macros-mini-meta">Switch the left panel between macro preview and live channel chat.</div>
+            </div>
+            <div class="macros-studio-grid">
+              <section class="macros-tool-card" aria-label="ASCII settings">
+                <h4>ASCII Settings</h4>
+                <div class="macros-tool-row">
+                  <label class="macros-tool-field">
+                    <span>Width</span>
+                    <input id="macros-ascii-width" type="number" min="8" max="96" step="1" value="16" />
+                  </label>
+                  <label class="macros-tool-field">
+                    <span>Height</span>
+                    <input id="macros-ascii-height" type="number" min="8" max="96" step="1" value="16" />
+                  </label>
+                </div>
+                <label class="macros-tool-field">
+                  <span>Palette Preset</span>
+                  <select id="macros-ascii-palette" aria-label="ASCII palette preset"></select>
+                </label>
+                <label class="macros-tool-field">
+                  <span>Ramp (dark to light)</span>
+                  <input id="macros-ascii-ramp" type="text" value="@%#*+=-:. " maxlength="128" autocomplete="off" spellcheck="false" />
+                </label>
+                <div id="macros-ascii-palette-note" class="macros-mini-meta">Classic 10-level ramp (dark -> light), used widely since the 1990s.</div>
+                <label class="macros-tool-check">
+                  <input id="macros-ascii-invert" type="checkbox" />
+                  <span>Invert luminance</span>
+                </label>
+                <label class="macros-tool-check">
+                  <input id="macros-ascii-crop-whitespace" type="checkbox" checked />
+                  <span>Crop blank margins (top/bottom/left/right)</span>
+                </label>
+                <label class="macros-tool-check">
+                  <input id="macros-ascii-space-replace-enabled" type="checkbox" />
+                  <span>MSP-safe: replace spaces on send</span>
+                </label>
+                <label class="macros-tool-field">
+                  <span>Replacement char</span>
+                  <input id="macros-ascii-space-replace-char" type="text" value="·" maxlength="8" autocomplete="off" spellcheck="false" />
+                </label>
+                <div class="macros-mini-meta">When enabled, spaces are sent as this visible character.</div>
+              </section>
+
+              <section class="macros-tool-card" aria-label="Image to ASCII">
+                <h4>Image to ASCII</h4>
+                <label class="macros-tool-field">
+                  <span>Import image</span>
+                  <input id="macros-image-input" type="file" accept="image/*" />
+                </label>
+                <div id="macros-image-meta" class="macros-mini-meta">No image loaded.</div>
+                <button id="macros-image-generate-btn" class="btn" type="button">Generate From Image</button>
+              </section>
+
+              <section class="macros-tool-card" aria-label="Text to ASCII">
+                <h4>Text to ASCII</h4>
+                <label class="macros-tool-field">
+                  <span>Text</span>
+                  <input id="macros-text-input" type="text" maxlength="120" placeholder="TYPE SOMETHING" autocomplete="off" />
+                </label>
+                <div class="macros-tool-row">
+                  <label class="macros-tool-field">
+                    <span>Font</span>
+                    <select id="macros-text-font">
+                      <option value="monospace">Monospace</option>
+                      <option value="sans-serif">Sans Serif</option>
+                      <option value="serif">Serif</option>
+                      <option value="fantasy">Fantasy</option>
+                    </select>
+                  </label>
+                  <label class="macros-tool-field">
+                    <span>Weight</span>
+                    <select id="macros-text-weight">
+                      <option value="700">Bold</option>
+                      <option value="600">Semi</option>
+                      <option value="500">Medium</option>
+                      <option value="400">Normal</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="macros-tool-actions">
+                  <button id="macros-text-generate-btn" class="btn" type="button">Generate From Text</button>
+                </div>
+              </section>
+            </div>
+
+            <section class="macros-output-card" aria-label="ASCII output">
+              <div class="macros-output-head">
+                <h4>ASCII Output</h4>
+                <span id="macros-line-count" class="macros-mini-meta">0 lines</span>
+              </div>
+              <textarea
+                id="macros-ascii-output"
+                class="macros-ascii-output"
+                rows="10"
+                placeholder="ASCII output appears here..."
+                spellcheck="false"
+              ></textarea>
+              <div class="macros-output-actions">
+                <button id="macros-preview-apply-btn" class="btn btn-secondary" type="button">Refresh Preview</button>
+                <button id="macros-copy-btn" class="btn btn-secondary" type="button">Copy</button>
+                <button id="macros-clear-btn" class="btn btn-secondary" type="button">Clear</button>
+              </div>
+              <div id="macros-status" class="macros-status" aria-live="polite"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card chatlabs" aria-label="Experimental console-style chat">
+      <div class="chatlabs-head">
+        <h2>Labs</h2>
+        <div class="chatlabs-caption">
+          Experimental console-rendered chat stream.
+          <span id="chat-labs-count" class="chatlabs-count">0 lines</span>
+        </div>
+        <div class="chatlabs-filter-row">
+          <div
+            id="chat-labs-channel-pill-strip"
+            class="mesh-channel-pill-strip chatlabs-channel-pill-strip"
+            role="tablist"
+            aria-label="Labs channel filter"
+          ></div>
+        </div>
+      </div>
+      <div class="body">
+        <div id="chat-labs-terminal" class="chatlabs-terminal">
+          <div id="chat-labs-feed" class="chatlabs-feed"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card files" aria-label="Peer-to-peer file transfer">
+      <h2>Files</h2>
+      <div class="body">
+        <div class="files-shell">
+          <div class="files-controls">
+            <div id="files-caption" class="files-caption">Send small files as chunked direct messages on your configured Files send channel.</div>
+            <label class="files-field">
+              <span class="files-label">Destination Node ID</span>
+              <div class="files-row">
+                <input
+                  id="files-destination-input"
+                  class="files-input"
+                  type="text"
+                  placeholder="!49b54790"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="files-use-selected-btn" class="btn btn-secondary files-use-selected-btn" type="button">Use selected</button>
+              </div>
+            </label>
+            <label class="files-field">
+              <span class="files-label">Send Channel</span>
+              <div class="files-channel-row">
+                <span id="files-send-channel-dot" class="channel-color-dot files-channel-dot" aria-hidden="true"></span>
+                <select id="files-send-channel-select" class="files-input files-channel-select" aria-label="Outgoing file transfer channel">
+                  <option value="0">Ch 0</option>
+                </select>
+                <span id="files-send-channel-hint" class="files-channel-hint">Files follow global send by default. You can lock Files to a fixed channel in Channels → App Channels.</span>
+              </div>
+            </label>
+            <label class="files-field">
+              <span class="files-label">Choose file</span>
+              <input id="files-input" class="files-input" type="file" />
+            </label>
+            <div class="files-actions">
+              <button id="files-send-btn" class="btn" type="button">Send file</button>
+              <span id="files-send-status" class="files-send-status"></span>
+            </div>
+            <div class="files-console">
+              <div class="files-console-head">
+                <span class="files-console-title">Transfer Console</span>
+                <div class="files-console-actions">
+                  <button id="files-console-copy-btn" class="btn btn-secondary files-console-copy-btn" type="button">Copy</button>
+                  <button id="files-console-clear-btn" class="btn btn-secondary files-console-clear-btn" type="button">Clear</button>
+                </div>
+              </div>
+              <pre id="files-console-log" class="files-console-log" aria-live="polite">No file transfer activity yet.</pre>
+            </div>
+          </div>
+          <div class="scroll files-transfers-scroll">
+            <table id="files-transfer-table">
+              <thead>
+                <tr>
+                  <th>Time</th><th>Direction</th><th>Peer</th><th>Name</th><th>Progress</th><th>Size</th><th>Channel</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="8">No file transfers yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card bbs" aria-label="Dial-up bulletin board">
+      <h2>BBS</h2>
+      <div class="body">
+        <div class="bbs-shell">
+          <aside class="bbs-sidebar">
+            <div class="bbs-panel">
+              <div class="bbs-panel-title">Host Console</div>
+              <label class="bbs-field">
+                <span class="bbs-label">Board Title</span>
+                <input
+                  id="bbs-host-title-input"
+                  class="bbs-input"
+                  type="text"
+                  maxlength="42"
+                  placeholder="Packet Exchange"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="bbs-field">
+                <span class="bbs-label">Board ID</span>
+                <input
+                  id="bbs-host-id-input"
+                  class="bbs-input"
+                  type="text"
+                  maxlength="24"
+                  placeholder="packet-exchange"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </label>
+              <label class="bbs-field">
+                <span class="bbs-label">Welcome Banner</span>
+                <input
+                  id="bbs-host-motd-input"
+                  class="bbs-input"
+                  type="text"
+                  maxlength="120"
+                  placeholder="2400 baud online."
+                  autocomplete="off"
+                />
+              </label>
+              <div class="bbs-actions">
+                <button id="bbs-host-start-btn" class="btn" type="button">Host Board</button>
+                <button id="bbs-host-stop-btn" class="btn btn-secondary" type="button">Go Offline</button>
+                <button id="bbs-host-announce-btn" class="btn btn-secondary" type="button">Broadcast</button>
+              </div>
+              <div id="bbs-host-channel" class="bbs-host-channel" aria-live="polite"></div>
+              <div id="bbs-host-status" class="bbs-host-status" aria-live="polite">Offline.</div>
+            </div>
+            <div class="bbs-panel">
+              <div class="bbs-panel-title">Dial Directory</div>
+              <div id="bbs-board-list" class="bbs-board-list" role="listbox" aria-label="Available BBS boards"></div>
+              <div class="bbs-actions">
+                <button id="bbs-refresh-directory-btn" class="btn btn-secondary" type="button">Refresh Directory</button>
+              </div>
+            </div>
+          </aside>
+          <div class="bbs-main">
+            <div class="bbs-terminal-head">
+              <div id="bbs-terminal-title" class="bbs-terminal-title">No board selected</div>
+              <div id="bbs-terminal-meta" class="bbs-terminal-meta">Host a board or dial a listing from the directory.</div>
+            </div>
+            <pre id="bbs-terminal-log" class="bbs-terminal-log" aria-live="polite">*** CONNECT 2400 ***
+Ready.
+</pre>
+            <div class="bbs-compose-row">
+              <input
+                id="bbs-post-input"
+                class="bbs-post-input"
+                type="text"
+                maxlength="220"
+                placeholder="Write a board post..."
+                autocomplete="off"
+              />
+              <button id="bbs-post-send-btn" class="btn" type="button">Post</button>
+            </div>
+            <div id="bbs-post-status" class="bbs-post-status" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card remote" aria-label="Remote node operations">
+      <h2>Remote</h2>
+      <div class="body">
+        <div class="remote-shell">
+          <aside class="remote-sidebar">
+            <label class="remote-field" for="remote-node-search-input">Search nodes</label>
+            <input
+              id="remote-node-search-input"
+              class="remote-search-input"
+              type="search"
+              placeholder="Search name, ID, role, hardware, notes"
+              autocomplete="off"
+            />
+            <div id="remote-node-list-caption" class="remote-list-caption">Scanning remote nodes...</div>
+            <div id="remote-node-list" class="remote-node-list" role="listbox" aria-label="Remote nodes"></div>
+          </aside>
+          <div class="remote-main">
+            <div class="remote-panel remote-summary-panel">
+              <div class="remote-panel-head">
+                <h3 id="remote-target-title">Select a node</h3>
+                <button id="remote-refresh-btn" class="btn btn-secondary remote-refresh-btn" type="button">Refresh</button>
+              </div>
+              <div id="remote-target-meta" class="remote-target-meta">Choose a node to inspect potential remote operations.</div>
+            </div>
+            <div class="remote-panel">
+              <h3>Capability Probe</h3>
+              <div id="remote-capability-list" class="remote-capability-list"></div>
+            </div>
+            <div class="remote-panel">
+              <h3>Quick Actions</h3>
+              <div class="remote-action-row">
+                <button id="remote-open-node-btn" class="btn btn-secondary" type="button">Open Node Details</button>
+                <button id="remote-open-direct-chat-btn" class="btn btn-secondary" type="button">Open Message Popup</button>
+                <button id="remote-stage-ping-btn" class="btn" type="button">Stage Ping</button>
+                <button id="remote-stage-whois-btn" class="btn btn-secondary" type="button">Stage Whois</button>
+              </div>
+              <div id="remote-action-status" class="remote-action-status">Select a node to start exploring remote actions.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card bots" aria-label="Mesh bot tools">
+      <h2>Bots</h2>
+      <div class="body">
+        <div class="bots-grid">
+          <div class="bots-sidebar-stack">
+            <div class="bots-panel bots-commands-panel">
+              <h3>Bot Commands</h3>
+              <label class="chat-bot-toggle-wrap bots-master-toggle" for="bots-command-master-enabled" title="Master switch for backend bot responses on this node. Turn off to silence all bot replies while keeping individual command settings intact.">
+                <input id="bots-command-master-enabled" type="checkbox" />
+                <span>Enable Bot Responses</span>
+              </label>
+              <div class="bots-setting-note">Select a command to edit its settings. The public <code>zork</code> handoff option appears when <code>zork</code> is selected.</div>
+              <div class="bots-command-shell" aria-label="Managed bot commands">
+                <div class="bots-command-list-wrap">
+                  <div class="chat-bot-cheatsheet-title">Managed bot commands</div>
+                  <div id="bots-command-list" class="bots-command-list" role="listbox" aria-label="Managed bot commands" aria-live="polite"></div>
+                </div>
+                <div id="bots-command-splitter" class="bots-command-splitter" title="Drag to resize command list and bot settings"></div>
+                <div class="bots-command-config">
+                  <div id="bots-command-config-empty" class="bots-history-empty">Select a command to configure.</div>
+                  <div id="bots-command-config-form" hidden>
+                    <div class="bots-command-config-head">
+                      <div class="bots-command-config-title-row">
+                        <span id="bots-command-selected-usage" class="bots-command-config-usage">n/a</span>
+                        <span id="bots-command-selected-kind" class="bots-command-kind">built-in</span>
+                      </div>
+                      <div id="bots-command-selected-name" class="bots-command-config-name">command</div>
+                    </div>
+                    <div id="bots-command-selected-description" class="bots-command-config-description">Managed backend bot command.</div>
+                    <label class="chat-bot-toggle-wrap bots-command-config-toggle" for="bots-command-selected-enabled" title="Enable or disable this backend bot command.">
+                      <input id="bots-command-selected-enabled" type="checkbox" />
+                      <span>Enabled</span>
+                    </label>
+                    <div id="bots-command-ping-config-wrap" class="bots-command-config-section" hidden>
+                      <label class="bots-command-config-label" for="bots-command-ping-triggers">Ping triggers</label>
+                      <textarea
+                        id="bots-command-ping-triggers"
+                        class="bots-command-config-textarea"
+                        rows="3"
+                        placeholder="&#123;nodename&#125; ping&#10;&#123;nodename&#125; test&#10;&#123;nodename&#125; can you see this"
+                      ></textarea>
+                      <div class="bots-setting-note">Delimited phrases (newline, comma, or semicolon). <code>&#123;nodename&#125; ping</code>, <code>&#123;nodename&#125; test</code>, and <code>&#123;nodename&#125; can you see this</code> are defaults. <code>&#123;nodename&#125;</code> is optional in matching.</div>
+                      <label class="bots-command-config-label" for="bots-command-ping-response-template">Ping reply template (optional)</label>
+                      <input
+                        id="bots-command-ping-response-template"
+                        class="chat-input"
+                        type="text"
+                        maxlength="240"
+                        placeholder="Hey $sender, you are $hops hops away!"
+                      />
+                      <div class="bots-setting-note">Leave blank for default reply. Tokens: <code>$sender</code>, <code>$sender_id</code>, <code>$hops</code>, <code>$hop_label</code>, <code>$bot</code>, <code>$bot_id</code>, <code>$location</code>, <code>$city</code>, <code>$state</code>. <code>$location</code> is the bot's nearest offline-map city+state, while <code>$city</code> and <code>$state</code> are split tokens.</div>
+                      <div class="bots-command-config-actions">
+                        <button id="bots-command-ping-save-btn" class="btn btn-secondary" type="button">Save Ping Settings</button>
+                      </div>
+                    </div>
+                    <div id="bots-command-pull-config-wrap" class="bots-command-config-section" hidden>
+                      <label class="bots-command-config-label" for="bots-command-pull-reel-symbols">Pull reel emojis</label>
+                      <input
+                        id="bots-command-pull-reel-symbols"
+                        class="settings-input bots-command-config-input"
+                        type="text"
+                        placeholder="🍒, 🍋, 🍉, 🔔, ⭐, 7️⃣"
+                      />
+                      <div class="bots-setting-note">Comma-delimited symbol list (example: <code>🍒, 🍋, ⭐, 7️⃣</code>). At least 3 symbols are required; shorter lists fall back to defaults.</div>
+                      <label class="bots-command-config-label" for="bots-command-pull-response-template">Pull reply template (optional)</label>
+                      <input
+                        id="bots-command-pull-response-template"
+                        class="chat-input"
+                        type="text"
+                        maxlength="280"
+                        placeholder="$headline: $reels (+$prize)"
+                      />
+                      <div class="bots-setting-note">Leave blank for default slot output. Tokens: <code>$reel1</code>, <code>$reel2</code>, <code>$reel3</code>, <code>$reels</code>, <code>$payout</code>, <code>$prize</code>, <code>$tier</code>, <code>$win</code>, <code>$won</code>, <code>$result</code>, <code>$jackpot</code>, <code>$top_prize</code>, <code>$headline</code>.</div>
+                      <div class="bots-command-config-actions">
+                        <button id="bots-command-pull-save-btn" class="btn btn-secondary" type="button">Save Pull Settings</button>
+                      </div>
+                    </div>
+                    <div id="bots-command-zork-config-wrap" class="bots-command-config-section" hidden>
+                      <label class="bots-command-config-label" for="bots-command-zork-triggers">Zork start triggers</label>
+                      <textarea
+                        id="bots-command-zork-triggers"
+                        class="bots-command-config-textarea"
+                        rows="3"
+                        placeholder="&#123;nodename&#125; zork&#10;&#123;nodename&#125; play zork"
+                      ></textarea>
+                      <div class="bots-setting-note">Delimited phrases (newline, comma, or semicolon). <code>&#123;nodename&#125; zork</code> and <code>&#123;nodename&#125; play zork</code> are defaults. <code>&#123;nodename&#125;</code> is optional in matching.</div>
+                      <div class="bots-command-config-actions">
+                        <button id="bots-command-zork-save-btn" class="btn btn-secondary" type="button">Save Zork Triggers</button>
+                      </div>
+                    </div>
+                    <label id="bots-command-selected-public-start-wrap" class="chat-bot-toggle-wrap bots-command-config-toggle" for="bots-command-selected-public-start-enabled" title="When enabled, a public &quot;zork&quot; message gets a direct peer-to-peer game start reply. Follow-up commands still need to continue in direct chat." hidden>
+                      <input id="bots-command-selected-public-start-enabled" type="checkbox" />
+                      <span>Allow public &quot;zork&quot; handoff</span>
+                    </label>
+                    <div id="bots-command-selected-public-start-note" class="bots-setting-note" hidden>
+                      A public <code>zork</code> gets a direct game start reply. Follow-up moves still belong in peer-to-peer chat.
+                    </div>
+                    <div id="bots-command-joke-config-wrap" class="bots-command-config-section" hidden>
+                      <label
+                        class="chat-bot-toggle-wrap bots-command-config-toggle"
+                        for="bots-command-joke-delay-punchline-enabled"
+                        title="When enabled, jokes that contain a question mark pause before the punchline to let people answer."
+                      >
+                        <input id="bots-command-joke-delay-punchline-enabled" type="checkbox" />
+                        <span>Delay punchline</span>
+                      </label>
+                      <div class="bots-setting-note">Question jokes pause up to 15 seconds for replies, then the punchline posts automatically.</div>
+                      <label class="bots-command-config-label" for="bots-command-joke-triggers">Joke triggers</label>
+                      <textarea
+                        id="bots-command-joke-triggers"
+                        class="bots-command-config-textarea"
+                        rows="3"
+                        placeholder="&#123;nodename&#125; tell me a joke&#10;joke time"
+                      ></textarea>
+                      <div class="bots-setting-note">Delimited phrases (newline, comma, or semicolon). <code>&#123;nodename&#125; tell me a joke</code> works by default, and <code>&#123;nodename&#125;</code> is optional in matching.</div>
+                      <label class="bots-command-config-label" for="bots-command-joke-lines">Jokes (one per line)</label>
+                      <textarea
+                        id="bots-command-joke-lines"
+                        class="bots-command-config-textarea"
+                        rows="7"
+                        placeholder="Why did the packet cross the mesh? Better line of sight."
+                      ></textarea>
+                      <label class="bots-command-config-label" for="bots-command-joke-near-guess-lines">Near-guess responses (one per line)</label>
+                      <textarea
+                        id="bots-command-joke-near-guess-lines"
+                        class="bots-command-config-textarea"
+                        rows="3"
+                        placeholder="Nice guess, close enough. {{punchline}}"
+                      ></textarea>
+                      <div class="bots-setting-note">Use <code>{{punchline}}</code> to place the punchline. If omitted, the bot sends your response without revealing it.</div>
+                      <div class="bots-command-config-actions">
+                        <button id="bots-command-joke-save-btn" class="btn btn-secondary" type="button">Save Joke Settings</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="bots-main-splitter" class="bots-main-splitter" title="Drag to resize bot controls and bot review"></div>
+          <div class="bots-panel bots-history-panel">
+            <div class="bots-history-head">
+              <div class="bots-review-head-copy">
+                <h3>Bot History</h3>
+              </div>
+              <button id="bots-history-clear-btn" class="btn btn-secondary bots-history-clear-btn" type="button">Clear History</button>
+            </div>
+            <div id="bots-history-tab-panel" class="bots-tab-panel" role="region" aria-label="Bot history">
+              <div class="bots-history-stats">
+                <span>Total <strong id="bots-history-total">0</strong></span>
+                <span>Pending <strong id="bots-history-pending">0</strong></span>
+                <span>Responded <strong id="bots-history-responded">0</strong></span>
+              </div>
+              <div id="bots-history-list" class="scroll bots-history-list" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card games" aria-label="Games">
+      <h2 id="games-chat-banner" class="games-chat-banner" role="button" tabindex="0" aria-label="Game table chat ticker">
+        <span id="games-chat-ticker" class="games-chat-ticker" aria-live="polite">
+          <span id="games-chat-ticker-track" class="games-chat-ticker-track">Game table chat. Connect to a peer and click here to reply.</span>
+        </span>
+        <span id="games-chat-compose" class="games-chat-compose" hidden>
+          <input
+            id="games-chat-input"
+            class="games-chat-input"
+            type="text"
+            maxlength="120"
+            placeholder="Type table message..."
+            autocomplete="off"
+          />
+          <button id="games-chat-send-btn" class="btn games-chat-send-btn" type="button">Send</button>
+        </span>
+      </h2>
+      <div class="body">
+        <div class="games-shell">
+          <aside class="games-sidebar">
+            <div class="games-library-label">Library</div>
+            <div class="games-library-list" role="tablist" aria-label="Game library">
+              <button
+                id="games-select-reversi-btn"
+                class="games-library-btn is-active"
+                type="button"
+                title="Reversi (also known as Othello)"
+                data-game-id="reversi"
+              >Reversi</button>
+              <button
+                id="games-select-checkers-btn"
+                class="games-library-btn"
+                type="button"
+                title="Checkers"
+                data-game-id="checkers"
+              >Checkers</button>
+              <button
+                id="games-select-chess-btn"
+                class="games-library-btn"
+                type="button"
+                title="Chess"
+                data-game-id="chess"
+              >Chess</button>
+              <button
+                id="games-select-poker-btn"
+                class="games-library-btn"
+                type="button"
+                title="5-card draw poker"
+                data-game-id="poker"
+              >Poker</button>
+            </div>
+            <div id="games-side-reversi" class="games-side-panel is-active" data-game-id="reversi">
+              <div class="games-mode-note">Mode: local hotseat for now. Matchmaking can be layered in next.</div>
+              <label class="games-peer-wrap" for="reversi-peer-select">
+                <span class="games-library-label">Peer</span>
+                <select id="reversi-peer-select" class="games-peer-select" aria-label="Reversi peer">
+                  <option value="">Select peer…</option>
+                </select>
+              </label>
+              <label class="games-peer-wrap" for="reversi-host-color-select">
+                <span class="games-library-label">Host Color</span>
+                <select id="reversi-host-color-select" class="games-peer-select" aria-label="Reversi host color">
+                  <option value="black">Black (first move)</option>
+                  <option value="white">White (second move)</option>
+                </select>
+              </label>
+              <div class="reversi-link-actions">
+                <button id="reversi-host-btn" class="btn btn-secondary reversi-link-btn" type="button">Host Invite</button>
+                <button id="reversi-accept-btn" class="btn btn-secondary reversi-link-btn" type="button">Accept Invite</button>
+                <button id="reversi-decline-btn" class="btn btn-secondary reversi-link-btn" type="button">Decline Invite</button>
+                <button id="reversi-disconnect-btn" class="btn btn-secondary reversi-link-btn" type="button">Disconnect</button>
+              </div>
+              <div id="reversi-link-status" class="reversi-link-status">Local hotseat mode.</div>
+              <div class="reversi-invite-wrap">
+                <div class="games-library-label">Pending Invites</div>
+                <div id="reversi-invite-list" class="reversi-invite-list" aria-live="polite"></div>
+              </div>
+              <button id="reversi-new-game-btn" class="btn" type="button">New game</button>
+              <div id="reversi-status-text" class="reversi-status-text" aria-live="polite">Initializing board...</div>
+              <div class="reversi-player-row" aria-label="Reversi players">
+                <div id="reversi-player-local-pill" class="reversi-player-pill is-black">
+                  <span class="reversi-player-role">Local</span>
+                  <span id="reversi-player-local-name" class="reversi-player-name">Local Radio</span>
+                </div>
+                <div id="reversi-player-remote-pill" class="reversi-player-pill is-white">
+                  <span class="reversi-player-role">Remote</span>
+                  <span id="reversi-player-remote-name" class="reversi-player-name">Remote Player</span>
+                </div>
+              </div>
+              <div class="reversi-score-grid">
+                <div class="reversi-score-card">
+                  <span class="label">Black</span>
+                  <strong id="reversi-black-count">2</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">White</span>
+                  <strong id="reversi-white-count">2</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Moves</span>
+                  <strong id="reversi-move-count">0</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Legal</span>
+                  <strong id="reversi-legal-count">4</strong>
+                </div>
+              </div>
+            </div>
+            <div id="games-side-chess" class="games-side-panel" data-game-id="chess" hidden>
+              <div class="games-mode-note">Mode: local hotseat + peer invite. Moves sync over bot chat payloads between peers.</div>
+              <label class="games-peer-wrap" for="chess-peer-select">
+                <span class="games-library-label">Peer</span>
+                <select id="chess-peer-select" class="games-peer-select" aria-label="Chess peer">
+                  <option value="">Select peer…</option>
+                </select>
+              </label>
+              <label class="games-peer-wrap" for="chess-host-color-select">
+                <span class="games-library-label">Host Color</span>
+                <select id="chess-host-color-select" class="games-peer-select" aria-label="Chess host color">
+                  <option value="white">White (first move)</option>
+                  <option value="black">Black (second move)</option>
+                </select>
+              </label>
+              <div class="reversi-link-actions">
+                <button id="chess-host-btn" class="btn btn-secondary reversi-link-btn" type="button">Host Invite</button>
+                <button id="chess-accept-btn" class="btn btn-secondary reversi-link-btn" type="button">Accept Invite</button>
+                <button id="chess-decline-btn" class="btn btn-secondary reversi-link-btn" type="button">Decline Invite</button>
+                <button id="chess-disconnect-btn" class="btn btn-secondary reversi-link-btn" type="button">Disconnect</button>
+              </div>
+              <div id="chess-link-status" class="reversi-link-status">Local hotseat mode.</div>
+              <div class="reversi-invite-wrap">
+                <div class="games-library-label">Pending Invites</div>
+                <div id="chess-invite-list" class="reversi-invite-list" aria-live="polite"></div>
+              </div>
+              <button id="chess-new-game-btn" class="btn" type="button">New game</button>
+              <div id="chess-status-text" class="games-coming-soon" aria-live="polite">Initializing chess board...</div>
+              <div class="reversi-player-row" aria-label="Chess players">
+                <div id="chess-player-white-pill" class="reversi-player-pill is-white">
+                  <span class="reversi-player-role">White</span>
+                  <span id="chess-player-white-name" class="reversi-player-name">White</span>
+                </div>
+                <div id="chess-player-black-pill" class="reversi-player-pill is-black">
+                  <span class="reversi-player-role">Black</span>
+                  <span id="chess-player-black-name" class="reversi-player-name">Black</span>
+                </div>
+              </div>
+              <div class="reversi-score-grid">
+                <div class="reversi-score-card">
+                  <span class="label">White</span>
+                  <strong id="chess-white-count">16</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Black</span>
+                  <strong id="chess-black-count">16</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Moves</span>
+                  <strong id="chess-move-count">0</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Legal</span>
+                  <strong id="chess-legal-count">20</strong>
+                </div>
+              </div>
+            </div>
+            <div id="games-side-checkers" class="games-side-panel" data-game-id="checkers" hidden>
+              <div class="games-mode-note">Mode: local hotseat + peer invite. Captures are forced and multi-jumps are synced.</div>
+              <label class="games-peer-wrap" for="checkers-peer-select">
+                <span class="games-library-label">Peer</span>
+                <select id="checkers-peer-select" class="games-peer-select" aria-label="Checkers peer">
+                  <option value="">Select peer…</option>
+                </select>
+              </label>
+              <label class="games-peer-wrap" for="checkers-host-color-select">
+                <span class="games-library-label">Host Color</span>
+                <select id="checkers-host-color-select" class="games-peer-select" aria-label="Checkers host color">
+                  <option value="black">Black (first move)</option>
+                  <option value="white">White (second move)</option>
+                </select>
+              </label>
+              <div class="reversi-link-actions">
+                <button id="checkers-host-btn" class="btn btn-secondary reversi-link-btn" type="button">Host Invite</button>
+                <button id="checkers-accept-btn" class="btn btn-secondary reversi-link-btn" type="button">Accept Invite</button>
+                <button id="checkers-decline-btn" class="btn btn-secondary reversi-link-btn" type="button">Decline Invite</button>
+                <button id="checkers-disconnect-btn" class="btn btn-secondary reversi-link-btn" type="button">Disconnect</button>
+              </div>
+              <div id="checkers-link-status" class="reversi-link-status">Local hotseat mode.</div>
+              <div class="reversi-invite-wrap">
+                <div class="games-library-label">Pending Invites</div>
+                <div id="checkers-invite-list" class="reversi-invite-list" aria-live="polite"></div>
+              </div>
+              <button id="checkers-new-game-btn" class="btn" type="button">New game</button>
+              <div id="checkers-status-text" class="games-coming-soon" aria-live="polite">Initializing checkers board...</div>
+              <div class="reversi-player-row" aria-label="Checkers players">
+                <div id="checkers-player-black-pill" class="reversi-player-pill is-black">
+                  <span class="reversi-player-role">Black</span>
+                  <span id="checkers-player-black-name" class="reversi-player-name">Black</span>
+                </div>
+                <div id="checkers-player-white-pill" class="reversi-player-pill is-white">
+                  <span class="reversi-player-role">White</span>
+                  <span id="checkers-player-white-name" class="reversi-player-name">White</span>
+                </div>
+              </div>
+              <div class="reversi-score-grid">
+                <div class="reversi-score-card">
+                  <span class="label">Black</span>
+                  <strong id="checkers-black-count">12</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">White</span>
+                  <strong id="checkers-white-count">12</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Moves</span>
+                  <strong id="checkers-move-count">0</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Legal</span>
+                  <strong id="checkers-legal-count">7</strong>
+                </div>
+              </div>
+            </div>
+            <div id="games-side-poker" class="games-side-panel" data-game-id="poker" hidden>
+              <div class="games-mode-note">Mode: local hotseat 5-card draw with four phases: deal, betting, draw, showdown. Shared card/deck logic is built to support Texas Hold&apos;em and Blackjack next.</div>
+              <label class="games-peer-wrap" for="poker-player-count-select">
+                <span class="games-library-label">Players</span>
+                <select id="poker-player-count-select" class="games-peer-select" aria-label="Poker player count">
+                  <option value="2">2 players</option>
+                  <option value="3">3 players</option>
+                  <option value="4" selected>4 players</option>
+                </select>
+              </label>
+              <details class="poker-advanced-toggle">
+                <summary>Advanced Table Rules</summary>
+                <div class="poker-rules-grid" aria-label="Poker table rules">
+                  <label class="games-peer-wrap" for="poker-starting-stack-input">
+                    <span class="games-library-label">Start Stack</span>
+                    <input id="poker-starting-stack-input" class="games-peer-select" type="number" min="10" max="5000" step="10" value="200" />
+                  </label>
+                  <label class="games-peer-wrap" for="poker-ante-input">
+                    <span class="games-library-label">Ante</span>
+                    <input id="poker-ante-input" class="games-peer-select" type="number" min="0" max="500" step="1" value="1" />
+                  </label>
+                <label class="games-peer-wrap" for="poker-small-blind-input">
+                  <span class="games-library-label">Small Blind</span>
+                  <input id="poker-small-blind-input" class="games-peer-select" type="number" min="0" max="500" step="1" value="0" />
+                </label>
+                <label class="games-peer-wrap" for="poker-big-blind-input">
+                  <span class="games-library-label">Big Blind</span>
+                  <input id="poker-big-blind-input" class="games-peer-select" type="number" min="0" max="1000" step="1" value="0" />
+                </label>
+                </div>
+              </details>
+              <div class="reversi-link-actions poker-action-row">
+                <button id="poker-new-table-btn" class="btn" type="button">New table</button>
+                <button id="poker-next-phase-btn" class="btn btn-secondary" type="button">Deal hand</button>
+              </div>
+              <div class="poker-bet-controls" aria-label="Poker betting controls">
+                <label class="games-peer-wrap" for="poker-bet-amount-input">
+                  <span class="games-library-label">Bet / Raise By</span>
+                  <input id="poker-bet-amount-input" class="games-peer-select" type="number" min="1" max="5000" step="1" value="4" />
+                </label>
+                <div class="reversi-link-actions poker-bet-row">
+                  <button id="poker-check-call-btn" class="btn btn-secondary" type="button">Check</button>
+                  <button id="poker-bet-raise-btn" class="btn" type="button">Bet</button>
+                  <button id="poker-fold-btn" class="btn btn-danger" type="button">Fold</button>
+                </div>
+              </div>
+              <div id="poker-status-text" class="games-coming-soon" aria-live="polite">Set seats and deal the first hand.</div>
+              <div class="reversi-score-grid">
+                <div class="reversi-score-card">
+                  <span class="label">Deck</span>
+                  <strong id="poker-cards-left">52</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Hand</span>
+                  <strong id="poker-hand-count">0</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Pot</span>
+                  <strong id="poker-pot-total">0</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Phase</span>
+                  <strong id="poker-phase-label">Deal</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Turn</span>
+                  <strong id="poker-turn-label">-</strong>
+                </div>
+                <div class="reversi-score-card">
+                  <span class="label">Blinds</span>
+                  <strong id="poker-blinds-label">0/0</strong>
+                </div>
+              </div>
+            </div>
+          </aside>
+          <div class="games-main">
+            <div id="games-main-reversi" class="games-main-panel is-active" data-game-id="reversi">
+              <div id="reversi-board" class="reversi-board" role="grid" aria-label="Reversi board"></div>
+            </div>
+            <div id="games-main-checkers" class="games-main-panel" data-game-id="checkers" hidden>
+              <div id="checkers-board" class="checkers-board" role="grid" aria-label="Checkers board"></div>
+            </div>
+            <div id="games-main-chess" class="games-main-panel" data-game-id="chess" hidden>
+              <div id="chess-board" class="chess-board" role="grid" aria-label="Chess board"></div>
+            </div>
+            <div id="games-main-poker" class="games-main-panel" data-game-id="poker" hidden>
+              <div class="poker-main-head" aria-label="Poker hand totals">
+                <div class="poker-main-pill">
+                  <span class="label">Pot</span>
+                  <strong id="poker-pot-main-total">0</strong>
+                </div>
+                <div class="poker-main-pill">
+                  <span class="label">Current Bet</span>
+                  <strong id="poker-current-bet-main">0</strong>
+                </div>
+              </div>
+              <div id="poker-table" class="poker-table" role="region" aria-label="Five card draw poker table"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -368,23 +2676,43 @@
 
     <section class="card map">
       <div class="map-card-head">
-        <h2 id="map-card-title">
+        <h2 id="map-card-title" class="pane-head-title">
           <button
             id="map-card-title-favorite-btn"
             class="favorite-toggle-btn map-title-favorite-btn"
             type="button"
-            title="Save node"
-            aria-label="Save node"
+            title="Tag node"
+            aria-label="Tag node"
             aria-pressed="false"
             hidden
-          ><span class="favorite-toggle-icon">☆</span></button>
+          ><span class="favorite-toggle-icon node-tag-dot"></span></button>
           <span id="map-card-title-text">Network Map</span>
         </h2>
-        <div class="map-card-actions">
+        <div id="saved-map-splitter-head" class="saved-map-splitter-head" title="Drag to resize node details and map"></div>
+        <div class="map-card-actions pane-head-actions">
           <button id="map-reset-view-btn" class="map-reset-view-btn" type="button" title="Reset map view">Reset view</button>
+          <button
+            id="network-legacy-explorer-toggle-btn"
+            class="map-reset-view-btn network-legacy-explorer-toggle-btn"
+            type="button"
+            title="Show or hide the legacy Network Explorer table"
+            hidden
+          >Legacy Explorer: Off</button>
+          <button
+            type="button"
+            id="map-basemap-status"
+            class="map-basemap-status status-loading"
+            title="Checking map tile availability"
+            aria-label="Toggle map basemap offline mode"
+            aria-pressed="false"
+          >Basemap: checking...</button>
           <label id="map-heatmap-wrap" class="map-heatmap-wrap" title="Overlay realtime signal heatmap">
             <input id="map-heatmap-toggle" type="checkbox" checked />
             <span>Signal Heatmap</span>
+          </label>
+          <label id="map-lines-wrap" class="map-heatmap-wrap" title="Show packet lines between nodes">
+            <input id="map-lines-toggle" type="checkbox" checked />
+            <span>Packet Lines</span>
           </label>
           <label id="map-heatmap-mode-wrap" class="map-heatmap-mode-wrap" title="Choose heatmap recency behavior">
             <span>Mode</span>
@@ -396,7 +2724,19 @@
         </div>
       </div>
       <div class="body">
-        <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
+        <div class="saved-node-pane">
+          <div class="saved-node-search-wrap">
+            <input
+              id="saved-node-search-input"
+              class="list-search-input"
+              type="search"
+              placeholder="Search by ID, name, or notes"
+              autocomplete="off"
+            />
+            <div id="saved-node-search-dropdown" class="node-search-dropdown" hidden></div>
+          </div>
+          <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
+        </div>
         <div id="saved-map-splitter" class="saved-map-splitter" title="Drag to resize node details and map"></div>
         <div class="map-frame">
           <div id="map"></div>
@@ -409,10 +2749,16 @@
     <section class="card nodes">
       <h2 id="nodes-card-title">Nodes</h2>
       <div class="body nodes-body">
-        <div class="nodes-search-wrap">
-          <input id="nodes-search-input" class="list-search-input" type="search" placeholder="Search by ID or name" autocomplete="off" />
-        </div>
         <div class="network-node-stack">
+          <div class="saved-node-search-wrap">
+            <input
+              id="nodes-search-input"
+              class="list-search-input"
+              type="search"
+              placeholder="Search nodes by ID, name, or hardware"
+              autocomplete="off"
+            />
+          </div>
           <div class="scroll nodes-table-scroll">
             <table id="nodes-table">
               <colgroup id="nodes-table-cols">
@@ -438,7 +2784,7 @@
                   <th>Battery<div class="col-resizer" data-col="6" aria-hidden="true"></div></th>
                   <th>Saved<div class="col-resizer" data-col="7" aria-hidden="true"></div></th>
                   <th>Pos<div class="col-resizer" data-col="8" aria-hidden="true"></div></th>
-                  <th>★<div class="col-resizer" data-col="9" aria-hidden="true"></div></th>
+                  <th>Tag<div class="col-resizer" data-col="9" aria-hidden="true"></div></th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -451,15 +2797,14 @@
     </section>
 
     <section class="card favorites">
-      <h2>Saved Nodes</h2>
+      <h2>Tagged Nodes</h2>
       <div class="body favorites-body">
         <div class="favorites-toolbar">
           <div class="favorites-search-wrap">
-            <input id="favorites-search-input" class="list-search-input" type="search" placeholder="Search saved by ID or name" autocomplete="off" />
+            <input id="favorites-search-input" class="list-search-input" type="search" placeholder="Search tagged by ID or name" autocomplete="off" />
           </div>
-          <button id="favorites-clear-btn" class="favorites-clear-btn" type="button" title="Remove all saved nodes">Clear Saved</button>
         </div>
-        <div id="favorites-caption" class="favorites-caption">No saved nodes yet.</div>
+        <div id="favorites-caption" class="favorites-caption">No tagged nodes yet.</div>
         <div id="favorites-list" class="scroll favorites-list"></div>
       </div>
     </section>
@@ -488,6 +2833,7 @@
           <div id="node-history-caption" class="history-caption">Select a node to view historical data.</div>
           <div class="history-tabs">
             <button class="history-tab-btn active" id="tab-btn-signal" data-tab="signal" type="button">Signal</button>
+            <button class="history-tab-btn" id="tab-btn-online" data-tab="online" type="button">Online</button>
             <button class="history-tab-btn" id="tab-btn-overview" data-tab="overview" type="button">Overview</button>
           </div>
           <div id="tab-panel-signal" class="history-panel">
@@ -501,67 +2847,309 @@
               <span class="legend-chip" style="color:#265d7b;">Avg RSSI (dBm)</span>
             </div>
           </div>
+          <div id="tab-panel-online" class="history-panel" hidden>
+            <div id="node-online-chart-wrap">
+              <svg id="node-online-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Node online history"></svg>
+              <div id="node-online-empty" class="signal-empty" hidden>No historical online points yet for this node.</div>
+            </div>
+            <div id="node-online-timeline" class="signal-timeline" aria-label="Node online timeline"></div>
+            <div class="signal-legend">
+              <span class="legend-chip activity-legend-nodes">Online (recent packet timestamps)</span>
+            </div>
+          </div>
           <div id="tab-panel-overview" class="history-panel" hidden>
             <div id="node-history-overview" class="overview-grid"></div>
           </div>
         </div>
         <div id="map-data-activity" class="map-data-activity" hidden>
-          <div id="online-activity-caption" class="history-caption">Click Known Nodes to view when nodes are typically online.</div>
-          <div id="online-activity-chart-wrap">
-            <svg id="online-activity-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Online nodes by hour"></svg>
-            <div id="online-activity-empty" class="signal-empty" hidden>No historical online-activity points yet.</div>
+          <div class="history-activity-stack">
+            <div class="history-chat-tabbar history-activity-tabbar" role="tablist" aria-label="History trend panels">
+              <button
+                class="history-chat-tab-btn is-active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="history-activity-panel-activity"
+                data-history-chat-tab="activity"
+              >Activity</button>
+              <button
+                class="history-chat-tab-btn"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="history-activity-panel-encrypted"
+                data-history-chat-tab="encrypted"
+              >Encrypted</button>
+            </div>
+            <div id="history-activity-panel-activity" class="history-activity-panel" role="tabpanel" aria-label="History activity trends">
+              <div class="history-activity-weekly-panel">
+                <div id="weekly-summary-caption" class="history-caption">Minute-level trend by saved snapshots.</div>
+                <div class="history-metric-controls">
+                  <div class="history-metric-wrap">
+                    <label for="weekly-summary-metric" class="history-metric-label">Metric</label>
+                    <select id="weekly-summary-metric" class="history-metric-select" aria-label="Weekly summary metric">
+                      <option value="packets">Packets</option>
+                      <option value="nodes">Nodes</option>
+                      <option value="links">Links</option>
+                    </select>
+                  </div>
+                  <div id="weekly-summary-node-lines-wrap" class="history-metric-wrap history-metric-wrap-lines" hidden>
+                    <span class="history-metric-label">Node Lines</span>
+                    <label class="history-metric-inline" for="weekly-summary-node-line-online">
+                      <input
+                        id="weekly-summary-node-line-online"
+                        class="history-metric-toggle"
+                        type="checkbox"
+                        aria-label="Show online nodes line"
+                      />
+                      <span>Online</span>
+                    </label>
+                    <label class="history-metric-inline" for="weekly-summary-node-line-known">
+                      <input
+                        id="weekly-summary-node-line-known"
+                        class="history-metric-toggle"
+                        type="checkbox"
+                        aria-label="Show known nodes radio line"
+                      />
+                      <span>Known</span>
+                    </label>
+                    <label class="history-metric-inline" for="weekly-summary-node-line-saved">
+                      <input
+                        id="weekly-summary-node-line-saved"
+                        class="history-metric-toggle"
+                        type="checkbox"
+                        aria-label="Show saved nodes database line"
+                      />
+                      <span>Saved</span>
+                    </label>
+                    <label class="history-metric-inline" for="weekly-summary-node-line-position">
+                      <input
+                        id="weekly-summary-node-line-position"
+                        class="history-metric-toggle"
+                        type="checkbox"
+                        aria-label="Show nodes with position line"
+                      />
+                      <span>Position</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="weekly-summary-chart-wrap">
+                  <svg id="weekly-summary-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Weekly metric trend"></svg>
+                  <div id="weekly-summary-empty" class="signal-empty" hidden>No weekly summary history yet.</div>
+                </div>
+                <div id="weekly-summary-timeline" class="signal-timeline" aria-label="Weekly trend timeline"></div>
+                <div id="weekly-summary-overview" class="overview-grid"></div>
+              </div>
+              <section class="history-activity-chat-trend">
+                <div class="history-caption">Chat message trend from recent saved activity.</div>
+                <div id="history-chat-trend-chart-wrap">
+                  <svg id="history-chat-trend-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Chat activity trend"></svg>
+                  <div id="history-chat-trend-empty" class="signal-empty">No chat timestamps in recent history.</div>
+                </div>
+              </section>
+            </div>
+            <div
+              id="history-activity-panel-encrypted"
+              class="history-activity-panel"
+              role="tabpanel"
+              aria-label="Encrypted traffic trends"
+              hidden
+            >
+              <section class="history-activity-encryption-trend">
+                <div class="history-caption">Encrypted packet trend from the recent packet buffer.</div>
+                <div id="encription-trend-chart-wrap">
+                  <svg id="encription-trend-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Encrypted traffic over time"></svg>
+                  <div id="encription-trend-empty" class="signal-empty">No encrypted packet timestamps in recent buffer.</div>
+                </div>
+              </section>
+              <section class="history-activity-encryption-routes">
+                <div class="history-caption">Top encrypted routes in the recent packet buffer.</div>
+                <div id="encription-route-chart-wrap">
+                  <svg id="encription-route-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Encrypted route distribution"></svg>
+                  <div id="encription-route-empty" class="signal-empty">No encrypted routes in recent buffer.</div>
+                </div>
+              </section>
+            </div>
           </div>
-          <div class="signal-legend">
-            <span class="legend-chip activity-legend-nodes">Online nodes / hour</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card history-chat">
+      <h2>Chat History</h2>
+      <div class="body">
+        <div class="history-chat-tabbar" role="tablist" aria-label="History chat panels">
+          <button
+            id="history-chat-tab-activity-btn"
+            class="history-chat-tab-btn is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="history-chat-panel-activity"
+            data-history-chat-tab="activity"
+          >Activity</button>
+          <button
+            id="history-chat-tab-encrypted-btn"
+            class="history-chat-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="history-chat-panel-encrypted"
+            data-history-chat-tab="encrypted"
+          >Encrypted</button>
+        </div>
+        <div id="history-chat-panel-activity" class="history-chat-panel" role="tabpanel" aria-labelledby="history-chat-tab-activity-btn">
+          <div id="history-chat-caption" class="history-caption">Recent saved chat and derived status activity.</div>
+          <div class="history-chat-stack">
+            <div class="scroll history-chat-main-scroll">
+              <table id="history-chat-table">
+                <thead>
+                  <tr>
+                    <th>Captured</th><th>From</th><th>To</th><th>Message</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="history-chat-splitter" class="history-chat-splitter" title="Drag to resize chat and notification history panels"></div>
+            <div class="history-notification-section">
+              <div class="history-notification-head">
+                <div id="history-notification-caption" class="history-caption">Recent inbound system notification history from this browser.</div>
+                <button id="history-notification-clear-btn" class="history-notification-clear-btn" type="button" title="Clear saved system notification history">Clear</button>
+              </div>
+              <div id="history-notification-list" class="history-notification-list" aria-live="polite"></div>
+            </div>
           </div>
-          <div id="online-activity-overview" class="overview-grid"></div>
+        </div>
+        <div
+          id="history-chat-panel-encrypted"
+          class="history-chat-panel"
+          role="tabpanel"
+          aria-labelledby="history-chat-tab-encrypted-btn"
+          hidden
+        >
+          <section class="history-encription-section">
+            <div id="encription-caption" class="history-caption">Packets that could not be decoded by this node.</div>
+            <div class="history-encription-panels">
+              <section class="history-encription-panel">
+                <h3>Encrypted packets</h3>
+                <div class="scroll">
+                  <table id="encription-packets-table">
+                    <thead>
+                      <tr>
+                        <th>Captured</th><th>From</th><th>To</th><th>Hops</th><th>RSSI</th><th>SNR</th><th>Payload</th><th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="history-encription-panel">
+                <h3>Encrypted route activity</h3>
+                <div class="scroll">
+                  <table id="encription-traffic-table">
+                    <thead>
+                      <tr>
+                        <th>From</th><th>To</th><th>Packets</th><th>Avg hops</th><th>Latest</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
         </div>
       </div>
     </section>
 
     <div class="hsplitter" data-target="mid" title="Drag to resize middle and lower panels"></div>
 
-    <section class="card packets">
-      <h2>Recent Packets</h2>
-      <div class="body scroll">
-        <table id="packets-table">
-          <thead>
-            <tr>
-              <th>Captured</th><th>From</th><th>To</th><th>Port</th><th>SNR</th><th>RSSI</th><th>Text</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
     <div class="splitter" data-row="8" title="Drag to resize side panels"></div>
 
-    <section class="card raw">
-      <h2>Raw Data</h2>
+    <section class="card environment">
+      <h2>Sensors</h2>
       <div class="body">
-        <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
-        <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
-        <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
-        <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
-        <details><summary>channels</summary><pre id="raw-channels"></pre></details>
-        <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
+        <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
+          <div class="env-metrics-head">
+            <h3>Historical Sensor Metrics</h3>
+            <div id="env-metrics-status" class="env-metrics-status">Waiting for saved sensor history...</div>
+          </div>
+          <div class="env-metrics-controls">
+            <label for="env-window-select">Window</label>
+            <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
+              <option value="6">6h</option>
+              <option value="12">12h</option>
+              <option value="24">24h</option>
+              <option value="72" selected>72h</option>
+              <option value="168">7d</option>
+              <option value="336">14d</option>
+            </select>
+            <label for="env-metric-select">Metric</label>
+            <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
+              <option value="">No environment metrics</option>
+            </select>
+            <label for="env-node-select">Node</label>
+            <select id="env-node-select" class="env-metric-select" aria-label="Sensor node selector">
+              <option value="">All nodes</option>
+            </select>
+            <button id="env-metrics-refresh-btn" class="env-metrics-refresh-btn" type="button">Refresh</button>
+          </div>
+          <div class="env-metrics-grid">
+            <div id="env-metrics-chart-wrap">
+              <svg id="env-metrics-chart" viewBox="0 0 900 320" preserveAspectRatio="none" aria-label="Sensor metrics over time chart"></svg>
+              <div id="env-metrics-empty" class="signal-empty">No historical sensor metrics found yet.</div>
+            </div>
+          </div>
+          <div id="env-metrics-available" class="env-metrics-available"></div>
+        </section>
       </div>
     </section>
 
     <div class="hsplitter" data-target="low" title="Drag to resize lower panels and console"></div>
 
     <section class="card console">
-      <h2>Realtime Console</h2>
       <div class="body">
         <div class="console-controls">
           <button id="console-clear-btn" type="button">Clear</button>
           <label><input id="console-autoscroll" type="checkbox" checked /> Auto-scroll</label>
+          <label><input id="console-timestamps" type="checkbox" /> Timestamps</label>
+          <label class="console-filter-label" for="console-filter-input">Search</label>
+          <input
+            id="console-filter-input"
+            class="console-filter-input"
+            type="search"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="Filter console text (e.g. ack -C2)..."
+            aria-label="Filter console text"
+          />
+          <label class="console-select-label" for="console-font-size-select">Text size</label>
+          <select id="console-font-size-select" class="console-select" aria-label="Console text size">
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
+            <option value="xl">XL</option>
+          </select>
         </div>
-        <pre id="live-console"></pre>
+        <div id="console-terminal-screen" class="console-terminal-screen">
+          <pre id="live-console"></pre>
+          <input
+            id="console-command-input"
+            class="console-command-input-proxy"
+            type="text"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            tabindex="-1"
+            aria-label="Console command input"
+          />
+        </div>
       </div>
     </section>
   </div>
+  <div id="peer-dm-popout-host" class="peer-dm-popout-host" aria-live="polite"></div>
     </main>
   </div>
 

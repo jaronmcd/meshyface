@@ -1,0 +1,149 @@
+    function chatMessageKey(msg) {{
+      if (!msg || typeof msg !== "object") return "";
+      const msgId = Number(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
+      if (Number.isInteger(msgId) && msgId > 0) {{
+        return `id:${{msgId}}`;
+      }}
+      const from = normalizeNodeId(msg.from || "");
+      const to = normalizeNodeId(msg.to || "");
+      const rx = String(msg.rx_time || msg.captured_at || "").trim();
+      const text = String(msg.text || "");
+      const channel = String(msg.channel ?? "");
+      if (!from && !to && !rx && !text) {{
+        return "";
+      }}
+      return `sig:${{from}}|${{to}}|${{rx}}|${{channel}}|${{text}}`;
+    }}
+
+    function isLikelyReactionPayloadText(rawValue) {{
+      const text = String(rawValue == null ? "" : rawValue).trim();
+      if (!text) return false;
+      if (text.length > 8 || /\s/.test(text)) return false;
+      if (/^[0-9A-Za-z.,;:!?'"`~_\-]+$/.test(text)) return false;
+      return true;
+    }}
+
+    function isReactionLikeChatMessage(msg) {{
+      if (!msg || typeof msg !== "object") return false;
+      if (msg.is_reaction === true) return true;
+      const replyId = Number(msg.reply_id ?? msg.replyId);
+      if (!Number.isFinite(replyId) || replyId <= 0) return false;
+      if (reactionEmojiPreviewFromMessage(msg)) return true;
+      return isLikelyReactionPayloadText(msg.text ?? msg.decoded_text ?? msg.payload_text);
+    }}
+
+    function normalizeChatMessageKind(msg, isReaction = null) {{
+      const source = (msg && typeof msg === "object") ? msg : {{}};
+      const kindRaw = String(source.kind || "").trim().toLowerCase();
+      if (kindRaw === "status") return "status";
+      const reaction = isReaction == null ? isReactionLikeChatMessage(source) : !!isReaction;
+      return reaction ? "reaction" : "message";
+    }}
+
+    function compactChatChangePreview(rawValue, maxLen = 72) {{
+      const text = String(rawValue == null ? "" : rawValue).replace(/\\s+/g, " ").trim();
+      if (!text) return "";
+      return compactInlineMessage(text, maxLen);
+    }}
+
+    function reactionEmojiPreviewFromMessage(msg) {{
+      if (!msg || typeof msg !== "object") return "";
+      const cpRaw = msg.emoji_codepoint ?? msg.emojiCodepoint;
+      const cp = Number(cpRaw);
+      if (Number.isInteger(cp) && cp > 0x7f && cp <= 0x10ffff) {{
+        try {{
+          return String.fromCodePoint(cp);
+        }} catch (_err) {{
+        }}
+      }}
+      const direct = String(msg.emoji == null ? "" : msg.emoji).trim();
+      if (isLikelyReactionPayloadText(direct)) return direct;
+      const textPayload = String(msg.text ?? msg.decoded_text ?? msg.payload_text ?? "").trim();
+      if (isLikelyReactionPayloadText(textPayload)) return textPayload;
+      return "";
+    }}
+
+    function chatChangePreviewFromMessage(msg, isReaction) {{
+      const textPayload = compactChatChangePreview(msg && (msg.text ?? msg.decoded_text ?? msg.payload_text), 78);
+      const kind = normalizeChatMessageKind(msg, isReaction);
+      if (kind === "status") {{
+        return textPayload || "status update";
+      }}
+      if (kind !== "reaction") {{
+        return textPayload || "(no text)";
+      }}
+      const emoji = reactionEmojiPreviewFromMessage(msg);
+      if (emoji) return `reacted ${{emoji}}`;
+      const replyId = Number(msg && (msg.reply_id ?? msg.replyId));
+      if (Number.isInteger(replyId) && replyId > 0) {{
+        return `reaction on #${{replyId}}`;
+      }}
+      return textPayload || "reaction update";
+    }}
+
+    function chatChangeFocusKeyFromMessage(msg, fallbackKey = "") {{
+      const cleanFallback = String(fallbackKey || "").trim();
+      const replyId = Number(msg && (msg.reply_id ?? msg.replyId));
+      if (Number.isInteger(replyId) && replyId > 0) {{
+        return `id:${{replyId}}`;
+      }}
+      return cleanFallback;
+    }}
+
+    function normalizeChatChangeNotice(raw, fallbackKey = "") {{
+      const source = (raw && typeof raw === "object") ? raw : {{}};
+      const key = String(source.key || fallbackKey || "").trim();
+      if (!key) return null;
+      const focusKey = String(source.focusKey || key).trim() || key;
+      const targetView = normalizeLayoutView(source.targetView || source.view || "chat");
+      const targetChatChannel = normalizeChatChannel(source.targetChatChannel || source.channel || "all");
+      const peerNodeId = normalizeNodeId(source.peerNodeId || source.nodeId || "");
+      const sender = String(source.sender || "Unknown node").replace(/\\s+/g, " ").trim() || "Unknown node";
+      const kindRaw = String(source.kind || "").trim().toLowerCase();
+      const kind = kindRaw === "reaction"
+        ? "reaction"
+        : (kindRaw === "status" ? "status" : "message");
+      const previewRaw = compactChatChangePreview(source.preview, 96);
+      const preview = previewRaw || (
+        kind === "reaction"
+          ? "reaction update"
+          : (kind === "status" ? "status update" : "(no text)")
+      );
+      const unixRaw = Number(source.unix);
+      const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+      return {{
+        key,
+        focusKey,
+        targetView,
+        targetChatChannel,
+        peerNodeId,
+        sender,
+        preview,
+        kind,
+        selfRelevant: source.selfRelevant === true,
+        systemRelevant: source.systemRelevant === true,
+        unix,
+      }};
+    }}
+
+    function persistChatChangeNotices() {{
+      const encodeChannel = (channelKey) => {{
+        const notices = chatChangeNoticesByChannel[channelKey];
+        const encoded = [];
+        const keySet = new Set();
+        if (Array.isArray(notices)) {{
+          for (const notice of notices) {{
+            const normalized = normalizeChatChangeNotice(notice);
+            if (!normalized || keySet.has(normalized.key)) continue;
+            encoded.push(normalized);
+            keySet.add(normalized.key);
+          }}
+        }}
+        if (encoded.length > chatChangeNoticeMaxEntries) {{
+          encoded.splice(0, encoded.length - chatChangeNoticeMaxEntries);
+          keySet.clear();
+          for (const notice of encoded) {{
+            keySet.add(notice.key);
+          }}
+        }}
+        const acknowledged = [];

@@ -85,6 +85,8 @@ def build_chat_entry_from_packet(
         "portnum": str(portnum) if portnum is not None else None,
         "channel": packet.get("channel"),
         "rx_time": format_epoch_fn(packet.get("rxTime")),
+        "rx_snr": packet.get("rxSnr"),
+        "rx_rssi": packet.get("rxRssi"),
         "text": decoded_text if isinstance(decoded_text, str) else "",
         "hops": hops,
         "hop_start": packet.get("hopStart"),

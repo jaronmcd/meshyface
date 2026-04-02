@@ -1,0 +1,66 @@
+    function persistSignalHeatmapPreference() {{
+      try {{
+        window.localStorage.setItem(signalHeatmapStorageKey, signalHeatmapEnabled ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSignalHeatmapModePreference() {{
+      try {{
+        window.localStorage.setItem(signalHeatmapModeStorageKey, normalizeSignalHeatmapMode(signalHeatmapMode));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSignalHeatmapModePreference() {{
+      signalHeatmapMode = "coverage";
+      try {{
+        const stored = window.localStorage.getItem(signalHeatmapModeStorageKey);
+        signalHeatmapMode = normalizeSignalHeatmapMode(stored || "coverage");
+      }} catch (_err) {{
+      }}
+      updateSignalHeatmapControl(null, supportsSignalHeatmap());
+    }}
+
+    function loadSignalHeatmapPreference() {{
+      signalHeatmapEnabled = true;
+      try {{
+        const stored = window.localStorage.getItem(signalHeatmapStorageKey);
+        if (stored === "0") {{
+          signalHeatmapEnabled = false;
+        }} else if (stored === "1") {{
+          signalHeatmapEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+      updateSignalHeatmapControl(null, supportsSignalHeatmap());
+    }}
+
+    function bindSignalHeatmapControl() {{
+      const toggle = document.getElementById("map-heatmap-toggle");
+      if (toggle instanceof HTMLInputElement && toggle.dataset.bound !== "1") {{
+        toggle.dataset.bound = "1";
+        toggle.checked = signalHeatmapEnabled;
+        toggle.addEventListener("change", () => {{
+          signalHeatmapEnabled = !!toggle.checked;
+          persistSignalHeatmapPreference();
+          const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        }});
+      }}
+      const modeSelect = document.getElementById("map-heatmap-mode");
+      if (modeSelect instanceof HTMLSelectElement && modeSelect.dataset.bound !== "1") {{
+        modeSelect.dataset.bound = "1";
+        modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
+        modeSelect.addEventListener("change", () => {{
+          signalHeatmapMode = normalizeSignalHeatmapMode(modeSelect.value);
+          modeSelect.value = signalHeatmapMode;
+          persistSignalHeatmapModePreference();
+          const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        }});
+      }}
+      const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+      syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+    }}
+

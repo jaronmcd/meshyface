@@ -54,19 +54,29 @@ def build_state_snapshot_loader_with_dependencies(
         except Exception:
             return 0
 
+    def _radio_link_rev() -> int:
+        """Revision token that bumps when radio link state changes."""
+        raw = getattr(dependencies.tracker, "radio_link_changed_unix", 0)
+        try:
+            return int(raw or 0)
+        except Exception:
+            return 0
+
     def _time_bucket(seconds: int = 60) -> int:
         return int(time.time() // max(1, seconds))
 
-    def _cache_key() -> tuple[int, int]:
+    def _cache_key() -> tuple[int, int, int]:
         # Include a slow time bucket so "slow-changing" summary values like
         # uptime/disk can refresh occasionally even if the mesh is quiet.
-        return (_live_packet_rev(), _time_bucket(60))
+        # Also include radio link revision so disconnect/reconnect state appears
+        # immediately without waiting for the time bucket to roll.
+        return (_live_packet_rev(), _radio_link_rev(), _time_bucket(60))
 
     def _etag_for(variant: str) -> str:
-        rev, bucket = _cache_key()
-        return f'W/"{variant}-p{rev}-t{bucket}"'
+        packet_rev, radio_rev, bucket = _cache_key()
+        return f'W/"{variant}-p{packet_rev}-r{radio_rev}-t{bucket}"'
 
-    full_cache_key: tuple[int, int] | None = None
+    full_cache_key: tuple[int, int, int] | None = None
     full_cache_payload: dict[str, object] | None = None
 
     def state_fn() -> dict:
@@ -99,7 +109,7 @@ def build_state_snapshot_loader_with_dependencies(
     # with a `.lite` variant during wiring, expose it here too.
     build_state_lite = getattr(build_state_fn, "lite", None)
     if callable(build_state_lite):
-        lite_cache_key: tuple[int, int] | None = None
+        lite_cache_key: tuple[int, int, int] | None = None
         lite_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite() -> dict:

@@ -1,0 +1,697 @@
+    function highlightNodeSelection() {{
+      for (const row of document.querySelectorAll("#nodes-table tbody tr")) {{
+        const nodeId = normalizeNodeId(row.dataset.nodeId || "");
+        row.classList.toggle("selected-node", !!selectedNodeId && nodeId === selectedNodeId);
+      }}
+      for (const item of document.querySelectorAll("#chat-feed .chat-feed-item")) {{
+        const nodeId = normalizeNodeId(item.dataset.nodeId || "");
+        item.classList.toggle("selected-node", !!selectedNodeId && nodeId === selectedNodeId);
+      }}
+      for (const member of document.querySelectorAll("#chat-room-list .chat-member-item")) {{
+        const nodeId = normalizeNodeId(member.dataset.nodeId || "");
+        const isSelected = !!selectedNodeId && nodeId === selectedNodeId;
+        member.classList.toggle("selected-node", isSelected);
+      }}
+      for (const item of document.querySelectorAll("#favorites-list .favorite-node-item")) {{
+        const nodeId = normalizeNodeId(item.dataset.nodeId || "");
+        item.classList.toggle("selected-node", !!selectedNodeId && nodeId === selectedNodeId);
+      }}
+      for (const row of document.querySelectorAll("#encription-packets-table tbody tr, #encription-traffic-table tbody tr")) {{
+        const fromNodeId = normalizeNodeId(row.dataset.fromNodeId || "");
+        const toNodeId = normalizeNodeId(row.dataset.toNodeId || "");
+        const isSelected = !!selectedNodeId && (
+          (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+          || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+        );
+        row.classList.toggle("selected-node", isSelected);
+      }}
+      for (const row of document.querySelectorAll("#history-chat-table tbody tr")) {{
+        const fromNodeId = normalizeNodeId(row.dataset.fromNodeId || "");
+        const toNodeId = normalizeNodeId(row.dataset.toNodeId || "");
+        const isSelected = !!selectedNodeId && (
+          (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+          || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+        );
+        row.classList.toggle("selected-node", isSelected);
+      }}
+    }}
+
+    function isVisibleForSelectionScroll(el) {{
+      if (!(el instanceof HTMLElement)) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 2 || rect.height <= 2) return false;
+      const style = window.getComputedStyle(el);
+      if (!style || style.display === "none" || style.visibility === "hidden") return false;
+      return true;
+    }}
+
+    function scrollSelectionIntoView() {{
+      if (!selectedNodeId) {{
+        pendingSelectionScroll = false;
+        return;
+      }}
+
+      let didScroll = false;
+      for (const tableId of ["nodes-table"]) {{
+        let targetRow = null;
+        for (const row of document.querySelectorAll(`#${{tableId}} tbody tr`)) {{
+          if (normalizeNodeId(row.dataset.nodeId || "") === selectedNodeId) {{
+            targetRow = row;
+            break;
+          }}
+        }}
+        if (!targetRow) continue;
+
+        const table = document.getElementById(tableId);
+        const scroller = table ? table.closest(".scroll") : null;
+        if (!isVisibleForSelectionScroll(scroller)) {{
+          continue;
+        }}
+
+        const header = table ? table.querySelector("thead") : null;
+        const headerHeight = header ? header.getBoundingClientRect().height : 0;
+        const scrollerRect = scroller.getBoundingClientRect();
+        const rowRect = targetRow.getBoundingClientRect();
+        const topSafe = scrollerRect.top + headerHeight + 3;
+        const bottomSafe = scrollerRect.bottom - 3;
+
+        if (rowRect.top < topSafe) {{
+          const delta = rowRect.top - topSafe;
+          scroller.scrollTo({{ top: scroller.scrollTop + delta, behavior: "smooth" }});
+        }} else if (rowRect.bottom > bottomSafe) {{
+          const delta = rowRect.bottom - bottomSafe;
+          scroller.scrollTo({{ top: scroller.scrollTop + delta, behavior: "smooth" }});
+        }}
+        const nameCell = targetRow.cells && targetRow.cells.length > 2
+          ? targetRow.cells[2]
+          : null;
+        if (nameCell instanceof HTMLTableCellElement) {{
+          const nameRect = nameCell.getBoundingClientRect();
+          const leftSafe = scrollerRect.left + 3;
+          const rightSafe = scrollerRect.right - 3;
+          if (nameRect.left < leftSafe) {{
+            const delta = nameRect.left - leftSafe;
+            scroller.scrollTo({{ left: scroller.scrollLeft + delta, behavior: "smooth" }});
+          }} else if (nameRect.right > rightSafe) {{
+            const delta = nameRect.right - rightSafe;
+            scroller.scrollTo({{ left: scroller.scrollLeft + delta, behavior: "smooth" }});
+          }}
+        }}
+        didScroll = true;
+      }}
+
+      const chatRoomList = document.getElementById("chat-room-list");
+      if (isVisibleForSelectionScroll(chatRoomList)) {{
+        let selectedMember = null;
+        for (const member of chatRoomList.querySelectorAll(".chat-member-item")) {{
+          if (normalizeNodeId(member.dataset.nodeId || "") === selectedNodeId) {{
+            selectedMember = member;
+            break;
+          }}
+        }}
+        if (selectedMember instanceof HTMLElement) {{
+          const listRect = chatRoomList.getBoundingClientRect();
+          const rowRect = selectedMember.getBoundingClientRect();
+          const topSafe = listRect.top + 3;
+          let bottomSafe = listRect.bottom - 3;
+          const detailsDrawer = document.getElementById("chat-node-details-drawer");
+          if (
+            detailsDrawer instanceof HTMLElement
+            && !detailsDrawer.hidden
+            && isVisibleForSelectionScroll(detailsDrawer)
+          ) {{
+            const drawerRect = detailsDrawer.getBoundingClientRect();
+            bottomSafe = Math.min(bottomSafe, drawerRect.top - 3);
+          }}
+          if (bottomSafe <= topSafe + 8) {{
+            bottomSafe = topSafe + 8;
+          }}
+          if (rowRect.top < topSafe) {{
+            const delta = rowRect.top - topSafe;
+            chatRoomList.scrollTo({{ top: chatRoomList.scrollTop + delta, behavior: "smooth" }});
+          }} else if (rowRect.bottom > bottomSafe) {{
+            const delta = rowRect.bottom - bottomSafe;
+            chatRoomList.scrollTo({{ top: chatRoomList.scrollTop + delta, behavior: "smooth" }});
+          }}
+          didScroll = true;
+        }}
+      }}
+
+      const favoritesList = document.getElementById("favorites-list");
+      if (isVisibleForSelectionScroll(favoritesList)) {{
+        let favoriteItem = null;
+        for (const row of favoritesList.querySelectorAll(".favorite-node-item")) {{
+          if (normalizeNodeId(row.dataset.nodeId || "") === selectedNodeId) {{
+            favoriteItem = row;
+            break;
+          }}
+        }}
+        if (favoriteItem instanceof HTMLElement) {{
+          const listRect = favoritesList.getBoundingClientRect();
+          const rowRect = favoriteItem.getBoundingClientRect();
+          const topSafe = listRect.top + 3;
+          const bottomSafe = listRect.bottom - 3;
+          if (rowRect.top < topSafe) {{
+            const delta = rowRect.top - topSafe;
+            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
+          }} else if (rowRect.bottom > bottomSafe) {{
+            const delta = rowRect.bottom - bottomSafe;
+            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
+          }}
+          didScroll = true;
+        }}
+      }}
+
+      pendingSelectionScroll = isChatWorkspaceLayoutView(activeLayoutView) ? false : !didScroll;
+    }}
+
+    function withProgrammaticMapMove(fn) {{
+      const depth = Number.isFinite(Number(programmaticMapMoveDepth)) ? Math.trunc(Number(programmaticMapMoveDepth)) : 0;
+      programmaticMapMoveDepth = depth + 1;
+      try {{
+        return fn();
+      }} finally {{
+        const after = Number.isFinite(Number(programmaticMapMoveDepth)) ? Math.trunc(Number(programmaticMapMoveDepth)) : 1;
+        programmaticMapMoveDepth = Math.max(0, after - 1);
+      }}
+    }}
+
+    function collectHistoryLatLngs(history) {{
+      const pts = [];
+      const raw = history && Array.isArray(history.positions) ? history.positions : [];
+      for (const point of raw) {{
+        const lat = Number(point && point.lat);
+        const lon = Number(point && point.lon);
+        if (!isValidMapCoord(lat, lon)) continue;
+        pts.push([lat, lon]);
+      }}
+      return pts;
+    }}
+
+    function selectedNetworkNodeInfoCollapsed(nodeId = selectedNodeId) {{
+      const normalized = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(normalized)) return false;
+      return (
+        activeLayoutView === "network"
+        && normalizeNodeId(networkNodeInfoCollapsedNodeId || "") === normalized
+      );
+    }}
+
+    function withProgrammaticNetworkNodeInfoPopup(fn) {{
+      const depth = Number.isFinite(Number(networkNodeInfoPopupProgrammaticDepth))
+        ? Math.max(0, Math.trunc(Number(networkNodeInfoPopupProgrammaticDepth)))
+        : 0;
+      networkNodeInfoPopupProgrammaticDepth = depth + 1;
+      try {{
+        return fn();
+      }} finally {{
+        const after = Number.isFinite(Number(networkNodeInfoPopupProgrammaticDepth))
+          ? Math.max(0, Math.trunc(Number(networkNodeInfoPopupProgrammaticDepth)) - 1)
+          : 0;
+        networkNodeInfoPopupProgrammaticDepth = after;
+      }}
+    }}
+
+    function focusSelectedNodeOnMap(historyOverride = null) {{
+      if (!selectedNodeId) return false;
+      const marker = nodeMarkers.get(selectedNodeId);
+      if (!marker) {{
+        if (selectedNetworkNodeInfoCollapsed(selectedNodeId)) return false;
+        if (activeLayoutView === "network" && latestState && Array.isArray(latestState.nodes)) {{
+          const selectedNode = latestState.nodes.find((node) => (
+            normalizeNodeId(node && node.id) === selectedNodeId
+          ));
+          if (selectedNode && typeof L !== "undefined" && map && typeof map.getCenter === "function") {{
+            const lat = Number(selectedNode.lat);
+            const lon = Number(selectedNode.lon);
+            const hasGps = isValidMapCoord(lat, lon);
+            const posLabel = hasGps
+              ? `${{lat.toFixed(5)}}, ${{lon.toFixed(5)}}`
+              : "No GPS fix";
+            const popupHtml = `
+              <b>${{nodeLabel(selectedNode)}}</b><br/>
+              ${{selectedNodeId || selectedNode.id || "n/a"}}<br/>
+              Num: ${{selectedNode.num ?? "n/a"}}<br/>
+              SNR: ${{selectedNode.snr ?? "n/a"}}<br/>
+              RSSI: ${{selectedNode.rssi ?? "n/a"}}<br/>
+              Position: ${{posLabel}}<br/>
+              Last: ${{selectedNode.last_heard || "n/a"}}
+            `;
+            withProgrammaticNetworkNodeInfoPopup(() => {{
+              L.popup({{ closeButton: true, autoPan: true }})
+                .setLatLng(map.getCenter())
+                .setContent(popupHtml)
+                .openOn(map);
+            }});
+            requestMapResize();
+          }}
+        }}
+        return false;
+      }}
+      const history = historyOverride || cachedNodeHistory(selectedNodeId);
+      const trailPts = collectHistoryLatLngs(history);
+      const markerLatLng = marker.getLatLng();
+      let usedHistory = false;
+
+      if (trailPts.length > 1) {{
+        const bounds = L.latLngBounds(trailPts);
+        bounds.extend(markerLatLng);
+        if (bounds.isValid()) {{
+          withProgrammaticMapMove(() => {{
+            map.fitBounds(bounds.pad(0.22), {{ animate: false, maxZoom: 16 }});
+          }});
+          usedHistory = true;
+        }}
+      }}
+
+      if (!usedHistory) {{
+        const targetZoom = Math.min(16, Math.max(map.getZoom(), 11));
+        withProgrammaticMapMove(() => {{
+          map.setView(markerLatLng, targetZoom, {{ animate: false }});
+        }});
+      }}
+
+      requestMapResize();
+      if (!selectedNetworkNodeInfoCollapsed(selectedNodeId)) {{
+        withProgrammaticNetworkNodeInfoPopup(() => {{
+          marker.openPopup();
+        }});
+      }}
+      return usedHistory;
+    }}
+
+    function updateMapSelection(shouldFocus = false) {{
+      for (const [nodeId, marker] of nodeMarkers.entries()) {{
+        marker.setStyle(markerStyle(!!selectedNodeId && nodeId === selectedNodeId));
+      }}
+      const shouldOpenInfo = (
+        !!selectedNodeId
+        && (
+          !!shouldFocus
+          || (
+            activeLayoutView === "network"
+            && !selectedNetworkNodeInfoCollapsed(selectedNodeId)
+          )
+        )
+      );
+      if (!shouldOpenInfo || !selectedNodeId) return;
+      const usedHistory = focusSelectedNodeOnMap(null);
+      if (usedHistory) {{
+        pendingMapHistoryFocus = false;
+      }} else {{
+        const cached = cachedNodeHistory(selectedNodeId);
+        if (cached) {{
+          // History is loaded but has no valid trail points. Don't keep auto-fit pending.
+          pendingMapHistoryFocus = false;
+        }}
+      }}
+    }}
+
+    function selectedNodeFrom(nodes) {{
+      if (!selectedNodeId) return null;
+      for (const node of (nodes || [])) {{
+        if (normalizeNodeId(node.id || "") === selectedNodeId) {{
+          return node;
+        }}
+      }}
+      return null;
+    }}
+
+    function nextAnimationFrame() {{
+      return new Promise((resolve) => {{
+        window.requestAnimationFrame(() => resolve());
+      }});
+    }}
+
+    function mapBootstrapInterestNode(nodes, state = latestState) {{
+      const allNodes = Array.isArray(nodes) ? nodes : [];
+      if (allNodes.length === 0) return {{ node: null, source: "none" }};
+
+      const selected = selectedNodeFrom(allNodes);
+      if (selected && isValidMapCoord(Number(selected.lat), Number(selected.lon))) {{
+        return {{ node: selected, source: "selected" }};
+      }}
+
+      const localId = resolveLocalNodeId(state);
+      if (isCanonicalNodeId(localId)) {{
+        for (const node of allNodes) {{
+          if (normalizeNodeId(node && node.id) !== localId) continue;
+          if (isValidMapCoord(Number(node && node.lat), Number(node && node.lon))) {{
+            return {{ node, source: "local" }};
+          }}
+          break;
+        }}
+      }}
+
+      for (const node of allNodes) {{
+        if (isValidMapCoord(Number(node && node.lat), Number(node && node.lon))) {{
+          return {{ node, source: "first-positioned" }};
+        }}
+      }}
+      return {{ node: null, source: "none" }};
+    }}
+
+    function applyMapBootstrapFocus(nodes, state = latestState) {{
+      if (activeLayoutView === "network") {{
+        const didFit = fitMapToMostNodes(nodes, {{ pad: 0.18, maxZoom: 13 }});
+        if (didFit) {{
+          return {{ didFocus: true, source: "network-overview" }};
+        }}
+      }}
+      const interest = mapBootstrapInterestNode(nodes, state);
+      const node = interest.node;
+      if (!node) return {{ didFocus: false, source: interest.source }};
+      const lat = Number(node.lat);
+      const lon = Number(node.lon);
+      const baseZoom = interest.source === "first-positioned" ? 9 : 11;
+      withProgrammaticMapMove(() => {{
+        map.setView([lat, lon], Math.max(map.getZoom(), baseZoom), {{ animate: false }});
+      }});
+      requestMapResize();
+      return {{ didFocus: true, source: interest.source }};
+    }}
+
+    function setMapDataMode(mode) {{
+      const normalized = mode === "node" || mode === "activity" ? mode : "live";
+      activeMapDataMode = normalized;
+      const live = document.getElementById("map-data-live");
+      const node = document.getElementById("map-data-node");
+      const activity = document.getElementById("map-data-activity");
+      const title = document.getElementById("map-data-title");
+      const networkHost = document.getElementById("network-node-history-host");
+      if (live) live.hidden = normalized !== "live";
+      if (node) node.hidden = normalized !== "node";
+      if (activity) activity.hidden = normalized !== "activity";
+      if (networkHost instanceof HTMLElement) {{
+        networkHost.classList.toggle("empty", normalized !== "node");
+      }}
+      if (title) {{
+        title.textContent = normalized === "node"
+          ? "Node History"
+          : (normalized === "activity" ? "History Trends" : "Map Data");
+      }}
+    }}
+
+    function setHistoryTab(tabName) {{
+      activeHistoryTab = (tabName === "overview" || tabName === "online")
+        ? tabName
+        : "signal";
+      for (const btn of document.querySelectorAll(".history-tab-btn")) {{
+        const isActive = btn.dataset.tab === activeHistoryTab;
+        btn.classList.toggle("active", isActive);
+      }}
+      const signalPanel = document.getElementById("tab-panel-signal");
+      const onlinePanel = document.getElementById("tab-panel-online");
+      const overviewPanel = document.getElementById("tab-panel-overview");
+      if (signalPanel) signalPanel.hidden = activeHistoryTab !== "signal";
+      if (onlinePanel) onlinePanel.hidden = activeHistoryTab !== "online";
+      if (overviewPanel) overviewPanel.hidden = activeHistoryTab !== "overview";
+    }}
+
+    function bindHistoryTabs() {{
+      for (const btn of document.querySelectorAll(".history-tab-btn")) {{
+        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {{
+          setHistoryTab(btn.dataset.tab || "signal");
+        }});
+      }}
+      setHistoryTab(activeHistoryTab);
+    }}
+
+    function renderNodeHistoryLoading(nodeId) {{
+      setMapDataMode("node");
+      resetSignalChartZoom(nodeId || "");
+      signalChartPoints = [];
+      const caption = document.getElementById("node-history-caption");
+      if (caption) {{
+        caption.textContent = `Loading history for ${{nodeId}}...`;
+      }}
+      const overview = document.getElementById("node-history-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("signal-chart");
+      if (svg) {{
+        svg.innerHTML = "";
+      }}
+      const empty = document.getElementById("signal-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Loading historical signal points...";
+      }}
+      setSignalTimelineMessage("Loading timeline...");
+      const onlineSvg = document.getElementById("node-online-chart");
+      if (onlineSvg) {{
+        onlineSvg.innerHTML = "";
+      }}
+      const onlineEmpty = document.getElementById("node-online-empty");
+      if (onlineEmpty) {{
+        onlineEmpty.hidden = false;
+        onlineEmpty.textContent = "Loading historical online points...";
+      }}
+      setNodeOnlineTimelineMessage("Loading timeline...");
+      renderSavedNodeDetails(latestState || {{}}, null, nodeId);
+    }}
+
+    function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) return;
+      const previousSelectedId = normalizeNodeId(selectedNodeId || "");
+      if (normalized !== previousSelectedId) {{
+        networkNodeInfoCollapsedNodeId = "";
+      }} else if (shouldFocus && !toggleIfSelected) {{
+        // Explicit reselect (e.g., clicking a node marker again) should reopen popup.
+        networkNodeInfoCollapsedNodeId = "";
+      }}
+      if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{
+        if (
+          shouldFocus
+          && isChatWorkspaceLayoutView(activeLayoutView)
+          && typeof setChatNodeDetailsDrawerExpanded === "function"
+          && (
+            typeof isChatNodeDetailsDrawerExpanded !== "function"
+            || !isChatNodeDetailsDrawerExpanded()
+          )
+        ) {{
+          setChatNodeDetailsDrawerExpanded(true, {{
+            fetchHistory: true,
+            rerender: false,
+          }});
+          return;
+        }}
+        clearNodeSelection();
+        return;
+      }}
+      selectedNodeId = normalized;
+      // Keep History view pinned to trend mode; node selection should not yank
+      // the left pane into live Map Data tables.
+      mapDataFocus = activeLayoutView === "history" ? "activity" : "auto";
+      pendingSelectionScroll = true;
+      persistSelection();
+      renderSelectionStatus();
+      renderSavedNodeSearchDropdown(latestState);
+      if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+        pendingMapHistoryFocus = false;
+        const shouldOpenDrawer = (
+          shouldFocus
+          && typeof setChatNodeDetailsDrawerExpanded === "function"
+        );
+        if (shouldOpenDrawer) {{
+          setChatNodeDetailsDrawerExpanded(true, {{
+            fetchHistory: true,
+            rerender: false,
+          }});
+        }}
+        // Chat-only selection should not trigger map/history work.
+        applyChatChannel(activeChatChannel, false);
+        if (!shouldOpenDrawer && typeof syncChatNodeDetailsDrawer === "function") {{
+          syncChatNodeDetailsDrawer(latestState, {{
+            fetchHistory: true,
+          }});
+        }}
+        return;
+      }}
+      if (
+        activeLayoutView === "network"
+        && shouldFocus
+        && typeof setChatNodeDetailsDrawerExpanded === "function"
+        && !selectedNetworkNodeInfoCollapsed(normalized)
+      ) {{
+        setChatNodeDetailsDrawerExpanded(true, {{
+          fetchHistory: true,
+          rerender: false,
+        }});
+      }}
+      highlightNodeSelection();
+      const focusSelection = shouldFocus && activeLayoutView !== "saved";
+      pendingMapHistoryFocus = focusSelection;
+      scrollSelectionIntoView();
+      let cachedHistory = null;
+      if (latestState && (activeLayoutView === "saved" || activeLayoutView === "network")) {{
+        cachedHistory = cachedNodeHistory(selectedNodeId);
+      }}
+
+      if (activeLayoutView === "saved") {{
+        if (cachedHistory) {{
+          renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
+          renderSavedNodeDetails(latestState || {{}}, cachedHistory);
+        }} else {{
+          renderNodeHistoryLoading(selectedNodeId);
+        }}
+      }} else if (activeLayoutView === "network") {{
+        // Map-data panel is visible in these views.
+        renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
+        setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      }} else if (activeLayoutView === "history") {{
+        // Keep History view stable; node selection is for row highlighting/filtering
+        // and should not swap the left pane away from trend charts.
+        setMapDataMode("activity");
+      }} else {{
+        setMapDataMode("live");
+      }}
+
+      if (latestState) {{
+        renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedHistory);
+      }}
+
+      updateMapSelection(focusSelection);
+
+      // Kick an immediate history refresh so the signal plot/trail doesn't wait for the next poll.
+      void refreshSelectedNodeHistory(false);
+      applyChatChannel(activeChatChannel, false);
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
+      }}
+    }}
+
+    function clearNodeSelection() {{
+      selectedNodeId = null;
+      networkNodeInfoCollapsedNodeId = "";
+      chatNodeDetailsDrawerExpanded = false;
+      pendingMapHistoryFocus = false;
+      abortNodeHistoryFetch();
+      resetSignalChartZoom("");
+      signalChartPoints = [];
+      pendingSelectionScroll = false;
+      persistSelection();
+      renderSelectionStatus();
+      renderSavedNodeSearchDropdown(latestState);
+      if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+        applyChatChannel(activeChatChannel, false);
+        if (typeof syncChatNodeDetailsDrawer === "function") {{
+          syncChatNodeDetailsDrawer(latestState, {{
+            fetchHistory: false,
+          }});
+        }}
+        return;
+      }}
+      highlightNodeSelection();
+      // If the saved-view freshness chip was showing for a selected node, hide it
+      // immediately. (The poll loop might see 304s and skip renderSummary.)
+      const chip = document.getElementById("updated-freshness");
+      if (chip instanceof HTMLElement) {{
+        chip.textContent = "";
+        chip.hidden = true;
+        applyFreshnessClass(chip, "unknown");
+      }}
+      updateMapSelection(false);
+      map.closePopup();
+      setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      if (latestState) {{
+        renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
+        renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
+        renderSavedNodeDetails(latestState, null);
+      }} else {{
+        renderSavedNodeDetails({{}}, null);
+      }}
+      applyChatChannel(activeChatChannel, false);
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
+      }}
+    }}
+
+    function bindNodeRowClicks() {{
+      const tbody = document.querySelector("#nodes-table tbody");
+      if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
+      tbody.dataset.bound = "1";
+      tbody.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const row = target.closest("tr.node-selectable");
+        if (!(row instanceof HTMLElement)) return;
+        selectNode(row.dataset.nodeId || "", true);
+      }});
+    }}
+
+    function selectNodeFromDirectionalRow(row, targetCell, fromColIndex, toColIndex) {{
+      if (!(row instanceof HTMLTableRowElement)) return "";
+      const fromNodeId = normalizeNodeId(row.dataset.fromNodeId || "");
+      const toNodeId = normalizeNodeId(row.dataset.toNodeId || "");
+      const fromSelectable = isSelectableNodeId(fromNodeId);
+      const toSelectable = isSelectableNodeId(toNodeId);
+      if (!(fromSelectable || toSelectable)) return "";
+
+      if (targetCell instanceof HTMLTableCellElement && targetCell.parentElement === row) {{
+        const colIndex = Array.from(row.cells).indexOf(targetCell);
+        if (colIndex === fromColIndex && fromSelectable) return fromNodeId;
+        if (colIndex === toColIndex && toSelectable) return toNodeId;
+      }}
+
+      if (fromSelectable) return fromNodeId;
+      if (toSelectable) return toNodeId;
+      return "";
+    }}
+
+    function bindEncriptionRowClicks() {{
+      const bindTable = (tableId, fromColIndex, toColIndex) => {{
+        const tbody = document.querySelector(`#${{tableId}} tbody`);
+        if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
+        tbody.dataset.bound = "1";
+        tbody.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const row = target.closest("tr");
+          if (!(row instanceof HTMLTableRowElement)) return;
+          const cell = target.closest("td");
+          const nodeId = selectNodeFromDirectionalRow(
+            row,
+            cell instanceof HTMLTableCellElement ? cell : null,
+            fromColIndex,
+            toColIndex
+          );
+          if (!isSelectableNodeId(nodeId)) return;
+          selectNode(nodeId, true, false);
+        }});
+      }};
+      bindTable("encription-packets-table", 1, 2);
+      bindTable("encription-traffic-table", 0, 1);
+    }}
+
+    function bindHistoryChatRowClicks() {{
+      const tbody = document.querySelector("#history-chat-table tbody");
+      if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
+      tbody.dataset.bound = "1";
+      tbody.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("a.chat-link")) {{
+          return;
+        }}
+        const row = target.closest("tr");
+        if (!(row instanceof HTMLTableRowElement)) return;
+        const cell = target.closest("td");
+        const nodeId = selectNodeFromDirectionalRow(
+          row,
+          cell instanceof HTMLTableCellElement ? cell : null,
+          1,
+          2
+        );
+        if (!isSelectableNodeId(nodeId)) return;
+        selectNode(nodeId, true, false);
+      }});
+    }}

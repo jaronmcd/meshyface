@@ -1,5 +1,6 @@
 from typing import Optional
 
+from .file_transfer_protocol import is_file_transfer_protocol_chat_entry
 from .tracker_storage_contracts import RecentChatBuffer, RecentPacketBuffer, TrackerHistoryWriter
 
 
@@ -30,6 +31,7 @@ def apply_tracker_storage_updates(
         history_store.save_packet(packet_entry)
 
     if chat_entry is not None:
-        recent_chat.append(chat_entry)
-        if history_store is not None and include_live_count:
-            history_store.save_chat(chat_entry)
+        if not is_file_transfer_protocol_chat_entry(chat_entry):
+            recent_chat.append(chat_entry)
+            if history_store is not None and include_live_count:
+                history_store.save_chat(chat_entry)

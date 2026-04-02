@@ -1,0 +1,132 @@
+    function renderEncription(source) {{
+      const context = resolveTrafficRenderContext(source);
+      const traffic = context.traffic;
+      const describeNode = buildHistoryNodeIdentityResolver(context.nodes);
+      const allPackets = Array.isArray(traffic && traffic.recent_packets)
+        ? traffic.recent_packets
+        : [];
+      const encrypted = allPackets
+        .slice()
+        .reverse()
+        .filter((entry) => isLikelyEncryptedPacketEntry(entry))
+        .slice(0, 200);
+
+      const packetRows = encrypted.map((entry) => {{
+        const s = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const reason = encryptedPacketReason(entry);
+        const fromNodeId = normalizeNodeId(s.from || "");
+        const toNodeId = normalizeNodeId(s.to || "");
+        const rowSelectable = isSelectableNodeId(fromNodeId) || isSelectableNodeId(toNodeId);
+        const rowSelected = !!selectedNodeId && (
+          (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+          || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+        );
+        const fromIdentity = describeNode(fromNodeId || s.from || "");
+        const toIdentity = describeNode(toNodeId || s.to || "");
+        const payload = encryptedPacketPayloadPreview(entry);
+        return {{
+          className: `${{rowSelectable ? "node-selectable" : ""}}${{rowSelected ? " selected-node" : ""}}`,
+          dataset: {{
+            "from-node-id": fromNodeId,
+            "to-node-id": toNodeId,
+          }},
+          cells: [
+            {{ sort: s.captured_at || "", text: s.captured_at || "n/a" }},
+            {{ sort: fromIdentity.sort, html: fromIdentity.html, title: fromIdentity.title }},
+            {{ sort: toIdentity.sort, html: toIdentity.html, title: toIdentity.title }},
+            {{ sort: s.hops ?? "", text: s.hops ?? "n/a" }},
+            {{ sort: s.rx_rssi ?? "", text: s.rx_rssi ?? "n/a" }},
+            {{ sort: s.rx_snr ?? "", text: s.rx_snr ?? "n/a" }},
+            {{ sort: payload.sort, text: payload.display, title: payload.title }},
+            {{ sort: reason, text: reason }},
+          ],
+        }};
+      }});
+      renderSortableListboxTable("encription-packets-table", packetRows, {{
+        emptyText: "No encrypted packets detected in recent buffer.",
+        emptyColspan: 8,
+      }});
+
+      const routes = new Map();
+      for (const entry of encrypted) {{
+        const s = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const fromId = String(s.from || "n/a");
+        const toId = String(s.to || "n/a");
+        const key = `${{fromId}}->${{toId}}`;
+        const existing = routes.get(key) || {{
+          fromId,
+          toId,
+          count: 0,
+          lastSeen: "",
+          hopsTotal: 0,
+          hopsCount: 0,
+        }};
+        existing.count += 1;
+        const capturedAt = String(s.captured_at || "");
+        if (capturedAt && (!existing.lastSeen || capturedAt > existing.lastSeen)) {{
+          existing.lastSeen = capturedAt;
+        }}
+        const hops = Number(s.hops);
+        if (Number.isFinite(hops)) {{
+          existing.hopsTotal += hops;
+          existing.hopsCount += 1;
+        }}
+        routes.set(key, existing);
+      }}
+
+      const sortedRoutes = Array.from(routes.values())
+        .sort((a, b) => (
+          (b.count - a.count)
+          || String(b.lastSeen || "").localeCompare(String(a.lastSeen || ""))
+          || String(a.fromId || "").localeCompare(String(b.fromId || ""))
+          || String(a.toId || "").localeCompare(String(b.toId || ""))
+        ));
+
+      const trafficRows = sortedRoutes
+        .map((item) => {{
+          const fromNodeId = normalizeNodeId(item.fromId || "");
+          const toNodeId = normalizeNodeId(item.toId || "");
+          const rowSelectable = isSelectableNodeId(fromNodeId) || isSelectableNodeId(toNodeId);
+          const rowSelected = !!selectedNodeId && (
+            (isSelectableNodeId(fromNodeId) && fromNodeId === selectedNodeId)
+            || (isSelectableNodeId(toNodeId) && toNodeId === selectedNodeId)
+          );
+          const fromIdentity = describeNode(fromNodeId || item.fromId || "");
+          const toIdentity = describeNode(toNodeId || item.toId || "");
+          const avgHops = item.hopsCount > 0 ? item.hopsTotal / item.hopsCount : null;
+          const avgHopsLabel = avgHops == null ? "n/a" : avgHops.toFixed(1);
+          return {{
+            className: `${{rowSelectable ? "node-selectable" : ""}}${{rowSelected ? " selected-node" : ""}}`,
+            dataset: {{
+              "from-node-id": fromNodeId,
+              "to-node-id": toNodeId,
+            }},
+            cells: [
+              {{ sort: fromIdentity.sort, html: fromIdentity.html, title: fromIdentity.title }},
+              {{ sort: toIdentity.sort, html: toIdentity.html, title: toIdentity.title }},
+              {{ sort: item.count, text: item.count }},
+              {{ sort: avgHops == null ? "" : avgHops.toFixed(4), text: avgHopsLabel }},
+              {{ sort: item.lastSeen, text: item.lastSeen || "n/a" }},
+            ],
+          }};
+        }});
+      renderSortableListboxTable("encription-traffic-table", trafficRows, {{
+        emptyText: "No encrypted traffic routes yet.",
+        emptyColspan: 5,
+      }});
+      renderEncriptionTrendChart(encrypted);
+      renderEncriptionRouteChart(sortedRoutes, describeNode);
+
+      const caption = document.getElementById("encription-caption");
+      if (caption instanceof HTMLElement) {{
+        const packetCount = encrypted.length;
+        const routeCount = routes.size;
+        caption.textContent = packetCount > 0
+          ? `${{packetCount}} encrypted packet${{packetCount === 1 ? "" : "s"}} across ${{routeCount}} route${{routeCount === 1 ? "" : "s"}} in recent buffer.`
+          : "No encrypted packets detected in recent buffer.";
+      }}
+    }}

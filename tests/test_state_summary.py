@@ -40,6 +40,10 @@ def test_modem_preset_from_local_state_handles_missing_fields():
     assert modem_preset_from_local_state({"local_config": {"lora": {"modem_preset": "LONG_FAST"}}}) == "LONG_FAST"
 
 
+def test_modem_preset_from_local_state_handles_non_mapping_lora():
+    assert modem_preset_from_local_state({"local_config": {"lora": object()}}) is None
+
+
 def test_build_summary_payload_uses_injected_time_and_disk_info():
     summary = build_summary_payload(
         target="192.168.1.109:4403 (tcp)",

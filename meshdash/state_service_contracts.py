@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Optional, Protocol
 
 from .revision import RevisionInfo
@@ -54,6 +55,11 @@ class BuildSummaryPayloadFn(Protocol):
         revision_info: RevisionInfo,
         modem_preset: Optional[str],
     ) -> dict[str, object]:
+        ...
+
+
+class GetRadioConnectionStatusFn(Protocol):
+    def __call__(self, iface: object) -> Mapping[str, object] | None:
         ...
 
 

@@ -1,0 +1,641 @@
+    function normalizeNodeNoteDraftText(rawValue, maxChars = 1200) {{
+      let text = String(rawValue == null ? "" : rawValue)
+        .replace(/\r\n?/g, "\n")
+        .replace(/\u0000/g, "");
+      const cap = Math.max(80, Math.trunc(Number(maxChars) || 1200));
+      if (text.length > cap) {{
+        text = text.slice(0, cap);
+      }}
+      return text;
+    }}
+
+    function savedNodeNotesSectionHtml(nodeId, noteEntry = null, noteDraft = null) {{
+      const normalizedNodeId = normalizeNodeId(nodeId || "");
+      const noteText = normalizeNodeNoteText(noteEntry && noteEntry.note);
+      const hasDraft = typeof noteDraft === "string";
+      const draftText = hasDraft ? normalizeNodeNoteDraftText(noteDraft) : "";
+      const displayNoteText = hasDraft ? draftText : noteText;
+      const updatedRaw = Number(noteEntry && noteEntry.updatedUnix);
+      const updatedUnix = Number.isFinite(updatedRaw) && updatedRaw > 0
+        ? Math.trunc(updatedRaw)
+        : 0;
+      const draftCleanText = normalizeNodeNoteText(draftText);
+      const hasUnsavedDraft = hasDraft && draftCleanText !== noteText;
+      const statusText = hasUnsavedDraft
+        ? "Unsaved draft. Save Note to persist."
+        : (noteText
+        ? (updatedUnix > 0 ? `Saved ${{savedDetailAge(updatedUnix)}}` : "Saved locally")
+        : "No note saved for this node yet.");
+      return `<section class="saved-node-section">
+        <h3 class="saved-node-section-title">Notes + Tags</h3>
+        <label class="saved-node-note-label" for="saved-node-note-input">Personal notes for ${{escAttr(normalizedNodeId)}} (saved only in this browser).</label>
+        <textarea
+          id="saved-node-note-input"
+          class="saved-node-note-input"
+          rows="4"
+          maxlength="1200"
+          placeholder="Add tags, context, or reminders for this node..."
+          data-node-id="${{escAttr(normalizedNodeId)}}"
+          data-saved-note="${{escAttr(noteText)}}"
+          data-saved-updated-unix="${{escAttr(updatedUnix)}}"
+          data-updated-unix="${{escAttr(updatedUnix)}}"
+        >${{escAttr(displayNoteText)}}</textarea>
+        <div class="saved-node-note-actions">
+          <button id="saved-node-note-save-btn" class="btn btn-secondary" type="button">Save Note</button>
+          <button id="saved-node-note-clear-btn" class="btn btn-secondary" type="button">Clear</button>
+        </div>
+        <div id="saved-node-note-status" class="saved-node-note">${{escAttr(statusText)}}</div>
+      </section>`;
+    }}
+
+    function bindSavedNodeNotesEditor(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(cleanNodeId)) return;
+      const noteInput = document.getElementById("saved-node-note-input");
+      const saveBtn = document.getElementById("saved-node-note-save-btn");
+      const clearBtn = document.getElementById("saved-node-note-clear-btn");
+      const statusEl = document.getElementById("saved-node-note-status");
+      if (!(noteInput instanceof HTMLTextAreaElement)) return;
+      if (!(saveBtn instanceof HTMLButtonElement)) return;
+      if (!(clearBtn instanceof HTMLButtonElement)) return;
+      if (!(statusEl instanceof HTMLElement)) return;
+      if (normalizeNodeId(noteInput.dataset.nodeId || "") !== cleanNodeId) return;
+
+      let baselineText = normalizeNodeNoteText(noteInput.dataset.savedNote || "");
+      let baselineUpdatedUnix = Number(noteInput.dataset.savedUpdatedUnix);
+      baselineUpdatedUnix = Number.isFinite(baselineUpdatedUnix) && baselineUpdatedUnix > 0
+        ? Math.trunc(baselineUpdatedUnix)
+        : 0;
+
+      const applyEditorState = () => {{
+        const currentText = normalizeNodeNoteText(noteInput.value);
+        const dirty = currentText !== baselineText;
+        saveBtn.disabled = !dirty;
+        clearBtn.disabled = !currentText && !baselineText;
+        if (dirty) {{
+          statusEl.textContent = "Unsaved changes.";
+          return;
+        }}
+        if (currentText) {{
+          statusEl.textContent = baselineUpdatedUnix > 0
+            ? `Saved ${{savedDetailAge(baselineUpdatedUnix)}}`
+            : "Saved locally";
+          return;
+        }}
+        statusEl.textContent = "No note saved for this node yet.";
+      }};
+
+      const syncDraftFromInput = () => {{
+        const draftText = normalizeNodeNoteDraftText(noteInput.value);
+        const draftCleanText = normalizeNodeNoteText(draftText);
+        if (draftCleanText !== baselineText) {{
+          nodeNoteDraftById.set(cleanNodeId, draftText);
+        }} else {{
+          nodeNoteDraftById.delete(cleanNodeId);
+        }}
+      }};
+
+      const saveEditorNote = () => {{
+        const result = saveNodeNote(cleanNodeId, noteInput.value);
+        if (!result || result.ok !== true) return;
+        const cleanText = normalizeNodeNoteText(result.note);
+        baselineText = cleanText;
+        baselineUpdatedUnix = Number(result.updatedUnix);
+        baselineUpdatedUnix = Number.isFinite(baselineUpdatedUnix) && baselineUpdatedUnix > 0
+          ? Math.trunc(baselineUpdatedUnix)
+          : 0;
+        noteInput.value = cleanText;
+        noteInput.dataset.savedNote = cleanText;
+        noteInput.dataset.savedUpdatedUnix = String(baselineUpdatedUnix || 0);
+        nodeNoteDraftById.delete(cleanNodeId);
+        applyEditorState();
+      }};
+
+      noteInput.addEventListener("input", () => {{
+        syncDraftFromInput();
+        applyEditorState();
+      }});
+      noteInput.addEventListener("keydown", (ev) => {{
+        const isSaveChord = (ev.key === "Enter") && (ev.metaKey || ev.ctrlKey);
+        if (!isSaveChord) return;
+        ev.preventDefault();
+        saveEditorNote();
+      }});
+      saveBtn.addEventListener("click", saveEditorNote);
+      clearBtn.addEventListener("click", () => {{
+        noteInput.value = "";
+        saveEditorNote();
+      }});
+      syncDraftFromInput();
+      applyEditorState();
+    }}
+
+    function renderSavedNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
+      const host = document.getElementById("saved-node-details");
+      if (!(host instanceof HTMLElement)) return;
+      const previousMainScroll = host.querySelector(".saved-node-main-scroll");
+      const previousNoteInput = host.querySelector("#saved-node-note-input");
+      const previousNoteFocused = (
+        previousNoteInput instanceof HTMLTextAreaElement
+        && document.activeElement === previousNoteInput
+      );
+      const previousNoteSelectionStart = (
+        previousNoteInput instanceof HTMLTextAreaElement
+        && Number.isFinite(previousNoteInput.selectionStart)
+      ) ? Math.max(0, Math.trunc(previousNoteInput.selectionStart)) : null;
+      const previousNoteSelectionEnd = (
+        previousNoteInput instanceof HTMLTextAreaElement
+        && Number.isFinite(previousNoteInput.selectionEnd)
+      ) ? Math.max(0, Math.trunc(previousNoteInput.selectionEnd)) : null;
+      const previousNodeId = normalizeNodeId(host.dataset.nodeId || "");
+      const previousScrollTop = (
+        previousMainScroll instanceof HTMLElement
+        && Number.isFinite(previousMainScroll.scrollTop)
+      ) ? previousMainScroll.scrollTop : 0;
+      const previousScrollHeight = (
+        previousMainScroll instanceof HTMLElement
+        && Number.isFinite(previousMainScroll.scrollHeight)
+      ) ? previousMainScroll.scrollHeight : 0;
+      const previousClientHeight = (
+        previousMainScroll instanceof HTMLElement
+        && Number.isFinite(previousMainScroll.clientHeight)
+      ) ? previousMainScroll.clientHeight : 0;
+      const dockedHistoryPanel = document.getElementById("map-data-node");
+      const mapDataBody = document.getElementById("map-data-body");
+      // Preserve the shared history panel node before replacing host.innerHTML.
+      if (
+        dockedHistoryPanel instanceof HTMLElement
+        && mapDataBody instanceof HTMLElement
+        && host.contains(dockedHistoryPanel)
+      ) {{
+        mapDataBody.appendChild(dockedHistoryPanel);
+      }}
+
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodeId = resolveSavedViewNodeId(safeState);
+      const loadingId = normalizeNodeId(loadingNodeId || "");
+
+      if (!isSelectableNodeId(nodeId)) {{
+        host.dataset.nodeId = "";
+        host.innerHTML = favoriteNodeIds.size === 0
+          ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
+          : '<div class="saved-node-details-empty">Select any node to view history and summary, or pick one from tagged nodes.</div>';
+        syncNodeHistoryDock();
+        return;
+      }}
+
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const node = nodes.find((entry) => normalizeNodeId(entry.id || "") === nodeId) || null;
+      const historyCapsById = new Map(
+        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([entryNodeId, caps]) => isSelectableNodeId(entryNodeId) && caps && typeof caps === "object")
+      );
+      const caps = historyCapsById.get(nodeId) || null;
+
+      const requestedHistory = (
+        nodeHistory
+        && typeof nodeHistory === "object"
+        && normalizeNodeId(nodeHistory.node_id || "") === nodeId
+      ) ? nodeHistory : null;
+      const cachedEntry = nodeHistoryCache.get(nodeId);
+      const cachedHistory = (
+        cachedEntry
+        && cachedEntry.data
+        && normalizeNodeId(cachedEntry.data.node_id || "") === nodeId
+      ) ? cachedEntry.data : null;
+      const history = requestedHistory || cachedHistory;
+      const historySummary = (history && typeof history.summary === "object") ? history.summary : {{}};
+      const historyPoints = Array.isArray(history && history.points) ? history.points : [];
+      const historyPositions = Array.isArray(history && history.positions) ? history.positions : [];
+      const historyNameEntries = Array.isArray(history && history.name_history) ? history.name_history : [];
+      const historyLoading = loadingId === nodeId && !history;
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
+      const chatStats = computeSavedChatStats(nodeId, chatMessages);
+      const chatTouch = Number.isFinite(chatStats.lastChatUnix)
+        ? {{ unix: Math.trunc(chatStats.lastChatUnix), text: chatStats.lastChatText }}
+        : null;
+      const linkStats = computeSavedLinkStats(nodeId, edges);
+
+      const freshness = resolveNodeFreshness(node, caps, historySummary, chatTouch);
+      const freshnessSource = nodeFreshnessSourceLabel(freshness.source);
+      const nowUnix = Math.floor(Date.now() / 1000);
+
+      const batteryRaw = Number(
+        (node && node.battery_level != null)
+          ? node.battery_level
+          : NaN
+      );
+      const capsBatteryRaw = Number(caps && caps.battery_level);
+      const batteryValue = Number.isFinite(batteryRaw)
+        ? batteryRaw
+        : (Number.isFinite(capsBatteryRaw) ? capsBatteryRaw : null);
+      const batteryText = Number.isFinite(batteryValue)
+        ? `${{Math.max(0, Math.min(100, Math.round(batteryValue)))}}%`
+        : "n/a";
+      const hopsRaw = Number(
+        (node && node.hops_away != null)
+          ? node.hops_away
+          : NaN
+      );
+      const capsHopsRaw = Number(caps && caps.last_hops);
+      const hopsValue = Number.isFinite(hopsRaw)
+        ? hopsRaw
+        : (Number.isFinite(capsHopsRaw) ? capsHopsRaw : null);
+      const hopsText = Number.isFinite(hopsValue) && hopsValue >= 0 ? String(Math.trunc(hopsValue)) : "n/a";
+
+      const livePosText = (
+        node
+        && Number.isFinite(Number(node.lat))
+        && Number.isFinite(Number(node.lon))
+      )
+        ? savedDetailCoord(node.lat, node.lon)
+        : "n/a";
+      const voltageValue = (
+        node
+        && node.voltage != null
+        && Number.isFinite(Number(node.voltage))
+      ) ? Number(node.voltage) : null;
+      const channelUtilValue = (
+        node
+        && node.channel_utilization != null
+        && Number.isFinite(Number(node.channel_utilization))
+      ) ? Number(node.channel_utilization) : null;
+      const airUtilTxValue = (
+        node
+        && node.air_util_tx != null
+        && Number.isFinite(Number(node.air_util_tx))
+      ) ? Number(node.air_util_tx) : null;
+      const latestTrail = historyPositions.length
+        ? historyPositions[historyPositions.length - 1]
+        : null;
+      const latestTrailAltitude = (
+        latestTrail
+        && latestTrail.altitude != null
+        && Number.isFinite(Number(latestTrail.altitude))
+      ) ? Number(latestTrail.altitude) : null;
+      const latestTrailSats = (
+        latestTrail
+        && latestTrail.sats_in_view != null
+        && Number.isFinite(Number(latestTrail.sats_in_view))
+      ) ? Number(latestTrail.sats_in_view) : null;
+      const latestTrailPos = latestTrail ? savedDetailCoord(latestTrail.lat, latestTrail.lon) : "n/a";
+      const livePositionAvailable = livePosText !== "n/a";
+      const historyPositionAvailable = latestTrailPos !== "n/a";
+      const latestPosText = livePositionAvailable ? livePosText : latestTrailPos;
+      const capsPosUnixRaw = Number(caps && caps.last_position_unix);
+      const capsPosUnix = Number.isFinite(capsPosUnixRaw) && capsPosUnixRaw > 0
+        ? Math.trunc(capsPosUnixRaw)
+        : null;
+      const trailPosUnix = (
+        latestTrail
+        && Number.isFinite(Number(latestTrail.time_unix))
+        && Number(latestTrail.time_unix) > 0
+      ) ? Math.trunc(Number(latestTrail.time_unix)) : null;
+      const latestPosTimeUnix = livePositionAvailable
+        ? (Number.isFinite(capsPosUnix) ? capsPosUnix : trailPosUnix)
+        : trailPosUnix;
+      const latestPosTimeText = livePositionAvailable
+        ? savedDetailText((caps && caps.last_position_time) || (latestTrail && latestTrail.time))
+        : savedDetailText(latestTrail && latestTrail.time);
+      const latestPosAgeText = savedDetailAge(latestPosTimeUnix, nowUnix);
+      const positionSource = livePositionAvailable
+        ? ((Number.isFinite(capsPosUnix) && (nowUnix - capsPosUnix) <= 300)
+          ? "Live (recent)"
+          : (Number.isFinite(capsPosUnix) ? "Live (stale)" : "Live (time unknown)"))
+        : (historyPositionAvailable ? "History trail" : "n/a");
+      const positionCapable = (caps && caps.has_position === true) || latestTrailPos !== "n/a"
+        ? "Yes"
+        : "No";
+
+      const historyWindowHours = Number(history && history.window_hours);
+      const historyWindowText = Number.isFinite(historyWindowHours) && historyWindowHours > 0
+        ? `${{Math.round(historyWindowHours)}}h`
+        : `${{nodeHistoryHours}}h`;
+      const historyPointCount = Number.isFinite(Number(historySummary.points))
+        ? Number(historySummary.points)
+        : historyPoints.length;
+      const historyTotalPackets = Number.isFinite(Number(historySummary.total_packets))
+        ? Number(historySummary.total_packets)
+        : historyPoints.reduce((sum, point) => sum + Math.max(0, Number(point && point.packet_count) || 0), 0);
+      const activeMinutes = historyPoints.reduce((sum, point) => (
+        sum + ((Number(point && point.packet_count) || 0) > 0 ? 1 : 0)
+      ), 0);
+      const activeHoursText = `${{(activeMinutes / 60).toFixed(1)}}h`;
+      const firstPointUnix = historyPoints.length
+        ? Number(historyPoints[0] && historyPoints[0].bucket_unix)
+        : null;
+      const lastPointUnix = historyPoints.length
+        ? Number(historyPoints[historyPoints.length - 1] && historyPoints[historyPoints.length - 1].bucket_unix)
+        : null;
+      const coveredHoursText = savedDetailDurationHours(firstPointUnix, lastPointUnix);
+      const peakPacketsPerMinute = historyPoints.reduce((peak, point) => {{
+        const count = Number(point && point.packet_count);
+        if (!Number.isFinite(count)) return peak;
+        return Math.max(peak, count);
+      }}, 0);
+
+      let snrWeighted = 0;
+      let snrWeight = 0;
+      let rssiWeighted = 0;
+      let rssiWeight = 0;
+      let hopsWeighted = 0;
+      let hopsWeight = 0;
+      for (const point of historyPoints) {{
+        const weight = Math.max(1, Number(point && point.packet_count) || 0);
+        const snr = Number(point && point.avg_snr);
+        const rssi = Number(point && point.avg_rssi);
+        const hops = Number(point && point.avg_hops);
+        if (Number.isFinite(snr)) {{
+          snrWeighted += snr * weight;
+          snrWeight += weight;
+        }}
+        if (Number.isFinite(rssi)) {{
+          rssiWeighted += rssi * weight;
+          rssiWeight += weight;
+        }}
+        if (Number.isFinite(hops)) {{
+          hopsWeighted += hops * weight;
+          hopsWeight += weight;
+        }}
+      }}
+      const snrAvg = snrWeight > 0 ? (snrWeighted / snrWeight) : null;
+      const rssiAvg = rssiWeight > 0 ? (rssiWeighted / rssiWeight) : null;
+      const hopsAvg = hopsWeight > 0 ? (hopsWeighted / hopsWeight) : null;
+      const snrRange = `${{formatMetricValue(historySummary.snr_min, 1)}} to ${{formatMetricValue(historySummary.snr_max, 1)}} dB`;
+      const rssiRange = `${{formatMetricValue(historySummary.rssi_min, 0)}} to ${{formatMetricValue(historySummary.rssi_max, 0)}} dBm`;
+
+      const linkAvgHops = linkStats.hopsWeight > 0
+        ? formatMetricValue(linkStats.hopsWeighted / linkStats.hopsWeight, 2)
+        : "n/a";
+
+      const nodeSection = savedDetailSectionHtml("Node", [
+        ["Node ID", nodeId],
+        ["Node Num", node && node.num != null ? String(node.num) : "n/a"],
+        ["Hardware", (node && node.hardware_model) || "n/a"],
+        ["Role", (node && node.role) || "n/a"],
+        ["Freshness Source", freshnessSource],
+        ["Battery", batteryText],
+        ["Hops Away", hopsText],
+        ["Voltage", Number.isFinite(voltageValue) ? `${{voltageValue.toFixed(2)}}V` : "n/a"],
+        ["Channel Util", Number.isFinite(channelUtilValue) ? savedDetailPercent(channelUtilValue) : "n/a"],
+        ["Air Util TX", Number.isFinite(airUtilTxValue) ? savedDetailPercent(airUtilTxValue) : "n/a"],
+        ["GPS Capable", positionCapable],
+        ["Last Position Ping", savedDetailText((caps && caps.last_position_time) || (latestTrail && latestTrail.time))],
+      ]);
+      const noteDraft = nodeNoteDraftById.has(nodeId)
+        ? String(nodeNoteDraftById.get(nodeId) || "")
+        : null;
+      const notesSection = savedNodeNotesSectionHtml(nodeId, nodeNoteEntry(nodeId), noteDraft);
+      const nameHistorySection = savedDetailNameHistorySectionHtml(historyNameEntries, {{
+        loading: historyLoading,
+      }});
+
+      const historySection = savedDetailSectionHtml("History", [
+        ["Window", historyWindowText],
+        ["Samples (1m)", String(historyPointCount)],
+        ["Active Hours", activeHoursText],
+        ["Covered Range", coveredHoursText],
+        ["Total Packets", String(historyTotalPackets)],
+        ["Peak Packets/min", String(Math.round(peakPacketsPerMinute || 0))],
+        ["First Bucket", savedDetailText(historySummary.first_bucket)],
+        ["Last Bucket", savedDetailText(historySummary.last_bucket)],
+        ["History Last Seen", savedDetailText(historySummary.last_seen)],
+        ["Avg SNR", Number.isFinite(snrAvg) ? `${{formatMetricValue(snrAvg, 2)}} dB` : "n/a"],
+        ["SNR Range", snrRange],
+        ["Avg RSSI", Number.isFinite(rssiAvg) ? `${{formatMetricValue(rssiAvg, 1)}} dBm` : "n/a"],
+        ["RSSI Range", rssiRange],
+        ["Avg Hops", Number.isFinite(hopsAvg) ? formatMetricValue(hopsAvg, 2) : "n/a"],
+        ["Trail Points", String(Number.isFinite(Number(historySummary.trail_points)) ? Number(historySummary.trail_points) : historyPositions.length)],
+      ], historyLoading ? "Historical points are loading for this node." : "");
+
+      const locationSection = savedDetailSectionHtml("Location", [
+        ["Last Broadcast Position", latestPosText],
+        ["Position Source", positionSource],
+        ["Position Age", latestPosAgeText],
+        ["Latest Position Time", latestPosTimeText],
+        ["Altitude", Number.isFinite(latestTrailAltitude) ? `${{formatMetricValue(latestTrailAltitude, 0)}} m` : "n/a"],
+        ["Satellites", Number.isFinite(latestTrailSats) ? String(Math.round(latestTrailSats)) : "n/a"],
+        ["Trail Start", savedDetailText(historySummary.trail_start)],
+        ["Trail End", savedDetailText(historySummary.trail_end)],
+      ], "Radio screens can show a newer local GPS fix before that fix is broadcast to this dashboard.");
+
+      const chatSection = savedDetailSectionHtml("Chat (Recent Buffer)", [
+        ["Messages Touching Node", String(chatStats.touches)],
+        ["Sent", String(chatStats.sent)],
+        ["Received", String(chatStats.received)],
+        ["Broadcast Sent", String(chatStats.broadcastSent)],
+        ["Direct Sent", String(chatStats.directSent)],
+        ["Reactions Sent", String(chatStats.reactionsSent)],
+        ["Active Peers", String(chatStats.peers.size)],
+        ["Last Chat", savedDetailText(chatStats.lastChatText)],
+      ], `Based on current in-memory chat buffer (${{chatMessages.length}} messages).`);
+
+      const linksSection = savedDetailSectionHtml("Links", [
+        ["Directed Links", String(linkStats.links)],
+        ["Linked Peers", String(linkStats.peers.size)],
+        ["Lifetime Packets", String(Math.round(linkStats.lifetimePackets))],
+        ["Session Packets", String(Math.round(linkStats.sessionPackets))],
+        ["Avg Link Hops", linkAvgHops],
+        ["Last Link Activity", savedDetailText(linkStats.lastSeenText)],
+        ["Top Peer", savedDetailText(linkStats.topPeer)],
+        ["Top Peer Packets", linkStats.topPeer ? String(Math.round(linkStats.topPeerPackets)) : "n/a"],
+        ["Seen Ports", linkStats.ports.size > 0 ? Array.from(linkStats.ports).slice(0, 10).join(", ") : "n/a"],
+      ]);
+
+      host.innerHTML = `
+        <div class="saved-node-stack">
+          <div class="saved-node-main-scroll">
+            <div class="saved-node-sections">
+              ${{nodeSection}}
+              ${{notesSection}}
+              ${{nameHistorySection}}
+              ${{historySection}}
+              ${{locationSection}}
+              ${{chatSection}}
+              ${{linksSection}}
+            </div>
+          </div>
+          <div id="saved-node-history-splitter" class="saved-node-history-splitter" title="Drag to resize node info and history panels"></div>
+          <div id="saved-node-history-host" class="saved-node-history-host"></div>
+        </div>
+      `;
+      host.dataset.nodeId = nodeId;
+      bindSavedNodeNotesEditor(nodeId);
+      bindSavedNodeHistorySplitter();
+      syncNodeHistoryDock();
+      if (previousNodeId === nodeId) {{
+        const restoreNoteFocus = () => {{
+          if (!previousNoteFocused) return;
+          const nextNoteInput = host.querySelector("#saved-node-note-input");
+          if (!(nextNoteInput instanceof HTMLTextAreaElement)) return;
+          if (normalizeNodeId(nextNoteInput.dataset.nodeId || "") !== nodeId) return;
+          const selectionStart = Number.isFinite(previousNoteSelectionStart)
+            ? Math.max(0, Math.min(nextNoteInput.value.length, Math.trunc(previousNoteSelectionStart)))
+            : nextNoteInput.value.length;
+          const selectionEnd = Number.isFinite(previousNoteSelectionEnd)
+            ? Math.max(selectionStart, Math.min(nextNoteInput.value.length, Math.trunc(previousNoteSelectionEnd)))
+            : selectionStart;
+          try {{
+            nextNoteInput.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            nextNoteInput.focus();
+          }}
+          try {{
+            nextNoteInput.setSelectionRange(selectionStart, selectionEnd);
+          }} catch (_err) {{
+          }}
+        }};
+        const restoreMainScroll = () => {{
+          const nextMainScroll = host.querySelector(".saved-node-main-scroll");
+          if (!(nextMainScroll instanceof HTMLElement)) return;
+          const prevMax = Math.max(0, previousScrollHeight - previousClientHeight);
+          const nextMax = Math.max(0, nextMainScroll.scrollHeight - nextMainScroll.clientHeight);
+          if (prevMax <= 0) {{
+            nextMainScroll.scrollTop = 0;
+            return;
+          }}
+          const nearBottom = (prevMax - previousScrollTop) <= 2;
+          if (nearBottom) {{
+            nextMainScroll.scrollTop = nextMax;
+            return;
+          }}
+          const ratio = previousScrollTop / prevMax;
+          nextMainScroll.scrollTop = Math.max(0, Math.min(nextMax, Math.round(ratio * nextMax)));
+        }};
+        // Run once immediately, then once after layout settles (history dock + flex sizing).
+        restoreMainScroll();
+        restoreNoteFocus();
+        window.requestAnimationFrame(() => {{
+          if (normalizeNodeId(host.dataset.nodeId || "") !== nodeId) return;
+          restoreMainScroll();
+          restoreNoteFocus();
+        }});
+      }}
+    }}
+
+    function renderFavorites(state, nodeHistory = null, loadingNodeId = "") {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      renderSavedNodeDetails(safeState, nodeHistory, loadingNodeId);
+      renderSavedNodeSearchDropdown(safeState);
+      renderStarredNodeSelect(safeState);
+      const list = document.getElementById("favorites-list");
+      const caption = document.getElementById("favorites-caption");
+      if (!(list instanceof HTMLElement)) return;
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
+      const historyCapsById = new Map(
+        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+      );
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const entries = Array.from(favoriteNodeIds)
+        .map((nodeId) => {{
+          const node = nodesById.get(nodeId);
+          const caps = historyCapsById.get(nodeId);
+          const tagEntry = nodeTagEntryForNode(nodeId);
+          const tagName = tagEntry && tagEntry.preset
+            ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
+            : "Tagged";
+          const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
+          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(nodeId) || null);
+          const status = freshnessStatus(freshness.unix, nowUnix);
+          const lastSeenText = savedDetailText(freshness.text);
+          const batteryRaw = Number(
+            (node && node.battery_level != null)
+              ? node.battery_level
+              : (caps && caps.battery_level)
+          );
+          const battery = Number.isFinite(batteryRaw) ? `${{Math.max(0, Math.min(100, Math.round(batteryRaw)))}}%` : "n/a";
+          const hopsRaw = Number(
+            (node && node.hops_away != null)
+              ? node.hops_away
+              : (caps && caps.last_hops)
+          );
+          const hops = Number.isFinite(hopsRaw) && hopsRaw >= 0 ? String(Math.trunc(hopsRaw)) : "n/a";
+          const pos = (
+            node
+            && typeof node.lat === "number"
+            && Number.isFinite(node.lat)
+            && typeof node.lon === "number"
+            && Number.isFinite(node.lon)
+          )
+            ? `${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}`
+            : ((caps && caps.has_position === true) ? "history" : "n/a");
+          const searchable = nodeSearchKeywordText(nodeId, name, {{ node }});
+          return {{
+            id: nodeId,
+            name,
+            status,
+            lastSeenText,
+            battery,
+            hops,
+            pos,
+            tagName,
+            searchable,
+          }};
+        }})
+        .sort((a, b) => {{
+          const rankDiff = statusRank(a.status) - statusRank(b.status);
+          if (rankDiff !== 0) return rankDiff;
+          return String(a.name || a.id).localeCompare(String(b.name || b.id));
+        }});
+
+      const query = globalNodeSearchQuery();
+      const filtered = query
+        ? entries.filter((entry) => entry.searchable.includes(query))
+        : entries;
+      const onlineCount = entries.filter((entry) => entry.status === "online").length;
+      const warnCount = entries.filter((entry) => entry.status === "warn").length;
+      const staleCount = entries.filter((entry) => entry.status === "stale").length;
+      if (caption) {{
+        caption.textContent = `Tagged subsection: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
+      }}
+
+      if (entries.length === 0) {{
+        list.innerHTML = '<div class="favorites-empty">No tagged nodes yet. Click a tag chip next to a node name to add it here.</div>';
+        return;
+      }}
+      if (filtered.length === 0) {{
+        list.innerHTML = '<div class="favorites-empty">No tagged nodes match this search.</div>';
+        return;
+      }}
+
+      list.innerHTML = filtered.map((entry) => (
+        `<div class="favorite-node-item status-${{entry.status}}${{selectedNodeId === entry.id ? " selected-node" : ""}}" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(`${{entry.name}} (${{entry.id}})` )}}">
+          <div class="favorite-node-main">
+            <div class="favorite-node-name-row">
+              <span class="favorite-node-name">${{escAttr(entry.name)}}</span>
+              <span class="favorite-node-id">${{escAttr(entry.id)}}</span>
+            </div>
+            <div class="favorite-node-meta">
+              <span>Tag: ${{escAttr(entry.tagName)}}</span>
+              <span>Last: ${{escAttr(entry.lastSeenText)}}</span>
+              <span>Batt: ${{escAttr(entry.battery)}}</span>
+              <span>Hops: ${{escAttr(entry.hops)}}</span>
+              <span>Pos: ${{escAttr(entry.pos)}}</span>
+            </div>
+          </div>
+          ${{favoriteToggleButtonHtml(entry.id, "favorites-card-star")}}
+        </div>`
+      )).join("");
+
+      for (const item of list.querySelectorAll(".favorite-node-item")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        item.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (target instanceof Element && target.closest(".favorite-toggle-btn")) {{
+            return;
+          }}
+          selectNode(item.dataset.nodeId || "", true, false);
+        }});
+      }}
+      refreshFavoriteToggleButtons();
+    }}

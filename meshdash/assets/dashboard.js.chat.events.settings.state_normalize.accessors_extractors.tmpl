@@ -1,0 +1,93 @@
+    function settingsLocalStateFrom(state) {{
+      const cachedState = settingsLocalStateCache && typeof settingsLocalStateCache === "object"
+        ? settingsLocalStateCache
+        : null;
+      if (cachedState && typeof cachedState === "object") return cachedState;
+      const localState = state && typeof state === "object" ? state.local_state : null;
+      return localState && typeof localState === "object" ? localState : null;
+    }}
+
+    function loraConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const lora = localConfig && typeof localConfig === "object" ? localConfig.lora : null;
+      return lora && typeof lora === "object" ? lora : null;
+    }}
+
+    function deviceConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const device = localConfig && typeof localConfig === "object" ? localConfig.device : null;
+      return device && typeof device === "object" ? device : null;
+    }}
+
+    function positionConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const position = localConfig && typeof localConfig === "object" ? localConfig.position : null;
+      return position && typeof position === "object" ? position : null;
+    }}
+
+    function telemetryConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const telemetry = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.telemetry : null;
+      return telemetry && typeof telemetry === "object" ? telemetry : null;
+    }}
+
+    function powerConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const power = localConfig && typeof localConfig === "object" ? localConfig.power : null;
+      return power && typeof power === "object" ? power : null;
+    }}
+
+    function displayConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const display = localConfig && typeof localConfig === "object" ? localConfig.display : null;
+      return display && typeof display === "object" ? display : null;
+    }}
+
+    function bluetoothConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const bluetooth = localConfig && typeof localConfig === "object" ? localConfig.bluetooth : null;
+      return bluetooth && typeof bluetooth === "object" ? bluetooth : null;
+    }}
+
+    function networkConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const network = localConfig && typeof localConfig === "object" ? localConfig.network : null;
+      return network && typeof network === "object" ? network : null;
+    }}
+
+    function securityConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localConfig = localState && typeof localState === "object" ? localState.local_config : null;
+      const security = localConfig && typeof localConfig === "object" ? localConfig.security : null;
+      return security && typeof security === "object" ? security : null;
+    }}
+
+    function mqttConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const mqtt = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.mqtt : null;
+      return mqtt && typeof mqtt === "object" ? mqtt : null;
+    }}
+
+    function serialConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const serial = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.serial : null;
+      return serial && typeof serial === "object" ? serial : null;
+    }}
+
+    function externalNotificationConfigFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const moduleConfig = localState && typeof localState === "object" ? localState.module_config : null;
+      const cfg = moduleConfig && typeof moduleConfig === "object" ? moduleConfig.external_notification : null;
+      return cfg && typeof cfg === "object" ? cfg : null;
+    }}
+

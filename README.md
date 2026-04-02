@@ -93,11 +93,17 @@ run the backend in a terminal, and open the dashboard in a browser.
 ```powershell
 cd C:\meshyface\mesh_py-main
 py -3 -m venv .venv
+# If Activate.ps1 is blocked in this shell:
+Set-ExecutionPolicy -Scope Process Bypass
 .\.venv\Scripts\Activate.ps1
+python -c "import sys; print(sys.executable)"
 python -m pip install --upgrade pip
 python -m pip install meshtastic pypubsub protobuf
 python .\mesh_dashboard.py --mesh-port COM3 --http-host 0.0.0.0 --http-port 8877
 ```
+
+The `python -c "import sys; print(sys.executable)"` line should print a path inside
+`.venv\Scripts\python.exe`. If it does not, stop and activate the venv before installing.
 
 Windows TCP mode (instead of USB serial):
 
@@ -196,24 +202,61 @@ sudo systemctl status meshtastic-dashboard --no-pager
 
 ## Fast Update/Deploy Loop
 
-Use this after editing `mesh_dashboard.py` or `meshdash/*.py`:
+Use this after editing `mesh_dashboard.py`, `mesh_connection.py`, or `meshdash/*.py`:
 
 ```bash
-scp /home/j/mesh_py/mesh_dashboard.py j@192.168.1.241:/home/j/mesh/app/ && \
-tar -C /home/j/mesh_py --exclude='meshdash/__pycache__' --exclude='*.pyc' -cf - meshdash | \
-ssh j@192.168.1.241 'tar -C /home/j/mesh/app -xf -' && \
-ssh -t j@192.168.1.241 '
-python3 -m compileall -q /home/j/mesh/app &&
-sudo systemctl restart meshtastic-dashboard &&
-SYSTEMD_PAGER=cat sudo systemctl --no-pager -l status meshtastic-dashboard
-'
+chmod +x ./scripts/deploy_dashboard.sh
+./scripts/deploy_dashboard.sh
 ```
+
+Target is required unless `MESH_DASH_DEPLOY_TARGET` is set. For example:
+
+```bash
+./scripts/deploy_dashboard.sh --target j@192.168.1.29
+```
+
+You can still use env overrides without editing the script:
+
+```bash
+MESH_DASH_DEPLOY_TARGET=j@192.168.1.29 \
+MESH_DASH_DEPLOY_APP_DIR=/home/j/mesh/app \
+MESH_DASH_DEPLOY_REMOTE_PYTHON=/home/j/mesh/.venv/bin/python \
+MESH_DASH_DEPLOY_SERVICE=meshtastic-dashboard \
+./scripts/deploy_dashboard.sh
+```
+
+For a brand-new host (first-time setup + deploy), use bootstrap mode and set the radio IP:
+
+```bash
+./scripts/deploy_dashboard.sh \
+  --target j@192.168.1.29 \
+  --bootstrap \
+  --mesh-host 192.168.1.211
+```
+
+Notes:
+
+- No password is stored in the script. SSH and `sudo` will prompt as needed.
+- You can also update `dashboard.env` values during deploy with options like:
+  - `--mesh-port 4403`
+  - `--dash-host 0.0.0.0`
+  - `--dash-port 8877`
+  - `--refresh-ms 3000`
 
 Then hard refresh browser: `Ctrl+Shift+R`.
 
 ## History and Storage Behavior
 
 By default, history is enabled and stored in SQLite (`--history-db`).
+
+History is now profile-scoped by connected radio identity. The runtime derives a
+profile key from the local radio ID (fallback: connection target) and writes to
+a per-radio DB file, for example:
+
+- base: `mesh_dashboard_history.sqlite3`
+- radio profile: `mesh_dashboard_history.radio-abcdef12.sqlite3`
+
+This isolates persisted data when you swap radios.
 
 Important knobs:
 
@@ -229,11 +272,121 @@ Important knobs:
 ## Chat Send Notes
 
 - Chat send box posts to `/api/chat/send`.
-- Current UI sends to broadcast room (`^all`) on channel `0`.
+- Outgoing sends use the **Msg Ch** selector in the chat header (Meshtastic channel index).
+  - Selecting **All channels (view)** only affects what you *see* in chat; outgoing sends use channel `0` in that mode.
 - Message byte limit is enforced (`220` UTF-8 bytes).
 - Sent messages are also echoed into dashboard chat history immediately.
 - Direct peer-to-peer text messages request mesh ACK and now show delivery state (`Pending`, `Delivered`, `Failed`, `Timed out`) in chat.
 - Failed direct sends can be retried from the message row using `Retry`.
+
+## API Ops and Security
+
+Optional write auth:
+
+- Set `MESH_DASH_API_TOKEN=<token>` (or pass `--api-token <token>`).
+- When set, write APIs require either:
+  - `Authorization: Bearer <token>`
+  - `X-API-Token: <token>`
+- Protected write endpoints:
+  - `/api/chat/send`
+  - `/api/settings/radio`
+  - `/api/settings/channels`
+  - `/api/settings/theme`
+  - `/api/settings/bot`
+
+Private mode:
+
+- Set `MESH_DASH_PRIVATE_MODE=1` (or `--private-mode`) to disable public chat/message API surfaces.
+- In private mode:
+  - chat send/game message routes are blocked
+  - chat search/catalog APIs are disabled
+  - `/api/state` omits `traffic.recent_chat`
+
+Ops endpoints:
+
+- `GET /api/version` returns runtime version + commit metadata.
+- `GET /api/health` returns lightweight runtime health.
+- `GET /metrics` returns Prometheus-style text metrics, including:
+  - packet rate
+  - node count
+  - `/api/state` poll errors
+  - radio link status
+
+## Response Bot Basics
+
+The dashboard can now run a server-side chat responder bot (radio-wide behavior).
+It listens for incoming text commands and replies on mesh via the same send pipeline.
+By default, bot replies start **off**. When you turn them on, the curated startup set keeps
+only `ping` and `zork` active so the Bots screen can be used as a quick “ping bot / game bot”
+control surface without enabling the full catalog.
+
+Built-in commands:
+
+- `ping [target]`
+- `zork`
+- `cmd` / `help`
+- `whoami`
+- `whois <id|name>`
+- `whohas <id|name>`
+- `lheard`
+
+Internal game app:
+
+- `zork` remains a core internal app (console + standalone API integration).
+- Other bot apps can be loaded as plugins without changing core bot responder code.
+
+Environment controls:
+
+- `MESH_DASH_BOT_ENABLED=0|1` (default: `0`)
+- `MESH_DASH_BOT_GAME_ENABLED=0|1` (default: `1`)
+- `MESH_DASH_BOT_REPLY_BROADCAST=0|1` (default: `0`)
+  - `0`: reply direct when request was direct, broadcast when request was broadcast
+  - `1`: always broadcast replies
+- `MESH_DASH_BOT_DISABLED_COMMANDS`
+  - default startup profile disables every managed command except `ping` and `zork`
+  - set this var explicitly to override that curated default
+  - example: `MESH_DASH_BOT_DISABLED_COMMANDS=""` starts with the full managed catalog enabled
+- `MESH_DASH_BOT_CUSTOM_COMMANDS` JSON object for custom commands, for example:
+
+```bash
+export MESH_DASH_BOT_CUSTOM_COMMANDS='{"status":"status local={local_id} from={from_id} hops={hops}","site":"meshface online"}'
+```
+
+Custom template fields:
+`{command}`, `{args}`, `{from_id}`, `{to_id}`, `{local_id}`, `{hops}`, `{rx_time}`.
+
+- `MESH_DASH_BOT_PLUGIN_MODULES`
+  - optional comma/semicolon/newline-delimited Python module list
+  - each module should expose either `build_bot_apps()` or `BOT_APPS`
+  - these modules are loaded in addition to `meshdash.bot_plugins.*`
+  - underscore-prefixed modules in `meshdash.bot_plugins` are ignored
+- `MESH_DASH_BOT_PLUGIN_STRICT=0|1` (default: `0`)
+  - when `1`, plugin import/build errors raise and fail bot startup
+  - when `0`, bad plugins are skipped and startup continues
+
+SDK helpers:
+
+- Use `meshdash.bot_sdk.CommandApp` + `CommandInvocation` for low-boilerplate
+  command plugins.
+- Start from `meshdash/bot_plugins/_sdk_template.py`.
+- See `docs/BOT_SDK.md` for the plugin workflow.
+
+Bots panel notes:
+
+- `Bot Commands` are backend radio behavior. Individual command toggles are preserved even when the master bot-response switch is off.
+- `Bot Assistant` is browser-only UI help. Turning it off disables local Whois drafting/history matching in that browser, but manual chat commands still send normally.
+
+## Channels (beginner-friendly docs)
+
+Meshtastic uses the word “channel” in *multiple* ways (frequency slot vs message channel index). This dashboard exposes both.
+
+- The `Channels` view focuses on local channel slots and observed channel activity.
+- `Ch 0` can be the active primary even when its channel name is blank.
+- Leaving `PSK` blank in the editor keeps the current key.
+- `MQTT Up` / `MQTT Down` are bridge toggles, not LoRa TX/RX controls.
+- Message channels are encryption groups. They are not RF frequency slots.
+- Local slots should stay consecutive (`0..N`). Add the next free slot; disable from the end.
+- See: `docs/CHANNELS.md`
 
 ## Troubleshooting
 
@@ -258,10 +411,62 @@ ss -ltnp | grep 8877
 Verify history DB exists:
 
 ```bash
-ls -lh /home/j/mesh/mesh_dashboard_history.sqlite3
+ls -lh /home/j/mesh/mesh_dashboard_history*.sqlite3
 ```
 
 If UI seems stale after deploy, hard-refresh browser (`Ctrl+Shift+R`).
+
+### Diagnostics Runbook: "Server crashed" vs "Radio disconnected"
+
+When the dashboard appears down, run this sequence on the host (for example `192.168.1.241`) before unplugging hardware:
+
+```bash
+# 1) Current/last service health
+sudo systemctl status meshtastic-dashboard --no-pager -l
+sudo systemctl show meshtastic-dashboard \
+  -p ActiveState -p SubState -p NRestarts -p ExecMainCode -p ExecMainStatus \
+  -p ExecMainStartTimestamp -p ExecMainExitTimestamp
+
+# 2) Logs in the exact incident window
+sudo journalctl -u meshtastic-dashboard \
+  --since "YYYY-MM-DD HH:MM:SS" --until "YYYY-MM-DD HH:MM:SS" \
+  -o short-iso --no-pager
+
+# 3) Host reboot/kernel-level checks
+sudo journalctl --list-boots
+sudo journalctl -u meshtastic-dashboard -b -1 -o short-iso --no-pager | tail -n 200
+sudo journalctl -k -b -1 -p warning --no-pager | egrep -i "oom|killed process|segfault|panic|watchdog"
+last -x | head -n 20
+
+# 4) Verify radio path exists
+ls -l /dev/serial/by-id
+```
+
+Interpretation:
+
+- If you see `Meshtastic serial port disconnected` followed by repeated `No such file or directory` for `/dev/serial/by-id/...`, the issue is radio/USB path loss (unplug, power reset, cable/hub issue, or port contention), not a Python crash.
+- If `ActiveState=active`, `SubState=running`, and `NRestarts` is not increasing, the service itself is healthy.
+- If kernel logs show OOM/panic/segfault, investigate host stability and memory pressure.
+
+Quick recovery after radio reconnect:
+
+```bash
+sudo systemctl restart meshtastic-dashboard
+sudo systemctl status meshtastic-dashboard --no-pager -l
+sudo journalctl -u meshtastic-dashboard -f
+```
+
+Optional: check for other software holding the serial port:
+
+```bash
+sudo lsof /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+```
+
+Incident reference (March 6, 2026):
+
+- Service remained healthy after restart (`ActiveState=active`, `SubState=running`, `NRestarts=0`).
+- Logs showed serial disconnect at `2026-03-06T14:52:10-06:00` and repeated missing device path errors until reconnect.
+- Device path returned as `/dev/serial/by-id/... -> ../../ttyACM0`, and the dashboard resumed normally.
 
 ## Development and Tests
 

@@ -1,0 +1,242 @@
+    function localNodeUserFromState(state) {{
+      const localState = settingsLocalStateFrom(state);
+      const localNodeInfo = localState && typeof localState === "object" ? localState.local_node_info : null;
+      const user = localNodeInfo && typeof localNodeInfo === "object" ? localNodeInfo.user : null;
+      if (!user || typeof user !== "object") {{
+        return null;
+      }}
+      const shortName = String(user.shortName ?? user.short_name ?? "").trim();
+      const longName = String(user.longName ?? user.long_name ?? "").trim();
+      return {{
+        short_name: shortName,
+        long_name: longName,
+      }};
+    }}
+
+    function configSectionMapFromState(state, scopeKey) {{
+      const localState = settingsLocalStateFrom(state);
+      const scope = localState && typeof localState === "object" ? localState[scopeKey] : null;
+      return scope && typeof scope === "object" ? scope : null;
+    }}
+
+    function sortedConfigSectionNames(scopeObj, excludedNames = []) {{
+      if (!scopeObj || typeof scopeObj !== "object") return [];
+      const excluded = new Set(excludedNames.map((name) => String(name || "").trim().toLowerCase()));
+      const names = [];
+      for (const [name, value] of Object.entries(scopeObj)) {{
+        if (!name || excluded.has(String(name).toLowerCase())) continue;
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        names.push(name);
+      }}
+      names.sort((a, b) => a.localeCompare(b));
+      return names;
+    }}
+
+    function syncSectionSelectOptions(selectId, names, placeholderText) {{
+      const select = document.getElementById(selectId);
+      if (!(select instanceof HTMLSelectElement)) return;
+      const previous = String(select.value || "");
+      select.innerHTML = "";
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = placeholderText;
+      select.appendChild(placeholder);
+      for (const name of names) {{
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      }}
+
+      if (previous && names.includes(previous)) {{
+        select.value = previous;
+        return;
+      }}
+      select.value = names.length ? names[0] : "";
+    }}
+
+    function syncSectionEditorFromState(state, scopeKey, selectId, textareaId, placeholderText, excludedNames = []) {{
+      const scopeObj = configSectionMapFromState(state, scopeKey);
+      const sectionNames = sortedConfigSectionNames(scopeObj, excludedNames);
+      syncSectionSelectOptions(selectId, sectionNames, placeholderText);
+
+      const select = document.getElementById(selectId);
+      const textarea = document.getElementById(textareaId);
+      if (!(select instanceof HTMLSelectElement) || !(textarea instanceof HTMLTextAreaElement)) return;
+
+      const sectionName = String(select.value || "");
+      const sectionData =
+        sectionName && scopeObj && typeof scopeObj === "object" && scopeObj[sectionName] && typeof scopeObj[sectionName] === "object"
+          ? scopeObj[sectionName]
+          : {{}};
+      let text = "{{}}";
+      try {{
+        text = JSON.stringify(sectionData, null, 2);
+      }} catch (_err) {{
+        text = "{{}}";
+      }}
+      setFormValue(textarea, text);
+    }}
+
+    function setFormValue(el, value) {{
+      if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement) && !(el instanceof HTMLTextAreaElement)) return;
+      const next = value == null ? "" : String(value);
+      if (el.value !== next) {{
+        el.value = next;
+      }}
+    }}
+
+    function setFormChecked(el, checked) {{
+      if (!(el instanceof HTMLInputElement) || el.type !== "checkbox") return;
+      const next = !!checked;
+      if (el.checked !== next) {{
+        el.checked = next;
+      }}
+    }}
+
+    function syncLoraManualFieldsDisabled() {{
+      const usePreset = document.getElementById("settings-lora-use-preset");
+      const enabled = !(usePreset instanceof HTMLInputElement) || !usePreset.checked;
+      for (const id of [
+        "settings-lora-bandwidth",
+        "settings-lora-spread-factor",
+        "settings-lora-coding-rate",
+        "settings-lora-frequency-offset",
+        "settings-lora-override-frequency",
+      ]) {{
+        const input = document.getElementById(id);
+        if (input instanceof HTMLInputElement) {{
+          input.disabled = !enabled;
+        }}
+      }}
+    }}
+
+    function refreshLocalSettingsSectionEditor(state) {{
+      syncSectionEditorFromState(
+        state,
+        "local_config",
+        "settings-local-section",
+        "settings-local-json",
+        "Select local section",
+        ["lora"]
+      );
+    }}
+
+    function refreshModuleSettingsSectionEditor(state) {{
+      syncSectionEditorFromState(
+        state,
+        "module_config",
+        "settings-module-section",
+        "settings-module-json",
+        "Select module section"
+      );
+    }}
+
+    function refreshSettingsSectionEditors(state) {{
+      refreshLocalSettingsSectionEditor(state);
+      refreshModuleSettingsSectionEditor(state);
+      try {{
+        renderChannelsTable(settingsLocalStateFrom(state) || {{}});
+      }} catch (_err) {{}}
+    }}
+
+    function normalizeSettingsTab(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (
+        key === "core"
+        || key === "device"
+        || key === "connectivity"
+        || key === "location"
+        || key === "telemetry"
+        || key === "security"
+        || key === "advanced"
+        || key === "channels"
+        || key === "data"
+        || key === "tickers"
+        || key === "appearance"
+      ) return key;
+      return "core";
+    }}
+
+    function loadSettingsTabPreference() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsTabStorageKey) || "";
+        if (raw) {{
+          activeSettingsTab = normalizeSettingsTab(raw);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsTabPreference() {{
+      try {{
+        window.localStorage.setItem(settingsTabStorageKey, activeSettingsTab);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function setActiveSettingsTab(tab, persist = true) {{
+      const next = normalizeSettingsTab(tab);
+      const prev = activeSettingsTab;
+      activeSettingsTab = next;
+      if (persist) {{
+        persistSettingsTabPreference();
+      }}
+
+      const tabButtons = document.querySelectorAll(".settings-tab-btn[data-settings-tab]");
+      for (const btn of tabButtons) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const isActive = normalizeSettingsTab(btn.dataset.settingsTab) === next;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+
+      const panels = document.querySelectorAll(".card.settings [data-settings-tab-panel]");
+      for (const panel of panels) {{
+        if (!(panel instanceof HTMLElement)) continue;
+        const panelTab = normalizeSettingsTab(panel.dataset.settingsTabPanel);
+        panel.hidden = panelTab !== next;
+      }}
+
+      if (persist && prev !== next) {{
+        const settingsBody = document.querySelector(".card.settings .body");
+        if (settingsBody instanceof HTMLElement) {{
+          settingsBody.scrollTop = 0;
+        }}
+      }}
+
+      if (next === "location") {{
+        syncSettingsPositionSourceUi({{
+          source: readSettingsPositionSourceSelection(),
+          recenter: activeLayoutView === "settings" && settingsFixedMapPanelVisible,
+        }});
+      }} else if (next === "channels") {{
+        if (latestState) {{
+          renderChannelsView(latestState);
+        }}
+        void ensureChannelsViewLocalStateHydrated(false);
+      }} else if (next === "data") {{
+        // Keep raw diagnostics current when the Data tab is opened.
+        void loadRawMyInfo().catch(() => {{}});
+        void loadRawMetadata().catch(() => {{}});
+        void loadRawLocalState().catch(() => {{}});
+        void loadRawNodesFull(0).catch(() => {{}});
+        if (latestState) {{
+          renderPackets(latestState);
+        }}
+      }} else if (next === "security") {{
+        syncChatWhoisQuickActionControls();
+      }} else if (next === "tickers") {{
+        renderTickerSettingsUi();
+      }} else if (next === "appearance") {{
+        syncSettingsAppearanceControls();
+      }}
+    }}
+
+    function isValidLatLonRange(lat, lon) {{
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if (lat < -90 || lat > 90) return false;
+      if (lon < -180 || lon > 180) return false;
+      return true;
+    }}

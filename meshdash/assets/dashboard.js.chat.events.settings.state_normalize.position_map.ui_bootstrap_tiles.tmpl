@@ -1,0 +1,166 @@
+    function syncSettingsPositionSourceUi(options = {{}}) {{
+      const source = normalizeSettingsPositionSource(
+        options && typeof options === "object" && options.source != null
+          ? options.source
+          : settingsPositionSourcePref
+      );
+      const fixedMode = source === "fixed";
+      const recenter = fixedMode && !!(options && options.recenter);
+      const wasPanelVisible = settingsFixedMapPanelVisible;
+      settingsFixedMapPanelVisible = fixedMode;
+
+      settingsPositionSourcePref = source;
+      persistSettingsPositionSourcePreference();
+
+      const sourceSelect = document.getElementById("settings-position-source");
+      if (sourceSelect instanceof HTMLSelectElement && sourceSelect.value !== source) {{
+        sourceSelect.value = source;
+      }}
+
+      const fixedControls = document.getElementById("settings-fixed-controls");
+      if (fixedControls instanceof HTMLElement) {{
+        fixedControls.hidden = !fixedMode;
+      }}
+      const mapWrap = document.getElementById("settings-fixed-map-wrap");
+      if (mapWrap instanceof HTMLElement) {{
+        mapWrap.hidden = !fixedMode;
+      }}
+      const setFixedPositionBtn = document.getElementById("settings-set-fixed-position");
+      if (setFixedPositionBtn instanceof HTMLButtonElement) {{
+        setFixedPositionBtn.hidden = !fixedMode;
+      }}
+
+      const clearFixedPositionBtn = document.getElementById("settings-clear-fixed-position");
+      if (clearFixedPositionBtn instanceof HTMLButtonElement) {{
+        if (source === "fixed") {{
+          clearFixedPositionBtn.textContent = "Clear Fixed Position";
+          clearFixedPositionBtn.title = "Clear fixed GPS position on the radio";
+        }} else if (source === "none") {{
+          clearFixedPositionBtn.textContent = "Apply None Mode";
+          clearFixedPositionBtn.title = "Clear fixed position override and use None mode";
+        }} else {{
+          clearFixedPositionBtn.textContent = "Apply GPS Mode";
+          clearFixedPositionBtn.title = "Clear fixed position override and use GPS mode";
+        }}
+      }}
+
+      const modeNote = document.getElementById("settings-position-mode-note");
+      if (modeNote instanceof HTMLElement) {{
+        if (source === "fixed") {{
+          modeNote.textContent = "Fixed mode pins radio position to the coordinates below.";
+        }} else if (source === "none") {{
+          modeNote.textContent = "None mode keeps the fixed-position map hidden and clears fixed-position override when applied.";
+        }} else {{
+          modeNote.textContent = "GPS mode uses live GPS reported by the radio. Fixed-position map is hidden.";
+        }}
+      }}
+
+      if (!fixedMode || activeSettingsTab !== "location") return;
+      if (!ensureSettingsFixedMap()) return;
+      syncSettingsFixedMapFromInputs({{ recenter }});
+      if (activeLayoutView === "settings" && (!wasPanelVisible || recenter)) {{
+        requestSettingsFixedMapResizeStabilized();
+      }}
+    }}
+
+    function settingsMapBootstrapFocus(state = latestState) {{
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      if (isValidLatLonRange(lat, lon)) {{
+        return {{
+          lat,
+          lon,
+          zoom: 12,
+        }};
+      }}
+
+      const fixedKnown = fixedPositionFromState(state) || settingsFixedPositionCache || localNodePositionCandidate(state);
+      if (fixedKnown && isValidLatLonRange(fixedKnown.lat, fixedKnown.lon)) {{
+        return {{
+          lat: Number(fixedKnown.lat),
+          lon: Number(fixedKnown.lon),
+          zoom: 12,
+        }};
+      }}
+
+      const nodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+      const interest = mapBootstrapInterestNode(nodes, state);
+      const node = interest && interest.node ? interest.node : null;
+      const nodeLat = Number(node && node.lat);
+      const nodeLon = Number(node && node.lon);
+      if (isValidMapCoord(nodeLat, nodeLon)) {{
+        return {{
+          lat: nodeLat,
+          lon: nodeLon,
+          zoom: interest.source === "first-positioned" ? 8 : 10,
+        }};
+      }}
+
+      return {{
+        lat: settingsFixedMapDefaultCenter[0],
+        lon: settingsFixedMapDefaultCenter[1],
+        zoom: settingsFixedMapDefaultZoom,
+      }};
+    }}
+
+    function applySettingsFixedMapTiles(resolvedTheme = null) {{
+      if (!settingsFixedMap) return;
+      const activeTheme = String(
+        resolvedTheme || document.documentElement.getAttribute("data-theme") || ""
+      ).trim().toLowerCase();
+      const wantedDark = activeTheme === "dark";
+      if (!wantedDark) {{
+        settingsFixedMapDarkTileFallback = false;
+      }}
+      const nextTheme = (wantedDark && settingsFixedMapDarkTileFallback) ? "light" : (wantedDark ? "dark" : "light");
+      if (settingsFixedMapElement instanceof HTMLElement) {{
+        settingsFixedMapElement.classList.toggle(
+          "dark-fallback-tiles",
+          wantedDark && settingsFixedMapDarkTileFallback && nextTheme === "light"
+        );
+      }}
+      if (
+        settingsFixedMapTileLayer
+        && settingsFixedMapTileTheme === nextTheme
+        && settingsFixedMap.hasLayer(settingsFixedMapTileLayer)
+      ) {{
+        return;
+      }}
+
+      if (settingsFixedMapTileLayer) {{
+        settingsFixedMapTileLayer.off();
+        settingsFixedMap.removeLayer(settingsFixedMapTileLayer);
+      }}
+      settingsFixedMapTileSession += 1;
+      const sessionId = settingsFixedMapTileSession;
+      settingsFixedMapTileLoads = 0;
+      settingsFixedMapTileErrors = 0;
+      const builtLayer = createDashboardMapTileLayer(nextTheme, {{
+        updateWhenZooming: false,
+        updateWhenIdle: true,
+        keepBuffer: 3,
+        crossOrigin: true,
+      }});
+      settingsFixedMapTileLayer = builtLayer.layer;
+      settingsFixedMapTileLayer.on("tileload", () => {{
+        if (sessionId !== settingsFixedMapTileSession) return;
+        settingsFixedMapTileLoads += 1;
+      }});
+      settingsFixedMapTileLayer.on("tileerror", () => {{
+        if (sessionId !== settingsFixedMapTileSession) return;
+        settingsFixedMapTileErrors += 1;
+        if (
+          wantedDark
+          && nextTheme === "dark"
+          && settingsFixedMapTileLoads <= 0
+          && settingsFixedMapTileErrors >= 2
+          && !settingsFixedMapDarkTileFallback
+        ) {{
+          settingsFixedMapDarkTileFallback = true;
+          applySettingsFixedMapTiles("dark");
+          requestSettingsFixedMapResizeStabilized();
+        }}
+      }});
+      settingsFixedMapTileLayer.addTo(settingsFixedMap);
+      settingsFixedMapTileTheme = builtLayer.theme;
+    }}

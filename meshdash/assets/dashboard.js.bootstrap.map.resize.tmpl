@@ -1,0 +1,158 @@
+    function requestMapResizeNow() {{
+      if (!(mapElement instanceof HTMLElement)) return;
+      const rect = mapElement.getBoundingClientRect();
+      const width = Math.round(Number(rect && rect.width) || mapElement.clientWidth || 0);
+      const height = Math.round(Number(rect && rect.height) || mapElement.clientHeight || 0);
+      if (width <= 0 || height <= 0) return;
+      map.invalidateSize({{ pan: false, animate: false }});
+    }}
+
+    function requestMapResize() {{
+      if (mapResizeRaf !== null) {{
+        cancelAnimationFrame(mapResizeRaf);
+      }}
+      mapResizeRaf = requestAnimationFrame(() => {{
+        map.invalidateSize({{ pan: false, animate: false }});
+        mapResizeRaf = null;
+      }});
+    }}
+
+    function ensureMapSizeSync() {{
+      if (!(mapElement instanceof HTMLElement)) return;
+      const width = Math.round(mapElement.clientWidth || 0);
+      const height = Math.round(mapElement.clientHeight || 0);
+      if (width <= 0 || height <= 0) {{
+        if (isMapVisibleLayoutView(activeLayoutView)) {{
+          requestMapResize();
+        }}
+        return;
+      }}
+      const mapSize = map.getSize();
+      const mapW = Math.round((mapSize && mapSize.x) || 0);
+      const mapH = Math.round((mapSize && mapSize.y) || 0);
+      if (Math.abs(mapW - width) > 2 || Math.abs(mapH - height) > 2) {{
+        requestMapResizeNow();
+        requestMapResize();
+      }}
+    }}
+
+    function clearMapResizeStabilizeTimers() {{
+      if (!Array.isArray(mapResizeStabilizeTimers) || mapResizeStabilizeTimers.length === 0) return;
+      for (const timerId of mapResizeStabilizeTimers) {{
+        clearTimeout(timerId);
+      }}
+      mapResizeStabilizeTimers = [];
+    }}
+
+    function requestMapResizeStabilized() {{
+      clearMapResizeStabilizeTimers();
+      requestMapResize();
+      for (const delayMs of [90, 220, 420, 900, 1600, 2600]) {{
+        const timerId = window.setTimeout(() => {{
+          mapResizeStabilizeTimers = mapResizeStabilizeTimers.filter((id) => id !== timerId);
+          requestMapResize();
+        }}, delayMs);
+        mapResizeStabilizeTimers.push(timerId);
+      }}
+    }}
+
+    function requestSettingsFixedMapResize() {{
+      if (!(settingsFixedMapElement instanceof HTMLElement) || !settingsFixedMap) return;
+      if (settingsFixedMapResizeRaf !== null) {{
+        cancelAnimationFrame(settingsFixedMapResizeRaf);
+      }}
+      settingsFixedMapResizeRaf = requestAnimationFrame(() => {{
+        settingsFixedMapResizeRaf = null;
+        settingsFixedMap.invalidateSize({{ pan: false, animate: false }});
+      }});
+    }}
+
+    function clearSettingsFixedMapResizeTimers() {{
+      if (!Array.isArray(settingsFixedMapResizeTimers) || settingsFixedMapResizeTimers.length === 0) return;
+      for (const timerId of settingsFixedMapResizeTimers) {{
+        clearTimeout(timerId);
+      }}
+      settingsFixedMapResizeTimers = [];
+    }}
+
+    function requestSettingsFixedMapResizeStabilized() {{
+      clearSettingsFixedMapResizeTimers();
+      requestSettingsFixedMapResize();
+      for (const delayMs of [90, 220, 420]) {{
+        const timerId = window.setTimeout(() => {{
+          settingsFixedMapResizeTimers = settingsFixedMapResizeTimers.filter((id) => id !== timerId);
+          requestSettingsFixedMapResize();
+        }}, delayMs);
+        settingsFixedMapResizeTimers.push(timerId);
+      }}
+    }}
+
+    function syncMapSize() {{
+      splitTopPx = clampTopSplitPx(splitTopPx);
+      splitMidPx = clampMidSplitPx(splitMidPx);
+      splitLowPx = clampLowSplitPx(splitLowPx);
+      applySplitState();
+      if (typeof applyChatPanelSplitState === "function") {{
+        applyChatPanelSplitState();
+      }}
+      if (typeof applyMacrosPanelSplitState === "function") {{
+        applyMacrosPanelSplitState();
+      }}
+      requestMapResize();
+    }}
+
+    function syncTopbarLayoutMetrics() {{
+      const rootStyle = document.documentElement && document.documentElement.style;
+      if (!rootStyle) return;
+      let measuredHeight = 0;
+      if (topbarElement instanceof HTMLElement) {{
+        const rect = topbarElement.getBoundingClientRect();
+        const rawHeight = Number(rect && rect.height);
+        if (Number.isFinite(rawHeight) && rawHeight > 0) {{
+          measuredHeight = rawHeight;
+        }}
+      }}
+      const nextStickyOffset = Math.max(72, Math.ceil(measuredHeight || 0));
+      const nextViewportOffset = nextStickyOffset;
+      let nextTopbarCornerReserve = topbarCornerReservePx;
+      if (topbarElement instanceof HTMLElement && topbarNotifyCornerElement instanceof HTMLElement) {{
+        const topRect = topbarElement.getBoundingClientRect();
+        const cornerRect = topbarNotifyCornerElement.getBoundingClientRect();
+        const overlapWidth = Number(topRect.right) - Number(cornerRect.left);
+        if (Number.isFinite(overlapWidth) && overlapWidth > 0) {{
+          nextTopbarCornerReserve = Math.max(80, Math.ceil(overlapWidth + 12));
+        }}
+      }}
+      if (nextStickyOffset !== topbarStickyOffsetPx) {{
+        topbarStickyOffsetPx = nextStickyOffset;
+        rootStyle.setProperty("--topbar-sticky-offset", `${{nextStickyOffset}}px`);
+      }}
+      if (nextViewportOffset !== workspaceViewportOffsetPx) {{
+        workspaceViewportOffsetPx = nextViewportOffset;
+        rootStyle.setProperty("--workspace-viewport-offset", `${{nextViewportOffset}}px`);
+      }}
+      if (nextTopbarCornerReserve !== topbarCornerReservePx) {{
+        topbarCornerReservePx = nextTopbarCornerReserve;
+        rootStyle.setProperty("--topbar-corner-reserve", `${{nextTopbarCornerReserve}}px`);
+      }}
+    }}
+
+    function requestTopbarLayoutMetricsSync() {{
+      if (topbarLayoutSyncRaf != null) {{
+        cancelAnimationFrame(topbarLayoutSyncRaf);
+      }}
+      topbarLayoutSyncRaf = requestAnimationFrame(() => {{
+        topbarLayoutSyncRaf = null;
+        syncTopbarLayoutMetrics();
+      }});
+    }}
+
+    function bindMapContainerObserver() {{
+      if (mapResizeObserver || !mapFrameElement || typeof ResizeObserver === "undefined") {{
+        return;
+      }}
+      mapResizeObserver = new ResizeObserver(() => {{
+        requestMapResize();
+      }});
+      mapResizeObserver.observe(mapFrameElement);
+    }}

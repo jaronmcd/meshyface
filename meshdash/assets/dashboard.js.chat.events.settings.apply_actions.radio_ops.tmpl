@@ -1,0 +1,209 @@
+    async function applySectionSettings(scope) {{
+      const isLocal = scope === "local";
+      const sectionId = isLocal ? "settings-local-section" : "settings-module-section";
+      const editorId = isLocal ? "settings-local-json" : "settings-module-json";
+      const section = readSelectValue(sectionId);
+      if (!section) {{
+        setText("settings-apply-status", `Select a ${{scope}} section first.`);
+        return;
+      }}
+      const parsed = parseSectionJsonTextarea(editorId);
+      if (!parsed.ok) {{
+        setText("settings-apply-status", parsed.error || "Invalid JSON");
+        return;
+      }}
+
+      const payload = isLocal
+        ? {{ local: {{ [section]: parsed.value }} }}
+        : {{ module: {{ [section]: parsed.value }} }};
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        `Applying ${{scope}}.${{section}} settings…`,
+        `${{scope}}.${{section}} saved`
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function resetRadioNodeDb() {{
+      if (settingsApplyInFlight) return;
+      const confirmed = window.confirm(
+        "Reset the radio node database? This removes discovered nodes until they are heard again."
+      );
+      if (!confirmed) return;
+
+      const ok = await postRadioSettingsPayload(
+        {{ actions: {{ reset_nodedb: true }} }},
+        "Resetting radio NodeDB…",
+        "radio NodeDB reset requested"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 1200);
+      }}
+    }}
+
+    async function resetDashboardDb() {{
+      if (settingsApplyInFlight) return;
+      const confirmed = window.confirm(
+        "Clear the dashboard history database? This removes saved packets, chat, links, and analytics."
+      );
+      if (!confirmed) return;
+
+      const ok = await postRadioSettingsPayload(
+        {{ actions: {{ reset_dashboard_db: true }} }},
+        "Resetting dashboard history database…",
+        "dashboard history reset"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function regenerateNodeId() {{
+      if (settingsApplyInFlight) return;
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(latestState));
+      const idSuffix = isCanonicalNodeId(localNodeId) ? ` (current: ${{localNodeId}})` : "";
+
+      const confirmed = window.confirm(
+        `Regenerate radio node ID${{idSuffix}}? This sends FULL FACTORY RESET to the radio, erases config/channels/keys, and reboots.`
+      );
+      if (!confirmed) return;
+
+      const typed = window.prompt("Type REGEN to confirm full factory reset and node ID regeneration:");
+      if (String(typed || "").trim().toUpperCase() !== "REGEN") {{
+        setText("settings-apply-status", "Canceled: confirmation token did not match.");
+        return;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        {{ actions: {{ regenerate_node_id: true }} }},
+        "Regenerating node ID (full factory reset)… radio will reboot.",
+        "node ID regeneration requested"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 3000);
+      }}
+    }}
+
+    async function setRadioTime() {{
+      if (settingsApplyInFlight) return;
+
+      const timeSyncSelection = readSettingsTimeSyncSelection();
+      settingsTimeSyncEnabledPref = !!(timeSyncSelection && timeSyncSelection.enabled);
+      settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(
+        timeSyncSelection && timeSyncSelection.timezone
+      );
+      persistSettingsTimeSyncPreferences();
+
+      const requestedServer = String(readTextValue("settings-network-ntp-server") || "").trim() || "pool.ntp.org";
+      const payload = {{
+        actions: {{ set_time: true }},
+        time_sync: {{
+          enabled: settingsTimeSyncEnabledPref,
+          timezone: settingsTimeSyncTimezonePref,
+        }},
+      }};
+      if (settingsTimeSyncEnabledPref) {{
+        payload.time_sync.server = requestedServer;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        settingsTimeSyncEnabledPref
+          ? `Setting radio time from ${{requestedServer}}…`
+          : "Setting radio time from dashboard host clock…",
+        settingsTimeSyncEnabledPref
+          ? `radio time synced from ${{requestedServer}}`
+          : "radio time synced from dashboard host clock"
+      );
+      if (ok) {{
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function setFixedPosition() {{
+      if (settingsApplyInFlight) return;
+      if (normalizeSettingsPositionSource(readSettingsPositionSourceSelection()) !== "fixed") {{
+        setText("settings-apply-status", "Select Fixed position source before setting a fixed location.");
+        return;
+      }}
+
+      const lat = readNumberValue("settings-fixed-latitude", true);
+      const lon = readNumberValue("settings-fixed-longitude", true);
+      const alt = readNumberValue("settings-fixed-altitude");
+      if (lat == null || lon == null) {{
+        setText("settings-apply-status", "Fixed position requires latitude and longitude.");
+        return;
+      }}
+      if (lat < -90 || lat > 90) {{
+        setText("settings-apply-status", "Latitude must be between -90 and 90.");
+        return;
+      }}
+      if (lon < -180 || lon > 180) {{
+        setText("settings-apply-status", "Longitude must be between -180 and 180.");
+        return;
+      }}
+
+      const payload = {{
+        actions: {{ set_fixed_position: true }},
+        fixed_position: {{
+          lat,
+          lon,
+        }},
+      }};
+      if (alt != null) {{
+        payload.fixed_position.alt = alt;
+      }}
+
+      const ok = await postRadioSettingsPayload(
+        payload,
+        "Setting fixed GPS position on radio…",
+        "fixed GPS position saved"
+      );
+      if (ok) {{
+        persistSettingsFixedPositionCache({{ lat, lon, alt }});
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}
+
+    async function clearFixedPosition(positionSource = null) {{
+      if (settingsApplyInFlight) return;
+
+      const mode = normalizeSettingsPositionSource(
+        positionSource == null ? readSettingsPositionSourceSelection() : positionSource
+      );
+      const modeLabel = mode === "none" ? "None" : (mode === "gps" ? "GPS" : "Fixed");
+
+      const confirmed = window.confirm(
+        mode === "fixed"
+          ? "Clear fixed GPS position on the radio? The node will stop using a pinned location."
+          : `Apply ${modeLabel} mode by clearing fixed GPS position override on the radio?`
+      );
+      if (!confirmed) return;
+
+      const ok = await postRadioSettingsPayload(
+        {{ actions: {{ clear_fixed_position: true }} }},
+        mode === "fixed" ? "Clearing fixed GPS position…" : `Applying ${modeLabel} mode…`,
+        mode === "fixed" ? "fixed GPS position cleared" : `${modeLabel} mode applied (fixed override cleared)`
+      );
+      if (ok) {{
+        clearSettingsFixedPositionCache();
+        setTimeout(() => {{
+          void fetchSettingsFromRadio();
+        }}, 600);
+      }}
+    }}

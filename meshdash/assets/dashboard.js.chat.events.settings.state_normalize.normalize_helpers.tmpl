@@ -1,0 +1,72 @@
+    function normalizeConfigBool(value, fallback = false) {{
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") return value !== 0;
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (!text) return !!fallback;
+      if (text === "1" || text === "true" || text === "yes" || text === "on") return true;
+      if (text === "0" || text === "false" || text === "no" || text === "off") return false;
+      return !!fallback;
+    }}
+
+    function normalizeConfigSeconds(value, fallback = 0, minimum = 0) {{
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return Math.max(minimum, Math.trunc(Number(fallback) || 0));
+      return Math.max(minimum, Math.trunc(parsed));
+    }}
+
+    function normalizeDeviceRole(value) {{
+      const text = String(value == null ? "" : value).trim().toUpperCase();
+      if (deviceRoleOptions.includes(text)) return text;
+      const maybeNum = Number(text);
+      if (Number.isInteger(maybeNum) && deviceRoleByNumber.has(maybeNum)) {{
+        return String(deviceRoleByNumber.get(maybeNum) || "CLIENT");
+      }}
+      return "CLIENT";
+    }}
+
+    function normalizeConfigEnum(value, options, byNumber, fallback) {{
+      const text = String(value == null ? "" : value).trim().toUpperCase();
+      if (Array.isArray(options) && options.includes(text)) return text;
+      const maybeNum = Number(text);
+      if (Number.isInteger(maybeNum) && byNumber instanceof Map && byNumber.has(maybeNum)) {{
+        return String(byNumber.get(maybeNum) || fallback);
+      }}
+      return String(fallback || (Array.isArray(options) && options.length ? options[0] : ""));
+    }}
+
+    function normalizeDeviceRebroadcastMode(value) {{
+      return normalizeConfigEnum(value, deviceRebroadcastModeOptions, deviceRebroadcastModeByNumber, "ALL");
+    }}
+
+    function normalizeDeviceBuzzerMode(value) {{
+      return normalizeConfigEnum(value, deviceBuzzerModeOptions, deviceBuzzerModeByNumber, "ALL_ENABLED");
+    }}
+
+    function normalizeDisplayUnits(value) {{
+      return normalizeConfigEnum(value, displayUnitsOptions, displayUnitsByNumber, "METRIC");
+    }}
+
+    function normalizeDisplayMode(value) {{
+      return normalizeConfigEnum(value, displayModeOptions, displayModeByNumber, "DEFAULT");
+    }}
+
+    function normalizeBluetoothPairingMode(value) {{
+      return normalizeConfigEnum(value, bluetoothPairingModeOptions, bluetoothPairingModeByNumber, "RANDOM_PIN");
+    }}
+
+    function normalizeNetworkAddressMode(value) {{
+      return normalizeConfigEnum(value, networkAddressModeOptions, networkAddressModeByNumber, "DHCP");
+    }}
+
+    function normalizeSerialMode(value) {{
+      return normalizeConfigEnum(value, serialModeOptions, serialModeByNumber, "DEFAULT");
+    }}
+
+    function normalizeSerialBaud(value) {{
+      return normalizeConfigEnum(value, serialBaudOptions, serialBaudByNumber, "BAUD_DEFAULT");
+    }}
+
+    function normalizeLoraFemLnaMode(value) {{
+      return normalizeConfigEnum(value, loraFemLnaModeOptions, loraFemLnaModeByNumber, "DISABLED");
+    }}
+

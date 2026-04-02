@@ -1,0 +1,433 @@
+    function boardGameNormalizeId(value) {{
+      return String(value || "").trim().toLowerCase() === "chess" ? "chess" : "checkers";
+    }}
+
+    function boardGameLabel(gameId) {{
+      return boardGameNormalizeId(gameId) === "chess" ? "Chess" : "Checkers";
+    }}
+
+    function boardGameParseColor(value, fallback = "black") {{
+      const token = String(value || "").trim().toLowerCase();
+      if (token === "white" || token === "w") return "white";
+      if (token === "black" || token === "b") return "black";
+      return String(fallback || "").trim().toLowerCase() === "white" ? "white" : "black";
+    }}
+
+    function boardGameRefs(gameId) {{
+      const id = boardGameNormalizeId(gameId);
+      if (id === "chess") {{
+        return {{
+          id,
+          protocolVersion: chessProtocolVersion,
+          maxSeenMessages: chessMaxSeenNetworkMessages,
+          defaultLocalColor: "white",
+          defaultRemoteColor: "black",
+          opponent: chessOpponent,
+          playerLabel: chessPlayerLabel,
+          getPeerId: () => chessPeerId,
+          setPeerId: (value) => {{ chessPeerId = normalizeNodeId(value || ""); }},
+          getHostColorPreference: () => chessHostColorPreference,
+          setHostColorPreference: (value) => {{
+            chessHostColorPreference = boardGameParseColor(value, "white");
+          }},
+          getPendingInvites: () => (Array.isArray(chessPendingInvites) ? chessPendingInvites : []),
+          setPendingInvites: (rows) => {{
+            chessPendingInvites = Array.isArray(rows) ? rows : [];
+          }},
+          getSelectedInviteKey: () => chessSelectedInviteKey,
+          setSelectedInviteKey: (value) => {{
+            chessSelectedInviteKey = String(value || "").trim().toLowerCase();
+          }},
+          getSeenKeys: () => chessSeenNetworkMessageKeys,
+          getSeenOrder: () => chessSeenNetworkMessageOrder,
+          setSeenOrder: (rows) => {{
+            chessSeenNetworkMessageOrder = Array.isArray(rows) ? rows : [];
+          }},
+          getLink: () => chessLink,
+          setLink: (value) => {{
+            chessLink = value && typeof value === "object" ? value : {{
+              mode: "local",
+              role: "",
+              session_id: "",
+              peer_id: "",
+              channel_index: 0,
+              local_color: "white",
+              remote_color: "black",
+              local_move_seq: 0,
+              remote_move_seq: 0,
+              status: "Local hotseat mode.",
+            }};
+          }},
+        }};
+      }}
+      return {{
+        id: "checkers",
+        protocolVersion: checkersProtocolVersion,
+        maxSeenMessages: checkersMaxSeenNetworkMessages,
+        defaultLocalColor: "black",
+        defaultRemoteColor: "white",
+        opponent: checkersOpponent,
+        playerLabel: checkersPlayerLabel,
+        getPeerId: () => checkersPeerId,
+        setPeerId: (value) => {{ checkersPeerId = normalizeNodeId(value || ""); }},
+        getHostColorPreference: () => checkersHostColorPreference,
+        setHostColorPreference: (value) => {{
+          checkersHostColorPreference = boardGameParseColor(value, "black");
+        }},
+        getPendingInvites: () => (Array.isArray(checkersPendingInvites) ? checkersPendingInvites : []),
+        setPendingInvites: (rows) => {{
+          checkersPendingInvites = Array.isArray(rows) ? rows : [];
+        }},
+        getSelectedInviteKey: () => checkersSelectedInviteKey,
+        setSelectedInviteKey: (value) => {{
+          checkersSelectedInviteKey = String(value || "").trim().toLowerCase();
+        }},
+        getSeenKeys: () => checkersSeenNetworkMessageKeys,
+        getSeenOrder: () => checkersSeenNetworkMessageOrder,
+        setSeenOrder: (rows) => {{
+          checkersSeenNetworkMessageOrder = Array.isArray(rows) ? rows : [];
+        }},
+        getLink: () => checkersLink,
+        setLink: (value) => {{
+          checkersLink = value && typeof value === "object" ? value : {{
+            mode: "local",
+            role: "",
+            session_id: "",
+            peer_id: "",
+            channel_index: 0,
+            local_color: "black",
+            remote_color: "white",
+            local_move_seq: 0,
+            remote_move_seq: 0,
+            status: "Local hotseat mode.",
+          }};
+        }},
+      }};
+    }}
+
+    function createBoardGameLinkState(gameId, overrides = {{}}) {{
+      const refs = boardGameRefs(gameId);
+      const mode = String(overrides.mode || "local").trim().toLowerCase();
+      const role = String(overrides.role || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(overrides.peer_id ?? overrides.peerId ?? "");
+      const channelIndexRaw = Number(overrides.channel_index ?? overrides.channelIndex);
+      const channelIndex = Number.isInteger(channelIndexRaw) && channelIndexRaw >= 0
+        ? channelIndexRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const localColor = boardGameParseColor(overrides.local_color, refs.defaultLocalColor);
+      const remoteColor = boardGameParseColor(overrides.remote_color, refs.defaultRemoteColor);
+      return {{
+        mode: mode === "connected" || mode === "pending_host" ? mode : "local",
+        role: role === "host" || role === "guest" ? role : "",
+        session_id: String(overrides.session_id ?? overrides.sessionId ?? "").trim().toLowerCase(),
+        peer_id: isCanonicalNodeId(peerId) ? peerId : "",
+        channel_index: channelIndex,
+        local_color: localColor,
+        remote_color: remoteColor,
+        local_move_seq: Math.max(0, Math.trunc(Number(overrides.local_move_seq) || 0)),
+        remote_move_seq: Math.max(0, Math.trunc(Number(overrides.remote_move_seq) || 0)),
+        status: String(overrides.status || "Local hotseat mode.").trim().slice(0, 220) || "Local hotseat mode.",
+      }};
+    }}
+
+    function boardGameUpdateLinkStatus(gameId, statusText) {{
+      const refs = boardGameRefs(gameId);
+      const current = refs.getLink();
+      if (!current || typeof current !== "object") {{
+        refs.setLink(createBoardGameLinkState(gameId));
+      }}
+      const next = refs.getLink();
+      next.status = String(statusText || "").trim().slice(0, 220) || "Local hotseat mode.";
+    }}
+
+    function boardGameResetNetworkLink(
+      gameId,
+      statusText = "Local hotseat mode.",
+      {{ keepPeer = true }} = {{}}
+    ) {{
+      const refs = boardGameRefs(gameId);
+      const current = refs.getLink();
+      const preservedPeer = keepPeer ? normalizeNodeId(current && current.peer_id) : "";
+      refs.setLink(createBoardGameLinkState(gameId, {{
+        status: statusText,
+        peer_id: preservedPeer,
+      }}));
+      if (isCanonicalNodeId(preservedPeer)) {{
+        refs.setPeerId(preservedPeer);
+      }}
+    }}
+
+    function boardGameIsNetworkLinked(gameId) {{
+      const refs = boardGameRefs(gameId);
+      const link = refs.getLink();
+      return !!(
+        link
+        && link.mode === "connected"
+        && isCanonicalNodeId(link.peer_id)
+        && String(link.session_id || "").trim()
+      );
+    }}
+
+    function generateBoardGameSessionId(gameId) {{
+      const prefix = boardGameNormalizeId(gameId) === "chess" ? "ch" : "ck";
+      const now = Date.now().toString(36);
+      const rand = Math.random().toString(36).slice(2, 8);
+      return `${{prefix}}${{now}}${{rand}}`.slice(0, 18);
+    }}
+
+    function encodeBoardGameProtocolMessage(gameId, type, ...fields) {{
+      const refs = boardGameRefs(gameId);
+      const cleanType = String(type || "").trim().toLowerCase();
+      if (!cleanType) return "";
+      const encoded = [refs.protocolVersion, cleanType];
+      for (const field of fields) {{
+        encoded.push(
+          String(field == null ? "" : field)
+            .trim()
+            .replace(/\|/g, "")
+        );
+      }}
+      return encoded.join("|");
+    }}
+
+    function parseBoardGameProtocolMessage(gameId, text) {{
+      const refs = boardGameRefs(gameId);
+      const raw = String(text || "").trim();
+      if (!raw) return null;
+      if (!raw.startsWith(`${{refs.protocolVersion}}|`)) return null;
+      const parts = raw.split("|").map((part) => String(part || "").trim());
+      if (parts.length < 2) return null;
+      const type = String(parts[1] || "").trim().toLowerCase();
+      if (!type) return null;
+      return {{ raw, type, parts }};
+    }}
+
+    function rememberBoardGameNetworkMessage(gameId, key) {{
+      const refs = boardGameRefs(gameId);
+      const clean = String(key || "").trim();
+      if (!clean) return false;
+      const seenKeys = refs.getSeenKeys();
+      if (seenKeys.has(clean)) return false;
+      seenKeys.add(clean);
+      const order = refs.getSeenOrder();
+      order.push(clean);
+      if (order.length > refs.maxSeenMessages) {{
+        while (order.length > Math.floor(refs.maxSeenMessages * 0.72)) {{
+          const stale = order.shift();
+          if (stale) seenKeys.delete(stale);
+        }}
+      }}
+      refs.setSeenOrder(order);
+      return true;
+    }}
+
+    function boardGameInviteKey(fromId, sessionId) {{
+      return `${{normalizeNodeId(fromId)}}|${{String(sessionId || "").trim().toLowerCase()}}`;
+    }}
+
+    function registerBoardGamePendingInvite(
+      gameId,
+      {{
+        from_id = "",
+        session_id = "",
+        received_unix = Math.floor(Date.now() / 1000),
+        host_color = "black",
+        channel_index = 0,
+      }} = {{}}
+    ) {{
+      const refs = boardGameRefs(gameId);
+      const fromId = normalizeNodeId(from_id);
+      const sessionId = String(session_id || "").trim().toLowerCase();
+      if (!isCanonicalNodeId(fromId) || !sessionId) return;
+      const hostColor = boardGameParseColor(host_color, refs.defaultLocalColor);
+      const channelIndexRaw = Number(channel_index);
+      const channelIndex = Number.isInteger(channelIndexRaw) && channelIndexRaw >= 0 ? channelIndexRaw : 0;
+      const targetKey = boardGameInviteKey(fromId, sessionId);
+      const nextRows = [];
+      let replaced = false;
+      for (const row of refs.getPendingInvites()) {{
+        if (!row || typeof row !== "object") continue;
+        const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+        const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+        if (!isCanonicalNodeId(rowFrom) || !rowSession) continue;
+        const rowKey = boardGameInviteKey(rowFrom, rowSession);
+        if (rowKey === targetKey) {{
+          nextRows.push({{
+            from_id: fromId,
+            session_id: sessionId,
+            received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+            host_color: hostColor,
+            channel_index: channelIndex,
+          }});
+          replaced = true;
+          continue;
+        }}
+        nextRows.push({{
+          from_id: rowFrom,
+          session_id: rowSession,
+          received_unix: Math.max(0, Math.trunc(Number(row.received_unix ?? row.receivedUnix) || 0)),
+          host_color: boardGameParseColor(row.host_color ?? row.hostColor, refs.defaultLocalColor),
+          channel_index: (Number.isInteger(Number(row.channel_index ?? row.channelIndex)) && Number(row.channel_index ?? row.channelIndex) >= 0)
+            ? Number(row.channel_index ?? row.channelIndex)
+            : 0,
+        }});
+      }}
+      if (!replaced) {{
+        nextRows.push({{
+          from_id: fromId,
+          session_id: sessionId,
+          received_unix: Math.max(0, Math.trunc(Number(received_unix) || 0)),
+          host_color: hostColor,
+          channel_index: channelIndex,
+        }});
+      }}
+      const nowUnix = Math.floor(Date.now() / 1000);
+      nextRows.sort((a, b) => (Number(b.received_unix) || 0) - (Number(a.received_unix) || 0));
+      const filtered = nextRows
+        .filter((row) => (nowUnix - (Number(row.received_unix) || 0)) <= reversiInviteStaleSeconds)
+        .slice(0, reversiInviteMaxRows);
+      refs.setPendingInvites(filtered);
+      if (!isCanonicalNodeId(refs.getPeerId())) {{
+        refs.setPeerId(fromId);
+      }}
+      if (!refs.getSelectedInviteKey()) {{
+        refs.setSelectedInviteKey(targetKey);
+      }}
+    }}
+
+    function removeBoardGamePendingInvite(gameId, fromId, sessionId = "") {{
+      const refs = boardGameRefs(gameId);
+      const cleanFrom = normalizeNodeId(fromId);
+      const cleanSession = String(sessionId || "").trim().toLowerCase();
+      const next = refs.getPendingInvites().filter((row) => {{
+        if (!row || typeof row !== "object") return false;
+        const rowFrom = normalizeNodeId(row.from_id || row.fromId || "");
+        const rowSession = String(row.session_id || row.sessionId || "").trim().toLowerCase();
+        if (!isCanonicalNodeId(rowFrom) || !rowSession) return false;
+        if (rowFrom !== cleanFrom) return true;
+        if (!cleanSession) return false;
+        return rowSession !== cleanSession;
+      }});
+      refs.setPendingInvites(next);
+      if (refs.getSelectedInviteKey() && !next.some((row) => boardGameInviteKey(row && row.from_id, row && row.session_id) === refs.getSelectedInviteKey())) {{
+        refs.setSelectedInviteKey("");
+      }}
+    }}
+
+    function removeAllBoardGamePendingInvitesFromPeer(gameId, fromId) {{
+      const cleanFrom = normalizeNodeId(fromId);
+      if (!isCanonicalNodeId(cleanFrom)) return;
+      removeBoardGamePendingInvite(gameId, cleanFrom, "");
+    }}
+
+    function boardGamePendingInviteChoice(gameId) {{
+      const refs = boardGameRefs(gameId);
+      const rows = refs.getPendingInvites();
+      if (rows.length < 1) return null;
+      const selectedInvite = String(refs.getSelectedInviteKey() || "").trim().toLowerCase();
+      if (selectedInvite) {{
+        const exact = rows.find((row) => boardGameInviteKey(row && row.from_id, row && row.session_id) === selectedInvite);
+        if (exact) return exact;
+      }}
+      const selectedPeer = normalizeNodeId(refs.getPeerId());
+      if (isCanonicalNodeId(selectedPeer)) {{
+        const preferred = rows.find((row) => normalizeNodeId(row && row.from_id) === selectedPeer);
+        if (preferred) return preferred;
+      }}
+      return rows[0] || null;
+    }}
+
+    async function sendBoardGameProtocolMessage(
+      gameId,
+      type,
+      fields = [],
+      {{
+        destination_id = "",
+        channel_index = null,
+      }} = {{}}
+    ) {{
+      const destinationId = normalizeNodeId(destination_id);
+      const label = boardGameLabel(gameId);
+      if (!isCanonicalNodeId(destinationId)) {{
+        boardGameUpdateLinkStatus(gameId, "Pick a valid peer node ID first.");
+        return false;
+      }}
+      const encoded = encodeBoardGameProtocolMessage(gameId, type, ...(Array.isArray(fields) ? fields : []));
+      if (!encoded) {{
+        boardGameUpdateLinkStatus(gameId, `Could not encode ${{label}} network payload.`);
+        return false;
+      }}
+      const channelIndex = normalizeMeshChannelIndex(
+        channel_index == null ? meshChannelEffectiveSendIndexForApp("games") : channel_index
+      );
+      const payload = await sendChatPayload(
+        {{
+          text: encoded,
+          destination: destinationId,
+          channel_index: channelIndex,
+        }},
+        null
+      );
+      if (!payload || payload.ok !== true) {{
+        boardGameUpdateLinkStatus(gameId, `Failed to send ${{label}} network payload.`);
+        return false;
+      }}
+      return true;
+    }}
+
+    function boardGameProtocolMessageKey(gameId, msg, parsed) {{
+      const messageId = messageIdOfChatPacket(msg);
+      if (messageId) return `${{boardGameNormalizeId(gameId)}}:msg:${{messageId}}`;
+      const fromId = normalizeNodeId(msg && msg.from || "");
+      const toId = normalizeNodeId(msg && (msg.to || msg.destination) || "");
+      return [
+        boardGameNormalizeId(gameId),
+        "raw",
+        fromId,
+        toId,
+        String(msg && msg.rx_time || ""),
+        String(parsed && parsed.raw || ""),
+      ].join("|");
+    }}
+
+    function boardGameLocalColor(gameId) {{
+      const refs = boardGameRefs(gameId);
+      return boardGameParseColor(refs.getLink() && refs.getLink().local_color, refs.defaultLocalColor);
+    }}
+
+    function boardGameRemoteColor(gameId) {{
+      const refs = boardGameRefs(gameId);
+      return boardGameParseColor(refs.getLink() && refs.getLink().remote_color, refs.defaultRemoteColor);
+    }}
+
+    function boardGameLocalParticipantName(gameId, state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : latestState;
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      if (isCanonicalNodeId(localNodeId)) {{
+        return reversiNodeLabel(localNodeId, safeState);
+      }}
+      return "Local Radio";
+    }}
+
+    function boardGameRemoteParticipantName(gameId, state = latestState) {{
+      const refs = boardGameRefs(gameId);
+      const safeState = state && typeof state === "object" ? state : latestState;
+      const peerNodeId = normalizeNodeId((refs.getLink() && refs.getLink().peer_id) || refs.getPeerId() || "");
+      if (isCanonicalNodeId(peerNodeId)) {{
+        return reversiNodeLabel(peerNodeId, safeState);
+      }}
+      return "Remote Player";
+    }}
+
+    function startBoardGameLocalState(gameId) {{
+      const id = boardGameNormalizeId(gameId);
+      if (id === "chess") {{
+        chessState = createNewChessState();
+        chessSelectedCell = null;
+        refreshChessGame();
+        return;
+      }}
+      checkersState = createNewCheckersState();
+      checkersSelectedCell = null;
+      refreshCheckersGame();
+    }}

@@ -1,0 +1,292 @@
+    function clampSplitPct(value) {{
+      return Math.max(42, Math.min(78, value));
+    }}
+
+    function clampTopSplitPx(value) {{
+      const max = Math.max(300, Math.min(760, window.innerHeight - 320));
+      return Math.max(220, Math.min(max, value));
+    }}
+
+    function clampMidSplitPx(value) {{
+      const max = Math.max(220, Math.min(620, window.innerHeight - 380));
+      return Math.max(160, Math.min(max, value));
+    }}
+
+    function clampLowSplitPx(value) {{
+      const max = Math.max(220, Math.min(560, window.innerHeight - 320));
+      return Math.max(160, Math.min(max, value));
+    }}
+
+    function clampNetworkNodesListPct(value) {{
+      return Math.max(28, Math.min(78, value));
+    }}
+
+    function clampSavedNodePanePct(value) {{
+      return Math.max(30, Math.min(70, value));
+    }}
+
+    function clampSavedNodeMainPct(value) {{
+      return Math.max(28, Math.min(78, value));
+    }}
+
+    function clampHistoryActivityTopPct(value) {{
+      return Math.max(30, Math.min(76, value));
+    }}
+
+    function clampHistoryChatMainPct(value) {{
+      return Math.max(42, Math.min(86, value));
+    }}
+
+    function clampBotsMainPanePct(value) {{
+      return Math.max(30, Math.min(70, value));
+    }}
+
+    function clampBotsCommandListPct(value) {{
+      return Math.max(30, Math.min(70, value));
+    }}
+
+    function clampChatPanelWidthPx(value, containerWidth = window.innerWidth) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 250;
+      const min = 190;
+      const width = Number(containerWidth);
+      const safeWidth = Number.isFinite(width) && width > 0 ? width : window.innerWidth;
+      const max = Math.max(260, Math.min(900, safeWidth - 220));
+      return Math.max(min, Math.min(max, Math.round(numeric)));
+    }}
+
+    function clampMacrosPanelWidthPx(value, containerWidth = window.innerWidth) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 460;
+      const min = 360;
+      const rightMin = 280;
+      const splitterWidth = 12;
+      const bodyPadding = 12;
+      const width = Number(containerWidth);
+      const safeWidth = Number.isFinite(width) && width > 0 ? width : window.innerWidth;
+      const max = Math.max(min, Math.min(980, safeWidth - rightMin - splitterWidth - bodyPadding));
+      return Math.max(min, Math.min(max, Math.round(numeric)));
+    }}
+
+    function applySplitState() {{
+      const layout = document.querySelector(".layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--split-left-pct", `${{splitPct}}%`);
+      layout.style.setProperty("--split-top-px", `${{splitTopPx}}px`);
+      layout.style.setProperty("--split-mid-px", `${{splitMidPx}}px`);
+      layout.style.setProperty("--split-low-px", `${{splitLowPx}}px`);
+    }}
+
+    function applyNetworkNodesSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--network-nodes-list-pct", `${{networkNodesListPct}}%`);
+    }}
+
+    function applySavedNodeSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--saved-node-pane-pct", `${{savedNodePanePct}}%`);
+    }}
+
+    function applySavedNodeHistorySplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--saved-node-main-pct", `${{savedNodeMainPct}}%`);
+    }}
+
+    function applyHistoryActivitySplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--history-activity-top-pct", `${{historyActivityTopPct}}%`);
+    }}
+
+    function applyHistoryChatSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--history-chat-main-pct", `${{historyChatMainPct}}%`);
+    }}
+
+    function applyBotsMainSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--bots-pane-left-pct", `${{botsMainPanePct}}%`);
+    }}
+
+    function applyBotsCommandSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      layout.style.setProperty("--bots-command-list-pct", `${{botsCommandListPct}}%`);
+    }}
+
+    function applyChatPanelSplitState() {{
+      const shell = document.querySelector(".workspace-shell");
+      if (!(shell instanceof HTMLElement)) return;
+      const rect = shell.getBoundingClientRect();
+      chatPanelWidthPx = clampChatPanelWidthPx(chatPanelWidthPx, rect.width);
+      shell.style.setProperty("--chat-panel-width", `${{chatPanelWidthPx}}px`);
+    }}
+
+    function applyMacrosPanelSplitState() {{
+      const layout = document.getElementById("dashboard-layout");
+      if (!(layout instanceof HTMLElement)) return;
+      const macrosBody = layout.querySelector(".chat > .body");
+      const containerWidth = (macrosBody instanceof HTMLElement)
+        ? macrosBody.getBoundingClientRect().width
+        : window.innerWidth;
+      macrosPanelWidthPx = clampMacrosPanelWidthPx(macrosPanelWidthPx, containerWidth);
+      layout.style.setProperty("--macros-panel-width", `${{macrosPanelWidthPx}}px`);
+    }}
+
+    function loadSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(splitStorageKey) || "";
+        if (raw) {{
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {{
+            if (Number.isFinite(parsed.col_pct)) {{
+              splitPct = clampSplitPct(Number(parsed.col_pct));
+            }}
+            if (Number.isFinite(parsed.top_px)) {{
+              splitTopPx = clampTopSplitPx(Number(parsed.top_px));
+            }}
+            if (Number.isFinite(parsed.mid_px)) {{
+              splitMidPx = clampMidSplitPx(Number(parsed.mid_px));
+            }}
+            if (Number.isFinite(parsed.low_px)) {{
+              splitLowPx = clampLowSplitPx(Number(parsed.low_px));
+            }}
+          }} else if (Number.isFinite(parsed)) {{
+            splitPct = clampSplitPct(Number(parsed));
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applySplitState();
+    }}
+
+    function loadNetworkNodesSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(networkNodesSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            networkNodesListPct = clampNetworkNodesListPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyNetworkNodesSplitState();
+    }}
+
+    function loadSavedNodeSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(savedNodeSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            savedNodePanePct = clampSavedNodePanePct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applySavedNodeSplitState();
+    }}
+
+    function loadSavedNodeHistorySplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(savedNodeHistorySplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            savedNodeMainPct = clampSavedNodeMainPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applySavedNodeHistorySplitState();
+    }}
+
+    function loadHistoryActivitySplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(historyActivitySplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            historyActivityTopPct = clampHistoryActivityTopPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyHistoryActivitySplitState();
+    }}
+
+    function loadHistoryChatSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(historyChatSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            historyChatMainPct = clampHistoryChatMainPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyHistoryChatSplitState();
+    }}
+
+    function loadBotsMainSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(botsMainSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            botsMainPanePct = clampBotsMainPanePct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyBotsMainSplitState();
+    }}
+
+    function loadBotsCommandSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(botsCommandSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            botsCommandListPct = clampBotsCommandListPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyBotsCommandSplitState();
+    }}
+
+    function loadChatPanelSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(chatPanelSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            chatPanelWidthPx = clampChatPanelWidthPx(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyChatPanelSplitState();
+    }}
+
+    function loadMacrosPanelSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(macrosPanelSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            macrosPanelWidthPx = clampMacrosPanelWidthPx(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyMacrosPanelSplitState();
+    }}

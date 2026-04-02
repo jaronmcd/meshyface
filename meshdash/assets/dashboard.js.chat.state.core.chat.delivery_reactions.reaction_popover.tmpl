@@ -1,0 +1,238 @@
+    function reactionPopoverElement() {{
+      const popover = document.getElementById("chat-reaction-popover");
+      if (!(popover instanceof HTMLElement)) return null;
+      if (popover.parentElement !== document.body) {{
+        document.body.appendChild(popover);
+      }}
+      return popover;
+    }}
+
+    function clearReactionPopoverHideTimer() {{
+      if (chatReactionPopoverHideTimer !== null) {{
+        clearTimeout(chatReactionPopoverHideTimer);
+        chatReactionPopoverHideTimer = null;
+      }}
+    }}
+
+    function scheduleReactionPopoverHide(delayMs = 120) {{
+      clearReactionPopoverHideTimer();
+      chatReactionPopoverHideTimer = window.setTimeout(() => {{
+        closeReactionPopover(true);
+      }}, Math.max(0, Number(delayMs) || 0));
+    }}
+
+    function normalizeReactionName(value) {{
+      const clean = String(value == null ? "" : value).replace(/\\s+/g, " ").trim();
+      if (!clean) return "Unknown node";
+      return clean;
+    }}
+
+    function reactionNameInitials(value) {{
+      const clean = normalizeReactionName(value).replace(/[^A-Za-z0-9 ]+/g, " ").trim();
+      if (!clean) return "?";
+      const parts = clean.split(/\\s+/).filter(Boolean);
+      if (parts.length <= 1) {{
+        return parts[0].slice(0, 2).toUpperCase();
+      }}
+      return `${{parts[0][0] || ""}}${{parts[1][0] || ""}}`.toUpperCase() || "?";
+    }}
+
+    function parseReactionChipNames(chip) {{
+      if (!(chip instanceof HTMLButtonElement)) return [];
+      const raw = String(chip.dataset.reactors || "").trim();
+      if (!raw) return [];
+      try {{
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => normalizeReactionName(item))
+          .filter((name, idx, arr) => !!name && arr.indexOf(name) === idx);
+      }} catch (_err) {{
+        return [];
+      }}
+    }}
+
+    function parseReactionSummaryGroups(button) {{
+      if (!(button instanceof HTMLButtonElement)) return [];
+      const raw = String(button.dataset.reactionSummary || "").trim();
+      if (!raw) return [];
+      try {{
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => {{
+            if (!item || typeof item !== "object") return null;
+            const emoji = String(item.emoji || "").trim();
+            const count = Number(item.count || 0);
+            const names = Array.isArray(item.names)
+              ? item.names
+                  .map((name) => normalizeReactionName(name))
+                  .filter((name, idx, arr) => !!name && arr.indexOf(name) === idx)
+              : [];
+            if (!emoji || !Number.isFinite(count) || count <= 0) return null;
+            return {{
+              emoji,
+              count: Math.trunc(count),
+              names,
+            }};
+          }})
+          .filter((item) => !!item);
+      }} catch (_err) {{
+        return [];
+      }}
+    }}
+
+    function positionReactionPopover(anchor, popover) {{
+      if (!(anchor instanceof HTMLElement) || !(popover instanceof HTMLElement) || popover.hidden) {{
+        return;
+      }}
+      const anchorRect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const width = popover.offsetWidth || 240;
+      const height = popover.offsetHeight || 140;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
+
+      let left = anchorRect.left + (anchorRect.width / 2) - (width / 2);
+      if (left < margin) left = margin;
+      if ((left + width) > (viewportWidth - margin)) {{
+        left = Math.max(margin, viewportWidth - width - margin);
+      }}
+
+      let top = anchorRect.top - height - 10;
+      if (top < margin) {{
+        top = anchorRect.bottom + 10;
+      }}
+      if ((top + height) > (viewportHeight - margin)) {{
+        top = Math.max(margin, viewportHeight - height - margin);
+      }}
+
+      popover.style.left = `${{Math.round(left)}}px`;
+      popover.style.top = `${{Math.round(top)}}px`;
+    }}
+
+    function openReactionPopoverForChip(chip) {{
+      if (!(chip instanceof HTMLButtonElement)) return;
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+
+      const emoji = String(chip.dataset.emoji || "").trim() || "🙂";
+      const names = parseReactionChipNames(chip);
+      const rawCount = Number(chip.dataset.reactorCount || "");
+      const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.trunc(rawCount) : names.length;
+      const shownNames = names.slice(0, reactionPopoverMaxNames);
+      const listRows = shownNames.map((name) => (
+        `<div class="chat-reaction-popover-row">
+          <span class="chat-reaction-popover-avatar">${{escAttr(reactionNameInitials(name))}}</span>
+          <span class="chat-reaction-popover-name">${{escAttr(name)}}</span>
+        </div>`
+      )).join("");
+      const unknownCount = Math.max(0, count - shownNames.length);
+
+      popover.innerHTML = `
+        <div class="chat-reaction-popover-head">
+          <span><span class="chat-reaction-popover-emoji">${{escAttr(emoji)}}</span> Reactions</span>
+          <span class="chat-reaction-popover-count">${{count}}</span>
+        </div>
+        <div class="chat-reaction-popover-list">
+          ${{listRows || `<div class="chat-reaction-popover-row"><span class="chat-reaction-popover-name">No named reactors yet</span></div>`}}
+        </div>
+        ${{unknownCount > 0 ? `<div class="chat-reaction-popover-more">+${{unknownCount}} more</div>` : ""}}
+      `;
+      popover.hidden = false;
+      chatReactionPopoverAnchor = chip;
+      positionReactionPopover(chip, popover);
+    }}
+
+    function openReactionPopoverForSummary(button) {{
+      if (!(button instanceof HTMLButtonElement)) return;
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+
+      const groups = parseReactionSummaryGroups(button);
+      if (!groups.length) return;
+      const total = groups.reduce((sum, group) => sum + Math.max(0, Number(group.count || 0)), 0);
+      const listRows = groups.map((group) => {{
+        const shownNames = group.names.slice(0, 4);
+        const shownText = shownNames.length ? shownNames.join(", ") : "No named reactors yet";
+        const remaining = Math.max(0, group.count - shownNames.length);
+        const detail = remaining > 0 ? `${{shownText}} +${{remaining}}` : shownText;
+        return `<div class="chat-reaction-popover-row">
+          <span class="chat-reaction-popover-emoji">${{escAttr(group.emoji)}}</span>
+          <span class="chat-reaction-popover-name">${{escAttr(`${{group.count}} • ${{detail}}`)}}</span>
+        </div>`;
+      }}).join("");
+
+      popover.innerHTML = `
+        <div class="chat-reaction-popover-head">
+          <span>Reactions</span>
+          <span class="chat-reaction-popover-count">${{total}}</span>
+        </div>
+        <div class="chat-reaction-popover-list">
+          ${{listRows}}
+        </div>
+      `;
+      popover.hidden = false;
+      chatReactionPopoverAnchor = button;
+      positionReactionPopover(button, popover);
+    }}
+
+    function closeReactionPopover(force = false) {{
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement)) return;
+      if (!force && popover.hidden) return;
+      clearReactionPopoverHideTimer();
+      popover.hidden = true;
+      popover.innerHTML = "";
+      chatReactionPopoverAnchor = null;
+    }}
+
+    function bindReactionPopover() {{
+      const popover = reactionPopoverElement();
+      if (!(popover instanceof HTMLElement) || popover.dataset.bound === "1") return;
+      popover.dataset.bound = "1";
+
+      popover.addEventListener("pointerenter", () => {{
+        clearReactionPopoverHideTimer();
+      }});
+      popover.addEventListener("pointerleave", () => {{
+        scheduleReactionPopoverHide(120);
+      }});
+
+      document.addEventListener("pointerdown", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        if (target.closest(".chat-reaction-chip") || target.closest(".chat-reaction-summary") || target.closest("#chat-reaction-popover")) {{
+          return;
+        }}
+        closeReactionPopover(true);
+      }});
+
+      document.addEventListener("keydown", (ev) => {{
+        if (ev.key === "Escape") {{
+          closeReactionPopover(true);
+        }}
+      }});
+
+      window.addEventListener("resize", () => {{
+        const el = reactionPopoverElement();
+        if (!(el instanceof HTMLElement) || el.hidden) return;
+        if (!(chatReactionPopoverAnchor instanceof HTMLElement)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        positionReactionPopover(chatReactionPopoverAnchor, el);
+      }});
+      window.addEventListener("scroll", () => {{
+        const el = reactionPopoverElement();
+        if (!(el instanceof HTMLElement) || el.hidden) return;
+        if (!(chatReactionPopoverAnchor instanceof HTMLElement)) {{
+          closeReactionPopover(true);
+          return;
+        }}
+        positionReactionPopover(chatReactionPopoverAnchor, el);
+      }}, true);
+    }}

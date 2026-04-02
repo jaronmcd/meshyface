@@ -28,10 +28,48 @@ def test_initialize_history_schema_creates_core_tables_and_indexes():
         assert "node_capabilities" in table_names
         assert "node_metrics_1m" in table_names
         assert "link_metrics_1m" in table_names
+        assert "summary_metrics_1m" in table_names
+        assert "environment_metrics_1m" in table_names
 
         assert "idx_packets_created_unix" in index_names
         assert "idx_chat_created_unix" in index_names
         assert "idx_connections_last_seen_unix" in index_names
         assert "idx_node_metrics_1m_last_seen_unix" in index_names
+        assert "idx_summary_metrics_1m_last_seen_unix" in index_names
+        assert "idx_environment_metrics_1m_last_seen_unix" in index_names
+
+        summary_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info('summary_metrics_1m')").fetchall()
+        }
+        assert "saved_node_count" in summary_columns
+        assert "online_node_count" in summary_columns
+    finally:
+        conn.close()
+
+
+def test_initialize_history_schema_migrates_summary_metrics_compat_columns():
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE summary_metrics_1m (
+              bucket_unix INTEGER PRIMARY KEY,
+              node_count INTEGER NOT NULL DEFAULT 0,
+              nodes_with_position INTEGER NOT NULL DEFAULT 0,
+              live_packet_count INTEGER NOT NULL DEFAULT 0,
+              real_edge_count INTEGER NOT NULL DEFAULT 0,
+              last_seen_unix INTEGER NOT NULL
+            )
+            """
+        )
+        initialize_history_schema(conn)
+
+        summary_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info('summary_metrics_1m')").fetchall()
+        }
+        assert "saved_node_count" in summary_columns
+        assert "online_node_count" in summary_columns
     finally:
         conn.close()

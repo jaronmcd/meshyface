@@ -1,0 +1,291 @@
+    function renderPackets(source) {{
+      const context = resolveTrafficRenderContext(source);
+      const traffic = context.traffic;
+      const describeNode = buildHistoryNodeIdentityResolver(context.nodes);
+      const packets = Array.isArray(traffic && traffic.recent_packets)
+        ? traffic.recent_packets.slice().reverse().slice(0, 120)
+        : [];
+      const rows = packets.map((entry) => {{
+        const s = entry.summary || {{}};
+        const packet = (entry && entry.packet && typeof entry.packet === "object")
+          ? entry.packet
+          : {{}};
+        const fromIdentity = describeNode(s.from ?? packet.from ?? "");
+        const toIdentity = describeNode(s.to ?? packet.to ?? packet.destination ?? "");
+        const text = s.decoded_text == null ? "" : String(s.decoded_text);
+        return `<tr>
+          <td data-sort="${{escAttr(s.captured_at || "")}}">${{s.captured_at || "n/a"}}</td>
+          <td data-sort="${{escAttr(fromIdentity.sort)}}" title="${{escAttr(fromIdentity.title)}}">${{fromIdentity.html}}</td>
+          <td data-sort="${{escAttr(toIdentity.sort)}}" title="${{escAttr(toIdentity.title)}}">${{toIdentity.html}}</td>
+          <td data-sort="${{escAttr(s.portnum || "")}}">${{s.portnum || "n/a"}}</td>
+          <td data-sort="${{escAttr(s.rx_snr ?? "")}}">${{s.rx_snr ?? "n/a"}}</td>
+          <td data-sort="${{escAttr(s.rx_rssi ?? "")}}">${{s.rx_rssi ?? "n/a"}}</td>
+          <td data-sort="${{escAttr(text)}}">${{text}}</td>
+        </tr>`;
+      }});
+      fillTable("packets-table", rows);
+    }}
+
+    function explicitPacketChannelIndex(entry) {{
+      const summary = (entry && entry.summary && typeof entry.summary === "object")
+        ? entry.summary
+        : {{}};
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      const decoded = (packet.decoded && typeof packet.decoded === "object")
+        ? packet.decoded
+        : null;
+      const candidates = [
+        summary.channel_index,
+        summary.channelIndex,
+        summary.channel,
+        packet.channel_index,
+        packet.channelIndex,
+        packet.channel,
+        decoded && decoded.channel_index,
+        decoded && decoded.channelIndex,
+        decoded && decoded.channel,
+      ];
+      for (const candidate of candidates) {{
+        if (candidate == null || candidate === "") continue;
+        const num = Number(candidate);
+        if (Number.isInteger(num) && num >= 0) {{
+          return Math.trunc(num);
+        }}
+      }}
+      return null;
+    }}
+
+    function packetPortnumLabel(entry) {{
+      const summary = (entry && entry.summary && typeof entry.summary === "object")
+        ? entry.summary
+        : {{}};
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      const decoded = (packet.decoded && typeof packet.decoded === "object")
+        ? packet.decoded
+        : null;
+      const candidates = [
+        summary.portnum,
+        packet.portnum,
+        decoded && decoded.portnum,
+      ];
+      for (const candidate of candidates) {{
+        const text = String(candidate == null ? "" : candidate).trim();
+        if (text) return text;
+      }}
+      return "encrypted/unknown";
+    }}
+
+    function packetEndpointIds(entry) {{
+      const summary = (entry && entry.summary && typeof entry.summary === "object")
+        ? entry.summary
+        : {{}};
+      const packet = (entry && entry.packet && typeof entry.packet === "object")
+        ? entry.packet
+        : {{}};
+      return {{
+        fromId: normalizeNodeId(summary.from ?? packet.from ?? ""),
+        toId: normalizeNodeId(summary.to ?? packet.to ?? packet.destination ?? ""),
+      }};
+    }}
+
+    function isMeshChannelRoleDisabled(roleRaw) {{
+      const roleText = String(roleRaw == null ? "" : roleRaw).trim();
+      const upper = roleText.toUpperCase();
+      if (upper === "DISABLED" || upper === "CHANNEL_ROLE_DISABLED") return true;
+      const num = Number(roleText);
+      return Number.isInteger(num) && num === 0;
+    }}
+
+    function formatMeshChannelRole(roleRaw) {{
+      const roleText = String(roleRaw == null ? "" : roleRaw).trim();
+      if (!roleText) return "";
+      const upper = roleText.toUpperCase();
+      if (upper === "CHANNEL_ROLE_DISABLED" || upper === "DISABLED" || upper === "0") return "Disabled";
+      if (upper === "CHANNEL_ROLE_PRIMARY" || upper === "PRIMARY" || upper === "1") return "Primary";
+      if (upper === "CHANNEL_ROLE_SECONDARY" || upper === "SECONDARY" || upper === "2") return "Secondary";
+      if (upper.startsWith("CHANNEL_ROLE_")) {{
+        return upper.slice("CHANNEL_ROLE_".length)
+          .toLowerCase()
+          .replace(/(^|_)([a-z])/g, (_m, prefix, ch) => `${{prefix === "_" ? " " : ""}}${{ch.toUpperCase()}}`);
+      }}
+      return roleText
+        .toLowerCase()
+        .replace(/(^|_)([a-z])/g, (_m, prefix, ch) => `${{prefix === "_" ? " " : ""}}${{ch.toUpperCase()}}`);
+    }}
+
+    function formatChannelTopPorts(portCounts, maxPorts = 3) {{
+      const rows = Array.from((portCounts instanceof Map) ? portCounts.entries() : [])
+        .map(([port, count]) => {{
+          const label = String(port == null ? "" : port).trim();
+          const num = Math.max(0, Math.trunc(Number(count) || 0));
+          return {{ label: label || "unknown", count: num }};
+        }})
+        .filter((row) => row.label && row.count > 0)
+        .sort((a, b) => (b.count - a.count) || String(a.label).localeCompare(String(b.label)));
+      if (!rows.length) return "n/a";
+      const limit = Math.max(1, Math.trunc(Number(maxPorts) || 3));
+      return rows.slice(0, limit).map((row) => `${{row.label}} x${{row.count}}`).join(", ");
+    }}
+
+    function channelEvidenceMeta(kind) {{
+      switch (String(kind || "")) {{
+        case "observed-local":
+          return {{
+            label: "Observed + local",
+            className: "kind-observed-local",
+            title: "Seen in recent packets and configured on this radio.",
+          }};
+        case "observed-only":
+          return {{
+            label: "Observed only",
+            className: "kind-observed-only",
+            title: "Seen in recent packets, but not present in this radio's local channel config.",
+          }};
+        case "local-only":
+          return {{
+            label: "Local only",
+            className: "kind-local-only",
+            title: "Configured on this radio, but not seen in the recent packet buffer.",
+          }};
+        case "disabled":
+          return {{
+            label: "Disabled local",
+            className: "kind-disabled",
+            title: "Present in local config but disabled. Recent packets may predate that change.",
+          }};
+        default:
+          return {{
+            label: "Unknown",
+            className: "",
+            title: "Insufficient evidence.",
+          }};
+      }}
+    }}
+
+    function renderChannelsView(source) {{
+      const context = resolveTrafficRenderContext(source);
+      const traffic = context.traffic;
+      const safeSource = (source && typeof source === "object") ? source : {{}};
+      const localState = settingsLocalStateFrom(safeSource);
+      const localOptions = collectMeshChannelOptionsFromLocalState(localState, {{ includeFallback: false }});
+      const localByIndex = new Map(
+        localOptions.map((opt) => [Number(opt && opt.index), opt])
+      );
+      const packets = Array.isArray(traffic && traffic.recent_packets)
+        ? traffic.recent_packets
+        : [];
+      const observed = new Map();
+      let packetsWithChannel = 0;
+      let packetsWithoutChannel = 0;
+
+      for (const entry of packets) {{
+        const index = explicitPacketChannelIndex(entry);
+        if (!Number.isInteger(index) || index < 0) {{
+          packetsWithoutChannel += 1;
+          continue;
+        }}
+        packetsWithChannel += 1;
+        let bucket = observed.get(index);
+        if (!(bucket && typeof bucket === "object")) {{
+          bucket = {{
+            packetCount: 0,
+            everyoneCount: 0,
+            directCount: 0,
+            nodeIds: new Set(),
+            portCounts: new Map(),
+            lastSeenUnix: 0,
+            lastSeenText: "",
+          }};
+          observed.set(index, bucket);
+        }}
+        bucket.packetCount += 1;
+        const endpoints = packetEndpointIds(entry);
+        if (endpoints.toId === "^all") {{
+          bucket.everyoneCount += 1;
+        }} else {{
+          bucket.directCount += 1;
+        }}
+        if (isSelectableNodeId(endpoints.fromId)) bucket.nodeIds.add(endpoints.fromId);
+        if (isSelectableNodeId(endpoints.toId)) bucket.nodeIds.add(endpoints.toId);
+        const portLabel = packetPortnumLabel(entry);
+        bucket.portCounts.set(portLabel, (bucket.portCounts.get(portLabel) || 0) + 1);
+
+        const summary = (entry && entry.summary && typeof entry.summary === "object")
+          ? entry.summary
+          : {{}};
+        const entryUnix = latestUnixTimestamp(
+          summary.captured_at,
+          summary.rx_time,
+          summary.time,
+          entry && entry.captured_at,
+          entry && entry.rx_time,
+          entry && entry.time,
+        );
+        const entryText = String(
+          summary.captured_at
+          || summary.rx_time
+          || summary.time
+          || (entry && (entry.captured_at || entry.rx_time || entry.time))
+          || ""
+        ).trim();
+        if (Number.isFinite(entryUnix) && entryUnix > bucket.lastSeenUnix) {{
+          bucket.lastSeenUnix = Math.trunc(entryUnix);
+          bucket.lastSeenText = entryText;
+        }} else if (!bucket.lastSeenText && entryText) {{
+          bucket.lastSeenText = entryText;
+        }}
+      }}
+
+      const observedIndexes = Array.from(observed.keys()).sort((a, b) => a - b);
+      const highestSeenIndex = observedIndexes.length ? observedIndexes[observedIndexes.length - 1] : null;
+      const enabledLocalCount = localOptions.filter((opt) => !isMeshChannelRoleDisabled(opt && opt.role) && !opt.disabled).length;
+      const disabledLocalCount = localOptions.filter((opt) => isMeshChannelRoleDisabled(opt && opt.role) || !!opt.disabled).length;
+      const configuredUnseenCount = localOptions.filter((opt) => !isMeshChannelRoleDisabled(opt && opt.role) && !opt.disabled && !observed.has(Number(opt.index))).length;
+      const localConfigReady = !!(localState && Array.isArray(localState.channels));
+      const nowUnix = Math.floor(Date.now() / 1000);
+
+      try {{
+        renderChannelsTable(localState || {{}}, observed, nowUnix);
+      }} catch (_err) {{}}
+
+      const caption = document.getElementById("channels-caption");
+      if (caption instanceof HTMLElement) {{
+        const parts = [
+          `Observed ${{observedIndexes.length}} explicit message channel${{observedIndexes.length === 1 ? "" : "s"}} across ${{packets.length}} recent packet${{packets.length === 1 ? "" : "s"}}.`,
+          packetsWithoutChannel > 0
+            ? `${{packetsWithoutChannel}} packet${{packetsWithoutChannel === 1 ? "" : "s"}} lacked an explicit channel index, so the true count may be higher.`
+            : "All recent packets had an explicit channel index.",
+          localConfigReady
+            ? "Local names and roles come from this radio's channel config."
+            : "Local names and roles are still loading from this radio.",
+          "Message channels are encryption groups, not RF frequency slots.",
+        ];
+        caption.textContent = parts.join(" ");
+      }}
+
+      const overview = document.getElementById("channels-overview");
+      if (overview instanceof HTMLElement) {{
+        const items = [
+          ["Observed", observedIndexes.length],
+          ["Highest Seen", highestSeenIndex == null ? "n/a" : `Ch ${{highestSeenIndex}}`],
+          ["Attributed Packets", packetsWithChannel],
+          ["Unattributed", packetsWithoutChannel],
+          ["Local Active", enabledLocalCount],
+          ["Local Disabled", disabledLocalCount],
+          ["Configured Unseen", configuredUnseenCount],
+        ];
+        overview.innerHTML = items.map(([k, v]) => (
+          `<div class="overview-item"><div class="k">${{escAttr(String(k))}}</div><div class="v">${{escAttr(String(v))}}</div></div>`
+        )).join("");
+      }}
+
+      try {{
+        bindMeshChannelAppRoutingControls();
+        const appRoutingOptions = buildMeshChannelSendOptionsFromLocalState(localState);
+        renderMeshChannelAppRoutingControls(appRoutingOptions);
+      }} catch (_err) {{}}
+    }}

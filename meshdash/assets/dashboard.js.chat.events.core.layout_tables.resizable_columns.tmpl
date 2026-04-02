@@ -1,0 +1,326 @@
+    function defaultNodesTableColPcts() {{
+      return [0.13, 0.12, 0.20, 0.14, 0.06, 0.06, 0.07, 0.09, 0.10, 0.03];
+    }}
+
+    function defaultTableColPcts(colCount) {{
+      const count = Math.max(1, Math.trunc(Number(colCount) || 0));
+      const pct = 1 / count;
+      return Array.from({{ length: count }}, () => pct);
+    }}
+
+    const resizableTableConfigs = {{
+      "nodes-table": {{
+        colgroupId: "nodes-table-cols",
+        storageKey: nodesTableColWidthsStorageKey,
+        defaultColPcts: defaultNodesTableColPcts(),
+        minWidthPxByIndex: {{
+          0: 92,
+          1: 78,
+          2: 120,
+          3: 80,
+          4: 54,
+          5: 54,
+          6: 64,
+          7: 72,
+          8: 110,
+          9: 34,
+        }},
+      }},
+      "ports-table": {{
+        storageKey: portsTableColWidthsStorageKey,
+        defaultColPcts: [0.65, 0.35],
+        minWidthPxByIndex: {{
+          0: 90,
+          1: 70,
+        }},
+      }},
+      "links-table": {{
+        storageKey: linksTableColWidthsStorageKey,
+        defaultColPcts: [0.15, 0.15, 0.1, 0.1, 0.16, 0.34],
+        minWidthPxByIndex: {{
+          0: 90,
+          1: 90,
+          2: 66,
+          3: 66,
+          4: 88,
+          5: 130,
+        }},
+      }},
+      "history-chat-table": {{
+        storageKey: historyChatTableColWidthsStorageKey,
+        defaultColPcts: [0.22, 0.16, 0.16, 0.46],
+        minWidthPxByIndex: {{
+          0: 120,
+          1: 90,
+          2: 90,
+          3: 180,
+        }},
+      }},
+      "packets-table": {{
+        storageKey: packetsTableColWidthsStorageKey,
+        defaultColPcts: [0.16, 0.14, 0.14, 0.12, 0.08, 0.08, 0.28],
+        minWidthPxByIndex: {{
+          0: 120,
+          1: 90,
+          2: 90,
+          3: 86,
+          4: 62,
+          5: 62,
+          6: 160,
+        }},
+      }},
+      "encription-packets-table": {{
+        storageKey: encriptionPacketsTableColWidthsStorageKey,
+        defaultColPcts: [0.16, 0.12, 0.12, 0.08, 0.08, 0.08, 0.24, 0.12],
+        minWidthPxByIndex: {{
+          0: 120,
+          1: 86,
+          2: 86,
+          3: 62,
+          4: 62,
+          5: 62,
+          6: 150,
+          7: 110,
+        }},
+      }},
+      "encription-traffic-table": {{
+        storageKey: encriptionTrafficTableColWidthsStorageKey,
+        defaultColPcts: [0.18, 0.18, 0.14, 0.14, 0.36],
+        minWidthPxByIndex: {{
+          0: 90,
+          1: 90,
+          2: 80,
+          3: 86,
+          4: 130,
+        }},
+      }},
+    }};
+
+    function normalizeColPcts(pcts) {{
+      if (!Array.isArray(pcts) || pcts.length === 0) return null;
+      const nums = pcts.map((v) => Number(v));
+      if (nums.some((v) => !Number.isFinite(v) || v <= 0)) return null;
+      const total = nums.reduce((a, b) => a + b, 0);
+      if (!Number.isFinite(total) || total <= 0) return null;
+      return nums.map((v) => v / total);
+    }}
+
+    function tableHeaderRow(table) {{
+      if (!(table instanceof HTMLTableElement)) return null;
+      return (table.tHead && table.tHead.rows && table.tHead.rows[0])
+        ? table.tHead.rows[0]
+        : null;
+    }}
+
+    function ensureTableColgroup(tableId, config = null) {{
+      const table = document.getElementById(tableId);
+      if (!(table instanceof HTMLTableElement)) return null;
+      const headerRow = tableHeaderRow(table);
+      if (!(headerRow instanceof HTMLTableRowElement)) return null;
+      const colCount = headerRow.cells ? headerRow.cells.length : 0;
+      if (!Number.isFinite(colCount) || colCount <= 0) return null;
+
+      let colgroup = null;
+      const expectedId = String(config && config.colgroupId ? config.colgroupId : "").trim();
+      if (expectedId) {{
+        const candidate = document.getElementById(expectedId);
+        if (
+          candidate instanceof HTMLElement
+          && candidate.tagName === "COLGROUP"
+          && candidate.parentElement === table
+        ) {{
+          colgroup = candidate;
+        }}
+      }}
+      if (!(colgroup instanceof HTMLElement)) {{
+        const firstColgroup = table.querySelector("colgroup");
+        if (firstColgroup instanceof HTMLElement && firstColgroup.tagName === "COLGROUP") {{
+          colgroup = firstColgroup;
+        }}
+      }}
+      if (!(colgroup instanceof HTMLElement)) {{
+        colgroup = document.createElement("colgroup");
+        colgroup.dataset.resizableColgroup = "1";
+        if (expectedId) {{
+          colgroup.id = expectedId;
+        }}
+        if (table.tHead) {{
+          table.insertBefore(colgroup, table.tHead);
+        }} else {{
+          table.insertBefore(colgroup, table.firstChild);
+        }}
+      }}
+
+      while (colgroup.children.length < colCount) {{
+        colgroup.appendChild(document.createElement("col"));
+      }}
+      while (colgroup.children.length > colCount) {{
+        colgroup.removeChild(colgroup.lastElementChild);
+      }}
+
+      const cols = Array.from(colgroup.querySelectorAll("col"));
+      if (cols.length !== colCount) return null;
+      return {{ table, headerRow, cols }};
+    }}
+
+    function applyTableColPcts(tableId, pcts) {{
+      const config = resizableTableConfigs[tableId] || null;
+      const tableInfo = ensureTableColgroup(tableId, config);
+      if (!tableInfo) return;
+      const normalized = normalizeColPcts(pcts);
+      if (!normalized || normalized.length !== tableInfo.cols.length) return;
+      normalized.forEach((pct, idx) => {{
+        const col = tableInfo.cols[idx];
+        if (col instanceof HTMLElement) {{
+          col.style.width = `${{(pct * 100).toFixed(3)}}%`;
+        }}
+      }});
+    }}
+
+    function readTableColPctsFromDom(tableId) {{
+      const config = resizableTableConfigs[tableId] || null;
+      const tableInfo = ensureTableColgroup(tableId, config);
+      if (!tableInfo) return null;
+      const tableWidth = tableInfo.table.getBoundingClientRect().width;
+      if (!Number.isFinite(tableWidth) || tableWidth <= 2) return null;
+
+      const widths = Array.from(tableInfo.headerRow.cells).map((cell) => {{
+        const rect = cell.getBoundingClientRect();
+        return rect && Number.isFinite(rect.width) ? rect.width : null;
+      }});
+      if (widths.some((w) => !Number.isFinite(w) || w <= 0)) return null;
+      const pcts = widths.map((w) => w / tableWidth);
+      return normalizeColPcts(pcts);
+    }}
+
+    function persistTableColPcts(tableId, config, pctsOverride = null) {{
+      const pcts = pctsOverride || readTableColPctsFromDom(tableId);
+      if (!pcts) return;
+      try {{
+        window.localStorage.setItem(String(config.storageKey || ""), JSON.stringify(pcts));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadNodesTableColPcts() {{
+      for (const [tableId, config] of Object.entries(resizableTableConfigs)) {{
+        const tableInfo = ensureTableColgroup(tableId, config);
+        if (!tableInfo) continue;
+
+        let applied = false;
+        try {{
+          const raw = window.localStorage.getItem(String(config.storageKey || ""));
+          if (raw) {{
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length === tableInfo.cols.length) {{
+              applyTableColPcts(tableId, parsed);
+              applied = true;
+            }}
+          }}
+        }} catch (_err) {{
+        }}
+
+        if (!applied) {{
+          const defaults = normalizeColPcts(config.defaultColPcts);
+          if (defaults && defaults.length === tableInfo.cols.length) {{
+            applyTableColPcts(tableId, defaults);
+          }} else {{
+            applyTableColPcts(tableId, defaultTableColPcts(tableInfo.cols.length));
+          }}
+        }}
+      }}
+    }}
+
+    function bindTableColResizers(tableId, config) {{
+      const tableInfo = ensureTableColgroup(tableId, config);
+      if (!tableInfo) return;
+      const table = tableInfo.table;
+      if (table.dataset.colResizeBound === "1") return;
+      table.dataset.colResizeBound = "1";
+      table.classList.add("table-col-resizable");
+
+      const headerCells = Array.from(tableInfo.headerRow.cells);
+      if (headerCells.length < 2) return;
+      const minWidthPxByIndex = (config && typeof config.minWidthPxByIndex === "object")
+        ? config.minWidthPxByIndex
+        : {{}};
+
+      const handles = headerCells.map((cell, idx) => {{
+        if (!(cell instanceof HTMLElement)) return null;
+        let handle = cell.querySelector(".col-resizer");
+        if (!(handle instanceof HTMLElement)) {{
+          handle = document.createElement("div");
+          handle.className = "col-resizer";
+          cell.appendChild(handle);
+        }}
+        handle.dataset.col = String(idx);
+        handle.setAttribute("aria-hidden", "true");
+        return handle;
+      }}).filter((handle) => handle instanceof HTMLElement);
+
+      if (handles.length < 2) return;
+
+      handles.forEach((handle) => {{
+        if (!(handle instanceof HTMLElement)) return;
+        handle.addEventListener("mousedown", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+
+          const colIndexRaw = Number(handle.dataset.col);
+          const colIndex = Number.isFinite(colIndexRaw) ? Math.trunc(colIndexRaw) : -1;
+          const state = ensureTableColgroup(tableId, config);
+          if (!state || colIndex < 0 || colIndex >= state.cols.length) return;
+
+          const leftIndex = colIndex === state.cols.length - 1 ? colIndex - 1 : colIndex;
+          const rightIndex = colIndex === state.cols.length - 1 ? colIndex : colIndex + 1;
+          if (leftIndex < 0 || rightIndex >= state.cols.length) return;
+
+          const leftCol = state.cols[leftIndex];
+          const rightCol = state.cols[rightIndex];
+          const activeHeader = tableHeaderRow(state.table);
+          if (!activeHeader || !activeHeader.cells || activeHeader.cells.length <= rightIndex) return;
+
+          const startLeft = activeHeader.cells[leftIndex].getBoundingClientRect().width;
+          const startRight = activeHeader.cells[rightIndex].getBoundingClientRect().width;
+          const total = startLeft + startRight;
+          if (!Number.isFinite(total) || total <= 10) return;
+
+          const startX = ev.clientX;
+          const minLeft = Number(minWidthPxByIndex[leftIndex]) || 48;
+          const minRight = Number(minWidthPxByIndex[rightIndex]) || 48;
+
+          const onMove = (moveEv) => {{
+            moveEv.preventDefault();
+            const dx = moveEv.clientX - startX;
+            let newLeft = startLeft + dx;
+            newLeft = Math.max(minLeft, Math.min(total - minRight, newLeft));
+            const newRight = total - newLeft;
+            leftCol.style.width = `${{newLeft}}px`;
+            rightCol.style.width = `${{newRight}}px`;
+          }};
+
+          const onUp = () => {{
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            const pcts = readTableColPctsFromDom(tableId);
+            if (!pcts) return;
+            applyTableColPcts(tableId, pcts);
+            persistTableColPcts(tableId, config, pcts);
+          }};
+
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }});
+
+        handle.addEventListener("click", (ev) => {{
+          ev.stopPropagation();
+        }});
+      }});
+    }}
+
+    function bindNodesTableColResizers() {{
+      for (const [tableId, config] of Object.entries(resizableTableConfigs)) {{
+        bindTableColResizers(tableId, config);
+      }}
+    }}
+

@@ -1,0 +1,136 @@
+    function sanitizeChatEmojiCatalogGroups(rawGroups) {
+      const groups = [];
+      const seenGroupIds = new Set();
+      for (const rawGroup of (Array.isArray(rawGroups) ? rawGroups : [])) {
+        if (!rawGroup || typeof rawGroup !== "object") continue;
+        const id = String(rawGroup.id || "").trim().toLowerCase();
+        if (!id || seenGroupIds.has(id)) continue;
+        seenGroupIds.add(id);
+        const label = String(rawGroup.label || id).trim() || id;
+        const emojis = [];
+        const seenEmojis = new Set();
+        for (const rawEmoji of (Array.isArray(rawGroup.emojis) ? rawGroup.emojis : [])) {
+          const emoji = String(rawEmoji || "").trim();
+          if (!emoji || seenEmojis.has(emoji)) continue;
+          seenEmojis.add(emoji);
+          emojis.push(emoji);
+        }
+        if (!emojis.length) continue;
+        groups.push({ id, label, emojis });
+      }
+      return groups;
+    }
+
+    function sanitizeChatEmojiCodepointKeywordMap(rawMap) {
+      const out = {};
+      if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) return out;
+      for (const [rawKey, rawValue] of Object.entries(rawMap)) {
+        const key = String(rawKey || "").trim().toLowerCase();
+        const keywords = String(rawValue || "").trim();
+        if (!key || !keywords) continue;
+        out[key] = keywords;
+      }
+      return out;
+    }
+
+    function rebuildChatEmojiSearchIndex() {
+      chatEmojiGroupsById = new Map(chatEmojiGroups.map((group) => [group.id, group]));
+      chatEmojiAllChoices = chatEmojiGroups.flatMap((group) => group.emojis);
+      chatEmojiTotalChoices = chatEmojiAllChoices.length;
+      chatEmojiChoiceSet = new Set(chatEmojiAllChoices);
+      chatEmojiDefaultGroup = chatEmojiGroupsById.has("smileys-emotion") ? "smileys-emotion" : "all";
+
+      chatEmojiNodesByGroup.clear();
+      chatEmojiSearchCache.clear();
+      chatEmojiSearchMetaByEmoji.clear();
+      chatEmojiSearchTokensByEmoji.clear();
+      chatEmojiChoiceOrder.clear();
+      for (let i = 0; i < chatEmojiAllChoices.length; i += 1) {
+        const emoji = chatEmojiAllChoices[i];
+        if (!chatEmojiChoiceOrder.has(emoji)) {
+          chatEmojiChoiceOrder.set(emoji, i);
+        }
+      }
+
+      for (const group of chatEmojiGroups) {
+        const groupTokens = `${String(group.id || "").trim().toLowerCase()} ${String(group.label || "").trim().toLowerCase()}`;
+        const groupAliasTokens = String(chatEmojiGroupKeywordAliases[group.id] || "");
+        const groupSearchText = `${groupTokens} ${groupAliasTokens}`;
+        const groupSearchParts = tokenizeChatEmojiSearchQuery(groupSearchText);
+        for (const emoji of (group.emojis || [])) {
+          const aliases = String(chatEmojiSearchAliases[emoji] || "");
+          const aliasParts = tokenizeChatEmojiSearchQuery(aliases);
+          const codepointAliasParts = collectChatEmojiCodepointAliasParts(emoji);
+          const existing = chatEmojiSearchTokensByEmoji.get(emoji) || [];
+          const nextSet = new Set(existing);
+          for (const token of groupSearchParts) {
+            nextSet.add(token);
+          }
+          for (const token of aliasParts) {
+            nextSet.add(token);
+          }
+          for (const token of codepointAliasParts) {
+            nextSet.add(token);
+          }
+          const nextTokens = Array.from(nextSet);
+          chatEmojiSearchTokensByEmoji.set(emoji, nextTokens);
+          chatEmojiSearchMetaByEmoji.set(emoji, nextTokens.join(" "));
+        }
+      }
+    }
+
+    function applyChatEmojiCatalogData(payload) {
+      const safePayload = (payload && typeof payload === "object") ? payload : {};
+      chatEmojiDataVersion = String(safePayload.version || chatEmojiCatalogFallback.version || "unknown");
+      chatEmojiDataDate = String(safePayload.date || chatEmojiCatalogFallback.date || "");
+      chatEmojiGroups = sanitizeChatEmojiCatalogGroups(safePayload.groups);
+      chatEmojiCodepointKeywordMap = sanitizeChatEmojiCodepointKeywordMap(
+        safePayload.codepoint_keyword_map || safePayload.codepointKeywordMap
+      );
+      rebuildChatEmojiSearchIndex();
+      chatEmojiCatalogLoaded = chatEmojiTotalChoices > 0;
+    }
+
+    async function fetchChatEmojiCatalogPayload() {
+      const response = await fetch(chatEmojiCatalogEndpoint, { cache: "default" });
+      if (!response.ok) {
+        throw new Error(`emoji catalog http ${response.status}`);
+      }
+      const payload = await response.json();
+      if (!payload || typeof payload !== "object") {
+        throw new Error("emoji catalog payload invalid");
+      }
+      return payload;
+    }
+
+    async function ensureChatEmojiCatalogLoaded(logErrors = true) {
+      if (chatEmojiCatalogLoaded) return true;
+      if (chatEmojiCatalogLoadPromise) {
+        return chatEmojiCatalogLoadPromise;
+      }
+      chatEmojiCatalogLoadPromise = (async () => {
+        try {
+          const payload = await fetchChatEmojiCatalogPayload();
+          applyChatEmojiCatalogData(payload);
+          if (!chatEmojiCatalogLoaded) {
+            throw new Error("emoji catalog missing groups");
+          }
+          chatEmojiCatalogLoadError = "";
+          loadChatEmojiPickerState();
+          loadChatEmojiUsage();
+          return true;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err || "unknown error");
+          chatEmojiCatalogLoadError = msg;
+          if (logErrors) {
+            appendConsoleLine(`emoji-catalog|${Date.now()}|${msg}`, `[emoji catalog] load failed: ${msg}`);
+          }
+          return false;
+        } finally {
+          chatEmojiCatalogLoadPromise = null;
+        }
+      })();
+      return chatEmojiCatalogLoadPromise;
+    }
+
+    applyChatEmojiCatalogData(chatEmojiCatalogFallback);

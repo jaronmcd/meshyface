@@ -1,0 +1,437 @@
+    function setText(id, value) {{
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = value == null ? "n/a" : String(value);
+    }}
+
+    const metricTickerSeriesStorageKey = "meshDashboardMetricTickerSeriesV1";
+    const metricTickerSeriesPersistMaxAgeMs = 24 * 60 * 60 * 1000;
+    const metricTickerSeriesPersistMaxPointsPerMetric = 2400;
+    const metricTickerSeriesPersistThrottleMs = Math.max(4000, refreshMs * 3);
+    let metricTickerSeriesPersistTimer = null;
+    let metricTickerSeriesLastPersistMs = 0;
+
+    function formatTickerNumber(value, digits = 0) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return "n/a";
+      const fixedDigits = Math.max(0, Math.min(2, Math.floor(Number(digits) || 0)));
+      return fixedDigits > 0 ? numeric.toFixed(fixedDigits) : `${{Math.round(numeric)}}`;
+    }}
+
+    function normalizeSmoothingWindow(rawWindow, pointCount = Number.MAX_SAFE_INTEGER) {{
+      const points = Math.max(1, Math.trunc(Number(pointCount) || 1));
+      const candidate = Math.trunc(Number(rawWindow) || 1);
+      if (!Number.isFinite(candidate) || candidate <= 1 || points <= 2) return 1;
+      let windowSize = Math.max(1, Math.min(points, candidate));
+      if ((windowSize % 2) === 0) {{
+        windowSize = Math.max(1, windowSize - 1);
+      }}
+      return windowSize <= 1 ? 1 : windowSize;
+    }}
+
+    function centeredMovingAverage(values, rawWindow) {{
+      const source = Array.isArray(values) ? values : [];
+      const windowSize = normalizeSmoothingWindow(rawWindow, source.length);
+      if (windowSize <= 1 || source.length <= 2) return source.slice();
+      const half = Math.floor(windowSize / 2);
+      const smoothed = new Array(source.length);
+      for (let idx = 0; idx < source.length; idx += 1) {{
+        const start = Math.max(0, idx - half);
+        const end = Math.min(source.length - 1, idx + half);
+        let total = 0;
+        let count = 0;
+        for (let sample = start; sample <= end; sample += 1) {{
+          const value = Number(source[sample]);
+          if (!Number.isFinite(value)) continue;
+          total += value;
+          count += 1;
+        }}
+        smoothed[idx] = count > 0 ? (total / count) : Number(source[idx] || 0);
+      }}
+      return smoothed;
+    }}
+
+    function smoothSeriesPointsWithBreaks(points, rawWindow) {{
+      const source = Array.isArray(points) ? points : [];
+      const baseWindow = normalizeSmoothingWindow(rawWindow, source.length);
+      if (baseWindow <= 1 || source.length <= 2) {{
+        return source.map((point) => ({{ ...point }}));
+      }}
+      const output = source.map((point) => ({{ ...point }}));
+      let segmentStart = 0;
+      for (let idx = 1; idx <= source.length; idx += 1) {{
+        const startsNewSegment = idx < source.length && !!source[idx].breakBefore;
+        if (idx !== source.length && !startsNewSegment) continue;
+        const segmentLength = idx - segmentStart;
+        const segmentWindow = normalizeSmoothingWindow(baseWindow, segmentLength);
+        if (segmentLength >= 3 && segmentWindow > 1) {{
+          const segmentValues = source
+            .slice(segmentStart, idx)
+            .map((point) => Number(point && point.value));
+          const segmentSmoothed = centeredMovingAverage(segmentValues, segmentWindow);
+          for (let segIdx = 0; segIdx < segmentSmoothed.length; segIdx += 1) {{
+            output[segmentStart + segIdx].value = Number(segmentSmoothed[segIdx]);
+          }}
+        }}
+        segmentStart = idx;
+      }}
+      return output;
+    }}
+
+    function buildSmoothSvgPath(points, rawTension = 0.18) {{
+      const source = Array.isArray(points) ? points : [];
+      if (!source.length) return "";
+      const tension = Math.max(0, Math.min(0.5, Number(rawTension) || 0.18));
+      const linearPath = (segment) => segment.map((pt, idx) => (
+        `${{idx === 0 ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
+      )).join(" ");
+      let path = "";
+      const appendSegment = (segmentPoints) => {{
+        const segment = Array.isArray(segmentPoints)
+          ? segmentPoints.filter((pt) => Number.isFinite(Number(pt && pt.x)) && Number.isFinite(Number(pt && pt.y)))
+          : [];
+        if (!segment.length) return;
+        if (segment.length < 3) {{
+          path += `${{path ? " " : ""}}${{linearPath(segment)}}`;
+          return;
+        }}
+        path += `${{path ? " " : ""}}M ${{segment[0].x.toFixed(2)}} ${{segment[0].y.toFixed(2)}}`;
+        for (let i = 0; i < segment.length - 1; i += 1) {{
+          const p0 = i > 0 ? segment[i - 1] : segment[i];
+          const p1 = segment[i];
+          const p2 = segment[i + 1];
+          const p3 = (i + 2 < segment.length) ? segment[i + 2] : p2;
+          const cp1x = p1.x + ((p2.x - p0.x) * tension);
+          const cp1y = p1.y + ((p2.y - p0.y) * tension);
+          const cp2x = p2.x - ((p3.x - p1.x) * tension);
+          const cp2y = p2.y - ((p3.y - p1.y) * tension);
+          path += ` C ${{cp1x.toFixed(2)}} ${{cp1y.toFixed(2)}} ${{cp2x.toFixed(2)}} ${{cp2y.toFixed(2)}} ${{p2.x.toFixed(2)}} ${{p2.y.toFixed(2)}}`;
+        }}
+      }};
+      let segmentStart = 0;
+      for (let idx = 1; idx <= source.length; idx += 1) {{
+        const startsNewSegment = idx < source.length && !!source[idx].breakBefore;
+        if (idx !== source.length && !startsNewSegment) continue;
+        appendSegment(source.slice(segmentStart, idx));
+        segmentStart = idx;
+      }}
+      return path.trim();
+    }}
+
+    function aggregatePointsByXPixels(points, rawBucketWidthPx = 1.35) {{
+      const source = Array.isArray(points) ? points : [];
+      if (source.length <= 3) {{
+        return source.map((point) => ({{ ...point }}));
+      }}
+      const bucketWidthPx = Math.max(0.75, Number(rawBucketWidthPx) || 1.35);
+      const compressSegment = (segmentPoints) => {{
+        const segment = Array.isArray(segmentPoints)
+          ? segmentPoints.filter((pt) => Number.isFinite(Number(pt && pt.x)) && Number.isFinite(Number(pt && pt.y)))
+          : [];
+        if (segment.length <= 3) {{
+          return segment.map((pt) => ({{ ...pt, breakBefore: false }}));
+        }}
+        const first = segment[0];
+        const last = segment[segment.length - 1];
+        const startX = Number(first.x);
+        const buckets = new Map();
+        for (let i = 1; i < segment.length - 1; i += 1) {{
+          const x = Number(segment[i].x);
+          const y = Number(segment[i].y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+          const key = Math.floor((x - startX) / bucketWidthPx);
+          const existing = buckets.get(key);
+          if (existing) {{
+            existing.sumX += x;
+            existing.sumY += y;
+            existing.count += 1;
+          }} else {{
+            buckets.set(key, {{ sumX: x, sumY: y, count: 1 }});
+          }}
+        }}
+        const mids = Array.from(buckets.entries())
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+          .map(([, bucket]) => ({{
+            x: bucket.sumX / bucket.count,
+            y: bucket.sumY / bucket.count,
+            breakBefore: false,
+          }}));
+        return [
+          {{ x: Number(first.x), y: Number(first.y), breakBefore: false }},
+          ...mids,
+          {{ x: Number(last.x), y: Number(last.y), breakBefore: false }},
+        ];
+      }};
+
+      const output = [];
+      let segmentStart = 0;
+      for (let idx = 1; idx <= source.length; idx += 1) {{
+        const startsNewSegment = idx < source.length && !!source[idx].breakBefore;
+        if (idx !== source.length && !startsNewSegment) continue;
+        const segment = compressSegment(source.slice(segmentStart, idx));
+        for (let pointIndex = 0; pointIndex < segment.length; pointIndex += 1) {{
+          const point = segment[pointIndex];
+          output.push({{
+            ...point,
+            breakBefore: pointIndex === 0 && output.length > 0,
+          }});
+        }}
+        segmentStart = idx;
+      }}
+      return output;
+    }}
+
+    function derivePacketsPerMinuteFromTotals(points) {{
+      const series = Array.isArray(points) ? points : [];
+      if (series.length < 2) return 0;
+      const latestPoint = series[series.length - 1] || null;
+      const previousPoint = series[series.length - 2] || null;
+      const latestTotal = Number(latestPoint && latestPoint.value);
+      const previousTotal = Number(previousPoint && previousPoint.value);
+      if (!Number.isFinite(latestTotal) || !Number.isFinite(previousTotal)) {{
+        return 0;
+      }}
+      const latestMs = Number(latestPoint && latestPoint.ms);
+      const previousMs = Number(previousPoint && previousPoint.ms);
+      const spanMinutes = (Number.isFinite(latestMs) && Number.isFinite(previousMs) && latestMs > previousMs)
+        ? Math.max(1 / 60, (latestMs - previousMs) / 60000)
+        : 1;
+      const delta = latestTotal - previousTotal;
+      if (!Number.isFinite(delta) || delta <= 0) return 0;
+      return delta / spanMinutes;
+    }}
+
+    function derivePacketsPerMinuteSeriesFromTotals(points) {{
+      const series = Array.isArray(points) ? points : [];
+      if (series.length < 2) return [];
+      const output = [];
+      for (let i = 1; i < series.length; i += 1) {{
+        const previousPoint = series[i - 1] || null;
+        const currentPoint = series[i] || null;
+        const previousTotal = Number(previousPoint && previousPoint.value);
+        const currentTotal = Number(currentPoint && currentPoint.value);
+        if (!Number.isFinite(previousTotal) || !Number.isFinite(currentTotal)) continue;
+        const previousMs = Number(previousPoint && previousPoint.ms);
+        const currentMs = Number(currentPoint && currentPoint.ms);
+        const spanMinutes = (Number.isFinite(previousMs) && Number.isFinite(currentMs) && currentMs > previousMs)
+          ? Math.max(1 / 60, (currentMs - previousMs) / 60000)
+          : 1;
+        const delta = currentTotal - previousTotal;
+        const rate = Number.isFinite(delta) && delta > 0 ? (delta / spanMinutes) : 0;
+        output.push({{
+          ms: Number.isFinite(currentMs) ? currentMs : Date.now(),
+          value: rate,
+        }});
+      }}
+      return output;
+    }}
+
+    function trimMetricTickerPoints(points, cutoffMs, maxPoints = metricTickerMaxPoints) {{
+      while (points.length > 0) {{
+        const firstMs = Number(points[0] && points[0].ms);
+        if (Number.isFinite(firstMs) && firstMs >= cutoffMs) {{
+          break;
+        }}
+        points.shift();
+      }}
+      const max = Math.max(1, Math.trunc(Number(maxPoints) || metricTickerMaxPoints));
+      while (points.length > max) {{
+        points.shift();
+      }}
+    }}
+
+    function persistMetricTickerSeriesNow() {{
+      const payload = {{
+        saved_unix: Math.floor(Date.now() / 1000),
+        series: {{}},
+      }};
+      const cutoffMs = Date.now() - metricTickerSeriesPersistMaxAgeMs;
+      for (const [metricKey, points] of metricTickerSeries.entries()) {{
+        const cleanKey = String(metricKey || "").trim();
+        if (!cleanKey) continue;
+        const safePoints = (Array.isArray(points) ? points : [])
+          .map((point) => ({{
+            ms: Number(point && point.ms),
+            value: Number(point && point.value),
+          }}))
+          .filter((point) => Number.isFinite(point.ms) && Number.isFinite(point.value))
+          .sort((a, b) => Number(a.ms) - Number(b.ms));
+        if (!safePoints.length) continue;
+        trimMetricTickerPoints(
+          safePoints,
+          cutoffMs,
+          metricTickerSeriesPersistMaxPointsPerMetric,
+        );
+        if (!safePoints.length) continue;
+        payload.series[cleanKey] = safePoints;
+      }}
+      try {{
+        window.localStorage.setItem(metricTickerSeriesStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+      metricTickerSeriesLastPersistMs = Date.now();
+    }}
+
+    function scheduleMetricTickerSeriesPersist() {{
+      if (metricTickerSeriesPersistTimer != null) return;
+      const nowMs = Date.now();
+      const elapsedMs = Math.max(0, nowMs - (metricTickerSeriesLastPersistMs || 0));
+      const waitMs = Math.max(0, metricTickerSeriesPersistThrottleMs - elapsedMs);
+      metricTickerSeriesPersistTimer = window.setTimeout(() => {{
+        metricTickerSeriesPersistTimer = null;
+        persistMetricTickerSeriesNow();
+      }}, waitMs);
+    }}
+
+    function loadPersistedMetricTickerSeries() {{
+      let raw = "";
+      try {{
+        raw = window.localStorage.getItem(metricTickerSeriesStorageKey) || "";
+      }} catch (_err) {{
+      }}
+      if (!raw) return 0;
+      let payload = null;
+      try {{
+        payload = JSON.parse(raw);
+      }} catch (_err) {{
+        return 0;
+      }}
+      const seriesMap = (payload && typeof payload === "object" && payload.series && typeof payload.series === "object")
+        ? payload.series
+        : null;
+      if (!seriesMap) return 0;
+      const cutoffMs = Date.now() - metricTickerSeriesPersistMaxAgeMs;
+      let loaded = 0;
+      for (const [metricKey, rows] of Object.entries(seriesMap)) {{
+        const cleanKey = String(metricKey || "").trim();
+        if (!cleanKey) continue;
+        const safePoints = (Array.isArray(rows) ? rows : [])
+          .map((point) => ({{
+            ms: Number(point && point.ms),
+            value: Number(point && point.value),
+          }}))
+          .filter((point) => Number.isFinite(point.ms) && Number.isFinite(point.value))
+          .sort((a, b) => Number(a.ms) - Number(b.ms));
+        if (!safePoints.length) continue;
+        trimMetricTickerPoints(
+          safePoints,
+          cutoffMs,
+          metricTickerSeriesPersistMaxPointsPerMetric,
+        );
+        if (!safePoints.length) continue;
+        metricTickerSeries.set(cleanKey, safePoints);
+        loaded += 1;
+      }}
+      metricTickerSeriesLastPersistMs = Date.now();
+      return loaded;
+    }}
+
+    function metricTickerLatestValue(metricKey) {{
+      const cleanKey = String(metricKey || "").trim();
+      if (!cleanKey) return null;
+      const points = metricTickerSeries.get(cleanKey);
+      if (!Array.isArray(points) || points.length === 0) return null;
+      const latest = Number(points[points.length - 1] && points[points.length - 1].value);
+      return Number.isFinite(latest) ? latest : null;
+    }}
+
+    function maybeResetMetricTickerSeries(livePacketTotal) {{
+      const latestLiveTotal = metricTickerLatestValue("live_packets");
+      const nextLiveTotal = Number(livePacketTotal);
+      if (!Number.isFinite(latestLiveTotal) || !Number.isFinite(nextLiveTotal)) {{
+        return false;
+      }}
+      // live_packet_count is monotonic within a runtime session. If it moves
+      // backward, assume a tracker/runtime reset and restart ticker history so
+      // scales don't stay anchored to the previous session.
+      if (hasLiveCounterReset(latestLiveTotal, nextLiveTotal)) {{
+        metricTickerSeries.clear();
+        scheduleMetricTickerSeriesPersist();
+        return true;
+      }}
+      return false;
+    }}
+
+    function hasLiveCounterReset(previousTotal, currentTotal) {{
+      if (!resetTickerScaleOnRestart) return false;
+      const prev = Number(previousTotal);
+      const next = Number(currentTotal);
+      if (!Number.isFinite(prev) || !Number.isFinite(next)) return false;
+      return next + 1 < prev;
+    }}
+
+    function sliceSummaryPointsAfterLiveCounterReset(points) {{
+      const rows = Array.isArray(points) ? points : [];
+      if (!resetTickerScaleOnRestart || rows.length < 2) {{
+        return rows;
+      }}
+      let previousTotal = null;
+      let resetStartIndex = 0;
+      for (let i = 0; i < rows.length; i += 1) {{
+        const currentTotal = Number(rows[i] && rows[i].live_packet_count);
+        if (!Number.isFinite(currentTotal)) continue;
+        if (hasLiveCounterReset(previousTotal, currentTotal)) {{
+          // Keep the newest segment when the monotonic live counter rolls over.
+          resetStartIndex = i;
+        }}
+        previousTotal = currentTotal;
+      }}
+      return resetStartIndex > 0 ? rows.slice(resetStartIndex) : rows;
+    }}
+
+    function appendMetricTickerPoint(
+      metricKey,
+      rawValue,
+      nowMs = Date.now(),
+      windowMs = metricTickerWindowMs,
+      maxPoints = metricTickerMaxPoints
+    ) {{
+      const cleanKey = String(metricKey || "").trim();
+      const value = Number(rawValue);
+      if (!cleanKey || !Number.isFinite(value)) return [];
+      const bucketMs = Math.floor(nowMs / 60000) * 60000;
+      const points = metricTickerSeries.get(cleanKey) || [];
+      const last = points.length ? points[points.length - 1] : null;
+      if (last && Number(last.ms) === bucketMs) {{
+        last.value = value;
+      }} else {{
+        points.push({{ ms: bucketMs, value }});
+      }}
+      const effectiveWindowMs = Math.max(60000, Number(windowMs) || metricTickerWindowMs);
+      trimMetricTickerPoints(points, bucketMs - effectiveWindowMs, maxPoints);
+      metricTickerSeries.set(cleanKey, points);
+      scheduleMetricTickerSeriesPersist();
+      return points;
+    }}
+
+    function buildMetricTickerPath(points, width = 72, height = 16, pad = 1.5) {{
+      if (!Array.isArray(points) || points.length === 0) return "";
+      const values = points
+        .map((point) => Number(point && point.value))
+        .filter((value) => Number.isFinite(value));
+      if (values.length === 0) return "";
+      const widthPx = Math.max(4, Number(width) || 72);
+      const heightPx = Math.max(4, Number(height) || 16);
+      const padPx = Math.max(0, Number(pad) || 0);
+      const top = padPx;
+      const bottom = Math.max(top + 1, heightPx - padPx);
+      const usableHeight = Math.max(1, bottom - top);
+      const minValue = Math.min(...values);
+      const maxValue = Math.max(...values);
+      const xSpan = Math.max(1, values.length - 1);
+      let d = "";
+      for (let idx = 0; idx < values.length; idx += 1) {{
+        const x = values.length === 1 ? (widthPx / 2) : ((idx / xSpan) * widthPx);
+        const normalized = maxValue === minValue
+          ? 0.5
+          : ((values[idx] - minValue) / (maxValue - minValue));
+        const y = bottom - (normalized * usableHeight);
+        d += `${{idx === 0 ? "M" : "L"}}${{x.toFixed(2)}} ${{y.toFixed(2)}} `;
+      }}
+      if (values.length === 1) {{
+        const x = widthPx / 2;
+        const y = (top + bottom) / 2;
+        d += `L${{x.toFixed(2)}} ${{y.toFixed(2)}}`;
+      }}
+      return d.trim();
+    }}

@@ -7,6 +7,7 @@ from .runtime_types import (
     MakeHttpHandlerFn,
     NodeHistoryFn,
     OnlineActivityFn,
+    SummaryMetricsHistoryFn,
     RenderHtmlFn,
     SendChatFn,
     StateFn,
@@ -26,6 +27,7 @@ class DashboardServerDependencies:
     state_fn: StateFn
     node_history_fn: NodeHistoryFn
     online_activity_fn: OnlineActivityFn
+    summary_metrics_fn: SummaryMetricsHistoryFn
     send_chat_fn: SendChatFn
     render_html_fn: RenderHtmlFn
     make_http_handler_fn: MakeHttpHandlerFn

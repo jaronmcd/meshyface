@@ -1,0 +1,162 @@
+    function bindSummaryTickerExpandControl() {{
+      const row = document.querySelector(".summary-ticker-row");
+      if (!(row instanceof HTMLElement) || row.dataset.expandBound === "1") return;
+      row.dataset.expandBound = "1";
+      row.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".summary-ticker-item");
+        if (!(item instanceof HTMLElement) || !row.contains(item)) return;
+        const next = tickerDensity === "expanded" ? "compact" : "expanded";
+        applyTickerDensity(next, true);
+      }});
+    }}
+
+    function renderTickerSettingsUi() {{
+      const listEl = document.getElementById("settings-ticker-list");
+      if (!(listEl instanceof HTMLElement)) return;
+      const prefs = currentTickerPreferences();
+      const order = Array.isArray(prefs.order) ? prefs.order.map((id) => normalizeTickerId(id)).filter(Boolean) : [];
+      const resolvedOrder = [];
+      const seen = new Set();
+      for (const id of order) {{
+        if (seen.has(id)) continue;
+        seen.add(id);
+        resolvedOrder.push(id);
+      }}
+      for (const id of tickerDefaultOrder) {{
+        if (seen.has(id)) continue;
+        seen.add(id);
+        resolvedOrder.push(id);
+      }}
+
+      if (!normalizeTickerId(activeTickerSettingsId) || !resolvedOrder.includes(activeTickerSettingsId)) {{
+        activeTickerSettingsId = resolvedOrder.length ? resolvedOrder[0] : "";
+      }}
+
+      listEl.innerHTML = "";
+      resolvedOrder.forEach((id, index) => {{
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "settings-ticker-item";
+        btn.dataset.tickerId = id;
+        if (id === activeTickerSettingsId) {{
+          btn.classList.add("is-active");
+        }}
+        if (!tickerEnabled(id)) {{
+          btn.classList.add("is-disabled");
+        }}
+        btn.setAttribute("role", "option");
+        btn.setAttribute("aria-selected", id === activeTickerSettingsId ? "true" : "false");
+
+        const orderEl = document.createElement("span");
+        orderEl.className = "settings-ticker-item-order";
+        orderEl.textContent = `${{index + 1}}.`;
+        btn.appendChild(orderEl);
+
+        const labelEl = document.createElement("span");
+        labelEl.className = "settings-ticker-item-label";
+        labelEl.textContent = tickerLabelText(id) || id;
+        btn.appendChild(labelEl);
+
+        const stateEl = document.createElement("span");
+        stateEl.className = "settings-ticker-item-state";
+        stateEl.textContent = tickerEnabled(id) ? "on" : "off";
+        btn.appendChild(stateEl);
+        listEl.appendChild(btn);
+      }});
+
+      const emptyEl = document.getElementById("settings-ticker-config-empty");
+      const formEl = document.getElementById("settings-ticker-config-form");
+      if (!(emptyEl instanceof HTMLElement) || !(formEl instanceof HTMLElement)) return;
+      const selectedId = normalizeTickerId(activeTickerSettingsId);
+      if (!selectedId) {{
+        emptyEl.hidden = false;
+        formEl.hidden = true;
+        return;
+      }}
+      emptyEl.hidden = true;
+      formEl.hidden = false;
+
+      const enabledToggle = document.getElementById("settings-ticker-enabled");
+      if (enabledToggle instanceof HTMLInputElement) {{
+        enabledToggle.checked = tickerEnabled(selectedId);
+      }}
+      const nodePacketTrendToggle = document.getElementById("settings-ticker-node-packet-trend-enabled");
+      if (nodePacketTrendToggle instanceof HTMLInputElement) {{
+        nodePacketTrendToggle.checked = nodeNavigatorPacketTrendEnabled();
+      }}
+      const nodeOnlineOneShotToggle = document.getElementById("settings-ticker-oneshot-node-online-enabled");
+      const nodeOnlineFavoritesOnlyWrap = document.getElementById("settings-ticker-oneshot-node-online-favorites-only-wrap");
+      const nodeOnlineFavoritesOnlyToggle = document.getElementById("settings-ticker-oneshot-node-online-favorites-only");
+      const nodeOnlineOneShotEnabled = topbarOneshotNodeOnlineEnabled();
+      if (nodeOnlineOneShotToggle instanceof HTMLInputElement) {{
+        nodeOnlineOneShotToggle.checked = nodeOnlineOneShotEnabled;
+      }}
+      if (nodeOnlineFavoritesOnlyWrap instanceof HTMLElement) {{
+        nodeOnlineFavoritesOnlyWrap.hidden = !nodeOnlineOneShotEnabled;
+      }}
+      if (nodeOnlineFavoritesOnlyToggle instanceof HTMLInputElement) {{
+        nodeOnlineFavoritesOnlyToggle.checked = topbarOneshotNodeOnlineFavoritesOnly();
+        nodeOnlineFavoritesOnlyToggle.disabled = !nodeOnlineOneShotEnabled;
+      }}
+
+      const moveUpBtn = document.getElementById("settings-ticker-move-up");
+      const moveDownBtn = document.getElementById("settings-ticker-move-down");
+      const selectedIndex = resolvedOrder.indexOf(selectedId);
+      if (moveUpBtn instanceof HTMLButtonElement) {{
+        moveUpBtn.disabled = selectedIndex <= 0;
+      }}
+      if (moveDownBtn instanceof HTMLButtonElement) {{
+        moveDownBtn.disabled = selectedIndex < 0 || selectedIndex >= (resolvedOrder.length - 1);
+      }}
+
+      const labelInput = document.getElementById("settings-ticker-label");
+      if (labelInput instanceof HTMLInputElement) {{
+        const customLabel = String((prefs.labels && prefs.labels[selectedId]) || "");
+        if (labelInput.value !== customLabel) {{
+          labelInput.value = customLabel;
+        }}
+      }}
+
+      const trendWrap = document.getElementById("settings-ticker-show-trend-wrap");
+      const trendToggle = document.getElementById("settings-ticker-show-trend");
+      const supportsTrend = tickerMetricIds.has(selectedId);
+      if (trendWrap instanceof HTMLElement) {{
+        trendWrap.hidden = !supportsTrend;
+      }}
+      if (trendToggle instanceof HTMLInputElement) {{
+        trendToggle.checked = supportsTrend ? tickerTrendEnabled(selectedId) : false;
+        trendToggle.disabled = !supportsTrend;
+      }}
+
+      const batteryWindowWrap = document.getElementById("settings-ticker-battery-window-wrap");
+      const batteryWindowInput = document.getElementById("settings-ticker-battery-window-hours");
+      const isBattery = selectedId === "battery";
+      if (batteryWindowWrap instanceof HTMLElement) {{
+        batteryWindowWrap.hidden = !isBattery;
+      }}
+      if (batteryWindowInput instanceof HTMLInputElement) {{
+        batteryWindowInput.disabled = !isBattery;
+        batteryWindowInput.value = String(batteryTrendWindowHours());
+      }}
+
+      const nodeRowsWrap = document.getElementById("settings-ticker-node-rows-wrap");
+      const isNode = selectedId === "node";
+      if (nodeRowsWrap instanceof HTMLElement) {{
+        nodeRowsWrap.hidden = !isNode;
+      }}
+      const nodeRows = nodeTickerRowPreferences();
+      const nodeRowToggles = [
+        {{ key: "snr", id: "settings-ticker-node-row-snr" }},
+        {{ key: "rssi", id: "settings-ticker-node-row-rssi" }},
+        {{ key: "route", id: "settings-ticker-node-row-route" }},
+        {{ key: "hops", id: "settings-ticker-node-row-hops" }},
+      ];
+      for (const rowToggle of nodeRowToggles) {{
+        const toggle = document.getElementById(rowToggle.id);
+        if (!(toggle instanceof HTMLInputElement)) continue;
+        toggle.disabled = !isNode;
+        toggle.checked = !!nodeRows[rowToggle.key];
+      }}
+    }}

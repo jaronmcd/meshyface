@@ -1,0 +1,140 @@
+    function buildTargetWifiSummary(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = (safeState.summary && typeof safeState.summary === "object") ? safeState.summary : {{}};
+      const radioConnection = (summary.radio_connection && typeof summary.radio_connection === "object")
+        ? summary.radio_connection
+        : null;
+      const wifi = (radioConnection && typeof radioConnection.wifi === "object") ? radioConnection.wifi : null;
+      if (!wifi) return null;
+
+      const connected = coerceOptionalBool(wifi.is_connected ?? wifi.isConnected);
+      const rssiRaw = Number(wifi.rssi_dbm ?? wifi.rssiDbm ?? wifi.rssi);
+      const rssi = Number.isFinite(rssiRaw) && rssiRaw <= -1 && rssiRaw >= -140
+        ? Math.trunc(rssiRaw)
+        : null;
+      const ssid = String(wifi.ssid == null ? "" : wifi.ssid).trim();
+      const ip = String(wifi.ip_address ?? wifi.ipAddress ?? "").trim();
+      const ageRaw = Number(radioConnection && (radioConnection.age_seconds ?? radioConnection.ageSeconds));
+      const ageSeconds = Number.isFinite(ageRaw) && ageRaw >= 0 ? Math.trunc(ageRaw) : null;
+
+      let compact = "";
+      if (connected === false) {{
+        compact = "WiFi off";
+      }} else if (Number.isFinite(rssi)) {{
+        compact = `WiFi ${{rssi}}dBm`;
+      }} else if (connected === true) {{
+        compact = "WiFi on";
+      }} else if (ssid || ip) {{
+        compact = "WiFi ?";
+      }} else {{
+        return null;
+      }}
+
+      const detailParts = [];
+      if (connected === true) detailParts.push("wifi connected");
+      else if (connected === false) detailParts.push("wifi disconnected");
+      else detailParts.push("wifi status unknown");
+      if (Number.isFinite(rssi)) detailParts.push(`signal ${{rssi}} dBm`);
+      if (ssid) detailParts.push(`ssid "${{ssid}}"`);
+      if (ip) detailParts.push(`ip ${{ip}}`);
+      if (Number.isFinite(ageSeconds)) detailParts.push(`age ${{ageSeconds}}s`);
+
+      return {{
+        compact,
+        detail: detailParts.join(", "),
+        connected,
+        rssi,
+        ssid,
+        ip,
+        age_seconds: ageSeconds,
+      }};
+    }}
+
+    function resolveLocalNodeTelemetry(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = (safeState.summary && typeof safeState.summary === "object") ? safeState.summary : {{}};
+      const localId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const localNode = nodes.find((node) => normalizeNodeId(node && node.id) === localId) || null;
+      const historyCapsById = new Map(
+        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
+          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+      );
+      const caps = historyCapsById.get(localId) || null;
+      const wifiSummary = buildTargetWifiSummary(safeState);
+
+      const batteryRaw = Number(
+        (localNode && localNode.battery_level != null)
+          ? localNode.battery_level
+          : (caps && caps.battery_level)
+      );
+      const batteryPct = Number.isFinite(batteryRaw)
+        ? Math.max(0, Math.min(100, Math.round(batteryRaw * 10) / 10))
+        : null;
+      const voltageRaw = Number(localNode && localNode.voltage);
+      const voltage = Number.isFinite(voltageRaw) ? voltageRaw : null;
+      const hopsRaw = Number(
+        (localNode && localNode.hops_away != null)
+          ? localNode.hops_away
+          : (caps && caps.last_hops)
+      );
+      const hops = Number.isFinite(hopsRaw) && hopsRaw >= 0 ? Math.trunc(hopsRaw) : null;
+      const channelUtilRaw = Number(
+        (localNode && localNode.channel_utilization != null)
+          ? localNode.channel_utilization
+          : (caps && (caps.channel_utilization ?? caps.channelUtilization))
+      );
+      const channelUtil = Number.isFinite(channelUtilRaw) ? Math.max(0, channelUtilRaw) : null;
+      const airUtilTxRaw = Number(
+        (localNode && localNode.air_util_tx != null)
+          ? localNode.air_util_tx
+          : (caps && (caps.air_util_tx ?? caps.airUtilTx))
+      );
+      const airUtilTx = Number.isFinite(airUtilTxRaw) ? Math.max(0, airUtilTxRaw) : null;
+      const snrRaw = Number(
+        (localNode && localNode.snr != null)
+          ? localNode.snr
+          : (caps && (caps.last_snr ?? caps.snr))
+      );
+      const snrDb = Number.isFinite(snrRaw) ? snrRaw : null;
+      const rssiRaw = Number(
+        (localNode && localNode.rssi != null)
+          ? localNode.rssi
+          : (caps && (caps.last_rssi ?? caps.rssi))
+      );
+      const rssiDbm = Number.isFinite(rssiRaw) ? Math.trunc(rssiRaw) : null;
+
+      const lat = Number(localNode && localNode.lat);
+      const lon = Number(localNode && localNode.lon);
+      const gpsFix = isValidMapCoord(lat, lon);
+      const gpsCapable = (caps && caps.has_position === true) || gpsFix;
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const lastSeenUnix = nodeLastHeardUnix(localNode);
+      const lastSeenText = Number.isFinite(lastSeenUnix)
+        ? savedDetailAge(lastSeenUnix, nowUnix)
+        : "n/a";
+      const presetText = formatModemPresetLabel(summary.modem_preset, "n/a");
+      const nodeName = preferredNodeName(localNode) || nodeNameCache.get(localId) || "Local node";
+      return {{
+        localId,
+        localNode,
+        caps,
+        wifiSummary,
+        batteryPct,
+        voltage,
+        hops,
+        channelUtil,
+        airUtilTx,
+        snrDb,
+        rssiDbm,
+        lat,
+        lon,
+        gpsFix,
+        gpsCapable,
+        lastSeenUnix,
+        lastSeenText,
+        presetText,
+        nodeName,
+      }};
+    }}

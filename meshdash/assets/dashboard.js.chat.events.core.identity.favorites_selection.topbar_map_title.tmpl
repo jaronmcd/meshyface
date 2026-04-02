@@ -1,0 +1,220 @@
+    function loadStoredSelection() {{
+      try {{
+        const stored = window.localStorage.getItem(selectionStorageKey);
+        const normalized = normalizeNodeId(stored);
+        if (isSelectableNodeId(normalized)) {{
+          selectedNodeId = normalized;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadNodeNameCache() {{
+      try {{
+        const raw = window.localStorage.getItem(nodeNameCacheStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          if (!Array.isArray(entry) || entry.length < 2) continue;
+          const nodeId = normalizeNodeId(entry[0]);
+          const name = String(entry[1] || "").trim();
+          if (!isSelectableNodeId(nodeId) || !name) continue;
+          nodeNameCache.set(nodeId, name);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistNodeNameCache() {{
+      try {{
+        const entries = Array.from(nodeNameCache.entries()).slice(-2000);
+        window.localStorage.setItem(nodeNameCacheStorageKey, JSON.stringify(entries));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function updateNodeNameCache(nodes) {{
+      let changed = false;
+      for (const node of (nodes || [])) {{
+        const nodeId = normalizeNodeId(node.id || "");
+        if (!isSelectableNodeId(nodeId)) continue;
+        const name = preferredNodeName(node);
+        if (!name) continue;
+        if (nodeNameCache.get(nodeId) !== name) {{
+          nodeNameCache.set(nodeId, name);
+          changed = true;
+        }}
+      }}
+      if (changed) {{
+        persistNodeNameCache();
+      }}
+    }}
+
+    function persistSelection() {{
+      try {{
+        if (isSelectableNodeId(selectedNodeId)) {{
+          window.localStorage.setItem(selectionStorageKey, normalizeNodeId(selectedNodeId));
+        }} else {{
+          window.localStorage.removeItem(selectionStorageKey);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function renderSelectionStatus() {{
+      renderStarredNodeSelect(latestState || {{}});
+      renderSavedRailStatus();
+      refreshMapCardTitle();
+      syncTopbarChatContext(latestState);
+    }}
+
+    function resolveSelectedNodeName() {{
+      if (!isSelectableNodeId(selectedNodeId)) {{
+        return "";
+      }}
+      if (latestState && Array.isArray(latestState.nodes)) {{
+        const selectedNode = latestState.nodes.find((node) => (
+          normalizeNodeId(node && node.id) === selectedNodeId
+        ));
+        const name = preferredNodeName(selectedNode);
+        if (name) {{
+          return name;
+        }}
+      }}
+      return nodeNameCache.get(selectedNodeId) || "";
+    }}
+
+    function syncTopbarChatContext(state = latestState) {{
+      const labelEl = document.getElementById("topbar-chat-context");
+      const headingEl = document.getElementById("topbar-heading-app");
+      if (headingEl instanceof HTMLElement && !headingEl.dataset.defaultHeading) {{
+        headingEl.dataset.defaultHeading = String(headingEl.textContent || "").trim() || "Meshyface";
+      }}
+      const defaultHeading = (headingEl instanceof HTMLElement)
+        ? (String(headingEl.dataset.defaultHeading || "").trim() || "Meshyface")
+        : "Meshyface";
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const selfId = resolveLocalNodeId(safeState);
+      if (!isCanonicalNodeId(selfId)) {{
+        if (labelEl instanceof HTMLElement) {{
+          labelEl.textContent = "n/a";
+          labelEl.title = "Connected local radio: unavailable";
+        }}
+        if (headingEl instanceof HTMLElement) {{
+          headingEl.textContent = defaultHeading;
+          headingEl.title = "Connected local radio: unavailable";
+        }}
+        return;
+      }}
+      const owner = localNodeUserFromState(safeState);
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const selfNode = nodes.find((node) => normalizeNodeId(node && node.id) === selfId) || null;
+      const longName = String(
+        (owner && owner.long_name)
+        || (selfNode && selfNode.long_name)
+        || ""
+      ).trim();
+      const shortName = String(
+        (owner && owner.short_name)
+        || (selfNode && selfNode.short_name)
+        || ""
+      ).trim();
+      const display = longName || shortName || (nodeNameCache.get(selfId) || selfId);
+      if (labelEl instanceof HTMLElement) {{
+        labelEl.textContent = display;
+      }}
+      const titleIdentity = display && display !== selfId
+        ? `${{display}} (${{selfId}})`
+        : selfId;
+      if (labelEl instanceof HTMLElement) {{
+        labelEl.title = `Connected local radio: ${{titleIdentity}}`;
+      }}
+      if (headingEl instanceof HTMLElement) {{
+        headingEl.textContent = display;
+        headingEl.title = `Connected local radio: ${{titleIdentity}}`;
+      }}
+    }}
+
+    function formatSavedViewMapTitle(state = latestState) {{
+      const nodeId = resolveSavedViewNodeId(state);
+      if (!isSelectableNodeId(nodeId)) {{
+        return "Select a node";
+      }}
+      const nodeName = resolveSavedViewNodeName(state, nodeId);
+      if (nodeName) {{
+        return `${{nodeName}} (${{nodeId}})`;
+      }}
+      return nodeId;
+    }}
+
+    function setMapCardTitle(text) {{
+      const nextTitle = String(text || "");
+      const titleText = document.getElementById("map-card-title-text");
+      if (titleText instanceof HTMLElement) {{
+        titleText.textContent = nextTitle;
+        return;
+      }}
+      const titleFallback = document.getElementById("map-card-title");
+      if (titleFallback instanceof HTMLElement) {{
+        titleFallback.textContent = nextTitle;
+      }}
+    }}
+
+    function syncMapTitleFavoriteToggle() {{
+      const btn = document.getElementById("map-card-title-favorite-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const nodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : "";
+      const canToggle = activeLayoutView === "saved" && isSelectableNodeId(nodeId);
+      btn.hidden = !canToggle;
+      if (!canToggle) {{
+        btn.dataset.nodeId = "";
+        btn.classList.remove("active");
+        btn.setAttribute("aria-pressed", "false");
+        btn.removeAttribute("style");
+        const icon = btn.querySelector(".favorite-toggle-icon");
+        if (icon instanceof HTMLElement) {{
+          icon.textContent = "";
+        }}
+        btn.title = "Tag node";
+        btn.setAttribute("aria-label", "Tag node");
+        return;
+      }}
+
+      const tagEntry = nodeTagEntryForNode(nodeId);
+      const active = !!tagEntry;
+      btn.dataset.nodeId = nodeId;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      if (active) {{
+        btn.setAttribute("style", nodeTagStyleVars(tagEntry));
+      }} else {{
+        btn.removeAttribute("style");
+      }}
+      const activePreset = nodeTagPresetForId(activeNodeTagPresetId) || nodeTagPresetForId("tag-default");
+      const activePresetLabel = activePreset
+        ? normalizeNodeTagPresetName(activePreset.name, "Tagged")
+        : "tag";
+      const title = active
+        ? `Clear tag (${{normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")}})`
+        : `Tag node with ${{activePresetLabel}}`;
+      btn.title = title;
+      btn.setAttribute("aria-label", title);
+      const icon = btn.querySelector(".favorite-toggle-icon");
+      if (icon instanceof HTMLElement) {{
+        icon.textContent = "";
+      }}
+    }}
+
+    function refreshMapCardTitle() {{
+      if (activeLayoutView === "saved") {{
+        setMapCardTitle(formatSavedViewMapTitle());
+      }} else if (activeLayoutView === "network") {{
+        setMapCardTitle("");
+      }} else {{
+        setMapCardTitle(isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map");
+      }}
+      syncMapTitleFavoriteToggle();
+    }}

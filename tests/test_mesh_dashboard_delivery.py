@@ -97,3 +97,12 @@ def test_broadcast_local_chat_is_not_tracked_for_ack():
     entry = tracker.recent_chat[-1]
     assert entry["delivery_state"] == "sent"
     assert "ack_requested" not in entry
+
+
+def test_tracker_ignores_packets_after_stop_receiving():
+    tracker = md.DashboardTracker(packet_limit=16, history_store=None)
+    tracker.stop_receiving()
+    tracker.on_receive(_routing_packet(12349, "NONE"), _iface())
+
+    assert tracker.live_packet_count == 0
+    assert list(tracker.recent_packets) == []

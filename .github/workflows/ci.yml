@@ -26,5 +26,8 @@ jobs:
       - name: Lint template assets
         run: pytest -q tests/test_html_asset_lint.py
 
+      - name: Lint docs
+        run: pytest -q tests/test_docs_lint.py
+
       - name: Run tests
         run: pytest

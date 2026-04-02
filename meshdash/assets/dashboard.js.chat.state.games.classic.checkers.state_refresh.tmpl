@@ -1,0 +1,97 @@
+    function refreshCheckersGame() {{
+      if (!checkersState || typeof checkersState !== "object") {{
+        checkersState = createNewCheckersState();
+      }}
+      checkersState.board = cloneCheckersBoard(checkersState.board);
+      if (checkersState.game_over) {{
+        checkersLegalMoves = [];
+        return;
+      }}
+      const turn = String(checkersState.turn || "").trim().toLowerCase() === "white" ? "white" : "black";
+      checkersState.turn = turn;
+      let forcedFrom = (
+        Array.isArray(checkersState.forced_from)
+        && checkersState.forced_from.length >= 2
+        && checkersInBounds(checkersState.forced_from[0], checkersState.forced_from[1])
+      )
+        ? [
+          Math.trunc(Number(checkersState.forced_from[0]) || 0),
+          Math.trunc(Number(checkersState.forced_from[1]) || 0),
+        ]
+        : null;
+      let legal = collectCheckersMoves(checkersState.board, turn, forcedFrom);
+      if (forcedFrom && legal.length < 1) {{
+        forcedFrom = null;
+        checkersState.forced_from = null;
+        legal = collectCheckersMoves(checkersState.board, turn, null);
+      }}
+      checkersLegalMoves = legal;
+      if (legal.length < 1) {{
+        checkersState.game_over = true;
+        checkersState.winner = checkersOpponent(turn);
+        checkersState.notice = `Game over: ${{checkersPlayerLabel(checkersState.winner)}} wins.`;
+        checkersSelectedCell = null;
+        return;
+      }}
+      const waitingForPeerTurn = (
+        boardGameIsNetworkLinked("checkers")
+        && turn !== boardGameLocalColor("checkers")
+      );
+      const captureRequired = legal.some((move) => (
+        Array.isArray(move && move.captures) && move.captures.length > 0
+      ));
+      const legalSources = checkersLegalSourceCells(legal);
+      if (forcedFrom) {{
+        checkersSelectedCell = [...forcedFrom];
+      }} else {{
+        let keepSelected = false;
+        if (Array.isArray(checkersSelectedCell) && checkersSelectedCell.length >= 2) {{
+          const selectedMoves = checkersMovesFromCell(checkersSelectedCell[0], checkersSelectedCell[1]);
+          keepSelected = selectedMoves.length > 0;
+        }}
+        if (!keepSelected) {{
+          if (!waitingForPeerTurn && captureRequired && legalSources.length > 0) {{
+            const firstSource = legalSources[0];
+            checkersSelectedCell = [Number(firstSource[0]), Number(firstSource[1])];
+          }} else {{
+            checkersSelectedCell = null;
+          }}
+        }}
+      }}
+      if (waitingForPeerTurn) {{
+        checkersSelectedCell = null;
+      }}
+      const currentNotice = String(checkersState.notice || "").trim();
+      const selectionNotice = currentNotice.startsWith("Selected ");
+      if (waitingForPeerTurn) {{
+        checkersState.notice = `Waiting for ${{reversiNodeLabel(checkersLink.peer_id)}} to move.`;
+      }} else if (
+        captureRequired
+        && Array.isArray(checkersSelectedCell)
+        && checkersSelectedCell.length >= 2
+        && !selectionNotice
+      ) {{
+        const selectedTargets = checkersMoveTargetLabels(checkersMovesFromCell(checkersSelectedCell[0], checkersSelectedCell[1]));
+        const targetText = selectedTargets.length > 0 ? selectedTargets.join(", ") : "a highlighted square";
+        checkersState.notice = `Selected ${{checkersCellLabel(checkersSelectedCell[0], checkersSelectedCell[1])}}. Capture to ${{targetText}}.`;
+      }} else if (captureRequired && !forcedFrom && !selectionNotice) {{
+        const sources = legalSources.map((cell) => checkersCellLabel(cell[0], cell[1]));
+        const sourceText = sources.length > 0 ? ` from ${{sources.join(", ")}}` : "";
+        checkersState.notice = `${{checkersPlayerLabel(turn)}} to move. Capture required${{sourceText}}.`;
+      }} else if (!currentNotice) {{
+        checkersState.notice = captureRequired
+          ? `${{checkersPlayerLabel(turn)}} to move. Capture required.`
+          : `${{checkersPlayerLabel(turn)}} to move.`;
+      }}
+    }}
+
+    function startNewCheckersGame() {{
+      if (checkersLink.mode === "connected" || checkersLink.mode === "pending_host") {{
+        boardGameResetNetworkLink("checkers", "Started a fresh local game. Peer link closed.", {{ keepPeer: true }});
+      }}
+      checkersState = createNewCheckersState();
+      checkersSelectedCell = null;
+      refreshCheckersGame();
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+

@@ -1,0 +1,219 @@
+    function renderManagedBotCommandList() {{
+      const listEl = document.getElementById("bots-command-list");
+      const configEmptyEl = document.getElementById("bots-command-config-empty");
+      const configFormEl = document.getElementById("bots-command-config-form");
+      const selectedUsageEl = document.getElementById("bots-command-selected-usage");
+      const selectedKindEl = document.getElementById("bots-command-selected-kind");
+      const selectedNameEl = document.getElementById("bots-command-selected-name");
+      const selectedDescriptionEl = document.getElementById("bots-command-selected-description");
+      const selectedEnabledInput = document.getElementById("bots-command-selected-enabled");
+      const pingConfigWrap = document.getElementById("bots-command-ping-config-wrap");
+      const pingTriggersInput = document.getElementById("bots-command-ping-triggers");
+      const pingResponseTemplateInput = document.getElementById("bots-command-ping-response-template");
+      const pullConfigWrap = document.getElementById("bots-command-pull-config-wrap");
+      const pullReelSymbolsInput = document.getElementById("bots-command-pull-reel-symbols");
+      const pullResponseTemplateInput = document.getElementById("bots-command-pull-response-template");
+      const zorkConfigWrap = document.getElementById("bots-command-zork-config-wrap");
+      const zorkTriggersInput = document.getElementById("bots-command-zork-triggers");
+      const publicStartWrap = document.getElementById("bots-command-selected-public-start-wrap");
+      const publicStartInput = document.getElementById("bots-command-selected-public-start-enabled");
+      const publicStartNote = document.getElementById("bots-command-selected-public-start-note");
+      const jokeConfigWrap = document.getElementById("bots-command-joke-config-wrap");
+      const jokeDelayPunchlineInput = document.getElementById("bots-command-joke-delay-punchline-enabled");
+      const jokeTriggersInput = document.getElementById("bots-command-joke-triggers");
+      const jokeLinesInput = document.getElementById("bots-command-joke-lines");
+      const jokeNearGuessLinesInput = document.getElementById("bots-command-joke-near-guess-lines");
+      if (!(listEl instanceof HTMLElement)) return;
+      const showConfigEmpty = (message) => {{
+        if (configEmptyEl instanceof HTMLElement) {{
+          configEmptyEl.textContent = String(message || "Select a command to configure.");
+          configEmptyEl.hidden = false;
+        }}
+        if (configFormEl instanceof HTMLElement) {{
+          configFormEl.hidden = true;
+        }}
+      }};
+      if (!serverBotSettings.available) {{
+        listEl.innerHTML = '<div class="bots-history-empty">Backend bot settings endpoint unavailable on this node.</div>';
+        showConfigEmpty("Backend bot settings endpoint unavailable on this node.");
+        return;
+      }}
+      const commands = Array.isArray(serverBotSettings.commands) ? serverBotSettings.commands : [];
+      if (commands.length === 0) {{
+        listEl.innerHTML = '<div class="bots-history-empty">No managed backend bot commands are currently exposed.</div>';
+        showConfigEmpty("No managed backend bot commands are currently exposed.");
+        return;
+      }}
+      const orderedNames = commands
+        .map((command) => String(command && command.name || "").trim().toLowerCase())
+        .filter((name) => !!name);
+      const activeName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      if (!activeName || !orderedNames.includes(activeName)) {{
+        activeBotCommandSettingsId = orderedNames[0] || "";
+      }}
+      const selectedName = String(activeBotCommandSettingsId || "").trim().toLowerCase();
+      const selectedCommand = commands.find((command) => String(command && command.name || "").trim().toLowerCase() === selectedName) || null;
+      const rows = commands.map((command, index) => {{
+        const usage = String(command && command.usage || command && command.name || "").trim() || "unknown";
+        const description = String(command && command.description || "").trim() || "Managed backend bot command.";
+        const kindRaw = String(command && command.kind || "builtin").trim().toLowerCase();
+        const kindLabel = kindRaw === "custom"
+          ? "custom"
+          : (kindRaw === "game" ? "game" : "built-in");
+        const name = String(command && command.name || "").trim().toLowerCase();
+        const enabled = !!(command && command.enabled);
+        const orderLabel = `${{index + 1}}.`;
+        const stateLabel = enabled ? "on" : "off";
+        const disabledClass = enabled ? "" : " is-disabled";
+        const activeClass = name === selectedName ? " is-active" : "";
+        return `<button type="button" class="bots-command-item${{disabledClass}}${{activeClass}}" data-command-name="${{escAttr(name)}}" title="${{escAttr(description)}}" role="option" aria-selected="${{name === selectedName ? "true" : "false"}}">
+          <span class="bots-command-item-order">${{escAttr(orderLabel)}}</span>
+          <span class="bots-command-copy">
+            <span class="bots-command-heading">
+              <span class="bots-command-usage">${{escAttr(usage)}}</span>
+              <span class="bots-command-kind">${{escAttr(kindLabel)}}</span>
+            </span>
+            <span class="bots-command-description">${{escAttr(description)}}</span>
+          </span>
+          <span class="bots-command-state">${{escAttr(stateLabel)}}</span>
+        </button>`;
+      }});
+      listEl.innerHTML = rows.join("");
+      if (!selectedCommand) {{
+        showConfigEmpty("Select a command to configure.");
+        return;
+      }}
+      if (configEmptyEl instanceof HTMLElement) {{
+        configEmptyEl.hidden = true;
+      }}
+      if (configFormEl instanceof HTMLElement) {{
+        configFormEl.hidden = false;
+      }}
+      const usageText = String(selectedCommand.usage || selectedCommand.name || "unknown").trim() || "unknown";
+      const descriptionText = String(selectedCommand.description || "").trim() || "Managed backend bot command.";
+      const kindRaw = String(selectedCommand.kind || "builtin").trim().toLowerCase();
+      const kindLabel = kindRaw === "custom"
+        ? "custom"
+        : (kindRaw === "game" ? "game" : "built-in");
+      if (selectedUsageEl instanceof HTMLElement) {{
+        selectedUsageEl.textContent = usageText;
+      }}
+      if (selectedKindEl instanceof HTMLElement) {{
+        selectedKindEl.textContent = kindLabel;
+      }}
+      if (selectedNameEl instanceof HTMLElement) {{
+        selectedNameEl.textContent = `id: ${{selectedName}}`;
+      }}
+      if (selectedDescriptionEl instanceof HTMLElement) {{
+        selectedDescriptionEl.textContent = descriptionText;
+      }}
+      if (selectedEnabledInput instanceof HTMLInputElement) {{
+        selectedEnabledInput.checked = !!selectedCommand.enabled;
+      }}
+      const selectedIsPing = selectedName === "ping";
+      const selectedIsPull = selectedName === "pull";
+      const selectedIsZork = selectedName === "zork";
+      const selectedIsJoke = selectedName === "joke";
+      if (pingConfigWrap instanceof HTMLElement) {{
+        pingConfigWrap.hidden = !selectedIsPing;
+      }}
+      if (pingTriggersInput instanceof HTMLTextAreaElement) {{
+        const nextValue = selectedIsPing && Array.isArray(serverBotSettings.ping_triggers)
+          ? serverBotSettings.ping_triggers.join("\n")
+          : "";
+        if (document.activeElement !== pingTriggersInput || !selectedIsPing) {{
+          pingTriggersInput.value = nextValue;
+        }}
+      }}
+      if (pingResponseTemplateInput instanceof HTMLInputElement) {{
+        const nextValue = selectedIsPing
+          ? String(serverBotSettings.ping_response_template || "")
+          : "";
+        if (document.activeElement !== pingResponseTemplateInput || !selectedIsPing) {{
+          pingResponseTemplateInput.value = nextValue;
+        }}
+      }}
+      if (pullConfigWrap instanceof HTMLElement) {{
+        pullConfigWrap.hidden = !selectedIsPull;
+      }}
+      if (pullReelSymbolsInput instanceof HTMLInputElement) {{
+        const nextValue = selectedIsPull && Array.isArray(serverBotSettings.pull_reel_symbols)
+          ? serverBotSettings.pull_reel_symbols.join(", ")
+          : "";
+        if (document.activeElement !== pullReelSymbolsInput || !selectedIsPull) {{
+          pullReelSymbolsInput.value = nextValue;
+        }}
+      }}
+      if (pullResponseTemplateInput instanceof HTMLInputElement) {{
+        const nextValue = selectedIsPull
+          ? String(serverBotSettings.pull_response_template || "")
+          : "";
+        if (document.activeElement !== pullResponseTemplateInput || !selectedIsPull) {{
+          pullResponseTemplateInput.value = nextValue;
+        }}
+      }}
+      if (zorkConfigWrap instanceof HTMLElement) {{
+        zorkConfigWrap.hidden = !selectedIsZork;
+      }}
+      if (zorkTriggersInput instanceof HTMLTextAreaElement) {{
+        const nextValue = selectedIsZork && Array.isArray(serverBotSettings.zork_triggers)
+          ? serverBotSettings.zork_triggers.join("\n")
+          : "";
+        if (document.activeElement !== zorkTriggersInput || !selectedIsZork) {{
+          zorkTriggersInput.value = nextValue;
+        }}
+      }}
+      if (publicStartWrap instanceof HTMLElement) {{
+        publicStartWrap.hidden = !selectedIsZork;
+      }}
+      if (publicStartNote instanceof HTMLElement) {{
+        publicStartNote.hidden = !selectedIsZork;
+      }}
+      if (publicStartInput instanceof HTMLInputElement) {{
+        publicStartInput.checked = !!serverBotSettings.game_public_start_enabled;
+      }}
+      if (jokeConfigWrap instanceof HTMLElement) {{
+        jokeConfigWrap.hidden = !selectedIsJoke;
+      }}
+      if (jokeDelayPunchlineInput instanceof HTMLInputElement) {{
+        jokeDelayPunchlineInput.checked = selectedIsJoke
+          ? !!serverBotSettings.joke_delay_punchline_enabled
+          : false;
+      }}
+      if (jokeTriggersInput instanceof HTMLTextAreaElement) {{
+        const nextValue = selectedIsJoke && Array.isArray(serverBotSettings.joke_triggers)
+          ? serverBotSettings.joke_triggers.join("\n")
+          : "";
+        if (document.activeElement !== jokeTriggersInput || !selectedIsJoke) {{
+          jokeTriggersInput.value = nextValue;
+        }}
+      }}
+      if (jokeLinesInput instanceof HTMLTextAreaElement) {{
+        const nextValue = selectedIsJoke && Array.isArray(serverBotSettings.joke_lines)
+          ? serverBotSettings.joke_lines.join("\n")
+          : "";
+        if (document.activeElement !== jokeLinesInput || !selectedIsJoke) {{
+          jokeLinesInput.value = nextValue;
+        }}
+      }}
+      if (jokeNearGuessLinesInput instanceof HTMLTextAreaElement) {{
+        const nextValue = selectedIsJoke && Array.isArray(serverBotSettings.joke_near_guess_lines)
+          ? serverBotSettings.joke_near_guess_lines.join("\n")
+          : "";
+        if (document.activeElement !== jokeNearGuessLinesInput || !selectedIsJoke) {{
+          jokeNearGuessLinesInput.value = nextValue;
+        }}
+      }}
+    }}
+
+    function syncBotsReviewTabUi() {{
+      const historyPanel = document.getElementById("bots-history-tab-panel");
+      const clearBtn = document.getElementById("bots-history-clear-btn");
+      activeBotsReviewTab = "history";
+      if (historyPanel instanceof HTMLElement) {{
+        historyPanel.hidden = false;
+      }}
+      if (clearBtn instanceof HTMLButtonElement) {{
+        clearBtn.hidden = false;
+      }}
+    }}

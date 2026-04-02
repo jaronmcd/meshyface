@@ -1,0 +1,575 @@
+    function normalizeTickerDensityMode(mode) {{
+      const clean = String(mode || "").trim().toLowerCase();
+      return clean === "expanded" ? "expanded" : "compact";
+    }}
+
+    function normalizeWeeklySummaryMetric(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (clean === "packets" || clean === "live_packet_count") return "packets";
+      if (
+        clean === "nodes"
+        || clean === "node_count"
+        || clean === "online_node_count"
+        || clean === "saved_node_count"
+        || clean === "nodes_with_position"
+      ) return "nodes";
+      if (clean === "links" || clean === "real_edge_count") return "links";
+      return "packets";
+    }}
+
+    function normalizeWeeklySummaryNodesCompare(raw) {{
+      if (raw === true || raw === 1) return true;
+      const clean = String(raw || "").trim().toLowerCase();
+      return clean === "1" || clean === "true" || clean === "on" || clean === "yes";
+    }}
+
+    function normalizeWeeklySummaryNodeSeries(raw) {{
+      const normalized = {{}};
+      for (const key of weeklySummaryNodeSeriesOrder) {{
+        normalized[key] = weeklySummaryNodeSeriesDefaults[key] === true;
+      }}
+      if (raw && typeof raw === "object") {{
+        for (const key of weeklySummaryNodeSeriesOrder) {{
+          if (Object.prototype.hasOwnProperty.call(raw, key)) {{
+            normalized[key] = !!raw[key];
+          }}
+        }}
+      }}
+      if (!weeklySummaryNodeSeriesOrder.some((key) => normalized[key])) {{
+        normalized.online_nodes = true;
+      }}
+      return normalized;
+    }}
+
+    function weeklySummaryNodeSeriesPaletteColor(seriesKey) {{
+      const paletteName = String(weeklySummaryNodeSeriesPaletteNames[seriesKey] || "").trim().toLowerCase();
+      if (!paletteName) return "";
+      for (const palette of meshChannelColorPalette) {{
+        const name = String(palette && palette.name || "").trim().toLowerCase();
+        if (name !== paletteName) continue;
+        const fill = String(palette && palette.fill || "").trim();
+        if (fill) return fill;
+      }}
+      return "";
+    }}
+
+    function resolveWeeklySummaryMetricMeta(metricKey, nodeSeries = weeklySummaryNodeSeriesEnabled) {{
+      const metric = normalizeWeeklySummaryMetric(metricKey);
+      const base = weeklySummaryMetricCatalog.get(metric) || {{
+        label: "Metric",
+        decimals: 0,
+      }};
+      if (metric !== "nodes") {{
+        return base;
+      }}
+      const normalizedSeries = normalizeWeeklySummaryNodeSeries(nodeSeries);
+      const seriesOrder = weeklySummaryNodeSeriesOrder.filter((key) => normalizedSeries[key]);
+      const resolvedStyles = {{}};
+      for (const seriesKey of weeklySummaryNodeSeriesOrder) {{
+        const baseStyle = (
+          weeklySummaryNodeSeriesStyles[seriesKey]
+          && typeof weeklySummaryNodeSeriesStyles[seriesKey] === "object"
+        ) ? weeklySummaryNodeSeriesStyles[seriesKey] : {{}};
+        const paletteColor = weeklySummaryNodeSeriesPaletteColor(seriesKey);
+        resolvedStyles[seriesKey] = paletteColor
+          ? {{
+              ...baseStyle,
+              color: paletteColor,
+              labelColor: paletteColor,
+            }}
+          : {{ ...baseStyle }};
+      }}
+      return {{
+        ...base,
+        seriesOrder: seriesOrder.length ? seriesOrder : ["online_nodes"],
+        seriesLabels: weeklySummaryNodeSeriesLabels,
+        seriesStyles: resolvedStyles,
+      }};
+    }}
+
+    function updateWeeklySummaryNodeSeriesControls(metricKey = weeklySummaryMetric) {{
+      const metric = normalizeWeeklySummaryMetric(metricKey);
+      const showLines = metric === "nodes";
+      const wrap = document.getElementById("weekly-summary-node-lines-wrap");
+      if (wrap instanceof HTMLElement) {{
+        wrap.hidden = !showLines;
+      }}
+      for (const key of weeklySummaryNodeSeriesOrder) {{
+        const toggleId = weeklySummaryNodeSeriesControlIds[key];
+        const toggle = document.getElementById(toggleId);
+        if (!(toggle instanceof HTMLInputElement)) continue;
+        const seriesColor = weeklySummaryNodeSeriesPaletteColor(key);
+        if (seriesColor) {{
+          toggle.style.accentColor = seriesColor;
+        }} else {{
+          toggle.style.removeProperty("accent-color");
+        }}
+        toggle.checked = !!weeklySummaryNodeSeriesEnabled[key];
+        toggle.disabled = !showLines;
+      }}
+    }}
+
+    function applyWeeklySummaryMetric(metricKey, persist = true) {{
+      const normalized = normalizeWeeklySummaryMetric(metricKey);
+      weeklySummaryMetric = normalized;
+      const select = document.getElementById("weekly-summary-metric");
+      if (select instanceof HTMLSelectElement && select.value !== normalized) {{
+        select.value = normalized;
+      }}
+      updateWeeklySummaryNodeSeriesControls(normalized);
+      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      if (cached && cached.data) {{
+        renderWeeklySummary(cached.data);
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(weeklySummaryMetricStorageKey, normalized);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function applyWeeklySummaryNodeSeries(nextSeries, persist = true) {{
+      weeklySummaryNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
+      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
+      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      if (cached && cached.data) {{
+        renderWeeklySummary(cached.data);
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(
+          weeklySummaryNodeSeriesStorageKey,
+          JSON.stringify(weeklySummaryNodeSeriesEnabled)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function applyTickerDensity(mode, persist = true) {{
+      const normalized = normalizeTickerDensityMode(mode);
+      tickerDensity = normalized;
+      if (topbarElement instanceof HTMLElement) {{
+        topbarElement.classList.toggle("ticker-expanded", normalized === "expanded");
+      }}
+      requestTopbarLayoutMetricsSync();
+      window.setTimeout(() => {{
+        requestTopbarLayoutMetricsSync();
+      }}, 170);
+      if (latestState) {{
+        renderSummary(latestState);
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(tickerDensityStorageKey, normalized);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function normalizeTickerId(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      return tickerCatalogById.has(key) ? key : "";
+    }}
+
+    function defaultTickerOneshotPreferences() {{
+      return {{
+        node_online: {{
+          enabled: false,
+          favorites_only: true,
+        }},
+      }};
+    }}
+
+    function defaultTickerPreferences() {{
+      const defaultEnabled = Object.fromEntries(
+        tickerDefaultOrder.map((id) => [id, true])
+      );
+      defaultEnabled.chat_channels = false;
+      defaultEnabled.chat_roster = false;
+      return {{
+        order: [...tickerDefaultOrder],
+        enabled: defaultEnabled,
+        labels: {{}},
+        trend: {{ ...tickerDefaultTrendVisibility }},
+        battery_window_hours: tickerDefaultBatteryWindowHours,
+        node_rows: {{ ...nodeTickerDefaultRows }},
+        node_packet_trend: true,
+        oneshots: defaultTickerOneshotPreferences(),
+      }};
+    }}
+
+    function normalizeTickerPreferences(value) {{
+      const raw = value && typeof value === "object" ? value : {{}};
+      const base = defaultTickerPreferences();
+      const order = [];
+      const seen = new Set();
+      const rawOrder = Array.isArray(raw.order) ? raw.order : [];
+      for (const rawId of rawOrder) {{
+        const id = normalizeTickerId(rawId);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        order.push(id);
+      }}
+      for (const id of tickerDefaultOrder) {{
+        if (seen.has(id)) continue;
+        seen.add(id);
+        order.push(id);
+      }}
+
+      const enabledRaw = raw.enabled && typeof raw.enabled === "object" ? raw.enabled : {{}};
+      const enabled = {{}};
+      for (const id of tickerDefaultOrder) {{
+        const fallbackEnabled = parseBoolToken(base.enabled[id], true);
+        if (!(id in enabledRaw)) {{
+          enabled[id] = fallbackEnabled;
+          continue;
+        }}
+        enabled[id] = parseBoolToken(enabledRaw[id], fallbackEnabled);
+      }}
+
+      const labelsRaw = raw.labels && typeof raw.labels === "object" ? raw.labels : {{}};
+      const labels = {{}};
+      for (const [rawId, rawValue] of Object.entries(labelsRaw)) {{
+        const id = normalizeTickerId(rawId);
+        if (!id) continue;
+        const text = String(rawValue == null ? "" : rawValue).trim().slice(0, 26);
+        if (!text) continue;
+        const defaultLabel = String((tickerCatalogById.get(id) && tickerCatalogById.get(id).defaultLabel) || id);
+        if (text === defaultLabel) continue;
+        labels[id] = text;
+      }}
+
+      const trendRaw = raw.trend && typeof raw.trend === "object" ? raw.trend : {{}};
+      const trend = {{}};
+      for (const id of tickerDefaultOrder) {{
+        const defaultTrend = !!tickerDefaultTrendVisibility[id];
+        if (!(id in trendRaw)) {{
+          trend[id] = defaultTrend;
+          continue;
+        }}
+        trend[id] = parseBoolToken(trendRaw[id], defaultTrend);
+      }}
+
+      const batteryWindowRaw = Number(raw.battery_window_hours ?? raw.batteryWindowHours);
+      const batteryWindowHours = Number.isFinite(batteryWindowRaw)
+        ? Math.max(1, Math.min(24, Math.round(batteryWindowRaw)))
+        : base.battery_window_hours;
+      const nodeRowsRaw = (
+        raw.node_rows && typeof raw.node_rows === "object"
+          ? raw.node_rows
+          : (raw.nodeRows && typeof raw.nodeRows === "object" ? raw.nodeRows : {{}})
+      );
+      const nodeRows = {{}};
+      for (const key of nodeTickerRowKeys) {{
+        const fallback = !!nodeTickerDefaultRows[key];
+        nodeRows[key] = key in nodeRowsRaw
+          ? parseBoolToken(nodeRowsRaw[key], fallback)
+          : fallback;
+      }}
+      const nodePacketTrend = parseBoolToken(
+        raw.node_packet_trend
+          ?? raw.nodePacketTrend
+          ?? raw.node_list_packet_sparkline
+          ?? raw.nodeListPacketSparkline,
+        true
+      );
+      const oneshotsRaw = (
+        raw.oneshots && typeof raw.oneshots === "object"
+          ? raw.oneshots
+          : (raw.one_shots && typeof raw.one_shots === "object" ? raw.one_shots : {{}})
+      );
+      const defaultOneshots = defaultTickerOneshotPreferences();
+      const nodeOnlineRaw = (
+        oneshotsRaw.node_online && typeof oneshotsRaw.node_online === "object"
+          ? oneshotsRaw.node_online
+          : {{}}
+      );
+      const nodeOnlineEnabled = parseBoolToken(
+        nodeOnlineRaw.enabled
+          ?? nodeOnlineRaw.on
+          ?? raw.node_online_oneshot_enabled
+          ?? raw.nodeOnlineOneshotEnabled,
+        !!(defaultOneshots.node_online && defaultOneshots.node_online.enabled)
+      );
+      const nodeOnlineFavoritesOnly = parseBoolToken(
+        nodeOnlineRaw.favorites_only
+          ?? nodeOnlineRaw.favoritesOnly
+          ?? raw.node_online_oneshot_favorites_only
+          ?? raw.nodeOnlineOneshotFavoritesOnly,
+        !!(defaultOneshots.node_online && defaultOneshots.node_online.favorites_only)
+      );
+      const oneshots = {{
+        node_online: {{
+          enabled: nodeOnlineEnabled,
+          favorites_only: nodeOnlineFavoritesOnly,
+        }},
+      }};
+
+      return {{
+        order,
+        enabled,
+        labels,
+        trend,
+        battery_window_hours: batteryWindowHours,
+        node_rows: nodeRows,
+        node_packet_trend: nodePacketTrend,
+        oneshots,
+      }};
+    }}
+
+    function currentTickerPreferences() {{
+      if (!tickerPreferences || typeof tickerPreferences !== "object") {{
+        tickerPreferences = defaultTickerPreferences();
+      }}
+      return tickerPreferences;
+    }}
+
+    function persistTickerPreferences() {{
+      try {{
+        window.localStorage.setItem(
+          tickerPreferencesStorageKey,
+          JSON.stringify(normalizeTickerPreferences(currentTickerPreferences()))
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadTickerPreferences() {{
+      let parsed = null;
+      try {{
+        const raw = window.localStorage.getItem(tickerPreferencesStorageKey) || "";
+        if (raw) {{
+          parsed = JSON.parse(raw);
+        }}
+      }} catch (_err) {{
+        parsed = null;
+      }}
+      tickerPreferences = normalizeTickerPreferences(parsed || defaultTickerPreferences());
+      applyTickerPreferencesToTopbar();
+    }}
+
+    function tickerLabelText(tickerId) {{
+      const id = normalizeTickerId(tickerId);
+      if (!id) return "";
+      const prefs = currentTickerPreferences();
+      const custom = String((prefs.labels && prefs.labels[id]) || "").trim();
+      if (custom) return custom;
+      const defaultLabel = tickerCatalogById.get(id) && tickerCatalogById.get(id).defaultLabel;
+      return String(defaultLabel || id);
+    }}
+
+    function tickerEnabled(tickerId) {{
+      const id = normalizeTickerId(tickerId);
+      if (!id) return false;
+      const prefs = currentTickerPreferences();
+      if (!prefs.enabled || typeof prefs.enabled !== "object") return true;
+      if (!(id in prefs.enabled)) return true;
+      return !!prefs.enabled[id];
+    }}
+
+    function tickerTrendEnabled(tickerId) {{
+      const id = normalizeTickerId(tickerId);
+      if (!id || !tickerMetricIds.has(id)) return false;
+      const prefs = currentTickerPreferences();
+      if (!prefs.trend || typeof prefs.trend !== "object") return true;
+      if (!(id in prefs.trend)) return true;
+      return !!prefs.trend[id];
+    }}
+
+    function batteryTrendWindowHours() {{
+      const prefs = currentTickerPreferences();
+      const raw = Number(prefs && prefs.battery_window_hours);
+      if (!Number.isFinite(raw)) return tickerDefaultBatteryWindowHours;
+      return Math.max(1, Math.min(24, Math.round(raw)));
+    }}
+
+    function nodeTickerRowPreferences() {{
+      const prefs = currentTickerPreferences();
+      const raw = prefs && prefs.node_rows && typeof prefs.node_rows === "object"
+        ? prefs.node_rows
+        : {{}};
+      const normalized = {{}};
+      for (const key of nodeTickerRowKeys) {{
+        normalized[key] = key in raw
+          ? parseBoolToken(raw[key], !!nodeTickerDefaultRows[key])
+          : !!nodeTickerDefaultRows[key];
+      }}
+      return normalized;
+    }}
+
+    function nodeNavigatorPacketTrendEnabled() {{
+      const prefs = currentTickerPreferences();
+      return parseBoolToken(prefs && prefs.node_packet_trend, true);
+    }}
+
+    function topbarOneshotNodeOnlineEnabled() {{
+      const prefs = currentTickerPreferences();
+      const oneShots = prefs && prefs.oneshots && typeof prefs.oneshots === "object"
+        ? prefs.oneshots
+        : {{}};
+      const nodeOnline = oneShots.node_online && typeof oneShots.node_online === "object"
+        ? oneShots.node_online
+        : {{}};
+      return parseBoolToken(nodeOnline.enabled, false);
+    }}
+
+    function topbarOneshotNodeOnlineFavoritesOnly() {{
+      const prefs = currentTickerPreferences();
+      const oneShots = prefs && prefs.oneshots && typeof prefs.oneshots === "object"
+        ? prefs.oneshots
+        : {{}};
+      const nodeOnline = oneShots.node_online && typeof oneShots.node_online === "object"
+        ? oneShots.node_online
+        : {{}};
+      return parseBoolToken(nodeOnline.favorites_only, true);
+    }}
+
+    function isTickerSettingsControlId(controlId) {{
+      return String(controlId || "").trim().startsWith("settings-ticker-");
+    }}
+
+    function applyTickerPreferencesToTopbar() {{
+      const row = document.querySelector(".summary-ticker-row");
+      if (!(row instanceof HTMLElement)) return;
+      const prefs = currentTickerPreferences();
+
+      const orderedIds = [];
+      const seen = new Set();
+      for (const rawId of (Array.isArray(prefs.order) ? prefs.order : [])) {{
+        const id = normalizeTickerId(rawId);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        orderedIds.push(id);
+      }}
+      for (const id of tickerDefaultOrder) {{
+        if (seen.has(id)) continue;
+        seen.add(id);
+        orderedIds.push(id);
+      }}
+
+      let orderIndex = 0;
+      for (const id of orderedIds) {{
+        const item = row.querySelector(`.summary-ticker-item[data-ticker-id="${{id}}"]`);
+        if (!(item instanceof HTMLElement)) continue;
+        item.style.order = String(orderIndex);
+        item.hidden = !tickerEnabled(id);
+        const labelEl = item.querySelector("[data-ticker-label]");
+        if (labelEl instanceof HTMLElement) {{
+          const defaultLabel = String((tickerCatalogById.get(id) && tickerCatalogById.get(id).defaultLabel) || id);
+          if (!labelEl.dataset.defaultLabel) {{
+            labelEl.dataset.defaultLabel = defaultLabel;
+          }}
+          labelEl.textContent = tickerLabelText(id) || defaultLabel;
+        }}
+        orderIndex += 1;
+      }}
+      requestTopbarLayoutMetricsSync();
+    }}
+
+    function saveTickerPreferences({{
+      rerenderSummary = true,
+      rerenderSettings = true,
+      status = "Ticker preferences saved locally.",
+    }} = {{}}) {{
+      tickerPreferences = normalizeTickerPreferences(currentTickerPreferences());
+      persistTickerPreferences();
+      applyTickerPreferencesToTopbar();
+      if (rerenderSummary && latestState) {{
+        renderSummary(latestState);
+      }}
+      if (rerenderSettings && activeSettingsTab === "tickers") {{
+        renderTickerSettingsUi();
+      }}
+      if (status) {{
+        setSettingsStatusText(status);
+      }}
+    }}
+
+    function resetTickerPreferencesForId(tickerId) {{
+      const id = normalizeTickerId(tickerId);
+      if (!id) return;
+      const prefs = currentTickerPreferences();
+      if (!prefs.enabled || typeof prefs.enabled !== "object") prefs.enabled = {{}};
+      if (!prefs.labels || typeof prefs.labels !== "object") prefs.labels = {{}};
+      if (!prefs.trend || typeof prefs.trend !== "object") prefs.trend = {{}};
+      prefs.enabled[id] = true;
+      delete prefs.labels[id];
+      prefs.trend[id] = !!tickerDefaultTrendVisibility[id];
+      if (id === "battery") {{
+        prefs.battery_window_hours = tickerDefaultBatteryWindowHours;
+      }}
+      if (id === "node") {{
+        prefs.node_rows = {{ ...nodeTickerDefaultRows }};
+      }}
+    }}
+
+    function updateThemeToggleLabel(resolvedTheme) {{
+      const btn = document.getElementById("theme-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const resolvedText = resolvedTheme === "dark" ? "Dark" : "Light";
+      btn.textContent = `Theme: ${{resolvedText}}`;
+      if (themePreference === "auto") {{
+        btn.title = `Theme follows system (${{resolvedText}}). Click to lock Light/Dark toggle.`;
+      }} else {{
+        btn.title = `Theme locked to ${{resolvedText}}. Click to toggle Light/Dark.`;
+      }}
+      btn.setAttribute("aria-label", btn.title);
+    }}
+
+    function applyThemePreference(mode, persist = true) {{
+      const normalized = normalizeThemeMode(mode);
+      themePreference = normalized;
+      const resolvedTheme = normalized === "auto" ? systemPreferredTheme() : normalized;
+      applyThemePresetTokens(resolvedTheme);
+      document.documentElement.setAttribute("data-theme", resolvedTheme);
+      document.documentElement.setAttribute("data-theme-pref", normalized);
+      applyMapTiles(resolvedTheme);
+      applySettingsFixedMapTiles(resolvedTheme);
+      updateThemeToggleLabel(resolvedTheme);
+      const historyNodeId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : normalizeNodeId(selectedNodeId || "");
+      if (isSelectableNodeId(historyNodeId)) {{
+        const cached = nodeHistoryCache.get(historyNodeId);
+        if (cached && cached.data && Array.isArray(cached.data.points)) {{
+          renderSignalChart(cached.data.points);
+        }}
+      }}
+      if (activeMapDataMode === "activity") {{
+        const cachedWeekly = summaryMetricsCache.get(String(weeklySummaryHours));
+        if (cachedWeekly && cachedWeekly.data && Array.isArray(cachedWeekly.data.points)) {{
+          renderWeeklySummary(cachedWeekly.data);
+        }}
+      }}
+
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(themeStorageKey, normalized);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function bindThemeToggle() {{
+      const btn = document.getElementById("theme-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {{
+          const resolved = themePreference === "auto" ? systemPreferredTheme() : themePreference;
+          const next = resolved === "dark" ? "light" : "dark";
+          applyThemePreference(next, true);
+        }});
+      }}
+
+      if (!themeMediaQuery && window.matchMedia) {{
+        themeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        const onThemeChange = () => {{
+          if (themePreference === "auto") {{
+            applyThemePreference("auto", false);
+          }}
+        }};
+        if (typeof themeMediaQuery.addEventListener === "function") {{
+          themeMediaQuery.addEventListener("change", onThemeChange);
+        }} else if (typeof themeMediaQuery.addListener === "function") {{
+          themeMediaQuery.addListener(onThemeChange);
+        }}
+      }}
+    }}

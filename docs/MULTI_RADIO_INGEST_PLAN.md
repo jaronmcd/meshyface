@@ -1,5 +1,13 @@
 # Multi-Radio Federated Backend Plan (V2, Greenfield)
 
+Doc status: proposal
+Last reviewed: 2026-03-14
+
+Status (audited 2026-03-14):
+
+1. Proposal/spec document only.
+2. The V2 multi-radio ingest/sync model described here is not implemented in this branch.
+
 ## Decision
 
 Build a new V2 backend architecture that is allowed to break old assumptions.

@@ -1,0 +1,164 @@
+    function applyPokerBettingAction(actionRaw, amountRaw = null) {{
+      const state = ensurePokerState();
+      if (state.phase !== "betting") return;
+      const action = String(actionRaw || "").trim().toLowerCase();
+      if (!["check", "call", "bet", "raise", "fold"].includes(action)) return;
+      const seat = pokerCurrentSeat();
+      if (!seat || !seat.in_hand || seat.folded) return;
+      const callAmount = pokerCurrentCallAmount(state, seat);
+      const stackAmount = normalizePokerChipAmount(seat.stack, 0, 0, Number.MAX_SAFE_INTEGER);
+      let summary = "";
+
+      if (action === "fold") {{
+        seat.folded = true;
+        seat.in_hand = false;
+        seat.draw_done = true;
+        seat.selected_discards = [];
+        seat.round_acted = true;
+        summary = `${{seat.name}} folds.`;
+      }} else if (action === "check") {{
+        if (callAmount > 0) {{
+          state.notice = `${{seat.name}} must call ${{callAmount}}, raise, or fold.`;
+          if (activeLayoutView === "games") renderGamesView(latestState);
+          return;
+        }}
+        seat.round_acted = true;
+        summary = `${{seat.name}} checks.`;
+      }} else if (action === "call") {{
+        if (callAmount <= 0) {{
+          seat.round_acted = true;
+          summary = `${{seat.name}} checks.`;
+        }} else {{
+          const posted = pokerPostForcedChips(state, seat.seat, callAmount);
+          seat.round_bet = normalizePokerChipAmount(seat.round_bet, 0, 0, Number.MAX_SAFE_INTEGER) + posted;
+          seat.round_acted = true;
+          summary = posted < callAmount
+            ? `${{seat.name}} calls all-in for ${{posted}}.`
+            : `${{seat.name}} calls ${{posted}}.`;
+        }}
+      }} else {{
+        if (stackAmount <= 0) {{
+          state.notice = `${{seat.name}} has no chips left.`;
+          if (activeLayoutView === "games") renderGamesView(latestState);
+          return;
+        }}
+        const fallbackRaise = Math.max(1, normalizePokerChipAmount(state.big_blind, 1, 1, Number.MAX_SAFE_INTEGER));
+        const raiseBy = normalizePokerChipAmount(amountRaw, fallbackRaise, 1, Number.MAX_SAFE_INTEGER);
+        const totalTarget = callAmount + raiseBy;
+        const posted = pokerPostForcedChips(state, seat.seat, totalTarget);
+        seat.round_bet = normalizePokerChipAmount(seat.round_bet, 0, 0, Number.MAX_SAFE_INTEGER) + posted;
+        if (posted <= callAmount) {{
+          seat.round_acted = true;
+          summary = callAmount > 0
+            ? `${{seat.name}} calls all-in for ${{posted}}.`
+            : `${{seat.name}} is all-in for ${{posted}}.`;
+        }} else {{
+          const newBet = normalizePokerChipAmount(seat.round_bet, 0, 0, Number.MAX_SAFE_INTEGER);
+          state.current_bet = Math.max(normalizePokerChipAmount(state.current_bet, 0, 0, Number.MAX_SAFE_INTEGER), newBet);
+          for (const otherSeatIndex of pokerLiveSeatIndexes(state)) {{
+            const otherSeat = pokerSeatByIndex(state, otherSeatIndex);
+            if (!otherSeat || Number(otherSeat.seat) === Number(seat.seat)) continue;
+            if (Number(otherSeat.stack) > 0) otherSeat.round_acted = false;
+          }}
+          seat.round_acted = true;
+          const raisePortion = posted - callAmount;
+          summary = callAmount > 0
+            ? `${{seat.name}} raises by ${{raisePortion}} to ${{newBet}}.`
+            : `${{seat.name}} bets ${{newBet}}.`;
+        }}
+      }}
+
+      state.last_action = summary;
+      if (pokerResolveUncontestedWin(state)) {{
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      pokerAdvanceBettingTurn(state);
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function togglePokerDiscard(seatIndexRaw, cardIndexRaw) {{
+      const state = ensurePokerState();
+      if (state.phase !== "draw") return;
+      const seatIndex = Math.trunc(Number(seatIndexRaw) || 0);
+      const cardIndex = Math.trunc(Number(cardIndexRaw) || 0);
+      if (seatIndex !== Number(state.current_player)) return;
+      if (cardIndex < 0 || cardIndex >= pokerHandSize) return;
+      const seat = state.seats.find((row) => Number(row.seat) === seatIndex);
+      if (!seat) return;
+      const clean = Array.from(new Set(
+        (Array.isArray(seat.selected_discards) ? seat.selected_discards : [])
+          .map((value) => normalizePokerIndex(value, -1))
+          .filter((value) => value >= 0 && value < pokerHandSize)
+      ));
+      const currentSet = new Set(clean);
+      if (currentSet.has(cardIndex)) {{
+        currentSet.delete(cardIndex);
+      }} else {{
+        currentSet.add(cardIndex);
+      }}
+      seat.selected_discards = Array.from(currentSet).sort((a, b) => a - b);
+      const selectedCount = seat.selected_discards.length;
+      state.notice = selectedCount > 0
+        ? `${{seat.name}} selected ${{selectedCount}} card${{selectedCount === 1 ? "" : "s"}} to replace.`
+        : `${{seat.name}} is standing pat.`;
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function commitPokerDrawTurn() {{
+      const state = ensurePokerState();
+      if (state.phase !== "draw") {{
+        dealPokerHand();
+        return;
+      }}
+      const seat = pokerCurrentSeat();
+      if (!seat) {{
+        resolvePokerShowdown();
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const selected = Array.from(new Set(
+        (Array.isArray(seat.selected_discards) ? seat.selected_discards : [])
+          .map((value) => normalizePokerIndex(value, -1))
+          .filter((value) => value >= 0 && value < pokerHandSize)
+      )).sort((a, b) => a - b);
+      let drewCount = 0;
+      for (const handIndex of selected) {{
+        const oldCard = String(seat.hand[handIndex] || "").trim().toUpperCase();
+        if (parseStandardCard(oldCard)) {{
+          state.discard_pile.push(oldCard);
+        }}
+        const nextCard = pokerDrawCard(state);
+        if (nextCard) {{
+          seat.hand[handIndex] = nextCard;
+          drewCount += 1;
+        }}
+      }}
+      seat.selected_discards = [];
+      seat.draw_count = drewCount;
+      seat.draw_done = true;
+      state.last_action = drewCount > 0
+        ? `${{seat.name}} drew ${{drewCount}} card${{drewCount === 1 ? "" : "s"}}.`
+        : `${{seat.name}} stood pat.`;
+      let nextDrawIndex = Math.max(0, Math.trunc(Number(state.draw_index) || 0)) + 1;
+      while (nextDrawIndex < state.draw_order.length) {{
+        const nextSeatIndex = normalizePokerIndex(state.draw_order[nextDrawIndex], -1);
+        const nextSeat = state.seats.find((row) => Number(row.seat) === nextSeatIndex);
+        if (nextSeat && !nextSeat.draw_done) {{
+          break;
+        }}
+        nextDrawIndex += 1;
+      }}
+      if (nextDrawIndex < state.draw_order.length) {{
+        state.draw_index = nextDrawIndex;
+        state.current_player = normalizePokerIndex(state.draw_order[nextDrawIndex], -1);
+        const nextSeat = pokerCurrentSeat();
+        state.notice = nextSeat
+          ? `${{state.last_action}} ${{nextSeat.name}}: select cards, then Draw/Stand.`
+          : state.last_action;
+      }} else {{
+        resolvePokerShowdown();
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+

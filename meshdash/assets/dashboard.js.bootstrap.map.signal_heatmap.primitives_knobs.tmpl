@@ -1,0 +1,266 @@
+    function supportsSignalHeatmap() {{
+      return !!(window.L && typeof L.heatLayer === "function");
+    }}
+
+    function clampUnitInterval(value) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 0;
+      return Math.max(0, Math.min(1, numeric));
+    }}
+
+    function clampNumber(value, minValue, maxValue, fallbackValue) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return fallbackValue;
+      if (Number.isFinite(minValue) && numeric < minValue) return minValue;
+      if (Number.isFinite(maxValue) && numeric > maxValue) return maxValue;
+      return numeric;
+    }}
+
+    function metersPerPixelAtLatitude(lat, zoom) {{
+      const latRadians = (Number(lat) * Math.PI) / 180;
+      const cosLat = Math.max(0.01, Math.cos(latRadians));
+      const zoomLevel = Number.isFinite(Number(zoom)) ? Number(zoom) : 0;
+      return (156543.03392 * cosLat) / Math.pow(2, zoomLevel);
+    }}
+
+    function normalizeSignalHeatmapMode(rawValue) {{
+      const clean = String(rawValue || "").trim().toLowerCase();
+      return signalHeatmapModeAccepted.has(clean) ? clean : "coverage";
+    }}
+
+    function resolveSignalHeatModeConfig(mode = signalHeatmapMode) {{
+      const key = normalizeSignalHeatmapMode(mode);
+      return signalHeatModeDefaults[key] || signalHeatModeDefaults.coverage;
+    }}
+
+    function signalHeatNodeAgeSeconds(node, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const heardUnix = nodeLastHeardUnix(node);
+      if (!Number.isFinite(heardUnix) || heardUnix <= 0) {{
+        return null;
+      }}
+      return Math.max(0, nowUnix - heardUnix);
+    }}
+
+    function signalHeatNodeWithinWindow(ageSeconds, modeConfig = null) {{
+      const config = modeConfig || resolveSignalHeatModeConfig();
+      const includeUnknownAge = !!(config && config.includeUnknownAge);
+      if (!Number.isFinite(ageSeconds)) {{
+        return includeUnknownAge;
+      }}
+      const maxAgeRaw = Number(config && config.maxAgeSeconds);
+      const maxAgeSeconds = Number.isFinite(maxAgeRaw) ? maxAgeRaw : 0;
+      if (maxAgeSeconds <= 0) {{
+        return true;
+      }}
+      return ageSeconds <= maxAgeSeconds;
+    }}
+
+    function sanitizeSignalHeatDevKnobs(raw) {{
+      const next = Object.assign({{}}, signalHeatDevKnobDefaults);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {{
+        return next;
+      }}
+      for (const [name, bounds] of Object.entries(signalHeatDevKnobBounds)) {{
+        if (!Object.prototype.hasOwnProperty.call(raw, name)) continue;
+        const [minValue, maxValue] = bounds;
+        next[name] = clampNumber(raw[name], minValue, maxValue, signalHeatDevKnobDefaults[name]);
+      }}
+      next.freshnessFloor = clampNumber(next.freshnessFloor, 0, 1, signalHeatDevKnobDefaults.freshnessFloor);
+      next.freshnessGain = clampNumber(next.freshnessGain, 0, 1 - next.freshnessFloor, signalHeatDevKnobDefaults.freshnessGain);
+      return next;
+    }}
+
+    function parseSignalHeatDevKnobsFromUrl() {{
+      if (!(window.URLSearchParams && window.location && typeof window.location.search === "string")) {{
+        return null;
+      }}
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = {{}};
+      const mapping = [
+        ["radius", "heat_radius"],
+        ["blur", "heat_blur"],
+        ["radiusSignalGain", "heat_signal_gain"],
+        ["minOpacity", "heat_min_opacity"],
+        ["intensityFloor", "heat_floor"],
+        ["intensityGamma", "heat_gamma"],
+        ["freshnessFloor", "heat_fresh_floor"],
+        ["freshnessGain", "heat_fresh_gain"],
+        ["greenBias", "heat_green_bias"],
+        ["geoRadiusLock", "heat_geo_lock"],
+        ["coverageKm", "heat_coverage_km"],
+        ["blurRatio", "heat_blur_ratio"],
+      ];
+      for (const [knobName, paramName] of mapping) {{
+        if (!params.has(paramName)) continue;
+        fromUrl[knobName] = params.get(paramName);
+      }}
+      return Object.keys(fromUrl).length > 0 ? fromUrl : null;
+    }}
+
+    function parseBoolToken(rawValue, fallbackValue = false) {{
+      const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+      if (!clean) return !!fallbackValue;
+      if (["1", "true", "yes", "on", "enabled", "enable"].includes(clean)) return true;
+      if (["0", "false", "no", "off", "disabled", "disable"].includes(clean)) return false;
+      return !!fallbackValue;
+    }}
+
+    function getQueryParamValue(name) {{
+      if (!(window.URLSearchParams && window.location && typeof window.location.search === "string")) {{
+        return null;
+      }}
+      try {{
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has(name)) return null;
+        return params.get(name);
+      }} catch (_err) {{
+        return null;
+      }}
+    }}
+
+    function loadChatPerfPreference() {{
+      let enabled = false;
+      try {{
+        enabled = parseBoolToken(window.localStorage.getItem(chatPerfStorageKey), false);
+      }} catch (_err) {{
+      }}
+      const fromQuery = getQueryParamValue("chat_perf");
+      if (fromQuery != null) {{
+        enabled = parseBoolToken(fromQuery, enabled);
+        try {{
+          window.localStorage.setItem(chatPerfStorageKey, enabled ? "1" : "0");
+        }} catch (_err) {{
+        }}
+      }}
+      chatPerfEnabled = enabled;
+    }}
+
+    function recordChatPerfSample(renderMs, feedCount, rosterCount) {{
+      if (!chatPerfEnabled) return;
+      const ms = Math.max(0, Number(renderMs) || 0);
+      chatPerfStats.samples += 1;
+      chatPerfStats.lastMs = ms;
+      chatPerfStats.avgMs = chatPerfStats.samples <= 1
+        ? ms
+        : ((chatPerfStats.avgMs * (chatPerfStats.samples - 1)) + ms) / chatPerfStats.samples;
+      chatPerfStats.emaMs = chatPerfStats.samples <= 1
+        ? ms
+        : (chatPerfStats.emaMs * (1 - chatPerfEmaAlpha)) + (ms * chatPerfEmaAlpha);
+      chatPerfStats.maxMs = Math.max(chatPerfStats.maxMs, ms);
+      chatPerfStats.lastFeedCount = Math.max(0, Math.trunc(Number(feedCount) || 0));
+      chatPerfStats.lastRosterCount = Math.max(0, Math.trunc(Number(rosterCount) || 0));
+      chatPerfStats.lastChannel = activeChatChannel;
+    }}
+
+    function persistSignalHeatDevKnobs() {{
+      try {{
+        window.localStorage.setItem(signalHeatDevKnobsStorageKey, JSON.stringify(signalHeatDevKnobs));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncSignalHeatmapAfterKnobChange() {{
+      if (!latestState || !Array.isArray(latestState.nodes)) return;
+      syncSignalHeatmapLayer(latestState.nodes, activeLayoutView === "saved");
+    }}
+
+    function setSignalHeatDevKnobs(overrides, persist = true) {{
+      signalHeatDevKnobs = sanitizeSignalHeatDevKnobs(
+        Object.assign({{}}, signalHeatDevKnobs, overrides || {{}})
+      );
+      if (persist) {{
+        persistSignalHeatDevKnobs();
+      }}
+      syncSignalHeatmapAfterKnobChange();
+      return Object.assign({{}}, signalHeatDevKnobs);
+    }}
+
+    function loadSignalHeatDevKnobs() {{
+      let stored = null;
+      try {{
+        const raw = window.localStorage.getItem(signalHeatDevKnobsStorageKey);
+        if (raw) {{
+          stored = JSON.parse(raw);
+        }}
+      }} catch (_err) {{
+      }}
+      const fromUrl = parseSignalHeatDevKnobsFromUrl();
+      signalHeatDevKnobs = sanitizeSignalHeatDevKnobs(
+        Object.assign({{}}, signalHeatDevKnobDefaults, stored || {{}}, fromUrl || {{}})
+      );
+    }}
+
+    function bindSignalHeatDevApi() {{
+      const api = {{
+        get: () => Object.assign({{}}, signalHeatDevKnobs),
+        set: (overrides = {{}}, persist = true) => setSignalHeatDevKnobs(overrides, !!persist),
+        reset: (persist = true) => {{
+          signalHeatDevKnobs = Object.assign({{}}, signalHeatDevKnobDefaults);
+          if (persist) {{
+            persistSignalHeatDevKnobs();
+          }}
+          syncSignalHeatmapAfterKnobChange();
+          return Object.assign({{}}, signalHeatDevKnobs);
+        }},
+      }};
+      window.meshHeatmapDev = api;
+    }}
+
+    function ensureSignalHeatmapLayers() {{
+      if (!supportsSignalHeatmap()) {{
+        return [];
+      }}
+      if (Array.isArray(signalHeatmapLayers) && signalHeatmapLayers.length > 0) {{
+        return signalHeatmapLayers;
+      }}
+      let pane = map.getPane(signalHeatmapPaneName);
+      if (!pane) {{
+        pane = map.createPane(signalHeatmapPaneName);
+      }}
+      if (pane) {{
+        pane.style.zIndex = "430";
+        pane.style.pointerEvents = "none";
+      }}
+      const baseRadius = signalHeatDevKnobs.radius;
+      const baseBlur = signalHeatDevKnobs.blur;
+      const baseOpacity = signalHeatDevKnobs.minOpacity;
+      const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
+
+      signalHeatmapLayers = signalHeatBucketDefs.map((bucket) => {{
+        const baseRadiusMul = Number(bucket.radiusMul) || 1;
+        const baseBlurMul = Number(bucket.blurMul) || 1;
+        const radiusMul = 1 + ((baseRadiusMul - 1) * signalGain);
+        const blurMul = 1 + ((baseBlurMul - 1) * signalGain);
+        const radius = clampNumber(
+          Math.round(baseRadius * radiusMul),
+          10,
+          160,
+          baseRadius
+        );
+        const blur = clampNumber(
+          Math.round(baseBlur * blurMul),
+          8,
+          140,
+          baseBlur
+        );
+        return L.heatLayer(
+          [],
+          Object.assign(
+            {{ pane: signalHeatmapPaneName }},
+            signalHeatmapLayerOptions,
+            {{ radius, blur, minOpacity: baseOpacity }}
+          )
+        );
+      }});
+      return signalHeatmapLayers;
+    }}
+
+    function forceHeatLayerPointerPassthrough(layer) {{
+      if (!layer || typeof layer !== "object") return;
+      const canvas = layer._canvas;
+      if (!(canvas instanceof HTMLCanvasElement)) return;
+      // Some leaflet.heat builds render into overlayPane (ignoring custom panes),
+      // which can block marker hover/click unless canvas hit-testing is disabled.
+      canvas.style.pointerEvents = "none";
+    }}
+

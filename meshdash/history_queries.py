@@ -1,4 +1,7 @@
 from .sql_contracts import SqlConnection, SqlRows
+from .history_summary_sampling import (
+    summary_metrics_bucket_unix as _summary_metrics_bucket_unix,
+)
 
 
 def fetch_recent_packet_rows(conn: SqlConnection, limit: int) -> SqlRows:
@@ -8,10 +11,116 @@ def fetch_recent_packet_rows(conn: SqlConnection, limit: int) -> SqlRows:
     ).fetchall()
 
 
+def fetch_packet_search_rows(conn: SqlConnection, limit: int) -> SqlRows:
+    clean_limit = int(limit)
+    if clean_limit <= 0:
+        return conn.execute(
+            "SELECT id, created_unix, summary_json, packet_json FROM packets ORDER BY id ASC"
+        ).fetchall()
+    return conn.execute(
+        """
+        SELECT id, created_unix, summary_json, packet_json
+        FROM (
+          SELECT id, created_unix, summary_json, packet_json
+          FROM packets
+          ORDER BY id DESC
+          LIMIT ?
+        )
+        ORDER BY id ASC
+        """,
+        (clean_limit,),
+    ).fetchall()
+
+
+def fetch_chat_search_rows(conn: SqlConnection, limit: int) -> SqlRows:
+    clean_limit = int(limit)
+    file_transfer_like = '%"text":"MF_FILE_V1|%'
+    if clean_limit <= 0:
+        return conn.execute(
+            """
+            SELECT id, created_unix, message_json
+            FROM chat
+            WHERE message_json NOT LIKE ?
+            ORDER BY id ASC
+            """,
+            (file_transfer_like,),
+        ).fetchall()
+    return conn.execute(
+        """
+        SELECT id, created_unix, message_json
+        FROM (
+          SELECT id, created_unix, message_json
+          FROM chat
+          WHERE message_json NOT LIKE ?
+          ORDER BY id DESC
+          LIMIT ?
+        )
+        ORDER BY id ASC
+        """,
+        (file_transfer_like, clean_limit),
+    ).fetchall()
+
+
+def fetch_environment_metric_packet_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    limit: int,
+) -> SqlRows:
+    clean_limit = max(1, min(50000, int(limit)))
+    clean_cutoff = max(0, int(cutoff))
+    return conn.execute(
+        """
+        SELECT id, created_unix, summary_json, packet_json
+        FROM (
+          SELECT id, created_unix, summary_json, packet_json
+          FROM packets
+          WHERE created_unix >= ?
+          ORDER BY id DESC
+          LIMIT ?
+        )
+        ORDER BY id ASC
+        """,
+        (clean_cutoff, clean_limit),
+    ).fetchall()
+
+
+def fetch_environment_metric_rollup_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    limit: int,
+) -> SqlRows:
+    clean_limit = max(1, min(100000, int(limit)))
+    clean_cutoff = max(0, int(cutoff))
+    return conn.execute(
+        """
+        SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
+               sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+        FROM (
+          SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
+                 sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+          FROM environment_metrics_1m
+          WHERE last_seen_unix >= ?
+          ORDER BY bucket_unix DESC, last_seen_unix DESC
+          LIMIT ?
+        )
+        ORDER BY bucket_unix ASC, node_id ASC, metric_key ASC
+        """,
+        (clean_cutoff, clean_limit),
+    ).fetchall()
+
+
 def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
-        "SELECT message_json FROM chat ORDER BY id DESC LIMIT ?",
-        (max(1, int(limit)),),
+        """
+        SELECT message_json
+        FROM chat
+        WHERE message_json NOT LIKE ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        ('%"text":"MF_FILE_V1|%', max(1, int(limit))),
     ).fetchall()
 
 
@@ -32,7 +141,7 @@ def fetch_node_history_rows(
     node_id: str,
     cutoff: int,
     limit: int,
-) -> tuple[SqlRows, SqlRows]:
+) -> tuple[SqlRows, SqlRows, SqlRows]:
     metric_rows = conn.execute(
         """
         SELECT bucket_unix, packet_count,
@@ -57,7 +166,23 @@ def fetch_node_history_rows(
         """,
         (node_id, cutoff, limit),
     ).fetchall()
-    return metric_rows, position_rows
+    clean_node_id = str(node_id or "").strip()
+    escaped_node_id = clean_node_id.replace("\\", "\\\\").replace('"', '\\"')
+    from_pattern = f'%"from":"{escaped_node_id}"%'
+    to_pattern = f'%"to":"{escaped_node_id}"%'
+    packet_limit = max(250, min(20000, int(limit) * 4))
+    packet_rows = conn.execute(
+        """
+        SELECT created_unix, summary_json, packet_json
+        FROM packets
+        WHERE created_unix >= ?
+          AND (summary_json LIKE ? OR summary_json LIKE ?)
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (cutoff, from_pattern, to_pattern, packet_limit),
+    ).fetchall()
+    return metric_rows, position_rows, packet_rows
 
 
 def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRows, int]:
@@ -82,6 +207,31 @@ def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRow
     ).fetchone()
     distinct_nodes = int((distinct_row[0] if distinct_row else 0) or 0)
     return hour_rows, distinct_nodes
+
+
+def fetch_summary_metrics_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    limit: int,
+) -> SqlRows:
+    cutoff_bucket = _summary_metrics_bucket_unix(int(cutoff))
+    return conn.execute(
+        """
+        SELECT bucket_unix,
+               node_count,
+               saved_node_count,
+               online_node_count,
+               nodes_with_position,
+               live_packet_count,
+               real_edge_count
+        FROM summary_metrics_1m
+        WHERE bucket_unix >= ?
+        ORDER BY bucket_unix ASC
+        LIMIT ?
+        """,
+        (cutoff_bucket, max(1, int(limit))),
+    ).fetchall()
 
 
 def fetch_node_saved_count_rows(conn: SqlConnection) -> SqlRows:

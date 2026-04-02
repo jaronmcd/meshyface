@@ -1,0 +1,657 @@
+    function normalizeChatEmojiPinnedChoices(rawChoices, maxCount = chatEmojiTopUsageCount) {{
+      const list = Array.isArray(rawChoices) ? rawChoices : [];
+      const out = [];
+      const seen = new Set();
+      for (const rawEmoji of list) {{
+        const emoji = String(rawEmoji || "").trim();
+        if (!emoji || seen.has(emoji) || !chatEmojiChoiceSet.has(emoji)) continue;
+        seen.add(emoji);
+        out.push(emoji);
+        if (out.length >= maxCount) {{
+          break;
+        }}
+      }}
+      return out;
+    }}
+
+    function chatEmojiPanelElement() {{
+      const panel = document.getElementById("chat-emoji-panel");
+      if (!(panel instanceof HTMLElement)) return null;
+      if (panel.parentElement !== document.body) {{
+        document.body.appendChild(panel);
+      }}
+      return panel;
+    }}
+
+    function clearChatEmojiTopDragState(topGrid) {{
+      chatEmojiTopDragEmoji = "";
+      const panel = chatEmojiPanelElement();
+      const activeTopGrid = topGrid instanceof HTMLElement
+        ? topGrid
+        : (document.getElementById("chat-emoji-top-grid") instanceof HTMLElement
+          ? document.getElementById("chat-emoji-top-grid")
+          : null);
+      if (activeTopGrid instanceof HTMLElement) {{
+        activeTopGrid.classList.remove("dragging");
+      }}
+      const root = panel instanceof HTMLElement ? panel : activeTopGrid;
+      if (!(root instanceof HTMLElement)) return;
+      for (const item of root.querySelectorAll(".chat-emoji-item.dragging, .chat-emoji-top-item.drag-over")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        item.classList.remove("dragging");
+        item.classList.remove("drag-over");
+      }}
+    }}
+
+    function reorderChatEmojiTopChoices(sourceEmoji, targetEmoji, currentOrder = []) {{
+      const source = String(sourceEmoji || "").trim();
+      const target = String(targetEmoji || "").trim();
+      if (!source || !target) return false;
+      const visibleChoices = normalizeChatEmojiPinnedChoices(currentOrder, chatEmojiTopUsageCount);
+      const toIndex = visibleChoices.indexOf(target);
+      if (toIndex < 0) return false;
+      const fromIndex = visibleChoices.indexOf(source);
+      if (fromIndex === toIndex) return false;
+      const next = visibleChoices.slice();
+      if (fromIndex >= 0) {{
+        next.splice(fromIndex, 1);
+        const targetIndex = fromIndex < toIndex ? (toIndex - 1) : toIndex;
+        next.splice(targetIndex, 0, source);
+      }} else {{
+        next.splice(toIndex, 1, source);
+      }}
+      return setChatEmojiTopPinnedChoices(next, true);
+    }}
+
+    function bindChatEmojiTopRowDragAndDrop() {{
+      const topGrid = document.getElementById("chat-emoji-top-grid");
+      if (!(topGrid instanceof HTMLElement) || topGrid.dataset.dragBound === "1") return;
+      topGrid.dataset.dragBound = "1";
+
+      topGrid.addEventListener("dragover", (ev) => {{
+        if (topGrid.dataset.sortable !== "1" || !chatEmojiTopDragEmoji) return;
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".chat-emoji-top-item");
+        if (!(item instanceof HTMLElement)) return;
+        ev.preventDefault();
+        for (const node of topGrid.querySelectorAll(".chat-emoji-top-item.drag-over")) {{
+          if (!(node instanceof HTMLElement) || node === item) continue;
+          node.classList.remove("drag-over");
+        }}
+        item.classList.add("drag-over");
+      }});
+
+      topGrid.addEventListener("dragleave", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".chat-emoji-top-item");
+        if (!(item instanceof HTMLElement)) return;
+        item.classList.remove("drag-over");
+      }});
+
+      topGrid.addEventListener("drop", (ev) => {{
+        if (topGrid.dataset.sortable !== "1" || !chatEmojiTopDragEmoji) {{
+          clearChatEmojiTopDragState(topGrid);
+          return;
+        }}
+        const target = ev.target;
+        if (!(target instanceof Element)) {{
+          clearChatEmojiTopDragState(topGrid);
+          return;
+        }}
+        const item = target.closest(".chat-emoji-top-item");
+        if (!(item instanceof HTMLElement)) {{
+          clearChatEmojiTopDragState(topGrid);
+          return;
+        }}
+        ev.preventDefault();
+        const targetEmoji = String(item.dataset.emoji || item.getAttribute("data-emoji") || "").trim();
+        const currentOrder = Array.from(topGrid.querySelectorAll(".chat-emoji-top-item"))
+          .map((node) => String(node.getAttribute("data-emoji") || "").trim())
+          .filter(Boolean);
+        const changed = reorderChatEmojiTopChoices(chatEmojiTopDragEmoji, targetEmoji, currentOrder);
+        clearChatEmojiTopDragState(topGrid);
+        if (changed) {{
+          renderChatEmojiPickerPanel();
+          setChatSendStatus("Updated top emoji shortcuts.", false);
+        }}
+      }});
+    }}
+
+    function renderChatEmojiTopRow(options = null) {{
+      const topLabel = document.getElementById("chat-emoji-top-label");
+      const topGrid = document.getElementById("chat-emoji-top-grid");
+      if (!(topGrid instanceof HTMLElement)) return;
+
+      const preferredChoices = normalizeChatEmojiPinnedChoices(
+        options && Array.isArray(options.choices) ? options.choices : [],
+        chatEmojiTopUsageCount,
+      );
+      const usePreferredChoices = preferredChoices.length > 0;
+      const sourceChoices = usePreferredChoices ? preferredChoices : chatEmojiTopChoices();
+      const canManageOrder = !usePreferredChoices;
+      const labelText = usePreferredChoices
+        ? String((options && options.label) || "Top matches").trim() || "Top matches"
+        : "Top used (drag from below to replace)";
+      const choices = chatEmojiMode === "react"
+        ? reactionCompatibleEmojiChoices(sourceChoices)
+        : sourceChoices;
+      const signature = `${{chatEmojiMode}}:${{labelText}}:${{choices.join("\u0000")}}`;
+      if ((topGrid.dataset.signature || "") === signature) {{
+        return;
+      }}
+
+      if (topLabel instanceof HTMLElement) {{
+        topLabel.textContent = labelText;
+      }}
+      topGrid.setAttribute("aria-label", labelText);
+      topGrid.dataset.sortable = canManageOrder ? "1" : "0";
+      topGrid.classList.toggle("is-sortable", canManageOrder);
+
+      if (!choices.length) {{
+        const empty = document.createElement("div");
+        empty.className = "chat-emoji-top-empty";
+        empty.textContent = usePreferredChoices
+          ? (chatEmojiMode === "react"
+            ? "No compatible matches found."
+            : "No quick matches found.")
+          : (chatEmojiMode === "react"
+            ? "No compatible reaction emojis in your top list yet."
+            : "Use emojis and your top 8 will appear here.");
+        topGrid.replaceChildren(empty);
+        topGrid.dataset.signature = signature;
+        return;
+      }}
+      const nodes = choices.map((emoji) => {{
+        const node = buildChatEmojiNode(emoji, "chat-emoji-top-item");
+        if (canManageOrder) {{
+          node.setAttribute("draggable", "true");
+          node.title = `${{emoji}}. Drag to reorder, or drop another emoji here to replace this slot.`;
+          node.setAttribute("aria-label", `${{emoji}}. Drag to reorder or replace this top slot.`);
+        }}
+        return node;
+      }});
+      topGrid.replaceChildren(...nodes);
+      topGrid.dataset.signature = signature;
+    }}
+
+    function renderChatEmojiPickerPanel() {{
+      const panel = chatEmojiPanelElement();
+      const groupSelect = document.getElementById("chat-emoji-group-select");
+      const searchInput = document.getElementById("chat-emoji-search");
+      const searchRow = document.getElementById("chat-emoji-search-row");
+      const controlsRow = document.getElementById("chat-emoji-controls-row");
+      const reactToggleRow = document.getElementById("chat-emoji-react-toggle-row");
+      const reactToggleBtn = document.getElementById("chat-emoji-react-toggle");
+      const grid = document.getElementById("chat-emoji-grid");
+      const meta = document.getElementById("chat-emoji-meta");
+      if (!(grid instanceof HTMLElement)) return;
+      const reactionCollapsed = chatEmojiMode === "react" && !chatReactionPickerExpanded;
+
+      if (panel instanceof HTMLElement) {{
+        panel.classList.toggle("chat-emoji-panel-react-collapsed", reactionCollapsed);
+      }}
+      if (reactToggleRow instanceof HTMLElement) {{
+        reactToggleRow.hidden = chatEmojiMode !== "react";
+      }}
+      if (reactToggleBtn instanceof HTMLButtonElement) {{
+        reactToggleBtn.textContent = reactionCollapsed ? "More reactions ▸" : "Less reactions ▾";
+        reactToggleBtn.setAttribute("aria-expanded", reactionCollapsed ? "false" : "true");
+      }}
+      if (searchRow instanceof HTMLElement) {{
+        searchRow.hidden = reactionCollapsed;
+      }}
+      if (controlsRow instanceof HTMLElement) {{
+        controlsRow.hidden = reactionCollapsed;
+      }}
+      grid.hidden = reactionCollapsed;
+
+      const selectedSearch = normalizeChatEmojiSearchQuery(
+        (searchInput instanceof HTMLInputElement)
+          ? searchInput.value
+          : chatEmojiSearchQuery
+      );
+      chatEmojiSearchQuery = selectedSearch;
+      if (searchInput instanceof HTMLInputElement && searchInput.value !== selectedSearch) {{
+        searchInput.value = selectedSearch;
+      }}
+
+      if (!chatEmojiCatalogLoaded) {{
+        if (groupSelect instanceof HTMLSelectElement) {{
+          const loadingOption = '<option value="all">All groups (loading...)</option>';
+          if (groupSelect.innerHTML !== loadingOption) {{
+            groupSelect.innerHTML = loadingOption;
+          }}
+          groupSelect.value = "all";
+          groupSelect.disabled = true;
+        }}
+        if (searchInput instanceof HTMLInputElement) {{
+          searchInput.disabled = true;
+        }}
+        if (meta instanceof HTMLElement) {{
+          if (chatEmojiCatalogLoadError) {{
+            meta.textContent = "Emoji catalog unavailable";
+            meta.title = chatEmojiCatalogLoadError;
+          }} else {{
+            meta.textContent = "Loading emoji catalog...";
+            meta.title = "Fetching Unicode emoji catalog...";
+          }}
+        }}
+        const loadingKey = chatEmojiCatalogLoadError ? "emoji-catalog:error" : "emoji-catalog:loading";
+        if ((grid.dataset.key || "") !== loadingKey) {{
+          const empty = document.createElement("div");
+          empty.className = "chat-emoji-empty";
+          empty.textContent = chatEmojiCatalogLoadError
+            ? "Emoji catalog unavailable. Try again in a moment."
+            : "Loading emoji catalog...";
+          grid.replaceChildren(empty);
+          grid.dataset.key = loadingKey;
+          grid.scrollTop = 0;
+        }}
+        renderChatEmojiTopRow(null);
+        positionChatEmojiPanel();
+        return;
+      }}
+
+      if (searchInput instanceof HTMLInputElement) {{
+        searchInput.disabled = reactionCollapsed;
+      }}
+      if (groupSelect instanceof HTMLSelectElement) {{
+        groupSelect.disabled = reactionCollapsed;
+        const catalogSignature = `${{chatEmojiTotalChoices}}:${{chatEmojiGroups.map((group) => `${{group.id}}:${{group.emojis.length}}`).join("|")}}`;
+        if ((groupSelect.dataset.catalogSignature || "") !== catalogSignature) {{
+          const groupOptions = [
+            `<option value="all">All groups (${{chatEmojiTotalChoices}})</option>`,
+            ...chatEmojiGroups.map((group) => (
+              `<option value="${{escAttr(group.id)}}">${{escAttr(group.label)}} (${{group.emojis.length}})</option>`
+            )),
+          ].join("");
+          groupSelect.innerHTML = groupOptions;
+          groupSelect.dataset.catalogSignature = catalogSignature;
+          groupSelect.value = normalizeChatEmojiGroup(chatEmojiPickerGroup);
+        }}
+      }}
+
+      const selectedGroup = normalizeChatEmojiGroup(
+        (groupSelect instanceof HTMLSelectElement)
+          ? groupSelect.value
+          : chatEmojiPickerGroup
+      );
+      const previousGroup = chatEmojiPickerGroup;
+      chatEmojiPickerGroup = selectedGroup;
+      if (groupSelect instanceof HTMLSelectElement && groupSelect.value !== selectedGroup) {{
+        groupSelect.value = selectedGroup;
+      }}
+
+      const searchActive = !!selectedSearch;
+      const sourceChoices = searchActive
+        ? chatEmojiChoicesForSearch(selectedSearch)
+        : chatEmojiChoicesForGroup(selectedGroup);
+      const choices = chatEmojiMode === "react"
+        ? reactionCompatibleEmojiChoices(sourceChoices)
+        : sourceChoices;
+      const groupLabel = searchActive
+        ? `Search all: "${{selectedSearch}}"`
+        : (selectedGroup === "all"
+          ? "All groups"
+          : ((chatEmojiGroupsById.get(selectedGroup) || {{}}).label || "All groups"));
+      if (meta instanceof HTMLElement) {{
+        const countText = chatEmojiMode === "react"
+          ? `${{choices.length}} / ${{sourceChoices.length}} compatible`
+          : `${{choices.length}} / ${{chatEmojiTotalChoices}}`;
+        meta.textContent = `${{groupLabel}} · ${{countText}}`;
+        meta.title = `Unicode Emoji ${{chatEmojiDataVersion}} (${{
+          chatEmojiDataDate
+        }})`;
+      }}
+      const renderModeKey = chatEmojiMode === "react" ? "react" : "compose";
+      const renderKey = searchActive
+        ? `${{renderModeKey}}:search:${{selectedSearch}}`
+        : `${{renderModeKey}}:group:${{selectedGroup}}`;
+      if ((grid.dataset.key || "") !== renderKey) {{
+        if (choices.length) {{
+          const shouldUseCachedGroupNodes = !searchActive && chatEmojiMode !== "react";
+          const nodes = shouldUseCachedGroupNodes
+            ? chatEmojiNodesForGroup(selectedGroup)
+            : choices.map((emoji) => buildChatEmojiNode(emoji));
+          grid.replaceChildren(...nodes);
+        }} else {{
+          const empty = document.createElement("div");
+          empty.className = "chat-emoji-empty";
+          empty.textContent = chatEmojiMode === "react"
+            ? "No compatible single-codepoint emojis matched."
+            : "No emojis matched your search.";
+          grid.replaceChildren(empty);
+        }}
+        grid.dataset.key = renderKey;
+        grid.scrollTop = 0;
+      }}
+      if (previousGroup !== selectedGroup) {{
+        persistChatEmojiPickerState();
+      }}
+      renderChatEmojiTopRow(null);
+      positionChatEmojiPanel();
+    }}
+
+    function focusChatEmojiSearchInput() {{
+      const panel = chatEmojiPanelElement();
+      const searchInput = document.getElementById("chat-emoji-search");
+      if (!(panel instanceof HTMLElement) || panel.hidden) {{
+        return false;
+      }}
+      if (!(searchInput instanceof HTMLInputElement)) {{
+        return false;
+      }}
+      requestAnimationFrame(() => {{
+        if (panel.hidden) return;
+        searchInput.focus({{ preventScroll: true }});
+        const end = searchInput.value.length;
+        searchInput.setSelectionRange(end, end);
+      }});
+      return true;
+    }}
+
+    function resolveChatEmojiPanelAnchor() {{
+      if (chatEmojiAnchorElement instanceof HTMLElement && document.contains(chatEmojiAnchorElement)) {{
+        return chatEmojiAnchorElement;
+      }}
+      const composeBtn = document.getElementById("chat-emoji-btn");
+      return composeBtn instanceof HTMLElement ? composeBtn : null;
+    }}
+
+    function positionChatEmojiPanel() {{
+      const panel = chatEmojiPanelElement();
+      if (!(panel instanceof HTMLElement) || panel.hidden) return;
+      const anchor = resolveChatEmojiPanelAnchor();
+      if (!(anchor instanceof HTMLElement)) return;
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const width = panel.offsetWidth || 320;
+      const height = panel.offsetHeight || 240;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
+      const topbar = document.querySelector(".topbar");
+      const topbarBottom = (
+        topbar instanceof HTMLElement
+          ? Math.max(0, Math.trunc(topbar.getBoundingClientRect().bottom))
+          : 0
+      );
+      const minTop = Math.max(margin, topbarBottom + 6);
+
+      let left = anchorRect.right - width;
+      if (chatEmojiMode === "react") {{
+        if (chatReactionPickerExpanded) {{
+          left = anchorRect.right + 10;
+          if ((left + width) > (viewportWidth - margin)) {{
+            left = anchorRect.left - width - 10;
+          }}
+          if (left < margin || (left + width) > (viewportWidth - margin)) {{
+            left = anchorRect.left + (anchorRect.width / 2) - (width / 2);
+          }}
+        }} else {{
+          left = anchorRect.left + (anchorRect.width / 2) - (width / 2);
+        }}
+      }}
+      if (left < margin) left = margin;
+      if ((left + width) > (viewportWidth - margin)) {{
+        left = Math.max(margin, viewportWidth - width - margin);
+      }}
+
+      const preferBelow = chatEmojiMode === "react" && !chatReactionPickerExpanded;
+      let top = (chatEmojiMode === "react" && chatReactionPickerExpanded)
+        ? (anchorRect.top - 2)
+        : (preferBelow ? (anchorRect.bottom + 6) : (anchorRect.top - height - 6));
+      if (preferBelow && (top + height) > (viewportHeight - margin)) {{
+        top = anchorRect.top - height - 6;
+      }} else if (!preferBelow && top < minTop) {{
+        top = anchorRect.bottom + 6;
+      }}
+      if (top < minTop) top = minTop;
+      if ((top + height) > (viewportHeight - margin)) {{
+        top = Math.max(minTop, viewportHeight - height - margin);
+      }}
+
+      panel.style.position = "fixed";
+      panel.style.left = `${{Math.round(left)}}px`;
+      panel.style.top = `${{Math.round(top)}}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+    }}
+
+    function openChatEmojiPanel(mode = "compose", reactionTargetId = null, anchorEl = null) {{
+      const panel = chatEmojiPanelElement();
+      const btn = document.getElementById("chat-emoji-btn");
+      if (!(panel instanceof HTMLElement)) return;
+      chatEmojiMode = mode === "react" ? "react" : "compose";
+      chatReactionPickerExpanded = chatEmojiMode !== "react";
+      const parsedTarget = Number(reactionTargetId);
+      chatReactionTargetId = (
+        chatEmojiMode === "react" && Number.isInteger(parsedTarget) && parsedTarget > 0
+      ) ? parsedTarget : null;
+      chatEmojiAnchorElement = anchorEl instanceof HTMLElement
+        ? anchorEl
+        : (btn instanceof HTMLElement ? btn : null);
+      renderChatEmojiPickerPanel();
+      panel.hidden = false;
+      positionChatEmojiPanel();
+      if (!(chatEmojiMode === "react" && !chatReactionPickerExpanded)) {{
+        focusChatEmojiSearchInput();
+      }}
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", "true");
+      }}
+      if (!chatEmojiCatalogLoaded) {{
+        void ensureChatEmojiCatalogLoaded(true).then((loaded) => {{
+          if (!loaded || panel.hidden) return;
+          renderChatEmojiPickerPanel();
+          positionChatEmojiPanel();
+        }});
+      }}
+      if (chatEmojiMode === "react") {{
+        setChatSendStatus("Pick a single-codepoint reaction emoji...");
+      }}
+    }}
+
+    function closeChatEmojiPanel() {{
+      const panel = chatEmojiPanelElement();
+      const btn = document.getElementById("chat-emoji-btn");
+      chatEmojiMode = "compose";
+      chatReactionTargetId = null;
+      chatReactionPickerExpanded = false;
+      chatEmojiAnchorElement = null;
+      chatEmojiSearchQuery = "";
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = true;
+        panel.classList.remove("chat-emoji-panel-react-collapsed");
+        panel.style.position = "";
+        panel.style.left = "";
+        panel.style.top = "";
+        panel.style.right = "";
+        panel.style.bottom = "";
+      }}
+      const searchInput = document.getElementById("chat-emoji-search");
+      if (searchInput instanceof HTMLInputElement) {{
+        searchInput.value = "";
+      }}
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", "false");
+      }}
+    }}
+
+    function insertEmojiAtCursor(emoji) {{
+      const input = document.getElementById("chat-input");
+      if (!(input instanceof HTMLInputElement)) return;
+      const value = input.value || "";
+      const start = Number.isFinite(input.selectionStart) ? input.selectionStart : value.length;
+      const end = Number.isFinite(input.selectionEnd) ? input.selectionEnd : value.length;
+      input.value = value.slice(0, start) + emoji + value.slice(end);
+      const next = start + emoji.length;
+      input.focus({{ preventScroll: true }});
+      input.setSelectionRange(next, next);
+    }}
+
+    function bindEmojiPicker() {{
+      const panel = chatEmojiPanelElement();
+      const btn = document.getElementById("chat-emoji-btn");
+      if (!(panel instanceof HTMLElement) || !(btn instanceof HTMLButtonElement)) return;
+
+      if (panel.dataset.init !== "1") {{
+        const groupOptions = '<option value="all">All groups (loading...)</option>';
+        panel.innerHTML = `<div id="chat-emoji-top-label" class="chat-emoji-top-label">Top used</div>
+        <div id="chat-emoji-top-grid" class="chat-emoji-top-grid" aria-label="Top used"></div>
+        <div id="chat-emoji-react-toggle-row" class="chat-emoji-react-toggle-row" hidden>
+          <button id="chat-emoji-react-toggle" class="chat-emoji-react-toggle-btn" type="button" aria-expanded="false">More reactions ▸</button>
+        </div>
+        <div id="chat-emoji-search-row" class="chat-emoji-toolbar chat-emoji-search-row">
+          <input
+            id="chat-emoji-search"
+            class="chat-emoji-filter chat-emoji-search"
+            type="search"
+            placeholder="Search all categories..."
+            aria-label="Search emojis across all categories"
+            autocomplete="off"
+            spellcheck="false"
+            title="Shortcut: Ctrl/Cmd+E"
+          />
+        </div>
+        <div id="chat-emoji-controls-row" class="chat-emoji-toolbar">
+          <select id="chat-emoji-group-select" class="chat-emoji-filter" aria-label="Emoji group">
+            ${{groupOptions}}
+          </select>
+          <span id="chat-emoji-meta" class="chat-emoji-meta"></span>
+        </div>
+        <div id="chat-emoji-grid" class="chat-emoji-grid"></div>`;
+        panel.dataset.init = "1";
+        bindChatEmojiTopRowDragAndDrop();
+
+        const groupSelect = document.getElementById("chat-emoji-group-select");
+        if (groupSelect instanceof HTMLSelectElement && groupSelect.dataset.bound !== "1") {{
+          groupSelect.dataset.bound = "1";
+          groupSelect.value = normalizeChatEmojiGroup(chatEmojiPickerGroup);
+          groupSelect.addEventListener("change", () => {{
+            renderChatEmojiPickerPanel();
+          }});
+        }}
+        const searchInput = document.getElementById("chat-emoji-search");
+        if (searchInput instanceof HTMLInputElement && searchInput.dataset.bound !== "1") {{
+          searchInput.dataset.bound = "1";
+          searchInput.value = chatEmojiSearchQuery;
+          searchInput.addEventListener("input", () => {{
+            chatEmojiSearchQuery = normalizeChatEmojiSearchQuery(searchInput.value);
+            renderChatEmojiPickerPanel();
+          }});
+        }}
+        const reactToggleBtn = document.getElementById("chat-emoji-react-toggle");
+        if (reactToggleBtn instanceof HTMLButtonElement && reactToggleBtn.dataset.bound !== "1") {{
+          reactToggleBtn.dataset.bound = "1";
+          reactToggleBtn.addEventListener("click", (ev) => {{
+            ev.preventDefault();
+            chatReactionPickerExpanded = !chatReactionPickerExpanded;
+            renderChatEmojiPickerPanel();
+            if (chatReactionPickerExpanded) {{
+              focusChatEmojiSearchInput();
+            }}
+          }});
+        }}
+
+        void ensureChatEmojiCatalogLoaded(false).then((loaded) => {{
+          if (!loaded) return;
+          renderChatEmojiPickerPanel();
+        }});
+      }}
+
+      if (btn.dataset.emojiBound !== "1") {{
+        btn.dataset.emojiBound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          if (chatSendInFlight) return;
+          if (panel.hidden) {{
+            openChatEmojiPanel("compose", null, btn);
+          }} else {{
+            closeChatEmojiPanel();
+          }}
+        }});
+      }}
+
+      if (panel.dataset.bound !== "1") {{
+        panel.dataset.bound = "1";
+        panel.addEventListener("dragstart", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const emojiBtn = target.closest(".chat-emoji-item");
+          if (!(emojiBtn instanceof HTMLButtonElement)) return;
+          const topGrid = document.getElementById("chat-emoji-top-grid");
+          if (!(topGrid instanceof HTMLElement) || topGrid.dataset.sortable !== "1") return;
+          const emoji = String(emojiBtn.getAttribute("data-emoji") || emojiBtn.textContent || "").trim();
+          if (!emoji) return;
+          chatEmojiTopDragEmoji = emoji;
+          emojiBtn.classList.add("dragging");
+          topGrid.classList.add("dragging");
+          if (ev.dataTransfer) {{
+            ev.dataTransfer.effectAllowed = "move";
+            ev.dataTransfer.setData("text/plain", emoji);
+          }}
+        }});
+        panel.addEventListener("dragend", () => {{
+          clearChatEmojiTopDragState(document.getElementById("chat-emoji-top-grid"));
+        }});
+        panel.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const emojiBtn = target.closest(".chat-emoji-item");
+          if (!(emojiBtn instanceof HTMLButtonElement)) return;
+          const emoji = String(emojiBtn.getAttribute("data-emoji") || emojiBtn.textContent || "").trim();
+          if (!emoji) return;
+          if (chatEmojiMode === "react" && !isReactionCompatibleEmoji(emoji)) {{
+            setChatSendStatus("Choose a single-codepoint emoji for reactions.", true);
+            return;
+          }}
+          noteChatEmojiUsage(emoji);
+          if (chatEmojiMode === "react" && Number.isInteger(chatReactionTargetId) && chatReactionTargetId > 0) {{
+            sendChatReaction(chatReactionTargetId, emoji);
+          }} else {{
+            insertEmojiAtCursor(emoji);
+          }}
+          closeChatEmojiPanel();
+        }});
+      }}
+
+      if (document.body.dataset.chatEmojiCloseBound !== "1") {{
+        document.body.dataset.chatEmojiCloseBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          if (!target.closest("#chat-emoji-panel") && !target.closest("#chat-emoji-btn") && !target.closest(".chat-react-btn")) {{
+            closeChatEmojiPanel();
+          }}
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Escape") {{
+            closeChatEmojiPanel();
+            return;
+          }}
+          const key = String(ev.key || "").toLowerCase();
+          if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && key === "e") {{
+            ev.preventDefault();
+            if (panel.hidden) {{
+              if (chatSendInFlight) return;
+              openChatEmojiPanel("compose", null, btn);
+              return;
+            }}
+            focusChatEmojiSearchInput();
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.chatEmojiPositionBound !== "1") {{
+        document.body.dataset.chatEmojiPositionBound = "1";
+        window.addEventListener("resize", () => {{
+          positionChatEmojiPanel();
+        }});
+        window.addEventListener("scroll", () => {{
+          positionChatEmojiPanel();
+        }}, true);
+      }}
+    }}

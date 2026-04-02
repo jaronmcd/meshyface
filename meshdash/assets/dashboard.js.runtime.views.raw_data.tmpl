@@ -1,0 +1,1222 @@
+    function setRaw(id, value) {{
+      const el = document.getElementById(id);
+      if (!el) return;
+      const details = el.closest && el.closest("details");
+      if (details && !details.open) return;
+      el.textContent = JSON.stringify(value, null, 2);
+    }}
+
+    const rawDataCache = {{
+      myInfo: {{ fetchedAt: 0, data: null }},
+      metadata: {{ fetchedAt: 0, data: null }},
+      localState: {{ fetchedAt: 0, data: null }},
+      nodesFull: {{ fetchedAt: 0, data: null }},
+    }};
+
+    const envMetricsViewState = {{
+      points: [],
+      metrics: [],
+      nodes: [],
+      selectedMetric: "",
+      selectedNodeId: "",
+      selectedWindowHours: 72,
+      source: "",
+      scannedPackets: 0,
+      cutoffUnix: 0,
+      hiddenLegendNodeIds: new Set(),
+      legendScopeKey: "",
+    }};
+
+    const envMetricsHistoryCache = new Map();
+    const envMetricColorPalette = [
+      "#2f855a",
+      "#2b6cb0",
+      "#b7791f",
+      "#9b2c2c",
+      "#6b46c1",
+      "#2c7a7b",
+      "#c05621",
+      "#4a5568",
+      "#805ad5",
+      "#276749",
+    ];
+    const envMetricsChartLayout = {{
+      width: 900,
+      height: 320,
+      padLeft: 56,
+      padRight: 12,
+      padTop: 16,
+      padBottom: 38,
+    }};
+    const envMetricsChartMaxSeries = 8;
+    const envMetricsChartZoomMinPoints = 12;
+    const envMetricsChartState = {{
+      zoomStart: 0,
+      zoomEnd: 1,
+      pointerDrag: null,
+      scopeKey: "",
+      suppressClickUntilMs: 0,
+    }};
+
+    function normalizeEnvMetricKey(raw) {{
+      return String(raw == null ? "" : raw)
+        .trim()
+        .replace(/[^a-zA-Z0-9_]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase();
+    }}
+
+    function formatEnvMetricLabel(raw) {{
+      const text = String(raw == null ? "" : raw)
+        .replace(/[_-]+/g, " ")
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .trim();
+      if (!text) return "Metric";
+      return text.replace(/\b([a-z])/gi, (match) => match.toUpperCase());
+    }}
+
+    function envMetricFiniteNumber(raw) {{
+      if (typeof raw === "boolean" || raw == null) return null;
+      if (typeof raw === "number") {{
+        return Number.isFinite(raw) ? raw : null;
+      }}
+      const text = String(raw).trim();
+      if (!text) return null;
+      const normalized = text.replace(/,/g, "");
+      const num = Number(normalized);
+      return Number.isFinite(num) ? num : null;
+    }}
+
+    function envMetricValueText(raw, fallback = "n/a") {{
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return fallback;
+      const abs = Math.abs(num);
+      const decimals = abs >= 100 ? 0 : (abs >= 10 ? 1 : 2);
+      const text = num.toFixed(decimals);
+      return text.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    }}
+
+    function normalizeEnvHistoryHours(raw) {{
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed)) return 72;
+      return Math.max(1, Math.min(24 * 365, Math.trunc(parsed)));
+    }}
+
+    function formatEnvHistoryTime(unix) {{
+      const parsed = Number(unix);
+      if (!Number.isFinite(parsed) || parsed <= 0) return "n/a";
+      try {{
+        return new Date(parsed * 1000).toLocaleString();
+      }} catch (_err) {{
+        return "n/a";
+      }}
+    }}
+
+    function setEnvironmentMetricsStatus(text, kind = "info") {{
+      const status = document.getElementById("env-metrics-status");
+      if (!(status instanceof HTMLElement)) return;
+      status.textContent = String(text == null ? "" : text).trim() || "n/a";
+      status.dataset.kind = String(kind || "info");
+    }}
+
+    function syncEnvironmentWindowPicker() {{
+      const select = document.getElementById("env-window-select");
+      const nextHours = normalizeEnvHistoryHours(envMetricsViewState.selectedWindowHours || (select && select.value));
+      envMetricsViewState.selectedWindowHours = nextHours;
+      if (select instanceof HTMLSelectElement && String(select.value) !== String(nextHours)) {{
+        select.value = String(nextHours);
+      }}
+      return nextHours;
+    }}
+
+    function syncEnvironmentMetricPicker(metrics) {{
+      const select = document.getElementById("env-metric-select");
+      if (!(select instanceof HTMLSelectElement)) return "";
+      const safeMetrics = Array.isArray(metrics) ? metrics : [];
+      if (!safeMetrics.length) {{
+        select.innerHTML = '<option value="">No sensor metrics</option>';
+        select.disabled = true;
+        envMetricsViewState.selectedMetric = "";
+        return "";
+      }}
+      const optionsHtml = safeMetrics.map((meta) => (
+        `<option value="${{escAttr(meta.key)}}">${{escAttr(meta.label)}} (${{Math.max(0, Math.trunc(Number(meta.count) || 0))}})</option>`
+      )).join("");
+      if (select.innerHTML !== optionsHtml) {{
+        select.innerHTML = optionsHtml;
+      }}
+      const requested = normalizeEnvMetricKey(envMetricsViewState.selectedMetric || select.value);
+      const hasRequested = safeMetrics.some((meta) => meta.key === requested);
+      const nextKey = hasRequested ? requested : safeMetrics[0].key;
+      if (select.value !== nextKey) {{
+        select.value = nextKey;
+      }}
+      select.disabled = false;
+      envMetricsViewState.selectedMetric = nextKey;
+      return nextKey;
+    }}
+
+    function syncEnvironmentNodePicker(nodes) {{
+      const select = document.getElementById("env-node-select");
+      if (!(select instanceof HTMLSelectElement)) return "";
+      const safeNodes = Array.isArray(nodes) ? nodes : [];
+      const optionsHtml = [
+        '<option value="">All nodes</option>',
+        ...safeNodes.map((meta) => (
+          `<option value="${{escAttr(meta.id)}}">${{escAttr(meta.label || meta.id)}} (${{Math.max(0, Math.trunc(Number(meta.count) || 0))}})</option>`
+        )),
+      ].join("");
+      if (select.innerHTML !== optionsHtml) {{
+        select.innerHTML = optionsHtml;
+      }}
+      const requested = normalizeNodeId(envMetricsViewState.selectedNodeId || select.value);
+      const hasRequested = safeNodes.some((meta) => normalizeNodeId(meta.id) === requested);
+      const nextNodeId = hasRequested ? requested : "";
+      if (select.value !== nextNodeId) {{
+        select.value = nextNodeId;
+      }}
+      envMetricsViewState.selectedNodeId = nextNodeId;
+      return nextNodeId;
+    }}
+
+    function deriveEnvironmentNodeMetaFromPoints(points) {{
+      const safePoints = Array.isArray(points) ? points : [];
+      const perNode = new Map();
+      for (const point of safePoints) {{
+        const nodeId = normalizeNodeId(point && point.node_id);
+        if (!nodeId) continue;
+        const fallbackLabel = String((point && point.node_label) || nodeId);
+        const metricKey = normalizeEnvMetricKey(point && point.metric_key);
+        const sampleCount = Math.max(1, Math.trunc(Number(point && point.sample_count) || 1));
+        const sampleUnix = Math.max(0, Math.trunc(Number(point && point.unix) || 0));
+        if (!perNode.has(nodeId)) {{
+          perNode.set(nodeId, {{
+            id: nodeId,
+            label: resolveEnvironmentNodeDisplayName(nodeId, fallbackLabel) || fallbackLabel || nodeId,
+            count: 0,
+            metricKeys: new Set(),
+            last_unix: sampleUnix,
+          }});
+        }}
+        const nodeState = perNode.get(nodeId);
+        nodeState.count += sampleCount;
+        if (metricKey) nodeState.metricKeys.add(metricKey);
+        nodeState.last_unix = Math.max(
+          Math.max(0, Math.trunc(Number(nodeState.last_unix) || 0)),
+          sampleUnix,
+        );
+        if (nodeState.label === "" || normalizeNodeId(nodeState.label) === nodeId) {{
+          nodeState.label = resolveEnvironmentNodeDisplayName(nodeId, fallbackLabel) || fallbackLabel || nodeId;
+        }}
+      }}
+      const rows = Array.from(perNode.values()).map((row) => {{
+        const lastUnix = Math.max(0, Math.trunc(Number(row && row.last_unix) || 0));
+        const metricKeys = (row && row.metricKeys instanceof Set) ? row.metricKeys : new Set();
+        return {{
+          id: String((row && row.id) || "").trim(),
+          label: String((row && row.label) || (row && row.id) || "node"),
+          count: Math.max(0, Math.trunc(Number(row && row.count) || 0)),
+          metrics: metricKeys.size,
+          last_unix: lastUnix,
+          last_seen: lastUnix > 0 ? formatEnvHistoryTime(lastUnix) : "n/a",
+        }};
+      }}).filter((row) => normalizeNodeId(row.id));
+      rows.sort((a, b) => (
+        (Number(b && b.count) || 0) - (Number(a && a.count) || 0)
+      ) || String((a && a.label) || "").localeCompare(String((b && b.label) || "")));
+      return rows;
+    }}
+
+    function resolveEnvironmentNodeOptions(nodes, points) {{
+      const safeNodes = Array.isArray(nodes)
+        ? nodes.filter((meta) => normalizeNodeId(meta && meta.id))
+        : [];
+      if (safeNodes.length) return safeNodes;
+      return deriveEnvironmentNodeMetaFromPoints(points);
+    }}
+
+    function resolveEnvironmentMetricMeta(metrics, metricKey) {{
+      const safeMetrics = Array.isArray(metrics) ? metrics : [];
+      const key = normalizeEnvMetricKey(metricKey);
+      if (!key) return safeMetrics[0] || null;
+      return safeMetrics.find((meta) => meta.key === key) || safeMetrics[0] || null;
+    }}
+
+    function resolveEnvironmentNodeMeta(nodes, nodeId) {{
+      const safeNodes = Array.isArray(nodes) ? nodes : [];
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId) return null;
+      return safeNodes.find((node) => normalizeNodeId(node.id) === cleanNodeId) || null;
+    }}
+
+    function resolveEnvironmentNodeDisplayName(nodeId, fallbackLabel = "") {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const safeFallback = String(fallbackLabel || "").trim();
+      const safeState = (latestState && typeof latestState === "object") ? latestState : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const stateNode = nodes.find((node) => normalizeNodeId(node && node.id) === cleanNodeId) || null;
+      if (stateNode && typeof stateNode === "object") {{
+        const preferred = String(preferredNodeName(stateNode) || "").trim();
+        if (preferred) return preferred;
+        const shortName = String(stateNode.short_name || "").trim();
+        if (shortName) return shortName;
+      }}
+      if (cleanNodeId && nodeNameCache instanceof Map) {{
+        const cached = String(nodeNameCache.get(cleanNodeId) || "").trim();
+        if (cached) return cached;
+      }}
+      if (safeFallback && normalizeNodeId(safeFallback) !== cleanNodeId) {{
+        return safeFallback;
+      }}
+      return safeFallback || cleanNodeId || "unknown";
+    }}
+
+    function formatEnvironmentNodeTooltipLabel(nodeId, fallbackLabel = "") {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const displayName = resolveEnvironmentNodeDisplayName(cleanNodeId, fallbackLabel);
+      const cleanDisplay = String(displayName || "").trim();
+      if (!cleanNodeId) return cleanDisplay || "unknown";
+      if (!cleanDisplay) return cleanNodeId;
+      if (normalizeNodeId(cleanDisplay) === cleanNodeId) {{
+        return cleanDisplay;
+      }}
+      return `${{cleanDisplay}} (${{cleanNodeId}})`;
+    }}
+
+    function filterEnvironmentMetricPoints(points, metricKey, nodeId) {{
+      const cleanMetric = normalizeEnvMetricKey(metricKey || "");
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      return (Array.isArray(points) ? points : [])
+        .filter((point) => {{
+          const pointMetric = normalizeEnvMetricKey(point && point.metric_key);
+          if (!cleanMetric || pointMetric !== cleanMetric) return false;
+          if (!cleanNodeId) return true;
+          return normalizeNodeId(point && point.node_id) === cleanNodeId;
+        }});
+    }}
+
+    function focusEnvironmentNodeFromChart(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId) return;
+      if (typeof selectNode === "function") {{
+        selectNode(cleanNodeId, false, false);
+      }}
+    }}
+
+    function buildEnvironmentMetricsSelectionScopeKey(metricMeta, nodeMeta) {{
+      return [
+        normalizeEnvMetricKey(metricMeta && metricMeta.key ? metricMeta.key : ""),
+        normalizeNodeId(nodeMeta && nodeMeta.id ? nodeMeta.id : ""),
+        String(normalizeEnvHistoryHours(envMetricsViewState.selectedWindowHours || 72)),
+      ].join("|");
+    }}
+
+    function syncEnvironmentLegendScope(scopeKey) {{
+      const cleanScopeKey = String(scopeKey || "").trim();
+      if (!(envMetricsViewState.hiddenLegendNodeIds instanceof Set)) {{
+        envMetricsViewState.hiddenLegendNodeIds = new Set();
+      }}
+      if (String(envMetricsViewState.legendScopeKey || "") !== cleanScopeKey) {{
+        envMetricsViewState.legendScopeKey = cleanScopeKey;
+        envMetricsViewState.hiddenLegendNodeIds.clear();
+      }}
+      return envMetricsViewState.hiddenLegendNodeIds;
+    }}
+
+    function pruneEnvironmentLegendHiddenNodeIds(activeNodeIds) {{
+      const hidden = (envMetricsViewState.hiddenLegendNodeIds instanceof Set)
+        ? envMetricsViewState.hiddenLegendNodeIds
+        : new Set();
+      const safeActive = activeNodeIds instanceof Set ? activeNodeIds : new Set();
+      for (const nodeId of Array.from(hidden)) {{
+        if (!safeActive.has(normalizeNodeId(nodeId))) {{
+          hidden.delete(nodeId);
+        }}
+      }}
+    }}
+
+    function toggleEnvironmentLegendNodeVisibility(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId) return;
+      const hidden = syncEnvironmentLegendScope(envMetricsViewState.legendScopeKey || "");
+      if (hidden.has(cleanNodeId)) {{
+        hidden.delete(cleanNodeId);
+      }} else {{
+        hidden.add(cleanNodeId);
+      }}
+    }}
+
+    function bindEnvironmentNodeLegendToggle() {{
+      const host = document.getElementById("env-metrics-available");
+      if (!(host instanceof HTMLElement) || host.dataset.toggleBound === "1") return;
+      host.dataset.toggleBound = "1";
+      host.addEventListener("click", (event) => {{
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const hit = target.closest("[data-env-node-toggle='1']");
+        if (!(hit instanceof HTMLElement)) return;
+        const nodeId = normalizeNodeId(hit.getAttribute("data-node-id") || "");
+        if (!nodeId) return;
+        event.preventDefault();
+        toggleEnvironmentLegendNodeVisibility(nodeId);
+        renderEnvironmentMetricsSnapshot();
+      }});
+    }}
+
+    function renderEnvironmentNodeLegend(metricMeta, nodeMeta, nodes, filteredPoints, chartMeta, hiddenNodeIds) {{
+      const host = document.getElementById("env-metrics-available");
+      if (!(host instanceof HTMLElement)) return;
+      bindEnvironmentNodeLegendToggle();
+      const safeNodes = Array.isArray(nodes) ? nodes : [];
+      const safePoints = Array.isArray(filteredPoints) ? filteredPoints : [];
+      const safeChartMeta = (chartMeta && typeof chartMeta === "object") ? chartMeta : {{}};
+      const legendItems = Array.isArray(safeChartMeta.legendItems) ? safeChartMeta.legendItems : [];
+      const totalSeries = Math.max(0, Math.trunc(Number(safeChartMeta.totalSeries) || 0));
+      const visibleSeries = Math.max(0, Math.trunc(Number(safeChartMeta.visibleSeries) || 0));
+      const hiddenSet = hiddenNodeIds instanceof Set ? hiddenNodeIds : new Set();
+      if (!metricMeta || !metricMeta.key) {{
+        host.textContent = "No sensor metric keys detected yet in saved telemetry history.";
+        return;
+      }}
+      const nodeCount = Math.max(
+        safeNodes.length,
+        new Set(legendItems.map((item) => normalizeNodeId(item && item.nodeId)).filter(Boolean)).size
+      );
+      const totalPoints = Math.max(0, Math.trunc(Number(safePoints.length) || 0));
+      const selectionSummary = metricMeta
+        ? `${{metricMeta.label}}${{nodeMeta ? ` @ ${{nodeMeta.label || nodeMeta.id}}` : " @ all nodes"}}`
+        : "No metric selected";
+      const hiddenSeries = Math.max(0, totalSeries - visibleSeries);
+      host.innerHTML = [
+        `<span class="env-metric-chip">${{escAttr(selectionSummary)}} <span class="env-metric-chip-count">${{totalPoints}}</span></span>`,
+        ...legendItems.map((item) => (
+          `<button class="env-metric-chip env-node-legend-item env-node-legend-toggle${{hiddenSet.has(normalizeNodeId(item.nodeId)) ? " is-hidden" : ""}}" type="button" data-env-node-toggle="1" data-node-id="${{escAttr(item.nodeId)}}" data-node-hidden="${{hiddenSet.has(normalizeNodeId(item.nodeId)) ? "1" : "0"}}" aria-pressed="${{hiddenSet.has(normalizeNodeId(item.nodeId)) ? "false" : "true"}}" style="--node-color:${{escAttr(item.color)}};" title="${{escAttr(`${{formatEnvironmentNodeTooltipLabel(item.nodeId, item.label)}} • click to ${{hiddenSet.has(normalizeNodeId(item.nodeId)) ? "show" : "hide"}}`)}}">
+            ${{escAttr(item.label)}}
+            <span class="env-metric-chip-count">${{Math.max(0, Math.trunc(Number(item.pointCount) || 0))}}</span>
+          </button>`
+        )),
+        hiddenSeries > 0
+          ? `<span class="env-metric-chip env-node-legend-more">+${{hiddenSeries}} more node${{hiddenSeries === 1 ? "" : "s"}} hidden (top ${{visibleSeries}} shown)</span>`
+          : "",
+        `<span class="env-metric-chip">Nodes <span class="env-metric-chip-count">${{nodeCount}}</span></span>`,
+      ].filter(Boolean).join("");
+    }}
+
+    function downsampleEnvironmentSeries(points, maxPoints = 260) {{
+      const safePoints = Array.isArray(points) ? points : [];
+      if (safePoints.length <= maxPoints) return safePoints;
+      const step = Math.max(1, Math.ceil(safePoints.length / maxPoints));
+      const out = [];
+      for (let idx = 0; idx < safePoints.length; idx += step) {{
+        out.push(safePoints[idx]);
+      }}
+      const tail = safePoints[safePoints.length - 1];
+      if (out[out.length - 1] !== tail) {{
+        out.push(tail);
+      }}
+      return out;
+    }}
+
+    function localNodeIdForEnvironmentMetrics() {{
+      if (typeof resolveLocalNodeId !== "function") return "";
+      try {{
+        return normalizeNodeId(resolveLocalNodeId(latestState) || "");
+      }} catch (_err) {{
+        return "";
+      }}
+    }}
+
+    function selectEnvironmentSeriesForAllNodes(seriesList, maxSeries = envMetricsChartMaxSeries) {{
+      const safeSeries = Array.isArray(seriesList) ? seriesList.slice() : [];
+      const cap = Math.max(1, Math.trunc(Number(maxSeries) || envMetricsChartMaxSeries));
+      if (safeSeries.length <= cap) return safeSeries;
+
+      const localNodeId = localNodeIdForEnvironmentMetrics();
+      const selected = [];
+      const seenNodeIds = new Set();
+
+      if (isCanonicalNodeId(localNodeId)) {{
+        const localSeries = safeSeries.find((series) => normalizeNodeId(series && series.nodeId) === localNodeId) || null;
+        if (localSeries) {{
+          selected.push(localSeries);
+          seenNodeIds.add(localNodeId);
+        }}
+      }}
+
+      const ranked = safeSeries
+        .slice()
+        .sort((a, b) => {{
+          const lastA = Number(a && a.lastUnix);
+          const lastB = Number(b && b.lastUnix);
+          if (lastA !== lastB) return lastB - lastA;
+          const pointsA = Array.isArray(a && a.points) ? a.points.length : 0;
+          const pointsB = Array.isArray(b && b.points) ? b.points.length : 0;
+          if (pointsA !== pointsB) return pointsB - pointsA;
+          return String((a && a.label) || "").localeCompare(String((b && b.label) || ""));
+        }});
+
+      for (const series of ranked) {{
+        const nodeId = normalizeNodeId(series && series.nodeId);
+        if (nodeId && seenNodeIds.has(nodeId)) continue;
+        selected.push(series);
+        if (nodeId) seenNodeIds.add(nodeId);
+        if (selected.length >= cap) break;
+      }}
+      return selected.slice(0, cap);
+    }}
+
+    function clampEnvironmentMetricChartUnit(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      if (num < 0) return 0;
+      if (num > 1) return 1;
+      return num;
+    }}
+
+    function environmentMetricsChartZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, envMetricsChartZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeEnvironmentMetricsChartZoomWindow(totalPoints) {{
+      const minSpan = environmentMetricsChartZoomMinSpan(totalPoints);
+      let start = clampEnvironmentMetricChartUnit(envMetricsChartState.zoomStart);
+      let end = clampEnvironmentMetricChartUnit(envMetricsChartState.zoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      envMetricsChartState.zoomStart = clampEnvironmentMetricChartUnit(start);
+      envMetricsChartState.zoomEnd = clampEnvironmentMetricChartUnit(end);
+    }}
+
+    function setEnvironmentMetricsChartZoomWindow(start, end, totalPoints) {{
+      const prevStart = envMetricsChartState.zoomStart;
+      const prevEnd = envMetricsChartState.zoomEnd;
+      envMetricsChartState.zoomStart = start;
+      envMetricsChartState.zoomEnd = end;
+      normalizeEnvironmentMetricsChartZoomWindow(totalPoints);
+      return Math.abs(envMetricsChartState.zoomStart - prevStart) > 1e-6
+        || Math.abs(envMetricsChartState.zoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function resetEnvironmentMetricsChartZoom(scopeKey = "") {{
+      envMetricsChartState.zoomStart = 0;
+      envMetricsChartState.zoomEnd = 1;
+      envMetricsChartState.pointerDrag = null;
+      envMetricsChartState.scopeKey = String(scopeKey || "").trim();
+      envMetricsChartState.suppressClickUntilMs = 0;
+    }}
+
+    function getEnvironmentMetricsChartAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((envMetricsChartLayout.padLeft / envMetricsChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((envMetricsChartLayout.width - envMetricsChartLayout.padRight) / envMetricsChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function currentEnvironmentMetricSelectionMeta() {{
+      const points = Array.isArray(envMetricsViewState.points) ? envMetricsViewState.points : [];
+      const metrics = Array.isArray(envMetricsViewState.metrics) ? envMetricsViewState.metrics : [];
+      const nodes = Array.isArray(envMetricsViewState.nodes) ? envMetricsViewState.nodes : [];
+      const selectedMetric = normalizeEnvMetricKey(envMetricsViewState.selectedMetric || "");
+      const selectedNodeId = normalizeNodeId(envMetricsViewState.selectedNodeId || "");
+      const metricMeta = resolveEnvironmentMetricMeta(metrics, selectedMetric);
+      const nodeMeta = resolveEnvironmentNodeMeta(nodes, selectedNodeId);
+      const filteredPoints = filterEnvironmentMetricPoints(points, selectedMetric, selectedNodeId);
+      return {{ filteredPoints, metricMeta, nodeMeta }};
+    }}
+
+    function rerenderEnvironmentMetricsChartFromSelection() {{
+      const {{ filteredPoints, metricMeta, nodeMeta }} = currentEnvironmentMetricSelectionMeta();
+      renderEnvironmentMetricsChart(filteredPoints, metricMeta, nodeMeta);
+    }}
+
+    function setEnvironmentMetricsChartTitle(svg, metricLabel, zoomed) {{
+      if (!(svg instanceof SVGElement)) return;
+      const chartLabel = String(metricLabel || "Sensor history chart").trim() || "Sensor history chart";
+      svg.classList.toggle("zoomed", !!zoomed);
+      svg.setAttribute(
+        "title",
+        zoomed
+          ? `${{chartLabel}} zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+          : `${{chartLabel}}. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+      );
+    }}
+
+    function bindEnvironmentMetricsChartZoom() {{
+      const svg = document.getElementById("env-metrics-chart");
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = Number(svg.dataset.zoomPointCount || "0");
+        if (!Number.isFinite(total) || total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getEnvironmentMetricsChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampEnvironmentMetricChartUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, envMetricsChartState.zoomEnd - envMetricsChartState.zoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = environmentMetricsChartZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = envMetricsChartState.zoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setEnvironmentMetricsChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderEnvironmentMetricsChartFromSelection();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        const total = Number(svg.dataset.zoomPointCount || "0");
+        if (setEnvironmentMetricsChartZoomWindow(0, 1, total || 2)) {{
+          rerenderEnvironmentMetricsChartFromSelection();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0) return;
+        const total = Number(svg.dataset.zoomPointCount || "0");
+        if (!Number.isFinite(total) || total < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getEnvironmentMetricsChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        envMetricsChartState.pointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: envMetricsChartState.zoomStart,
+          startZoomEnd: envMetricsChartState.zoomEnd,
+          moved: false,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        const drag = envMetricsChartState.pointerDrag;
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        const total = Number(svg.dataset.zoomPointCount || "0");
+        if (!Number.isFinite(total) || total < 3) return;
+        const {{ axisWidthPx }} = getEnvironmentMetricsChartAxisBounds(svg);
+        const deltaPx = ev.clientX - drag.startClientX;
+        if (Math.abs(deltaPx) > 3) {{
+          drag.moved = true;
+        }}
+        const deltaRatio = deltaPx / axisWidthPx;
+        const dragSpan = drag.startZoomEnd - drag.startZoomStart;
+        const nextStart = drag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = drag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setEnvironmentMetricsChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderEnvironmentMetricsChartFromSelection();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        const drag = envMetricsChartState.pointerDrag;
+        if (!drag) return;
+        if (ev && drag.pointerId !== ev.pointerId) return;
+        const dragged = drag.moved === true;
+        envMetricsChartState.pointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (dragged) {{
+          envMetricsChartState.suppressClickUntilMs = Date.now() + 180;
+        }}
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        const total = Number(svg.dataset.zoomPointCount || "0");
+        if (setEnvironmentMetricsChartZoomWindow(0, 1, total || 2)) {{
+          rerenderEnvironmentMetricsChartFromSelection();
+        }}
+      }});
+    }}
+
+    function renderEnvironmentMetricsChart(points, metricMeta, nodeMeta, hiddenNodeIds) {{
+      const svg = document.getElementById("env-metrics-chart");
+      const empty = document.getElementById("env-metrics-empty");
+      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) {{
+        return {{ legendItems: [], totalSeries: 0, visibleSeries: 0 }};
+      }}
+      bindEnvironmentMetricsChartZoom();
+
+      const metricLabel = String(metricMeta && metricMeta.label ? metricMeta.label : "Sensor history chart").trim() || "Sensor history chart";
+      const clearChart = (emptyText) => {{
+        svg.innerHTML = "";
+        svg.dataset.zoomPointCount = "0";
+        svg.classList.remove("zoomed", "chart-dragging");
+        envMetricsChartState.pointerDrag = null;
+        setEnvironmentMetricsChartTitle(svg, metricLabel, false);
+        if (emptyText) {{
+          empty.textContent = String(emptyText || "").trim();
+          empty.hidden = false;
+        }}
+        return {{ legendItems: [], totalSeries: 0, visibleSeries: 0 }};
+      }};
+
+      if (!metricMeta || !metricMeta.key) {{
+        return clearChart("No historical sensor metrics found yet.");
+      }}
+
+      const safePoints = Array.isArray(points) ? points : [];
+      if (!safePoints.length) {{
+        return clearChart(`No historical points for ${{metricMeta.label}}${{nodeMeta ? ` from ${{nodeMeta.label || nodeMeta.id}}` : ""}}.`);
+      }}
+
+      const selectionScopeKey = buildEnvironmentMetricsSelectionScopeKey(metricMeta, nodeMeta);
+      if (envMetricsChartState.scopeKey !== selectionScopeKey) {{
+        resetEnvironmentMetricsChartZoom(selectionScopeKey);
+      }}
+
+      const seriesByNodeId = new Map();
+      for (const point of safePoints) {{
+        const nodeId = normalizeNodeId(point && point.node_id) || "unknown";
+        const nodeLabel = String((point && point.node_label) || nodeId);
+        const pointUnix = Number(point && point.unix);
+        const value = envMetricFiniteNumber(point && point.value);
+        if (!Number.isFinite(pointUnix) || pointUnix <= 0 || !Number.isFinite(value)) continue;
+        if (!seriesByNodeId.has(nodeId)) {{
+          seriesByNodeId.set(nodeId, {{
+            nodeId,
+            label: nodeLabel,
+            points: [],
+          }});
+        }}
+        seriesByNodeId.get(nodeId).points.push({{
+          unix: Math.trunc(pointUnix),
+          value,
+        }});
+      }}
+
+      let seriesList = Array.from(seriesByNodeId.values())
+        .map((series) => {{
+          const sorted = series.points
+            .slice()
+            .sort((a, b) => Number(a.unix) - Number(b.unix));
+          const lastPoint = sorted.length ? sorted[sorted.length - 1] : null;
+          return {{
+            nodeId: series.nodeId,
+            label: series.label,
+            points: downsampleEnvironmentSeries(sorted),
+            lastUnix: Number(lastPoint && lastPoint.unix) || 0,
+          }};
+        }})
+        .filter((series) => series.points.length > 0)
+        .sort((a, b) => (b.points.length - a.points.length) || String(a.label).localeCompare(String(b.label)));
+
+      if (!seriesList.length) {{
+        return clearChart("No valid timestamped telemetry points in this selection.");
+      }}
+      if (!nodeMeta && seriesList.length > envMetricsChartMaxSeries) {{
+        seriesList = selectEnvironmentSeriesForAllNodes(seriesList, envMetricsChartMaxSeries);
+      }}
+      const plottedSeries = seriesList.slice();
+      const totalSeries = plottedSeries.length;
+      const hiddenSet = hiddenNodeIds instanceof Set ? hiddenNodeIds : new Set();
+      const legendItems = plottedSeries.map((series, idx) => {{
+        const color = envMetricColorPalette[idx % envMetricColorPalette.length];
+        const seriesNodeId = String(series.nodeId || "").trim();
+        return {{
+          nodeId: seriesNodeId,
+          label: resolveEnvironmentNodeDisplayName(seriesNodeId, series.label),
+          color,
+          pointCount: Array.isArray(series.points) ? series.points.length : 0,
+          hidden: hiddenSet.has(normalizeNodeId(seriesNodeId)),
+        }};
+      }});
+      const seriesColorByNodeId = new Map(
+        legendItems.map((item) => [normalizeNodeId(item.nodeId), String(item.color || "")])
+      );
+      seriesList = plottedSeries.filter((series) => {{
+        const seriesNodeId = normalizeNodeId(series && series.nodeId);
+        if (!seriesNodeId) return true;
+        return !hiddenSet.has(seriesNodeId);
+      }});
+      const visibleSeriesCount = seriesList.length;
+      if (!seriesList.length) {{
+        svg.innerHTML = "";
+        svg.dataset.zoomPointCount = "0";
+        svg.classList.remove("zoomed", "chart-dragging");
+        envMetricsChartState.pointerDrag = null;
+        setEnvironmentMetricsChartTitle(svg, metricLabel, false);
+        empty.textContent = "All plotted nodes are hidden. Use the legend to show one or more nodes.";
+        empty.hidden = false;
+        return {{
+          legendItems,
+          totalSeries,
+          visibleSeries: 0,
+        }};
+      }}
+
+      const allPoints = seriesList.flatMap((series) => series.points);
+      const fullMinUnix = Math.min(...allPoints.map((point) => Number(point.unix)));
+      const fullMaxUnix = Math.max(...allPoints.map((point) => Number(point.unix)));
+      const uniqueUnix = Array.from(
+        new Set(
+          allPoints
+            .map((point) => Math.trunc(Number(point && point.unix)))
+            .filter((unix) => Number.isFinite(unix) && unix > 0)
+        )
+      ).sort((a, b) => a - b);
+      const zoomPointCount = uniqueUnix.length;
+      svg.dataset.zoomPointCount = String(zoomPointCount);
+      normalizeEnvironmentMetricsChartZoomWindow(zoomPointCount);
+
+      const fullUnixSpan = Math.max(1, fullMaxUnix - fullMinUnix);
+      let visibleMinUnix = fullMinUnix;
+      let visibleMaxUnix = fullMaxUnix;
+      if (zoomPointCount > 1) {{
+        visibleMinUnix = fullMinUnix + (envMetricsChartState.zoomStart * fullUnixSpan);
+        visibleMaxUnix = fullMinUnix + (envMetricsChartState.zoomEnd * fullUnixSpan);
+      }}
+      const unixWindowPad = Math.max(1, fullUnixSpan * 0.0005);
+      let visibleSeriesList = seriesList
+        .map((series) => ({{
+          nodeId: series.nodeId,
+          label: series.label,
+          points: series.points.filter((point) => {{
+            const unix = Number(point && point.unix);
+            return Number.isFinite(unix) && unix >= (visibleMinUnix - unixWindowPad) && unix <= (visibleMaxUnix + unixWindowPad);
+          }}),
+        }}))
+        .filter((series) => series.points.length > 0);
+
+      if (!visibleSeriesList.length) {{
+        if (setEnvironmentMetricsChartZoomWindow(0, 1, zoomPointCount || 2)) {{
+          visibleMinUnix = fullMinUnix;
+          visibleMaxUnix = fullMaxUnix;
+        }}
+        visibleSeriesList = seriesList;
+      }}
+
+      const visiblePoints = visibleSeriesList.flatMap((series) => series.points);
+      const visibleValues = visiblePoints
+        .map((point) => Number(point && point.value))
+        .filter((value) => Number.isFinite(value));
+      const rawMinValue = visibleValues.length ? Math.min(...visibleValues) : NaN;
+      const rawMaxValue = visibleValues.length ? Math.max(...visibleValues) : NaN;
+
+      if (!Number.isFinite(rawMinValue) || !Number.isFinite(rawMaxValue)) {{
+        return clearChart("No numeric values in this selection.");
+      }}
+
+      let minValue = rawMinValue;
+      let maxValue = rawMaxValue;
+      if (!(Number.isFinite(minValue) && Number.isFinite(maxValue) && maxValue > minValue)) {{
+        minValue = rawMinValue;
+        maxValue = rawMaxValue;
+      }}
+
+      if (Math.abs(maxValue - minValue) < 1e-9) {{
+        minValue -= 1;
+        maxValue += 1;
+      }} else {{
+        const pad = (maxValue - minValue) * 0.1;
+        minValue -= pad;
+        maxValue += pad;
+      }}
+      const clippedPointCount = 0;
+
+      const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const palette = darkTheme
+        ? {{
+          grid: "rgba(173, 198, 222, 0.22)",
+          text: "#b8cfde",
+          axis: "#84a7bf",
+          pointStroke: "rgba(7, 19, 30, 0.52)",
+        }}
+        : {{
+          grid: "rgba(58, 95, 76, 0.2)",
+          text: "#3a5a47",
+          axis: "#527565",
+          pointStroke: "rgba(15, 35, 25, 0.38)",
+        }};
+
+      const measuredWidth = Number(svg.clientWidth);
+      const measuredHeight = Number(svg.clientHeight);
+      const width = Number.isFinite(measuredWidth) && measuredWidth > 10
+        ? Math.max(480, Math.round(measuredWidth))
+        : envMetricsChartLayout.width;
+      const height = Number.isFinite(measuredHeight) && measuredHeight > 10
+        ? Math.max(240, Math.round(measuredHeight))
+        : envMetricsChartLayout.height;
+      const padLeft = envMetricsChartLayout.padLeft;
+      const padRight = envMetricsChartLayout.padRight;
+      const padTop = envMetricsChartLayout.padTop;
+      const padBottom = envMetricsChartLayout.padBottom;
+      const chartWidth = width - padLeft - padRight;
+      const chartHeight = height - padTop - padBottom;
+      const unixSpan = Math.max(1, visibleMaxUnix - visibleMinUnix);
+      const valueSpan = Math.max(1e-9, maxValue - minValue);
+      const xForUnix = (unix) => padLeft + (((Number(unix) - visibleMinUnix) / unixSpan) * chartWidth);
+      const yForValue = (value) => {{
+        const y = padTop + (((maxValue - Number(value)) / valueSpan) * chartHeight);
+        return Math.max(padTop, Math.min(padTop + chartHeight, y));
+      }};
+
+      const yTicks = 5;
+      const yGrid = [];
+      const yLabels = [];
+      for (let idx = 0; idx < yTicks; idx += 1) {{
+        const ratio = yTicks <= 1 ? 0 : (idx / (yTicks - 1));
+        const value = maxValue - (ratio * valueSpan);
+        const y = yForValue(value);
+        yGrid.push(`<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{(padLeft + chartWidth).toFixed(2)}}" y2="${{y.toFixed(2)}}" stroke="${{palette.grid}}" stroke-width="1"></line>`);
+        yLabels.push(`<text x="${{(padLeft - 7).toFixed(2)}}" y="${{(y + 4).toFixed(2)}}" text-anchor="end" fill="${{palette.text}}" font-size="10">${{escAttr(envMetricValueText(value))}}</text>`);
+      }}
+
+      const xTicks = 6;
+      const xGrid = [];
+      const xLabels = [];
+      for (let idx = 0; idx < xTicks; idx += 1) {{
+        const ratio = xTicks <= 1 ? 0 : (idx / (xTicks - 1));
+        const unix = Math.round(visibleMinUnix + (ratio * unixSpan));
+        const x = xForUnix(unix);
+        xGrid.push(`<line x1="${{x.toFixed(2)}}" y1="${{padTop}}" x2="${{x.toFixed(2)}}" y2="${{(padTop + chartHeight).toFixed(2)}}" stroke="${{palette.grid}}" stroke-width="1"></line>`);
+        xLabels.push(`<text x="${{x.toFixed(2)}}" y="${{(height - 10).toFixed(2)}}" text-anchor="middle" fill="${{palette.text}}" font-size="10">${{escAttr(formatEnvHistoryTime(unix))}}</text>`);
+      }}
+
+      const linePaths = [];
+      const pointDots = [];
+      visibleSeriesList.forEach((series, idx) => {{
+        const seriesNodeId = String(series.nodeId || "").trim();
+        const color = seriesColorByNodeId.get(normalizeNodeId(seriesNodeId)) || envMetricColorPalette[idx % envMetricColorPalette.length];
+        const seriesTitle = formatEnvironmentNodeTooltipLabel(seriesNodeId, series.label);
+        const pathD = series.points.map((point, pointIdx) => {{
+          const x = xForUnix(point.unix);
+          const y = yForValue(point.value);
+          return `${{pointIdx === 0 ? "M" : "L"}}${{x.toFixed(2)}},${{y.toFixed(2)}}`;
+        }}).join(" ");
+        linePaths.push(`<path d="${{pathD}}" fill="none" stroke="${{color}}" stroke-width="1.8" data-node-id="${{escAttr(seriesNodeId)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to focus node`)}}</title></path>`);
+        linePaths.push(`<path d="${{pathD}}" fill="none" stroke="transparent" stroke-width="10" pointer-events="stroke" data-node-id="${{escAttr(seriesNodeId)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to focus node`)}}</title></path>`);
+        for (const point of series.points) {{
+          const x = xForUnix(point.unix);
+          const y = yForValue(point.value);
+          const title = `${{seriesTitle}} • ${{formatEnvHistoryTime(point.unix)}} • ${{envMetricValueText(point.value)}}`;
+          pointDots.push(`<circle cx="${{x.toFixed(2)}}" cy="${{y.toFixed(2)}}" r="2.3" fill="${{color}}" stroke="${{palette.pointStroke}}" stroke-width="0.7" data-node-id="${{escAttr(seriesNodeId)}}" style="cursor:pointer;"><title>${{escAttr(`${{title}} • click to focus node`)}}</title></circle>`);
+        }}
+      }});
+
+      const zoomed = zoomPointCount > 1 && (
+        envMetricsChartState.zoomStart > 1e-6
+        || envMetricsChartState.zoomEnd < (1 - 1e-6)
+      );
+      const baseSubtitle = nodeMeta
+        ? `${{metricMeta.label}} for ${{nodeMeta.label || nodeMeta.id}}`
+        : `${{metricMeta.label}} across ${{visibleSeriesList.length}} node${{visibleSeriesList.length === 1 ? "" : "s"}}`;
+      const clippedSubtitle = clippedPointCount > 0
+        ? `${{baseSubtitle}}${{zoomed ? " (zoomed)" : ""}} • focused range (${{
+            clippedPointCount
+          }} outlier${{clippedPointCount === 1 ? "" : "s"}} clipped)`
+        : baseSubtitle;
+      const subtitle = zoomed && clippedPointCount <= 0
+        ? `${{baseSubtitle}} (zoomed)`
+        : clippedSubtitle;
+
+      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
+      svg.innerHTML = `
+        <g>
+          <rect x="${{padLeft}}" y="${{padTop}}" width="${{chartWidth}}" height="${{chartHeight}}" fill="none" stroke="${{palette.grid}}" stroke-width="1"></rect>
+          ${{yGrid.join("")}}
+          ${{xGrid.join("")}}
+          ${{linePaths.join("")}}
+          ${{pointDots.join("")}}
+          ${{yLabels.join("")}}
+          ${{xLabels.join("")}}
+          <text x="${{(padLeft + 8).toFixed(2)}}" y="${{(padTop + 12).toFixed(2)}}" fill="${{palette.text}}" font-size="11">${{escAttr(subtitle)}}</text>
+        </g>
+      `;
+      if (svg.dataset.nodeClickBound !== "1") {{
+        svg.dataset.nodeClickBound = "1";
+        svg.addEventListener("click", (event) => {{
+          if (Date.now() < Number(envMetricsChartState.suppressClickUntilMs || 0)) {{
+            event.preventDefault();
+            return;
+          }}
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const hit = target.closest("[data-node-id]");
+          if (!(hit instanceof Element)) return;
+          const nodeId = normalizeNodeId(hit.getAttribute("data-node-id") || "");
+          if (!nodeId) return;
+          event.preventDefault();
+          focusEnvironmentNodeFromChart(nodeId);
+        }});
+      }}
+      setEnvironmentMetricsChartTitle(svg, metricMeta.label || "Sensor history chart", zoomed);
+      empty.hidden = true;
+      return {{
+        legendItems,
+        totalSeries,
+        visibleSeries: visibleSeriesCount,
+      }};
+    }}
+
+    function renderEnvironmentMetricsSnapshot() {{
+      const points = Array.isArray(envMetricsViewState.points) ? envMetricsViewState.points : [];
+      const metrics = Array.isArray(envMetricsViewState.metrics) ? envMetricsViewState.metrics : [];
+      const nodes = resolveEnvironmentNodeOptions(envMetricsViewState.nodes, points);
+      const windowHours = syncEnvironmentWindowPicker();
+      const selectedMetric = syncEnvironmentMetricPicker(metrics);
+      const selectedNodeId = syncEnvironmentNodePicker(nodes);
+      const metricMeta = resolveEnvironmentMetricMeta(metrics, selectedMetric);
+      const nodeMeta = resolveEnvironmentNodeMeta(nodes, selectedNodeId);
+      const filteredPoints = filterEnvironmentMetricPoints(points, selectedMetric, selectedNodeId);
+      const selectionScopeKey = buildEnvironmentMetricsSelectionScopeKey(metricMeta, nodeMeta);
+      const hiddenNodeIds = syncEnvironmentLegendScope(selectionScopeKey);
+      const chartMeta = renderEnvironmentMetricsChart(filteredPoints, metricMeta, nodeMeta, hiddenNodeIds);
+      const activeLegendNodeIds = new Set(
+        (Array.isArray(chartMeta && chartMeta.legendItems) ? chartMeta.legendItems : [])
+          .map((item) => normalizeNodeId(item && item.nodeId))
+          .filter(Boolean)
+      );
+      pruneEnvironmentLegendHiddenNodeIds(activeLegendNodeIds);
+      renderEnvironmentNodeLegend(metricMeta, nodeMeta, nodes, filteredPoints, chartMeta, hiddenNodeIds);
+      const renderedCount = Math.max(0, Math.trunc(Number(filteredPoints.length) || 0));
+
+      if (!metrics.length || !nodes.length) {{
+        setEnvironmentMetricsStatus("No historical sensor telemetry has been saved yet.", "warn");
+        return;
+      }}
+      if (!metricMeta) {{
+        setEnvironmentMetricsStatus("Metric list loaded, but no metric is currently selected.", "warn");
+        return;
+      }}
+      const nodeSummary = nodeMeta
+        ? `${{nodeMeta.label || nodeMeta.id}} (${{nodeMeta.id}})`
+        : `${{nodes.length}} nodes`;
+      const scannedLabel = (String(envMetricsViewState.source || "").toLowerCase() === "rollup_1m")
+        ? "Scanned rollup rows"
+        : "Scanned packets";
+      setEnvironmentMetricsStatus(
+        `Window ${{windowHours}}h • Metric: ${{metricMeta.label}} • Scope: ${{nodeSummary}} • Points: ${{renderedCount}} • ${{scannedLabel}}: ${{Math.max(0, Math.trunc(Number(envMetricsViewState.scannedPackets) || 0))}}`,
+        filteredPoints.length ? "info" : "warn",
+      );
+    }}
+
+    function applyEnvironmentMetricsPayload(payload) {{
+      const data = (payload && typeof payload === "object") ? payload : {{}};
+      envMetricsViewState.points = Array.isArray(data.points) ? data.points : [];
+      envMetricsViewState.metrics = Array.isArray(data.metrics) ? data.metrics : [];
+      envMetricsViewState.nodes = Array.isArray(data.nodes) ? data.nodes : [];
+      envMetricsViewState.source = String(data.source || "");
+      envMetricsViewState.scannedPackets = Math.max(0, Math.trunc(Number(data.scanned_packets) || 0));
+      envMetricsViewState.cutoffUnix = Math.max(0, Math.trunc(Number(data.cutoff_unix) || 0));
+      envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(data.window_hours || envMetricsViewState.selectedWindowHours);
+      if (!envMetricsViewState.selectedMetric) {{
+        const firstMetric = envMetricsViewState.metrics[0];
+        envMetricsViewState.selectedMetric = firstMetric ? normalizeEnvMetricKey(firstMetric.key) : "";
+      }}
+      const cleanSelectedNode = normalizeNodeId(envMetricsViewState.selectedNodeId || "");
+      const selectableNodes = resolveEnvironmentNodeOptions(
+        envMetricsViewState.nodes,
+        envMetricsViewState.points,
+      );
+      if (cleanSelectedNode && !selectableNodes.some((node) => normalizeNodeId(node.id) === cleanSelectedNode)) {{
+        envMetricsViewState.selectedNodeId = "";
+      }}
+    }}
+
+    async function fetchEnvironmentMetricsHistory(windowHours, forceRefresh = false) {{
+      const cleanHours = normalizeEnvHistoryHours(windowHours);
+      const cacheKey = String(cleanHours);
+      const nowMs = Date.now();
+      const cached = envMetricsHistoryCache.get(cacheKey);
+      const ttlMs = Math.max(refreshMs * 4, 15000);
+      if (!forceRefresh && cached && cached.data && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
+        return cached.data;
+      }}
+      const params = new URLSearchParams();
+      params.set("hours", String(cleanHours));
+      params.set("limit", "25000");
+      const resp = await fetch(`/api/history/environment?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`sensor history API ${{resp.status}}`);
+      const payload = await resp.json();
+      if (!payload || typeof payload !== "object") {{
+        throw new Error("sensor history returned an invalid payload");
+      }}
+      if (payload.ok === false) {{
+        throw new Error(String(payload.error || "sensor history unavailable"));
+      }}
+      envMetricsHistoryCache.set(cacheKey, {{
+        fetchedAt: nowMs,
+        data: payload,
+      }});
+      return payload;
+    }}
+
+    function bindEnvironmentMetricsControls() {{
+      const windowSelect = document.getElementById("env-window-select");
+      if (windowSelect instanceof HTMLSelectElement && windowSelect.dataset.bound !== "1") {{
+        windowSelect.dataset.bound = "1";
+        windowSelect.addEventListener("change", () => {{
+          envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(windowSelect.value);
+          void renderEnvironmentMetricsView(false);
+        }});
+      }}
+
+      const metricSelect = document.getElementById("env-metric-select");
+      if (metricSelect instanceof HTMLSelectElement && metricSelect.dataset.bound !== "1") {{
+        metricSelect.dataset.bound = "1";
+        metricSelect.addEventListener("change", () => {{
+          envMetricsViewState.selectedMetric = normalizeEnvMetricKey(metricSelect.value);
+          renderEnvironmentMetricsSnapshot();
+        }});
+      }}
+
+      const nodeSelect = document.getElementById("env-node-select");
+      if (nodeSelect instanceof HTMLSelectElement && nodeSelect.dataset.bound !== "1") {{
+        nodeSelect.dataset.bound = "1";
+        nodeSelect.addEventListener("change", () => {{
+          envMetricsViewState.selectedNodeId = normalizeNodeId(nodeSelect.value || "");
+          renderEnvironmentMetricsSnapshot();
+        }});
+      }}
+
+      const refreshBtn = document.getElementById("env-metrics-refresh-btn");
+      if (refreshBtn instanceof HTMLButtonElement && refreshBtn.dataset.bound !== "1") {{
+        refreshBtn.dataset.bound = "1";
+        refreshBtn.addEventListener("click", () => {{
+          if (typeof requestImmediatePoll === "function") {{
+            try {{
+              requestImmediatePoll(0);
+            }} catch (_err) {{
+            }}
+          }}
+          void renderEnvironmentMetricsView(true);
+        }});
+      }}
+    }}
+
+    async function renderEnvironmentMetricsView(forceRefresh = false) {{
+      bindEnvironmentMetricsControls();
+      const windowHours = syncEnvironmentWindowPicker();
+      setEnvironmentMetricsStatus(`Loading saved sensor telemetry (${windowHours}h window)...`, "info");
+      try {{
+        const payload = await fetchEnvironmentMetricsHistory(windowHours, forceRefresh);
+        applyEnvironmentMetricsPayload(payload);
+        renderEnvironmentMetricsSnapshot();
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        envMetricsViewState.points = [];
+        envMetricsViewState.metrics = [];
+        envMetricsViewState.nodes = [];
+        envMetricsViewState.source = "";
+        envMetricsViewState.scannedPackets = 0;
+        renderEnvironmentMetricsSnapshot();
+        setEnvironmentMetricsStatus(`Sensor history unavailable: ${{msg}}`, "error");
+      }}
+    }}
+
+    async function fetchRawJson(url, cacheEntry, ttlMs = 30000) {{
+      const nowMs = Date.now();
+      if (cacheEntry && cacheEntry.data != null && (nowMs - (cacheEntry.fetchedAt || 0)) < ttlMs) {{
+        return cacheEntry.data;
+      }}
+      const resp = await fetch(url, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`raw API ${{resp.status}}`);
+      const data = await resp.json();
+      if (cacheEntry) {{
+        cacheEntry.fetchedAt = nowMs;
+        cacheEntry.data = data;
+      }}
+      return data;
+    }}
+
+    async function loadRawMyInfo() {{
+      const data = await fetchRawJson("/api/raw/my_info", rawDataCache.myInfo, 60000);
+      setRaw("raw-my-info", data);
+      return data;
+    }}
+
+    async function loadRawMetadata() {{
+      const data = await fetchRawJson("/api/raw/metadata", rawDataCache.metadata, 60000);
+      setRaw("raw-metadata", data);
+      return data;
+    }}
+
+    async function loadRawLocalState() {{
+      const data = await fetchRawJson("/api/raw/local_state", rawDataCache.localState, 60000);
+      const obj = (data && typeof data === "object") ? data : {{}};
+      setRaw("raw-local-config", obj.local_config);
+      setRaw("raw-module-config", obj.module_config);
+      setRaw("raw-channels", obj.channels);
+      return data;
+    }}
+
+    async function loadRawNodesFull(ttlMs = 60000) {{
+      const safeTtlMs = Number.isFinite(Number(ttlMs)) ? Math.max(0, Math.trunc(Number(ttlMs))) : 60000;
+      const data = await fetchRawJson("/api/raw/nodes_full", rawDataCache.nodesFull, safeTtlMs);
+      setRaw("raw-nodes-full", data);
+      return data;
+    }}
+
+    function bindRawDataFetch() {{
+      bindEnvironmentMetricsControls();
+      const pairs = [
+        ["raw-my-info", loadRawMyInfo],
+        ["raw-metadata", loadRawMetadata],
+        ["raw-local-config", loadRawLocalState],
+        ["raw-module-config", loadRawLocalState],
+        ["raw-channels", loadRawLocalState],
+        ["raw-nodes-full", loadRawNodesFull],
+      ];
+      for (const [preId, loader] of pairs) {{
+        const pre = document.getElementById(preId);
+        if (!pre) continue;
+        const details = pre.closest && pre.closest("details");
+        if (!details) continue;
+        details.addEventListener("toggle", () => {{
+          if (!details.open) return;
+          void loader().catch((err) => {{
+            const msg = err instanceof Error ? err.message : String(err || "unknown error");
+            setRaw(preId, {{ error: msg }});
+          }});
+        }});
+
+        if (details.open) {{
+          void loader().catch(() => {{}});
+        }}
+      }}
+
+      if (activeLayoutView === "environment") {{
+        void renderEnvironmentMetricsView(false);
+      }}
+    }}

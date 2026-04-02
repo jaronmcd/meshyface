@@ -24,8 +24,18 @@ from .history_store_nodes import (
     load_online_activity as _load_online_activity_helper,
 )
 from .history_store_packets import (
+    load_environment_metrics_history as _load_environment_metrics_history_helper,
     load_recent_packets as _load_recent_packets_helper,
+    search_packets as _search_packets_helper,
     save_packet as _save_packet_helper,
+)
+from .history_store_summary import (
+    load_summary_metrics as _load_summary_metrics_helper,
+    save_summary_metrics as _save_summary_metrics_helper,
+)
+from .history_store_settings import (
+    load_custom_telemetry_settings as _load_custom_telemetry_settings_helper,
+    save_custom_telemetry_settings as _save_custom_telemetry_settings_helper,
 )
 
 
@@ -69,6 +79,44 @@ class HistoryStore:
     def load_recent_packets(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_packets_helper(self, limit)
 
+    def search_packets(
+        self,
+        needle: str,
+        *,
+        limit: int | None = None,
+        before: int | None = None,
+        after: int | None = None,
+        scope: str | None = None,
+        scan_limit: int | None = None,
+        source: str | None = None,
+    ) -> dict[str, object]:
+        return _search_packets_helper(
+            self,
+            needle,
+            limit=limit,
+            before=before,
+            after=after,
+            scope=scope,
+            scan_limit=scan_limit,
+            source=source,
+        )
+
+    def load_environment_metrics_history(
+        self,
+        *,
+        window_hours: int | None = None,
+        metric: str | None = None,
+        node_id: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, object]:
+        return _load_environment_metrics_history_helper(
+            self,
+            window_hours=window_hours,
+            metric=metric,
+            node_id=node_id,
+            limit=limit,
+        )
+
     def load_recent_chat(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_chat_helper(self, limit)
 
@@ -86,6 +134,9 @@ class HistoryStore:
 
     def load_node_capabilities(self) -> dict[str, dict[str, object]]:
         return _load_node_capabilities_helper(self)
+
+    def load_summary_metrics(self, window_hours: int) -> dict[str, object]:
+        return _load_summary_metrics_helper(self, window_hours)
 
     def save_connection_event(
         self,
@@ -109,3 +160,12 @@ class HistoryStore:
 
     def save_chat(self, chat_entry: dict[str, object]) -> None:
         _save_chat_helper(self, chat_entry)
+
+    def save_summary_metrics(self, summary: dict[str, object]) -> None:
+        _save_summary_metrics_helper(self, summary)
+
+    def get_custom_telemetry_settings(self) -> dict[str, object]:
+        return _load_custom_telemetry_settings_helper(self)
+
+    def set_custom_telemetry_settings(self, rules: object) -> dict[str, object]:
+        return _save_custom_telemetry_settings_helper(self, rules=rules)

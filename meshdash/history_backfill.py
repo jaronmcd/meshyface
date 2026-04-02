@@ -1,5 +1,11 @@
+import time
 from typing import Callable, Optional
 
+from .helpers import safe_json_loads as _safe_json_loads
+from .helpers import to_int as _to_int
+from .history_writes import (
+    save_environment_metric_rollups as _save_environment_metric_rollups_helper,
+)
 from .sql_contracts import SqlConnection
 
 
@@ -178,3 +184,63 @@ def backfill_node_hour_seen(conn: SqlConnection) -> None:
             )
         except Exception:
             continue
+
+
+def backfill_environment_metric_rollups(
+    conn: SqlConnection,
+    *,
+    reset_existing: bool = False,
+    commit_every: int = 1000,
+    now_unix_fn: Callable[[], float] = time.time,
+) -> dict[str, int]:
+    if bool(reset_existing):
+        conn.execute("DELETE FROM environment_metrics_1m")
+
+    before_row = conn.execute("SELECT COUNT(*) FROM environment_metrics_1m").fetchone()
+    before_rows = int((before_row[0] if before_row else 0) or 0)
+
+    scanned_packets = 0
+    usable_packets = 0
+    bad_rows = 0
+    rows = conn.execute(
+        "SELECT created_unix, summary_json, packet_json FROM packets ORDER BY id ASC"
+    ).fetchall()
+    clean_commit_every = max(0, int(commit_every))
+    for index, row in enumerate(rows, start=1):
+        scanned_packets += 1
+        created_unix = row[0] if len(row) > 0 else None
+        summary_json = row[1] if len(row) > 1 else None
+        packet_json = row[2] if len(row) > 2 else None
+
+        summary = _safe_json_loads(summary_json, {})
+        packet = _safe_json_loads(packet_json, {})
+        if not isinstance(summary, dict) or not isinstance(packet, dict):
+            bad_rows += 1
+            continue
+        usable_packets += 1
+
+        fallback_unix = int(_to_int(created_unix) or 0)
+        fallback_now_fn = (
+            (lambda fallback=fallback_unix: float(fallback))
+            if fallback_unix > 0
+            else now_unix_fn
+        )
+        _save_environment_metric_rollups_helper(
+            conn,
+            summary=summary,
+            packet=packet,
+            now_unix_fn=fallback_now_fn,
+        )
+        if clean_commit_every > 0 and (index % clean_commit_every) == 0:
+            conn.commit()
+
+    after_row = conn.execute("SELECT COUNT(*) FROM environment_metrics_1m").fetchone()
+    after_rows = int((after_row[0] if after_row else 0) or 0)
+    return {
+        "before_rows": before_rows,
+        "after_rows": after_rows,
+        "delta_rows": max(0, after_rows - before_rows),
+        "scanned_packets": scanned_packets,
+        "usable_packets": usable_packets,
+        "bad_rows": bad_rows,
+    }

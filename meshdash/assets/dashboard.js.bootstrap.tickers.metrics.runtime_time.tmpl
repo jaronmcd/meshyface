@@ -1,0 +1,219 @@
+    function updateMetricTicker(metricKey, rawValue, config = {{}}) {{
+      const container = document.getElementById(config.containerId || "");
+      const deltaEl = document.getElementById(config.deltaId || "");
+      const chart = document.getElementById(config.chartId || "");
+      const rateEl = document.getElementById(config.rateId || "");
+      if (!(container instanceof HTMLElement) || !(deltaEl instanceof HTMLElement) || !(chart instanceof SVGElement)) {{
+        return;
+      }}
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) {{
+        container.hidden = true;
+        return;
+      }}
+      const points = appendMetricTickerPoint(
+        metricKey,
+        value,
+        Date.now(),
+        Number(config.windowMs) || metricTickerWindowMs,
+        Number(config.maxPoints) || metricTickerMaxPoints
+      );
+      if (!Array.isArray(points) || points.length === 0) {{
+        container.hidden = true;
+        return;
+      }}
+
+      const latest = Number(points[points.length - 1] && points[points.length - 1].value);
+      const baseline = Number(points[0] && points[0].value);
+      const delta = latest - baseline;
+      const valueUnit = String(config.valueUnit == null ? "" : config.valueUnit);
+      const flatThreshold = Number(config.flatThreshold);
+      const epsilon = Number.isFinite(flatThreshold) ? Math.max(0, flatThreshold) : 0;
+      let trend = "flat";
+      if (delta > epsilon) trend = "up";
+      else if (delta < -epsilon) trend = "down";
+
+      const deltaAbsBaseText = formatTickerNumber(Math.abs(delta), config.digits);
+      const deltaAbsText = `${{deltaAbsBaseText}}${{valueUnit}}`;
+      const pct = baseline !== 0 ? ((delta / Math.abs(baseline)) * 100) : null;
+      const pctText = Number.isFinite(pct)
+        ? ` (${{pct > 0 ? "+" : ""}}${{Number(pct).toFixed(1)}}%)`
+        : "";
+      let deltaText = "";
+      if (trend === "flat") {{
+        deltaText = `0${{valueUnit}}${{pctText}}`;
+      }} else {{
+        const sign = trend === "up" ? "+" : "-";
+        deltaText = `${{sign}}${{deltaAbsText}}${{pctText}}`;
+      }}
+      deltaEl.textContent = deltaText;
+
+      container.classList.remove("trend-up", "trend-down", "trend-flat");
+      container.classList.add(`trend-${{trend}}`);
+      container.hidden = false;
+
+      chart.innerHTML = "";
+      const expandedTickerView = topbarElement instanceof HTMLElement && topbarElement.classList.contains("ticker-expanded");
+      const chartWidth = expandedTickerView ? 184 : 72;
+      const chartHeight = expandedTickerView ? 44 : 16;
+      const chartPad = expandedTickerView ? 3 : 1.5;
+      chart.setAttribute("viewBox", `0 0 ${{chartWidth}} ${{chartHeight}}`);
+      const pathData = buildMetricTickerPath(points, chartWidth, chartHeight, chartPad);
+      if (pathData) {{
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        chart.appendChild(path);
+      }}
+
+      const firstMs = Number(points[0] && points[0].ms);
+      const rangeMinutes = Number.isFinite(firstMs)
+        ? Math.max(1, Math.round((Date.now() - firstMs) / 60000))
+        : Math.max(1, Math.round(metricTickerWindowMs / 60000));
+      const rangeHours = Math.max(1 / 60, rangeMinutes / 60);
+      const ratePerHour = delta / rangeHours;
+      const rateAbsBaseText = formatTickerNumber(
+        Math.abs(ratePerHour),
+        Number.isFinite(Number(config.rateDigits)) ? Number(config.rateDigits) : 1
+      );
+      const rateAbsText = `${{rateAbsBaseText}}${{valueUnit}}`;
+      const rateSign = ratePerHour > 0 ? "+" : (ratePerHour < 0 ? "-" : "");
+      const rateText = `${{rateSign}}${{rateAbsText}}/h`;
+      if (rateEl instanceof HTMLElement) {{
+        rateEl.textContent = rateText;
+        rateEl.title = `Rate of change per hour across a ${{rangeMinutes}}m window`;
+      }}
+      const fromText = `${{formatTickerNumber(baseline, config.digits)}}${{valueUnit}}`;
+      const toText = `${{formatTickerNumber(latest, config.digits)}}${{valueUnit}}`;
+      container.title = `Trend (${{rangeMinutes}}m): ${{fromText}} -> ${{toText}}; delta ${{deltaText}}; rate ${{rateText}}`;
+    }}
+
+    function compactTargetMetric(value, maxLen = 44) {{
+      const text = String(value == null ? "n/a" : value).replace(/\\s+/g, " ").trim();
+      if (!text) return "n/a";
+      const serialPrefix = "/dev/serial/by-id/";
+      const compactBase = text.startsWith(serialPrefix) ? text.slice(serialPrefix.length) : text;
+      if (compactBase.length <= maxLen) return compactBase;
+      const suffixLen = Math.max(12, Math.floor(maxLen * 0.45));
+      const prefixLen = Math.max(8, maxLen - suffixLen - 3);
+      return `${{compactBase.slice(0, prefixLen)}}...${{compactBase.slice(-suffixLen)}}`;
+    }}
+
+    function syncUptimeBase(uptimeSeconds) {{
+      const clean = Number(uptimeSeconds);
+      if (!Number.isFinite(clean)) return;
+      uptimeBaseSeconds = Math.max(0, Math.floor(clean));
+      uptimeBaseMs = Date.now();
+    }}
+
+    function formatUptimeHms(totalSeconds) {{
+      const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+      const hours = Math.floor(safe / 3600);
+      const minutes = Math.floor((safe % 3600) / 60);
+      const seconds = safe % 60;
+      return `${{String(hours).padStart(2, "0")}}:${{String(minutes).padStart(2, "0")}}:${{String(seconds).padStart(2, "0")}}`;
+    }}
+
+    function updateUptimeDisplay() {{
+      if (typeof uptimeBaseSeconds !== "number" || !Number.isFinite(uptimeBaseSeconds)) {{
+        return;
+      }}
+      const delta = Math.max(0, (Date.now() - (uptimeBaseMs || 0)) / 1000);
+      setText("m-uptime", formatUptimeHms(uptimeBaseSeconds + delta));
+    }}
+
+    function formatRadioTime(unixSeconds) {{
+      const ts = Number(unixSeconds);
+      if (!Number.isFinite(ts) || ts <= 0) return "n/a";
+      const date = new Date(ts * 1000);
+      if (!Number.isFinite(date.getTime())) return "n/a";
+      const now = new Date();
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
+      const ss = String(date.getSeconds()).padStart(2, "0");
+      const sameDay = (
+        date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate()
+      );
+      if (sameDay) {{
+        return `${{hh}}:${{mm}}:${{ss}}`;
+      }}
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${{month}}/${{day}} ${{hh}}:${{mm}}:${{ss}}`;
+    }}
+
+    function syncRadioTimeBase(unixSeconds, source = "") {{
+      const clean = Number(unixSeconds);
+      if (!Number.isFinite(clean) || clean <= 0) {{
+        radioTimeBaseUnix = null;
+        radioTimeBaseMs = 0;
+        radioTimeBaseSource = "";
+        setText("m-radio-time", "n/a");
+        return;
+      }}
+      radioTimeBaseUnix = Math.floor(clean);
+      radioTimeBaseMs = Date.now();
+      radioTimeBaseSource = String(source || "").trim();
+      updateRadioTimeDisplay();
+    }}
+
+    function updateRadioTimeDisplay() {{
+      if (typeof radioTimeBaseUnix !== "number" || !Number.isFinite(radioTimeBaseUnix) || radioTimeBaseUnix <= 0) {{
+        setText("m-radio-time", "n/a");
+        return;
+      }}
+      const delta = Math.max(0, (Date.now() - (radioTimeBaseMs || 0)) / 1000);
+      const displayUnix = radioTimeBaseUnix + Math.floor(delta);
+      setText("m-radio-time", formatRadioTime(displayUnix));
+      const el = document.getElementById("m-radio-time");
+      if (el instanceof HTMLElement) {{
+        const iso = new Date(displayUnix * 1000).toISOString();
+        const sourceSuffix = radioTimeBaseSource ? ` (source: ${{radioTimeBaseSource}})` : "";
+        el.title = `Radio reported time: ${{iso}}${{sourceSuffix}}`;
+      }}
+    }}
+
+    function resolveRadioReportedTime(state) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const candidateSpecs = [
+        ["my_info", safeState.my_info],
+        ["metadata", safeState.metadata],
+        ["local_state", safeState.local_state],
+      ];
+      const candidateKeys = [
+        "current_time",
+        "currentTime",
+        "device_time",
+        "deviceTime",
+        "radio_time",
+        "radioTime",
+        "time",
+        "timestamp",
+        "time_unix",
+        "timeUnix",
+      ];
+      for (const [sourcePrefix, candidateObj] of candidateSpecs) {{
+        if (!candidateObj || typeof candidateObj !== "object") continue;
+        for (const key of candidateKeys) {{
+          if (!Object.prototype.hasOwnProperty.call(candidateObj, key)) continue;
+          const unix = parseDashboardTimeToUnix(candidateObj[key]);
+          if (Number.isFinite(unix) && unix > 0) {{
+            return {{ unix, source: `${{sourcePrefix}}.${{key}}` }};
+          }}
+        }}
+      }}
+
+      const localNodeId = resolveLocalNodeId(safeState);
+      if (isCanonicalNodeId(localNodeId)) {{
+        const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+        const localNode = nodes.find((node) => normalizeNodeId(node && node.id) === localNodeId) || null;
+        const localNodeUnix = nodeLastHeardUnix(localNode);
+        if (Number.isFinite(localNodeUnix) && localNodeUnix > 0) {{
+          return {{ unix: localNodeUnix, source: "local_node.last_heard" }};
+        }}
+      }}
+
+      return {{ unix: null, source: "" }};
+    }}
+

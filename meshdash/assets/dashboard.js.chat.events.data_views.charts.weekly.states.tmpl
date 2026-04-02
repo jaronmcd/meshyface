@@ -1,0 +1,48 @@
+    function renderWeeklySummaryLoading() {{
+      historyTrendCharts.weekly.points = [];
+      historyTrendCharts.weekly.pointerDrag = null;
+      const caption = document.getElementById("weekly-summary-caption");
+      if (caption) {{
+        caption.textContent = "Loading weekly summary metrics...";
+      }}
+      const overview = document.getElementById("weekly-summary-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("weekly-summary-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("weekly-summary-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Loading weekly summary metrics...";
+      }}
+      setTimelineMessage("weekly-summary-timeline", "Loading timeline...");
+    }}
+
+    function renderWeeklySummaryError(message) {{
+      historyTrendCharts.weekly.points = [];
+      resetHistoryTrendZoom(historyTrendCharts.weekly);
+      const caption = document.getElementById("weekly-summary-caption");
+      if (caption) {{
+        caption.textContent = `Weekly summary error: ${{message || "unknown error"}}`;
+      }}
+      const overview = document.getElementById("weekly-summary-overview");
+      if (overview) {{
+        overview.innerHTML = "";
+      }}
+      const svg = document.getElementById("weekly-summary-chart");
+      if (svg instanceof SVGElement) {{
+        svg.innerHTML = "";
+        svg.classList.remove("zoomed", "chart-dragging");
+      }}
+      const empty = document.getElementById("weekly-summary-empty");
+      if (empty) {{
+        empty.hidden = false;
+        empty.textContent = "Unable to load weekly summary metrics.";
+      }}
+      setTimelineMessage("weekly-summary-timeline", "Timeline unavailable due to weekly summary error.");
+    }}
+

@@ -1,0 +1,84 @@
+    function bindSearchTextInput(inputId, options = {{}}) {{
+      const input = document.getElementById(inputId);
+      if (!(input instanceof HTMLInputElement)) return null;
+
+      const normalize = typeof options.normalize === "function"
+        ? options.normalize
+        : ((value) => String(value == null ? "" : value));
+      const onInput = typeof options.onInput === "function"
+        ? options.onInput
+        : null;
+
+      if (input.dataset.bound !== "1") {{
+        input.dataset.bound = "1";
+        if (onInput) {{
+          input.addEventListener("input", () => {{
+            const rawValue = String(input.value == null ? "" : input.value);
+            onInput(normalize(rawValue), rawValue, input);
+          }});
+        }}
+      }}
+
+      if (Object.prototype.hasOwnProperty.call(options || {{}}, "value")) {{
+        const valueText = String(options.value == null ? "" : options.value);
+        if (input.value !== valueText) {{
+          input.value = valueText;
+        }}
+      }}
+
+      return input;
+    }}
+
+    function renderSortableListboxTable(tableId, rowModels, options = {{}}) {{
+      const rows = Array.isArray(rowModels) ? rowModels : [];
+      const emptyTextRaw = options && options.emptyText != null
+        ? String(options.emptyText)
+        : "No rows.";
+      const emptyText = emptyTextRaw.trim() || "No rows.";
+      const emptyColspan = Math.max(1, Math.trunc(Number(options && options.emptyColspan) || 1));
+      if (!rows.length) {{
+        fillTable(tableId, [`<tr><td colspan="${{emptyColspan}}">${{escAttr(emptyText)}}</td></tr>`]);
+        return;
+      }}
+
+      const renderedRows = rows.map((row) => {{
+        const rowModel = (row && typeof row === "object") ? row : {{}};
+        const cells = Array.isArray(rowModel.cells) ? rowModel.cells : [];
+        const className = String(rowModel.className || "").trim();
+        const dataset = (rowModel.dataset && typeof rowModel.dataset === "object")
+          ? rowModel.dataset
+          : {{}};
+
+        const attrs = [];
+        if (className) {{
+          attrs.push(`class="${{escAttr(className)}}"`);
+        }}
+        for (const [rawKey, rawValue] of Object.entries(dataset)) {{
+          const key = String(rawKey || "").trim().replace(/[^a-zA-Z0-9_-]/g, "");
+          if (!key) continue;
+          attrs.push(`data-${{key}}="${{escAttr(String(rawValue == null ? "" : rawValue))}}"`);
+        }}
+
+        const renderedCells = cells.map((cell) => {{
+          const cellModel = (cell && typeof cell === "object") ? cell : {{}};
+          const sortValue = String(cellModel.sort == null ? "" : cellModel.sort);
+          const titleValue = String(cellModel.title == null ? "" : cellModel.title);
+          const cellClass = String(cellModel.className || "").trim();
+          const content = cellModel.html != null
+            ? String(cellModel.html)
+            : escAttr(String(cellModel.text == null ? "" : cellModel.text));
+          const tdAttrs = [`data-sort="${{escAttr(sortValue)}}"`];
+          if (titleValue) {{
+            tdAttrs.push(`title="${{escAttr(titleValue)}}"`);
+          }}
+          if (cellClass) {{
+            tdAttrs.push(`class="${{escAttr(cellClass)}}"`);
+          }}
+          return `<td ${{tdAttrs.join(" ")}}>${{content}}</td>`;
+        }});
+
+        return `<tr ${{attrs.join(" ")}}>${{renderedCells.join("")}}</tr>`;
+      }});
+
+      fillTable(tableId, renderedRows);
+    }}

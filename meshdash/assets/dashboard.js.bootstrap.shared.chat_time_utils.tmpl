@@ -1,0 +1,279 @@
+    function getChatScroller() {{
+      const feed = document.getElementById("chat-feed");
+      if (!(feed instanceof HTMLElement)) return null;
+      const scroller = feed.closest(".scroll");
+      return scroller instanceof HTMLElement ? scroller : null;
+    }}
+
+    function isNearBottom(scroller, thresholdPx = chatBottomStickThresholdPx) {{
+      if (!(scroller instanceof HTMLElement)) return false;
+      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      return remaining <= thresholdPx;
+    }}
+
+    function bindChatAutoScroll() {{
+      const scroller = getChatScroller();
+      if (!(scroller instanceof HTMLElement) || scroller.dataset.chatScrollBound === "1") return;
+      scroller.dataset.chatScrollBound = "1";
+      chatStickToBottom = true;
+      scroller.addEventListener("scroll", () => {{
+        chatStickToBottom = isNearBottom(scroller);
+        syncChatChangeAutoDismiss();
+      }});
+      scroller.addEventListener("mouseup", () => {{
+        void copyChatSelectionToClipboard();
+      }});
+    }}
+
+    function bytesToGiB(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num) || num < 0) return null;
+      return num / (1024 ** 3);
+    }}
+
+    function formatModemPresetLabel(value, fallback = "unknown") {{
+      const raw = String(value == null ? "" : value).trim();
+      if (!raw) return fallback;
+      const enumMap = new Map([
+        ["0", "LONG_FAST"],
+        ["1", "LONG_SLOW"],
+        ["2", "VERY_LONG_SLOW"],
+        ["3", "MEDIUM_SLOW"],
+        ["4", "MEDIUM_FAST"],
+        ["5", "SHORT_SLOW"],
+        ["6", "SHORT_FAST"],
+        ["7", "LONG_MODERATE"],
+        ["8", "SHORT_TURBO"],
+        ["9", "LONG_TURBO"],
+      ]);
+      const canonicalRaw = enumMap.get(raw) || raw;
+      return canonicalRaw
+        .split(/[_\\s]+/)
+        .filter((token) => !!token)
+        .map((token) => `${{token.slice(0, 1).toUpperCase()}}${{token.slice(1).toLowerCase()}}`)
+        .join(" ");
+    }}
+
+    function parseDashboardTimeToMs(value) {{
+      const numericRaw = Number(value);
+      if (Number.isFinite(numericRaw) && numericRaw > 0) {{
+        // Accept either Unix seconds or milliseconds.
+        return Math.floor(numericRaw > 1e12 ? numericRaw : (numericRaw * 1000));
+      }}
+      const text = String(value == null ? "" : value).trim();
+      if (!text) return null;
+      const iso = text.includes("T") ? text : text.replace(" ", "T");
+      const parsed = Date.parse(iso);
+      if (!Number.isFinite(parsed)) return null;
+      return Math.floor(parsed);
+    }}
+
+    function parseDashboardTimeToUnix(value) {{
+      const parsedMs = parseDashboardTimeToMs(value);
+      if (!parsedMs) return null;
+      return Math.floor(parsedMs / 1000);
+    }}
+
+    function parsePositiveMessageId(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) return null;
+      return Math.trunc(num);
+    }}
+
+    function optionalFiniteNumber(value) {{
+      if (value == null) return null;
+      if (typeof value === "string" && !value.trim()) return null;
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      return num;
+    }}
+
+    function nonNegativeIntegerOrNull(value) {{
+      const num = optionalFiniteNumber(value);
+      if (num == null) return null;
+      const truncated = Math.trunc(num);
+      if (truncated < 0) return null;
+      return truncated;
+    }}
+
+    function messageIdOfChatPacket(msg) {{
+      if (!msg || typeof msg !== "object") return null;
+      return parsePositiveMessageId(msg.message_id ?? msg.messageId ?? msg.packet_id ?? msg.packetId);
+    }}
+
+    function replyIdOfChatPacket(msg) {{
+      if (!msg || typeof msg !== "object") return null;
+      return parsePositiveMessageId(msg.reply_id ?? msg.replyId);
+    }}
+
+    function hopCountOfChatPacket(msg) {{
+      if (!msg || typeof msg !== "object") return null;
+      const direct = nonNegativeIntegerOrNull(msg.hops);
+      if (direct != null) return direct;
+      const hopStart = optionalFiniteNumber(msg.hop_start ?? msg.hopStart);
+      const hopLimit = optionalFiniteNumber(msg.hop_limit ?? msg.hopLimit);
+      if (hopStart != null && hopLimit != null) {{
+        const derived = Math.trunc(hopStart) - Math.trunc(hopLimit);
+        if (derived >= 0) return derived;
+      }}
+      return null;
+    }}
+
+    function latestUnixTimestamp(...values) {{
+      let latest = 0;
+      for (const value of values) {{
+        const ts = parseDashboardTimeToUnix(value);
+        if (ts && ts > latest) latest = ts;
+      }}
+      return latest > 0 ? latest : null;
+    }}
+
+    function latestTimestampMs(...values) {{
+      let latest = 0;
+      for (const value of values) {{
+        const ts = parseDashboardTimeToMs(value);
+        if (ts && ts > latest) latest = ts;
+      }}
+      return latest > 0 ? latest : null;
+    }}
+
+    function nestedPathValue(root, path) {{
+      if (!root || typeof root !== "object") return null;
+      let current = root;
+      const parts = String(path || "").split(".");
+      for (const rawPart of parts) {{
+        const part = String(rawPart || "").trim();
+        if (!part || !current || typeof current !== "object" || !(part in current)) {{
+          return null;
+        }}
+        current = current[part];
+      }}
+      return current;
+    }}
+
+    function firstNestedValue(roots, paths) {{
+      const rootList = Array.isArray(roots) ? roots : [roots];
+      for (const root of rootList) {{
+        for (const path of (Array.isArray(paths) ? paths : [])) {{
+          const value = nestedPathValue(root, path);
+          if (value == null) continue;
+          if (typeof value === "string" && !value.trim()) continue;
+          return value;
+        }}
+      }}
+      return null;
+    }}
+
+    function firstFiniteNestedNumber(roots, paths) {{
+      const raw = firstNestedValue(roots, paths);
+      const num = Number(raw);
+      return Number.isFinite(num) ? num : null;
+    }}
+
+    function formatLocalChatTime(unixTs, fallback = "n/a", nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(unixTs);
+      if (!Number.isFinite(ts) || ts <= 0) {{
+        const fallbackText = String(fallback == null ? "" : fallback).trim();
+        return fallbackText || "n/a";
+      }}
+      const valueDate = new Date(Math.floor(ts) * 1000);
+      if (Number.isNaN(valueDate.getTime())) {{
+        const fallbackText = String(fallback == null ? "" : fallback).trim();
+        return fallbackText || "n/a";
+      }}
+      const nowDate = new Date(Math.floor(Number.isFinite(nowUnix) ? nowUnix : (Date.now() / 1000)) * 1000);
+      const sameLocalDay = (
+        valueDate.getFullYear() === nowDate.getFullYear()
+        && valueDate.getMonth() === nowDate.getMonth()
+        && valueDate.getDate() === nowDate.getDate()
+      );
+      const hh = String(valueDate.getHours()).padStart(2, "0");
+      const mm = String(valueDate.getMinutes()).padStart(2, "0");
+      const ss = String(valueDate.getSeconds()).padStart(2, "0");
+      if (sameLocalDay) {{
+        return `${{hh}}:${{mm}}:${{ss}}`;
+      }}
+      const mon = String(valueDate.getMonth() + 1).padStart(2, "0");
+      const day = String(valueDate.getDate()).padStart(2, "0");
+      return `${{mon}}/${{day}} ${{hh}}:${{mm}}:${{ss}}`;
+    }}
+
+    function formatIdleAge(unixTs, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(unixTs);
+      if (!Number.isFinite(ts) || ts <= 0) return "n/a";
+      const now = Number.isFinite(nowUnix) ? Math.floor(nowUnix) : Math.floor(Date.now() / 1000);
+      if (typeof savedDetailAge === "function") {{
+        return savedDetailAge(ts, now);
+      }}
+      const ageSec = Math.max(0, now - Math.floor(ts));
+      if (ageSec < 90) return `${{ageSec}}s ago`;
+      const ageMin = ageSec / 60;
+      if (ageMin < 90) return `${{Math.round(ageMin)}}m ago`;
+      const ageHr = ageMin / 60;
+      if (ageHr < 48) return `${{ageHr.toFixed(ageHr < 10 ? 1 : 0)}}h ago`;
+      const ageDay = ageHr / 24;
+      return `${{ageDay.toFixed(ageDay < 10 ? 1 : 0)}}d ago`;
+    }}
+
+    function nodeLastHeardUnix(node) {{
+      if (!node || typeof node !== "object") return null;
+      const raw = Number(node.last_heard_unix);
+      if (Number.isFinite(raw) && raw > 0) {{
+        return Math.floor(raw);
+      }}
+      return parseDashboardTimeToUnix(node.last_heard);
+    }}
+
+    function freshnessStatus(lastSeenUnix, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(lastSeenUnix);
+      if (!Number.isFinite(ts) || ts <= 0) return "unknown";
+      const age = Math.max(0, nowUnix - ts);
+      if (age <= chatWarnWindowSeconds) return "online";
+      if (age <= chatStaleWindowSeconds) return "warn";
+      return "stale";
+    }}
+
+    function statusRank(status) {{
+      const key = String(status || "unknown");
+      if (key === "online") return 0;
+      if (key === "warn") return 1;
+      if (key === "stale") return 2;
+      return 3;
+    }}
+
+    function normalizeFreshnessKey(status) {{
+      const key = String(status || "").trim().toLowerCase();
+      if (key === "online" || key === "warn" || key === "stale") return key;
+      return "unknown";
+    }}
+
+    function applyFreshnessClass(el, status) {{
+      if (!(el instanceof HTMLElement)) return;
+      const key = normalizeFreshnessKey(status);
+      if (el.dataset.freshness === key) return;
+      el.dataset.freshness = key;
+      el.classList.remove("status-online", "status-warn", "status-stale", "status-unknown");
+      el.classList.add(`status-${{key}}`);
+    }}
+
+    function trimInlineError(value, maxLen = 120) {{
+      const text = String(value == null ? "" : value).replace(/\\s+/g, " ").trim();
+      if (!text) return "";
+      const limit = Math.max(24, Math.floor(Number(maxLen) || 120));
+      if (text.length <= limit) return text;
+      return `${{text.slice(0, limit - 1)}}…`;
+    }}
+
+    function coerceOptionalBool(value) {{
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number" && Number.isFinite(value)) {{
+        return value !== 0;
+      }}
+      if (typeof value === "string") {{
+        const clean = value.trim().toLowerCase();
+        if (!clean) return null;
+        if (["1", "true", "yes", "on", "y"].includes(clean)) return true;
+        if (["0", "false", "no", "off", "n"].includes(clean)) return false;
+      }}
+      return null;
+    }}

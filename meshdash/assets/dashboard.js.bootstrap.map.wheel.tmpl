@@ -1,0 +1,344 @@
+    function isMapWheelGuardEnabled() {{
+      // Wheel-zoom gating was causing confusion (and can feel like "zoom is broken").
+      // Keep scroll wheel zoom enabled everywhere for reliability.
+      return false;
+    }}
+
+    function setMapWheelZoomActive(active) {{
+      const guardEnabled = isMapWheelGuardEnabled();
+      const next = guardEnabled ? !!active : true;
+      if (mapWheelZoomActive === next) {{
+        return;
+      }}
+      mapWheelZoomActive = next;
+      if (!mapWheelZoomActive || !guardEnabled) {{
+        mapWheelJustArmed = false;
+        if (mapWheelLease !== null) {{
+          clearTimeout(mapWheelLease);
+          mapWheelLease = null;
+        }}
+      }}
+      if (mapWheelZoomActive) {{
+        map.scrollWheelZoom.enable();
+      }} else {{
+        map.scrollWheelZoom.disable();
+      }}
+      if (mapFrameElement) {{
+        if (guardEnabled) {{
+          mapFrameElement.classList.toggle("map-wheel-active", mapWheelZoomActive);
+          mapFrameElement.setAttribute(
+            "title",
+            mapWheelZoomActive
+              ? "Map wheel zoom active. Click outside map (or press Esc) to return wheel scrolling to page."
+              : "Click map to enable wheel zoom."
+          );
+        }} else {{
+          mapFrameElement.classList.remove("map-wheel-active");
+          mapFrameElement.setAttribute("title", "Scroll wheel zoom is enabled.");
+        }}
+      }}
+    }}
+
+    function touchMapWheelLease() {{
+      if (!mapWheelZoomActive || !isMapWheelGuardEnabled()) {{
+        return;
+      }}
+      if (mapWheelLease !== null) {{
+        clearTimeout(mapWheelLease);
+      }}
+      mapWheelLease = window.setTimeout(() => {{
+        setMapWheelZoomActive(false);
+      }}, wheelActivationLeaseMs);
+    }}
+
+    function bindMapWheelActivation() {{
+      if (!mapFrameElement || mapFrameElement.dataset.wheelMapBound === "1") {{
+        return;
+      }}
+      mapFrameElement.dataset.wheelMapBound = "1";
+      setMapWheelZoomActive(activeLayoutView === "network" || activeLayoutView === "saved");
+
+      mapFrameElement.addEventListener("pointerdown", (ev) => {{
+        if (!isMapWheelGuardEnabled()) {{
+          return;
+        }}
+        if (!(ev.target instanceof Element)) {{
+          return;
+        }}
+        if (ev.target.closest(".leaflet-control")) {{
+          return;
+        }}
+        if (!mapWheelZoomActive) {{
+          mapWheelJustArmed = true;
+        }}
+        setMapWheelZoomActive(true);
+        touchMapWheelLease();
+      }});
+
+      mapFrameElement.addEventListener("wheel", () => {{
+        touchMapWheelLease();
+      }}, {{ passive: true }});
+
+      document.addEventListener("pointerdown", (ev) => {{
+        if (!isMapWheelGuardEnabled()) {{
+          return;
+        }}
+        if (!(ev.target instanceof Element)) {{
+          setMapWheelZoomActive(false);
+          return;
+        }}
+        if (!mapFrameElement.contains(ev.target)) {{
+          setMapWheelZoomActive(false);
+        }}
+      }});
+      document.addEventListener("keydown", (ev) => {{
+        if (!isMapWheelGuardEnabled()) {{
+          return;
+        }}
+        if (ev.key === "Escape") {{
+          setMapWheelZoomActive(false);
+        }}
+      }});
+    }}
+
+    function bindWheelPassthrough() {{
+      const isWheelPassthroughEnabled = () => (
+        activeLayoutView !== "chat"
+        && activeLayoutView !== "macros"
+        && activeLayoutView !== "chatlabs"
+        && activeLayoutView !== "network"
+        && activeLayoutView !== "saved"
+        && activeLayoutView !== "settings"
+      );
+
+      const refreshWheelPaneHints = () => {{
+        const enabled = isWheelPassthroughEnabled();
+        if (!enabled && activeWheelPane instanceof HTMLElement) {{
+          activeWheelPane.classList.remove("wheel-scroll-active");
+          activeWheelPane = null;
+        }}
+        if (!enabled && activeWheelPaneLease !== null) {{
+          clearTimeout(activeWheelPaneLease);
+          activeWheelPaneLease = null;
+        }}
+        for (const el of document.querySelectorAll(wheelPaneSelector)) {{
+          if (!(el instanceof HTMLElement)) continue;
+          if (enabled) {{
+            if (!el.getAttribute("title")) {{
+              el.setAttribute("title", "Click panel to wheel-scroll inside it. Click outside the panel (or press Esc) to release.");
+              el.dataset.wheelHintOwned = "1";
+            }}
+          }} else if (el.dataset.wheelHintOwned === "1") {{
+            el.removeAttribute("title");
+            delete el.dataset.wheelHintOwned;
+          }}
+        }}
+      }};
+
+      const clearWheelPaneLease = () => {{
+        if (activeWheelPaneLease !== null) {{
+          clearTimeout(activeWheelPaneLease);
+          activeWheelPaneLease = null;
+        }}
+      }};
+
+      const touchWheelPaneLease = () => {{
+        if (!(activeWheelPane instanceof HTMLElement)) {{
+          clearWheelPaneLease();
+          return;
+        }}
+        // Keep pane wheel-focus sticky until explicit release (outside click/Esc).
+        clearWheelPaneLease();
+      }};
+
+      const setActiveWheelPane = (next) => {{
+        if (activeWheelPane === next) {{
+          if (activeWheelPane instanceof HTMLElement) {{
+            touchWheelPaneLease();
+          }}
+          return;
+        }}
+        if (activeWheelPane instanceof HTMLElement) {{
+          activeWheelPane.classList.remove("wheel-scroll-active");
+        }}
+        activeWheelPane = next instanceof HTMLElement ? next : null;
+        if (activeWheelPane) {{
+          activeWheelPane.classList.add("wheel-scroll-active");
+          if (document.activeElement !== activeWheelPane) {{
+            activeWheelPane.focus({{ preventScroll: true }});
+          }}
+          touchWheelPaneLease();
+        }} else {{
+          clearWheelPaneLease();
+        }}
+      }};
+
+      const canScrollInDirection = (el, delta) => {{
+        if (!(el instanceof HTMLElement)) {{
+          return false;
+        }}
+        const max = el.scrollHeight - el.clientHeight;
+        if (max <= 1) {{
+          return false;
+        }}
+        if (delta > 0) {{
+          return el.scrollTop < (max - 1);
+        }}
+        if (delta < 0) {{
+          return el.scrollTop > 1;
+        }}
+        return false;
+      }};
+
+      const canScrollPageInDirection = (delta) => {{
+        const root = document.scrollingElement;
+        if (!(root instanceof HTMLElement)) {{
+          return false;
+        }}
+        const max = root.scrollHeight - root.clientHeight;
+        if (max <= 1) {{
+          return false;
+        }}
+        if (delta > 0) {{
+          return root.scrollTop < (max - 1);
+        }}
+        if (delta < 0) {{
+          return root.scrollTop > 1;
+        }}
+        return false;
+      }};
+
+      const routeWheelToPage = (delta) => {{
+        if (!canScrollPageInDirection(delta)) {{
+          return false;
+        }}
+        window.scrollBy({{ top: delta, behavior: "auto" }});
+        return true;
+      }};
+
+      for (const el of document.querySelectorAll(wheelPaneSelector)) {{
+        if (!(el instanceof HTMLElement) || el.dataset.wheelPassBound === "1") {{
+          continue;
+        }}
+        el.dataset.wheelPassBound = "1";
+        if (!el.hasAttribute("tabindex")) {{
+          el.tabIndex = 0;
+        }}
+        el.addEventListener("pointerdown", () => {{
+          if (!isWheelPassthroughEnabled()) {{
+            return;
+          }}
+          setActiveWheelPane(el);
+        }});
+        el.addEventListener("focusin", () => {{
+          if (!isWheelPassthroughEnabled()) {{
+            return;
+          }}
+          setActiveWheelPane(el);
+        }});
+        el.addEventListener(
+          "wheel",
+          (ev) => {{
+            if (!isWheelPassthroughEnabled()) {{
+              return;
+            }}
+            if (ev.target instanceof Element && ev.target.closest(".leaflet-container")) {{
+              // Let Leaflet keep full control of wheel interactions.
+              return;
+            }}
+            if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey) {{
+              return;
+            }}
+            const delta = Math.abs(ev.deltaY) >= Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
+            if (!Number.isFinite(delta) || delta === 0) {{
+              return;
+            }}
+
+            const paneIsActive = activeWheelPane === el;
+            if (!paneIsActive) {{
+              if (routeWheelToPage(delta)) {{
+                ev.preventDefault();
+                return;
+              }}
+              // No page-level scrolling available; keep this pane active.
+              setActiveWheelPane(el);
+              return;
+            }}
+
+            if (canScrollInDirection(el, delta)) {{
+              touchWheelPaneLease();
+              return;
+            }}
+
+            if (routeWheelToPage(delta)) {{
+              ev.preventDefault();
+            }}
+          }},
+          {{ passive: false }}
+        );
+      }}
+      refreshWheelPaneHints();
+
+      if (document.body.dataset.wheelPassDocBound !== "1") {{
+        document.body.dataset.wheelPassDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!(ev.target instanceof Element)) {{
+            setActiveWheelPane(null);
+            return;
+          }}
+          if (!ev.target.closest(wheelPaneSelector)) {{
+            setActiveWheelPane(null);
+          }}
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key === "Escape") {{
+            setActiveWheelPane(null);
+          }}
+        }});
+      }}
+
+      // Expose a tiny hook so view changes can toggle wheel hints/behavior.
+      window.meshRefreshWheelHints = refreshWheelPaneHints;
+    }}
+
+    map.whenReady(() => {{
+      requestMapResize();
+      bindMapContainerObserver();
+      bindMapWheelActivation();
+      map.on("movestart", () => {{
+        if ((Number.isFinite(Number(programmaticMapMoveDepth)) ? programmaticMapMoveDepth : 0) > 0) return;
+        pendingMapHistoryFocus = false;
+      }});
+      map.on("zoomstart", () => {{
+        if ((Number.isFinite(Number(programmaticMapMoveDepth)) ? programmaticMapMoveDepth : 0) > 0) return;
+        pendingMapHistoryFocus = false;
+        // Avoid odd canvas artifacts while zooming (leaflet.heat can look glitchy mid-zoom).
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        syncSignalHeatmapLayer(nodes, true);
+      }});
+      map.on("zoomend", () => {{
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
+          syncOfflineCityVisibility();
+        }}
+      }});
+      map.on("moveend", () => {{
+        const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
+        if (signalHeatDevKnobs.geoRadiusLock >= 0.5) {{
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        }}
+        if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
+          syncOfflineCityVisibility();
+        }}
+      }});
+    }});
+    window.addEventListener("resize", () => {{
+      requestTopbarLayoutMetricsSync();
+      setTimeout(() => {{
+        syncMapSize();
+        requestSettingsFixedMapResize();
+        requestTopbarLayoutMetricsSync();
+        scheduleChannelsTableFillRows();
+      }}, 120);
+    }});

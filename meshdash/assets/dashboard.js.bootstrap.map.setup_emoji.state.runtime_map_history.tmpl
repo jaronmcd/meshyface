@@ -1,0 +1,163 @@
+    let settingsDirty = false;
+    let settingsDirtyAt = 0;
+    let themePresetCatalog = {{
+      default: {{ light: {{}}, dark: {{}} }},
+    }};
+    const themePresetAppliedKeys = new Set();
+    let themeMediaQuery = null;
+    let mapTileLayer = null;
+    let mapTileTheme = "";
+    let settingsFixedMap = null;
+    let settingsFixedMapMarker = null;
+    let settingsFixedMapTileLayer = null;
+    let settingsFixedMapTileTheme = "";
+    let settingsFixedMapTileSession = 0;
+    let settingsFixedMapTileLoads = 0;
+    let settingsFixedMapTileErrors = 0;
+    let settingsFixedMapDarkTileFallback = false;
+    let settingsFixedMapResizeRaf = null;
+    let settingsFixedMapResizeTimers = [];
+    let settingsFixedMapAutoCenteredOnce = false;
+    let settingsPositionSourcePref = "gps";
+    let settingsUniqueNodeColorsEnabled = true;
+    let settingsTimeSyncEnabledPref = true;
+    let settingsTimeSyncTimezonePref = "local";
+    let settingsTimeSyncTimezoneOptionsCache = null;
+    let activeSettingsTab = "core";
+    let tickerPreferences = null;
+    let activeTickerSettingsId = "";
+    let settingsFixedPositionCache = null;
+    let settingsFixedMapPanelVisible = false;
+    let mapBasemapMode = "online";
+    let mapOfflineCountriesLayer = null;
+    let mapOfflineCoastlineLayer = null;
+    let mapOfflineBordersLayer = null;
+    let mapOfflineUrbanLayer = null;
+    let mapOfflineStatesLayer = null;
+    let mapOfflineRiversLayer = null;
+    let mapOfflineLakesLayer = null;
+    let mapOfflineCitiesLayer = null;
+    let mapOfflineCityMarkers = [];
+    let mapOfflineAtlasPayload = null;
+    let mapOfflineAtlasFetchPromise = null;
+    let offlineAtlasCityRowsCache = null;
+    let offlineAtlasCityRowsPromise = null;
+    let mapOfflineFallbackActive = false;
+    let mapTileLoadSession = 0;
+    let mapTileLoadSuccesses = 0;
+    let mapTileLoadErrors = 0;
+    let mapTileProbeTimer = null;
+    let mapPacketLinesEnabled = true;
+    let networkLegacyExplorerEnabled = false;
+    let signalHeatmapEnabled = true;
+    let signalHeatmapMode = "coverage";
+    let networkNodeInfoCollapsedNodeId = "";
+    let networkNodeInfoPopupProgrammaticDepth = 0;
+    let signalHeatmapLayers = null;
+    let signalHeatDevKnobs = Object.assign({{}}, signalHeatDevKnobDefaults);
+    const baseDocumentTitle = String(document.title || "").trim() || "Mesh dashboard";
+    let chatUnreadCount = 0;
+    let chatRosterModel = [];
+    let chatNodeNavigatorSortKey = chatNodeNavigatorDefaultSortKey;
+    let chatNodeNavigatorSortDir = chatNodeNavigatorDefaultSortDir;
+    let chatNodeNavigatorMetaFieldIds = nodeExplorerDefaultRosterMetadataFieldIds();
+    let chatNodeNavigatorShowPacketDirection = true;
+    let chatNodeNavigatorMenuOpen = false;
+    let chatNodeDetailsDrawerExpanded = false;
+    let chatNodeDetailsDrawerTab = "details";
+    const chatUnreadByChannel = {{ all: 0, direct: 0 }};
+    const chatUnreadByMeshChannel = {{ all: Object.create(null), direct: Object.create(null) }};
+    const chatUnreadLatestByChannel = {{ all: "", direct: "" }};
+    let chatUnreadInitialized = false;
+    const chatSeenMessageKeys = new Set();
+    const chatSeenMessageOrder = [];
+    const chatChangeNoticesByChannel = {{ all: [], direct: [] }};
+    const chatChangeNoticeKeysByChannel = {{ all: new Set(), direct: new Set() }};
+    const chatChangeAcknowledgedKeysByChannel = {{ all: new Set(), direct: new Set() }};
+    const favoriteFreshnessByNodeId = new Map();
+    let favoriteFreshnessHydrated = false;
+    const topbarNodeFreshnessByNodeId = new Map();
+    let topbarNodeFreshnessHydrated = false;
+    let chatChangeFocusTimer = null;
+    const chatChangeAutoDismissTimers = new Map();
+    const chatChangeAutoDismissInFlightKeys = new Set();
+    let chatPerfEnabled = false;
+    const chatPerfStats = {{
+      samples: 0,
+      lastMs: 0,
+      avgMs: 0,
+      emaMs: 0,
+      maxMs: 0,
+      lastFeedCount: 0,
+      lastRosterCount: 0,
+      lastChannel: "all",
+    }};
+    const chatLocalInfoRows = [];
+    let chatLocalInfoSeq = 0;
+    let chatLocalInfoVersion = 0;
+    const chatLocalInfoMaxRows = 24;
+    let chatDerivedCache = null;
+    let chatMessageEntriesCache = null;
+    let chatLabsRenderCache = null;
+    const nodeHistoryCache = new Map();
+    let nodeHistoryFetchSeq = 0;
+    let nodeHistoryFetchAbort = null;
+    let nodeHistoryFetchNodeId = "";
+    const onlineActivityCache = new Map();
+    const summaryMetricsCache = new Map();
+    let summaryMetricsHydrated = false;
+    let summaryMetricsHydrateInFlight = null;
+    const nodeNameCache = new Map();
+    const favoriteNodeIds = new Set();
+    const nodeTagByNodeId = new Map();
+    const nodeTagPresetsById = new Map();
+    let activeNodeTagPresetId = "";
+    const mutedNodeIds = new Set();
+    const nodeNotesById = new Map();
+    const nodeNoteDraftById = new Map();
+    const manualDirectPeerIds = new Set();
+    let resolvedLocalNodeId = "";
+    let favoritesSearchQuery = "";
+    const signalChartLayout = {{
+      width: 900,
+      height: 220,
+      padLeft: 44,
+      padRight: 44,
+      padTop: 12,
+      padBottom: 30,
+    }};
+    const signalZoomMinPoints = 10;
+    let signalChartPoints = [];
+    let signalChartZoomNodeId = "";
+    let signalChartZoomStart = 0;
+    let signalChartZoomEnd = 1;
+    let signalChartPointerDrag = null;
+    const historyTrendChartLayout = {{
+      width: 900,
+      height: 220,
+      padLeft: 46,
+      padRight: 10,
+      padTop: 12,
+      padBottom: 24,
+    }};
+    const historyTrendZoomMinPoints = 10;
+    const historyTrendCharts = {{
+      online: {{
+        key: "online",
+        svgId: "online-activity-chart",
+        timelineId: "online-activity-timeline",
+        points: [],
+        zoomStart: 0,
+        zoomEnd: 1,
+        pointerDrag: null,
+      }},
+      weekly: {{
+        key: "weekly",
+        svgId: "weekly-summary-chart",
+        timelineId: "weekly-summary-timeline",
+        points: [],
+        zoomStart: 0,
+        zoomEnd: 1,
+        pointerDrag: null,
+      }},
+    }};

@@ -1,0 +1,608 @@
+    function clampNodeTagVibrance(value, fallback = 70) {{
+      const raw = Number(value);
+      const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 70;
+      const normalized = Number.isFinite(raw) ? raw : safeFallback;
+      return Math.max(0, Math.min(100, Math.round(normalized)));
+    }}
+
+    function normalizeNodeTagColor(value, fallback = "#2aa85a") {{
+      const fallbackColor = /^#[0-9a-f]{6}$/i.test(String(fallback || "").trim())
+        ? String(fallback || "").trim().toLowerCase()
+        : "#2aa85a";
+      let text = String(value == null ? "" : value).trim().toLowerCase();
+      if (!text) return fallbackColor;
+      if (text[0] !== "#") text = `#${{text}}`;
+      if (/^#[0-9a-f]{3}$/i.test(text)) {{
+        return `#${{text[1]}}${{text[1]}}${{text[2]}}${{text[2]}}${{text[3]}}${{text[3]}}`;
+      }}
+      if (/^#[0-9a-f]{6}$/i.test(text)) {{
+        return text;
+      }}
+      return fallbackColor;
+    }}
+
+    function nodeTagColorHue(value, fallbackHue = 145) {{
+      const fallback = Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)));
+      const color = normalizeNodeTagColor(value, "#2aa85a");
+      const r = parseInt(color.slice(1, 3), 16) / 255;
+      const g = parseInt(color.slice(3, 5), 16) / 255;
+      const b = parseInt(color.slice(5, 7), 16) / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const delta = max - min;
+      if (!Number.isFinite(delta) || delta <= 0) {{
+        return fallback;
+      }}
+      let hueSeg = 0;
+      if (max === r) {{
+        hueSeg = ((g - b) / delta) % 6;
+      }} else if (max === g) {{
+        hueSeg = ((b - r) / delta) + 2;
+      }} else {{
+        hueSeg = ((r - g) / delta) + 4;
+      }}
+      let hue = Math.round(hueSeg * 60);
+      if (!Number.isFinite(hue)) {{
+        return fallback;
+      }}
+      while (hue < 0) hue += 360;
+      while (hue >= 360) hue -= 360;
+      return Math.max(0, Math.min(359, hue));
+    }}
+
+    function nodeTagTintHue(tagEntry, fallbackHue = 145) {{
+      const preset = tagEntry && typeof tagEntry === "object" && tagEntry.preset
+        ? tagEntry.preset
+        : null;
+      return nodeTagColorHue(preset && preset.color, fallbackHue);
+    }}
+
+    function normalizeNodeTagPresetName(value, fallback = "Tagged") {{
+      const text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+      if (!text) return String(fallback || "Tagged");
+      return text.slice(0, 40);
+    }}
+
+    function normalizeNodeTagPresetId(value, fallback = "tag-default") {{
+      const text = String(value == null ? "" : value)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      if (text) return text.slice(0, 48);
+      return String(fallback);
+    }}
+
+    function defaultNodeTagPreset() {{
+      return {{
+        id: "tag-default",
+        name: "Tagged",
+        color: "#2aa85a",
+        vibrance: 70,
+      }};
+    }}
+
+    function normalizeNodeTagPreset(rawPreset, fallbackId = "tag-default") {{
+      const base = (rawPreset && typeof rawPreset === "object") ? rawPreset : {{}};
+      const fallback = defaultNodeTagPreset();
+      const id = normalizeNodeTagPresetId(
+        base.id ?? base.preset_id ?? base.presetId ?? fallbackId,
+        fallbackId || fallback.id
+      );
+      const name = normalizeNodeTagPresetName(base.name, fallback.name);
+      const color = normalizeNodeTagColor(base.color ?? base.hex, fallback.color);
+      const vibrance = clampNodeTagVibrance(base.vibrance ?? base.saturation ?? base.intensity, fallback.vibrance);
+      return {{ id, name, color, vibrance }};
+    }}
+
+    function syncFavoriteNodeIdsFromTags() {{
+      favoriteNodeIds.clear();
+      for (const [rawNodeId, rawPresetId] of nodeTagByNodeId.entries()) {{
+        const nodeId = normalizeNodeId(rawNodeId);
+        const presetId = normalizeNodeTagPresetId(rawPresetId, "");
+        if (!isSelectableNodeId(nodeId)) continue;
+        if (!presetId || !nodeTagPresetsById.has(presetId)) continue;
+        favoriteNodeIds.add(nodeId);
+      }}
+    }}
+
+    function nodeTagPresetEntries() {{
+      const entries = Array.from(nodeTagPresetsById.values())
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => normalizeNodeTagPreset(entry, entry.id || "tag-default"));
+      entries.sort((a, b) => {{
+        if (a.id === "tag-default" && b.id !== "tag-default") return -1;
+        if (b.id === "tag-default" && a.id !== "tag-default") return 1;
+        const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+        if (nameDiff !== 0) return nameDiff;
+        return String(a.id || "").localeCompare(String(b.id || ""));
+      }});
+      return entries;
+    }}
+
+    function nodeTagPresetForId(presetId) {{
+      const cleanPresetId = normalizeNodeTagPresetId(presetId);
+      if (!cleanPresetId) return null;
+      const entry = nodeTagPresetsById.get(cleanPresetId);
+      return entry && typeof entry === "object"
+        ? normalizeNodeTagPreset(entry, cleanPresetId)
+        : null;
+    }}
+
+    function nodeTagEntryForNode(nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return null;
+      const presetId = normalizeNodeTagPresetId(nodeTagByNodeId.get(cleanNodeId), "");
+      if (!presetId) return null;
+      const preset = nodeTagPresetForId(presetId);
+      if (!preset) return null;
+      return {{
+        nodeId: cleanNodeId,
+        presetId: preset.id,
+        preset,
+      }};
+    }}
+
+    function nodeTagStyleVars(tagEntry) {{
+      const preset = tagEntry && typeof tagEntry === "object" && tagEntry.preset
+        ? tagEntry.preset
+        : null;
+      if (!preset) return "";
+      const color = normalizeNodeTagColor(preset.color);
+      const vibrance = clampNodeTagVibrance(preset.vibrance, 70);
+      const vibranceRatio = Math.max(0, Math.min(1, vibrance / 100));
+      return `--node-tag-color:${{color}};--node-tag-vibrance:${{vibranceRatio.toFixed(3)}};`;
+    }}
+
+    function nodeTagStyleAttrForNode(nodeId) {{
+      const entry = nodeTagEntryForNode(nodeId);
+      if (!entry) return "";
+      return nodeTagStyleVars(entry);
+    }}
+
+    function persistNodeTagPresets() {{
+      try {{
+        const payload = {{}};
+        let count = 0;
+        for (const preset of nodeTagPresetEntries()) {{
+          if (!preset || typeof preset !== "object") continue;
+          const presetId = normalizeNodeTagPresetId(preset.id);
+          if (!presetId) continue;
+          payload[presetId] = {{
+            name: normalizeNodeTagPresetName(preset.name),
+            color: normalizeNodeTagColor(preset.color),
+            vibrance: clampNodeTagVibrance(preset.vibrance, 70),
+          }};
+          count += 1;
+          if (count >= 200) break;
+        }}
+        window.localStorage.setItem(nodeTagPresetsStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistNodeTags() {{
+      try {{
+        const payload = {{}};
+        let count = 0;
+        for (const [rawNodeId, rawPresetId] of nodeTagByNodeId.entries()) {{
+          if (count >= 4000) break;
+          const nodeId = normalizeNodeId(rawNodeId);
+          const presetId = normalizeNodeTagPresetId(rawPresetId, "");
+          if (!isSelectableNodeId(nodeId)) continue;
+          if (!presetId || !nodeTagPresetsById.has(presetId)) continue;
+          payload[nodeId] = presetId;
+          count += 1;
+        }}
+        window.localStorage.setItem(nodeTagsStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistActiveNodeTagPreset() {{
+      try {{
+        const presetId = normalizeNodeTagPresetId(activeNodeTagPresetId);
+        if (presetId && nodeTagPresetsById.has(presetId)) {{
+          window.localStorage.setItem(nodeTagQuickPresetStorageKey, presetId);
+        }} else {{
+          window.localStorage.removeItem(nodeTagQuickPresetStorageKey);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function setActiveNodeTagPreset(presetId, persist = true) {{
+      let cleanPresetId = normalizeNodeTagPresetId(presetId);
+      if (!cleanPresetId || !nodeTagPresetsById.has(cleanPresetId)) {{
+        const fallback = nodeTagPresetEntries()[0] || defaultNodeTagPreset();
+        cleanPresetId = normalizeNodeTagPresetId(fallback.id, "tag-default");
+      }}
+      activeNodeTagPresetId = cleanPresetId;
+      if (persist) {{
+        persistActiveNodeTagPreset();
+      }}
+      return cleanPresetId;
+    }}
+
+    function upsertNodeTagPreset(name, color, vibrance, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const preferredId = normalizeNodeTagPresetId(opts.preferredId || "", "");
+      const cleanName = normalizeNodeTagPresetName(name, "Tagged");
+      const cleanColor = normalizeNodeTagColor(color, "#2aa85a");
+      const cleanVibrance = clampNodeTagVibrance(vibrance, 70);
+      let presetId = preferredId;
+      if (!presetId || (!nodeTagPresetsById.has(presetId) && presetId === "tag-default")) {{
+        if (cleanName.toLowerCase() === "tagged") {{
+          presetId = "tag-default";
+        }} else {{
+          const base = normalizeNodeTagPresetId(cleanName, "tag");
+          presetId = base;
+          let suffix = 2;
+          while (nodeTagPresetsById.has(presetId)) {{
+            presetId = `${{base}}-${{suffix}}`;
+            suffix += 1;
+            if (suffix > 99) break;
+          }}
+        }}
+      }}
+      const preset = {{
+        id: presetId,
+        name: cleanName,
+        color: cleanColor,
+        vibrance: cleanVibrance,
+      }};
+      nodeTagPresetsById.set(presetId, preset);
+      persistNodeTagPresets();
+      setActiveNodeTagPreset(presetId, true);
+      return preset;
+    }}
+
+    function assignNodeTagPresetToNode(nodeId, presetId, options = null) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return false;
+      const cleanPresetId = normalizeNodeTagPresetId(presetId, "");
+      if (!cleanPresetId || !nodeTagPresetsById.has(cleanPresetId)) return false;
+      nodeTagByNodeId.set(cleanNodeId, cleanPresetId);
+      syncFavoriteNodeIdsFromTags();
+      if (!(options && options.persist === false)) {{
+        persistFavoriteNodes();
+      }}
+      setActiveNodeTagPreset(cleanPresetId, true);
+      return true;
+    }}
+
+    function clearNodeTagForNode(nodeId, options = null) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return false;
+      const existed = nodeTagByNodeId.delete(cleanNodeId);
+      if (!existed) return false;
+      syncFavoriteNodeIdsFromTags();
+      if (!(options && options.persist === false)) {{
+        persistFavoriteNodes();
+      }}
+      return true;
+    }}
+
+    function loadFavoriteNodes() {{
+      favoriteNodeIds.clear();
+      nodeTagByNodeId.clear();
+      nodeTagPresetsById.clear();
+      let migratedLegacyFavorites = false;
+      let hydratedPresets = false;
+
+      try {{
+        const rawPresets = window.localStorage.getItem(nodeTagPresetsStorageKey);
+        if (rawPresets) {{
+          const parsed = JSON.parse(rawPresets);
+          const entries = Array.isArray(parsed)
+            ? parsed
+            : (parsed && typeof parsed === "object" ? Object.entries(parsed).map(([id, value]) => ({{ id, ...(value && typeof value === "object" ? value : {{}}) }})) : []);
+          for (const rawPreset of entries) {{
+            const normalized = normalizeNodeTagPreset(rawPreset, rawPreset && rawPreset.id);
+            if (!normalized.id) continue;
+            nodeTagPresetsById.set(normalized.id, normalized);
+            hydratedPresets = true;
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+
+      const fallbackPreset = defaultNodeTagPreset();
+      if (!nodeTagPresetsById.has(fallbackPreset.id)) {{
+        nodeTagPresetsById.set(fallbackPreset.id, fallbackPreset);
+      }}
+
+      try {{
+        const rawTags = window.localStorage.getItem(nodeTagsStorageKey);
+        if (rawTags) {{
+          const parsed = JSON.parse(rawTags);
+          const entries = Array.isArray(parsed)
+            ? parsed
+            : (parsed && typeof parsed === "object" ? Object.entries(parsed) : []);
+          for (const entry of entries) {{
+            if (!Array.isArray(entry) || entry.length < 2) continue;
+            const nodeId = normalizeNodeId(entry[0]);
+            const presetId = normalizeNodeTagPresetId(entry[1], "");
+            if (!isSelectableNodeId(nodeId)) continue;
+            if (!presetId || !nodeTagPresetsById.has(presetId)) continue;
+            nodeTagByNodeId.set(nodeId, presetId);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+
+      try {{
+        const rawLegacyFavorites = window.localStorage.getItem(favoritesStorageKey);
+        if (rawLegacyFavorites) {{
+          const parsed = JSON.parse(rawLegacyFavorites);
+          if (Array.isArray(parsed)) {{
+            for (const entry of parsed) {{
+              const nodeId = normalizeNodeId(entry);
+              if (!isSelectableNodeId(nodeId)) continue;
+              if (nodeTagByNodeId.has(nodeId)) continue;
+              nodeTagByNodeId.set(nodeId, fallbackPreset.id);
+              migratedLegacyFavorites = true;
+            }}
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+
+      syncFavoriteNodeIdsFromTags();
+
+      try {{
+        const rawQuickPreset = window.localStorage.getItem(nodeTagQuickPresetStorageKey);
+        setActiveNodeTagPreset(rawQuickPreset, false);
+      }} catch (_err) {{
+        setActiveNodeTagPreset("", false);
+      }}
+
+      if (migratedLegacyFavorites || !hydratedPresets) {{
+        persistFavoriteNodes();
+      }}
+    }}
+
+    function persistFavoriteNodes() {{
+      syncFavoriteNodeIdsFromTags();
+      try {{
+        const ids = Array.from(favoriteNodeIds).slice(0, 2000);
+        window.localStorage.setItem(favoritesStorageKey, JSON.stringify(ids));
+      }} catch (_err) {{
+      }}
+      persistNodeTagPresets();
+      persistNodeTags();
+      persistActiveNodeTagPreset();
+    }}
+
+    function loadMutedNodes() {{
+      mutedNodeIds.clear();
+      try {{
+        const raw = window.localStorage.getItem(mutedNodesStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          const nodeId = normalizeNodeId(entry);
+          if (isSelectableNodeId(nodeId) && !isSelfNodeId(nodeId)) {{
+            mutedNodeIds.add(nodeId);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistMutedNodes() {{
+      try {{
+        const ids = Array.from(mutedNodeIds).slice(0, 2000);
+        window.localStorage.setItem(mutedNodesStorageKey, JSON.stringify(ids));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function normalizeNodeNoteText(rawValue, maxChars = 1200) {{
+      let text = String(rawValue == null ? "" : rawValue)
+        .replace(/\r\n?/g, "\n")
+        .replace(/\u0000/g, "");
+      const cap = Math.max(80, Math.trunc(Number(maxChars) || 1200));
+      if (text.length > cap) {{
+        text = text.slice(0, cap);
+      }}
+      if (!text.trim()) {{
+        return "";
+      }}
+      return text.trim();
+    }}
+
+    function loadNodeNotes() {{
+      nodeNotesById.clear();
+      try {{
+        const raw = window.localStorage.getItem(nodeNotesStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const entries = Array.isArray(parsed)
+          ? parsed
+          : (parsed && typeof parsed === "object" ? Object.entries(parsed) : []);
+        for (const item of entries) {{
+          let rawNodeId = "";
+          let rawEntry = null;
+          if (Array.isArray(item)) {{
+            rawNodeId = String(item[0] || "");
+            rawEntry = item[1];
+          }} else {{
+            continue;
+          }}
+          const nodeId = normalizeNodeId(rawNodeId);
+          if (!isSelectableNodeId(nodeId)) continue;
+          const rawNote = (
+            typeof rawEntry === "string"
+              ? rawEntry
+              : (rawEntry && (rawEntry.note ?? rawEntry.text))
+          );
+          const note = normalizeNodeNoteText(rawNote);
+          if (!note) continue;
+          const updatedRaw = Number(rawEntry && (rawEntry.updated_unix ?? rawEntry.updatedUnix));
+          const updatedUnix = Number.isFinite(updatedRaw) && updatedRaw > 0
+            ? Math.trunc(updatedRaw)
+            : 0;
+          nodeNotesById.set(nodeId, {{
+            note,
+            updatedUnix,
+          }});
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistNodeNotes() {{
+      try {{
+        const payload = {{}};
+        let count = 0;
+        for (const [nodeId, rawEntry] of nodeNotesById.entries()) {{
+          if (count >= 4000) break;
+          const cleanNodeId = normalizeNodeId(nodeId);
+          if (!isSelectableNodeId(cleanNodeId)) continue;
+          const note = normalizeNodeNoteText(rawEntry && rawEntry.note);
+          if (!note) continue;
+          const updatedRaw = Number(rawEntry && rawEntry.updatedUnix);
+          const updatedUnix = Number.isFinite(updatedRaw) && updatedRaw > 0
+            ? Math.trunc(updatedRaw)
+            : Math.floor(Date.now() / 1000);
+          payload[cleanNodeId] = {{
+            note,
+            updated_unix: updatedUnix,
+          }};
+          count += 1;
+        }}
+        window.localStorage.setItem(nodeNotesStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function nodeNoteEntry(nodeId) {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) return null;
+      const rawEntry = nodeNotesById.get(normalized);
+      if (!rawEntry || typeof rawEntry !== "object") return null;
+      const note = normalizeNodeNoteText(rawEntry.note);
+      if (!note) return null;
+      const updatedRaw = Number(rawEntry.updatedUnix);
+      const updatedUnix = Number.isFinite(updatedRaw) && updatedRaw > 0
+        ? Math.trunc(updatedRaw)
+        : 0;
+      return {{
+        nodeId: normalized,
+        note,
+        updatedUnix,
+      }};
+    }}
+
+    function saveNodeNote(nodeId, rawNote) {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) {{
+        return {{ ok: false, nodeId: normalized, note: "", updatedUnix: 0, cleared: false }};
+      }}
+      const note = normalizeNodeNoteText(rawNote);
+      if (!note) {{
+        nodeNotesById.delete(normalized);
+        persistNodeNotes();
+        return {{ ok: true, nodeId: normalized, note: "", updatedUnix: 0, cleared: true }};
+      }}
+      const updatedUnix = Math.floor(Date.now() / 1000);
+      nodeNotesById.set(normalized, {{
+        note,
+        updatedUnix,
+      }});
+      persistNodeNotes();
+      return {{ ok: true, nodeId: normalized, note, updatedUnix, cleared: false }};
+    }}
+
+    function isFavoriteNode(nodeId) {{
+      const normalized = normalizeNodeId(nodeId);
+      return isSelectableNodeId(normalized) && favoriteNodeIds.has(normalized);
+    }}
+
+    function nodeTagLabelForNode(nodeId) {{
+      const entry = nodeTagEntryForNode(nodeId);
+      if (!entry || !entry.preset) return "";
+      return normalizeNodeTagPresetName(entry.preset.name, "Tagged");
+    }}
+
+    function isMutedNode(nodeId) {{
+      const normalized = normalizeNodeId(nodeId);
+      return isSelectableNodeId(normalized) && mutedNodeIds.has(normalized);
+    }}
+
+    function favoriteToggleButtonHtml(nodeId, extraClass = "") {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized)) return "";
+      const tagEntry = nodeTagEntryForNode(normalized);
+      const active = !!tagEntry;
+      const activePresetId = normalizeNodeTagPresetId(activeNodeTagPresetId || "tag-default", "tag-default");
+      const activePreset = nodeTagPresetForId(activePresetId);
+      const quickLabel = activePreset ? normalizeNodeTagPresetName(activePreset.name, "Tagged") : "tag";
+      const title = active
+        ? `Clear tag (${{normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")}})`
+        : `Tag node with ${{quickLabel}}`;
+      const styleVars = active ? nodeTagStyleVars(tagEntry) : "";
+      const styleAttr = styleVars ? ` style="${{escAttr(styleVars)}}"` : "";
+      return `<button type="button" class="favorite-toggle-btn ${{extraClass}}${{active ? " active" : ""}}" data-node-id="${{escAttr(normalized)}}" title="${{title}}" aria-label="${{title}}" aria-pressed="${{active ? "true" : "false"}}"${{styleAttr}}><span class="favorite-toggle-icon node-tag-dot"></span></button>`;
+    }}
+
+    function muteToggleButtonHtml(nodeId, extraClass = "") {{
+      const normalized = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(normalized) || isSelfNodeId(normalized)) return "";
+      const active = mutedNodeIds.has(normalized);
+      const title = active ? "Unmute this user in chat feed" : "Mute this user in chat feed";
+      return `<button type="button" class="mute-toggle-btn ${{extraClass}}${{active ? " active" : ""}}" data-node-id="${{escAttr(normalized)}}" title="${{title}}" aria-label="${{title}}" aria-pressed="${{active ? "true" : "false"}}"><span class="mute-toggle-icon">${{active ? "🔇" : "🔊"}}</span></button>`;
+    }}
+
+    function renderSavedRailStatus() {{
+      const count = Math.max(0, favoriteNodeIds.size);
+      const explicitSelectedId = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
+      const selectedId = activeLayoutView === "saved"
+        ? resolveSavedViewNodeId(latestState)
+        : explicitSelectedId;
+      const usingLocalFallback = activeLayoutView === "saved" && !explicitSelectedId && !!selectedId;
+      const selectedName = selectedId
+        ? (
+            usingLocalFallback
+              ? (resolveSavedViewNodeName(latestState, selectedId) || selectedId)
+              : (resolveSelectedNodeName() || selectedId)
+          )
+        : "";
+      const btn = document.querySelector('.teams-rail .rail-btn[data-view="saved"]');
+      if (btn instanceof HTMLButtonElement) {{
+        if (!btn.dataset.baseTitle) {{
+          btn.dataset.baseTitle = btn.getAttribute("title") || "Node details and tagged nodes";
+        }}
+        btn.textContent = "Node";
+        const baseTitle = btn.dataset.baseTitle || "Node details and tagged nodes";
+        if (selectedId) {{
+          btn.title = usingLocalFallback
+            ? `${{baseTitle}}. Showing local node: ${{selectedName}}.`
+            : `${{baseTitle}}. Selected: ${{selectedName}}.`;
+        }} else {{
+          btn.title = count > 0
+            ? `${{baseTitle}}. ${{count}} tagged node${{count === 1 ? "" : "s"}}.`
+            : `${{baseTitle}}. No tagged nodes yet.`;
+        }}
+        btn.setAttribute("aria-label", btn.title);
+      }}
+
+      const favMenuBtn = document.getElementById("favorite-menu-toggle-btn");
+      if (favMenuBtn instanceof HTMLButtonElement) {{
+        favMenuBtn.classList.toggle("has-saved", count > 0);
+        favMenuBtn.classList.toggle("has-selected", !!selectedId);
+        const title = selectedId
+          ? (
+              usingLocalFallback
+                ? `Showing local node: ${{selectedName}}. Open node menu.`
+                : `Selected node: ${{selectedName}}. Open node menu.`
+            )
+          : (count > 0
+            ? `${{count}} tagged node${{count === 1 ? "" : "s"}}. Open node menu.`
+            : "No node selected. Open node menu.");
+        favMenuBtn.title = title;
+        favMenuBtn.setAttribute("aria-label", title);
+      }}
+    }}

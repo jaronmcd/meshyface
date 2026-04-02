@@ -1,0 +1,199 @@
+    function historyTrendZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, historyTrendZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeHistoryTrendZoomWindow(chartState, totalPoints) {{
+      if (!chartState || typeof chartState !== "object") return;
+      const minSpan = historyTrendZoomMinSpan(totalPoints);
+      let start = clampUnit(chartState.zoomStart);
+      let end = clampUnit(chartState.zoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      chartState.zoomStart = clampUnit(start);
+      chartState.zoomEnd = clampUnit(end);
+    }}
+
+    function setHistoryTrendZoomWindow(chartState, start, end, totalPoints) {{
+      if (!chartState || typeof chartState !== "object") return false;
+      const prevStart = chartState.zoomStart;
+      const prevEnd = chartState.zoomEnd;
+      chartState.zoomStart = start;
+      chartState.zoomEnd = end;
+      normalizeHistoryTrendZoomWindow(chartState, totalPoints);
+      return Math.abs(chartState.zoomStart - prevStart) > 1e-6
+        || Math.abs(chartState.zoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function resetHistoryTrendZoom(chartState) {{
+      if (!chartState || typeof chartState !== "object") return;
+      chartState.zoomStart = 0;
+      chartState.zoomEnd = 1;
+      chartState.pointerDrag = null;
+    }}
+
+    function getHistoryTrendAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((historyTrendChartLayout.padLeft / historyTrendChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((historyTrendChartLayout.width - historyTrendChartLayout.padRight) / historyTrendChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleHistoryTrendRows(chartState, rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeHistoryTrendZoomWindow(chartState, total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(chartState.zoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(chartState.zoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, historyTrendZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      return {{
+        rows: allRows.slice(startIndex, endIndex + 1),
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function bindHistoryTrendChartZoom(chartState, rerenderFn, chartLabel = "Trend chart") {{
+      if (!chartState || typeof chartState !== "object") return;
+      const svg = document.getElementById(chartState.svgId);
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = Array.isArray(chartState.points) ? chartState.points.length : 0;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getHistoryTrendAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, chartState.zoomEnd - chartState.zoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = historyTrendZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = chartState.zoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setHistoryTrendZoomWindow(chartState, nextStart, nextEnd, total)) {{
+          rerenderFn();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setHistoryTrendZoomWindow(chartState, 0, 1, (chartState.points || []).length || 2)) {{
+          rerenderFn();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || (chartState.points || []).length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getHistoryTrendAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        chartState.pointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: chartState.zoomStart,
+          startZoomEnd: chartState.zoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!chartState.pointerDrag || chartState.pointerDrag.pointerId !== ev.pointerId) return;
+        const total = (chartState.points || []).length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getHistoryTrendAxisBounds(svg);
+        const deltaRatio = (ev.clientX - chartState.pointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = chartState.pointerDrag.startZoomEnd - chartState.pointerDrag.startZoomStart;
+        const nextStart = chartState.pointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = chartState.pointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setHistoryTrendZoomWindow(chartState, nextStart, nextEnd, total)) {{
+          rerenderFn();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!chartState.pointerDrag) return;
+        if (ev && chartState.pointerDrag.pointerId !== ev.pointerId) return;
+        chartState.pointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setHistoryTrendZoomWindow(chartState, 0, 1, (chartState.points || []).length || 2)) {{
+          rerenderFn();
+        }}
+      }});
+
+      svg.setAttribute(
+        "title",
+        `${{chartLabel}}. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+      );
+    }}
+
+    function setHistoryTrendChartTitle(svg, chartLabel, zoomed) {{
+      if (!(svg instanceof SVGElement)) return;
+      svg.classList.toggle("zoomed", !!zoomed);
+      svg.setAttribute(
+        "title",
+        zoomed
+          ? `${{chartLabel}} zoomed. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+          : `${{chartLabel}}. Wheel to zoom, drag to pan, double-click or Esc to reset.`
+      );
+    }}
+

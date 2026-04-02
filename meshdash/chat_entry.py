@@ -23,7 +23,7 @@ def build_local_chat_entry(
     to_int_fn: ToIntFn = to_int,
     emoji_from_codepoint_fn: EmojiFromCodepointFn = emoji_from_codepoint,
 ) -> Optional[dict[str, object]]:
-    clean_text = str(text or "").strip()
+    clean_text = str(text or "")
     clean_message_id = to_int_fn(message_id)
     clean_reply_id = to_int_fn(reply_id)
     clean_emoji_codepoint = to_int_fn(emoji_codepoint)
@@ -33,7 +33,7 @@ def build_local_chat_entry(
     has_reaction = bool(
         is_reaction or (clean_reply_id is not None and clean_reply_id > 0 and clean_emoji)
     )
-    if not clean_text and not has_reaction:
+    if not clean_text.strip() and not has_reaction:
         return None
 
     should_track_delivery = bool(ack_requested and not has_reaction and str(to_id or "^all") != "^all")

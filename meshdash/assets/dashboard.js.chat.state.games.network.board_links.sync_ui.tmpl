@@ -1,0 +1,324 @@
+    function boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol) {{
+      const fromLabel = boardGameNormalizeId(gameId) === "chess"
+        ? chessCellLabel(fromRow, fromCol)
+        : checkersCellLabel(fromRow, fromCol);
+      const toLabel = boardGameNormalizeId(gameId) === "chess"
+        ? chessCellLabel(toRow, toCol)
+        : checkersCellLabel(toRow, toCol);
+      return `${{fromLabel}}→${{toLabel}}`;
+    }}
+
+    async function sendCheckersMoveToPeer(fromRow, fromCol, toRow, toCol) {{
+      if (!boardGameIsNetworkLinked("checkers")) return false;
+      const link = boardGameRefs("checkers").getLink();
+      const seq = Math.max(0, Math.trunc(Number(link.local_move_seq) || 0)) + 1;
+      const sessionChannelRaw = Number(link.channel_index);
+      const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
+        ? sessionChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const sent = await sendBoardGameProtocolMessage(
+        "checkers",
+        "move",
+        [link.session_id, seq, fromRow, fromCol, toRow, toCol],
+        {{ destination_id: link.peer_id, channel_index: sessionChannel }}
+      );
+      if (!sent) {{
+        boardGameUpdateLinkStatus("checkers", "Move applied locally, but network send failed.");
+        return false;
+      }}
+      link.local_move_seq = seq;
+      return true;
+    }}
+
+    async function sendChessMoveToPeer(fromRow, fromCol, toRow, toCol) {{
+      if (!boardGameIsNetworkLinked("chess")) return false;
+      const link = boardGameRefs("chess").getLink();
+      const seq = Math.max(0, Math.trunc(Number(link.local_move_seq) || 0)) + 1;
+      const sessionChannelRaw = Number(link.channel_index);
+      const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
+        ? sessionChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const sent = await sendBoardGameProtocolMessage(
+        "chess",
+        "move",
+        [link.session_id, seq, fromRow, fromCol, toRow, toCol],
+        {{ destination_id: link.peer_id, channel_index: sessionChannel }}
+      );
+      if (!sent) {{
+        boardGameUpdateLinkStatus("chess", "Move applied locally, but network send failed.");
+        return false;
+      }}
+      link.local_move_seq = seq;
+      return true;
+    }}
+
+    function syncBoardGameNetworkState(gameId, state = latestState) {{
+      const refs = boardGameRefs(gameId);
+      const safeState = state && typeof state === "object" ? state : null;
+      if (!safeState) return;
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      if (!isCanonicalNodeId(localNodeId)) return;
+      const traffic = safeState.traffic && typeof safeState.traffic === "object"
+        ? safeState.traffic
+        : {{}};
+      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (msg.local_echo === true || msg.localEcho === true) continue;
+        const parsed = parseBoardGameProtocolMessage(gameId, reversiProtocolMessageText(msg));
+        if (!parsed) continue;
+        const fromId = normalizeNodeId(msg.from || "");
+        const toId = normalizeNodeId(msg.to || msg.destination || "");
+        if (!isCanonicalNodeId(fromId) || fromId === localNodeId) continue;
+        if (toId && toId !== localNodeId) continue;
+        const dedupeKey = boardGameProtocolMessageKey(gameId, msg, parsed);
+        if (refs.getSeenKeys().has(dedupeKey)) continue;
+
+        if (parsed.type === "invite") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const hostColor = boardGameParseColor(parsed.parts[4], refs.defaultLocalColor);
+          if (!sessionId) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          registerBoardGamePendingInvite(gameId, {{
+            from_id: fromId,
+            session_id: sessionId,
+            received_unix: reversiProtocolMessageUnix(msg),
+            host_color: hostColor,
+            channel_index: messageMeshChannelIndex(msg),
+          }});
+          if (!boardGameIsNetworkLinked(gameId)) {{
+            boardGameUpdateLinkStatus(
+              gameId,
+              `Invite available from ${{reversiNodeLabel(fromId, safeState)}}. Choose peer and click Accept Invite.`
+            );
+          }}
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
+        if (parsed.type === "accept") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const link = refs.getLink();
+          if (
+            sessionId
+            && link.mode === "pending_host"
+            && link.role === "host"
+            && link.session_id === sessionId
+            && normalizeNodeId(link.peer_id) === fromId
+          ) {{
+            link.channel_index = messageMeshChannelIndex(msg);
+            link.mode = "connected";
+            removeAllBoardGamePendingInvitesFromPeer(gameId, fromId);
+            link.status = `Connected to ${{reversiNodeLabel(fromId, safeState)}}. You are ${{refs.playerLabel(link.local_color)}}.`;
+          }}
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
+        if (parsed.type === "leave") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const link = refs.getLink();
+          if (
+            sessionId
+            && boardGameIsNetworkLinked(gameId)
+            && link.session_id === sessionId
+            && normalizeNodeId(link.peer_id) === fromId
+          ) {{
+            boardGameResetNetworkLink(gameId, `Peer ${{reversiNodeLabel(fromId, safeState)}} ended the match.`, {{ keepPeer: true }});
+          }}
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
+        if (parsed.type === "chat") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const sentUnix = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
+          const chatText = String(parsed.parts[4] || "").trim();
+          const link = refs.getLink();
+          if (!sessionId || !chatText) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (!boardGameIsNetworkLinked(gameId)) continue;
+          if (link.session_id !== sessionId) continue;
+          if (normalizeNodeId(link.peer_id) !== fromId) continue;
+          ingestGamesQuickChatMessage({{
+            key: `${{boardGameNormalizeId(gameId)}}-chat:${{dedupeKey}}`,
+            game_id: boardGameNormalizeId(gameId),
+            session_id: sessionId,
+            from_id: fromId,
+            text: chatText,
+            unix: Math.max(reversiProtocolMessageUnix(msg), sentUnix),
+          }}, safeState);
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
+        if (parsed.type === "move") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const seq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
+          const fromRow = Math.trunc(Number(parsed.parts[4]) || -1);
+          const fromCol = Math.trunc(Number(parsed.parts[5]) || -1);
+          const toRow = Math.trunc(Number(parsed.parts[6]) || -1);
+          const toCol = Math.trunc(Number(parsed.parts[7]) || -1);
+          if (!sessionId || seq <= 0) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (boardGameNormalizeId(gameId) === "chess") {{
+            if (!chessInBounds(fromRow, fromCol) || !chessInBounds(toRow, toCol)) {{
+              rememberBoardGameNetworkMessage(gameId, dedupeKey);
+              continue;
+            }}
+          }} else if (!checkersInBounds(fromRow, fromCol) || !checkersInBounds(toRow, toCol)) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          const link = refs.getLink();
+          if (!boardGameIsNetworkLinked(gameId)) continue;
+          if (link.session_id !== sessionId) continue;
+          if (normalizeNodeId(link.peer_id) !== fromId) continue;
+          if (seq <= Math.max(0, Math.trunc(Number(link.remote_move_seq) || 0))) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          const applied = boardGameNormalizeId(gameId) === "chess"
+            ? applyChessMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }})
+            : applyCheckersMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }});
+          if (!applied) continue;
+          link.remote_move_seq = seq;
+          link.status = `${{reversiNodeLabel(fromId, safeState)}} played ${{boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol)}}.`;
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+        rememberBoardGameNetworkMessage(gameId, dedupeKey);
+      }}
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const nextInvites = refs.getPendingInvites()
+        .filter((row) => (nowUnix - (Number(row && row.received_unix) || 0)) <= reversiInviteStaleSeconds)
+        .slice(0, reversiInviteMaxRows);
+      refs.setPendingInvites(nextInvites);
+      if (refs.getSelectedInviteKey() && !nextInvites.some((row) => boardGameInviteKey(row && row.from_id, row && row.session_id) === refs.getSelectedInviteKey())) {{
+        refs.setSelectedInviteKey("");
+      }}
+    }}
+
+    function renderBoardGamePeerSelect(gameId, state = latestState) {{
+      const refs = boardGameRefs(gameId);
+      const select = document.getElementById(`${{refs.id}}-peer-select`);
+      if (!(select instanceof HTMLSelectElement)) return;
+      const options = reversiPeerOptions(state);
+      const current = isCanonicalNodeId(refs.getPeerId()) ? refs.getPeerId() : "";
+      const next = ['<option value="">Select peer…</option>'];
+      for (const row of options) {{
+        const selectedAttr = row.id === current ? " selected" : "";
+        next.push(
+          `<option value="${{escAttr(row.id)}}"${{selectedAttr}}>${{escAttr(row.label)}} (${{escAttr(row.id)}})</option>`
+        );
+      }}
+      select.innerHTML = next.join("");
+      if (current && options.some((row) => row.id === current)) {{
+        select.value = current;
+      }} else if (!current) {{
+        select.value = "";
+      }}
+    }}
+
+    function renderBoardGameInviteList(gameId, state = latestState) {{
+      const refs = boardGameRefs(gameId);
+      const listEl = document.getElementById(`${{refs.id}}-invite-list`);
+      if (!(listEl instanceof HTMLElement)) return;
+      const invites = refs.getPendingInvites();
+      if (invites.length < 1) {{
+        listEl.innerHTML = '<div class="reversi-invite-empty">No pending invites.</div>';
+        return;
+      }}
+      if (!refs.getSelectedInviteKey()) {{
+        const first = invites[0];
+        refs.setSelectedInviteKey(boardGameInviteKey(first && first.from_id, first && first.session_id));
+      }}
+      const rows = invites.map((invite) => {{
+        const fromId = normalizeNodeId(invite && invite.from_id || "");
+        const sessionId = String(invite && invite.session_id || "").trim().toLowerCase();
+        const whenUnix = Math.max(0, Math.trunc(Number(invite && invite.received_unix) || 0));
+        const hostColor = boardGameParseColor(invite && invite.host_color, refs.defaultLocalColor);
+        const inviteKey = boardGameInviteKey(fromId, sessionId);
+        const inviteChannelRaw = Number(invite && invite.channel_index);
+        const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0 ? inviteChannelRaw : 0;
+        const inviteChannelLabel = meshChannelLabelForIndex(inviteChannel, {{ compact: true, allowAll: false }});
+        const inviteChannelBadge = meshChannelBadgeHtml(
+          inviteChannel,
+          inviteChannelLabel,
+          {{
+            allowAll: false,
+            extraClass: "reversi-invite-channel-badge",
+            title: meshChannelLabelForIndex(inviteChannel, {{ verbose: true, allowAll: false }}),
+          }}
+        );
+        const selectedClass = inviteKey === String(refs.getSelectedInviteKey() || "").trim().toLowerCase()
+          ? " is-selected"
+          : "";
+        const yourColorLabel = refs.playerLabel(refs.opponent(hostColor));
+        return `<button
+          type="button"
+          class="reversi-invite-item${{selectedClass}}"
+          title="${{escAttr(fromId)}}"
+          data-from-id="${{escAttr(fromId)}}"
+          data-session-id="${{escAttr(sessionId)}}"
+        >
+          <div class="reversi-invite-main">${{escAttr(reversiNodeLabel(fromId, state))}}</div>
+          <div class="reversi-invite-meta">${{escAttr(fromId)}} • ${{escAttr(formatLocalChatTime(whenUnix, "now"))}} • ${{inviteChannelBadge}} • host ${{escAttr(refs.playerLabel(hostColor))}} • you ${{escAttr(yourColorLabel)}}</div>
+        </button>`;
+      }});
+      listEl.innerHTML = rows.join("");
+    }}
+
+    function renderBoardGameLinkUi(gameId, state = latestState) {{
+      const refs = boardGameRefs(gameId);
+      renderBoardGamePeerSelect(gameId, state);
+      renderBoardGameInviteList(gameId, state);
+      const hostColorSelect = document.getElementById(`${{refs.id}}-host-color-select`);
+      if (hostColorSelect instanceof HTMLSelectElement) {{
+        hostColorSelect.value = boardGameParseColor(refs.getHostColorPreference(), refs.defaultLocalColor);
+      }}
+      const statusEl = document.getElementById(`${{refs.id}}-link-status`);
+      if (statusEl instanceof HTMLElement) {{
+        const sendCtx = meshChannelSendContext({{ appId: "games" }});
+        const channelBadge = meshChannelBadgeHtml(
+          sendCtx.sendIndex,
+          sendCtx.sendLabel,
+          {{
+            allowAll: false,
+            extraClass: "games-link-channel-badge",
+            title: meshChannelLabelForIndex(sendCtx.sendIndex, {{ verbose: true, allowAll: false }}),
+          }}
+        );
+        const statusText = String(refs.getLink() && refs.getLink().status || "Local hotseat mode.");
+        statusEl.innerHTML = `${{escAttr(statusText)}} • ${{channelBadge}}`;
+      }}
+      const hostBtn = document.getElementById(`${{refs.id}}-host-btn`);
+      const acceptBtn = document.getElementById(`${{refs.id}}-accept-btn`);
+      const declineBtn = document.getElementById(`${{refs.id}}-decline-btn`);
+      const disconnectBtn = document.getElementById(`${{refs.id}}-disconnect-btn`);
+      const peerReady = isCanonicalNodeId(refs.getPeerId());
+      const pendingInvite = boardGamePendingInviteChoice(gameId);
+      const link = refs.getLink();
+      if (hostBtn instanceof HTMLButtonElement) {{
+        hostBtn.disabled = !peerReady || link.mode === "connected" || link.mode === "pending_host";
+      }}
+      if (acceptBtn instanceof HTMLButtonElement) {{
+        acceptBtn.disabled = !(pendingInvite && isCanonicalNodeId(pendingInvite.from_id));
+      }}
+      if (declineBtn instanceof HTMLButtonElement) {{
+        declineBtn.disabled = !(pendingInvite && isCanonicalNodeId(pendingInvite.from_id));
+      }}
+      if (disconnectBtn instanceof HTMLButtonElement) {{
+        disconnectBtn.disabled = !(link.mode === "connected" || link.mode === "pending_host");
+      }}
+      if (hostColorSelect instanceof HTMLSelectElement) {{
+        hostColorSelect.disabled = link.mode === "connected" || link.mode === "pending_host";
+      }}
+    }}

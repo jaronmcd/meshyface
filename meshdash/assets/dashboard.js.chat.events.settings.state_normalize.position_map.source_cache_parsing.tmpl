@@ -1,0 +1,345 @@
+    function normalizeSettingsPositionSource(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (key === "none" || key === "gps" || key === "fixed") return key;
+      return "gps";
+    }}
+
+    function loadSettingsPositionSourcePreference() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsPositionSourceStorageKey) || "";
+        if (raw) {{
+          settingsPositionSourcePref = normalizeSettingsPositionSource(raw);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadSettingsFixedPositionCache() {{
+      try {{
+        const raw = window.localStorage.getItem(settingsFixedPositionCacheStorageKey) || "";
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const candidate = fixedPositionCandidateFromObject(parsed);
+        settingsFixedPositionCache = candidate ? {{
+          lat: Number(candidate.lat),
+          lon: Number(candidate.lon),
+          alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+        }} : null;
+      }} catch (_err) {{
+        settingsFixedPositionCache = null;
+      }}
+    }}
+
+    function shouldUseUniqueNodeColors(tagActive = false) {{
+      if (tagActive) return true;
+      return !!settingsUniqueNodeColorsEnabled;
+    }}
+
+    function loadSettingsAppearancePreferences() {{
+      settingsUniqueNodeColorsEnabled = true;
+      try {{
+        settingsUniqueNodeColorsEnabled = parseBoolToken(
+          window.localStorage.getItem(settingsUniqueNodeColorsStorageKey),
+          true
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsAppearancePreferences() {{
+      try {{
+        window.localStorage.setItem(
+          settingsUniqueNodeColorsStorageKey,
+          settingsUniqueNodeColorsEnabled ? "1" : "0"
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncSettingsAppearanceControls() {{
+      const toggle = document.getElementById("settings-appearance-unique-node-colors");
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = !!settingsUniqueNodeColorsEnabled;
+      }}
+    }}
+
+    function setSettingsUniqueNodeColorsEnabled(enabled, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const normalized = !!enabled;
+      const changed = settingsUniqueNodeColorsEnabled !== normalized;
+      settingsUniqueNodeColorsEnabled = normalized;
+      if (opts.persist !== false) {{
+        persistSettingsAppearancePreferences();
+      }}
+      syncSettingsAppearanceControls();
+      if (opts.announce && typeof setSettingsStatusText === "function") {{
+        setSettingsStatusText(
+          settingsUniqueNodeColorsEnabled
+            ? "Unique node colors enabled for chat + node list."
+            : "Unique node colors disabled. Untagged nodes use neutral tint."
+        );
+      }}
+      if (changed && opts.rerender !== false && latestState) {{
+        renderChat(latestState);
+        if (activeLayoutView === "chatlabs") {{
+          renderChatLabsView(latestState);
+        }}
+      }}
+    }}
+
+    function normalizeSettingsTimeSyncTimezone(value) {{
+      const clean = String(value || "").trim();
+      if (!clean) return "local";
+      const lowered = clean.toLowerCase();
+      if (lowered === "local" || lowered === "browser" || lowered === "system") return "local";
+      if (lowered === "utc" || lowered === "z") return "UTC";
+      try {{
+        const resolved = new Intl.DateTimeFormat("en-US", {{ timeZone: clean }}).resolvedOptions().timeZone;
+        return String(resolved || clean).trim() || "local";
+      }} catch (_err) {{
+        return "local";
+      }}
+    }}
+
+    function defaultSettingsTimeSyncTimezone() {{
+      try {{
+        const tz = String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
+        if (!tz) return "local";
+        return normalizeSettingsTimeSyncTimezone(tz);
+      }} catch (_err) {{
+        return "local";
+      }}
+    }}
+
+    function collectSettingsTimeSyncTimezoneOptions() {{
+      if (Array.isArray(settingsTimeSyncTimezoneOptionsCache) && settingsTimeSyncTimezoneOptionsCache.length) {{
+        return [...settingsTimeSyncTimezoneOptionsCache];
+      }}
+      const seen = new Set();
+      const out = [];
+      const pushZone = (zoneId) => {{
+        const normalized = normalizeSettingsTimeSyncTimezone(zoneId);
+        if (normalized === "local" || seen.has(normalized)) return;
+        seen.add(normalized);
+        out.push(normalized);
+      }};
+      pushZone("UTC");
+      pushZone(defaultSettingsTimeSyncTimezone());
+
+      if (typeof Intl !== "undefined" && Intl && typeof Intl.supportedValuesOf === "function") {{
+        try {{
+          const supported = Intl.supportedValuesOf("timeZone");
+          for (const zoneId of supported) {{
+            pushZone(zoneId);
+          }}
+        }} catch (_err) {{
+        }}
+      }}
+
+      for (const fallbackZone of [
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
+      ]) {{
+        pushZone(fallbackZone);
+      }}
+
+      out.sort((a, b) => a.localeCompare(b));
+      settingsTimeSyncTimezoneOptionsCache = out;
+      return [...out];
+    }}
+
+    function populateSettingsTimeSyncTimezoneOptions() {{
+      const select = document.getElementById("settings-time-sync-timezone");
+      if (!(select instanceof HTMLSelectElement)) return;
+
+      const previous = normalizeSettingsTimeSyncTimezone(select.value || settingsTimeSyncTimezonePref);
+      const options = collectSettingsTimeSyncTimezoneOptions();
+      select.innerHTML = "";
+
+      const localOption = document.createElement("option");
+      localOption.value = "local";
+      localOption.textContent = "Browser Local (auto)";
+      select.appendChild(localOption);
+
+      for (const zoneId of options) {{
+        if (zoneId === "local") continue;
+        const option = document.createElement("option");
+        option.value = zoneId;
+        option.textContent = zoneId;
+        select.appendChild(option);
+      }}
+
+      const selected = normalizeSettingsTimeSyncTimezone(
+        settingsTimeSyncTimezonePref || previous || defaultSettingsTimeSyncTimezone()
+      );
+      settingsTimeSyncTimezonePref = selected;
+      select.value = selected;
+      if (select.value !== selected) {{
+        select.value = "local";
+        settingsTimeSyncTimezonePref = "local";
+      }}
+    }}
+
+    function loadSettingsTimeSyncPreferences() {{
+      settingsTimeSyncEnabledPref = true;
+      settingsTimeSyncTimezonePref = "local";
+      try {{
+        settingsTimeSyncEnabledPref = parseBoolToken(
+          window.localStorage.getItem(settingsTimeSyncEnabledStorageKey),
+          true
+        );
+      }} catch (_err) {{
+      }}
+      try {{
+        const rawTz = String(window.localStorage.getItem(settingsTimeSyncTimezoneStorageKey) || "").trim();
+        settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(
+          rawTz || defaultSettingsTimeSyncTimezone()
+        );
+      }} catch (_err) {{
+        settingsTimeSyncTimezonePref = defaultSettingsTimeSyncTimezone();
+      }}
+    }}
+
+    function persistSettingsTimeSyncPreferences() {{
+      settingsTimeSyncTimezonePref = normalizeSettingsTimeSyncTimezone(settingsTimeSyncTimezonePref);
+      try {{
+        window.localStorage.setItem(settingsTimeSyncEnabledStorageKey, settingsTimeSyncEnabledPref ? "1" : "0");
+        window.localStorage.setItem(settingsTimeSyncTimezoneStorageKey, settingsTimeSyncTimezonePref);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function syncSettingsTimeSyncControls() {{
+      const toggle = document.getElementById("settings-time-sync-enabled");
+      if (toggle instanceof HTMLInputElement) {{
+        toggle.checked = !!settingsTimeSyncEnabledPref;
+      }}
+      populateSettingsTimeSyncTimezoneOptions();
+      const select = document.getElementById("settings-time-sync-timezone");
+      if (select instanceof HTMLSelectElement) {{
+        const normalized = normalizeSettingsTimeSyncTimezone(settingsTimeSyncTimezonePref);
+        settingsTimeSyncTimezonePref = normalized;
+        select.value = normalized;
+        if (select.value !== normalized) {{
+          select.value = "local";
+          settingsTimeSyncTimezonePref = "local";
+        }}
+      }}
+    }}
+
+    function readSettingsTimeSyncSelection() {{
+      const toggle = document.getElementById("settings-time-sync-enabled");
+      const select = document.getElementById("settings-time-sync-timezone");
+      const enabled = toggle instanceof HTMLInputElement
+        ? !!toggle.checked
+        : !!settingsTimeSyncEnabledPref;
+      const timezone = normalizeSettingsTimeSyncTimezone(
+        select instanceof HTMLSelectElement ? select.value : settingsTimeSyncTimezonePref
+      );
+      return {{
+        enabled,
+        timezone,
+      }};
+    }}
+
+    function persistSettingsPositionSourcePreference() {{
+      try {{
+        window.localStorage.setItem(settingsPositionSourceStorageKey, settingsPositionSourcePref);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistSettingsFixedPositionCache(position) {{
+      const candidate = fixedPositionCandidateFromObject(position);
+      if (!candidate) return;
+      settingsFixedPositionCache = {{
+        lat: Number(candidate.lat),
+        lon: Number(candidate.lon),
+        alt: Number.isFinite(candidate.alt) ? Math.trunc(candidate.alt) : null,
+      }};
+      try {{
+        window.localStorage.setItem(
+          settingsFixedPositionCacheStorageKey,
+          JSON.stringify(settingsFixedPositionCache)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function clearSettingsFixedPositionCache() {{
+      settingsFixedPositionCache = null;
+      try {{
+        window.localStorage.removeItem(settingsFixedPositionCacheStorageKey);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function readSettingsPositionSourceSelection() {{
+      const select = document.getElementById("settings-position-source");
+      if (!(select instanceof HTMLSelectElement)) return "";
+      return normalizeSettingsPositionSource(select.value);
+    }}
+
+    function toFiniteNumberOrNull(value) {{
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }}
+
+    function coordinateValueFromSpecs(obj, specs) {{
+      if (!obj || typeof obj !== "object" || !Array.isArray(specs)) return null;
+      for (const spec of specs) {{
+        if (!spec || typeof spec !== "object") continue;
+        const key = String(spec.key || "").trim();
+        if (!key) continue;
+        const raw = obj[key];
+        if (raw == null || raw === "") continue;
+        const num = toFiniteNumberOrNull(raw);
+        if (!Number.isFinite(num)) continue;
+        const scale = Number(spec.scale);
+        if (Number.isFinite(scale) && scale > 0 && scale !== 1) {{
+          return num * scale;
+        }}
+        return num;
+      }}
+      return null;
+    }}
+
+    function fixedPositionCandidateFromObject(value) {{
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const obj = value;
+      const lat = coordinateValueFromSpecs(obj, [
+        {{ key: "lat" }},
+        {{ key: "latitude" }},
+        {{ key: "fixed_lat" }},
+        {{ key: "fixed_latitude" }},
+        {{ key: "fixedLatitude" }},
+        {{ key: "latitude_i", scale: 1e-7 }},
+        {{ key: "latitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lat_i", scale: 1e-7 }},
+        {{ key: "fixedLatitudeI", scale: 1e-7 }},
+      ]);
+      const lon = coordinateValueFromSpecs(obj, [
+        {{ key: "lon" }},
+        {{ key: "lng" }},
+        {{ key: "longitude" }},
+        {{ key: "fixed_lon" }},
+        {{ key: "fixed_longitude" }},
+        {{ key: "fixedLongitude" }},
+        {{ key: "longitude_i", scale: 1e-7 }},
+        {{ key: "longitudeI", scale: 1e-7 }},
+        {{ key: "fixed_lon_i", scale: 1e-7 }},
+        {{ key: "fixedLongitudeI", scale: 1e-7 }},
+      ]);
+      if (!isValidLatLonRange(lat, lon)) return null;
+      const altRaw = toFiniteNumberOrNull(
+        obj.alt ?? obj.altitude ?? obj.altitude_m ?? obj.altitudeM ?? obj.fixed_altitude ?? obj.fixedAltitude
+      );
+      const alt = Number.isFinite(altRaw) ? Math.trunc(altRaw) : null;
+      return {{
+        lat: Number(lat),
+        lon: Number(lon),
+        alt,
+      }};
+    }}

@@ -1,6 +1,11 @@
 # Multi-Radio V2.1 Frozen Spec (Normative)
 
+Doc status: proposal-normative
+Last reviewed: 2026-03-14
+
 Status: **FROZEN (V2.1)**
+
+Implementation note (audited 2026-03-14): this is a normative design spec for a planned V2 system; it is not yet implemented in this branch.
 
 This spec is the source of truth for V2.1 implementation. If another doc disagrees,
 this doc wins.

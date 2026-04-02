@@ -1,0 +1,1016 @@
+    function normalizeChatNodeNavigatorSortKeyPref(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return chatNodeNavigatorSortDefById.has(clean) ? clean : chatNodeNavigatorDefaultSortKey;
+    }}
+
+    function normalizeChatNodeNavigatorSortDirPref(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return clean === "desc" ? "desc" : "asc";
+    }}
+
+    function normalizeChatNodeNavigatorShowPacketDirectionPref(value) {{
+      if (typeof parseBoolToken === "function") {{
+        return parseBoolToken(value, true);
+      }}
+      if (value == null) return true;
+      const clean = String(value).trim().toLowerCase();
+      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+    }}
+
+    function normalizeChatNodeNavigatorMetaFieldIdsPref(rawIds, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const fallbackToDefaults = opts.fallbackToDefaults !== false;
+      const defs = nodeExplorerRosterMetadataFieldDefs();
+      const allowed = new Set(defs.map((def) => String(def && def.id || "")));
+      const source = Array.isArray(rawIds)
+        ? rawIds
+        : (rawIds == null ? [] : [rawIds]);
+      const normalized = [];
+      for (const value of source) {{
+        const fieldId = normalizeNodeExplorerFieldId(value);
+        if (!fieldId || !allowed.has(fieldId) || normalized.includes(fieldId)) continue;
+        normalized.push(fieldId);
+      }}
+      if (normalized.length > 0) return normalized;
+      return fallbackToDefaults
+        ? nodeExplorerDefaultRosterMetadataFieldIds()
+        : [];
+    }}
+
+    function chatNodeNavigatorMetaFieldIdsEqual(a, b) {{
+      const left = Array.isArray(a) ? a : [];
+      const right = Array.isArray(b) ? b : [];
+      if (left.length !== right.length) return false;
+      for (let i = 0; i < left.length; i += 1) {{
+        if (String(left[i] || "") !== String(right[i] || "")) return false;
+      }}
+      return true;
+    }}
+
+    function persistChatNodeNavigatorPreferences() {{
+      try {{
+        const payload = {{
+          sortKey: normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey),
+          sortDir: normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir),
+          showPacketDirection: normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection),
+          metaFields: normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
+            fallbackToDefaults: false,
+          }}),
+        }};
+        window.localStorage.setItem(chatNodeNavigatorPrefsStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function applyChatNodeNavigatorPreferences(nextPrefs, options = null) {{
+      const prefs = nextPrefs && typeof nextPrefs === "object" ? nextPrefs : {{}};
+      const opts = options && typeof options === "object" ? options : {{}};
+      const nextSortKey = normalizeChatNodeNavigatorSortKeyPref(
+        prefs.sortKey != null ? prefs.sortKey : chatNodeNavigatorSortKey
+      );
+      const nextSortDir = normalizeChatNodeNavigatorSortDirPref(
+        prefs.sortDir != null ? prefs.sortDir : chatNodeNavigatorSortDir
+      );
+      const nextShowPacketDirection = normalizeChatNodeNavigatorShowPacketDirectionPref(
+        prefs.showPacketDirection != null ? prefs.showPacketDirection : chatNodeNavigatorShowPacketDirection
+      );
+      const nextMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(
+        prefs.metaFields != null ? prefs.metaFields : chatNodeNavigatorMetaFieldIds,
+        {{ fallbackToDefaults: false }}
+      );
+      const changed = (
+        nextSortKey !== chatNodeNavigatorSortKey
+        || nextSortDir !== chatNodeNavigatorSortDir
+        || nextShowPacketDirection !== chatNodeNavigatorShowPacketDirection
+        || !chatNodeNavigatorMetaFieldIdsEqual(nextMetaFieldIds, chatNodeNavigatorMetaFieldIds)
+      );
+      chatNodeNavigatorSortKey = nextSortKey;
+      chatNodeNavigatorSortDir = nextSortDir;
+      chatNodeNavigatorShowPacketDirection = nextShowPacketDirection;
+      chatNodeNavigatorMetaFieldIds = nextMetaFieldIds;
+      if (opts.persist !== false) {{
+        persistChatNodeNavigatorPreferences();
+      }}
+      renderChatNodeNavigatorMenuControls();
+      if (changed && opts.rerender !== false && latestState) {{
+        renderChat(latestState);
+      }}
+      return changed;
+    }}
+
+    function loadChatNodeNavigatorPreferences() {{
+      let parsed = null;
+      try {{
+        const raw = window.localStorage.getItem(chatNodeNavigatorPrefsStorageKey);
+        parsed = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+      }}
+      applyChatNodeNavigatorPreferences(parsed || {{}}, {{
+        persist: false,
+        rerender: false,
+      }});
+    }}
+
+    function chatNodeNavigatorCompareSortValues(left, right) {{
+      if (typeof normalizeSortValue === "function" && typeof compareSortValues === "function") {{
+        return compareSortValues(normalizeSortValue(left), normalizeSortValue(right));
+      }}
+      const leftNum = Number(left);
+      const rightNum = Number(right);
+      const leftHasNum = Number.isFinite(leftNum);
+      const rightHasNum = Number.isFinite(rightNum);
+      if (leftHasNum && rightHasNum) return leftNum - rightNum;
+      return String(left == null ? "" : left).localeCompare(String(right == null ? "" : right));
+    }}
+
+    function chatNodeNavigatorSortValue(item, projection, sortKeyRaw, nowUnixRaw = null) {{
+      const sortKey = normalizeChatNodeNavigatorSortKeyPref(sortKeyRaw);
+      const safeItem = item && typeof item === "object" ? item : {{}};
+      const safeProjection = projection && typeof projection === "object"
+        ? projection
+        : nodeExplorerBuildProjection(null);
+      const nowUnix = Number.isFinite(Number(nowUnixRaw))
+        ? Math.trunc(Number(nowUnixRaw))
+        : Math.floor(Date.now() / 1000);
+      if (sortKey === "status") {{
+        return Number.isFinite(Number(safeProjection.statusSort))
+          ? Number(safeProjection.statusSort)
+          : 99;
+      }}
+      if (sortKey === "activity") {{
+        return Number(safeItem.lastMessageUnix) || 0;
+      }}
+      if (sortKey === "idle") {{
+        const lastSeenFromRoster = Number(safeItem && safeItem.lastSeenUnix);
+        const lastSeenFromProjection = Number(
+          safeProjection
+          && safeProjection.fields
+          && safeProjection.fields.last_heard
+          && safeProjection.fields.last_heard.sort
+        );
+        const lastSeenUnix = Number.isFinite(lastSeenFromRoster) && lastSeenFromRoster > 0
+          ? Math.trunc(lastSeenFromRoster)
+          : (Number.isFinite(lastSeenFromProjection) && lastSeenFromProjection > 0
+            ? Math.trunc(lastSeenFromProjection)
+            : 0);
+        if (!Number.isFinite(lastSeenUnix) || lastSeenUnix <= 0) {{
+          return Number.MAX_SAFE_INTEGER;
+        }}
+        return Math.max(0, nowUnix - lastSeenUnix);
+      }}
+      const fieldId = normalizeNodeExplorerFieldId(sortKey);
+      const field = fieldId && safeProjection.fields
+        ? safeProjection.fields[fieldId]
+        : null;
+      return field ? field.sort : "";
+    }}
+
+    function sortChatNodeNavigatorParticipants(participantsList, nodesById, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const rows = Array.isArray(participantsList) ? participantsList : [];
+      const sourceNodes = nodesById instanceof Map ? nodesById : new Map();
+      const sortKey = normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey);
+      const sortDir = normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir);
+      const projectionById = new Map();
+      const projectionFor = (entry) => {{
+        const nodeId = normalizeNodeId(entry && entry.id);
+        if (projectionById.has(nodeId)) {{
+          return projectionById.get(nodeId);
+        }}
+        const node = sourceNodes.get(nodeId) || null;
+        const projection = nodeExplorerBuildProjection(
+          node || {{ id: nodeId, long_name: (entry && entry.name) || nodeId }},
+          {{ nowUnix }}
+        );
+        projectionById.set(nodeId, projection);
+        return projection;
+      }};
+      rows.sort((a, b) => {{
+        const pinDiff = Number(!!(b && b.p2pPinned)) - Number(!!(a && a.p2pPinned));
+        if (pinDiff !== 0) return pinDiff;
+
+        const aProjection = projectionFor(a);
+        const bProjection = projectionFor(b);
+        const aValue = chatNodeNavigatorSortValue(a, aProjection, sortKey, nowUnix);
+        const bValue = chatNodeNavigatorSortValue(b, bProjection, sortKey, nowUnix);
+        const cmp = chatNodeNavigatorCompareSortValues(aValue, bValue);
+        if (cmp !== 0) {{
+          return sortDir === "desc" ? -cmp : cmp;
+        }}
+
+        const statusCmp = chatNodeNavigatorCompareSortValues(aProjection.statusSort, bProjection.statusSort);
+        if (statusCmp !== 0) return statusCmp;
+
+        const activityCmp = chatNodeNavigatorCompareSortValues(
+          Number(b && b.lastMessageUnix) || 0,
+          Number(a && a.lastMessageUnix) || 0
+        );
+        if (activityCmp !== 0) return activityCmp;
+
+        const nameCmp = String((a && (a.name || a.id)) || "").localeCompare(String((b && (b.name || b.id)) || ""));
+        if (nameCmp !== 0) return nameCmp;
+        return String((a && a.id) || "").localeCompare(String((b && b.id) || ""));
+      }});
+      return rows;
+    }}
+
+    function renderChatNodeNavigatorMenuControls() {{
+      const menuBtn = document.getElementById("chat-node-navigator-menu-btn");
+      const menu = document.getElementById("chat-node-navigator-menu");
+      const sortSelect = document.getElementById("chat-node-navigator-sort-select");
+      const dirBtn = document.getElementById("chat-node-navigator-sort-dir-btn");
+      const fieldsHost = document.getElementById("chat-node-navigator-fields");
+
+      if (menuBtn instanceof HTMLButtonElement) {{
+        menuBtn.setAttribute("aria-expanded", chatNodeNavigatorMenuOpen ? "true" : "false");
+      }}
+      if (menu instanceof HTMLElement) {{
+        menu.hidden = !chatNodeNavigatorMenuOpen;
+      }}
+
+      if (sortSelect instanceof HTMLSelectElement) {{
+        const optionsHtml = chatNodeNavigatorSortDefs.map((def) => (
+          `<option value="${{escAttr(def.id)}}">${{escAttr(def.label)}}</option>`
+        )).join("");
+        if (sortSelect.__meshOptionsHtml !== optionsHtml) {{
+          sortSelect.innerHTML = optionsHtml;
+          sortSelect.__meshOptionsHtml = optionsHtml;
+        }}
+        const sortKey = normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey);
+        if (sortSelect.value !== sortKey) {{
+          sortSelect.value = sortKey;
+        }}
+      }}
+
+      if (dirBtn instanceof HTMLButtonElement) {{
+        const dir = normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir);
+        dirBtn.textContent = dir === "desc" ? "Desc" : "Asc";
+        dirBtn.title = dir === "desc"
+          ? "Sorting descending. Click to sort ascending."
+          : "Sorting ascending. Click to sort descending.";
+        dirBtn.setAttribute("aria-label", dirBtn.title);
+      }}
+
+      if (fieldsHost instanceof HTMLElement) {{
+        const selected = new Set(
+          normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
+            fallbackToDefaults: false,
+          }})
+        );
+        const showPacketDirection = normalizeChatNodeNavigatorShowPacketDirectionPref(
+          chatNodeNavigatorShowPacketDirection
+        );
+        const fieldsHtml = nodeExplorerRosterMetadataFieldDefs().map((def) => {{
+          const fieldId = normalizeNodeExplorerFieldId(def && def.id);
+          if (!fieldId) return "";
+          const checked = selected.has(fieldId) ? " checked" : "";
+          return `<label class="chat-node-navigator-field-option">
+            <input type="checkbox" data-meta-field-id="${{escAttr(fieldId)}}"${{checked}} />
+            <span>${{escAttr(def.label || fieldId)}}</span>
+          </label>`;
+        }}).join("")
+          + `<label class="chat-node-navigator-field-option">
+            <input type="checkbox" data-nav-toggle-id="packet-direction"${{showPacketDirection ? " checked" : ""}} />
+            <span>TX/RX + Plot</span>
+          </label>`;
+        if (fieldsHost.__meshFieldsHtml !== fieldsHtml) {{
+          fieldsHost.innerHTML = fieldsHtml;
+          fieldsHost.__meshFieldsHtml = fieldsHtml;
+        }} else {{
+          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-meta-field-id]')) {{
+            if (!(input instanceof HTMLInputElement)) continue;
+            const fieldId = normalizeNodeExplorerFieldId(input.dataset.metaFieldId || "");
+            input.checked = selected.has(fieldId);
+          }}
+          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-toggle-id]')) {{
+            if (!(input instanceof HTMLInputElement)) continue;
+            const toggleId = String(input.dataset.navToggleId || "").trim().toLowerCase();
+            if (toggleId === "packet-direction") {{
+              input.checked = showPacketDirection;
+            }}
+          }}
+        }}
+      }}
+    }}
+
+    function bindChatNodeNavigatorMenuControls() {{
+      const menuBtn = document.getElementById("chat-node-navigator-menu-btn");
+      const sortSelect = document.getElementById("chat-node-navigator-sort-select");
+      const dirBtn = document.getElementById("chat-node-navigator-sort-dir-btn");
+      const fieldsHost = document.getElementById("chat-node-navigator-fields");
+
+      if (menuBtn instanceof HTMLButtonElement && menuBtn.dataset.bound !== "1") {{
+        menuBtn.dataset.bound = "1";
+        menuBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          chatNodeNavigatorMenuOpen = !chatNodeNavigatorMenuOpen;
+          renderChatNodeNavigatorMenuControls();
+        }});
+      }}
+
+      if (sortSelect instanceof HTMLSelectElement && sortSelect.dataset.bound !== "1") {{
+        sortSelect.dataset.bound = "1";
+        sortSelect.addEventListener("change", () => {{
+          applyChatNodeNavigatorPreferences({{
+            sortKey: sortSelect.value,
+          }}, {{
+            persist: true,
+            rerender: true,
+          }});
+        }});
+      }}
+
+      if (dirBtn instanceof HTMLButtonElement && dirBtn.dataset.bound !== "1") {{
+        dirBtn.dataset.bound = "1";
+        dirBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          const currentDir = normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir);
+          const nextDir = currentDir === "desc" ? "asc" : "desc";
+          applyChatNodeNavigatorPreferences({{
+            sortDir: nextDir,
+          }}, {{
+            persist: true,
+            rerender: true,
+          }});
+        }});
+      }}
+
+      if (fieldsHost instanceof HTMLElement && fieldsHost.dataset.bound !== "1") {{
+        fieldsHost.dataset.bound = "1";
+        fieldsHost.addEventListener("change", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          if (target.type !== "checkbox") return;
+          const toggleId = String(target.dataset.navToggleId || "").trim().toLowerCase();
+          if (toggleId === "packet-direction") {{
+            applyChatNodeNavigatorPreferences({{
+              showPacketDirection: !!target.checked,
+            }}, {{
+              persist: true,
+              rerender: true,
+            }});
+            return;
+          }}
+          const nextFields = [];
+          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-meta-field-id]')) {{
+            if (!(input instanceof HTMLInputElement) || !input.checked) continue;
+            nextFields.push(input.dataset.metaFieldId || "");
+          }}
+          applyChatNodeNavigatorPreferences({{
+            metaFields: nextFields,
+          }}, {{
+            persist: true,
+            rerender: true,
+          }});
+        }});
+      }}
+
+      if (document.body.dataset.chatNodeNavigatorMenuOutsideBound !== "1") {{
+        document.body.dataset.chatNodeNavigatorMenuOutsideBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!chatNodeNavigatorMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Node)) return;
+          const btn = document.getElementById("chat-node-navigator-menu-btn");
+          const panel = document.getElementById("chat-node-navigator-menu");
+          if ((btn instanceof HTMLElement) && btn.contains(target)) return;
+          if ((panel instanceof HTMLElement) && panel.contains(target)) return;
+          chatNodeNavigatorMenuOpen = false;
+          renderChatNodeNavigatorMenuControls();
+        }});
+      }}
+
+      renderChatNodeNavigatorMenuControls();
+    }}
+
+    function normalizeChatNodeDetailsDrawerTab(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      if (clean === "history") return "history";
+      if (clean === "tag") return "tag";
+      return "details";
+    }}
+
+    function chatNodeDetailsDrawerTargetNodeId(rawNodeId = selectedNodeId) {{
+      const clean = normalizeNodeId(rawNodeId || "");
+      return isSelectableNodeId(clean) ? clean : "";
+    }}
+
+    function chatNodeDetailsDrawerExpandedForNode(rawNodeId = selectedNodeId) {{
+      const nodeId = chatNodeDetailsDrawerTargetNodeId(rawNodeId);
+      return !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(nodeId);
+    }}
+
+    function isChatNodeDetailsDrawerExpanded() {{
+      return chatNodeDetailsDrawerExpandedForNode(selectedNodeId);
+    }}
+
+    function isChatNodeDetailsHistoryActive() {{
+      return isChatNodeDetailsDrawerExpanded()
+        && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "history";
+    }}
+
+    function syncSavedNodeDetailsDock(forceToSaved = false) {{
+      const detailsHost = document.getElementById("saved-node-details");
+      if (!(detailsHost instanceof HTMLElement)) return;
+      const savedPane = document.querySelector(".saved-node-pane");
+      const drawerHost = document.getElementById("chat-node-details-content-host");
+      const useDrawerHost = !forceToSaved
+        && isChatNodeDetailsDrawerExpanded()
+        && (drawerHost instanceof HTMLElement);
+      const target = useDrawerHost ? drawerHost : savedPane;
+      if (!(target instanceof HTMLElement)) return;
+      if (detailsHost.parentElement !== target) {{
+        target.appendChild(detailsHost);
+      }}
+    }}
+
+    function syncChatNodeDetailsDrawer(state = latestState, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const drawer = document.getElementById("chat-node-details-drawer");
+      const titleEl = document.getElementById("chat-node-details-title");
+      const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const muteBtn = document.getElementById("chat-node-details-mute-btn");
+      const dmBtn = document.getElementById("chat-node-details-dm-btn");
+      const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
+      const historyTabBtn = document.getElementById("chat-node-details-tab-history");
+      const tagTabBtn = document.getElementById("chat-node-details-tab-tag");
+      const tagTabLabel = document.getElementById("chat-node-details-tab-tag-label");
+      const tagTabChip = document.getElementById("chat-node-details-tab-tag-chip");
+      const detailsPanel = document.getElementById("chat-node-details-panel-details");
+      const historyPanel = document.getElementById("chat-node-details-panel-history");
+      const tagPanel = document.getElementById("chat-node-details-panel-tag");
+      const tagHost = document.getElementById("chat-node-details-tag-host");
+      if (!(drawer instanceof HTMLElement)) return;
+
+      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
+      const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
+      const expanded = !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(selectedId);
+      chatNodeDetailsDrawerTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
+
+      drawer.hidden = !expanded;
+      if (closeBtn instanceof HTMLButtonElement) {{
+        closeBtn.disabled = !expanded;
+      }}
+      if (muteBtn instanceof HTMLButtonElement) {{
+        muteBtn.hidden = true;
+        muteBtn.disabled = true;
+        muteBtn.dataset.nodeId = "";
+        muteBtn.classList.remove("active");
+        muteBtn.setAttribute("aria-pressed", "false");
+        const muteLabel = muteBtn.querySelector(".chat-node-details-mute-label");
+        if (muteLabel instanceof HTMLElement) {{
+          muteLabel.textContent = "Mute";
+        }}
+      }}
+      if (dmBtn instanceof HTMLButtonElement) {{
+        dmBtn.hidden = true;
+        dmBtn.disabled = true;
+        dmBtn.dataset.nodeId = "";
+      }}
+      if (!expanded) {{
+        syncSavedNodeDetailsDock(true);
+        syncNodeHistoryDock();
+        return;
+      }}
+
+      const activeTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
+      if (detailsTabBtn instanceof HTMLButtonElement) {{
+        const isActive = activeTab === "details";
+        detailsTabBtn.classList.toggle("is-active", isActive);
+        detailsTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+      if (historyTabBtn instanceof HTMLButtonElement) {{
+        const isActive = activeTab === "history";
+        historyTabBtn.classList.toggle("is-active", isActive);
+        historyTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+      if (tagTabBtn instanceof HTMLButtonElement) {{
+        const isActive = activeTab === "tag";
+        tagTabBtn.classList.toggle("is-active", isActive);
+        tagTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+      if (detailsPanel instanceof HTMLElement) {{
+        detailsPanel.hidden = activeTab !== "details";
+      }}
+      if (historyPanel instanceof HTMLElement) {{
+        historyPanel.hidden = activeTab !== "history";
+      }}
+      if (tagPanel instanceof HTMLElement) {{
+        tagPanel.hidden = activeTab !== "tag";
+      }}
+
+      const tagEntry = nodeTagEntryForNode(selectedId);
+      const tagPreset = tagEntry && tagEntry.preset ? tagEntry.preset : null;
+      const hasTag = !!tagPreset;
+      const tagLabel = hasTag
+        ? normalizeNodeTagPresetName(tagPreset.name, "Tagged")
+        : "+tag";
+      if (tagTabLabel instanceof HTMLElement) {{
+        tagTabLabel.textContent = tagLabel;
+      }}
+      if (tagTabBtn instanceof HTMLButtonElement) {{
+        const tagTitle = hasTag
+          ? `Edit tag: ${{tagLabel}}`
+          : "Add or edit node tag";
+        tagTabBtn.title = tagTitle;
+        tagTabBtn.setAttribute("aria-label", tagTitle);
+      }}
+      if (tagTabChip instanceof HTMLElement) {{
+        if (hasTag) {{
+          tagTabChip.classList.add("is-tagged");
+          tagTabChip.setAttribute("style", nodeTagStyleVars(tagEntry));
+        }} else {{
+          tagTabChip.classList.remove("is-tagged");
+          tagTabChip.removeAttribute("style");
+        }}
+      }}
+      if (tagHost instanceof HTMLElement) {{
+        const existingEditor = tagHost.querySelector("#favorite-menu-tag-editor");
+        const existingNodeId = existingEditor instanceof HTMLElement
+          ? normalizeNodeId(existingEditor.dataset.nodeId || "")
+          : "";
+        if (!(existingEditor instanceof HTMLElement) || existingNodeId !== selectedId) {{
+          tagHost.innerHTML = favoriteMenuTagEditorHtml(selectedId);
+        }}
+        bindFavoriteMenuTagEditorControls(selectedId);
+      }}
+
+      const resolvedName = (typeof resolveSavedViewNodeName === "function")
+        ? resolveSavedViewNodeName(safeState, selectedId)
+        : "";
+      const fallbackName = nodeNameCache.get(selectedId) || selectedId;
+      const titleName = String(resolvedName || fallbackName || selectedId);
+      if (titleEl instanceof HTMLElement) {{
+        titleEl.textContent = `${{titleName}} (${selectedId})`;
+      }}
+      if (dmBtn instanceof HTMLButtonElement) {{
+        const canOpenPeerDm = isCanonicalNodeId(selectedId) && !isSelfNodeId(selectedId);
+        dmBtn.hidden = !canOpenPeerDm;
+        dmBtn.disabled = !canOpenPeerDm;
+        dmBtn.dataset.nodeId = canOpenPeerDm ? selectedId : "";
+        dmBtn.title = canOpenPeerDm
+          ? `Open peer message window with ${{titleName}}`
+          : "Send message unavailable for this node";
+      }}
+      if (muteBtn instanceof HTMLButtonElement) {{
+        const canMute = isCanonicalNodeId(selectedId) && !isSelfNodeId(selectedId);
+        const active = canMute && isMutedNode(selectedId);
+        muteBtn.hidden = !canMute;
+        muteBtn.disabled = !canMute;
+        muteBtn.dataset.nodeId = canMute ? selectedId : "";
+        muteBtn.classList.toggle("active", active);
+        muteBtn.setAttribute("aria-pressed", active ? "true" : "false");
+        muteBtn.title = canMute
+          ? (active ? "Unmute this user in chat feed" : "Mute this user in chat feed")
+          : "Mute unavailable for this node";
+        const muteLabel = muteBtn.querySelector(".chat-node-details-mute-label");
+        if (muteLabel instanceof HTMLElement) {{
+          muteLabel.textContent = active ? "Muted" : "Mute";
+        }}
+      }}
+
+      syncSavedNodeDetailsDock(false);
+      const cachedHistory = cachedNodeHistory(selectedId);
+      renderSavedNodeDetails(safeState, cachedHistory);
+      if (opts.fetchHistory !== false) {{
+        // Even on the Details tab we want the network map trail ready when the drawer opens.
+        void refreshSelectedNodeHistory(false);
+      }}
+
+      if (activeTab === "history") {{
+        setMapDataMode("node");
+        syncNodeHistoryDock();
+        if (cachedHistory) {{
+          const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+          renderNodeHistory(cachedHistory, nodes);
+        }} else {{
+          renderNodeHistoryLoading(selectedId);
+        }}
+      }} else {{
+        syncNodeHistoryDock();
+      }}
+    }}
+
+    function setChatNodeDetailsDrawerExpanded(expanded, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const nextExpanded = !!expanded;
+      const nextTab = normalizeChatNodeDetailsDrawerTab(
+        opts.tab != null ? opts.tab : chatNodeDetailsDrawerTab
+      );
+      const currentExpanded = !!chatNodeDetailsDrawerExpanded;
+      const currentTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
+      if (nextExpanded && !isSelectableNodeId(chatNodeDetailsDrawerTargetNodeId(selectedNodeId))) {{
+        chatNodeDetailsDrawerExpanded = false;
+        chatNodeDetailsDrawerTab = nextTab;
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
+        return false;
+      }}
+      const changed = currentExpanded !== nextExpanded || currentTab !== nextTab;
+      chatNodeDetailsDrawerExpanded = nextExpanded;
+      chatNodeDetailsDrawerTab = nextTab;
+      if (activeLayoutView === "network") {{
+        const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
+        if (isSelectableNodeId(selectedId)) {{
+          if (nextExpanded) {{
+            networkNodeInfoCollapsedNodeId = "";
+          }} else {{
+            networkNodeInfoCollapsedNodeId = selectedId;
+          }}
+        }}
+      }}
+      const shouldRerender = opts.rerender === true;
+      if (shouldRerender && latestState) {{
+        renderChat(latestState);
+      }} else {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: opts.fetchHistory !== false,
+        }});
+      }}
+      return changed;
+    }}
+
+    function setChatNodeDetailsDrawerTab(tab, options = null) {{
+      const nextTab = normalizeChatNodeDetailsDrawerTab(tab);
+      const opts = options && typeof options === "object" ? options : {{}};
+      chatNodeDetailsDrawerTab = nextTab;
+      syncChatNodeDetailsDrawer(latestState, {{
+        fetchHistory: opts.fetchHistory !== false,
+      }});
+      return nextTab;
+    }}
+
+    function toggleChatNodeDetailsDrawerForNode(rawNodeId) {{
+      const nodeId = chatNodeDetailsDrawerTargetNodeId(rawNodeId);
+      if (!isSelectableNodeId(nodeId)) return false;
+      const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
+      const sameNode = selectedId === nodeId;
+      const expandedForNode = sameNode && isChatNodeDetailsDrawerExpanded();
+      if (!sameNode) {{
+        selectNode(nodeId, true, false);
+      }}
+      setChatNodeDetailsDrawerExpanded(!expandedForNode, {{
+        fetchHistory: !expandedForNode,
+        rerender: false,
+      }});
+      return true;
+    }}
+
+    function bindChatNodeDetailsDrawerControls() {{
+      const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const drawer = document.getElementById("chat-node-details-drawer");
+      const dmBtn = document.getElementById("chat-node-details-dm-btn");
+      if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
+        closeBtn.dataset.bound = "1";
+        closeBtn.addEventListener("click", () => {{
+          setChatNodeDetailsDrawerExpanded(false, {{
+            fetchHistory: false,
+            rerender: false,
+          }});
+        }});
+      }}
+      if (dmBtn instanceof HTMLButtonElement && dmBtn.dataset.bound !== "1") {{
+        dmBtn.dataset.bound = "1";
+        dmBtn.addEventListener("click", () => {{
+          const nodeId = normalizeNodeId(dmBtn.dataset.nodeId || "");
+          if (!isCanonicalNodeId(nodeId) || isSelfNodeId(nodeId)) return;
+          peerDmActivePeerId = nodeId;
+          setPeerDmMenuOpen(false);
+          if (latestState) {{
+            renderChat(latestState);
+          }}
+        }});
+      }}
+      if (drawer instanceof HTMLElement) {{
+        for (const tabBtn of drawer.querySelectorAll(".chat-node-details-tab-btn")) {{
+          if (!(tabBtn instanceof HTMLButtonElement) || tabBtn.dataset.bound === "1") continue;
+          tabBtn.dataset.bound = "1";
+          tabBtn.addEventListener("click", () => {{
+            setChatNodeDetailsDrawerTab(tabBtn.dataset.drawerTab || "details", {{
+              fetchHistory: true,
+            }});
+          }});
+        }}
+      }}
+      syncChatNodeDetailsDrawer(latestState, {{
+        fetchHistory: false,
+      }});
+    }}
+
+    function bindChatNotificationScopeControl() {{
+      const select = document.getElementById("chat-change-scope");
+      if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
+      select.dataset.bound = "1";
+      syncChatNotificationScopeControl();
+      select.addEventListener("change", () => {{
+        applyChatNotificationScope(select.value, true);
+      }});
+    }}
+
+    function bindChatTrendsViewControl() {{
+      const btn = document.getElementById("chat-trends-view-btn");
+      if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;
+      btn.dataset.bound = "1";
+      syncChatTrendsViewControl();
+      btn.addEventListener("click", () => {{
+        applyChatTrendsViewEnabled(!chatTrendsViewEnabled, true);
+      }});
+    }}
+
+    // Meshtastic has its own notion of "channels" (0..N) which are distinct from this UI's
+    // chat scopes (Everyone vs Peer-to-peer).
+    //
+    // We expose a lightweight selector so outgoing chat packets can be sent on a user-chosen
+    // channel index. Default is channel 0.
+
+    function requestImmediatePoll(delayMs = 0) {{
+      const waitMs = Math.max(0, Math.trunc(Number(delayMs) || 0));
+      if (chatImmediatePollTimer !== null) {{
+        clearTimeout(chatImmediatePollTimer);
+        chatImmediatePollTimer = null;
+      }}
+      chatImmediatePollTimer = window.setTimeout(() => {{
+        chatImmediatePollTimer = null;
+        if (document.hidden) return;
+        if (typeof pollOnce === "function") {{
+          void pollOnce();
+          return;
+        }}
+        void poll();
+      }}, waitMs);
+    }}
+
+    function persistManualDirectPeers() {{
+      try {{
+        const ids = Array.from(manualDirectPeerIds)
+          .map((entry) => normalizeNodeId(entry))
+          .filter((entry) => isCanonicalNodeId(entry))
+          .sort((a, b) => a.localeCompare(b));
+        window.localStorage.setItem(chatDirectPeersStorageKey, JSON.stringify(ids));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadManualDirectPeers() {{
+      manualDirectPeerIds.clear();
+      try {{
+        const raw = window.localStorage.getItem(chatDirectPeersStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          const nodeId = normalizeNodeId(entry);
+          if (!isCanonicalNodeId(nodeId)) continue;
+          manualDirectPeerIds.add(nodeId);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function addManualDirectPeer(rawNodeId, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const shouldSelect = opts.select !== false;
+      const nodeId = normalizeNodeId(rawNodeId);
+      if (!nodeId) {{
+        return {{ ok: false, error: "Enter a node ID to add." }};
+      }}
+      if (!isCanonicalNodeId(nodeId)) {{
+        return {{ ok: false, error: "Use a node ID like !49b54790." }};
+      }}
+      if (isSelfNodeId(nodeId)) {{
+        return {{ ok: false, error: "Cannot add your own radio to peer-to-peer list." }};
+      }}
+      const added = !manualDirectPeerIds.has(nodeId);
+      manualDirectPeerIds.add(nodeId);
+      persistManualDirectPeers();
+      if (shouldSelect) {{
+        selectNode(nodeId, true, false);
+      }} else if (latestState) {{
+        renderChat(latestState);
+      }}
+      return {{ ok: true, added, id: nodeId }};
+    }}
+
+    function removeManualDirectPeer(rawNodeId) {{
+      const nodeId = normalizeNodeId(rawNodeId);
+      if (!isCanonicalNodeId(nodeId)) return false;
+      if (!manualDirectPeerIds.delete(nodeId)) return false;
+      persistManualDirectPeers();
+      if (selectedNodeId && normalizeNodeId(selectedNodeId) === nodeId) {{
+        clearNodeSelection();
+      }} else if (latestState) {{
+        renderChat(latestState);
+      }}
+      return true;
+    }}
+
+    function detectedPeerCandidates(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const selfId = resolveLocalNodeId(safeState);
+      const unique = new Map();
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (isCanonicalNodeId(selfId) && nodeId === selfId) continue;
+        if (!isCanonicalNodeId(nodeId) || unique.has(nodeId)) continue;
+        const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        const lastSeenUnix = nodeLastHeardUnix(node);
+        unique.set(nodeId, {{ id: nodeId, name, lastSeenUnix }});
+      }}
+      return Array.from(unique.values()).sort((a, b) => {{
+        const aSeen = Number(a.lastSeenUnix) || 0;
+        const bSeen = Number(b.lastSeenUnix) || 0;
+        if (aSeen !== bSeen) return bSeen - aSeen;
+        const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+        if (nameDiff !== 0) return nameDiff;
+        return String(a.id || "").localeCompare(String(b.id || ""));
+      }});
+    }}
+
+    function renderChatPeerAddPanel(state = latestState) {{
+      const toggleBtn = document.getElementById("chat-peer-add-toggle-btn");
+      const panel = document.getElementById("chat-peer-add-panel");
+      const detectedSelect = document.getElementById("chat-peer-detected-select");
+      const detectedAddBtn = document.getElementById("chat-peer-add-detected-btn");
+      const manualInput = document.getElementById("chat-peer-manual-input");
+      const manualAddBtn = document.getElementById("chat-peer-add-manual-btn");
+      const savedList = document.getElementById("chat-peer-saved-list");
+      const directMode = activeChatChannel === "direct";
+      if (toggleBtn instanceof HTMLButtonElement) {{
+        toggleBtn.hidden = !directMode;
+        toggleBtn.setAttribute("aria-expanded", directMode && chatPeerAddPanelOpen ? "true" : "false");
+      }}
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !(directMode && chatPeerAddPanelOpen);
+      }}
+      renderChatNodeNavigatorMenuControls();
+
+      const candidates = detectedPeerCandidates(state);
+      if (detectedSelect instanceof HTMLSelectElement) {{
+        const previousValue = normalizeNodeId(detectedSelect.value || "");
+        const options = ['<option value="">Detected nodes...</option>'];
+        for (const entry of candidates) {{
+          const savedSuffix = manualDirectPeerIds.has(entry.id) ? " (saved)" : "";
+          const label = `${{entry.name}} (${{entry.id}})${{savedSuffix}}`;
+          options.push(`<option value="${{escAttr(entry.id)}}">${{escAttr(label)}}</option>`);
+        }}
+        detectedSelect.innerHTML = options.join("");
+        if (previousValue && candidates.some((entry) => entry.id === previousValue)) {{
+          detectedSelect.value = previousValue;
+        }} else if (isCanonicalNodeId(selectedNodeId) && candidates.some((entry) => entry.id === selectedNodeId)) {{
+          detectedSelect.value = normalizeNodeId(selectedNodeId);
+        }} else {{
+          detectedSelect.value = "";
+        }}
+        detectedSelect.disabled = !directMode || candidates.length === 0;
+      }}
+      if (detectedAddBtn instanceof HTMLButtonElement) {{
+        const hasChoice = detectedSelect instanceof HTMLSelectElement
+          && isCanonicalNodeId(detectedSelect.value || "");
+        detectedAddBtn.disabled = !directMode || !hasChoice;
+      }}
+      if (manualInput instanceof HTMLInputElement) {{
+        manualInput.disabled = !directMode;
+      }}
+      if (manualAddBtn instanceof HTMLButtonElement) {{
+        manualAddBtn.disabled = !directMode;
+      }}
+
+      if (savedList instanceof HTMLElement) {{
+        const safeState = (state && typeof state === "object") ? state : {{}};
+        const selfId = resolveLocalNodeId(safeState);
+        const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+        const nodesById = new Map(
+          nodes.map((node) => [normalizeNodeId(node && node.id), node])
+        );
+        const savedPeers = Array.from(manualDirectPeerIds)
+          .map((entry) => normalizeNodeId(entry))
+          .filter((entry) => isCanonicalNodeId(entry))
+          .filter((entry) => !(isCanonicalNodeId(selfId) && entry === selfId))
+          .map((entry) => {{
+            const node = nodesById.get(entry);
+            const name = preferredNodeName(node) || nodeNameCache.get(entry) || entry;
+            return {{ id: entry, name }};
+          }})
+          .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
+        if (savedPeers.length === 0) {{
+          savedList.innerHTML = '<div class="chat-peer-saved-empty">No saved peers yet.</div>';
+        }} else {{
+          savedList.innerHTML = savedPeers.map((entry) => (
+            `<div class="chat-peer-saved-item">
+              <span class="chat-peer-saved-main">
+                <span class="chat-peer-saved-name">${{escAttr(entry.name)}}</span>
+                <span class="chat-peer-saved-id">${{escAttr(entry.id)}}</span>
+              </span>
+              <button type="button" class="chat-peer-saved-remove-btn" data-node-id="${{escAttr(entry.id)}}" title="Remove ${{escAttr(entry.id)}} from peer-to-peer list" aria-label="Remove ${{escAttr(entry.id)}} from peer-to-peer list">&times;</button>
+            </div>`
+          )).join("");
+        }}
+      }}
+    }}
+
+    function bindChatPeerControls() {{
+      const toggleBtn = document.getElementById("chat-peer-add-toggle-btn");
+      const detectedSelect = document.getElementById("chat-peer-detected-select");
+      const detectedAddBtn = document.getElementById("chat-peer-add-detected-btn");
+      const manualInput = document.getElementById("chat-peer-manual-input");
+      const manualAddBtn = document.getElementById("chat-peer-add-manual-btn");
+      const savedList = document.getElementById("chat-peer-saved-list");
+
+      if (toggleBtn instanceof HTMLButtonElement && toggleBtn.dataset.bound !== "1") {{
+        toggleBtn.dataset.bound = "1";
+        toggleBtn.addEventListener("click", () => {{
+          if (activeChatChannel !== "direct") return;
+          chatPeerAddPanelOpen = !chatPeerAddPanelOpen;
+          renderChatPeerAddPanel(latestState);
+          if (chatPeerAddPanelOpen && manualInput instanceof HTMLInputElement) {{
+            manualInput.focus({{ preventScroll: true }});
+          }}
+        }});
+      }}
+
+      if (detectedAddBtn instanceof HTMLButtonElement && detectedAddBtn.dataset.bound !== "1") {{
+        detectedAddBtn.dataset.bound = "1";
+        detectedAddBtn.addEventListener("click", () => {{
+          const chosenId = normalizeNodeId(
+            detectedSelect instanceof HTMLSelectElement ? detectedSelect.value : ""
+          );
+          const result = addManualDirectPeer(chosenId, {{ select: true }});
+          if (!result.ok) {{
+            setChatSendStatus(result.error || "Unable to add peer.", true);
+            return;
+          }}
+          setChatSendStatus(
+            result.added
+              ? `Peer ${{result.id}} added to peer-to-peer list.`
+              : `Peer ${{result.id}} is already in your peer-to-peer list.`
+          );
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      if (detectedSelect instanceof HTMLSelectElement && detectedSelect.dataset.bound !== "1") {{
+        detectedSelect.dataset.bound = "1";
+        detectedSelect.addEventListener("change", () => {{
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      const submitManualPeer = () => {{
+        const raw = manualInput instanceof HTMLInputElement ? manualInput.value : "";
+        const result = addManualDirectPeer(raw, {{ select: true }});
+        if (!result.ok) {{
+          setChatSendStatus(result.error || "Unable to add peer.", true);
+          if (manualInput instanceof HTMLInputElement) {{
+            manualInput.focus({{ preventScroll: true }});
+          }}
+          return;
+        }}
+        if (manualInput instanceof HTMLInputElement) {{
+          manualInput.value = "";
+          manualInput.focus({{ preventScroll: true }});
+        }}
+        setChatSendStatus(
+          result.added
+            ? `Peer ${{result.id}} added to peer-to-peer list.`
+            : `Peer ${{result.id}} is already in your peer-to-peer list.`
+        );
+        renderChatPeerAddPanel(latestState);
+      }};
+
+      if (manualAddBtn instanceof HTMLButtonElement && manualAddBtn.dataset.bound !== "1") {{
+        manualAddBtn.dataset.bound = "1";
+        manualAddBtn.addEventListener("click", () => {{
+          submitManualPeer();
+        }});
+      }}
+
+      if (manualInput instanceof HTMLInputElement && manualInput.dataset.bound !== "1") {{
+        manualInput.dataset.bound = "1";
+        manualInput.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Enter") return;
+          ev.preventDefault();
+          submitManualPeer();
+        }});
+      }}
+
+      if (savedList instanceof HTMLElement && savedList.dataset.bound !== "1") {{
+        savedList.dataset.bound = "1";
+        savedList.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const removeBtn = target.closest(".chat-peer-saved-remove-btn");
+          if (!(removeBtn instanceof HTMLButtonElement)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nodeId = normalizeNodeId(removeBtn.dataset.nodeId || "");
+          if (!isCanonicalNodeId(nodeId)) return;
+          const removed = removeManualDirectPeer(nodeId);
+          if (!removed) return;
+          setChatSendStatus(`Peer ${{nodeId}} removed from peer-to-peer list.`);
+          renderChatPeerAddPanel(latestState);
+        }});
+      }}
+
+      renderChatPeerAddPanel(latestState);
+    }}

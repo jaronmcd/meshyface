@@ -1,0 +1,200 @@
+    function formatMetricValue(value, decimals = 2, suffix = "") {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return "n/a";
+      return `${{num.toFixed(decimals)}}${{suffix}}`;
+    }}
+
+    function clampUnit(value) {{
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 0;
+      if (num < 0) return 0;
+      if (num > 1) return 1;
+      return num;
+    }}
+
+    function signalZoomMinSpan(totalPoints) {{
+      const total = Math.max(0, Math.floor(Number(totalPoints) || 0));
+      if (total <= 2) return 1;
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      return Math.max(1 / Math.max(1, total - 1), (minPoints - 1) / Math.max(1, total - 1));
+    }}
+
+    function normalizeSignalZoomWindow(totalPoints) {{
+      const minSpan = signalZoomMinSpan(totalPoints);
+      let start = clampUnit(signalChartZoomStart);
+      let end = clampUnit(signalChartZoomEnd);
+      if (end <= start) {{
+        end = Math.min(1, start + minSpan);
+      }}
+      let span = end - start;
+      if (span < minSpan) {{
+        const center = start + (span / 2);
+        span = minSpan;
+        start = center - (span / 2);
+        end = center + (span / 2);
+      }}
+      if (start < 0) {{
+        end = Math.min(1, end - start);
+        start = 0;
+      }}
+      if (end > 1) {{
+        start = Math.max(0, start - (end - 1));
+        end = 1;
+      }}
+      span = end - start;
+      if (span < minSpan) {{
+        start = Math.max(0, end - minSpan);
+        end = Math.min(1, start + minSpan);
+      }}
+      signalChartZoomStart = clampUnit(start);
+      signalChartZoomEnd = clampUnit(end);
+    }}
+
+    function resetSignalChartZoom(nodeId = "") {{
+      signalChartZoomNodeId = normalizeNodeId(nodeId || "");
+      signalChartZoomStart = 0;
+      signalChartZoomEnd = 1;
+      signalChartPointerDrag = null;
+    }}
+
+    function setSignalChartZoomWindow(start, end, totalPoints) {{
+      const prevStart = signalChartZoomStart;
+      const prevEnd = signalChartZoomEnd;
+      signalChartZoomStart = start;
+      signalChartZoomEnd = end;
+      normalizeSignalZoomWindow(totalPoints);
+      return Math.abs(signalChartZoomStart - prevStart) > 1e-6
+        || Math.abs(signalChartZoomEnd - prevEnd) > 1e-6;
+    }}
+
+    function getSignalChartAxisBounds(svg) {{
+      const rect = svg.getBoundingClientRect();
+      const axisStartPx = rect.left + ((signalChartLayout.padLeft / signalChartLayout.width) * rect.width);
+      const axisEndPx = rect.left + (((signalChartLayout.width - signalChartLayout.padRight) / signalChartLayout.width) * rect.width);
+      const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
+      return {{ axisStartPx, axisEndPx, axisWidthPx }};
+    }}
+
+    function getVisibleSignalRows(rows) {{
+      const allRows = Array.isArray(rows) ? rows : [];
+      const total = allRows.length;
+      if (total <= 1) {{
+        return {{
+          rows: allRows,
+          startIndex: 0,
+          endIndex: Math.max(0, total - 1),
+          zoomed: false,
+        }};
+      }}
+      normalizeSignalZoomWindow(total);
+      const span = total - 1;
+      let startIndex = Math.max(0, Math.min(span, Math.floor(signalChartZoomStart * span)));
+      let endIndex = Math.max(startIndex + 1, Math.min(span, Math.ceil(signalChartZoomEnd * span)));
+      const minPoints = Math.max(2, Math.min(total, signalZoomMinPoints));
+      if ((endIndex - startIndex + 1) < minPoints) {{
+        endIndex = Math.min(span, startIndex + minPoints - 1);
+        if ((endIndex - startIndex + 1) < minPoints) {{
+          startIndex = Math.max(0, endIndex - minPoints + 1);
+        }}
+      }}
+      const visible = allRows.slice(startIndex, endIndex + 1);
+      return {{
+        rows: visible,
+        startIndex,
+        endIndex,
+        zoomed: startIndex > 0 || endIndex < span,
+      }};
+    }}
+
+    function rerenderSignalChartFromCache() {{
+      if (!Array.isArray(signalChartPoints)) return;
+      renderSignalChart(signalChartPoints);
+    }}
+
+    function bindSignalChartZoom() {{
+      const svg = document.getElementById("signal-chart");
+      if (!(svg instanceof SVGElement) || svg.dataset.zoomBound === "1") return;
+      svg.dataset.zoomBound = "1";
+      svg.setAttribute("tabindex", "0");
+
+      svg.addEventListener("wheel", (ev) => {{
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisStartPx, axisEndPx, axisWidthPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        ev.preventDefault();
+        const anchorRatio = clampUnit((ev.clientX - axisStartPx) / axisWidthPx);
+        const currentSpan = Math.max(1e-6, signalChartZoomEnd - signalChartZoomStart);
+        const zoomFactor = ev.deltaY < 0 ? 0.84 : 1.19;
+        const minSpan = signalZoomMinSpan(total);
+        const nextSpan = Math.max(minSpan, Math.min(1, currentSpan * zoomFactor));
+        const anchor = signalChartZoomStart + (anchorRatio * currentSpan);
+        const nextStart = anchor - (anchorRatio * nextSpan);
+        const nextEnd = nextStart + nextSpan;
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }}, {{ passive: false }});
+
+      svg.addEventListener("dblclick", (ev) => {{
+        ev.preventDefault();
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      svg.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0 || signalChartPoints.length < 3) return;
+        const {{ axisStartPx, axisEndPx }} = getSignalChartAxisBounds(svg);
+        if (ev.clientX < axisStartPx || ev.clientX > axisEndPx) return;
+        signalChartPointerDrag = {{
+          pointerId: ev.pointerId,
+          startClientX: ev.clientX,
+          startZoomStart: signalChartZoomStart,
+          startZoomEnd: signalChartZoomEnd,
+        }};
+        svg.classList.add("chart-dragging");
+        try {{
+          svg.setPointerCapture(ev.pointerId);
+        }} catch (_err) {{
+        }}
+        ev.preventDefault();
+      }});
+
+      svg.addEventListener("pointermove", (ev) => {{
+        if (!signalChartPointerDrag || signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        const total = signalChartPoints.length;
+        if (total < 3) return;
+        const {{ axisWidthPx }} = getSignalChartAxisBounds(svg);
+        const deltaRatio = (ev.clientX - signalChartPointerDrag.startClientX) / axisWidthPx;
+        const dragSpan = signalChartPointerDrag.startZoomEnd - signalChartPointerDrag.startZoomStart;
+        const nextStart = signalChartPointerDrag.startZoomStart - (deltaRatio * dragSpan);
+        const nextEnd = signalChartPointerDrag.startZoomEnd - (deltaRatio * dragSpan);
+        if (setSignalChartZoomWindow(nextStart, nextEnd, total)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+
+      const clearDrag = (ev) => {{
+        if (!signalChartPointerDrag) return;
+        if (ev && signalChartPointerDrag.pointerId !== ev.pointerId) return;
+        signalChartPointerDrag = null;
+        svg.classList.remove("chart-dragging");
+        if (ev) {{
+          try {{
+            svg.releasePointerCapture(ev.pointerId);
+          }} catch (_err) {{
+          }}
+        }}
+      }};
+      svg.addEventListener("pointerup", clearDrag);
+      svg.addEventListener("pointercancel", clearDrag);
+      svg.addEventListener("lostpointercapture", clearDrag);
+      svg.addEventListener("keydown", (ev) => {{
+        if (ev.key !== "Escape") return;
+        if (setSignalChartZoomWindow(0, 1, signalChartPoints.length || 2)) {{
+          rerenderSignalChartFromCache();
+        }}
+      }});
+    }}
+

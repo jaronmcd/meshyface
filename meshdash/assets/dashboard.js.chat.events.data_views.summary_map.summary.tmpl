@@ -1,0 +1,1829 @@
+    const envAggregateTickerWindowHours = 24;
+    const envAggregateTickerWindowMs = envAggregateTickerWindowHours * 60 * 60 * 1000;
+    const envAggregateTickerRefreshMs = Math.max(120000, refreshMs * 40);
+    const envAggregateTickerMaxPoints = (envAggregateTickerWindowHours * 60) + 8;
+    const envAggregateTickerStaleSeconds = 30 * 60;
+    const envAggregateTickerSnapshotLookbackMinutes = 12;
+    const envAggregateTickerSnapshotLookbackMs = envAggregateTickerSnapshotLookbackMinutes * 60 * 1000;
+    const envAggregateTickerSnapshotMaxBucketWeight = 8;
+    const envAggregateTickerNodeConsensusLookbackMinutes = 30;
+    const envAggregateTickerNodeConsensusLookbackSeconds = envAggregateTickerNodeConsensusLookbackMinutes * 60;
+    let envAggregateTickerSnapshots = new Map();
+    let envAggregateTickerHydrated = false;
+    let envAggregateTickerLastHydratedMs = 0;
+    let envAggregateTickerHydrateInFlight = null;
+    const envAggregateTickerMetricDefs = Object.freeze([
+      {{
+        id: "temperature",
+        label: "Temp",
+        metricKeys: ["temperature", "temp"],
+        valueId: "m-temperature",
+        containerId: "ticker-temperature",
+        deltaId: "ticker-delta-temperature",
+        rateId: "ticker-rate-temperature",
+        chartId: "ticker-chart-temperature",
+        seriesMetricKey: "env_temperature_aggregate",
+        displayDigits: 1,
+        tickerDigits: 1,
+        rateDigits: 2,
+        flatThreshold: 0.15,
+        displaySuffix: "F",
+        valueUnit: "F",
+      }},
+      {{
+        id: "humidity",
+        label: "Humidity",
+        metricKeys: ["relative_humidity", "relativehumidity", "humidity"],
+        valueId: "m-humidity",
+        containerId: "ticker-humidity",
+        deltaId: "ticker-delta-humidity",
+        rateId: "ticker-rate-humidity",
+        chartId: "ticker-chart-humidity",
+        seriesMetricKey: "env_humidity_aggregate",
+        displayDigits: 1,
+        tickerDigits: 1,
+        rateDigits: 1,
+        flatThreshold: 0.6,
+        displaySuffix: "%",
+        valueUnit: "%",
+      }},
+      {{
+        id: "pressure",
+        label: "Pressure",
+        metricKeys: ["barometric_pressure", "barometricpressure", "pressure"],
+        valueId: "m-pressure",
+        containerId: "ticker-pressure",
+        deltaId: "ticker-delta-pressure",
+        rateId: "ticker-rate-pressure",
+        chartId: "ticker-chart-pressure",
+        seriesMetricKey: "env_pressure_aggregate",
+        displayDigits: 1,
+        tickerDigits: 1,
+        rateDigits: 2,
+        flatThreshold: 0.12,
+        displaySuffix: "",
+        valueUnit: "",
+      }},
+    ]);
+    const envAggregateTickerMetricDefById = new Map(
+      envAggregateTickerMetricDefs.map((entry) => [String(entry.id), entry])
+    );
+    const envAggregateTickerMetricIdByKey = (() => {{
+      const out = new Map();
+      const normalize = (raw) => {{
+        const text = String(raw == null ? "" : raw).trim();
+        if (!text) return "";
+        if (typeof normalizeEnvMetricKey === "function") {{
+          return normalizeEnvMetricKey(text);
+        }}
+        return text
+          .replace(/[^a-zA-Z0-9_]+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .toLowerCase();
+      }};
+      for (const def of envAggregateTickerMetricDefs) {{
+        const aliases = Array.isArray(def.metricKeys) ? def.metricKeys : [];
+        for (const alias of aliases) {{
+          const normalized = normalize(alias);
+          if (!normalized) continue;
+          out.set(normalized, String(def.id));
+        }}
+      }}
+      return out;
+    }})();
+
+    function envAggregateQuantileFromSorted(sortedValues, quantile) {{
+      const values = Array.isArray(sortedValues) ? sortedValues : [];
+      if (!values.length) return null;
+      const q = Math.max(0, Math.min(1, Number(quantile) || 0));
+      const pos = (values.length - 1) * q;
+      const base = Math.floor(pos);
+      const frac = pos - base;
+      const lower = Number(values[base]);
+      if (!Number.isFinite(lower)) return null;
+      const upper = Number(values[base + 1]);
+      if (!Number.isFinite(upper)) return lower;
+      return lower + ((upper - lower) * frac);
+    }}
+
+    function robustEnvironmentAggregate(rawValues) {{
+      const values = (Array.isArray(rawValues) ? rawValues : [])
+        .map((entry) => Number(entry))
+        .filter((entry) => Number.isFinite(entry))
+        .sort((a, b) => a - b);
+      if (!values.length) return null;
+      if (values.length === 1) return values[0];
+      const q1 = envAggregateQuantileFromSorted(values, 0.25);
+      const q3 = envAggregateQuantileFromSorted(values, 0.75);
+      const iqr = (Number.isFinite(q1) && Number.isFinite(q3)) ? Math.max(0, q3 - q1) : 0;
+      const lower = Number.isFinite(q1) ? (q1 - (iqr * 1.5)) : Number.NEGATIVE_INFINITY;
+      const upper = Number.isFinite(q3) ? (q3 + (iqr * 1.5)) : Number.POSITIVE_INFINITY;
+      const trimmed = values.filter((entry) => entry >= lower && entry <= upper);
+      const useTrimmed = trimmed.length >= Math.max(2, Math.ceil(values.length * 0.5));
+      const pool = useTrimmed ? trimmed : values;
+      if (!pool.length) return null;
+      const mean = pool.reduce((sum, entry) => sum + entry, 0) / pool.length;
+      const median = envAggregateQuantileFromSorted(pool, 0.5);
+      if (!Number.isFinite(mean)) return Number.isFinite(median) ? median : null;
+      if (!Number.isFinite(median)) return mean;
+      // Blend median + mean so we stay stable under skew without discarding useful movement.
+      return ((median * 0.6) + (mean * 0.4));
+    }}
+
+    function resolveEnvironmentAggregateMetricId(rawMetricKey) {{
+      const text = String(rawMetricKey == null ? "" : rawMetricKey).trim();
+      if (!text) return "";
+      let normalized = text
+        .replace(/[^a-zA-Z0-9_]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase();
+      if (typeof normalizeEnvMetricKey === "function") {{
+        normalized = normalizeEnvMetricKey(text);
+      }}
+      return envAggregateTickerMetricIdByKey.get(normalized) || "";
+    }}
+
+    function normalizeEnvironmentAggregateNodeId(rawNodeId) {{
+      if (typeof normalizeNodeId === "function") {{
+        const normalized = normalizeNodeId(rawNodeId || "");
+        return normalized || "unknown";
+      }}
+      const text = String(rawNodeId == null ? "" : rawNodeId).trim().toLowerCase();
+      return text || "unknown";
+    }}
+
+    function sortedMedian(rawValues) {{
+      const values = (Array.isArray(rawValues) ? rawValues : [])
+        .map((entry) => Number(entry))
+        .filter((entry) => Number.isFinite(entry))
+        .sort((a, b) => a - b);
+      if (!values.length) return null;
+      const mid = Math.floor(values.length / 2);
+      if ((values.length % 2) === 1) {{
+        return values[mid];
+      }}
+      return (values[mid - 1] + values[mid]) / 2;
+    }}
+
+    function normalizeTemperatureRawToF(rawValue, nodeMode = "", referenceF = null) {{
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) return null;
+      const asF = value;
+      const asCToF = (value * (9 / 5)) + 32;
+      const cleanMode = String(nodeMode || "").trim().toLowerCase();
+      if (cleanMode === "c") return asCToF;
+      if (cleanMode === "f") return asF;
+
+      const reference = Number(referenceF);
+      if (Number.isFinite(reference)) {{
+        const directDistance = Math.abs(asF - reference);
+        const convertedDistance = Math.abs(asCToF - reference);
+        if (Math.abs(convertedDistance - directDistance) > 1e-9) {{
+          return convertedDistance < directDistance ? asCToF : asF;
+        }}
+      }}
+      // Ambiguous fallback:
+      // - likely C in low band,
+      // - likely F in very high band,
+      // - otherwise prefer raw to avoid overstating warm values.
+      if (value <= 12) {{
+        return asCToF;
+      }}
+      if (value >= 50) {{
+        return asF;
+      }}
+      return asF;
+    }}
+
+    function buildEnvironmentAggregateSnapshotsFromPoints(points) {{
+      const parsedPoints = [];
+      const temperatureValuesByNode = new Map();
+      for (const point of (Array.isArray(points) ? points : [])) {{
+        const metricId = resolveEnvironmentAggregateMetricId(point && point.metric_key);
+        if (!metricId) continue;
+        const unix = Math.trunc(Number(point && point.unix));
+        if (!Number.isFinite(unix) || unix <= 0) continue;
+        const parsedValue = (typeof envMetricFiniteNumber === "function")
+          ? envMetricFiniteNumber(point && point.value)
+          : Number(point && point.value);
+        const value = Number(parsedValue);
+        if (parsedValue == null || !Number.isFinite(value)) continue;
+        const nodeId = normalizeEnvironmentAggregateNodeId(point && point.node_id);
+        parsedPoints.push({{
+          metricId,
+          unix,
+          rawValue: value,
+          nodeId,
+        }});
+        if (metricId === "temperature") {{
+          const nodeValues = temperatureValuesByNode.get(nodeId) || [];
+          nodeValues.push(value);
+          temperatureValuesByNode.set(nodeId, nodeValues);
+        }}
+      }}
+
+      const temperatureNodeMode = new Map();
+      const temperatureReferenceCandidates = [];
+      for (const [nodeId, values] of temperatureValuesByNode.entries()) {{
+        const medianRaw = sortedMedian(values);
+        if (!Number.isFinite(Number(medianRaw))) {{
+          temperatureNodeMode.set(nodeId, "");
+          continue;
+        }}
+        if (Number(medianRaw) <= 12) {{
+          temperatureNodeMode.set(nodeId, "c");
+          temperatureReferenceCandidates.push((Number(medianRaw) * (9 / 5)) + 32);
+          continue;
+        }}
+        if (Number(medianRaw) >= 60) {{
+          temperatureNodeMode.set(nodeId, "f");
+          temperatureReferenceCandidates.push(Number(medianRaw));
+          continue;
+        }}
+        temperatureNodeMode.set(nodeId, "");
+      }}
+      const temperatureReferenceF = sortedMedian(temperatureReferenceCandidates);
+      const metricBuckets = new Map();
+      for (const sample of parsedPoints) {{
+        const metricId = String(sample && sample.metricId || "");
+        const unix = Math.trunc(Number(sample && sample.unix));
+        const nodeId = String(sample && sample.nodeId || "unknown");
+        let value = Number(sample && sample.rawValue);
+        if (!Number.isFinite(value)) continue;
+        if (metricId === "temperature") {{
+          const mode = String(temperatureNodeMode.get(nodeId) || "");
+          const normalizedTemp = normalizeTemperatureRawToF(value, mode, temperatureReferenceF);
+          value = Number(normalizedTemp);
+          if (!Number.isFinite(value)) continue;
+        }}
+        const bucketUnix = Math.floor(unix / 60) * 60;
+
+        let byBucket = metricBuckets.get(metricId);
+        if (!(byBucket instanceof Map)) {{
+          byBucket = new Map();
+          metricBuckets.set(metricId, byBucket);
+        }}
+        let byNode = byBucket.get(bucketUnix);
+        if (!(byNode instanceof Map)) {{
+          byNode = new Map();
+          byBucket.set(bucketUnix, byNode);
+        }}
+        const existing = byNode.get(nodeId);
+        if (!existing || unix >= Number(existing.unix || 0)) {{
+          byNode.set(nodeId, {{ unix, value }});
+        }}
+      }}
+
+      const snapshots = new Map();
+      const cutoffMs = Date.now() - envAggregateTickerWindowMs;
+      for (const def of envAggregateTickerMetricDefs) {{
+        const byBucket = metricBuckets.get(def.id);
+        if (!(byBucket instanceof Map) || byBucket.size === 0) {{
+          metricTickerSeries.delete(def.seriesMetricKey);
+          continue;
+        }}
+        const bucketSeries = [];
+        const bucketUnixValues = Array.from(byBucket.keys())
+          .map((entry) => Math.trunc(Number(entry)))
+          .filter((entry) => Number.isFinite(entry) && entry > 0)
+          .sort((a, b) => a - b);
+        for (const bucketUnix of bucketUnixValues) {{
+          const byNode = byBucket.get(bucketUnix);
+          if (!(byNode instanceof Map) || byNode.size === 0) continue;
+          const values = Array.from(byNode.values())
+            .map((entry) => Number(entry && entry.value))
+            .filter((entry) => Number.isFinite(entry));
+          const aggregate = robustEnvironmentAggregate(values);
+          if (!Number.isFinite(aggregate)) continue;
+          bucketSeries.push({{
+            ms: bucketUnix * 1000,
+            value: aggregate,
+            sampleCount: values.length,
+          }});
+        }}
+        if (!bucketSeries.length) {{
+          metricTickerSeries.delete(def.seriesMetricKey);
+          continue;
+        }}
+
+        const sampleCountByMs = new Map(
+          bucketSeries.map((entry) => [Number(entry.ms), Math.max(0, Math.trunc(Number(entry.sampleCount) || 0))])
+        );
+        const series = bucketSeries.map((entry) => ({{
+          ms: Number(entry.ms),
+          value: Number(entry.value),
+        }}));
+        trimMetricTickerPoints(series, cutoffMs, envAggregateTickerMaxPoints);
+        if (!series.length) {{
+          metricTickerSeries.delete(def.seriesMetricKey);
+          continue;
+        }}
+        metricTickerSeries.set(def.seriesMetricKey, series);
+        const latest = series[series.length - 1] || null;
+        const latestMs = Number(latest && latest.ms);
+        const latestValue = Number(latest && latest.value);
+        if (!Number.isFinite(latestMs) || !Number.isFinite(latestValue)) continue;
+        const smoothingStartMs = latestMs - envAggregateTickerSnapshotLookbackMs;
+        const smoothingEntries = series
+          .map((entry) => {{
+            const ms = Number(entry && entry.ms);
+            const value = Number(entry && entry.value);
+            if (!Number.isFinite(ms) || !Number.isFinite(value)) return null;
+            if (ms < smoothingStartMs || ms > latestMs) return null;
+            return {{
+              ms,
+              value,
+              sampleCount: Math.max(0, Math.trunc(Number(sampleCountByMs.get(ms) || 0))),
+            }};
+          }})
+          .filter((entry) => entry && Number.isFinite(Number(entry.value)));
+        const smoothingValues = [];
+        for (const entry of smoothingEntries) {{
+          const value = Number(entry && entry.value);
+          if (!Number.isFinite(value)) continue;
+          const sampleCount = Math.max(1, Math.trunc(Number(entry && entry.sampleCount) || 0));
+          const weight = Math.max(1, Math.min(envAggregateTickerSnapshotMaxBucketWeight, sampleCount));
+          for (let idx = 0; idx < weight; idx += 1) {{
+            smoothingValues.push(value);
+          }}
+        }}
+        const smoothedValue = (
+          smoothingValues.length >= 2
+            ? robustEnvironmentAggregate(smoothingValues)
+            : latestValue
+        );
+        const latestUnix = Math.floor(latestMs / 1000);
+        const consensusStartUnix = latestUnix - envAggregateTickerNodeConsensusLookbackSeconds;
+        const consensusByNode = new Map();
+        for (const [rawBucketUnix, bucketNodeValues] of byBucket.entries()) {{
+          const bucketUnix = Math.trunc(Number(rawBucketUnix));
+          if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+          if (bucketUnix < consensusStartUnix || bucketUnix > latestUnix) continue;
+          if (!(bucketNodeValues instanceof Map)) continue;
+          for (const [rawNodeId, bucketEntry] of bucketNodeValues.entries()) {{
+            const nodeId = String(rawNodeId || "");
+            if (!nodeId) continue;
+            const value = Number(bucketEntry && bucketEntry.value);
+            if (!Number.isFinite(value)) continue;
+            const pool = consensusByNode.get(nodeId) || [];
+            pool.push(value);
+            consensusByNode.set(nodeId, pool);
+          }}
+        }}
+        const consensusNodeValues = [];
+        for (const pool of consensusByNode.values()) {{
+          const nodeAggregate = robustEnvironmentAggregate(pool);
+          if (!Number.isFinite(nodeAggregate)) continue;
+          consensusNodeValues.push(Number(nodeAggregate));
+        }}
+        const consensusValue = (
+          consensusNodeValues.length >= 2
+            ? robustEnvironmentAggregate(consensusNodeValues)
+            : null
+        );
+        const snapshotValue = Number(
+          Number.isFinite(consensusValue)
+            ? consensusValue
+            : smoothedValue
+        );
+        if (!Number.isFinite(snapshotValue)) continue;
+        snapshots.set(def.id, {{
+          value: snapshotValue,
+          unix: latestUnix,
+          sampleCount: Math.max(0, Math.trunc(Number(sampleCountByMs.get(latestMs) || 0))),
+          smoothedBuckets: Math.max(0, smoothingEntries.length),
+          nodeConsensusNodes: Math.max(0, consensusNodeValues.length),
+          points: series.length,
+        }});
+      }}
+      return snapshots;
+    }}
+
+    async function hydrateEnvironmentAggregateTickers(forceRefresh = false) {{
+      const nowMs = Date.now();
+      if (!forceRefresh && envAggregateTickerHydrated && (nowMs - envAggregateTickerLastHydratedMs) < envAggregateTickerRefreshMs) {{
+        return;
+      }}
+      if (envAggregateTickerHydrateInFlight) {{
+        return envAggregateTickerHydrateInFlight;
+      }}
+      if (typeof fetchEnvironmentMetricsHistory !== "function") {{
+        return null;
+      }}
+      envAggregateTickerHydrateInFlight = (async () => {{
+        try {{
+          const payload = await fetchEnvironmentMetricsHistory(envAggregateTickerWindowHours, forceRefresh);
+          const points = Array.isArray(payload && payload.points) ? payload.points : [];
+          envAggregateTickerSnapshots = buildEnvironmentAggregateSnapshotsFromPoints(points);
+          if (typeof scheduleMetricTickerSeriesPersist === "function") {{
+            scheduleMetricTickerSeriesPersist();
+          }}
+          envAggregateTickerHydrated = true;
+          envAggregateTickerLastHydratedMs = Date.now();
+          if (latestState) {{
+            renderSummary(latestState);
+          }}
+        }} catch (_err) {{
+          envAggregateTickerLastHydratedMs = Date.now();
+          if (!envAggregateTickerHydrated) {{
+            envAggregateTickerSnapshots = new Map();
+            for (const def of envAggregateTickerMetricDefs) {{
+              metricTickerSeries.delete(def.seriesMetricKey);
+            }}
+            if (typeof scheduleMetricTickerSeriesPersist === "function") {{
+              scheduleMetricTickerSeriesPersist();
+            }}
+          }}
+        }} finally {{
+          envAggregateTickerHydrateInFlight = null;
+        }}
+      }})();
+      return envAggregateTickerHydrateInFlight;
+    }}
+
+    function renderEnvironmentAggregateTicker(metricId, showTrend = true) {{
+      const def = envAggregateTickerMetricDefById.get(String(metricId || ""));
+      if (!def) return;
+      const valueEl = document.getElementById(def.valueId);
+      const tickerEl = document.getElementById(def.containerId);
+      const snapshot = envAggregateTickerSnapshots.get(def.id) || null;
+      const value = Number(snapshot && snapshot.value);
+      if (!Number.isFinite(value)) {{
+        setText(def.valueId, "n/a");
+        if (valueEl instanceof HTMLElement) {{
+          valueEl.title = `No ${{def.label.toLowerCase()}} sensor samples in the last ${{envAggregateTickerWindowHours}}h`;
+        }}
+        if (tickerEl instanceof HTMLElement) {{
+          tickerEl.hidden = true;
+        }}
+        return;
+      }}
+
+      const baseText = formatTickerNumber(value, def.displayDigits);
+      const displayText = `${{baseText}}${{def.displaySuffix || ""}}`;
+      setText(def.valueId, displayText);
+      const sampleUnix = Math.trunc(Number(snapshot && snapshot.unix));
+      const sampleCount = Math.max(0, Math.trunc(Number(snapshot && snapshot.sampleCount) || 0));
+      const smoothedBuckets = Math.max(0, Math.trunc(Number(snapshot && snapshot.smoothedBuckets) || 0));
+      const nodeConsensusNodes = Math.max(0, Math.trunc(Number(snapshot && snapshot.nodeConsensusNodes) || 0));
+      const points = Math.max(0, Math.trunc(Number(snapshot && snapshot.points) || 0));
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const ageSeconds = Number.isFinite(sampleUnix) && sampleUnix > 0
+        ? Math.max(0, nowUnix - sampleUnix)
+        : null;
+      if (valueEl instanceof HTMLElement) {{
+        const sampleTimeText = (typeof formatEnvHistoryTime === "function")
+          ? formatEnvHistoryTime(sampleUnix)
+          : (Number.isFinite(sampleUnix) && sampleUnix > 0 ? new Date(sampleUnix * 1000).toLocaleString() : "n/a");
+        const ageText = Number.isFinite(ageSeconds)
+          ? (typeof savedDetailAge === "function" ? savedDetailAge(sampleUnix, nowUnix) : `${{ageSeconds}}s ago`)
+          : "n/a";
+        valueEl.title = `${{def.label}} robust mesh aggregate. Last sample: ${{sampleTimeText}} (${{ageText}}). Latest-minute nodes: ${{sampleCount}} | Consensus nodes: ${{nodeConsensusNodes}} (${{envAggregateTickerNodeConsensusLookbackMinutes}}m) | Smoothed buckets: ${{smoothedBuckets}} (${{envAggregateTickerSnapshotLookbackMinutes}}m) | Buckets: ${{points}} | Window: ${{envAggregateTickerWindowHours}}h`;
+      }}
+
+      const isFresh = Number.isFinite(ageSeconds) ? ageSeconds <= envAggregateTickerStaleSeconds : true;
+      if (!isFresh) {{
+        if (tickerEl instanceof HTMLElement) {{
+          tickerEl.hidden = true;
+        }}
+        return;
+      }}
+
+      updateMetricTicker(def.seriesMetricKey, value, {{
+        containerId: def.containerId,
+        deltaId: def.deltaId,
+        rateId: def.rateId,
+        chartId: def.chartId,
+        digits: def.tickerDigits,
+        rateDigits: def.rateDigits,
+        flatThreshold: def.flatThreshold,
+        valueUnit: def.valueUnit,
+        windowMs: envAggregateTickerWindowMs,
+        maxPoints: envAggregateTickerMaxPoints,
+      }});
+      if (tickerEl instanceof HTMLElement && !showTrend) {{
+        tickerEl.hidden = true;
+      }}
+    }}
+
+    const topbarUpdateTickerQueueMax = 24;
+    const topbarUpdateTickerOneShotMs = 90 * 1000;
+    const topbarUpdateTickerGapPx = 16;
+    const topbarUpdateTickerSeparator = "   ";
+    const topbarUpdateTickerSpeedPxPerSecond = 36;
+    let topbarUpdateTickerBootstrapped = false;
+    let topbarUpdateTickerEvents = [];
+    const topbarUpdateTickerEventByKey = new Map();
+    let topbarUpdateTickerLastTrainText = "";
+    let topbarUpdateTickerLastRows = [];
+    let topbarUpdateTickerPendingRows = [];
+    let topbarUpdateTickerRenderRaf = 0;
+    let topbarUpdateTickerSpawnTimer = 0;
+    let topbarUpdateTickerNextSpawnAtMs = 0;
+    let topbarUpdateTickerClearHideTimer = 0;
+    let topbarUpdateTickerClearFadeTimer = 0;
+    let topbarUpdateTickerTrackIterationBound = false;
+    const topbarUpdateTickerActiveRowByKey = new Map();
+    let topbarUpdateTickerPendingSpawnKeys = [];
+    const topbarUpdateTickerPendingSpawnKeySet = new Set();
+    const topbarUpdateTickerVisibleCountByKey = new Map();
+    let topbarUpdateTickerVisibleItemCount = 0;
+    const topbarUpdateTickerOneShotShownKeys = new Set();
+
+    function parseTopbarTickerDurationMs(rawValue) {{
+      const raw = String(rawValue == null ? "" : rawValue).trim();
+      if (!raw) return NaN;
+      const token = raw.split(",")[0].trim();
+      if (!token) return NaN;
+      if (token.endsWith("ms")) {{
+        const value = Number(token.slice(0, -2));
+        return Number.isFinite(value) ? value : NaN;
+      }}
+      if (token.endsWith("s")) {{
+        const value = Number(token.slice(0, -1));
+        return Number.isFinite(value) ? value * 1000 : NaN;
+      }}
+      const value = Number(token);
+      return Number.isFinite(value) ? value : NaN;
+    }}
+
+    function topbarUpdateTickerNowMs() {{
+      return (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+        ? performance.now()
+        : Date.now();
+    }}
+
+    function topbarUpdateTickerRemainingCycleMs(trackEl) {{
+      if (trackEl instanceof HTMLElement && typeof trackEl.getAnimations === "function") {{
+        const animation = trackEl.getAnimations().find((item) => item && item.playState !== "idle") || null;
+        if (animation && animation.effect && typeof animation.effect.getTiming === "function") {{
+          const durationMs = Number(animation.effect.getTiming().duration);
+          const currentMs = Number(animation.currentTime);
+          if (Number.isFinite(durationMs) && durationMs > 0 && Number.isFinite(currentMs)) {{
+            const progress = ((currentMs % durationMs) + durationMs) % durationMs;
+            return Math.max(120, durationMs - progress);
+          }}
+        }}
+      }}
+      const styleDurationMs = parseTopbarTickerDurationMs(trackEl instanceof HTMLElement ? trackEl.style.getPropertyValue("--topbar-update-duration") : "");
+      if (Number.isFinite(styleDurationMs) && styleDurationMs > 0) {{
+        return Math.max(120, styleDurationMs);
+      }}
+      const computedDurationMs = parseTopbarTickerDurationMs(
+        trackEl instanceof HTMLElement && typeof window !== "undefined" && typeof window.getComputedStyle === "function"
+          ? window.getComputedStyle(trackEl).animationDuration
+          : ""
+      );
+      if (Number.isFinite(computedDurationMs) && computedDurationMs > 0) {{
+        return Math.max(120, computedDurationMs);
+      }}
+      return 320;
+    }}
+
+    function cancelTopbarTickerClearTimers(tickerEl = null) {{
+      if (topbarUpdateTickerClearHideTimer) {{
+        window.clearTimeout(topbarUpdateTickerClearHideTimer);
+        topbarUpdateTickerClearHideTimer = 0;
+      }}
+      if (topbarUpdateTickerClearFadeTimer) {{
+        window.clearTimeout(topbarUpdateTickerClearFadeTimer);
+        topbarUpdateTickerClearFadeTimer = 0;
+      }}
+      if (tickerEl instanceof HTMLElement) {{
+        tickerEl.classList.remove("is-fading");
+      }}
+    }}
+
+    function hideTopbarUpdateTickerNow(tickerEl, trackEl, primaryEl, secondaryEl) {{
+      if (topbarUpdateTickerSpawnTimer) {{
+        window.clearTimeout(topbarUpdateTickerSpawnTimer);
+        topbarUpdateTickerSpawnTimer = 0;
+      }}
+      tickerEl.hidden = true;
+      tickerEl.classList.add("is-static");
+      tickerEl.classList.remove("is-fading");
+      for (const itemEl of Array.from(trackEl.querySelectorAll(".topbar-update-item"))) {{
+        if (itemEl instanceof HTMLElement && typeof itemEl.getAnimations === "function") {{
+          for (const anim of itemEl.getAnimations()) {{
+            if (anim && typeof anim.cancel === "function") {{
+              anim.cancel();
+            }}
+          }}
+        }}
+        if (itemEl instanceof HTMLElement && itemEl.parentNode) {{
+          itemEl.parentNode.removeChild(itemEl);
+        }}
+      }}
+      primaryEl.textContent = "";
+      secondaryEl.textContent = "";
+      secondaryEl.hidden = true;
+      tickerEl.title = "";
+      trackEl.style.removeProperty("--topbar-update-start");
+      trackEl.style.removeProperty("--topbar-update-shift");
+      trackEl.style.removeProperty("--topbar-update-duration");
+      trackEl.style.animation = "none";
+      topbarUpdateTickerLastTrainText = "";
+      topbarUpdateTickerLastRows = [];
+      topbarUpdateTickerPendingRows = [];
+      topbarUpdateTickerPendingSpawnKeys = [];
+      topbarUpdateTickerPendingSpawnKeySet.clear();
+      topbarUpdateTickerActiveRowByKey.clear();
+      topbarUpdateTickerVisibleCountByKey.clear();
+      topbarUpdateTickerVisibleItemCount = 0;
+      topbarUpdateTickerOneShotShownKeys.clear();
+      topbarUpdateTickerNextSpawnAtMs = 0;
+    }}
+
+    function scheduleTopbarUpdateTickerTrackLayout(tickerEl, viewportEl, trackEl, primaryEl) {{
+      if (topbarUpdateTickerRenderRaf) {{
+        window.cancelAnimationFrame(topbarUpdateTickerRenderRaf);
+        topbarUpdateTickerRenderRaf = 0;
+      }}
+      topbarUpdateTickerRenderRaf = window.requestAnimationFrame(() => {{
+        topbarUpdateTickerRenderRaf = 0;
+        const viewportWidth = Math.max(viewportEl.clientWidth, 0);
+        const textWidth = Math.max(trackEl.scrollWidth, primaryEl.scrollWidth, 0);
+        if (!(textWidth > 0) || !(viewportWidth > 0)) {{
+          tickerEl.classList.add("is-static");
+          trackEl.style.removeProperty("--topbar-update-start");
+          trackEl.style.removeProperty("--topbar-update-shift");
+          trackEl.style.removeProperty("--topbar-update-duration");
+          trackEl.style.removeProperty("--topbar-update-gap");
+          return;
+        }}
+        const start = Math.max(8, Math.ceil(viewportWidth));
+        const shift = Math.max(120, Math.ceil(viewportWidth + textWidth + topbarUpdateTickerGapPx));
+        const speedPxPerSecond = 36;
+        const durationSec = Math.max(16, Math.min(180, shift / speedPxPerSecond));
+        trackEl.style.setProperty("--topbar-update-start", `${{start}}px`);
+        trackEl.style.setProperty("--topbar-update-shift", `${{shift}}px`);
+        trackEl.style.setProperty("--topbar-update-gap", `${{topbarUpdateTickerGapPx}}px`);
+        trackEl.style.setProperty("--topbar-update-duration", `${{durationSec.toFixed(2)}}s`);
+        trackEl.style.removeProperty("animation");
+        tickerEl.classList.remove("is-static");
+      }});
+    }}
+
+    function applyTopbarUpdateTickerText(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl, rawText) {{
+      const text = String(rawText == null ? "" : rawText).trim();
+      if (!text) return;
+      primaryEl.textContent = text;
+      secondaryEl.textContent = "";
+      secondaryEl.hidden = true;
+      tickerEl.title = text;
+      topbarUpdateTickerLastTrainText = text;
+      scheduleTopbarUpdateTickerTrackLayout(tickerEl, viewportEl, trackEl, primaryEl);
+    }}
+
+    function cloneTopbarUpdateTickerRows(rows) {{
+      if (!Array.isArray(rows)) return [];
+      return rows.map((entry) => ({{
+        key: String(entry && entry.key ? entry.key : "").trim(),
+        text: compactTopbarTickerText(entry && entry.text ? entry.text : "", 160),
+        mode: String(entry && entry.mode ? entry.mode : "sticky").trim().toLowerCase() === "oneshot"
+          ? "oneshot"
+          : "sticky",
+        sortMs: Number(entry && entry.sortMs),
+      }})).filter((entry) => entry.text.length > 0);
+    }}
+
+    function topbarUpdateTickerRowsText(rows) {{
+      const normalizedRows = cloneTopbarUpdateTickerRows(rows);
+      if (!normalizedRows.length) return "";
+      return normalizedRows.map((entry) => entry.text).join(topbarUpdateTickerSeparator);
+    }}
+
+    function topbarUpdateTickerRowsEqual(leftRows, rightRows) {{
+      const left = Array.isArray(leftRows) ? leftRows : [];
+      const right = Array.isArray(rightRows) ? rightRows : [];
+      if (left.length !== right.length) return false;
+      for (let idx = 0; idx < left.length; idx += 1) {{
+        const leftKey = String(left[idx] && left[idx].key ? left[idx].key : "").trim();
+        const rightKey = String(right[idx] && right[idx].key ? right[idx].key : "").trim();
+        const leftText = String(left[idx] && left[idx].text ? left[idx].text : "").trim();
+        const rightText = String(right[idx] && right[idx].text ? right[idx].text : "").trim();
+        if (leftKey !== rightKey || leftText !== rightText) return false;
+      }}
+      return true;
+    }}
+
+    function topbarUpdateTickerAppendedRows(previousRows, nextRows) {{
+      const previous = Array.isArray(previousRows) ? previousRows : [];
+      const next = Array.isArray(nextRows) ? nextRows : [];
+      if (!previous.length || next.length < previous.length) return [];
+      for (let idx = 0; idx < previous.length; idx += 1) {{
+        const prevKey = String(previous[idx] && previous[idx].key ? previous[idx].key : "").trim();
+        const nextKey = String(next[idx] && next[idx].key ? next[idx].key : "").trim();
+        const prevText = String(previous[idx] && previous[idx].text ? previous[idx].text : "").trim();
+        const nextText = String(next[idx] && next[idx].text ? next[idx].text : "").trim();
+        if (prevKey !== nextKey || prevText !== nextText) return [];
+      }}
+      return next.slice(previous.length);
+    }}
+
+    function topbarUpdateTickerAdditionalRows(previousRows, nextRows) {{
+      const previous = Array.isArray(previousRows) ? previousRows : [];
+      const next = Array.isArray(nextRows) ? nextRows : [];
+      if (!next.length) return [];
+      const previousIdentity = new Set(
+        previous.map((entry) => `${{String(entry && entry.key ? entry.key : "").trim()}}::${{String(entry && entry.text ? entry.text : "").trim()}}`)
+      );
+      return next.filter((entry) => {{
+        const identity = `${{String(entry && entry.key ? entry.key : "").trim()}}::${{String(entry && entry.text ? entry.text : "").trim()}}`;
+        return !previousIdentity.has(identity);
+      }});
+    }}
+
+    function topbarUpdateTickerRemovePendingSpawnKey(key) {{
+      const cleanKey = String(key || "").trim();
+      if (!cleanKey || !topbarUpdateTickerPendingSpawnKeySet.has(cleanKey)) return;
+      topbarUpdateTickerPendingSpawnKeySet.delete(cleanKey);
+      topbarUpdateTickerPendingSpawnKeys = topbarUpdateTickerPendingSpawnKeys.filter((rowKey) => rowKey !== cleanKey);
+    }}
+
+    function topbarUpdateTickerQueueSpawnKey(key) {{
+      const cleanKey = String(key || "").trim();
+      if (!cleanKey) return false;
+      if (topbarUpdateTickerPendingSpawnKeySet.has(cleanKey)) return false;
+      if (!topbarUpdateTickerActiveRowByKey.has(cleanKey)) return false;
+      topbarUpdateTickerPendingSpawnKeySet.add(cleanKey);
+      topbarUpdateTickerPendingSpawnKeys.push(cleanKey);
+      return true;
+    }}
+
+    function topbarUpdateTickerVisibleCountForKey(key) {{
+      const cleanKey = String(key || "").trim();
+      const value = Number(topbarUpdateTickerVisibleCountByKey.get(cleanKey) || 0);
+      return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
+    }}
+
+    function topbarUpdateTickerAdjustVisibleCount(key, delta) {{
+      const cleanKey = String(key || "").trim();
+      if (!cleanKey) return;
+      const nextValue = Math.max(0, topbarUpdateTickerVisibleCountForKey(cleanKey) + Math.trunc(Number(delta) || 0));
+      if (nextValue <= 0) {{
+        topbarUpdateTickerVisibleCountByKey.delete(cleanKey);
+      }} else {{
+        topbarUpdateTickerVisibleCountByKey.set(cleanKey, nextValue);
+      }}
+      if (delta > 0) {{
+        topbarUpdateTickerVisibleItemCount += Math.trunc(delta);
+      }} else if (delta < 0) {{
+        topbarUpdateTickerVisibleItemCount = Math.max(0, topbarUpdateTickerVisibleItemCount + Math.trunc(delta));
+      }}
+    }}
+
+    function topbarUpdateTickerPruneStaleLiveItems(trackEl, nowMs = topbarUpdateTickerNowMs()) {{
+      if (!(trackEl instanceof HTMLElement)) return false;
+      let removedAny = false;
+      for (const itemEl of Array.from(trackEl.querySelectorAll(".topbar-update-item"))) {{
+        if (!(itemEl instanceof HTMLElement)) continue;
+        const animations = typeof itemEl.getAnimations === "function"
+          ? itemEl.getAnimations().filter((anim) => anim && anim.playState !== "idle" && anim.playState !== "finished")
+          : [];
+        const hasLiveAnimation = animations.length > 0;
+        const startedAtMs = Number(itemEl.dataset.tickerStartedAtMs);
+        const durationMs = Number(itemEl.dataset.tickerDurationMs);
+        const hasTiming = Number.isFinite(startedAtMs) && Number.isFinite(durationMs) && durationMs > 0;
+        const stale = hasTiming
+          ? (nowMs >= (startedAtMs + durationMs + 1500))
+          : !hasLiveAnimation;
+        if (!stale) continue;
+        if (itemEl.parentNode) {{
+          itemEl.parentNode.removeChild(itemEl);
+        }}
+        removedAny = true;
+      }}
+      if (removedAny) {{
+        topbarUpdateTickerVisibleCountByKey.clear();
+        topbarUpdateTickerVisibleItemCount = 0;
+      }}
+      return removedAny;
+    }}
+
+    function topbarUpdateTickerAnyLiveItems(trackEl) {{
+      if (!(trackEl instanceof HTMLElement)) return false;
+      return !!trackEl.querySelector(".topbar-update-item");
+    }}
+
+    function scheduleTopbarTickerHideWhenIdle(tickerEl, trackEl, primaryEl, secondaryEl) {{
+      if (topbarUpdateTickerActiveRowByKey.size > 0) return;
+      if (topbarUpdateTickerPendingSpawnKeys.length > 0) return;
+      if (topbarUpdateTickerVisibleItemCount > 0 || topbarUpdateTickerAnyLiveItems(trackEl)) return;
+      if (tickerEl.hidden) {{
+        cancelTopbarTickerClearTimers(tickerEl);
+        return;
+      }}
+      if (topbarUpdateTickerClearHideTimer || topbarUpdateTickerClearFadeTimer) {{
+        return;
+      }}
+      topbarUpdateTickerClearFadeTimer = window.setTimeout(() => {{
+        topbarUpdateTickerClearFadeTimer = 0;
+        tickerEl.classList.add("is-fading");
+      }}, 0);
+      topbarUpdateTickerClearHideTimer = window.setTimeout(() => {{
+        topbarUpdateTickerClearHideTimer = 0;
+        hideTopbarUpdateTickerNow(tickerEl, trackEl, primaryEl, secondaryEl);
+      }}, 220);
+    }}
+
+    function syncTopbarUpdateTickerActiveRows(rows) {{
+      const normalized = cloneTopbarUpdateTickerRows(rows).map((entry) => ({{
+        key: String(entry && entry.key ? entry.key : "").trim(),
+        text: compactTopbarTickerText(entry && entry.text ? entry.text : "", 160),
+        mode: String(entry && entry.mode ? entry.mode : "sticky").trim().toLowerCase() === "oneshot"
+          ? "oneshot"
+          : "sticky",
+        sortMs: Number(entry && entry.sortMs),
+      }})).filter((entry) => entry.key && entry.text);
+      const nextByKey = new Map(normalized.map((entry) => [entry.key, entry]));
+
+      for (const key of Array.from(topbarUpdateTickerActiveRowByKey.keys())) {{
+        if (nextByKey.has(key)) continue;
+        topbarUpdateTickerActiveRowByKey.delete(key);
+        topbarUpdateTickerRemovePendingSpawnKey(key);
+        topbarUpdateTickerOneShotShownKeys.delete(key);
+      }}
+
+      for (const entry of normalized) {{
+        const key = entry.key;
+        const previous = topbarUpdateTickerActiveRowByKey.get(key) || null;
+        topbarUpdateTickerActiveRowByKey.set(key, entry);
+        const visible = topbarUpdateTickerVisibleCountForKey(key) > 0;
+        const queued = topbarUpdateTickerPendingSpawnKeySet.has(key);
+        if (entry.mode === "oneshot") {{
+          if (!topbarUpdateTickerOneShotShownKeys.has(key) && !visible && !queued) {{
+            topbarUpdateTickerQueueSpawnKey(key);
+          }}
+          continue;
+        }}
+        if (!visible && !queued) {{
+          topbarUpdateTickerQueueSpawnKey(key);
+        }} else if (previous && previous.text !== entry.text) {{
+          // Sticky text changed while active; next loop render uses latest row snapshot.
+        }}
+      }}
+    }}
+
+    function updateTopbarTickerTitleFromActiveRows(tickerEl) {{
+      const text = Array.from(topbarUpdateTickerActiveRowByKey.values())
+        .sort((a, b) => Number(a && a.sortMs ? a.sortMs : 0) - Number(b && b.sortMs ? b.sortMs : 0))
+        .map((entry) => compactTopbarTickerText(entry && entry.text ? entry.text : "", 160))
+        .filter(Boolean)
+        .join(topbarUpdateTickerSeparator);
+      tickerEl.title = text;
+      topbarUpdateTickerLastTrainText = text;
+    }}
+
+    function topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl) {{
+      if (topbarUpdateTickerSpawnTimer) return;
+      if (!topbarUpdateTickerPendingSpawnKeys.length) {{
+        scheduleTopbarTickerHideWhenIdle(tickerEl, trackEl, primaryEl, secondaryEl);
+        return;
+      }}
+      const requestNowMs = topbarUpdateTickerNowMs();
+      const delayMs = Math.max(0, Math.round(topbarUpdateTickerNextSpawnAtMs - requestNowMs));
+      topbarUpdateTickerSpawnTimer = window.setTimeout(() => {{
+        topbarUpdateTickerSpawnTimer = 0;
+        if (!topbarUpdateTickerPendingSpawnKeys.length) {{
+          scheduleTopbarTickerHideWhenIdle(tickerEl, trackEl, primaryEl, secondaryEl);
+          return;
+        }}
+        topbarUpdateTickerPruneStaleLiveItems(trackEl, topbarUpdateTickerNowMs());
+        if (topbarUpdateTickerAnyLiveItems(trackEl)) {{
+          const waitNowMs = topbarUpdateTickerNowMs();
+          const waitMs = Math.max(80, Math.round(topbarUpdateTickerRemainingCycleMs(trackEl)));
+          topbarUpdateTickerNextSpawnAtMs = waitNowMs + waitMs;
+          topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+          return;
+        }}
+        const key = String(topbarUpdateTickerPendingSpawnKeys.shift() || "").trim();
+        if (key) {{
+          topbarUpdateTickerPendingSpawnKeySet.delete(key);
+        }}
+        const row = key ? (topbarUpdateTickerActiveRowByKey.get(key) || null) : null;
+        if (!row) {{
+          topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+          return;
+        }}
+
+        tickerEl.hidden = false;
+        tickerEl.classList.remove("is-static");
+        cancelTopbarTickerClearTimers(tickerEl);
+        const itemEl = document.createElement("span");
+        itemEl.className = "topbar-update-item";
+        if (row.mode === "oneshot") {{
+          itemEl.classList.add("is-oneshot");
+          topbarUpdateTickerOneShotShownKeys.add(key);
+        }}
+        itemEl.textContent = row.text;
+        itemEl.dataset.tickerKey = key;
+        itemEl.dataset.tickerMode = row.mode;
+        trackEl.appendChild(itemEl);
+
+        const viewportWidth = Math.max(viewportEl.clientWidth, 0);
+        const itemWidth = Math.max(itemEl.offsetWidth, 0);
+        if (!(viewportWidth > 0) || !(itemWidth > 0)) {{
+          if (itemEl.parentNode) itemEl.parentNode.removeChild(itemEl);
+          topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+          return;
+        }}
+
+        const startX = viewportWidth + 10;
+        const endX = -itemWidth - 10;
+        const distancePx = Math.max(1, startX - endX);
+        const durationMs = Math.max(1200, (distancePx / topbarUpdateTickerSpeedPxPerSecond) * 1000);
+        topbarUpdateTickerAdjustVisibleCount(key, +1);
+        const spawnNowMs = topbarUpdateTickerNowMs();
+        itemEl.dataset.tickerStartedAtMs = String(spawnNowMs);
+        itemEl.dataset.tickerDurationMs = String(Math.round(durationMs));
+        const staggerMs = row.mode === "oneshot"
+          ? (durationMs + 140)
+          : Math.max(
+            120,
+            ((itemWidth + topbarUpdateTickerGapPx) / topbarUpdateTickerSpeedPxPerSecond) * 1000
+          );
+        topbarUpdateTickerNextSpawnAtMs = spawnNowMs + staggerMs;
+
+        const animation = itemEl.animate(
+          [
+            {{ transform: `translate3d(${{startX}}px, -50%, 0)` }},
+            {{ transform: `translate3d(${{endX}}px, -50%, 0)` }},
+          ],
+          {{
+            duration: durationMs,
+            easing: "linear",
+            fill: "forwards",
+          }}
+        );
+
+        let settled = false;
+        const settle = () => {{
+          if (settled) return;
+          settled = true;
+          if (itemEl.parentNode) {{
+            itemEl.parentNode.removeChild(itemEl);
+          }}
+          topbarUpdateTickerAdjustVisibleCount(key, -1);
+          const currentRow = topbarUpdateTickerActiveRowByKey.get(key) || null;
+          if (currentRow && currentRow.mode === "sticky") {{
+            topbarUpdateTickerQueueSpawnKey(key);
+          }}
+          updateTopbarTickerTitleFromActiveRows(tickerEl);
+          topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+          scheduleTopbarTickerHideWhenIdle(tickerEl, trackEl, primaryEl, secondaryEl);
+        }};
+        animation.onfinish = settle;
+        animation.oncancel = settle;
+
+        updateTopbarTickerTitleFromActiveRows(tickerEl);
+        topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+      }}, delayMs);
+    }}
+
+    function applyTopbarUpdateTickerRows(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl, rows) {{
+      const normalizedRows = cloneTopbarUpdateTickerRows(rows);
+      const text = topbarUpdateTickerRowsText(normalizedRows);
+      if (!text) return false;
+      applyTopbarUpdateTickerText(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl, text);
+      topbarUpdateTickerLastRows = normalizedRows;
+      return true;
+    }}
+
+    function appendTopbarUpdateTickerTailRows(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl, appendRows, fullRows) {{
+      const appendText = topbarUpdateTickerRowsText(appendRows);
+      if (!appendText) return false;
+      const existingTail = String(secondaryEl.textContent == null ? "" : secondaryEl.textContent);
+      secondaryEl.textContent = `${{existingTail}}${{topbarUpdateTickerSeparator}}${{appendText}}`;
+      secondaryEl.hidden = false;
+      const fullText = topbarUpdateTickerRowsText(fullRows);
+      tickerEl.title = fullText;
+      topbarUpdateTickerLastTrainText = fullText;
+      topbarUpdateTickerLastRows = cloneTopbarUpdateTickerRows(fullRows);
+      scheduleTopbarUpdateTickerTrackLayout(tickerEl, viewportEl, trackEl, primaryEl);
+      return true;
+    }}
+
+    function bindTopbarUpdateTickerIteration(trackEl) {{
+      if (topbarUpdateTickerTrackIterationBound) return;
+      topbarUpdateTickerTrackIterationBound = true;
+      trackEl.addEventListener("animationiteration", () => {{
+        const pendingRows = cloneTopbarUpdateTickerRows(topbarUpdateTickerPendingRows);
+        if (!pendingRows.length) return;
+        const tickerEl = document.getElementById("topbar-update-ticker");
+        const viewportEl = document.getElementById("topbar-update-viewport");
+        const liveTrackEl = document.getElementById("topbar-update-track");
+        const primaryEl = document.getElementById("topbar-update-text-primary");
+        const secondaryEl = document.getElementById("topbar-update-text-secondary");
+        if (!(tickerEl instanceof HTMLElement)) return;
+        if (!(viewportEl instanceof HTMLElement)) return;
+        if (!(liveTrackEl instanceof HTMLElement)) return;
+        if (!(primaryEl instanceof HTMLElement)) return;
+        if (!(secondaryEl instanceof HTMLElement)) return;
+        topbarUpdateTickerPendingRows = [];
+        cancelTopbarTickerClearTimers(tickerEl);
+        tickerEl.hidden = false;
+        applyTopbarUpdateTickerRows(tickerEl, viewportEl, liveTrackEl, primaryEl, secondaryEl, pendingRows);
+      }});
+    }}
+
+    function scheduleTopbarTickerClear(tickerEl, trackEl, primaryEl, secondaryEl) {{
+      if (topbarUpdateTickerClearHideTimer) return;
+      cancelTopbarTickerClearTimers(tickerEl);
+      const staticTicker = tickerEl.classList.contains("is-static");
+      const remainingMs = staticTicker ? 240 : Math.round(topbarUpdateTickerRemainingCycleMs(trackEl));
+      const fadeMs = 220;
+      const fadeDelayMs = Math.max(0, remainingMs - fadeMs);
+      if (fadeDelayMs <= 0) {{
+        tickerEl.classList.add("is-fading");
+      }} else {{
+        topbarUpdateTickerClearFadeTimer = window.setTimeout(() => {{
+          topbarUpdateTickerClearFadeTimer = 0;
+          tickerEl.classList.add("is-fading");
+        }}, fadeDelayMs);
+      }}
+      topbarUpdateTickerClearHideTimer = window.setTimeout(() => {{
+        topbarUpdateTickerClearHideTimer = 0;
+        if (topbarUpdateTickerClearFadeTimer) {{
+          window.clearTimeout(topbarUpdateTickerClearFadeTimer);
+          topbarUpdateTickerClearFadeTimer = 0;
+        }}
+        hideTopbarUpdateTickerNow(tickerEl, trackEl, primaryEl, secondaryEl);
+      }}, remainingMs);
+    }}
+
+    function compactTopbarTickerText(rawValue, maxLen = 120) {{
+      const cleaned = String(rawValue == null ? "" : rawValue)
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!cleaned) return "";
+      const limit = Math.max(8, Number(maxLen) || 120);
+      if (cleaned.length <= limit) return cleaned;
+      return `${{cleaned.slice(0, Math.max(1, limit - 3)).trimEnd()}}...`;
+    }}
+
+    function normalizeTopbarUpdateTickerMode(rawMode) {{
+      const mode = String(rawMode || "").trim().toLowerCase();
+      return mode === "oneshot" ? "oneshot" : "sticky";
+    }}
+
+    function removeTopbarUpdateTickerEventByKey(rawKey) {{
+      const key = String(rawKey || "").trim();
+      if (!key) return;
+      topbarUpdateTickerEventByKey.delete(key);
+      topbarUpdateTickerEvents = topbarUpdateTickerEvents.filter(
+        (entry) => String(entry && entry.key ? entry.key : "").trim() !== key
+      );
+    }}
+
+    function pruneTopbarUpdateTickerEvents(nowMs = Date.now()) {{
+      const kept = [];
+      for (const entry of topbarUpdateTickerEvents) {{
+        const key = String(entry && entry.key ? entry.key : "").trim();
+        if (!key) continue;
+        const mode = normalizeTopbarUpdateTickerMode(entry && entry.mode);
+        const expiresAtMs = Number(entry && entry.expiresAtMs);
+        const expired = mode === "oneshot" && Number.isFinite(expiresAtMs) && nowMs >= expiresAtMs;
+        if (expired) {{
+          topbarUpdateTickerEventByKey.delete(key);
+          continue;
+        }}
+        kept.push(entry);
+      }}
+      topbarUpdateTickerEvents = kept;
+    }}
+
+    function clearTopbarUpdateTickerEventsByPrefix(rawPrefix) {{
+      const prefix = String(rawPrefix || "").trim();
+      if (!prefix) return;
+      const removeKeys = [];
+      for (const entry of topbarUpdateTickerEvents) {{
+        const key = String(entry && entry.key ? entry.key : "").trim();
+        if (!key) continue;
+        if (key.startsWith(prefix)) {{
+          removeKeys.push(key);
+        }}
+      }}
+      for (const key of removeKeys) {{
+        removeTopbarUpdateTickerEventByKey(key);
+      }}
+    }}
+
+    function pushTopbarUpdateTickerEvent(rawText, rawKey = "", options = null) {{
+      const text = compactTopbarTickerText(rawText, 160);
+      if (!text) return false;
+      const nowMs = Date.now();
+      let key = String(rawKey || "").trim();
+      if (!key) {{
+        key = `ticker:${{text.toLowerCase()}}:${{nowMs}}`;
+      }}
+      const mode = normalizeTopbarUpdateTickerMode(options && options.mode);
+      const expiresAtMs = mode === "oneshot" ? (nowMs + topbarUpdateTickerOneShotMs) : null;
+
+      const existing = topbarUpdateTickerEventByKey.get(key) || null;
+      if (existing) {{
+        existing.text = text;
+        existing.mode = mode;
+        existing.updatedAtMs = nowMs;
+        existing.expiresAtMs = expiresAtMs;
+        return true;
+      }}
+
+      const next = {{
+        key,
+        text,
+        mode,
+        createdAtMs: nowMs,
+        updatedAtMs: nowMs,
+        expiresAtMs,
+      }};
+      topbarUpdateTickerEvents.push(next);
+      topbarUpdateTickerEventByKey.set(key, next);
+      if (topbarUpdateTickerEvents.length > topbarUpdateTickerQueueMax) {{
+        const overflow = topbarUpdateTickerEvents.length - topbarUpdateTickerQueueMax;
+        const dropped = topbarUpdateTickerEvents.splice(0, overflow);
+        for (const item of dropped) {{
+          const dropKey = String(item && item.key ? item.key : "").trim();
+          if (!dropKey) continue;
+          topbarUpdateTickerEventByKey.delete(dropKey);
+        }}
+      }}
+      return true;
+    }}
+
+    function clearTopbarUpdateTickerState() {{
+      topbarUpdateTickerEvents = [];
+      topbarUpdateTickerEventByKey.clear();
+      topbarUpdateTickerLastTrainText = "";
+      topbarUpdateTickerLastRows = [];
+      topbarUpdateTickerPendingRows = [];
+      topbarUpdateTickerActiveRowByKey.clear();
+      topbarUpdateTickerPendingSpawnKeys = [];
+      topbarUpdateTickerPendingSpawnKeySet.clear();
+      topbarUpdateTickerVisibleCountByKey.clear();
+      topbarUpdateTickerVisibleItemCount = 0;
+      topbarUpdateTickerOneShotShownKeys.clear();
+      topbarUpdateTickerNextSpawnAtMs = 0;
+      if (topbarUpdateTickerSpawnTimer) {{
+        window.clearTimeout(topbarUpdateTickerSpawnTimer);
+        topbarUpdateTickerSpawnTimer = 0;
+      }}
+      if (topbarUpdateTickerRenderRaf) {{
+        window.cancelAnimationFrame(topbarUpdateTickerRenderRaf);
+        topbarUpdateTickerRenderRaf = 0;
+      }}
+      cancelTopbarTickerClearTimers();
+    }}
+
+    function publishTopbarUpdateTickerEvent(rawText, rawKey = "", options = null) {{
+      return pushTopbarUpdateTickerEvent(rawText, rawKey, options);
+    }}
+
+    function syncTopbarUpdateTickerEvents(state, _context = null) {{
+      if (!topbarUpdateTickerBootstrapped) {{
+        topbarUpdateTickerBootstrapped = true;
+        return;
+      }}
+      pruneTopbarUpdateTickerEvents();
+      // Keep ticker scoped to public chat updates only.
+      clearTopbarUpdateTickerEventsByPrefix("direct:");
+      for (const entry of [...topbarUpdateTickerEvents]) {{
+        const key = String(entry && entry.key ? entry.key : "").trim();
+        if (!key) continue;
+        if (key.startsWith("oneshot:") && !key.startsWith("oneshot:public:")) {{
+          removeTopbarUpdateTickerEventByKey(key);
+        }}
+      }}
+    }}
+
+    function topbarUpdateTickerRows(state, context = null) {{
+      syncTopbarUpdateTickerEvents(state, context);
+      const normalizeTickerSortMs = (rawValue) => {{
+        const value = Number(rawValue);
+        if (!Number.isFinite(value) || value <= 0) return 0;
+        if (value > 1e12) return value;
+        if (value > 1e9) return value * 1000;
+        return value;
+      }};
+      const unseenNoticeRows = [];
+      const seenNoticeKeys = new Set();
+      const appendChannelNotices = (channelKey) => {{
+        if (typeof chatChangeNoticesForChannel !== "function") return;
+        const notices = chatChangeNoticesForChannel(channelKey);
+        if (!Array.isArray(notices) || !notices.length) return;
+        const ackSet = typeof chatChangeAcknowledgedKeySetForChannel === "function"
+          ? chatChangeAcknowledgedKeySetForChannel(channelKey)
+          : null;
+        for (const notice of notices) {{
+          const noticeKey = String(notice && notice.key ? notice.key : "").trim();
+          if (ackSet instanceof Set && noticeKey && ackSet.has(noticeKey)) {{
+            continue;
+          }}
+          const dedupeKey = `${{normalizeChatChannel(channelKey)}}:${{noticeKey}}`;
+          if (noticeKey && seenNoticeKeys.has(dedupeKey)) {{
+            continue;
+          }}
+          if (noticeKey) {{
+            seenNoticeKeys.add(dedupeKey);
+          }}
+          const sender = String(notice && notice.sender ? notice.sender : "").trim() || "Unknown node";
+          const preview = compactTopbarTickerText(notice && notice.preview ? notice.preview : "", 96);
+          const unix = Number(notice && notice.unix);
+          const rowKey = noticeKey
+            ? `notice:${{normalizeChatChannel(channelKey)}}:${{noticeKey}}`
+            : `notice:${{normalizeChatChannel(channelKey)}}:${{sender.toLowerCase()}}:${{Math.trunc(Number.isFinite(unix) ? unix : 0)}}:${{unseenNoticeRows.length}}`;
+          unseenNoticeRows.push({{
+            key: rowKey,
+            text: preview
+              ? `${{sender}}: ${{preview}}`
+              : `${{sender}}`,
+            mode: "oneshot",
+            sortMs: normalizeTickerSortMs(unix),
+          }});
+        }}
+      }};
+      appendChannelNotices("all");
+      const oneShotRows = topbarUpdateTickerEvents
+        .filter((entry) => String(entry && entry.key ? entry.key : "").trim().startsWith("oneshot:public:"))
+        .map((entry) => ({{
+          key: String(entry && entry.key ? entry.key : "").trim(),
+          text: compactTopbarTickerText(entry && entry.text ? entry.text : "", 160),
+          mode: "oneshot",
+          sortMs: normalizeTickerSortMs((entry && entry.updatedAtMs) || (entry && entry.createdAtMs) || 0),
+        }}))
+        .filter((entry) => String(entry && entry.text ? entry.text : "").trim().length > 0);
+      const allRows = unseenNoticeRows.concat(oneShotRows);
+      if (!allRows.length) return [];
+      allRows.sort((a, b) => Number(a && a.sortMs ? a.sortMs : 0) - Number(b && b.sortMs ? b.sortMs : 0));
+      const dedupedRows = [];
+      const seenRowKeys = new Set();
+      for (const row of allRows) {{
+        const key = String(row && row.key ? row.key : "").trim() || `row:${{dedupedRows.length}}`;
+        if (seenRowKeys.has(key)) continue;
+        const text = compactTopbarTickerText(row && row.text ? row.text : "", 160);
+        if (!text) continue;
+        seenRowKeys.add(key);
+        dedupedRows.push({{
+          key,
+          text,
+          mode: String(row && row.mode ? row.mode : "sticky").trim().toLowerCase() === "oneshot" ? "oneshot" : "sticky",
+          sortMs: Number(row && row.sortMs),
+        }});
+        if (dedupedRows.length >= topbarUpdateTickerQueueMax) break;
+      }}
+      return dedupedRows;
+    }}
+
+    function renderTopbarUpdateTicker(state, context = null) {{
+      const tickerEl = document.getElementById("topbar-update-ticker");
+      const viewportEl = document.getElementById("topbar-update-viewport");
+      const trackEl = document.getElementById("topbar-update-track");
+      const primaryEl = document.getElementById("topbar-update-text-primary");
+      const secondaryEl = document.getElementById("topbar-update-text-secondary");
+      if (!(tickerEl instanceof HTMLElement)) return;
+      if (!(viewportEl instanceof HTMLElement)) return;
+      if (!(trackEl instanceof HTMLElement)) return;
+      if (!(primaryEl instanceof HTMLElement)) return;
+      if (!(secondaryEl instanceof HTMLElement)) return;
+      const rows = topbarUpdateTickerRows(state, context);
+      primaryEl.textContent = "";
+      primaryEl.hidden = true;
+      secondaryEl.textContent = "";
+      secondaryEl.hidden = true;
+      tickerEl.classList.remove("is-static");
+      syncTopbarUpdateTickerActiveRows(rows);
+      updateTopbarTickerTitleFromActiveRows(tickerEl);
+      if (
+        topbarUpdateTickerActiveRowByKey.size <= 0
+        && topbarUpdateTickerPendingSpawnKeys.length <= 0
+        && topbarUpdateTickerVisibleItemCount <= 0
+      ) {{
+        scheduleTopbarTickerHideWhenIdle(tickerEl, trackEl, primaryEl, secondaryEl);
+        return;
+      }}
+      cancelTopbarTickerClearTimers(tickerEl);
+      tickerEl.hidden = false;
+      topbarUpdateTickerScheduleSpawnPump(tickerEl, viewportEl, trackEl, primaryEl, secondaryEl);
+    }}
+
+    function summaryMiniPanelHashMixInt(hash, value) {{
+      const v = (Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 0) | 0;
+      hash ^= v;
+      hash = Math.imul(hash, 16777619);
+      return hash >>> 0;
+    }}
+
+    function summaryMiniPanelHashMixStr(hash, value) {{
+      const text = String(value == null ? "" : value);
+      for (let i = 0; i < text.length; i += 1) {{
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }}
+      return hash >>> 0;
+    }}
+
+    function updateSummaryMiniPanel(panelKey, element, options = null) {{
+      if (!(element instanceof HTMLElement)) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const mode = String(opts.mode || "text").toLowerCase() === "html" ? "html" : "text";
+      const body = mode === "html"
+        ? String(opts.html == null ? "" : opts.html)
+        : String(opts.text == null ? "" : opts.text);
+      const title = String(opts.title == null ? "" : opts.title);
+      let hash = 2166136261;
+      hash = summaryMiniPanelHashMixStr(hash, panelKey);
+      hash = summaryMiniPanelHashMixStr(hash, mode);
+      hash = summaryMiniPanelHashMixInt(hash, body.length);
+      hash = summaryMiniPanelHashMixStr(hash, body);
+      hash = summaryMiniPanelHashMixInt(hash, title.length);
+      hash = summaryMiniPanelHashMixStr(hash, title);
+      const normalizedHash = hash >>> 0;
+      if (summaryMiniPanelHashById.get(panelKey) === normalizedHash) {{
+        return false;
+      }}
+      if (mode === "html") {{
+        if (element.innerHTML !== body) {{
+          element.innerHTML = body;
+        }}
+      }} else {{
+        if (element.textContent !== body) {{
+          element.textContent = body;
+        }}
+      }}
+      if (element.title !== title) {{
+        element.title = title;
+      }}
+      summaryMiniPanelHashById.set(panelKey, normalizedHash);
+      return true;
+    }}
+
+    function renderSummary(state) {{
+      syncTopbarChatContext(state);
+      const s = state.summary || {{}};
+      let targetValue = s.target || "n/a";
+      let updatedValue = state.generated_at || "n/a";
+      let updatedFreshnessStatus = "";
+      let updatedFreshnessLabel = "";
+      if (activeLayoutView === "saved") {{
+        const selectedId = normalizeNodeId(selectedNodeId || "");
+        if (isSelectableNodeId(selectedId)) {{
+          const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+          const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === selectedId) || null;
+          const historyCapsById = new Map(
+            Object.entries((state.history_caps && typeof state.history_caps === "object") ? state.history_caps : {{}})
+              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+          );
+          const caps = historyCapsById.get(selectedId) || null;
+          const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
+          const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+          const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
+          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(selectedId) || null);
+          const status = freshnessStatus(freshness.unix, Math.floor(Date.now() / 1000));
+          updatedValue = savedDetailText(freshness.text, state.generated_at || "n/a");
+          updatedFreshnessStatus = status;
+          updatedFreshnessLabel = status === "online"
+            ? "Fresh"
+            : (status === "warn" ? "Aging" : (status === "stale" ? "Stale" : "Unknown"));
+        }}
+      }}
+      const targetDisplay = compactTargetMetric(targetValue);
+      setText("m-target", targetDisplay);
+      const targetMetric = document.getElementById("m-target");
+      if (targetMetric instanceof HTMLElement) {{
+        const fullTarget = String(targetValue == null ? "" : targetValue).trim();
+        targetMetric.title = fullTarget || "n/a";
+      }}
+      renderTargetRadioStatus(state);
+      setText("m-nodes", s.node_count ?? 0);
+      setText("m-online-nodes", s.online_node_count ?? 0);
+      const rawLivePacketTotal = Number(s.live_packet_count);
+      const livePacketTotal = Number.isFinite(rawLivePacketTotal) ? rawLivePacketTotal : 0;
+      if (resetTickerScaleOnRestart) {{
+        maybeResetMetricTickerSeries(livePacketTotal);
+      }}
+      const localTelemetry = resolveLocalNodeTelemetry(state);
+      const batteryPct = Number(localTelemetry && localTelemetry.batteryPct);
+      const voltage = Number(localTelemetry && localTelemetry.voltage);
+      const batteryPctText = Number.isFinite(batteryPct)
+        ? `${{Number.isInteger(batteryPct) ? batteryPct.toFixed(0) : batteryPct.toFixed(1)}}%`
+        : null;
+      const batteryVoltText = Number.isFinite(voltage) ? `${{voltage.toFixed(2)}}V` : null;
+      const batteryDisplayText = [batteryPctText, batteryVoltText].filter(Boolean).join(" · ") || "n/a";
+      const showKnownNodesTrend = tickerTrendEnabled("known_nodes");
+      const showOnlineNodesTrend = tickerTrendEnabled("online_nodes");
+      const showPacketsTrend = tickerTrendEnabled("packets_per_min");
+      const showChannelUtilTrend = tickerTrendEnabled("channel_util");
+      const showBatteryTrend = tickerTrendEnabled("battery");
+      const showTemperatureTrend = tickerTrendEnabled("temperature");
+      const showHumidityTrend = tickerTrendEnabled("humidity");
+      const showPressureTrend = tickerTrendEnabled("pressure");
+      const showWifiTrend = tickerTrendEnabled("wifi");
+      const showNodeTrend = tickerTrendEnabled("node");
+      const batteryTrendWindowMs = batteryTrendWindowHours() * 60 * 60 * 1000;
+      setText("m-battery", batteryDisplayText);
+      const batteryMetricValueEl = document.getElementById("m-battery");
+      if (batteryMetricValueEl instanceof HTMLElement) {{
+        batteryMetricValueEl.title = Number.isFinite(batteryPct)
+          ? `Battery ${{batteryPctText || "n/a"}} | Voltage ${{batteryVoltText || "n/a"}} | Local node ${{localTelemetry.nodeName || "n/a"}}`
+          : `Battery n/a | Voltage ${{batteryVoltText || "n/a"}}`;
+      }}
+      updateMetricTicker("nodes", s.node_count ?? 0, {{
+        containerId: "ticker-nodes",
+        deltaId: "ticker-delta-nodes",
+        rateId: "ticker-rate-nodes",
+        chartId: "ticker-chart-nodes",
+        digits: 0,
+      }});
+      const nodesTicker = document.getElementById("ticker-nodes");
+      if (nodesTicker instanceof HTMLElement && !showKnownNodesTrend) {{
+        nodesTicker.hidden = true;
+      }}
+      updateMetricTicker("online_nodes", s.online_node_count ?? 0, {{
+        containerId: "ticker-online-nodes",
+        deltaId: "ticker-delta-online-nodes",
+        rateId: "ticker-rate-online-nodes",
+        chartId: "ticker-chart-online-nodes",
+        digits: 0,
+      }});
+      const onlineNodesTicker = document.getElementById("ticker-online-nodes");
+      if (onlineNodesTicker instanceof HTMLElement && !showOnlineNodesTrend) {{
+        onlineNodesTicker.hidden = true;
+      }}
+      appendMetricTickerPoint("live_packets", livePacketTotal);
+      const livePacketSeries = metricTickerSeries.get("live_packets") || [];
+      const packetsPerMinuteSeries = derivePacketsPerMinuteSeriesFromTotals(livePacketSeries);
+      const latestPacketsPerMinute = packetsPerMinuteSeries.length
+        ? Number(packetsPerMinuteSeries[packetsPerMinuteSeries.length - 1].value)
+        : 0;
+      updateMetricTicker("live_packets_per_min", latestPacketsPerMinute, {{
+        containerId: "ticker-live-packets",
+        deltaId: "ticker-delta-live-packets",
+        rateId: "ticker-rate-live-packets",
+        chartId: "ticker-chart-live-packets",
+        digits: 1,
+      }});
+      const packetsTicker = document.getElementById("ticker-live-packets");
+      if (packetsTicker instanceof HTMLElement && !showPacketsTrend) {{
+        packetsTicker.hidden = true;
+      }}
+      const packetsPerMinute = derivePacketsPerMinuteFromTotals(livePacketSeries);
+      setText("m-live-packets", formatTickerNumber(packetsPerMinute, 1));
+      const livePacketsMetric = document.getElementById("m-live-packets");
+      if (livePacketsMetric instanceof HTMLElement) {{
+        livePacketsMetric.title = `Packets per minute (derived). Total packets in background: ${{formatTickerNumber(livePacketTotal, 0)}}`;
+      }}
+      const channelUtilTicker = buildChannelUtilTickerSummary(state);
+      setText("m-channel-util", channelUtilTicker && channelUtilTicker.text ? String(channelUtilTicker.text) : "n/a");
+      const channelUtilMetric = document.getElementById("m-channel-util");
+      if (channelUtilMetric instanceof HTMLElement) {{
+        channelUtilMetric.title = channelUtilTicker && channelUtilTicker.title
+          ? String(channelUtilTicker.title)
+          : "Channel utilization unavailable";
+      }}
+      const channelUtilValue = Number(channelUtilTicker && channelUtilTicker.channel_util);
+      if (Number.isFinite(channelUtilValue)) {{
+        updateMetricTicker("channel_utilization_pct", channelUtilValue, {{
+          containerId: "ticker-channel-util",
+          deltaId: "ticker-delta-channel-util",
+          rateId: "ticker-rate-channel-util",
+          chartId: "ticker-chart-channel-util",
+          digits: 1,
+          rateDigits: 1,
+          flatThreshold: 0.3,
+          valueUnit: "%",
+          windowMs: 2 * 60 * 60 * 1000,
+          maxPoints: 240,
+        }});
+        const channelUtilMetricTicker = document.getElementById("ticker-channel-util");
+        if (channelUtilMetricTicker instanceof HTMLElement && !showChannelUtilTrend) {{
+          channelUtilMetricTicker.hidden = true;
+        }}
+      }} else {{
+        const channelUtilMetricTicker = document.getElementById("ticker-channel-util");
+        if (channelUtilMetricTicker instanceof HTMLElement) {{
+          channelUtilMetricTicker.hidden = true;
+        }}
+      }}
+      if (Number.isFinite(batteryPct)) {{
+        updateMetricTicker("battery_pct", batteryPct, {{
+          containerId: "ticker-battery",
+          deltaId: "ticker-delta-battery",
+          rateId: "ticker-rate-battery",
+          chartId: "ticker-chart-battery",
+          digits: 1,
+          rateDigits: 2,
+          flatThreshold: 0.15,
+          valueUnit: "%",
+          windowMs: batteryTrendWindowMs,
+          maxPoints: 480,
+        }});
+        const batteryTicker = document.getElementById("ticker-battery");
+        if (batteryTicker instanceof HTMLElement && !showBatteryTrend) {{
+          batteryTicker.hidden = true;
+        }}
+      }} else {{
+        const batteryTicker = document.getElementById("ticker-battery");
+        if (batteryTicker instanceof HTMLElement) {{
+          batteryTicker.hidden = true;
+        }}
+      }}
+      renderEnvironmentAggregateTicker("temperature", showTemperatureTrend);
+      renderEnvironmentAggregateTicker("humidity", showHumidityTrend);
+      renderEnvironmentAggregateTicker("pressure", showPressureTrend);
+      void hydrateEnvironmentAggregateTickers(false);
+      const nodeTicker = buildNodeTickerSummary(state);
+      const nodeTickerEl = document.getElementById("m-node-ticker");
+      const nodeTickerItem = document.getElementById("summary-ticker-node");
+      if (nodeTickerEl instanceof HTMLElement) {{
+        const rowsHtml = String(nodeTicker && nodeTicker.rows_html ? nodeTicker.rows_html : "");
+        const hasRows = !!(nodeTicker && nodeTicker.has_rows && rowsHtml);
+        nodeTickerEl.classList.toggle("is-compact", !hasRows);
+        if (nodeTickerItem instanceof HTMLElement) {{
+          nodeTickerItem.classList.toggle("has-extra-rows", hasRows);
+        }}
+        const nodeTickerTitle = nodeTicker && nodeTicker.title
+          ? String(nodeTicker.title)
+          : "Node summary unavailable";
+        if (rowsHtml) {{
+          updateSummaryMiniPanel("m-node-ticker", nodeTickerEl, {{
+            mode: "html",
+            html: rowsHtml,
+            title: nodeTickerTitle,
+          }});
+        }} else {{
+          updateSummaryMiniPanel("m-node-ticker", nodeTickerEl, {{
+            mode: "text",
+            text: nodeTicker && nodeTicker.text ? String(nodeTicker.text) : "n/a",
+            title: nodeTickerTitle,
+          }});
+        }}
+      }} else if (nodeTickerItem instanceof HTMLElement) {{
+        nodeTickerItem.classList.remove("has-extra-rows");
+      }}
+      const nodeRssi = Number(nodeTicker && nodeTicker.rssi_dbm);
+      const nodeSnr = Number(nodeTicker && nodeTicker.snr_db);
+      const nodeSignalValue = Number.isFinite(nodeRssi) ? nodeRssi : nodeSnr;
+      const nodeSignalMetricKey = Number.isFinite(nodeRssi) ? "node_rssi_dbm" : "node_snr_db";
+      const nodeSignalUnit = Number.isFinite(nodeRssi) ? "dBm" : "dB";
+      const nodeSignalDigits = Number.isFinite(nodeRssi) ? 0 : 1;
+      if (Number.isFinite(nodeSignalValue)) {{
+        updateMetricTicker(nodeSignalMetricKey, nodeSignalValue, {{
+          containerId: "ticker-node-signal",
+          deltaId: "ticker-delta-node-signal",
+          rateId: "ticker-rate-node-signal",
+          chartId: "ticker-chart-node-signal",
+          digits: nodeSignalDigits,
+          rateDigits: 1,
+          flatThreshold: 0.4,
+          valueUnit: nodeSignalUnit,
+          windowMs: 2 * 60 * 60 * 1000,
+          maxPoints: 240,
+        }});
+        const nodeMetricTicker = document.getElementById("ticker-node-signal");
+        if (nodeMetricTicker instanceof HTMLElement && !showNodeTrend) {{
+          nodeMetricTicker.hidden = true;
+        }}
+      }} else {{
+        const nodeMetricTicker = document.getElementById("ticker-node-signal");
+        if (nodeMetricTicker instanceof HTMLElement) {{
+          nodeMetricTicker.hidden = true;
+        }}
+      }}
+      const chatChannelsTickerEl = document.getElementById("m-chat-channels");
+      if (chatChannelsTickerEl instanceof HTMLElement) {{
+        const rows = [
+          {{ key: "Scope", value: channelLabel(activeChatChannel) }},
+          {{ key: "View", value: currentMeshChannelViewLabel() }},
+          {{ key: "Send", value: currentMeshChannelSendLabel() }},
+        ];
+        const rowsHtml = rows
+          .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+          .join("");
+        const rowsTitle = rows.map((row) => `${{row.key}}: ${{row.value}}`).join(" | ");
+        updateSummaryMiniPanel("m-chat-channels", chatChannelsTickerEl, {{
+          mode: "html",
+          html: rowsHtml,
+          title: rowsTitle,
+        }});
+      }}
+      const chatRosterTickerEl = document.getElementById("m-chat-roster");
+      if (chatRosterTickerEl instanceof HTMLElement) {{
+        const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+        const nodesById = new Map(
+          nodes.map((node) => [normalizeNodeId(node && node.id), node])
+        );
+        const capsById = new Map(
+          Object.entries((state.history_caps && typeof state.history_caps === "object") ? state.history_caps : {{}})
+            .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
+            .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
+        );
+        const recentChat = Array.isArray((state.traffic || {{}}).recent_chat)
+          ? state.traffic.recent_chat
+          : [];
+        const latestChatTouchByNode = mapLatestChatTouchInfo(recentChat);
+        const counts = {{ online: 0, warn: 0, stale: 0 }};
+        for (const [nodeId, node] of nodesById.entries()) {{
+          if (!isSelectableNodeId(nodeId)) continue;
+          const caps = capsById.get(nodeId);
+          const chatTouch = latestChatTouchByNode.get(nodeId) || null;
+          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
+          const key = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, Math.floor(Date.now() / 1000)));
+          if (key === "online") counts.online += 1;
+          else if (key === "warn") counts.warn += 1;
+          else if (key === "stale") counts.stale += 1;
+        }}
+        const rows = [
+          {{ key: "Online", value: String(counts.online) }},
+          {{ key: "Aging", value: String(counts.warn) }},
+          {{ key: "Stale", value: String(counts.stale) }},
+        ];
+        const rowsHtml = rows
+          .map((row) => `<div class="node-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+          .join("");
+        const rowsTitle = rows.map((row) => `${{row.key}}: ${{row.value}}`).join(" | ");
+        updateSummaryMiniPanel("m-chat-roster", chatRosterTickerEl, {{
+          mode: "html",
+          html: rowsHtml,
+          title: rowsTitle,
+        }});
+      }}
+      const gpsTicker = buildGpsTickerSummary(state);
+      const gpsTickerEl = document.getElementById("m-gps-ticker");
+      if (gpsTickerEl instanceof HTMLElement) {{
+        const rowsHtml = String(gpsTicker && gpsTicker.rows_html ? gpsTicker.rows_html : "");
+        const gpsTitle = gpsTicker && gpsTicker.title ? String(gpsTicker.title) : "GPS summary unavailable";
+        if (rowsHtml) {{
+          updateSummaryMiniPanel("m-gps-ticker", gpsTickerEl, {{
+            mode: "html",
+            html: rowsHtml,
+            title: gpsTitle,
+          }});
+        }} else {{
+          updateSummaryMiniPanel("m-gps-ticker", gpsTickerEl, {{
+            mode: "text",
+            text: gpsTicker && gpsTicker.text ? String(gpsTicker.text) : "n/a",
+            title: gpsTitle,
+          }});
+        }}
+      }}
+      const systemTicker = buildSystemTickerSummary(state);
+      const systemTickerEl = document.getElementById("m-system-ticker");
+      if (systemTickerEl instanceof HTMLElement) {{
+        const rowsHtml = String(systemTicker && systemTicker.rows_html ? systemTicker.rows_html : "");
+        const systemTitle = systemTicker && systemTicker.title ? String(systemTicker.title) : "System summary unavailable";
+        if (rowsHtml) {{
+          updateSummaryMiniPanel("m-system-ticker", systemTickerEl, {{
+            mode: "html",
+            html: rowsHtml,
+            title: systemTitle,
+          }});
+        }} else {{
+          updateSummaryMiniPanel("m-system-ticker", systemTickerEl, {{
+            mode: "text",
+            text: systemTicker && systemTicker.text ? String(systemTicker.text) : "n/a",
+            title: systemTitle,
+          }});
+        }}
+      }}
+      const wifiTicker = buildWifiTickerSummary(state);
+      const wifiTickerEl = document.getElementById("m-wifi-ticker");
+      if (wifiTickerEl instanceof HTMLElement) {{
+        const rowsHtml = String(wifiTicker && wifiTicker.rows_html ? wifiTicker.rows_html : "");
+        const wifiTitle = wifiTicker && wifiTicker.title ? String(wifiTicker.title) : "Wi-Fi summary unavailable";
+        if (rowsHtml) {{
+          updateSummaryMiniPanel("m-wifi-ticker", wifiTickerEl, {{
+            mode: "html",
+            html: rowsHtml,
+            title: wifiTitle,
+          }});
+        }} else {{
+          updateSummaryMiniPanel("m-wifi-ticker", wifiTickerEl, {{
+            mode: "text",
+            text: wifiTicker && wifiTicker.text ? String(wifiTicker.text) : "n/a",
+            title: wifiTitle,
+          }});
+        }}
+      }}
+      const wifiRssiValue = wifiTicker ? wifiTicker.rssi_dbm : null;
+      const wifiRssiRaw = (wifiRssiValue == null || wifiRssiValue === "") ? NaN : Number(wifiRssiValue);
+      const wifiRssi = Number.isFinite(wifiRssiRaw) && wifiRssiRaw <= -1 && wifiRssiRaw >= -140
+        ? wifiRssiRaw
+        : NaN;
+      if (Number.isFinite(wifiRssi)) {{
+        updateMetricTicker("wifi_rssi_dbm", wifiRssi, {{
+          containerId: "ticker-wifi",
+          deltaId: "ticker-delta-wifi",
+          rateId: "ticker-rate-wifi",
+          chartId: "ticker-chart-wifi",
+          digits: 0,
+          rateDigits: 1,
+          flatThreshold: 1,
+          valueUnit: "dBm",
+          windowMs: 2 * 60 * 60 * 1000,
+          maxPoints: 240,
+        }});
+        const wifiMetricTicker = document.getElementById("ticker-wifi");
+        if (wifiMetricTicker instanceof HTMLElement && !showWifiTrend) {{
+          wifiMetricTicker.hidden = true;
+        }}
+      }} else {{
+        const wifiMetricTicker = document.getElementById("ticker-wifi");
+        if (wifiMetricTicker instanceof HTMLElement) {{
+          wifiMetricTicker.hidden = true;
+        }}
+      }}
+      renderTopbarUpdateTicker(state);
+      const radioReportedTime = resolveRadioReportedTime(state);
+      syncRadioTimeBase(radioReportedTime.unix, radioReportedTime.source);
+      syncUptimeBase(s.uptime_seconds);
+      updateUptimeDisplay();
+      setText("updated-at", updatedValue);
+      const updatedFreshness = document.getElementById("updated-freshness");
+      if (updatedFreshness instanceof HTMLElement) {{
+        updatedFreshness.classList.remove("status-online", "status-warn", "status-stale", "status-unknown");
+        if (activeLayoutView === "saved" && updatedFreshnessLabel) {{
+          updatedFreshness.hidden = false;
+          updatedFreshness.textContent = updatedFreshnessLabel;
+          updatedFreshness.classList.add(`status-${{updatedFreshnessStatus || "unknown"}}`);
+        }} else {{
+          updatedFreshness.hidden = true;
+          updatedFreshness.textContent = "";
+        }}
+      }}
+      const err = document.getElementById("local-state-error");
+      if (err) {{
+        const parts = [];
+        if (state.local_state_error) {{
+          parts.push(`Local state error: ${{trimInlineError(state.local_state_error)}}`);
+        }}
+        if (state.tracker_error) {{
+          parts.push(`Tracker error: ${{trimInlineError(state.tracker_error)}}`);
+        }}
+        err.textContent = parts.length > 0 ? `  ${{parts.join(" | ")}}` : "";
+      }}
+
+      const revision = s.revision || {{}};
+      const revisionText = document.getElementById("revision-text");
+      if (revisionText) {{
+        const fallbackLabel = String(revision.label || "").trim();
+        const version = String(revision.version || "").trim();
+        const commit = String(revision.commit || "").trim();
+        if (fallbackLabel) {{
+          revisionText.textContent = fallbackLabel;
+        }} else if (version || commit) {{
+          const versionText = version ? `v${{version}}` : "unknown";
+          const commitText = commit || "nogit";
+          revisionText.textContent = `Rev: ${{versionText}} (${{commitText}})`;
+        }}
+        const title = String(revision.title || "").trim();
+        if (title) {{
+          revisionText.title = title;
+        }}
+      }}
+
+      const disk = s.disk || {{}};
+      const diskLabel = document.getElementById("disk-label");
+      const diskFill = document.getElementById("disk-fill");
+      const diskMeter = document.getElementById("disk-meter");
+      const freePctRaw = Number(disk.free_pct);
+      if (!Number.isFinite(freePctRaw)) {{
+        if (diskLabel) {{
+          diskLabel.textContent = "Disk free: n/a";
+        }}
+        if (diskFill) {{
+          diskFill.style.width = "0%";
+          diskFill.classList.remove("warn", "danger");
+        }}
+        if (diskMeter) {{
+          const detail = disk.error ? ` (${{disk.error}})` : "";
+          diskMeter.title = `Disk free on dashboard host${{detail}}`;
+        }}
+        requestTopbarLayoutMetricsSync();
+        return;
+      }}
+
+      const freePct = Math.max(0, Math.min(100, freePctRaw));
+      if (diskLabel) {{
+        diskLabel.textContent = `Disk free: ${{freePct.toFixed(1)}}%`;
+      }}
+      if (diskFill) {{
+        diskFill.style.width = `${{freePct.toFixed(1)}}%`;
+        diskFill.classList.remove("warn", "danger");
+        if (freePct < 15) {{
+          diskFill.classList.add("danger");
+        }} else if (freePct < 30) {{
+          diskFill.classList.add("warn");
+        }}
+      }}
+      if (diskMeter) {{
+        const freeGiB = bytesToGiB(disk.free_bytes);
+        const totalGiB = bytesToGiB(disk.total_bytes);
+        const freeText = freeGiB == null ? "n/a" : freeGiB.toFixed(1);
+        const totalText = totalGiB == null ? "n/a" : totalGiB.toFixed(1);
+        diskMeter.title = `Disk free on dashboard host (${{freeText}} GiB / ${{totalText}} GiB, path: ${{disk.path || "n/a"}})`;
+      }}
+      requestTopbarLayoutMetricsSync();
+    }}

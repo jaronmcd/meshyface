@@ -1,0 +1,521 @@
+    function setChatChangeMenuOpen(open) {{
+      chatChangeMenuOpen = !!open;
+      if (chatChangeMenuOpen) {{
+        setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
+      }}
+      const panel = document.getElementById("chat-change-summary");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !chatChangeMenuOpen;
+      }}
+      const btn = document.getElementById("chat-change-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", chatChangeMenuOpen ? "true" : "false");
+      }}
+    }}
+
+    function setChatSettingsMenuOpen(open) {{
+      chatSettingsMenuOpen = !!open;
+      if (chatSettingsMenuOpen) {{
+        setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
+      }}
+      const panel = document.getElementById("chat-settings-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !chatSettingsMenuOpen;
+      }}
+      const btn = document.getElementById("chat-settings-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", chatSettingsMenuOpen ? "true" : "false");
+      }}
+    }}
+
+    function setFavoriteMenuOpen(open) {{
+      favoriteMenuOpen = !!open;
+      if (favoriteMenuOpen) {{
+        setSelfRadioMenuOpen(false);
+        setPeerDmMenuOpen(false);
+      }}
+      const panel = document.getElementById("favorite-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !favoriteMenuOpen;
+      }}
+      const btn = document.getElementById("favorite-menu-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", favoriteMenuOpen ? "true" : "false");
+      }}
+      if (!favoriteMenuOpen) {{
+        closeFavoriteMenuNodeSearchDropdown();
+      }}
+    }}
+
+    function setPeerDmMenuOpen(open) {{
+      peerDmMenuOpen = !!open;
+      if (peerDmMenuOpen) {{
+        // Keep DM notifications independent from system notifications (bell).
+        markChatChangeAlertsAcknowledged("direct");
+        setSelfRadioMenuOpen(false);
+        setChatChangeMenuOpen(false);
+        setChatSettingsMenuOpen(false);
+        setFavoriteMenuOpen(false);
+      }}
+      const panel = document.getElementById("peer-dm-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !peerDmMenuOpen;
+      }}
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.setAttribute("aria-expanded", peerDmMenuOpen ? "true" : "false");
+      }}
+    }}
+
+    function setSelfRadioMenuOpen(open) {{
+      selfRadioMenuOpen = !!open;
+      if (selfRadioMenuOpen) {{
+        setChatChangeMenuOpen(false);
+        setChatSettingsMenuOpen(false);
+        setFavoriteMenuOpen(false);
+        setPeerDmMenuOpen(false);
+      }}
+      const panel = document.getElementById("self-radio-menu");
+      if (panel instanceof HTMLElement) {{
+        panel.hidden = !selfRadioMenuOpen;
+      }}
+      const profile = document.getElementById("self-radio-profile");
+      if (profile instanceof HTMLButtonElement) {{
+        profile.setAttribute("aria-expanded", selfRadioMenuOpen ? "true" : "false");
+      }}
+      const copyBtn = document.getElementById("self-radio-copy-id-btn");
+      if (copyBtn instanceof HTMLButtonElement) {{
+        const fullId = profile instanceof HTMLElement
+          ? normalizeNodeId(profile.dataset.fullRadioId || "")
+          : "";
+        const hasFullId = isCanonicalNodeId(fullId);
+        copyBtn.disabled = !hasFullId;
+        copyBtn.title = hasFullId
+          ? `Copy ${{fullId}} to clipboard`
+          : "Full radio ID unavailable";
+      }}
+    }}
+
+    function updateChatChangeBadge(count) {{
+      const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+      const btn = document.getElementById("chat-change-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.classList.toggle("has-unread", safeCount > 0);
+        const countLabel = safeCount > 99 ? "99+" : String(safeCount);
+        btn.title = safeCount > 0
+          ? `${{countLabel}} inbound system notification${{safeCount === 1 ? "" : "s"}}`
+          : "No inbound system notifications";
+        btn.setAttribute(
+          "aria-label",
+          safeCount > 0
+            ? `System notifications (${{countLabel}})`
+            : "System notifications"
+        );
+      }}
+      const badge = document.getElementById("chat-change-badge");
+      if (badge instanceof HTMLElement) {{
+        if (safeCount > 0) {{
+          badge.hidden = false;
+          badge.textContent = safeCount > 99 ? "99+" : String(safeCount);
+        }} else {{
+          badge.hidden = true;
+          badge.textContent = "0";
+        }}
+      }}
+    }}
+
+    function updatePeerDmBadge(count) {{
+      const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement) {{
+        btn.classList.toggle("has-unread", safeCount > 0);
+        const countLabel = safeCount > 99 ? "99+" : String(safeCount);
+        btn.title = safeCount > 0
+          ? `${{countLabel}} unread peer-to-peer message${{safeCount === 1 ? "" : "s"}}`
+          : "Peer conversations";
+        btn.setAttribute(
+          "aria-label",
+          safeCount > 0
+            ? `Peer conversations (${{countLabel}} unread)`
+            : "Peer conversations"
+        );
+      }}
+      const badge = document.getElementById("peer-dm-badge");
+      if (badge instanceof HTMLElement) {{
+        if (safeCount > 0) {{
+          badge.hidden = false;
+          badge.textContent = safeCount > 99 ? "99+" : String(safeCount);
+        }} else {{
+          badge.hidden = true;
+          badge.textContent = "0";
+        }}
+      }}
+    }}
+
+    function renderChatChangeSummary(nowUnix = Math.floor(Date.now() / 1000)) {{
+      const panel = document.getElementById("chat-change-summary");
+      if (!(panel instanceof HTMLElement)) return;
+      const notices = collectSystemNotificationRows();
+      const count = notices.length;
+      const alertCount = notices.filter((notice) => notice && notice.seen !== true).length;
+      updateChatChangeBadge(alertCount);
+      if (!notices.length) {{
+        panel.innerHTML = '<div class="chat-change-empty">No inbound system notifications while you were away.</div>';
+        panel.hidden = !chatChangeMenuOpen;
+        return;
+      }}
+      const recent = notices.slice(-chatChangeSummaryMaxRows).reverse();
+      const rows = recent.map((notice) => {{
+        const sender = escAttr(String(notice && notice.sender ? notice.sender : "Unknown node"));
+        const preview = escAttr(String(notice && notice.preview ? notice.preview : "update"));
+        const kindRaw = String(notice && notice.kind ? notice.kind : "").trim().toLowerCase();
+        const kind = kindRaw === "reaction"
+          ? "reaction"
+          : (kindRaw === "status" ? "status" : "message");
+        const kindLabel = kind === "reaction"
+          ? "Reaction"
+          : (kind === "status" ? "Status" : "Message");
+        const kindClass = kind === "reaction" ? "reaction" : "message";
+        const resolvedKindClass = kind === "status" ? "status" : kindClass;
+        const focusKey = escAttr(String((notice && (notice.focusKey || notice.key)) || ""));
+        const targetView = escAttr(normalizeLayoutView(notice && notice.targetView ? notice.targetView : "chat"));
+        const targetChatChannel = escAttr(normalizeChatChannel(notice && notice.targetChatChannel ? notice.targetChatChannel : notice && notice.channel ? notice.channel : "all"));
+        const peerNodeId = escAttr(normalizeNodeId(notice && notice.peerNodeId ? notice.peerNodeId : ""));
+        const when = notice && Number.isFinite(Number(notice.unix))
+          ? savedDetailAge(Number(notice.unix), nowUnix)
+          : "just now";
+        return `<button type="button" class="chat-change-item" data-change-focus-key="${{focusKey}}" data-change-target-view="${{targetView}}" data-change-chat-channel="${{targetChatChannel}}" data-change-peer-node-id="${{peerNodeId}}" title="Open this update">
+          <span class="chat-change-item-main">
+            <span class="chat-change-kind ${{resolvedKindClass}}">${{kindLabel}}</span>
+            <span class="chat-change-item-text"><strong>${{sender}}</strong>: ${{preview}}</span>
+          </span>
+          <span class="chat-change-item-age">${{escAttr(when)}}</span>
+        </button>`;
+      }}).join("");
+      const headline = `${{count}} inbound system notification${{count === 1 ? "" : "s"}}`;
+      panel.innerHTML = `<div class="chat-change-head">
+        <div class="chat-change-title">${{escAttr(headline)}}</div>
+        <button type="button" id="chat-change-clear-btn" class="chat-change-clear-btn" title="Clear inbound system notifications">Clear</button>
+      </div>
+      <div class="chat-change-list">${{rows}}</div>`;
+      panel.hidden = !chatChangeMenuOpen;
+    }}
+
+    function findChatFeedItemByMessageKey(messageKey) {{
+      const key = String(messageKey || "").trim();
+      if (!key) return null;
+      for (const item of document.querySelectorAll("#chat-feed .chat-feed-item")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        if (String(item.dataset.messageKey || "") === key) {{
+          return item;
+        }}
+      }}
+      return null;
+    }}
+
+    function clearChatFeedChangeFocus() {{
+      for (const item of document.querySelectorAll("#chat-feed .chat-feed-item.change-focus")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        item.classList.remove("change-focus");
+      }}
+      if (chatChangeFocusTimer !== null) {{
+        clearTimeout(chatChangeFocusTimer);
+        chatChangeFocusTimer = null;
+      }}
+    }}
+
+    function focusChatFeedItem(item) {{
+      if (!(item instanceof HTMLElement)) return;
+      clearChatFeedChangeFocus();
+      item.classList.add("change-focus");
+      chatChangeFocusTimer = window.setTimeout(() => {{
+        item.classList.remove("change-focus");
+        chatChangeFocusTimer = null;
+      }}, 1600);
+    }}
+
+    function focusChatNoticeByMessageKey(messageKey) {{
+      const key = String(messageKey || "").trim();
+      if (!key) return false;
+      const target = findChatFeedItemByMessageKey(key);
+      if (!(target instanceof HTMLElement)) return false;
+      target.scrollIntoView({{ behavior: "smooth", block: "center" }});
+      focusChatFeedItem(target);
+      return true;
+    }}
+
+    function openNoticeTarget(targetViewRaw, focusKeyRaw, chatChannelRaw = "all", peerNodeIdRaw = "") {{
+      const targetView = normalizeLayoutView(targetViewRaw || "chat");
+      const focusKey = String(focusKeyRaw || "").trim();
+      const targetChatChannel = normalizeChatChannel(chatChannelRaw || "all");
+      const mainChatChannel = (
+        !chatMainDirectModeEnabled && targetChatChannel === "direct"
+          ? "all"
+          : targetChatChannel
+      );
+      const peerNodeId = normalizeNodeId(peerNodeIdRaw || "");
+      const switchedView = activeLayoutView !== targetView;
+      if (switchedView) {{
+        applyLayoutView(targetView, true);
+      }}
+      const finalize = () => {{
+        if (targetView === "chat") {{
+          applyChatChannel(mainChatChannel, true);
+          if (targetChatChannel === "direct") {{
+            if (!chatMainDirectModeEnabled) {{
+              if (isCanonicalNodeId(peerNodeId) && !isSelfNodeId(peerNodeId)) {{
+                peerDmActivePeerId = peerNodeId;
+                setPeerDmMenuOpen(false);
+                if (latestState) {{
+                  renderChat(latestState);
+                }}
+              }} else {{
+                setPeerDmMenuOpen(true);
+              }}
+              return;
+            }}
+            if (isSelectableNodeId(peerNodeId)) {{
+              selectNode(peerNodeId, false, false);
+            }}
+          }}
+          if (!focusChatNoticeByMessageKey(focusKey)) {{
+            setChatSendStatus("Change is older than the visible chat window.", true);
+          }}
+          return;
+        }}
+        if ((targetView === "saved" || targetView === "network") && isSelectableNodeId(focusKey)) {{
+          selectNode(focusKey, true, false);
+        }}
+      }};
+      if (switchedView) {{
+        window.requestAnimationFrame(finalize);
+      }} else {{
+        finalize();
+      }}
+    }}
+
+    function bindChatChangeSummaryControls() {{
+      const btn = document.getElementById("chat-change-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          markChatChangeAlertsAcknowledged("all");
+          const nextOpen = !chatChangeMenuOpen;
+          setChatChangeMenuOpen(nextOpen);
+          if (nextOpen) {{
+            setChatSettingsMenuOpen(false);
+            setFavoriteMenuOpen(false);
+          }}
+          renderChatChangeSummary();
+          if (nextOpen) {{
+            bindChatChangeSummaryControls();
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.chatChangeMenuDocBound !== "1") {{
+        document.body.dataset.chatChangeMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!chatChangeMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setChatChangeMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#chat-change-toggle-btn") || target.closest("#chat-change-summary")) {{
+            return;
+          }}
+          setChatChangeMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape" || !chatChangeMenuOpen) return;
+          setChatChangeMenuOpen(false);
+        }});
+      }}
+
+      const panel = document.getElementById("chat-change-summary");
+      if (!(panel instanceof HTMLElement) || panel.hidden) return;
+      const clearBtn = panel.querySelector("#chat-change-clear-btn");
+      if (clearBtn instanceof HTMLButtonElement) {{
+        clearBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          clearChatChangeNotices("all");
+          clearChatFeedChangeFocus();
+          if (latestState) {{
+            renderChat(latestState);
+          }} else {{
+            renderChatChangeSummary();
+          }}
+        }});
+      }}
+      for (const itemBtn of panel.querySelectorAll(".chat-change-item")) {{
+        if (!(itemBtn instanceof HTMLButtonElement)) continue;
+        itemBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          setChatChangeMenuOpen(false);
+          const targetView = normalizeLayoutView(itemBtn.dataset.changeTargetView || "chat");
+          const focusKey = String(itemBtn.dataset.changeFocusKey || "").trim();
+          const targetChatChannel = normalizeChatChannel(itemBtn.dataset.changeChatChannel || "all");
+          const peerNodeId = normalizeNodeId(itemBtn.dataset.changePeerNodeId || "");
+          openNoticeTarget(targetView, focusKey, targetChatChannel, peerNodeId);
+        }});
+      }}
+    }}
+
+    function bindChatSettingsMenuControls() {{
+      const btn = document.getElementById("chat-settings-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const nextOpen = !chatSettingsMenuOpen;
+          setChatSettingsMenuOpen(nextOpen);
+          if (nextOpen) {{
+            setChatChangeMenuOpen(false);
+            setFavoriteMenuOpen(false);
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.chatSettingsMenuDocBound !== "1") {{
+        document.body.dataset.chatSettingsMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!chatSettingsMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setChatSettingsMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#chat-settings-toggle-btn") || target.closest("#chat-settings-menu")) {{
+            return;
+          }}
+          setChatSettingsMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape" || !chatSettingsMenuOpen) return;
+          setChatSettingsMenuOpen(false);
+        }});
+      }}
+    }}
+
+    function bindPeerDmMenuControls() {{
+      const btn = document.getElementById("peer-dm-toggle-btn");
+      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          setPeerDmMenuOpen(!peerDmMenuOpen);
+        }});
+      }}
+
+      const panel = document.getElementById("peer-dm-menu");
+      if (panel instanceof HTMLElement && panel.dataset.bound !== "1") {{
+        panel.dataset.bound = "1";
+        panel.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".peer-dm-menu-item");
+          if (!(item instanceof HTMLButtonElement)) return;
+          ev.preventDefault();
+          const nodeId = normalizeNodeId(item.dataset.peerNodeId || "");
+          if (!isCanonicalNodeId(nodeId)) return;
+          peerDmActivePeerId = nodeId;
+          setPeerDmMenuOpen(false);
+          if (latestState) {{
+            renderChat(latestState);
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.peerDmMenuDocBound !== "1") {{
+        document.body.dataset.peerDmMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!peerDmMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setPeerDmMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#peer-dm-toggle-btn") || target.closest("#peer-dm-menu")) {{
+            return;
+          }}
+          setPeerDmMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape") return;
+          if (peerDmMenuOpen) {{
+            setPeerDmMenuOpen(false);
+            return;
+          }}
+          if (isCanonicalNodeId(peerDmActivePeerId || "")) {{
+            peerDmActivePeerId = "";
+            if (latestState) {{
+              renderChat(latestState);
+            }}
+          }}
+        }});
+      }}
+    }}
+
+    function bindSelfRadioMenuControls() {{
+      const profileBtn = document.getElementById("self-radio-profile");
+      if (profileBtn instanceof HTMLButtonElement && profileBtn.dataset.bound !== "1") {{
+        profileBtn.dataset.bound = "1";
+        profileBtn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          setSelfRadioMenuOpen(!selfRadioMenuOpen);
+        }});
+      }}
+
+      const copyBtn = document.getElementById("self-radio-copy-id-btn");
+      if (copyBtn instanceof HTMLButtonElement && copyBtn.dataset.bound !== "1") {{
+        copyBtn.dataset.bound = "1";
+        copyBtn.addEventListener("click", async (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const profile = document.getElementById("self-radio-profile");
+          const fullId = profile instanceof HTMLElement
+            ? normalizeNodeId(profile.dataset.fullRadioId || "")
+            : "";
+          if (!isCanonicalNodeId(fullId)) {{
+            copyBtn.disabled = true;
+            copyBtn.title = "Full radio ID unavailable";
+            return;
+          }}
+          const ok = await copyTextToClipboard(fullId);
+          copyBtn.title = ok
+            ? `${{fullId}} copied to clipboard`
+            : `Could not copy ${{fullId}}`;
+          if (ok) {{
+            setSelfRadioMenuOpen(false);
+          }}
+        }});
+      }}
+
+      if (document.body.dataset.selfRadioMenuDocBound !== "1") {{
+        document.body.dataset.selfRadioMenuDocBound = "1";
+        document.addEventListener("pointerdown", (ev) => {{
+          if (!selfRadioMenuOpen) return;
+          const target = ev.target;
+          if (!(target instanceof Element)) {{
+            setSelfRadioMenuOpen(false);
+            return;
+          }}
+          if (target.closest("#self-radio-profile") || target.closest("#self-radio-menu")) {{
+            return;
+          }}
+          setSelfRadioMenuOpen(false);
+        }});
+        document.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Escape" || !selfRadioMenuOpen) return;
+          setSelfRadioMenuOpen(false);
+        }});
+      }}
+    }}

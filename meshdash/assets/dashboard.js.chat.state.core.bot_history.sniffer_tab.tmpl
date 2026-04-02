@@ -1,0 +1,59 @@
+    function renderBotTrafficSnifferTab(state = latestState) {{
+      const listEl = document.getElementById("bots-sniffer-list");
+      const totalEl = document.getElementById("bots-sniffer-total");
+      const sendersEl = document.getElementById("bots-sniffer-senders");
+      const commandsEl = document.getElementById("bots-sniffer-commands");
+      if (!(listEl instanceof HTMLElement)) return;
+
+      syncBotTrafficSnifferControls();
+      const entries = extractObservedBotTrafficEntries(state);
+      const uniqueSenders = new Set(
+        entries.map((entry) => normalizeNodeId(entry && entry.from_id)).filter((value) => !!value)
+      );
+      const uniqueCommands = new Set(
+        entries.map((entry) => String(entry && entry.command_head || "").trim().toLowerCase()).filter((value) => !!value)
+      );
+      if (totalEl instanceof HTMLElement) totalEl.textContent = String(entries.length);
+      if (sendersEl instanceof HTMLElement) sendersEl.textContent = String(uniqueSenders.size);
+      if (commandsEl instanceof HTMLElement) commandsEl.textContent = String(uniqueCommands.size);
+
+      if (entries.length === 0) {{
+        const trackedText = (botTrafficSnifferCommandHeads || []).join(", ");
+        listEl.innerHTML = `<div class="bots-history-empty">No matching bot traffic in retained decoded traffic for: <code>${{escAttr(trackedText || "none")}}</code>.</div>`;
+        return;
+      }}
+
+      const nodeLabel = buildBotNodeLabelResolver(state);
+      const rows = entries.map((entry) => {{
+        const sentLabel = formatLocalChatTime(entry.received_unix, entry.received_at || "n/a");
+        const fromLabel = nodeLabel(entry.from_id || "");
+        const toLabel = nodeLabel(entry.to_id || "");
+        const hasChannelIndex = Number.isInteger(entry.channel_index) && Number(entry.channel_index) >= 0;
+        const channelLabel = hasChannelIndex
+          ? meshChannelLabelForIndex(entry.channel_index, {{ allowAll: false }})
+          : "Channel ?";
+        const channelBadge = hasChannelIndex
+          ? meshChannelBadgeHtml(entry.channel_index, channelLabel, {{
+              allowAll: false,
+              extraClass: "bots-history-channel",
+              title: meshChannelLabelForIndex(entry.channel_index, {{ verbose: true, allowAll: false }}),
+            }})
+          : `<span>${{escAttr(channelLabel)}}</span>`;
+        const hops = nonNegativeIntegerOrNull(entry.hops);
+        const hopText = hops == null ? "hops n/a" : `${{hops}} hop${{hops === 1 ? "" : "s"}}`;
+        return `<article class="bots-history-item">
+          <div class="bots-history-item-head">
+            <span class="bots-history-command">${{escAttr(entry.command)}}</span>
+            <span class="bots-history-status-pill">${{escAttr(entry.command_head)}}</span>
+          </div>
+          <div class="bots-history-meta">
+            <span>${{escAttr(sentLabel)}}</span>
+            <span>from ${{escAttr(fromLabel || "n/a")}}</span>
+            ${{channelBadge}}
+            <span>to ${{escAttr(toLabel || "All")}}</span>
+            <span>${{escAttr(hopText)}}</span>
+          </div>
+        </article>`;
+      }});
+      listEl.innerHTML = rows.join("");
+    }}

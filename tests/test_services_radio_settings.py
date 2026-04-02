@@ -1,5 +1,6 @@
 import pytest
 
+import meshdash.services_radio_settings as radio_settings_service
 from meshdash.api_input_radio import RadioSettingsRequest
 from meshdash.services_radio_settings import (
     _apply_field_update,
@@ -146,6 +147,12 @@ class _FakeNode:
         has_module_config: bool = True,
         has_mqtt: bool = True,
         has_reset: bool = True,
+        has_set_time: bool = True,
+        has_factory_reset: bool = True,
+        has_set_fixed_position: bool = True,
+        has_remove_fixed_position: bool = True,
+        has_set_owner: bool = True,
+        set_owner_requires_positional: bool = False,
         has_write: bool = True,
         write_error: Exception | None = None,
         reset_error: Exception | None = None,
@@ -167,14 +174,32 @@ class _FakeNode:
         self.write_calls: list[str] = []
         self.commit_calls = 0
         self.reset_calls = 0
+        self.set_time_calls: list[int] = []
+        self.factory_reset_calls: list[bool] = []
+        self.set_fixed_position_calls: list[tuple[float, float, int]] = []
+        self.remove_fixed_position_calls = 0
+        self.set_owner_calls: list[dict[str, object]] = []
+        self.user = {"shortName": "OLD1", "longName": "Old Node"}
+        self.nodeNum = 123
         self._write_error = write_error
         self._reset_error = reset_error
         self._begin_error = begin_error
         self._commit_error = commit_error
+        self._set_owner_requires_positional = set_owner_requires_positional
         if not has_write:
             self.writeConfig = None
         if not has_reset:
             self.resetNodeDb = None
+        if not has_set_time:
+            self.setTime = None
+        if not has_factory_reset:
+            self.factoryReset = None
+        if not has_set_fixed_position:
+            self.setFixedPosition = None
+        if not has_remove_fixed_position:
+            self.removeFixedPosition = None
+        if not has_set_owner:
+            self.setOwner = None
 
     def beginSettingsTransaction(self):
         self.begin_calls += 1
@@ -195,6 +220,36 @@ class _FakeNode:
         self.reset_calls += 1
         if self._reset_error is not None:
             raise self._reset_error
+
+    def setTime(self, time_sec: int = 0):
+        self.set_time_calls.append(int(time_sec))
+
+    def factoryReset(self, full: bool = False):
+        self.factory_reset_calls.append(bool(full))
+
+    def setFixedPosition(self, lat: float, lon: float, alt: int):
+        self.set_fixed_position_calls.append((float(lat), float(lon), int(alt)))
+
+    def removeFixedPosition(self):
+        self.remove_fixed_position_calls += 1
+
+    def setOwner(self, *args, **kwargs):
+        if kwargs:
+            if self._set_owner_requires_positional:
+                raise TypeError("kwargs not supported")
+            self.set_owner_calls.append(dict(kwargs))
+            return
+
+        if len(args) >= 2:
+            self.set_owner_calls.append(
+                {
+                    "long_name": args[0],
+                    "short_name": args[1],
+                    "is_licensed": bool(args[2]) if len(args) >= 3 else False,
+                }
+            )
+            return
+        raise TypeError("expected owner names")
 
 
 class _FakeLock:
@@ -245,6 +300,7 @@ class _FakeTracker:
         self.recent_packets = [1, 2, 3]
         self.recent_chat = [4, 5]
         self.live_packet_count = 42
+        self.radio_link_changed_unix = 0
 
 
 def _iface_with_local_node(node: object):
@@ -498,6 +554,251 @@ def test_apply_radio_settings_supports_reset_nodedb_action():
     assert response["reboot_expected"] is True
 
 
+def test_apply_radio_settings_supports_set_time_action():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(actions={"set_time": True}),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_time"]
+    assert response["write_sections"] == []
+    assert response["reboot_expected"] is False
+    assert node.set_time_calls == [0]
+    assert response["time_sync"]["source"] == "host_clock"
+
+
+def test_apply_radio_settings_supports_time_server_sync_for_set_time_action():
+    node = _FakeNode()
+    resolve_calls: list[dict[str, object]] = []
+
+    def _resolve_time_sync(**kwargs):
+        resolve_calls.append(dict(kwargs))
+        return {
+            "ok": True,
+            "source": "time_server",
+            "server": "time.cloudflare.com",
+            "timezone": "UTC",
+            "applied_unix": 1_711_111_111,
+            "applied_utc": "2024-03-31 06:11:51Z",
+            "applied_local": "2024-03-31 06:11:51 UTC",
+            "offset_seconds": -0.12,
+        }
+
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_time": True},
+            time_sync={"enabled": True, "server": "time.cloudflare.com", "timezone": "UTC"},
+        ),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+        resolve_time_sync_fn=_resolve_time_sync,
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_time"]
+    assert node.set_time_calls == [1_711_111_111]
+    assert response["time_sync"]["source"] == "time_server"
+    assert response["time_sync"]["server"] == "time.cloudflare.com"
+    assert resolve_calls and resolve_calls[0]["use_time_server"] is True
+
+
+def test_apply_radio_settings_set_time_reports_time_sync_failures():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_time": True},
+            time_sync={"enabled": True, "server": "bad.invalid", "timezone": "UTC"},
+        ),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+        resolve_time_sync_fn=lambda **_kwargs: {
+            "ok": False,
+            "source": "time_server",
+            "server": "bad.invalid",
+            "timezone": "UTC",
+            "error": "timeout",
+        },
+    )
+
+    assert response["ok"] is False
+    assert "Time sync failed" in str(response["error"])
+    assert node.set_time_calls == []
+
+
+def test_apply_radio_settings_supports_regenerate_node_id_action():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(actions={"regenerate_node_id": True}),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["regenerate_node_id"]
+    assert response["write_sections"] == []
+    assert response["reboot_expected"] is True
+    assert node.factory_reset_calls == [True]
+
+
+def test_apply_radio_settings_supports_owner_updates():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(owner={"short_name": "ABCD", "long_name": "Alpha Bravo"}),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_owner"]
+    assert response["write_sections"] == []
+    assert response["reboot_expected"] is False
+    assert response["applied"]["owner"] == {"short_name": "ABCD", "long_name": "Alpha Bravo"}
+    assert node.set_owner_calls == [{"short_name": "ABCD", "long_name": "Alpha Bravo"}]
+
+
+def test_apply_radio_settings_owner_update_uses_current_name_fallback_and_positional_call():
+    node = _FakeNode(set_owner_requires_positional=True)
+    response = apply_radio_settings(
+        RadioSettingsRequest(owner={"long_name": "Only Long"}),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_owner"]
+    assert response["applied"]["owner"] == {"short_name": "OLD1", "long_name": "Only Long"}
+    assert node.set_owner_calls == [
+        {"short_name": "OLD1", "long_name": "Only Long", "is_licensed": False}
+    ]
+
+
+def test_apply_radio_settings_owner_update_refreshes_local_owner_cache_and_state_revision(
+    monkeypatch,
+):
+    monkeypatch.setattr(radio_settings_service.time, "time", lambda: 12345.9)
+
+    node = _FakeNode()
+    tracker = _FakeTracker()
+    iface = _iface_with_local_node(node)
+    iface.nodesByNum = {
+        123: {
+            "num": 123,
+            "user": {
+                "id": "!0000007b",
+                "shortName": "OLD1",
+                "longName": "Meshtastic 9b7c",
+            },
+        }
+    }
+    iface.nodes = {
+        "!0000007b": {
+            "num": 123,
+            "user": {
+                "id": "!0000007b",
+                "shortName": "OLD1",
+                "longName": "Meshtastic 9b7c",
+            },
+        }
+    }
+
+    response = apply_radio_settings(
+        RadioSettingsRequest(owner={"short_name": "ZERO", "long_name": "zero cool"}),
+        iface=iface,
+        send_lock=_FakeLock(),
+        tracker=tracker,
+    )
+
+    assert response["ok"] is True
+    assert tracker.radio_link_changed_unix == 12345
+    assert node.user["shortName"] == "ZERO"
+    assert node.user["longName"] == "zero cool"
+    assert iface.nodesByNum[123]["user"]["shortName"] == "ZERO"
+    assert iface.nodesByNum[123]["user"]["longName"] == "zero cool"
+    assert iface.nodes["!0000007b"]["user"]["shortName"] == "ZERO"
+    assert iface.nodes["!0000007b"]["user"]["longName"] == "zero cool"
+
+
+def test_apply_radio_settings_supports_set_fixed_position_action():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_fixed_position": True},
+            fixed_position={"lat": "44.9801", "lon": "-93.2636", "alt": "265"},
+        ),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["set_fixed_position"]
+    assert response["write_sections"] == []
+    assert response["reboot_expected"] is False
+    assert node.set_fixed_position_calls == [(44.9801, -93.2636, 265)]
+
+
+def test_apply_radio_settings_supports_clear_fixed_position_action():
+    node = _FakeNode()
+    response = apply_radio_settings(
+        RadioSettingsRequest(actions={"clear_fixed_position": True}),
+        iface=_iface_with_local_node(node),
+        send_lock=_FakeLock(),
+    )
+
+    assert response["ok"] is True
+    assert response["actions_applied"] == ["clear_fixed_position"]
+    assert response["write_sections"] == []
+    assert response["reboot_expected"] is False
+    assert node.remove_fixed_position_calls == 1
+
+
+def test_apply_radio_settings_rejects_conflicting_fixed_position_actions():
+    response = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_fixed_position": True, "clear_fixed_position": True},
+            fixed_position={"lat": 1, "lon": 2},
+        ),
+        iface=_iface_with_local_node(_FakeNode()),
+        send_lock=_FakeLock(),
+    )
+    assert response["ok"] is False
+    assert "Cannot set and clear fixed position" in str(response["error"])
+
+
+def test_apply_radio_settings_validates_fixed_position_values():
+    missing = apply_radio_settings(
+        RadioSettingsRequest(actions={"set_fixed_position": True}),
+        iface=_iface_with_local_node(_FakeNode()),
+        send_lock=_FakeLock(),
+    )
+    assert missing["ok"] is False
+    assert "Invalid fixed position" in str(missing["error"])
+
+    invalid_range = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_fixed_position": True},
+            fixed_position={"lat": 120, "lon": 10},
+        ),
+        iface=_iface_with_local_node(_FakeNode()),
+        send_lock=_FakeLock(),
+    )
+    assert invalid_range["ok"] is False
+    assert "Invalid fixed position" in str(invalid_range["error"])
+
+    invalid_bool = apply_radio_settings(
+        RadioSettingsRequest(
+            actions={"set_fixed_position": True},
+            fixed_position={"lat": True, "lon": False, "alt": True},
+        ),
+        iface=_iface_with_local_node(_FakeNode()),
+        send_lock=_FakeLock(),
+    )
+    assert invalid_bool["ok"] is False
+    assert "Invalid fixed position" in str(invalid_bool["error"])
+
+
 def test_apply_radio_settings_reset_nodedb_clears_iface_and_tracker_caches():
     node = _FakeNode()
     tracker = _FakeTracker()
@@ -532,6 +833,54 @@ def test_apply_radio_settings_reset_nodedb_requires_supported_node_method():
     )
     assert response["ok"] is False
     assert "does not support resetNodeDb" in str(response["error"])
+
+
+def test_apply_radio_settings_set_time_requires_supported_node_method():
+    response = apply_radio_settings(
+        RadioSettingsRequest(actions={"set_time": True}),
+        iface=_iface_with_local_node(_FakeNode(has_set_time=False)),
+        send_lock=_FakeLock(),
+    )
+    assert response["ok"] is False
+    assert "does not support setTime" in str(response["error"])
+
+
+def test_apply_radio_settings_regenerate_node_id_requires_supported_node_method():
+    response = apply_radio_settings(
+        RadioSettingsRequest(actions={"regenerate_node_id": True}),
+        iface=_iface_with_local_node(_FakeNode(has_factory_reset=False)),
+        send_lock=_FakeLock(),
+    )
+    assert response["ok"] is False
+    assert "does not support factoryReset" in str(response["error"])
+
+
+def test_apply_radio_settings_owner_update_requires_supported_node_method():
+    response = apply_radio_settings(
+        RadioSettingsRequest(owner={"short_name": "ABCD"}),
+        iface=_iface_with_local_node(_FakeNode(has_set_owner=False)),
+        send_lock=_FakeLock(),
+    )
+    assert response["ok"] is False
+    assert "does not support setOwner" in str(response["error"])
+
+
+def test_apply_radio_settings_set_fixed_position_requires_supported_node_method():
+    set_missing = apply_radio_settings(
+        RadioSettingsRequest(actions={"set_fixed_position": True}, fixed_position={"lat": 44.98, "lon": -93.26}),
+        iface=_iface_with_local_node(_FakeNode(has_set_fixed_position=False)),
+        send_lock=_FakeLock(),
+    )
+    assert set_missing["ok"] is False
+    assert "does not support setFixedPosition" in str(set_missing["error"])
+
+    clear_missing = apply_radio_settings(
+        RadioSettingsRequest(actions={"clear_fixed_position": True}),
+        iface=_iface_with_local_node(_FakeNode(has_remove_fixed_position=False)),
+        send_lock=_FakeLock(),
+    )
+    assert clear_missing["ok"] is False
+    assert "does not support removeFixedPosition" in str(clear_missing["error"])
 
 
 def test_apply_radio_settings_uses_local_lora_payload_too():

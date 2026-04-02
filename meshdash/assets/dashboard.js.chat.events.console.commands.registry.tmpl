@@ -1,0 +1,455 @@
+    function ensureConsoleCommandsRegistered() {{
+      if (consoleCommandRegistry.size > 0) return;
+      registerConsoleCommand({{
+        name: "help",
+        usage: "help",
+        description: "Show available console commands.",
+        supportsVerbosity: true,
+        run: () => {{
+          const defs = Array.from(consoleCommandRegistry.values())
+            .sort((a, b) => a.name.localeCompare(b.name));
+          const lines = ["[help] commands:"];
+          for (const def of defs) {{
+            const details = def.description ? ` - ${{def.description}}` : "";
+            lines.push(`  ${{def.usage}}${{details}}`);
+          }}
+          lines.push("[help] Ctrl+C stops running commands.");
+          return lines;
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "clear",
+        usage: "clear",
+        description: "Clear console output.",
+        supportsVerbosity: true,
+        run: () => {{
+          clearConsoleOutput({{ renderNow: false }});
+          return "[console] cleared.";
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "live",
+        usage: "live [-v|-vv|-vvv|-vvvv] [-l1] [-l2] [-l3] [--layer=1,2,3]",
+        description: "Stream live packet lines until Ctrl+C with optional verbosity and layer filters.",
+        supportsVerbosity: true,
+        run: (ctx) => {{
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const layerSelection = parseConsoleLiveLayerSelection(ctx);
+          if (layerSelection.unknownArgs.length) {{
+            return `[live] unknown argument(s): ${{layerSelection.unknownArgs.join(", ")}}`;
+          }}
+          if (layerSelection.unknownOptions.length) {{
+            const optionLabel = layerSelection.unknownOptions
+              .map((token) => `--${{String(token || "").trim()}}`)
+              .join(", ");
+            return `[live] unknown option(s): ${{optionLabel}}`;
+          }}
+          if (consoleLiveModeActive) {{
+            return "[live] already running. Press Ctrl+C to stop.";
+          }}
+          consoleShowTimestamps = true;
+          const timestampsToggle = document.getElementById("console-timestamps");
+          if (timestampsToggle instanceof HTMLInputElement) {{
+            timestampsToggle.checked = true;
+          }}
+          persistConsoleSessionState();
+          consoleLiveVerbosity = verbosity;
+          consoleLiveLayers = layerSelection.layers;
+          consoleLiveModeActive = true;
+          startConsoleRunningCommand("live", (reason, emitStatus) => {{
+            consoleLiveModeActive = false;
+            consoleLiveVerbosity = 0;
+            consoleLiveLayers = null;
+            if (emitStatus) {{
+              appendConsoleEventLine(`[live] stopped (${{String(reason || "done")}}).`);
+            }}
+            renderConsoleBuffer(true);
+          }});
+          renderConsole((latestState && latestState.traffic) || {{}});
+          const verbosityLabel = verbosity > 0 ? ` verbosity=-${{"v".repeat(verbosity)}}` : "";
+          const layerLabel = formatConsoleLiveLayerLabel(layerSelection.layers);
+          return `[live] streaming packet traffic.${{verbosityLabel}}${{layerLabel}} Press Ctrl+C to stop.`;
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "grep",
+        usage: "grep <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [source=both|packet|chat] [scan=<n>]",
+        description: "Search retained history (packets and/or chat) with grep-style context windows.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const parseBoundedIntOption = (rawValue, min, max, optionLabel) => {{
+            if (rawValue == null) return {{ ok: true, value: null }};
+            const rawText = String(rawValue).trim();
+            if (!rawText) return {{ ok: true, value: null }};
+            const numeric = Number(rawText);
+            if (!Number.isFinite(numeric)) {{
+              return {{ ok: false, value: null, error: `[grep] invalid ${{optionLabel}} value: ${{rawText}}` }};
+            }}
+            const clean = Math.trunc(numeric);
+            if (clean < min || clean > max) {{
+              return {{ ok: false, value: null, error: `[grep] ${{optionLabel}} must be between ${{min}} and ${{max}}.` }};
+            }}
+            return {{ ok: true, value: clean }};
+          }};
+
+          const rawQuery = args.join(" ").trim();
+          const parsedFilterExpr = parseConsoleFilterExpression(rawQuery);
+          const queryText = String(parsedFilterExpr.needle || "").trim();
+          if (!queryText) {{
+            return '[grep] missing search text. Example: grep "!3369d0b8" -C2';
+          }}
+
+          let before = Math.max(0, Math.trunc(Number(parsedFilterExpr.before) || 0));
+          let after = Math.max(0, Math.trunc(Number(parsedFilterExpr.after) || 0));
+
+          const contextParsed = parseBoundedIntOption(
+            options.context ?? options.c,
+            0,
+            30,
+            "context",
+          );
+          if (!contextParsed.ok) return contextParsed.error;
+          if (contextParsed.value != null) {{
+            before = Math.max(before, contextParsed.value);
+            after = Math.max(after, contextParsed.value);
+          }}
+
+          const beforeParsed = parseBoundedIntOption(options.before ?? options.b, 0, 30, "before");
+          if (!beforeParsed.ok) return beforeParsed.error;
+          if (beforeParsed.value != null) {{
+            before = Math.max(before, beforeParsed.value);
+          }}
+
+          const afterParsed = parseBoundedIntOption(options.after ?? options.a, 0, 30, "after");
+          if (!afterParsed.ok) return afterParsed.error;
+          if (afterParsed.value != null) {{
+            after = Math.max(after, afterParsed.value);
+          }}
+
+          const limitParsed = parseBoundedIntOption(options.limit ?? options.n, 1, 500, "limit");
+          if (!limitParsed.ok) return limitParsed.error;
+          const limit = limitParsed.value == null ? 120 : limitParsed.value;
+
+          const scanParsed = parseBoundedIntOption(options.scan ?? options.scan_limit, 1, 50000, "scan");
+          if (!scanParsed.ok) return scanParsed.error;
+          const scanLimit = scanParsed.value == null ? 0 : scanParsed.value;
+
+          const scopeRaw = String(options.scope ?? options.s ?? "both").trim().toLowerCase();
+          const scope = scopeRaw || "both";
+          if (!["both", "summary", "packet"].includes(scope)) {{
+            return `[grep] invalid scope: ${{scope}} (use both|summary|packet)`;
+          }}
+          const sourceRaw = String(options.source ?? options.src ?? "both").trim().toLowerCase();
+          const source = sourceRaw || "both";
+          if (!["both", "packet", "chat"].includes(source)) {{
+            return `[grep] invalid source: ${{source}} (use both|packet|chat)`;
+          }}
+
+          const payload = await fetchConsoleHistorySearch({{
+            queryText,
+            limit,
+            before,
+            after,
+            scope,
+            source,
+            scanLimit,
+          }});
+          if (!(payload && payload.ok)) {{
+            const msg = String((payload && payload.error) || "history search failed");
+            return `[grep] ${{msg}}`;
+          }}
+
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+          const totalMatchesRaw = Number(payload.matches);
+          const shownMatchesRaw = Number(payload.returned_matches);
+          const scannedPacketsRaw = Number(payload.scanned_packets);
+          const scannedChatRaw = Number(payload.scanned_chat);
+          const scannedTotalRaw = Number(payload.scanned_total);
+          const totalMatches = Number.isFinite(totalMatchesRaw) ? Math.max(0, Math.trunc(totalMatchesRaw)) : 0;
+          const shownMatches = Number.isFinite(shownMatchesRaw) ? Math.max(0, Math.trunc(shownMatchesRaw)) : totalMatches;
+          const scannedPackets = Number.isFinite(scannedPacketsRaw) ? Math.max(0, Math.trunc(scannedPacketsRaw)) : 0;
+          const scannedChat = Number.isFinite(scannedChatRaw) ? Math.max(0, Math.trunc(scannedChatRaw)) : 0;
+          const scannedTotal = Number.isFinite(scannedTotalRaw)
+            ? Math.max(0, Math.trunc(scannedTotalRaw))
+            : (scannedPackets + scannedChat);
+          const queryLabel = String(payload.query || queryText);
+          const scopeLabel = String(payload.scope || scope);
+          const sourceLabel = String(payload.source || source);
+          const scannedLabel = (() => {{
+            if (sourceLabel === "packet") return `${{scannedPackets}}`;
+            if (sourceLabel === "chat") return `${{scannedChat}}`;
+            return `total=${{scannedTotal}}, packets=${{scannedPackets}}, chat=${{scannedChat}}`;
+          }})();
+          if (totalMatches < 1 || entries.length < 1) {{
+            return `[grep] no matches for "${{queryLabel}}" (source=${{sourceLabel}}, scope=${{scopeLabel}}, scanned=${{scannedLabel}}).`;
+          }}
+
+          appendConsoleEventLine(
+            `[grep] query="${{queryLabel}}" source=${{sourceLabel}} scope=${{scopeLabel}} matches=${{totalMatches}} showing=${{shownMatches}} scanned=${{scannedLabel}}`
+          );
+          consoleGrepRunCounter += 1;
+          const runId = consoleGrepRunCounter;
+          let fallbackLineCounter = 0;
+          for (const entry of entries) {{
+            if (entry && entry.separator === true) {{
+              appendConsoleEventLine("[grep] --");
+              continue;
+            }}
+            if (!entry || typeof entry !== "object") continue;
+            const sourceKind = String(entry.source || "packet").trim().toLowerCase() || "packet";
+            const isChatEntry = sourceKind === "chat";
+            const summary = (entry.summary && typeof entry.summary === "object")
+              ? entry.summary
+              : {{}};
+            const packet = (entry.packet && typeof entry.packet === "object")
+              ? entry.packet
+              : {{}};
+            const chat = (entry.chat && typeof entry.chat === "object")
+              ? entry.chat
+              : {{}};
+            const isMatch = entry.match === true;
+            const packetLines = isChatEntry
+              ? formatConsoleLine({{
+                  summary: {{
+                    from: chat.from ?? summary.from,
+                    to: chat.to ?? summary.to,
+                    portnum: chat.portnum ?? summary.portnum,
+                    rx_snr: chat.rx_snr ?? summary.rx_snr,
+                    rx_rssi: chat.rx_rssi ?? summary.rx_rssi,
+                    hop_start: chat.hop_start ?? summary.hop_start,
+                    hop_limit: chat.hop_limit ?? summary.hop_limit,
+                    text: chat.text ?? summary.text ?? "",
+                    reply_id: chat.reply_id ?? summary.reply_id,
+                    emoji: chat.emoji ?? summary.emoji,
+                    channel: chat.channel ?? summary.channel,
+                    packet_id: chat.message_id ?? summary.packet_id,
+                  }},
+                  packet: {{
+                    id: chat.message_id ?? packet.id ?? null,
+                    channel: chat.channel ?? packet.channel ?? null,
+                    text: chat.text ?? packet.text ?? "",
+                    emoji: chat.emoji ?? packet.emoji ?? "",
+                    reply_id: chat.reply_id ?? packet.reply_id ?? null,
+                    fromId: chat.from ?? packet.fromId ?? null,
+                    toId: chat.to ?? packet.toId ?? null,
+                  }},
+                  chat,
+                }}, verbosity)
+              : formatConsoleLine({{ summary, packet }}, verbosity);
+            const lineList = Array.isArray(packetLines)
+              ? packetLines
+              : [String(packetLines == null ? "" : packetLines)];
+            const packetUnix = isChatEntry
+              ? latestUnixTimestamp(
+                  chat.captured_at,
+                  chat.rx_time,
+                  entry.created_unix,
+                )
+              : latestUnixTimestamp(
+                  summary.captured_at,
+                  summary.rx_time,
+                  entry.created_unix,
+                );
+            const packetMs = Number.isFinite(packetUnix) && packetUnix > 0
+              ? packetUnix * 1000
+              : Date.now();
+            const packetRowId = Number(isChatEntry ? (entry.chat_row_id ?? entry.packet_row_id) : entry.packet_row_id);
+            const packetKey = Number.isFinite(packetRowId)
+              ? `${{isChatEntry ? "chat" : "packet"}}-${{Math.trunc(packetRowId)}}`
+              : `scan-${{fallbackLineCounter}}`;
+            for (let i = 0; i < lineList.length; i += 1) {{
+              const lineRaw = String(lineList[i] == null ? "" : lineList[i]);
+              const prefix = i === 0 ? (isMatch ? "> " : "  ") : "  ";
+              const sourcePrefix = (isChatEntry && i === 0) ? "[chat] " : "";
+              fallbackLineCounter += 1;
+              appendConsoleLine(
+                `grep|${{runId}}|${{packetKey}}|${{i}}|${{fallbackLineCounter}}`,
+                `${{prefix}}${{sourcePrefix}}${{lineRaw}}`,
+                packetMs,
+              );
+            }}
+          }}
+          if (totalMatches > shownMatches) {{
+            appendConsoleEventLine(
+              `[grep] truncated to latest ${{shownMatches}} match(es). Use limit=<n> up to 500.`
+            );
+          }}
+          renderConsoleBuffer(true);
+          return "";
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "list",
+        usage: "list [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
+        description: "List nodes from current state with wildcard filters.",
+        supportsVerbosity: true,
+        run: (ctx) => {{
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const comparisons = Array.isArray(ctx && ctx.comparisons) ? ctx.comparisons : [];
+          const rawArgs = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const idPattern = normalizeWildcardPattern(options.id || "");
+          const namePattern = normalizeWildcardPattern(options.name || "");
+          const statusPattern = normalizeWildcardPattern(options.status || "");
+          const portPattern = normalizeWildcardPattern(options.port ?? options.p ?? "");
+          const parseBoolFilter = (rawValue) => {{
+            if (typeof rawValue === "boolean") return rawValue;
+            const clean = String(rawValue == null ? "" : rawValue).trim().toLowerCase();
+            if (!clean) return null;
+            if (["1", "true", "yes", "y", "on", "gps", "with"].includes(clean)) return true;
+            if (["0", "false", "no", "n", "off", "none", "without", "nogps", "no-gps"].includes(clean)) return false;
+            return null;
+          }};
+          let gpsFilter = null;
+          if (Object.prototype.hasOwnProperty.call(options, "gps")) {{
+            gpsFilter = parseBoolFilter(options.gps);
+            if (gpsFilter == null) {{
+              return `[list] invalid gps value: ${{String(options.gps)}}`;
+            }}
+          }}
+          const args = [];
+          for (const arg of rawArgs) {{
+            const clean = String(arg || "").trim().toLowerCase();
+            if (!Object.prototype.hasOwnProperty.call(options, "gps")) {{
+              if (clean === "gps") {{
+                gpsFilter = true;
+                continue;
+              }}
+              if (clean === "nogps" || clean === "no-gps") {{
+                gpsFilter = false;
+                continue;
+              }}
+            }}
+            args.push(arg);
+          }}
+          const freePattern = normalizeWildcardPattern(args[0] || "");
+          const hopsComparators = [];
+          const pushHopsComparator = (op, rawValue) => {{
+            const numeric = Number(rawValue);
+            if (!Number.isFinite(numeric)) {{
+              return false;
+            }}
+            hopsComparators.push({{ op: String(op || "="), value: numeric }});
+            return true;
+          }};
+          if (Object.prototype.hasOwnProperty.call(options, "hops")) {{
+            if (!pushHopsComparator("=", options.hops)) {{
+              return `[list] invalid hops value: ${{String(options.hops)}}`;
+            }}
+          }}
+          for (const cmp of comparisons) {{
+            if (!cmp || typeof cmp !== "object") continue;
+            const cmpKey = String(cmp.key || "").trim().toLowerCase();
+            if (cmpKey !== "hops" && cmpKey !== "hop") continue;
+            const cmpOp = String(cmp.op || "").trim();
+            if (!["<", ">", "<=", ">="].includes(cmpOp)) continue;
+            if (!pushHopsComparator(cmpOp, cmp.value)) {{
+              return `[list] invalid hops comparator: ${{cmpKey}}${{cmpOp}}${{String(cmp.value || "")}}`;
+            }}
+          }}
+          const limitRaw = Number(options.limit ?? options.n ?? 50);
+          const limit = Math.min(500, Math.max(1, Math.floor(Number.isFinite(limitRaw) ? limitRaw : 50)));
+          const rows = collectConsoleNodeRows(ctx && ctx.state);
+          const filtered = rows.filter((row) => {{
+            if (freePattern) {{
+              const freeHit = wildcardMatches(freePattern, row.id) || wildcardMatches(freePattern, row.name);
+              if (!freeHit) return false;
+            }}
+            if (idPattern && !wildcardMatches(idPattern, row.id)) return false;
+            if (namePattern && !wildcardMatches(namePattern, row.name)) return false;
+            if (statusPattern && !wildcardMatches(statusPattern, row.status)) return false;
+            if (portPattern) {{
+              const hasPortMatch = Array.isArray(row.ports)
+                && row.ports.some((portValue) => wildcardMatches(portPattern, portValue));
+              if (!hasPortMatch) return false;
+            }}
+            if (gpsFilter != null && Boolean(row.hasGps) !== gpsFilter) return false;
+            if (hopsComparators.length) {{
+              const hopsValue = Number(row.hops);
+              if (!Number.isFinite(hopsValue)) return false;
+              for (const cmp of hopsComparators) {{
+                const target = Number(cmp.value);
+                if (cmp.op === ">" && !(hopsValue > target)) return false;
+                if (cmp.op === "<" && !(hopsValue < target)) return false;
+                if (cmp.op === ">=" && !(hopsValue >= target)) return false;
+                if (cmp.op === "<=" && !(hopsValue <= target)) return false;
+                if (cmp.op === "=" && !(hopsValue === target)) return false;
+              }}
+            }}
+            return true;
+          }});
+          const show = filtered.slice(0, limit);
+          const lines = [
+            `[list] matched ${{filtered.length}} node(s); showing ${{show.length}}.`,
+          ];
+          for (const row of show) {{
+            const hopsLabel = row.hops == null ? "n/a" : String(row.hops);
+            const portsLabel = formatConsolePortSummary(row.ports, 3);
+            const gpsLabel = row.hasGps ? "yes" : "no";
+            const lat = Number(row && row.raw && row.raw.lat);
+            const lon = Number(row && row.raw && row.raw.lon);
+            const posLabel = row.hasGps
+              ? `${{lat.toFixed(5)}},${{lon.toFixed(5)}}`
+              : "n/a";
+            lines.push(
+              `${{row.id}} | ${{row.name}} | status=${{row.status}} | gps=${{gpsLabel}} | hops=${{hopsLabel}} | ports=${{portsLabel}} | last=${{formatConsoleListTime(row.lastSeenUnix)}}${{verbosity > 0 ? ` | pos=${{posLabel}}` : ""}}`
+            );
+            if (verbosity >= 2) {{
+              const altitude = Number(row && row.raw && row.raw.altitude);
+              const battery = Number(row && row.raw && row.raw.battery_level);
+              const detail = [];
+              if (Number.isFinite(altitude)) detail.push(`alt=${{Math.trunc(altitude)}}m`);
+              if (Number.isFinite(battery)) detail.push(`batt=${{Math.round(battery)}}%`);
+              if (detail.length) {{
+                lines.push(`  details: ${{detail.join(" | ")}}`);
+              }}
+            }}
+          }}
+          if (!show.length) {{
+            lines.push("[list] no matches. Try list * or list name=*pattern*");
+          }} else if (filtered.length > show.length) {{
+            lines.push(`[list] truncated. Use limit=<n> up to 500.`);
+          }}
+          return lines;
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "zork",
+        usage: "zork",
+        description: "Start a standalone local Zork session in Console.",
+        run: async (ctx) => {{
+          if (consoleInteractiveSession) {{
+            return "[zork] already running. Press Ctrl+C to stop.";
+          }}
+          clearConsoleOutput({{ renderNow: false }});
+          const payload = await postStandaloneZorkCommand("zork");
+          consoleInteractiveSession = {{
+            name: "zork",
+            mode: "standalone",
+            sessionId: String(payload && payload.session_id ? payload.session_id : "").trim(),
+          }};
+          syncConsoleCommandInputState();
+          const lines = [];
+          const replyTextRaw = String(
+            payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
+              ? (payload.reply_text ?? "")
+              : ""
+          );
+          const replyText = normalizeStandaloneZorkReplyText(replyTextRaw);
+          if (replyText.trim()) {{
+            lines.push(replyText);
+          }}
+          if (payload && payload.active_session === false) {{
+            stopConsoleInteractiveSession("game ended", false);
+          }}
+          return lines;
+        }},
+      }});
+    }}

@@ -1,0 +1,198 @@
+    function fillTable(tableId, rowsHtml) {{
+      const tbody = document.querySelector(`#${{tableId}} tbody`);
+      if (!tbody) return;
+      tbody.innerHTML = rowsHtml.join("");
+      if (sortableTables.has(tableId)) {{
+        bindSortableHeader(tableId);
+        // The nodes list is pre-sorted during render; avoid expensive DOM sorting on every poll.
+        if (tableId !== "nodes-table") {{
+          sortTableRows(tableId);
+        }} else {{
+          updateSortIndicators(tableId);
+        }}
+      }}
+    }}
+
+    function hashMixInt(hash, value) {{
+      const v = (Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 0) | 0;
+      hash ^= v;
+      hash = Math.imul(hash, 16777619);
+      return hash >>> 0;
+    }}
+
+    function hashMixStr(hash, value) {{
+      const text = String(value == null ? "" : value);
+      for (let i = 0; i < text.length; i += 1) {{
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }}
+      return hash >>> 0;
+    }}
+
+    function buildNodesTableModel(nodes, query) {{
+      const sourceNodes = Array.isArray(nodes) ? nodes : [];
+      const entries = [];
+      const state = tableSortState["nodes-table"] || {{ index: 0, dir: "desc" }};
+      const sortIndex = Number.isFinite(Number(state.index)) ? Math.trunc(Number(state.index)) : 0;
+      const sortDir = state.dir === "asc" ? "asc" : "desc";
+
+      let h = 2166136261;
+      h = hashMixStr(h, query || "");
+      h = hashMixInt(h, sortIndex);
+      h = hashMixStr(h, sortDir);
+
+      for (const node of sourceNodes) {{
+        const projection = nodeExplorerBuildProjection(node);
+        const nodeId = projection.nodeId;
+        const name = projection.name;
+        if (!matchesIdOrNameQuery(nodeId, name, query, {{ node }})) continue;
+
+        entries.push({{ node, nodeId, name, projection }});
+
+        h = hashMixStr(h, nodeId);
+        h = hashMixStr(h, name);
+        h = hashMixStr(h, projection.fields.hardware.text);
+        h = hashMixInt(h, projection.fields.last_heard.sort);
+        const snrSort = Number(projection.fields.snr.sort);
+        h = hashMixInt(h, Number.isFinite(snrSort) ? Math.round(snrSort * 10) : 0);
+        h = hashMixInt(h, projection.fields.hops.sort);
+        h = hashMixInt(h, projection.fields.battery.sort);
+        h = hashMixInt(h, projection.fields.saved.sort);
+        const latSort = Number(projection.fields.pos.sort);
+        h = hashMixInt(h, Number.isFinite(latSort) ? Math.round(latSort * 1e4) : 0);
+      }}
+      h = hashMixInt(h, entries.length);
+      return {{ entries, hash: h >>> 0 }};
+    }}
+
+    function renderNodesPlaceholder(message = "Waiting for first state snapshot...") {{
+      const text = String(message == null ? "" : message).trim() || "Waiting for first state snapshot...";
+      fillTable("nodes-table", [`<tr><td colspan="10">${{escAttr(text)}}</td></tr>`]);
+    }}
+
+    function nodesTableSortRaw(entry, colIndex) {{
+      const node = (entry && typeof entry === "object" && entry.node) ? entry.node : entry;
+      const projection = (entry && typeof entry === "object" && entry.projection)
+        ? entry.projection
+        : nodeExplorerBuildProjection(node);
+      if (!projection) return "";
+      switch (colIndex) {{
+        case 0:
+          return projection.fields.last_heard.sort;
+        case 1:
+          return projection.fields.id.sort;
+        case 2:
+          return projection.fields.name.sort;
+        case 3:
+          return projection.fields.hardware.sort;
+        case 4:
+          return projection.fields.snr.sort;
+        case 5:
+          return projection.fields.hops.sort;
+        case 6:
+          return projection.fields.battery.sort;
+        case 7:
+          return projection.fields.saved.sort;
+        case 8:
+          return projection.fields.pos.sort;
+        case 9:
+          return projection.fields.favorite.sort;
+        default:
+          return "";
+      }}
+    }}
+
+    function sortNodesForTable(nodes) {{
+      const state = tableSortState["nodes-table"] || {{ index: 0, dir: "desc" }};
+      const col = Number.isFinite(Number(state.index)) ? Math.trunc(Number(state.index)) : 0;
+      const dir = state.dir === "asc" ? "asc" : "desc";
+      if (nodes.length <= 1) return nodes;
+      // The server already returns nodes sorted by last-heard descending.
+      if (col === 0 && dir === "desc") return nodes;
+      nodes.sort((a, b) => {{
+        const aValue = normalizeSortValue(nodesTableSortRaw(a, col));
+        const bValue = normalizeSortValue(nodesTableSortRaw(b, col));
+        const cmp = compareSortValues(aValue, bValue);
+        if (cmp !== 0) return dir === "asc" ? cmp : -cmp;
+        const aNode = (a && typeof a === "object" && a.node) ? a.node : a;
+        const bNode = (b && typeof b === "object" && b.node) ? b.node : b;
+        const aHeard = Number(aNode && (aNode.last_heard_unix ?? aNode.last_heard_epoch ?? 0)) || 0;
+        const bHeard = Number(bNode && (bNode.last_heard_unix ?? bNode.last_heard_epoch ?? 0)) || 0;
+        if (aHeard !== bHeard) return bHeard - aHeard;
+        const aId = normalizeNodeId((a && a.nodeId) || (aNode && aNode.id));
+        const bId = normalizeNodeId((b && b.nodeId) || (bNode && bNode.id));
+        return String(aId).localeCompare(String(bId));
+      }});
+      return nodes;
+    }}
+
+    function renderNodes(nodes) {{
+      const query = globalNodeSearchQuery();
+      const model = buildNodesTableModel(nodes || [], query);
+      const computedHash = model.hash;
+      if (computedHash === nodesTableLastHash && query === nodesTableLastQuery) {{
+        return;
+      }}
+      nodesTableLastHash = computedHash;
+      nodesTableLastQuery = query;
+
+      const filteredNodes = model.entries;
+
+      sortNodesForTable(filteredNodes);
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+
+      const rows = [];
+      for (const entry of filteredNodes) {{
+          const node = entry.node;
+          const projection = entry.projection && typeof entry.projection === "object"
+            ? entry.projection
+            : nodeExplorerBuildProjection(node, {{ nowUnix }});
+          const nodeId = projection.nodeId;
+          const name = projection.name;
+          const selectable = isSelectableNodeId(nodeId);
+          const selectedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
+          const status = projection.status || "unknown";
+          const statusClass = ` status-${{status || "unknown"}}`;
+          const pos = projection.fields.pos.text;
+          const savedPackets = Number(projection.fields.saved.sort) || 0;
+          const savedPoints = Number.isFinite(Number(node.saved_points))
+            ? Number(node.saved_points)
+            : 0;
+          const savedTitle = savedPoints > 0
+            ? `${{savedPackets}} packets across ${{savedPoints}} minute buckets`
+            : "No saved history yet";
+          const lastHeardText = projection.fields.last_heard.text;
+          const lastSort = Number(projection.fields.last_heard.sort) || 0;
+          rows.push(`<tr data-node-id="${{escAttr(nodeId)}}" class="${{selectable ? "node-selectable" : ""}}${{selectedClass}}${{statusClass}}">
+          <td data-sort="${{escAttr(lastSort)}}" title="${{escAttr(lastHeardText)}}"><span class="node-status-dot status-${{escAttr(status || "unknown")}}">●</span>${{lastHeardText}}</td>
+          <td class="mono" data-sort="${{escAttr(projection.fields.id.sort)}}" title="${{escAttr(projection.fields.id.title)}}">${{projection.fields.id.text || "n/a"}}</td>
+          <td data-sort="${{escAttr(name)}}">
+            <span class="node-name-row">
+              <span class="node-name-label">${{name}}</span>
+            </span>
+          </td>
+          <td data-sort="${{escAttr(projection.fields.hardware.sort)}}">${{projection.fields.hardware.text}}</td>
+          <td data-sort="${{escAttr(projection.fields.snr.sort)}}">${{projection.fields.snr.text}}</td>
+          <td data-sort="${{escAttr(projection.fields.hops.sort)}}">${{projection.fields.hops.text}}</td>
+          <td data-sort="${{escAttr(projection.fields.battery.sort)}}">${{projection.fields.battery.text}}</td>
+          <td data-sort="${{escAttr(savedPackets)}}" title="${{escAttr(savedTitle)}}">${{savedPackets}}</td>
+          <td data-sort="${{escAttr(projection.fields.pos.sort)}}">${{pos}}</td>
+          <td data-sort="${{escAttr(projection.fields.favorite.sort)}}">${{favoriteToggleButtonHtml(nodeId, "node-favorite-btn")}}</td>
+        </tr>`);
+      }}
+      if (rows.length === 0) {{
+        rows.push('<tr><td colspan="10">No nodes match this search.</td></tr>');
+      }}
+
+      const table = document.getElementById("nodes-table");
+      const scroller = table ? table.closest(".scroll") : null;
+      const scrollTop = scroller && "scrollTop" in scroller ? scroller.scrollTop : null;
+      fillTable("nodes-table", rows);
+      if (scrollTop != null && scroller) {{
+        scroller.scrollTop = scrollTop;
+      }}
+      if (pendingSelectionScroll) {{
+        scrollSelectionIntoView();
+      }}
+    }}

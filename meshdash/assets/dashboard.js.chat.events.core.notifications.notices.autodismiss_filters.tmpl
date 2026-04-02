@@ -1,0 +1,192 @@
+    function noticeMatchesNotificationScope(notice) {{
+      return !!(notice && notice.systemRelevant === true);
+    }}
+
+    function chatFeedVisibilityRatio(item, scroller) {{
+      if (!(item instanceof HTMLElement) || !(scroller instanceof HTMLElement)) return 0;
+      const itemRect = item.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const itemHeight = Math.max(1, itemRect.height);
+      const visibleTop = Math.max(itemRect.top, scrollerRect.top);
+      const visibleBottom = Math.min(itemRect.bottom, scrollerRect.bottom);
+      const visiblePx = Math.max(0, visibleBottom - visibleTop);
+      return Math.max(0, Math.min(1, visiblePx / itemHeight));
+    }}
+
+    function clearChatChangeAutoDismissTimer(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key) return;
+      const timerId = chatChangeAutoDismissTimers.get(key);
+      if (typeof timerId === "number") {{
+        clearTimeout(timerId);
+      }}
+      chatChangeAutoDismissTimers.delete(key);
+    }}
+
+    function clearAllChatChangeAutoDismissTimers() {{
+      for (const key of Array.from(chatChangeAutoDismissTimers.keys())) {{
+        clearChatChangeAutoDismissTimer(key);
+      }}
+    }}
+
+    function acknowledgeChatChangeNoticesByFocusKey(focusKey, channelKey = activeChatChannel) {{
+      const targetFocus = String(focusKey || "").trim();
+      if (!targetFocus) return false;
+      const channels = channelKey == null
+        ? ["all", "direct"]
+        : [normalizeChatChannel(channelKey)];
+      let changed = false;
+      for (const channel of channels) {{
+        const list = chatChangeNoticesByChannel[channel];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[channel];
+        if (!Array.isArray(list) || !(ackSet instanceof Set)) continue;
+        for (const notice of list) {{
+          if (!noticeMatchesNotificationScope(notice)) continue;
+          const noticeFocus = String((notice && (notice.focusKey || notice.key)) || "").trim();
+          if (!noticeFocus || noticeFocus !== targetFocus) continue;
+          const noticeKey = String((notice && notice.key) || "").trim();
+          if (!noticeKey || ackSet.has(noticeKey)) continue;
+          ackSet.add(noticeKey);
+          changed = true;
+        }}
+      }}
+      if (changed) {{
+        persistChatChangeNotices();
+        syncDocumentUnreadTitle(chatUnreadCount);
+        renderHistoryNotificationLog();
+        setChatRailUnread(chatUnreadCount);
+      }}
+      return changed;
+    }}
+
+    function dismissChatChangeMarkerWithFade(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key || chatChangeAutoDismissInFlightKeys.has(key)) return;
+      chatChangeAutoDismissInFlightKeys.add(key);
+      const item = findChatFeedItemByMessageKey(key);
+      if (item instanceof HTMLElement) {{
+        item.classList.add("change-marker-fading");
+      }}
+      window.setTimeout(() => {{
+        const changed = acknowledgeChatChangeNoticesByFocusKey(key, activeChatChannel);
+        chatChangeAutoDismissInFlightKeys.delete(key);
+        if (!changed && item instanceof HTMLElement) {{
+          item.classList.remove("change-marker-fading");
+        }}
+        if (changed && latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
+          renderChat(latestState);
+          if (activeLayoutView === "chatlabs") {{
+            renderChatLabsView(latestState);
+          }}
+        }}
+      }}, chatChangeAutoDismissFadeMs);
+    }}
+
+    function scheduleChatChangeAutoDismiss(focusKey) {{
+      const key = String(focusKey || "").trim();
+      if (!key || chatChangeAutoDismissInFlightKeys.has(key) || chatChangeAutoDismissTimers.has(key)) {{
+        return;
+      }}
+      const timerId = window.setTimeout(() => {{
+        chatChangeAutoDismissTimers.delete(key);
+        if (!isChatWorkspaceLayoutView(activeLayoutView) || document.hidden || !tabHasFocus) {{
+          return;
+        }}
+        const scroller = getChatScroller();
+        const item = findChatFeedItemByMessageKey(key);
+        if (!(scroller instanceof HTMLElement) || !(item instanceof HTMLElement)) {{
+          return;
+        }}
+        const ratio = chatFeedVisibilityRatio(item, scroller);
+        if (ratio < chatChangeAutoDismissMinVisibleRatio) {{
+          return;
+        }}
+        dismissChatChangeMarkerWithFade(key);
+      }}, chatChangeAutoDismissVisibleMs);
+      chatChangeAutoDismissTimers.set(key, timerId);
+    }}
+
+    function syncChatChangeAutoDismiss() {{
+      if (!isChatWorkspaceLayoutView(activeLayoutView) || document.hidden || !tabHasFocus) {{
+        clearAllChatChangeAutoDismissTimers();
+        return;
+      }}
+      const scroller = getChatScroller();
+      if (!(scroller instanceof HTMLElement)) {{
+        clearAllChatChangeAutoDismissTimers();
+        return;
+      }}
+      const activeKeys = new Set();
+      for (const item of document.querySelectorAll("#chat-feed .chat-feed-item.has-change-marker")) {{
+        if (!(item instanceof HTMLElement)) continue;
+        const focusKey = String(item.dataset.messageKey || "").trim();
+        if (!focusKey) continue;
+        activeKeys.add(focusKey);
+        const ratio = chatFeedVisibilityRatio(item, scroller);
+        if (ratio >= chatChangeAutoDismissMinVisibleRatio) {{
+          scheduleChatChangeAutoDismiss(focusKey);
+        }} else {{
+          clearChatChangeAutoDismissTimer(focusKey);
+        }}
+      }}
+      for (const key of Array.from(chatChangeAutoDismissTimers.keys())) {{
+        if (!activeKeys.has(key)) {{
+          clearChatChangeAutoDismissTimer(key);
+        }}
+      }}
+    }}
+
+    function clearChatChangeNotices(channelKey = null) {{
+      const clearOne = (key) => {{
+        const normalized = normalizeChatChannel(key);
+        const list = chatChangeNoticesByChannel[normalized];
+        const keySet = chatChangeNoticeKeysByChannel[normalized];
+        const ackSet = chatChangeAcknowledgedKeysByChannel[normalized];
+        if (Array.isArray(list)) {{
+          list.length = 0;
+        }}
+        if (keySet instanceof Set) {{
+          keySet.clear();
+        }}
+        if (ackSet instanceof Set) {{
+          ackSet.clear();
+        }}
+      }};
+      if (channelKey == null) {{
+        clearOne("all");
+        clearOne("direct");
+        clearAllChatChangeAutoDismissTimers();
+        persistChatChangeNotices();
+        syncDocumentUnreadTitle(chatUnreadCount);
+        renderHistoryNotificationLog();
+        return;
+      }}
+      clearOne(channelKey);
+      clearAllChatChangeAutoDismissTimers();
+      persistChatChangeNotices();
+      syncDocumentUnreadTitle(chatUnreadCount);
+      renderHistoryNotificationLog();
+    }}
+
+    function chatChangeNoticesForChannel(channelKey) {{
+      const key = normalizeChatChannel(channelKey);
+      const list = chatChangeNoticesByChannel[key];
+      if (!Array.isArray(list)) return [];
+      return list.filter((notice) => noticeMatchesNotificationScope(notice));
+    }}
+
+    function chatChangeFocusKeysForChannel(channelKey) {{
+      const keys = new Set();
+      const ackSet = chatChangeAcknowledgedKeySetForChannel(channelKey);
+      for (const notice of chatChangeNoticesForChannel(channelKey)) {{
+        const noticeKey = String((notice && notice.key) || "").trim();
+        if (ackSet instanceof Set && noticeKey && ackSet.has(noticeKey)) {{
+          continue;
+        }}
+        const focusKey = String((notice && (notice.focusKey || notice.key)) || "").trim();
+        if (focusKey) {{
+          keys.add(focusKey);
+        }}
+      }}
+      return keys;
+    }}
