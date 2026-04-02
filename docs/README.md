@@ -1,7 +1,7 @@
 # Docs Index
 
 Doc status: active-doc-index
-Last reviewed: 2026-03-14
+Last reviewed: 2026-04-02
 
 Rule of thumb: **code is the source of truth**. Docs should describe current behavior and planned work clearly. If code and docs disagree, update the docs.
 
@@ -10,6 +10,7 @@ Rule of thumb: **code is the source of truth**. Docs should describe current beh
 - `docs/CHANNELS.md`: current chat scope, View Ch/Send Ch behavior, and receive/send semantics.
 - `docs/REPO_STRUCTURE.md`: current architecture map and implementation entry points.
 - `docs/DOCS_AUDIT.md`: most recent docs drift audit and triage rules.
+- `docs/PUBLIC_RELEASE.md`: private-dev/public-release workflow and command usage.
 
 ## Active planning docs
 
