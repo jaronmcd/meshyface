@@ -52,6 +52,37 @@
       }}
     }}
 
+    function parseEdgeLastSeenUnix(edge) {{
+      const directUnix = Number(edge && (edge.last_rx_unix ?? edge.last_seen_unix ?? edge.last_unix));
+      if (Number.isFinite(directUnix) && directUnix > 0) {{
+        return Math.floor(directUnix);
+      }}
+      const rawLast = String(edge && edge.last_rx_time ? edge.last_rx_time : "").trim();
+      if (!rawLast) return null;
+      if (typeof parseDashboardTimeToUnix === "function") {{
+        const parsedUnix = parseDashboardTimeToUnix(rawLast);
+        if (Number.isFinite(parsedUnix) && parsedUnix > 0) {{
+          return Math.floor(parsedUnix);
+        }}
+      }}
+      const normalized = rawLast.includes("T") ? rawLast : rawLast.replace(" ", "T");
+      const parsedMs = Date.parse(normalized);
+      if (!Number.isFinite(parsedMs) || parsedMs <= 0) return null;
+      return Math.floor(parsedMs / 1000);
+    }}
+
+    function packetLineRecencyFade(lastSeenUnix, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const ts = Number(lastSeenUnix);
+      if (!Number.isFinite(ts) || ts <= 0) return 1;
+      const ageSec = Math.max(0, nowUnix - ts);
+      const fadeStartSec = 45 * 60;
+      const fadeFullSec = 24 * 60 * 60;
+      if (ageSec <= fadeStartSec) return 1;
+      if (ageSec >= fadeFullSec) return 0;
+      const span = Math.max(1, fadeFullSec - fadeStartSec);
+      return 1 - ((ageSec - fadeStartSec) / span);
+    }}
+
     function renderMap(nodes, edges, nodeHistory = null) {{
       ensureMapSizeSync();
       const hideHeatmap = activeLayoutView === "saved";
@@ -298,6 +329,24 @@
             const lifetimeCount = edge.lifetime_count ?? edge.count ?? 0;
             const sessionCount = edge.session_count ?? edge.count ?? 0;
             const isReal = !!edge.is_real;
+            const lastSeenUnix = parseEdgeLastSeenUnix(edge);
+            const recencyFade = packetLineRecencyFade(lastSeenUnix, nowUnix);
+            const ageMinutes = Number.isFinite(lastSeenUnix) && lastSeenUnix > 0
+              ? Math.max(0, Math.floor((nowUnix - lastSeenUnix) / 60))
+              : -1;
+            const baseOpacity = isReal ? 0.74 : 0.52;
+            const minOpacity = isReal ? 0.38 : 0.3;
+            const edgeOpacity = minOpacity + ((baseOpacity - minOpacity) * recencyFade);
+            const baseWeight = Math.min(8, 2 + lifetimeCount);
+            const minWeight = Math.max(1.2, baseWeight * 0.45);
+            const edgeWeight = minWeight + ((baseWeight - minWeight) * recencyFade);
+            const lastAgeLabel = Number.isFinite(lastSeenUnix) && lastSeenUnix > 0
+              ? (
+                typeof formatIdleAge === "function"
+                  ? formatIdleAge(lastSeenUnix, nowUnix)
+                  : `${{Math.floor((nowUnix - lastSeenUnix) / 60)}}m ago`
+              )
+              : "n/a";
             let edgeHash = 2166136261;
             edgeHash = hashMixStr(edgeHash, "network-edge");
             edgeHash = hashMixStr(edgeHash, edgeKey);
@@ -308,6 +357,7 @@
             edgeHash = hashMixInt(edgeHash, Number(lifetimeCount) || 0);
             edgeHash = hashMixInt(edgeHash, Number(sessionCount) || 0);
             edgeHash = hashMixInt(edgeHash, isReal ? 1 : 0);
+            edgeHash = hashMixInt(edgeHash, ageMinutes);
             edgeHash = hashMixStr(edgeHash, edge && (edge.confidence || ""));
             edgeHash = hashMixStr(edgeHash, edge && (edge.first_rx_time || ""));
             edgeHash = hashMixStr(edgeHash, edge && (edge.last_rx_time || ""));
@@ -334,14 +384,15 @@
             const line = L.polyline([[src.lat, src.lon], [dst.lat, dst.lon]], {{
               color: isReal ? "#bf1f43" : "#b7791f",
               dashArray: isReal ? null : "6 6",
-              opacity: isReal ? 0.74 : 0.52,
-              weight: Math.min(8, 2 + lifetimeCount),
+              opacity: edgeOpacity,
+              weight: edgeWeight,
               bubblingMouseEvents: false,
             }});
             line.bindTooltip(`
               <b>${{edge.from}} -> ${{edge.to}}</b><br/>
               Status: ${{edge.confidence || (isReal ? "confirmed" : "observed")}}<br/>
               Packets: ${{lifetimeCount}}<br/>
+              Last: ${{edge.last_rx_time || "n/a"}} (${{lastAgeLabel}})<br/>
               Hops: ${{hopsLabel}}
             `, {{ sticky: true, opacity: 0.92 }});
             line.bindPopup(`
@@ -351,6 +402,7 @@
               Lifetime packets: ${{lifetimeCount}}<br/>
               First: ${{edge.first_rx_time || "n/a"}}<br/>
               Last: ${{edge.last_rx_time || "n/a"}}<br/>
+              Age: ${{lastAgeLabel}}<br/>
               Hops: ${{hopsLabel}}<br/>
               Ports: ${{ports.join(", ") || "n/a"}}
             `);

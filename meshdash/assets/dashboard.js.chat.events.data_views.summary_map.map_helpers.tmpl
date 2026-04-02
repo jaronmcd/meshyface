@@ -25,7 +25,7 @@
       return {{ hash: hash >>> 0, count: pointCount }};
     }}
 
-    function buildMapGraphSignature(nodes, edges) {{
+    function buildMapGraphSignature(nodes, edges, options = {{}}) {{
       let hash = 2166136261;
       let nodeCount = 0;
       let nodeXor = 0;
@@ -65,7 +65,13 @@
       hash = hashMixInt(hash, edgeXor);
       hash = hashMixInt(hash, edgeSum);
 
-      return `graph:${{(hash >>> 0).toString(16)}}:${{nodeCount}}:${{edgeCount}}`;
+      let edgeFadeBucketMinutes = 0;
+      if (options && options.includeTemporalEdgeFade) {{
+        edgeFadeBucketMinutes = Math.floor(Date.now() / 60000);
+        hash = hashMixInt(hash, edgeFadeBucketMinutes);
+      }}
+
+      return `graph:${{(hash >>> 0).toString(16)}}:${{nodeCount}}:${{edgeCount}}:${{edgeFadeBucketMinutes}}`;
     }}
 
     function buildMapSignatures(nodes, edges, nodeHistory) {{
@@ -102,7 +108,9 @@
         }};
       }}
 
-      const graphSignature = buildMapGraphSignature(nodes, edges);
+      const graphSignature = buildMapGraphSignature(nodes, edges, {{
+        includeTemporalEdgeFade: activeLayoutView === "network" && !!mapPacketLinesEnabled,
+      }});
       if (networkSelectionMode) {{
         const trailSig = hashTrailSignature(nodeHistory, selection);
         return {{
@@ -269,4 +277,3 @@
         title: "Position appears to be fixed or from an older saved location.",
       }};
     }}
-
