@@ -663,14 +663,28 @@
 
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
-      if (clean === "data") return "settings";
-      if (clean === "packets") return "settings";
-      if (clean === "channels") return "settings";
-      if (clean === "encription") return "history";
-      if (clean === "saved") return "network";
-      if (clean === "apps") return loadPreferredAppsLayoutView();
-      if (isAppsLayoutView(clean)) return clean;
-      return knownLayoutViews.has(clean) ? clean : "chat";
+      let resolved = clean;
+      if (clean === "data" || clean === "packets" || clean === "channels") {{
+        resolved = "settings";
+      }} else if (clean === "encription" || clean === "saved") {{
+        resolved = "network";
+      }} else if (clean === "apps") {{
+        resolved = loadPreferredAppsLayoutView();
+      }} else if (isAppsLayoutView(clean)) {{
+        resolved = clean;
+      }} else if (!knownLayoutViews.has(clean)) {{
+        resolved = "chat";
+      }}
+
+      // Public v0 rail: expose only Chat/Network/Console/Settings.
+      return (
+        resolved === "chat"
+        || resolved === "network"
+        || resolved === "console"
+        || resolved === "settings"
+      )
+        ? resolved
+        : "chat";
     }}
 
     function isMapVisibleLayoutView(viewName) {{

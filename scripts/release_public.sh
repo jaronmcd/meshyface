@@ -13,6 +13,9 @@ Options:
   --target-remote <name>   Public remote name (default: $PUBLIC_RELEASE_REMOTE or public)
   --target-branch <name>   Public branch name (default: $PUBLIC_RELEASE_BRANCH or main)
   --allowlist <path>       Allowlist file (default: .public-release-allowlist)
+  --profile <name>         Use .public-release/allowlists/<name>.allowlist
+  --config <path>          Config file to source (default: .public-release/config.env)
+  --list-profiles          Show available allowlist profiles and exit
   --message <text>         Commit message for the public release commit
   --dry-run                Build the release commit locally, but do not push
   --allow-dirty            Skip clean working tree check in source repo
@@ -21,6 +24,14 @@ Options:
 Allowlist format:
   - One repo-root-relative path per line.
   - Blank lines and lines starting with # are ignored.
+
+Config file format:
+  - Simple KEY=VALUE lines.
+  - Supported keys:
+      PUBLIC_RELEASE_REMOTE
+      PUBLIC_RELEASE_BRANCH
+      PUBLIC_RELEASE_PROFILE
+      PUBLIC_RELEASE_ALLOWLIST
 EOF
 }
 
@@ -46,12 +57,19 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 source_branch="$(git rev-parse --abbrev-ref HEAD)"
-target_remote="${PUBLIC_RELEASE_REMOTE:-public}"
-target_branch="${PUBLIC_RELEASE_BRANCH:-main}"
-allowlist_file=".public-release-allowlist"
+target_remote=""
+target_branch=""
+allowlist_file=""
+profile_name=""
+config_file=".public-release/config.env"
 commit_message=""
 dry_run=0
 allow_dirty=0
+list_profiles=0
+target_remote_arg=0
+target_branch_arg=0
+allowlist_arg=0
+profile_arg=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,17 +81,35 @@ while [[ $# -gt 0 ]]; do
     --target-remote)
       require_arg "$1" "${2-}"
       target_remote="$2"
+      target_remote_arg=1
       shift 2
       ;;
     --target-branch)
       require_arg "$1" "${2-}"
       target_branch="$2"
+      target_branch_arg=1
       shift 2
       ;;
     --allowlist)
       require_arg "$1" "${2-}"
       allowlist_file="$2"
+      allowlist_arg=1
       shift 2
+      ;;
+    --profile)
+      require_arg "$1" "${2-}"
+      profile_name="$2"
+      profile_arg=1
+      shift 2
+      ;;
+    --config)
+      require_arg "$1" "${2-}"
+      config_file="$2"
+      shift 2
+      ;;
+    --list-profiles)
+      list_profiles=1
+      shift
       ;;
     --message)
       require_arg "$1" "${2-}"
@@ -97,6 +133,49 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -f "$config_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$config_file"
+fi
+
+if [[ "$list_profiles" -eq 1 ]]; then
+  profiles_dir=".public-release/allowlists"
+  if [[ ! -d "$profiles_dir" ]]; then
+    die "profiles directory not found: $profiles_dir"
+  fi
+  find "$profiles_dir" -maxdepth 1 -type f -name "*.allowlist" -printf '%f\n' \
+    | sed 's/\.allowlist$//' \
+    | sort
+  exit 0
+fi
+
+if [[ "$target_remote_arg" -eq 0 ]]; then
+  target_remote="${PUBLIC_RELEASE_REMOTE:-public}"
+fi
+if [[ "$target_branch_arg" -eq 0 ]]; then
+  target_branch="${PUBLIC_RELEASE_BRANCH:-main}"
+fi
+if [[ "$profile_arg" -eq 0 ]]; then
+  profile_name="${PUBLIC_RELEASE_PROFILE:-}"
+fi
+if [[ "$allowlist_arg" -eq 0 ]]; then
+  allowlist_file="${PUBLIC_RELEASE_ALLOWLIST:-.public-release-allowlist}"
+fi
+
+if [[ -n "$profile_name" ]]; then
+  profile_file=".public-release/allowlists/${profile_name}.allowlist"
+  if [[ "$allowlist_arg" -eq 0 ]] && [[ -z "${PUBLIC_RELEASE_ALLOWLIST:-}" ]]; then
+    allowlist_file="$profile_file"
+  fi
+fi
+
+echo "Release source branch: ${source_branch}"
+echo "Release target: ${target_remote}/${target_branch}"
+echo "Release allowlist: ${allowlist_file}"
+if [[ -n "$profile_name" ]]; then
+  echo "Release profile: ${profile_name}"
+fi
 
 [[ -f "$allowlist_file" ]] || die "allowlist file not found: $allowlist_file"
 git remote get-url "$target_remote" >/dev/null 2>&1 || die "remote '$target_remote' not found"
