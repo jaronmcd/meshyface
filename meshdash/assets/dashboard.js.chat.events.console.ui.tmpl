@@ -11,8 +11,32 @@
       if (!(container instanceof HTMLElement)) return;
       const rect = terminalScreen.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
+      const consoleCard = terminalScreen.closest(".console");
+      const layout = document.getElementById("dashboard-layout");
+      const workspaceMain = terminalScreen.closest(".workspace-main");
       const top = Number(rect && rect.top);
-      const bottom = Number(containerRect && containerRect.bottom);
+      let bottom = Number(containerRect && containerRect.bottom);
+      if (consoleCard instanceof HTMLElement) {{
+        const cardRect = consoleCard.getBoundingClientRect();
+        const cardBottom = Number(cardRect && cardRect.bottom);
+        if (Number.isFinite(cardBottom) && cardBottom > bottom) {{
+          bottom = cardBottom;
+        }}
+      }}
+      if (layout instanceof HTMLElement) {{
+        const layoutRect = layout.getBoundingClientRect();
+        const layoutBottom = Number(layoutRect && layoutRect.bottom);
+        if (Number.isFinite(layoutBottom) && layoutBottom > bottom) {{
+          bottom = layoutBottom;
+        }}
+      }}
+      if (workspaceMain instanceof HTMLElement) {{
+        const mainRect = workspaceMain.getBoundingClientRect();
+        const mainBottom = Number(mainRect && mainRect.bottom);
+        if (Number.isFinite(mainBottom) && mainBottom > bottom) {{
+          bottom = mainBottom;
+        }}
+      }}
       if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
       let bottomInset = 0;
       try {{
@@ -20,7 +44,14 @@
         bottomInset = Math.max(0, Number.parseFloat(styles.paddingBottom) || 0);
       }} catch (_err) {{
       }}
-      const nextHeight = Math.max(140, Math.floor(bottom - top - bottomInset));
+      const measuredHeight = Math.floor(bottom - top - bottomInset);
+      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {{
+        terminalScreen.style.removeProperty("height");
+        terminalScreen.style.removeProperty("min-height");
+        terminalScreen.style.removeProperty("max-height");
+        return;
+      }}
+      const nextHeight = Math.max(140, measuredHeight);
       terminalScreen.style.height = `${{nextHeight}}px`;
       terminalScreen.style.removeProperty("min-height");
       terminalScreen.style.removeProperty("max-height");
@@ -217,22 +248,6 @@
         const scheduleConsoleFillOnResume = () => {{
           if (activeLayoutView !== "console") return;
           scheduleConsoleTerminalScreenFillHeight();
-          if (typeof window.requestAnimationFrame === "function") {{
-            window.requestAnimationFrame(() => {{
-              scheduleConsoleTerminalScreenFillHeight();
-              window.setTimeout(() => {{
-                if (activeLayoutView === "console") {{
-                  scheduleConsoleTerminalScreenFillHeight();
-                }}
-              }}, 80);
-            }});
-          }} else {{
-            window.setTimeout(() => {{
-              if (activeLayoutView === "console") {{
-                scheduleConsoleTerminalScreenFillHeight();
-              }}
-            }}, 80);
-          }}
         }};
         window.addEventListener("resize", () => {{
           scheduleConsoleTerminalScreenFillHeight();

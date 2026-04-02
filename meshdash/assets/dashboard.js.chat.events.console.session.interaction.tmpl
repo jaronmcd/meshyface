@@ -31,10 +31,37 @@
     function focusConsoleCommandInput(select = false) {{
       const input = consoleCommandInputElement();
       if (!(input instanceof HTMLInputElement)) return;
+      const prevWindowX = Number(window.scrollX || window.pageXOffset || 0);
+      const prevWindowY = Number(window.scrollY || window.pageYOffset || 0);
+      const scrollingEl = document.scrollingElement instanceof HTMLElement
+        ? document.scrollingElement
+        : null;
+      const prevDocLeft = scrollingEl ? Number(scrollingEl.scrollLeft || 0) : prevWindowX;
+      const prevDocTop = scrollingEl ? Number(scrollingEl.scrollTop || 0) : prevWindowY;
       try {{
         input.focus({{ preventScroll: true }});
       }} catch (_err) {{
         input.focus();
+      }}
+      if (scrollingEl) {{
+        if (Number.isFinite(prevDocTop) && scrollingEl.scrollTop !== prevDocTop) {{
+          scrollingEl.scrollTop = prevDocTop;
+        }}
+        if (Number.isFinite(prevDocLeft) && scrollingEl.scrollLeft !== prevDocLeft) {{
+          scrollingEl.scrollLeft = prevDocLeft;
+        }}
+      }}
+      const nextWindowX = Number(window.scrollX || window.pageXOffset || 0);
+      const nextWindowY = Number(window.scrollY || window.pageYOffset || 0);
+      if (
+        Number.isFinite(prevWindowX)
+        && Number.isFinite(prevWindowY)
+        && (nextWindowX !== prevWindowX || nextWindowY !== prevWindowY)
+      ) {{
+        try {{
+          window.scrollTo(prevWindowX, prevWindowY);
+        }} catch (_err) {{
+        }}
       }}
       if (select) {{
         input.select();

@@ -397,9 +397,6 @@
       }}
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
-      if (typeof scheduleConsoleTerminalScreenFillHeight === "function") {{
-        scheduleConsoleTerminalScreenFillHeight();
-      }}
       scheduleConsoleAnchorRefresh(pre, forceScroll);
     }}
 
@@ -427,9 +424,6 @@
       consoleRenderedPromptHtml = promptHtml;
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
-      if (typeof scheduleConsoleTerminalScreenFillHeight === "function") {{
-        scheduleConsoleTerminalScreenFillHeight();
-      }}
       scheduleConsoleAnchorRefresh(pre, forceScroll);
     }}
 
