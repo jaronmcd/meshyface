@@ -529,7 +529,23 @@
       flex-direction: column;
       flex: 1 1 auto;
       min-height: 0;
+      gap: 8px;
+      overflow: hidden;
+    }}
+    .history-activity-tabbar {{
+      margin-bottom: 2px;
+    }}
+    .history-activity-panel {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
       gap: 10px;
+      overflow: auto;
+      padding-right: 2px;
+    }}
+    .history-activity-panel[hidden] {{
+      display: none !important;
     }}
     .history-activity-main-scroll {{
       display: flex;
@@ -584,6 +600,14 @@
       flex: 1 1 auto;
       min-height: 0;
     }}
+    .history-activity-chat-trend,
+    .history-activity-encryption-routes {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1 1 auto;
+      min-height: 220px;
+    }}
     .map-data-live[hidden], .map-data-node[hidden], .map-data-activity[hidden] {{
       display: none !important;
     }}
@@ -616,7 +640,13 @@
     .history-panel[hidden] {{
       display: none !important;
     }}
-    #signal-chart-wrap, #node-online-chart-wrap, #online-activity-chart-wrap, #weekly-summary-chart-wrap {{
+    #signal-chart-wrap,
+    #node-online-chart-wrap,
+    #online-activity-chart-wrap,
+    #weekly-summary-chart-wrap,
+    #history-chat-trend-chart-wrap,
+    #encription-trend-chart-wrap,
+    #encription-route-chart-wrap {{
       position: relative;
       width: 100%;
       min-height: 220px;
@@ -626,7 +656,13 @@
       background: linear-gradient(180deg, #fbfffc 0%, #eef8f1 100%);
       overflow: hidden;
     }}
-    #signal-chart, #node-online-chart, #online-activity-chart, #weekly-summary-chart {{
+    #signal-chart,
+    #node-online-chart,
+    #online-activity-chart,
+    #weekly-summary-chart,
+    #history-chat-trend-chart,
+    #encription-trend-chart,
+    #encription-route-chart {{
       width: 100%;
       height: 100%;
       display: block;
@@ -634,23 +670,37 @@
     .layout.view-history #map-data-activity .history-activity-stack {{
       min-height: 0;
       height: 100%;
+      overflow: hidden;
+    }}
+    .layout.view-history #map-data-activity .history-activity-panel {{
+      overflow: visible;
+      padding-right: 0;
     }}
     .layout.view-history #map-data-activity .history-activity-weekly-panel {{
-      flex: 2 1 auto;
-      overflow: auto;
+      flex: 0 0 auto;
+      min-height: 0;
+      overflow: visible;
+      padding-right: 0;
     }}
-    .layout.view-history #map-data-activity .history-activity-encryption-trend {{
-      flex: 1 1 auto;
+    .layout.view-history #map-data-activity .history-activity-chat-trend,
+    .layout.view-history #map-data-activity .history-activity-encryption-trend,
+    .layout.view-history #map-data-activity .history-activity-encryption-routes {{
+      flex: 0 0 auto;
       min-height: 0;
     }}
     .layout.view-history #map-data-activity #weekly-summary-chart-wrap {{
-      flex: 1 1 auto;
-      min-height: 300px;
-      height: auto;
+      flex: 0 0 auto;
+      min-height: clamp(170px, 30vh, 260px);
+      height: clamp(170px, 30vh, 260px);
     }}
+    .layout.view-history #map-data-activity #history-chat-trend-chart-wrap,
     .layout.view-history #map-data-activity #encription-trend-chart-wrap {{
-      min-height: 220px;
-      height: 220px;
+      min-height: clamp(140px, 24vh, 220px);
+      height: clamp(140px, 24vh, 220px);
+    }}
+    .layout.view-history #map-data-activity #encription-route-chart-wrap {{
+      min-height: clamp(140px, 24vh, 220px);
+      height: clamp(140px, 24vh, 220px);
     }}
     .layout.view-history #map-data-activity #weekly-summary-overview {{
       flex: 0 0 auto;
@@ -875,6 +925,38 @@
       gap: 8px;
       min-height: 0;
     }}
+    .history-chat-tabbar {{
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid #d7e5d2;
+      padding-bottom: 6px;
+    }}
+    .history-chat-tab-btn {{
+      border: 1px solid #c2d8c7;
+      background: #f3faf5;
+      color: #1f5d40;
+      border-radius: 999px;
+      font-size: 11px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }}
+    .history-chat-tab-btn.is-active,
+    .history-chat-tab-btn[aria-selected="true"] {{
+      background: #dff1e6;
+      border-color: #87b99a;
+      color: #14442d;
+      font-weight: 600;
+    }}
+    .history-chat-panel {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      gap: 8px;
+    }}
+    .history-chat-panel[hidden] {{
+      display: none !important;
+    }}
     .history-chat .scroll {{
       flex: 1 1 auto;
       min-height: 0;
@@ -1045,9 +1127,11 @@
     .history-encription-panels {{
       display: grid;
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: repeat(2, minmax(0, 1fr));
       gap: 8px;
       flex: 1 1 auto;
       min-height: 0;
+      overflow: auto;
     }}
     .history-encription-panel {{
       display: flex;
@@ -1654,21 +1738,6 @@
       border-color: #d5aaaa;
       background: #faecec;
       color: #7a2f2f;
-    }}
-    #encription-trend-chart-wrap {{
-      position: relative;
-      width: 100%;
-      min-height: 220px;
-      height: 220px;
-      border: 1px solid #d7e5d2;
-      border-radius: 8px;
-      background: linear-gradient(180deg, #fbfffc 0%, #eef8f1 100%);
-      overflow: hidden;
-    }}
-    #encription-trend-chart {{
-      width: 100%;
-      height: 100%;
-      display: block;
     }}
     .environment {{
       grid-column: 3;
@@ -2789,10 +2858,12 @@
       --history-pane-divider-border: #d1e0cb;
       --history-pane-divider-line: #b8cab9;
       --history-pane-divider-line-active: #2f855a;
-      height: calc(100dvh - var(--workspace-viewport-offset, 84px) - 16px);
+      height: 100%;
+      max-height: 100%;
       min-height: 0;
       grid-template-columns: minmax(320px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
       grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
     }}
     .layout.view-history .summary {{
       display: block;
@@ -2812,7 +2883,8 @@
     .layout.view-history .map-data .body {{
       min-height: 0;
       background: var(--history-pane-body-bg);
-      overflow: auto;
+      overflow-y: auto;
+      overflow-x: hidden;
     }}
     .layout.view-history .history-activity-splitter {{
       display: block;
@@ -2821,20 +2893,23 @@
       flex: 0 0 var(--history-activity-top-pct);
     }}
     .layout.view-history .history-chat-splitter {{
-      display: block;
+      display: none;
     }}
     .layout.view-history .history-chat-main-scroll {{
-      flex: 0 0 var(--history-chat-main-pct);
+      flex: 0 0 auto;
+      overflow: visible;
     }}
     .layout.view-history .history-notification-section {{
-      flex: 1 1 auto;
-      min-height: 88px;
+      flex: 0 0 auto;
+      min-height: 0;
     }}
     .layout.view-history .history-chat {{
       display: flex;
       grid-column: 3;
       grid-row: 2;
       min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
       border-color: var(--history-pane-head-border);
     }}
     .layout.view-history .history-chat > h2 {{
@@ -2842,9 +2917,21 @@
       background: var(--history-pane-head-bg);
     }}
     .layout.view-history .history-chat .body {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
       min-height: 0;
       background: var(--history-pane-body-bg);
-      overflow: auto;
+      overflow: hidden;
+    }}
+    .layout.view-history .history-chat-stack {{
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 2px;
+    }}
+    .layout.view-history .history-notification-list {{
+      overflow: visible;
+      padding-right: 0;
     }}
     .layout.view-history .splitter {{
       display: block;

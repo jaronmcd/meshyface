@@ -484,7 +484,9 @@
         return;
       }}
       selectedNodeId = normalized;
-      mapDataFocus = "auto";
+      // Keep History view pinned to trend mode; node selection should not yank
+      // the left pane into live Map Data tables.
+      mapDataFocus = activeLayoutView === "history" ? "activity" : "auto";
       pendingSelectionScroll = true;
       persistSelection();
       renderSelectionStatus();
@@ -541,6 +543,10 @@
         // Map-data panel is visible in these views.
         renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
         setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      }} else if (activeLayoutView === "history") {{
+        // Keep History view stable; node selection is for row highlighting/filtering
+        // and should not swap the left pane away from trend charts.
+        setMapDataMode("activity");
       }} else {{
         setMapDataMode("live");
       }}

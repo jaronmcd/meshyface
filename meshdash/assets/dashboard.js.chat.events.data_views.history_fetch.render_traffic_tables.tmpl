@@ -20,6 +20,10 @@
         && isChatNodeDetailsHistoryActive()
       );
       const drawerNodeId = normalizeNodeId(selectedNodeId || "");
+      if (activeLayoutView === "history" && !drawerHistoryActive) {{
+        setMapDataMode("activity");
+        return;
+      }}
       if (mapDataFocus === "activity" && !drawerHistoryActive) {{
         setMapDataMode("activity");
         return;
