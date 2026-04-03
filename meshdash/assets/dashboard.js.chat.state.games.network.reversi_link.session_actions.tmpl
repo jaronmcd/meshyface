@@ -1,3 +1,87 @@
+    async function waitForReversiControlAck(checkAck, timeoutMs) {{
+      const probe = typeof checkAck === "function" ? checkAck : null;
+      if (!probe) return false;
+      const windowMs = Math.max(500, Math.trunc(Number(timeoutMs) || 0));
+      const pollMs = Math.max(80, Math.trunc(Number(gamesMoveAckPollMs) || 0) || 180);
+      const deadline = Date.now() + windowMs;
+      while (Date.now() < deadline) {{
+        if (probe()) return true;
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }}
+      return !!probe();
+    }}
+
+    async function sendReversiControlWithRetry(
+      controlType,
+      fields = [],
+      {{
+        destination_id = "",
+        session_id = "",
+        channel_index = null,
+        status_label = "Control message",
+      }} = {{}}
+    ) {{
+      const cleanType = String(controlType || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(destination_id || reversiLink.peer_id || "");
+      const sessionId = String(
+        session_id || reversiLink.session_id || (Array.isArray(fields) ? fields[0] : "")
+      ).trim().toLowerCase();
+      if (!cleanType || !isCanonicalNodeId(peerId) || !sessionId) {{
+        return {{ sent: false, acked: false, seq: 0 }};
+      }}
+      const currentChannelRaw = Number(reversiLink.channel_index);
+      const defaultChannel = Number.isInteger(currentChannelRaw) && currentChannelRaw >= 0
+        ? currentChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const sendChannel = normalizeMeshChannelIndex(channel_index == null ? defaultChannel : channel_index);
+      const seq = Math.max(0, Math.trunc(Number(reversiLink.local_control_seq) || 0)) + 1;
+      const waitPlan = Array.isArray(gamesMoveAckWaitPlanMs) && gamesMoveAckWaitPlanMs.length
+        ? gamesMoveAckWaitPlanMs
+        : [2500, 3500, 5000, 7000];
+      const label = String(status_label || "Control message").trim() || "Control message";
+      const isAcked = () => {{
+        const currentPeer = normalizeNodeId(reversiLink.peer_id || "");
+        const currentSession = String(reversiLink.session_id || "").trim().toLowerCase();
+        if (currentPeer !== peerId) return false;
+        if (currentSession !== sessionId) return false;
+        return Math.max(0, Math.trunc(Number(reversiLink.last_remote_control_ack_seq) || 0)) >= seq;
+      }};
+      let atLeastOneSent = false;
+      for (let attemptIndex = 0; attemptIndex < waitPlan.length; attemptIndex += 1) {{
+        if (isAcked()) return {{ sent: true, acked: true, seq }};
+        const sent = await sendReversiProtocolMessage(
+          cleanType,
+          [...(Array.isArray(fields) ? fields : []), seq],
+          {{ destination_id: peerId, channel_index: sendChannel }}
+        );
+        if (sent) {{
+          atLeastOneSent = true;
+          reversiLink.local_control_seq = Math.max(
+            Math.max(0, Math.trunc(Number(reversiLink.local_control_seq) || 0)),
+            seq
+          );
+          const attemptNumber = attemptIndex + 1;
+          const totalAttempts = waitPlan.length;
+          if (attemptNumber <= 1) {{
+            updateReversiLinkStatus(`${{label}} sent. Waiting for ACK...`);
+          }} else {{
+            updateReversiLinkStatus(`${{label}} retry ${{attemptNumber}}/${{totalAttempts}}. Waiting for ACK...`);
+          }}
+        }}
+        const acked = await waitForReversiControlAck(isAcked, waitPlan[attemptIndex]);
+        if (acked) {{
+          updateReversiLinkStatus(`${{label}} acknowledged by peer.`);
+          return {{ sent: true, acked: true, seq }};
+        }}
+      }}
+      if (atLeastOneSent) {{
+        updateReversiLinkStatus(`${{label}} sent, but ACK has not arrived yet (high latency or packet loss).`);
+        return {{ sent: true, acked: false, seq }};
+      }}
+      updateReversiLinkStatus(`${{label}} failed to send.`);
+      return {{ sent: false, acked: false, seq: 0 }};
+    }}
+
     async function hostReversiMatch() {{
       const peerId = gamesInviteSeedPeerId(latestState);
       if (!isCanonicalNodeId(peerId)) {{
@@ -25,18 +109,29 @@
         remote_color: guestColor,
         local_move_seq: 0,
         remote_move_seq: 0,
+        local_control_seq: 0,
+        last_remote_control_ack_seq: 0,
         status: `Invite sent to ${{reversiNodeLabel(peerId)}}. You are ${{reversiPlayerLabel(hostColor)}}; waiting for accept...`,
       }});
       removeAllReversiPendingInvitesFromPeer(peerId);
-      const sent = await sendReversiProtocolMessage(
+      const sendResult = await sendReversiControlWithRetry(
         "invite",
         [sessionId, normalizeNodeId(resolveLocalNodeId(latestState) || ""), reversiColorToken(hostColor), sessionChannel],
-        {{ destination_id: peerId, channel_index: sessionChannel }}
+        {{
+          destination_id: peerId,
+          session_id: sessionId,
+          channel_index: sessionChannel,
+          status_label: "Invite",
+        }}
       );
-      if (!sent) {{
+      if (!sendResult.sent) {{
         reversiLink.mode = "local";
         reversiLink.role = "";
         reversiLink.session_id = "";
+      }} else if (sendResult.acked) {{
+        updateReversiLinkStatus(
+          `Invite delivered to ${{reversiNodeLabel(peerId)}}. You are ${{reversiPlayerLabel(hostColor)}}; waiting for accept...`
+        );
       }}
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
@@ -70,12 +165,14 @@
           || String(reversiLink.session_id || "").trim().toLowerCase() !== sessionId
         )
       ) {{
-        await sendReversiProtocolMessage(
+        await sendReversiControlWithRetry(
           "leave",
           [reversiLink.session_id],
           {{
             destination_id: reversiLink.peer_id,
+            session_id: String(reversiLink.session_id || "").trim().toLowerCase(),
             channel_index: Number.isInteger(Number(reversiLink.channel_index)) ? Number(reversiLink.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+            status_label: "Leave",
           }}
         );
       }}
@@ -93,14 +190,21 @@
         remote_color: hostColor,
         local_move_seq: 0,
         remote_move_seq: 0,
+        local_control_seq: 0,
+        last_remote_control_ack_seq: 0,
         status: `Connected to ${{reversiNodeLabel(peerId)}}. You are ${{reversiPlayerLabel(guestColor)}}.`,
       }});
       removeReversiPendingInvite(peerId, sessionId);
       removeAllReversiPendingInvitesFromPeer(peerId);
-      await sendReversiProtocolMessage(
+      await sendReversiControlWithRetry(
         "accept",
         [sessionId],
-        {{ destination_id: peerId, channel_index: inviteChannel }}
+        {{
+          destination_id: peerId,
+          session_id: sessionId,
+          channel_index: inviteChannel,
+          status_label: "Accept",
+        }}
       );
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
@@ -119,12 +223,17 @@
         ? inviteChannelRaw
         : meshChannelEffectiveSendIndexForApp("games");
       removeReversiPendingInvite(peerId, sessionId);
-      const sent = await sendReversiProtocolMessage(
+      const sent = await sendReversiControlWithRetry(
         "decline",
         [sessionId],
-        {{ destination_id: peerId, channel_index: inviteChannel }}
+        {{
+          destination_id: peerId,
+          session_id: sessionId,
+          channel_index: inviteChannel,
+          status_label: "Decline",
+        }}
       );
-      if (sent) {{
+      if (sent.sent) {{
         updateReversiLinkStatus(`Declined invite from ${{reversiNodeLabel(peerId)}}.`);
       }} else {{
         updateReversiLinkStatus(`Declined locally; failed to notify ${{reversiNodeLabel(peerId)}}.`);
@@ -135,12 +244,14 @@
     async function disconnectReversiMatch() {{
       const linked = reversiIsNetworkLinked() || reversiLink.mode === "pending_host";
       if (linked && isCanonicalNodeId(reversiLink.peer_id) && String(reversiLink.session_id || "").trim()) {{
-        await sendReversiProtocolMessage(
+        await sendReversiControlWithRetry(
           "leave",
           [reversiLink.session_id],
           {{
             destination_id: reversiLink.peer_id,
+            session_id: String(reversiLink.session_id || "").trim().toLowerCase(),
             channel_index: Number.isInteger(Number(reversiLink.channel_index)) ? Number(reversiLink.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+            status_label: "Leave",
           }}
         );
       }}

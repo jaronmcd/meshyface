@@ -16,6 +16,8 @@ from .nodes import (
 )
 from .runtime_types import ToJsonableFn, UtcNowFn
 from .radio_connection_status import get_radio_connection_status as _get_radio_connection_status_helper
+from .file_transfer_protocol import is_file_transfer_protocol_chat_entry as _is_file_transfer_protocol_chat_entry
+from .game_protocol import is_game_protocol_chat_entry as _is_game_protocol_chat_entry
 from .state_node_contracts import CollectedNodes, coerce_collected_nodes
 from .state_payload_contracts import DashboardStatePayload, StateTrafficPayload
 from .state_service_contracts import (
@@ -193,12 +195,17 @@ def _merge_recent_chat_entries(
     recent_chat: list[dict[str, object]],
     recent_packets: list[dict[str, object]],
 ) -> list[dict[str, object]]:
+    filtered_recent_chat = [
+        entry
+        for entry in recent_chat
+        if not _is_file_transfer_protocol_chat_entry(entry) and not _is_game_protocol_chat_entry(entry)
+    ]
     name_change_entries = _build_name_change_chat_entries_helper(recent_packets=recent_packets)
     if not name_change_entries:
-        return list(recent_chat)
+        return list(filtered_recent_chat)
 
     decorated_entries: list[tuple[tuple[int, int, int], dict[str, object]]] = []
-    for order, entry in enumerate(recent_chat):
+    for order, entry in enumerate(filtered_recent_chat):
         sort_unix = _chat_entry_sort_unix(entry)
         sort_key = (1 if sort_unix is None else 0, 0 if sort_unix is None else int(sort_unix), order)
         decorated_entries.append((sort_key, entry))

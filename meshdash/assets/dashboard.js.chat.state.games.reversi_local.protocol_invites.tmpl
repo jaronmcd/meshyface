@@ -42,6 +42,8 @@
         local_move_seq: Math.max(0, Math.trunc(Number(overrides.local_move_seq) || 0)),
         remote_move_seq: Math.max(0, Math.trunc(Number(overrides.remote_move_seq) || 0)),
         last_remote_ack_seq: Math.max(0, Math.trunc(Number(overrides.last_remote_ack_seq) || 0)),
+        local_control_seq: Math.max(0, Math.trunc(Number(overrides.local_control_seq) || 0)),
+        last_remote_control_ack_seq: Math.max(0, Math.trunc(Number(overrides.last_remote_control_ack_seq) || 0)),
         status: String(overrides.status || "Local hotseat mode.").trim().slice(0, 220) || "Local hotseat mode.",
       }};
     }}

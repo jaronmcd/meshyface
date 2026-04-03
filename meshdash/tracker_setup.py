@@ -1,6 +1,8 @@
 from collections import Counter, deque
 from dataclasses import dataclass
 
+from .file_transfer_protocol import is_file_transfer_protocol_chat_entry
+from .game_protocol import is_game_protocol_chat_entry
 from .tracker_bootstrap import TrackerHistoryBootstrap
 from .tracker_bootstrap_contracts import TrackerBootstrapHistoryStore
 from .tracker_snapshot_build_contracts import EdgeKey, EdgeRow
@@ -44,5 +46,9 @@ def apply_tracker_history_bootstrap(
         build_historical_edges_fn=build_historical_edges_fn,
     )
     recent_packets.extend(bootstrap.recent_packets)
-    recent_chat.extend(bootstrap.recent_chat)
+    recent_chat.extend(
+        row
+        for row in bootstrap.recent_chat
+        if not is_file_transfer_protocol_chat_entry(row) and not is_game_protocol_chat_entry(row)
+    )
     return bootstrap.historical_edges

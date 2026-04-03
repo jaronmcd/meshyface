@@ -104,8 +104,10 @@
       const traffic = safeState.traffic && typeof safeState.traffic === "object"
         ? safeState.traffic
         : {{}};
-      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      for (const msg of recentChat) {{
+      const recentProtocolMessages = Array.isArray(traffic.recent_packets)
+        ? traffic.recent_packets
+        : (Array.isArray(traffic.recent_chat) ? traffic.recent_chat : []);
+      for (const msg of recentProtocolMessages) {{
         if (!msg || typeof msg !== "object") continue;
         if (msg.local_echo === true || msg.localEcho === true) continue;
         const parsed = parseBoardGameProtocolMessage(gameId, reversiProtocolMessageText(msg));
@@ -124,9 +126,18 @@
           const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0
             ? inviteChannelRaw
             : messageMeshChannelIndex(msg);
+          const controlSeq = Math.max(0, Math.trunc(Number(parsed.parts[6]) || 0));
           if (!sessionId) {{
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
+          }}
+          if (controlSeq > 0) {{
+            void sendBoardGameProtocolMessage(
+              gameId,
+              "ack",
+              [sessionId, "control", "invite", controlSeq],
+              {{ destination_id: fromId, channel_index: inviteChannel }}
+            );
           }}
           registerBoardGamePendingInvite(gameId, {{
             from_id: fromId,
@@ -147,7 +158,20 @@
 
         if (parsed.type === "accept") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const controlSeq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
           const link = refs.getLink();
+          const ackChannelRaw = Number(link.channel_index);
+          const ackChannel = Number.isInteger(ackChannelRaw) && ackChannelRaw >= 0
+            ? ackChannelRaw
+            : messageMeshChannelIndex(msg);
+          if (sessionId && controlSeq > 0) {{
+            void sendBoardGameProtocolMessage(
+              gameId,
+              "ack",
+              [sessionId, "control", "accept", controlSeq],
+              {{ destination_id: fromId, channel_index: ackChannel }}
+            );
+          }}
           if (
             sessionId
             && link.mode === "pending_host"
@@ -169,7 +193,20 @@
 
         if (parsed.type === "decline") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const controlSeq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
           const link = refs.getLink();
+          const ackChannelRaw = Number(link.channel_index);
+          const ackChannel = Number.isInteger(ackChannelRaw) && ackChannelRaw >= 0
+            ? ackChannelRaw
+            : messageMeshChannelIndex(msg);
+          if (sessionId && controlSeq > 0) {{
+            void sendBoardGameProtocolMessage(
+              gameId,
+              "ack",
+              [sessionId, "control", "decline", controlSeq],
+              {{ destination_id: fromId, channel_index: ackChannel }}
+            );
+          }}
           if (
             sessionId
             && link.mode === "pending_host"
@@ -189,7 +226,20 @@
 
         if (parsed.type === "leave") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const controlSeq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
           const link = refs.getLink();
+          const ackChannelRaw = Number(link.channel_index);
+          const ackChannel = Number.isInteger(ackChannelRaw) && ackChannelRaw >= 0
+            ? ackChannelRaw
+            : messageMeshChannelIndex(msg);
+          if (sessionId && controlSeq > 0) {{
+            void sendBoardGameProtocolMessage(
+              gameId,
+              "ack",
+              [sessionId, "control", "leave", controlSeq],
+              {{ destination_id: fromId, channel_index: ackChannel }}
+            );
+          }}
           if (
             sessionId
             && boardGameIsNetworkLinked(gameId)
@@ -229,21 +279,49 @@
         if (parsed.type === "ack") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           const ackKind = String(parsed.parts[3] || "").trim().toLowerCase();
-          const ackSeq = Math.max(0, Math.trunc(Number(parsed.parts[4]) || 0));
           const link = refs.getLink();
-          if (!sessionId || ackKind !== "move" || ackSeq <= 0) {{
+          if (!sessionId) {{
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
           }}
-          if (!boardGameIsNetworkLinked(gameId)) continue;
-          if (String(link.session_id || "").trim().toLowerCase() !== sessionId) continue;
-          if (normalizeNodeId(link.peer_id) !== fromId) continue;
-          link.last_remote_ack_seq = Math.max(
-            Math.max(0, Math.trunc(Number(link.last_remote_ack_seq) || 0)),
-            ackSeq
-          );
-          if (ackSeq >= Math.max(0, Math.trunc(Number(link.local_move_seq) || 0))) {{
-            link.status = `${{reversiNodeLabel(fromId, safeState)}} acknowledged your move.`;
+          if (String(link.session_id || "").trim().toLowerCase() !== sessionId) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (normalizeNodeId(link.peer_id) !== fromId) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (ackKind === "move") {{
+            const ackSeq = Math.max(0, Math.trunc(Number(parsed.parts[4]) || 0));
+            if (ackSeq <= 0) {{
+              rememberBoardGameNetworkMessage(gameId, dedupeKey);
+              continue;
+            }}
+            link.last_remote_ack_seq = Math.max(
+              Math.max(0, Math.trunc(Number(link.last_remote_ack_seq) || 0)),
+              ackSeq
+            );
+            if (ackSeq >= Math.max(0, Math.trunc(Number(link.local_move_seq) || 0))) {{
+              link.status = `${{reversiNodeLabel(fromId, safeState)}} acknowledged your move.`;
+            }}
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (ackKind === "control") {{
+            const ackControlType = String(parsed.parts[4] || "").trim().toLowerCase();
+            const ackSeq = Math.max(0, Math.trunc(Number(parsed.parts[5]) || 0));
+            if (!ackControlType || ackSeq <= 0) {{
+              rememberBoardGameNetworkMessage(gameId, dedupeKey);
+              continue;
+            }}
+            link.last_remote_control_ack_seq = Math.max(
+              Math.max(0, Math.trunc(Number(link.last_remote_control_ack_seq) || 0)),
+              ackSeq
+            );
+            if (ackSeq >= Math.max(0, Math.trunc(Number(link.local_control_seq) || 0))) {{
+              link.status = `${{reversiNodeLabel(fromId, safeState)}} acknowledged ${{ackControlType}}.`;
+            }}
           }}
           rememberBoardGameNetworkMessage(gameId, dedupeKey);
           continue;

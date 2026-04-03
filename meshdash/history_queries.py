@@ -116,11 +116,20 @@ def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
         """
         SELECT message_json
         FROM chat
-        WHERE message_json NOT LIKE ?
+        WHERE lower(COALESCE(json_extract(message_json, '$.text'), '')) NOT LIKE ?
+          AND lower(COALESCE(json_extract(message_json, '$.text'), '')) NOT LIKE ?
+          AND lower(COALESCE(json_extract(message_json, '$.text'), '')) NOT LIKE ?
+          AND lower(COALESCE(json_extract(message_json, '$.text'), '')) NOT LIKE ?
         ORDER BY id DESC
         LIMIT ?
         """,
-        ('%"text":"MF_FILE_V1|%', max(1, int(limit))),
+        (
+            'mf_file_v1|%',
+            'rv1|%',
+            'ck1|%',
+            'ch1|%',
+            max(1, int(limit)),
+        ),
     ).fetchall()
 
 
