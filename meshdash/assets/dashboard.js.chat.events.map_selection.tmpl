@@ -539,7 +539,6 @@
       if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{
         if (
           shouldFocus
-          && isChatWorkspaceLayoutView(activeLayoutView)
           && typeof setChatNodeDetailsDrawerExpanded === "function"
           && (
             typeof isChatNodeDetailsDrawerExpanded !== "function"
@@ -583,6 +582,16 @@
           }});
         }}
         return;
+      }}
+      if (
+        shouldFocus
+        && activeLayoutView !== "network"
+        && typeof setChatNodeDetailsDrawerExpanded === "function"
+      ) {{
+        setChatNodeDetailsDrawerExpanded(true, {{
+          fetchHistory: true,
+          rerender: false,
+        }});
       }}
       if (
         activeLayoutView === "network"

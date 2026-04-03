@@ -80,95 +80,6 @@
           </div>
         </div>
       </div>
-      <div class="chat-settings-menu-wrap topbar-chat-settings-menu-wrap">
-        <button
-          id="chat-settings-toggle-btn"
-          class="chat-settings-toggle-btn"
-          type="button"
-          title="Dashboard settings"
-          aria-label="Dashboard settings"
-          aria-haspopup="menu"
-          aria-expanded="false"
-        >
-          <svg class="chat-settings-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M19.14 12.94a7.92 7.92 0 0 0 .06-.94 7.92 7.92 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.38 7.38 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.43h-3.84a.5.5 0 0 0-.5.43l-.36 2.54a7.38 7.38 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.85a.5.5 0 0 0 .12.63l2.03 1.58a7.92 7.92 0 0 0-.06.94 7.92 7.92 0 0 0 .06.94l-2.03 1.58a.5.5 0 0 0-.12.63l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .5.43h3.84a.5.5 0 0 0 .5-.43l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58ZM12 15.2A3.2 3.2 0 1 1 12 8.8a3.2 3.2 0 0 1 0 6.4Z"/>
-          </svg>
-        </button>
-        <div id="chat-settings-menu" class="chat-settings-menu" hidden>
-          <section class="chat-settings-section chat-settings-theme-section" aria-label="Theme">
-            <h3 class="chat-settings-section-title">Theme</h3>
-            <button id="theme-toggle-btn" class="theme-btn chat-settings-theme-btn" type="button" title="Toggle theme between dark and light">Theme: Dark</button>
-            <label for="theme-preset-select" class="theme-preset-wrap chat-settings-theme-preset-wrap" title="Runtime color preset">
-              <span class="theme-preset-label">Preset</span>
-              <select id="theme-preset-select" class="theme-preset-select" aria-label="Theme preset">
-                <option value="default">default</option>
-              </select>
-            </label>
-          </section>
-          <section class="chat-settings-section" aria-label="Runtime">
-            <h3 class="chat-settings-section-title">Runtime</h3>
-            <div class="chat-settings-meta-list">
-              <div class="chat-settings-meta-item">{safety_label}</div>
-              <div class="chat-settings-meta-item">Packet buffer: {packet_limit}</div>
-              <div class="chat-settings-meta-item">{history_label}</div>
-              <div class="chat-settings-meta-item">Refresh: {refresh_ms} ms</div>
-            </div>
-            <span id="disk-meter" class="disk-meter" title="Disk free on dashboard host">
-              <span id="disk-label" class="disk-label">Disk free: n/a</span>
-              <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
-            </span>
-          </section>
-          <section class="chat-settings-section" aria-label="Notifications">
-            <h3 class="chat-settings-section-title">Notifications</h3>
-            <div class="chat-settings-meta-list" title="Notification behavior">
-              <div class="chat-settings-meta-item">Chat counter: all inbound chat activity</div>
-              <div class="chat-settings-meta-item">Bell: inbound to you, replies to you, and reactions to you</div>
-            </div>
-          </section>
-        </div>
-      </div>
-      <div class="favorite-menu-wrap topbar-favorite-menu-wrap">
-        <button
-          id="favorite-menu-toggle-btn"
-          class="favorite-menu-toggle-btn"
-          type="button"
-          title="Node menu"
-          aria-label="Node menu"
-          aria-haspopup="menu"
-          aria-expanded="false"
-        >
-          <svg id="favorite-menu-toggle-icon" class="favorite-menu-toggle-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-            <rect x="2.5" y="4.5" width="9.5" height="6.5" rx="1.4"></rect>
-            <path d="M5.8 13h2.9m-1.45 0v2m-2.4 0h4.8"></path>
-            <circle class="node-signal-dot" cx="14.7" cy="6.2" r="0.9"></circle>
-            <path d="M16.8 7.2a3.4 3.4 0 0 0-2.1-3.15"></path>
-            <path d="M18.4 8.7a5.4 5.4 0 0 0-3.35-5.05"></path>
-          </svg>
-        </button>
-        <div id="favorite-menu" class="favorite-menu" hidden>
-          <section class="favorite-menu-section" aria-label="Selected node">
-            <h3 class="favorite-menu-title">Selected</h3>
-            <div id="favorite-menu-selected-list" class="favorite-menu-saved-list favorite-menu-selected-list" role="list" aria-label="Selected node">
-              <div class="favorite-menu-node-search-wrap">
-                <input
-                  id="favorite-menu-node-search-input"
-                  class="list-search-input"
-                  type="search"
-                  placeholder="Search by ID or name"
-                  autocomplete="off"
-                />
-                <div id="favorite-menu-node-search-dropdown" class="node-search-dropdown favorite-menu-node-search-dropdown" hidden></div>
-              </div>
-            </div>
-          </section>
-          <section class="favorite-menu-section" aria-label="Tagged nodes">
-            <h3 class="favorite-menu-title">Tagged nodes</h3>
-            <div id="favorite-menu-saved-list" class="favorite-menu-saved-list" role="list" aria-label="Tagged nodes">
-              <div class="favorite-menu-saved-empty">No tagged nodes yet.</div>
-            </div>
-          </section>
-        </div>
-      </div>
     </div>
     <div class="topbar-main-row">
       <div class="topbar-brand">
@@ -525,6 +436,26 @@
             data-settings-tab="appearance"
           >
             Appearance
+          </button>
+          <button
+            id="settings-tab-data-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="data"
+          >
+            Data
+          </button>
+          <button
+            id="settings-tab-system-btn"
+            class="settings-tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            data-settings-tab="system"
+          >
+            System Information
           </button>
         </div>
 
@@ -1401,6 +1332,21 @@
           <div class="settings-panel settings-panel-wide" data-settings-tab-panel="appearance" hidden>
             <h3>Appearance</h3>
             <div class="settings-fields">
+              <label class="settings-field">
+                <span class="settings-label">Theme</span>
+                <button
+                  id="theme-toggle-btn"
+                  class="btn btn-secondary"
+                  type="button"
+                  title="Toggle theme between dark and light"
+                >Theme: Dark</button>
+              </label>
+              <label class="settings-field" for="theme-preset-select">
+                <span class="settings-label">Preset</span>
+                <select id="theme-preset-select" class="settings-select" aria-label="Theme preset">
+                  <option value="default">default</option>
+                </select>
+              </label>
               <div class="settings-help-note">
                 Control node color styling for chat rows and the node list.
               </div>
@@ -1414,6 +1360,55 @@
             </div>
           </div>
 
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="data" hidden>
+            <h3>Raw Data</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Live raw API responses for diagnostics and debugging.
+              </div>
+              <details><summary>my_info</summary><pre id="raw-my-info"></pre></details>
+              <details><summary>metadata</summary><pre id="raw-metadata"></pre></details>
+              <details><summary>local_config</summary><pre id="raw-local-config"></pre></details>
+              <details><summary>module_config</summary><pre id="raw-module-config"></pre></details>
+              <details><summary>channels</summary><pre id="raw-channels"></pre></details>
+              <details><summary>nodes_full</summary><pre id="raw-nodes-full"></pre></details>
+            </div>
+            <h3>Recent Packets</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Recent decoded packet stream with RF diagnostics (SNR/RSSI) for troubleshooting.
+              </div>
+              <div class="scroll">
+                <table id="packets-table">
+                  <thead>
+                    <tr>
+                      <th>Captured</th><th>From</th><th>To</th><th>Port</th><th>SNR</th><th>RSSI</th><th>Text</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="system" hidden>
+            <h3>System Information</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Runtime status for this dashboard process.
+              </div>
+              <div class="chat-settings-meta-list">
+                <div class="chat-settings-meta-item">{safety_label}</div>
+                <div class="chat-settings-meta-item">Packet buffer: {packet_limit}</div>
+                <div class="chat-settings-meta-item">{history_label}</div>
+                <div class="chat-settings-meta-item">Refresh: {refresh_ms} ms</div>
+              </div>
+              <span id="disk-meter" class="disk-meter settings-system-disk-meter" title="Disk free on dashboard host">
+                <span id="disk-label" class="disk-label">Disk free: n/a</span>
+                <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+              </span>
+            </div>
+          </div>
         </div>
 
       </div>
