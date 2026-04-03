@@ -202,24 +202,138 @@
 
     function generateBoardGameSessionId(gameId) {{
       const prefix = boardGameNormalizeId(gameId) === "chess" ? "ch" : "ck";
-      const now = Date.now().toString(36);
+      const now = Date.now().toString(36).slice(-4);
       const rand = Math.random().toString(36).slice(2, 8);
-      return `${{prefix}}${{now}}${{rand}}`.slice(0, 18);
+      return `${{prefix}}${{now}}${{rand}}`.slice(0, 10);
+    }}
+
+    const boardGameProtocolCellAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
+
+    function boardGameProtocolSanitizeField(value) {{
+      return String(value == null ? "" : value).trim().replace(/\|/g, "");
+    }}
+
+    function boardGameProtocolEncodeInt(value) {{
+      const num = Math.max(0, Math.trunc(Number(value) || 0));
+      return num.toString(36);
+    }}
+
+    function boardGameProtocolDecodeInt(value) {{
+      const token = String(value == null ? "" : value).trim().toLowerCase();
+      if (!token) return 0;
+      const parsed = Number.parseInt(token, 36);
+      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+      return Math.max(0, Math.trunc(Number(token) || 0));
+    }}
+
+    function boardGameProtocolTypeCode(typeRaw) {{
+      const clean = String(typeRaw || "").trim().toLowerCase();
+      if (clean === "invite") return "i";
+      if (clean === "accept") return "a";
+      if (clean === "decline") return "d";
+      if (clean === "leave") return "l";
+      if (clean === "move") return "m";
+      if (clean === "ack") return "k";
+      if (clean === "chat") return "t";
+      return "";
+    }}
+
+    function boardGameProtocolTypeFromCode(codeRaw) {{
+      const code = String(codeRaw || "").trim().toLowerCase();
+      if (code === "i") return "invite";
+      if (code === "a") return "accept";
+      if (code === "d") return "decline";
+      if (code === "l") return "leave";
+      if (code === "m") return "move";
+      if (code === "k") return "ack";
+      if (code === "t") return "chat";
+      return "";
+    }}
+
+    function boardGameProtocolControlCode(typeRaw) {{
+      const clean = String(typeRaw || "").trim().toLowerCase();
+      if (clean === "invite") return "i";
+      if (clean === "accept") return "a";
+      if (clean === "decline") return "d";
+      if (clean === "leave") return "l";
+      return "";
+    }}
+
+    function boardGameProtocolControlFromCode(codeRaw) {{
+      const code = String(codeRaw || "").trim().toLowerCase();
+      if (code === "i") return "invite";
+      if (code === "a") return "accept";
+      if (code === "d") return "decline";
+      if (code === "l") return "leave";
+      return "";
+    }}
+
+    function boardGameProtocolEncodeCell(gameId, rowRaw, colRaw) {{
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      const inBounds = boardGameNormalizeId(gameId) === "chess"
+        ? chessInBounds(row, col)
+        : checkersInBounds(row, col);
+      if (!inBounds) return "";
+      const idx = (row * 8) + col;
+      return boardGameProtocolCellAlphabet[idx] || "";
+    }}
+
+    function boardGameProtocolDecodeCell(tokenRaw) {{
+      const token = String(tokenRaw == null ? "" : tokenRaw).trim().slice(0, 1);
+      if (!token) return null;
+      const idx = boardGameProtocolCellAlphabet.indexOf(token);
+      if (idx < 0 || idx >= 64) return null;
+      return [Math.trunc(idx / 8), idx % 8];
     }}
 
     function encodeBoardGameProtocolMessage(gameId, type, ...fields) {{
       const refs = boardGameRefs(gameId);
       const cleanType = String(type || "").trim().toLowerCase();
-      if (!cleanType) return "";
-      const encoded = [refs.protocolVersion, cleanType];
-      for (const field of fields) {{
-        encoded.push(
-          String(field == null ? "" : field)
-            .trim()
-            .replace(/\|/g, "")
-        );
+      const typeCode = boardGameProtocolTypeCode(cleanType);
+      if (!typeCode) return "";
+      if (cleanType === "invite") {{
+        const sessionId = boardGameProtocolSanitizeField(fields[0]);
+        const hostColor = boardGameParseColor(fields[2], refs.defaultLocalColor) === "white" ? "w" : "b";
+        const seq = boardGameProtocolEncodeInt(fields[4]);
+        return [refs.protocolVersion, typeCode, sessionId, hostColor, seq].join("|");
       }}
-      return encoded.join("|");
+      if (cleanType === "accept" || cleanType === "decline" || cleanType === "leave") {{
+        const sessionId = boardGameProtocolSanitizeField(fields[0]);
+        const seq = boardGameProtocolEncodeInt(fields[1]);
+        return [refs.protocolVersion, typeCode, sessionId, seq].join("|");
+      }}
+      if (cleanType === "move") {{
+        const sessionId = boardGameProtocolSanitizeField(fields[0]);
+        const seq = boardGameProtocolEncodeInt(fields[1]);
+        const fromCell = boardGameProtocolEncodeCell(gameId, fields[2], fields[3]);
+        const toCell = boardGameProtocolEncodeCell(gameId, fields[4], fields[5]);
+        if (!sessionId || !fromCell || !toCell) return "";
+        return [refs.protocolVersion, typeCode, sessionId, seq, fromCell, toCell].join("|");
+      }}
+      if (cleanType === "chat") {{
+        const sessionId = boardGameProtocolSanitizeField(fields[0]);
+        const sentUnix = boardGameProtocolEncodeInt(fields[1]);
+        const text = boardGameProtocolSanitizeField(fields[2]);
+        if (!sessionId || !text) return "";
+        return [refs.protocolVersion, typeCode, sessionId, sentUnix, text].join("|");
+      }}
+      if (cleanType === "ack") {{
+        const sessionId = boardGameProtocolSanitizeField(fields[0]);
+        const ackKindRaw = String(fields[1] || "").trim().toLowerCase();
+        if (ackKindRaw === "move") {{
+          const seq = boardGameProtocolEncodeInt(fields[2]);
+          return [refs.protocolVersion, typeCode, sessionId, "m", seq].join("|");
+        }}
+        if (ackKindRaw === "control") {{
+          const controlCode = boardGameProtocolControlCode(fields[2]);
+          const seq = boardGameProtocolEncodeInt(fields[3]);
+          if (!controlCode) return "";
+          return [refs.protocolVersion, typeCode, sessionId, "c", controlCode, seq].join("|");
+        }}
+        return "";
+      }}
+      return "";
     }}
 
     function parseBoardGameProtocolMessage(gameId, text) {{
@@ -229,9 +343,87 @@
       if (!raw.startsWith(`${{refs.protocolVersion}}|`)) return null;
       const parts = raw.split("|").map((part) => String(part || "").trim());
       if (parts.length < 2) return null;
-      const type = String(parts[1] || "").trim().toLowerCase();
+      const type = boardGameProtocolTypeFromCode(parts[1]);
       if (!type) return null;
-      return {{ raw, type, parts }};
+      if (type === "invite") {{
+        const sessionId = boardGameProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const hostColor = boardGameParseColor(parts[3], refs.defaultLocalColor);
+        const controlSeq = boardGameProtocolDecodeInt(parts[4]);
+        return {{
+          raw,
+          type,
+          parts: [refs.protocolVersion, "invite", sessionId, "", hostColor, "", String(controlSeq)],
+        }};
+      }}
+      if (type === "accept" || type === "decline" || type === "leave") {{
+        const sessionId = boardGameProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const controlSeq = boardGameProtocolDecodeInt(parts[3]);
+        return {{
+          raw,
+          type,
+          parts: [refs.protocolVersion, type, sessionId, String(controlSeq)],
+        }};
+      }}
+      if (type === "move") {{
+        const sessionId = boardGameProtocolSanitizeField(parts[2]);
+        const seq = boardGameProtocolDecodeInt(parts[3]);
+        const fromCell = boardGameProtocolDecodeCell(parts[4]);
+        const toCell = boardGameProtocolDecodeCell(parts[5]);
+        if (!sessionId || seq <= 0 || !Array.isArray(fromCell) || !Array.isArray(toCell)) return null;
+        return {{
+          raw,
+          type,
+          parts: [
+            refs.protocolVersion,
+            "move",
+            sessionId,
+            String(seq),
+            String(fromCell[0]),
+            String(fromCell[1]),
+            String(toCell[0]),
+            String(toCell[1]),
+          ],
+        }};
+      }}
+      if (type === "chat") {{
+        const sessionId = boardGameProtocolSanitizeField(parts[2]);
+        const sentUnix = boardGameProtocolDecodeInt(parts[3]);
+        const chatText = boardGameProtocolSanitizeField(parts[4]);
+        if (!sessionId || !chatText) return null;
+        return {{
+          raw,
+          type,
+          parts: [refs.protocolVersion, "chat", sessionId, String(sentUnix), chatText],
+        }};
+      }}
+      if (type === "ack") {{
+        const sessionId = boardGameProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const ackKind = String(parts[3] || "").trim().toLowerCase();
+        if (ackKind === "m") {{
+          const seq = boardGameProtocolDecodeInt(parts[4]);
+          if (seq <= 0) return null;
+          return {{
+            raw,
+            type,
+            parts: [refs.protocolVersion, "ack", sessionId, "move", String(seq)],
+          }};
+        }}
+        if (ackKind === "c") {{
+          const controlType = boardGameProtocolControlFromCode(parts[4]);
+          const seq = boardGameProtocolDecodeInt(parts[5]);
+          if (!controlType || seq <= 0) return null;
+          return {{
+            raw,
+            type,
+            parts: [refs.protocolVersion, "ack", sessionId, "control", controlType, String(seq)],
+          }};
+        }}
+        return null;
+      }}
+      return null;
     }}
 
     function rememberBoardGameNetworkMessage(gameId, key) {{

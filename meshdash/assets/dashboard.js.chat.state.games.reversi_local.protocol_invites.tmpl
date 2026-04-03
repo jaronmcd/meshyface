@@ -79,23 +79,136 @@
     }}
 
     function generateReversiSessionId() {{
-      const now = Date.now().toString(36);
+      const now = Date.now().toString(36).slice(-4);
       const rand = Math.random().toString(36).slice(2, 8);
-      return `${{now}}${{rand}}`.slice(0, 16);
+      return `${{now}}${{rand}}`.slice(0, 10);
+    }}
+
+    const reversiProtocolCellAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
+
+    function reversiProtocolSanitizeField(value) {{
+      return String(value == null ? "" : value).trim().replace(/\|/g, "");
+    }}
+
+    function reversiProtocolEncodeInt(value) {{
+      const num = Math.max(0, Math.trunc(Number(value) || 0));
+      return num.toString(36);
+    }}
+
+    function reversiProtocolDecodeInt(value) {{
+      const token = String(value == null ? "" : value).trim().toLowerCase();
+      if (!token) return 0;
+      const parsed = Number.parseInt(token, 36);
+      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+      return Math.max(0, Math.trunc(Number(token) || 0));
+    }}
+
+    function reversiProtocolEncodeCell(rowRaw, colRaw) {{
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      if (!inReversiBounds(row, col)) return "";
+      const idx = (row * reversiBoardSize) + col;
+      return reversiProtocolCellAlphabet[idx] || "";
+    }}
+
+    function reversiProtocolDecodeCell(tokenRaw) {{
+      const token = String(tokenRaw == null ? "" : tokenRaw).trim().slice(0, 1);
+      if (!token) return null;
+      const idx = reversiProtocolCellAlphabet.indexOf(token);
+      if (idx < 0 || idx >= (reversiBoardSize * reversiBoardSize)) return null;
+      return [
+        Math.trunc(idx / reversiBoardSize),
+        idx % reversiBoardSize,
+      ];
+    }}
+
+    function reversiProtocolTypeCode(typeRaw) {{
+      const clean = String(typeRaw || "").trim().toLowerCase();
+      if (clean === "invite") return "i";
+      if (clean === "accept") return "a";
+      if (clean === "decline") return "d";
+      if (clean === "leave") return "l";
+      if (clean === "move") return "m";
+      if (clean === "ack") return "k";
+      if (clean === "chat") return "t";
+      return "";
+    }}
+
+    function reversiProtocolTypeFromCode(codeRaw) {{
+      const code = String(codeRaw || "").trim().toLowerCase();
+      if (code === "i") return "invite";
+      if (code === "a") return "accept";
+      if (code === "d") return "decline";
+      if (code === "l") return "leave";
+      if (code === "m") return "move";
+      if (code === "k") return "ack";
+      if (code === "t") return "chat";
+      return "";
+    }}
+
+    function reversiProtocolControlCode(typeRaw) {{
+      const clean = String(typeRaw || "").trim().toLowerCase();
+      if (clean === "invite") return "i";
+      if (clean === "accept") return "a";
+      if (clean === "decline") return "d";
+      if (clean === "leave") return "l";
+      return "";
+    }}
+
+    function reversiProtocolControlFromCode(codeRaw) {{
+      const code = String(codeRaw || "").trim().toLowerCase();
+      if (code === "i") return "invite";
+      if (code === "a") return "accept";
+      if (code === "d") return "decline";
+      if (code === "l") return "leave";
+      return "";
     }}
 
     function encodeReversiProtocolMessage(type, ...fields) {{
       const cleanType = String(type || "").trim().toLowerCase();
-      if (!cleanType) return "";
-      const encoded = [reversiProtocolVersion, cleanType];
-      for (const field of fields) {{
-        encoded.push(
-          String(field == null ? "" : field)
-            .trim()
-            .replace(/\|/g, "")
-        );
+      const typeCode = reversiProtocolTypeCode(cleanType);
+      if (!typeCode) return "";
+      if (cleanType === "invite") {{
+        const sessionId = reversiProtocolSanitizeField(fields[0]);
+        const hostColor = parseReversiColor(fields[2], reversiPiece.black) === reversiPiece.white ? "w" : "b";
+        const seq = reversiProtocolEncodeInt(fields[4]);
+        return [reversiProtocolVersion, typeCode, sessionId, hostColor, seq].join("|");
       }}
-      return encoded.join("|");
+      if (cleanType === "accept" || cleanType === "decline" || cleanType === "leave") {{
+        const sessionId = reversiProtocolSanitizeField(fields[0]);
+        const seq = reversiProtocolEncodeInt(fields[1]);
+        return [reversiProtocolVersion, typeCode, sessionId, seq].join("|");
+      }}
+      if (cleanType === "move") {{
+        const sessionId = reversiProtocolSanitizeField(fields[0]);
+        const seq = reversiProtocolEncodeInt(fields[1]);
+        const cell = reversiProtocolEncodeCell(fields[2], fields[3]);
+        if (!sessionId || !cell) return "";
+        return [reversiProtocolVersion, typeCode, sessionId, seq, cell].join("|");
+      }}
+      if (cleanType === "chat") {{
+        const sessionId = reversiProtocolSanitizeField(fields[0]);
+        const sentUnix = reversiProtocolEncodeInt(fields[1]);
+        const text = reversiProtocolSanitizeField(fields[2]);
+        if (!sessionId || !text) return "";
+        return [reversiProtocolVersion, typeCode, sessionId, sentUnix, text].join("|");
+      }}
+      if (cleanType === "ack") {{
+        const sessionId = reversiProtocolSanitizeField(fields[0]);
+        const ackKindRaw = String(fields[1] || "").trim().toLowerCase();
+        if (ackKindRaw === "move") {{
+          const seq = reversiProtocolEncodeInt(fields[2]);
+          return [reversiProtocolVersion, typeCode, sessionId, "m", seq].join("|");
+        }}
+        if (ackKindRaw === "control") {{
+          const controlCode = reversiProtocolControlCode(fields[2]);
+          const seq = reversiProtocolEncodeInt(fields[3]);
+          if (!controlCode) return "";
+          return [reversiProtocolVersion, typeCode, sessionId, "c", controlCode, seq].join("|");
+        }}
+        return "";
+      }}
+      return "";
     }}
 
     function parseReversiProtocolMessage(text) {{
@@ -104,12 +217,80 @@
       if (!raw.startsWith(`${{reversiProtocolVersion}}|`)) return null;
       const parts = raw.split("|").map((part) => String(part || "").trim());
       if (parts.length < 2) return null;
-      const type = String(parts[1] || "").trim().toLowerCase();
+      const type = reversiProtocolTypeFromCode(parts[1]);
       if (!type) return null;
+      if (type === "invite") {{
+        const sessionId = reversiProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const hostColor = parseReversiColor(parts[3], reversiPiece.black) === reversiPiece.white ? "white" : "black";
+        const controlSeq = reversiProtocolDecodeInt(parts[4]);
+        return {{
+          raw,
+          type,
+          parts: [reversiProtocolVersion, "invite", sessionId, "", hostColor, "", String(controlSeq)],
+        }};
+      }}
+      if (type === "accept" || type === "decline" || type === "leave") {{
+        const sessionId = reversiProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const controlSeq = reversiProtocolDecodeInt(parts[3]);
+        return {{
+          raw,
+          type,
+          parts: [reversiProtocolVersion, type, sessionId, String(controlSeq)],
+        }};
+      }}
+      if (type === "move") {{
+        const sessionId = reversiProtocolSanitizeField(parts[2]);
+        const seq = reversiProtocolDecodeInt(parts[3]);
+        const cell = reversiProtocolDecodeCell(parts[4]);
+        if (!sessionId || seq <= 0 || !Array.isArray(cell)) return null;
+        return {{
+          raw,
+          type,
+          parts: [reversiProtocolVersion, "move", sessionId, String(seq), String(cell[0]), String(cell[1])],
+        }};
+      }}
+      if (type === "chat") {{
+        const sessionId = reversiProtocolSanitizeField(parts[2]);
+        const sentUnix = reversiProtocolDecodeInt(parts[3]);
+        const chatText = reversiProtocolSanitizeField(parts[4]);
+        if (!sessionId || !chatText) return null;
+        return {{
+          raw,
+          type,
+          parts: [reversiProtocolVersion, "chat", sessionId, String(sentUnix), chatText],
+        }};
+      }}
+      if (type === "ack") {{
+        const sessionId = reversiProtocolSanitizeField(parts[2]);
+        if (!sessionId) return null;
+        const ackKind = String(parts[3] || "").trim().toLowerCase();
+        if (ackKind === "m") {{
+          const seq = reversiProtocolDecodeInt(parts[4]);
+          if (seq <= 0) return null;
+          return {{
+            raw,
+            type,
+            parts: [reversiProtocolVersion, "ack", sessionId, "move", String(seq)],
+          }};
+        }}
+        if (ackKind === "c") {{
+          const controlType = reversiProtocolControlFromCode(parts[4]);
+          const seq = reversiProtocolDecodeInt(parts[5]);
+          if (!controlType || seq <= 0) return null;
+          return {{
+            raw,
+            type,
+            parts: [reversiProtocolVersion, "ack", sessionId, "control", controlType, String(seq)],
+          }};
+        }}
+        return null;
+      }}
       return {{
         raw,
         type,
-        parts,
+        parts: [],
       }};
     }}
 
