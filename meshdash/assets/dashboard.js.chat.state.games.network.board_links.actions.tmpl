@@ -107,7 +107,7 @@
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
 
-    function declineBoardGameInvite(gameId) {{
+    async function declineBoardGameInvite(gameId) {{
       const invite = boardGamePendingInviteChoice(gameId);
       if (!invite) {{
         boardGameUpdateLinkStatus(gameId, "No pending invite to decline.");
@@ -116,8 +116,22 @@
       }}
       const peerId = normalizeNodeId(invite.from_id || "");
       const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      const inviteChannelRaw = Number(invite.channel_index);
+      const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0
+        ? inviteChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
       removeBoardGamePendingInvite(gameId, peerId, sessionId);
-      boardGameUpdateLinkStatus(gameId, `Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      const sent = await sendBoardGameProtocolMessage(
+        gameId,
+        "decline",
+        [sessionId],
+        {{ destination_id: peerId, channel_index: inviteChannel }}
+      );
+      if (sent) {{
+        boardGameUpdateLinkStatus(gameId, `Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      }} else {{
+        boardGameUpdateLinkStatus(gameId, `Declined locally; failed to notify ${{reversiNodeLabel(peerId)}}.`);
+      }}
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
 

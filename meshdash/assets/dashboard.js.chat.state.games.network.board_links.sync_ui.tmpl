@@ -124,6 +124,26 @@
           continue;
         }}
 
+        if (parsed.type === "decline") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const link = refs.getLink();
+          if (
+            sessionId
+            && link.mode === "pending_host"
+            && link.role === "host"
+            && String(link.session_id || "").trim().toLowerCase() === sessionId
+            && normalizeNodeId(link.peer_id) === fromId
+          ) {{
+            boardGameResetNetworkLink(
+              gameId,
+              `${{reversiNodeLabel(fromId, safeState)}} declined your invite.`,
+              {{ keepPeer: true }}
+            );
+          }}
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
         if (parsed.type === "leave") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           const link = refs.getLink();

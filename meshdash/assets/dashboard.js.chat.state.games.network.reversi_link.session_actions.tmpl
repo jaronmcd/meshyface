@@ -105,7 +105,7 @@
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
 
-    function declineReversiInvite() {{
+    async function declineReversiInvite() {{
       const invite = reversiPendingInviteChoice();
       if (!invite) {{
         updateReversiLinkStatus("No pending invite to decline.");
@@ -114,8 +114,21 @@
       }}
       const peerId = normalizeNodeId(invite.from_id || "");
       const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      const inviteChannelRaw = Number(invite.channel_index);
+      const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0
+        ? inviteChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
       removeReversiPendingInvite(peerId, sessionId);
-      updateReversiLinkStatus(`Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      const sent = await sendReversiProtocolMessage(
+        "decline",
+        [sessionId],
+        {{ destination_id: peerId, channel_index: inviteChannel }}
+      );
+      if (sent) {{
+        updateReversiLinkStatus(`Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      }} else {{
+        updateReversiLinkStatus(`Declined locally; failed to notify ${{reversiNodeLabel(peerId)}}.`);
+      }}
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
 

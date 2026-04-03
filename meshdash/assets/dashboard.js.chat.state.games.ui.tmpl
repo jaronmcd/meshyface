@@ -415,7 +415,7 @@
       if (declineBtn instanceof HTMLButtonElement && declineBtn.dataset.bound !== "1") {{
         declineBtn.dataset.bound = "1";
         declineBtn.addEventListener("click", () => {{
-          declineReversiInvite();
+          void declineReversiInvite();
         }});
       }}
       const disconnectBtn = document.getElementById("reversi-disconnect-btn");
@@ -453,7 +453,7 @@
         if (declineBtnEl instanceof HTMLButtonElement && declineBtnEl.dataset.bound !== "1") {{
           declineBtnEl.dataset.bound = "1";
           declineBtnEl.addEventListener("click", () => {{
-            declineBoardGameInvite(gameId);
+            void declineBoardGameInvite(gameId);
           }});
         }}
         const disconnectBtnEl = document.getElementById(`${{refs.id}}-disconnect-btn`);

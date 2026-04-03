@@ -139,6 +139,27 @@
           continue;
         }}
 
+        if (parsed.type === "decline") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          if (!sessionId) {{
+            rememberReversiNetworkMessage(dedupeKey);
+            continue;
+          }}
+          if (
+            reversiLink.mode === "pending_host"
+            && reversiLink.role === "host"
+            && String(reversiLink.session_id || "").trim().toLowerCase() === sessionId
+            && normalizeNodeId(reversiLink.peer_id) === fromId
+          ) {{
+            resetReversiNetworkLink(
+              `${{reversiNodeLabel(fromId, safeState)}} declined your invite.`,
+              {{ keepPeer: true }}
+            );
+          }}
+          rememberReversiNetworkMessage(dedupeKey);
+          continue;
+        }}
+
         if (parsed.type === "leave") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           if (!sessionId) {{
