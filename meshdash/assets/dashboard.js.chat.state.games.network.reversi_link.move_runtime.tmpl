@@ -10,24 +10,77 @@
       }}
     }}
 
+    async function waitForReversiMoveAck(checkAck, timeoutMs) {{
+      const probe = typeof checkAck === "function" ? checkAck : null;
+      if (!probe) return false;
+      const windowMs = Math.max(500, Math.trunc(Number(timeoutMs) || 0));
+      const pollMs = Math.max(80, Math.trunc(Number(gamesMoveAckPollMs) || 0) || 180);
+      const deadline = Date.now() + windowMs;
+      while (Date.now() < deadline) {{
+        if (probe()) return true;
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }}
+      return !!probe();
+    }}
+
     async function sendReversiMoveToPeer(row, col) {{
       if (!reversiIsNetworkLinked()) return false;
+      const sessionId = String(reversiLink.session_id || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(reversiLink.peer_id || "");
+      if (!sessionId || !isCanonicalNodeId(peerId)) return false;
       const seq = Math.max(0, Math.trunc(Number(reversiLink.local_move_seq) || 0)) + 1;
       const sessionChannelRaw = Number(reversiLink.channel_index);
       const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
         ? sessionChannelRaw
         : meshChannelEffectiveSendIndexForApp("games");
-      const sent = await sendReversiProtocolMessage(
-        "move",
-        [reversiLink.session_id, seq, row, col],
-        {{ destination_id: reversiLink.peer_id, channel_index: sessionChannel }}
-      );
-      if (!sent) {{
-        updateReversiLinkStatus("Move applied locally, but network send failed.");
-        return false;
+      const moveLabel = reversiCellLabel(row, col);
+      const waitPlan = Array.isArray(gamesMoveAckWaitPlanMs) && gamesMoveAckWaitPlanMs.length
+        ? gamesMoveAckWaitPlanMs
+        : [2500, 3500, 5000, 7000];
+      const isAcked = () => {{
+        if (!reversiIsNetworkLinked()) return false;
+        if (normalizeNodeId(reversiLink.peer_id) !== peerId) return false;
+        if (String(reversiLink.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        return Math.max(0, Math.trunc(Number(reversiLink.last_remote_ack_seq) || 0)) >= seq;
+      }};
+      let atLeastOneSent = false;
+      for (let attemptIndex = 0; attemptIndex < waitPlan.length; attemptIndex += 1) {{
+        if (!reversiIsNetworkLinked()) return false;
+        if (normalizeNodeId(reversiLink.peer_id) !== peerId) return false;
+        if (String(reversiLink.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        if (isAcked()) return true;
+
+        const sent = await sendReversiProtocolMessage(
+          "move",
+          [sessionId, seq, row, col],
+          {{ destination_id: peerId, channel_index: sessionChannel }}
+        );
+        if (sent) {{
+          atLeastOneSent = true;
+          reversiLink.local_move_seq = Math.max(
+            Math.max(0, Math.trunc(Number(reversiLink.local_move_seq) || 0)),
+            seq
+          );
+          const attemptNumber = attemptIndex + 1;
+          const totalAttempts = waitPlan.length;
+          if (attemptNumber <= 1) {{
+            updateReversiLinkStatus(`Move ${{moveLabel}} sent. Waiting for ACK...`);
+          }} else {{
+            updateReversiLinkStatus(`Move ${{moveLabel}} retry ${{attemptNumber}}/${{totalAttempts}}. Waiting for ACK...`);
+          }}
+        }}
+        const acked = await waitForReversiMoveAck(isAcked, waitPlan[attemptIndex]);
+        if (acked) {{
+          updateReversiLinkStatus(`Peer acknowledged ${{moveLabel}}.`);
+          return true;
+        }}
       }}
-      reversiLink.local_move_seq = seq;
-      return true;
+      if (atLeastOneSent) {{
+        updateReversiLinkStatus(`Move ${{moveLabel}} sent, but ACK has not arrived yet (high latency or packet loss).`);
+      }} else {{
+        updateReversiLinkStatus("Move applied locally, but network send failed.");
+      }}
+      return false;
     }}
 
     function applyReversiMove(rowRaw, colRaw, options = {{}}) {{

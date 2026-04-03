@@ -196,6 +196,28 @@
           continue;
         }}
 
+        if (parsed.type === "ack") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const ackKind = String(parsed.parts[3] || "").trim().toLowerCase();
+          const ackSeq = Math.max(0, Math.trunc(Number(parsed.parts[4]) || 0));
+          if (!sessionId || ackKind !== "move" || ackSeq <= 0) {{
+            rememberReversiNetworkMessage(dedupeKey);
+            continue;
+          }}
+          if (!reversiIsNetworkLinked()) continue;
+          if (String(reversiLink.session_id || "").trim().toLowerCase() !== sessionId) continue;
+          if (normalizeNodeId(reversiLink.peer_id) !== fromId) continue;
+          reversiLink.last_remote_ack_seq = Math.max(
+            Math.max(0, Math.trunc(Number(reversiLink.last_remote_ack_seq) || 0)),
+            ackSeq
+          );
+          if (ackSeq >= Math.max(0, Math.trunc(Number(reversiLink.local_move_seq) || 0))) {{
+            reversiLink.status = `${{reversiNodeLabel(fromId, safeState)}} acknowledged your move.`;
+          }}
+          rememberReversiNetworkMessage(dedupeKey);
+          continue;
+        }}
+
         if (parsed.type === "move") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           const seq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
@@ -208,7 +230,16 @@
           if (!reversiIsNetworkLinked()) continue;
           if (reversiLink.session_id !== sessionId) continue;
           if (normalizeNodeId(reversiLink.peer_id) !== fromId) continue;
+          const ackChannelRaw = Number(reversiLink.channel_index);
+          const ackChannel = Number.isInteger(ackChannelRaw) && ackChannelRaw >= 0
+            ? ackChannelRaw
+            : messageMeshChannelIndex(msg);
           if (seq <= Math.max(0, Math.trunc(Number(reversiLink.remote_move_seq) || 0))) {{
+            void sendReversiProtocolMessage(
+              "ack",
+              [sessionId, "move", seq],
+              {{ destination_id: fromId, channel_index: ackChannel }}
+            );
             rememberReversiNetworkMessage(dedupeKey);
             continue;
           }}
@@ -216,6 +247,11 @@
           if (!applied) continue;
           reversiLink.remote_move_seq = seq;
           reversiLink.status = `${{reversiNodeLabel(fromId, safeState)}} played ${{reversiCellLabel(row, col)}}.`;
+          void sendReversiProtocolMessage(
+            "ack",
+            [sessionId, "move", seq],
+            {{ destination_id: fromId, channel_index: ackChannel }}
+          );
           rememberReversiNetworkMessage(dedupeKey);
           continue;
         }}

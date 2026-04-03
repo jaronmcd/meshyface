@@ -8,48 +8,91 @@
       return `${{fromLabel}}→${{toLabel}}`;
     }}
 
-    async function sendCheckersMoveToPeer(fromRow, fromCol, toRow, toCol) {{
-      if (!boardGameIsNetworkLinked("checkers")) return false;
-      const link = boardGameRefs("checkers").getLink();
+    async function waitForBoardGameMoveAck(checkAck, timeoutMs) {{
+      const probe = typeof checkAck === "function" ? checkAck : null;
+      if (!probe) return false;
+      const windowMs = Math.max(500, Math.trunc(Number(timeoutMs) || 0));
+      const pollMs = Math.max(80, Math.trunc(Number(gamesMoveAckPollMs) || 0) || 180);
+      const deadline = Date.now() + windowMs;
+      while (Date.now() < deadline) {{
+        if (probe()) return true;
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }}
+      return !!probe();
+    }}
+
+    async function sendBoardGameMoveWithRetry(gameId, fromRow, fromCol, toRow, toCol) {{
+      if (!boardGameIsNetworkLinked(gameId)) return false;
+      const refs = boardGameRefs(gameId);
+      const link = refs.getLink();
+      const sessionId = String(link.session_id || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(link.peer_id || "");
+      if (!sessionId || !isCanonicalNodeId(peerId)) return false;
       const seq = Math.max(0, Math.trunc(Number(link.local_move_seq) || 0)) + 1;
       const sessionChannelRaw = Number(link.channel_index);
       const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
         ? sessionChannelRaw
         : meshChannelEffectiveSendIndexForApp("games");
-      const sent = await sendBoardGameProtocolMessage(
-        "checkers",
-        "move",
-        [link.session_id, seq, fromRow, fromCol, toRow, toCol],
-        {{ destination_id: link.peer_id, channel_index: sessionChannel }}
-      );
-      if (!sent) {{
-        boardGameUpdateLinkStatus("checkers", "Move applied locally, but network send failed.");
-        return false;
+      const moveLabel = boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol);
+      const waitPlan = Array.isArray(gamesMoveAckWaitPlanMs) && gamesMoveAckWaitPlanMs.length
+        ? gamesMoveAckWaitPlanMs
+        : [2500, 3500, 5000, 7000];
+      const isAcked = () => {{
+        if (!boardGameIsNetworkLinked(gameId)) return false;
+        const current = refs.getLink();
+        if (normalizeNodeId(current.peer_id) !== peerId) return false;
+        if (String(current.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        return Math.max(0, Math.trunc(Number(current.last_remote_ack_seq) || 0)) >= seq;
+      }};
+      let atLeastOneSent = false;
+      for (let attemptIndex = 0; attemptIndex < waitPlan.length; attemptIndex += 1) {{
+        if (!boardGameIsNetworkLinked(gameId)) return false;
+        const current = refs.getLink();
+        if (normalizeNodeId(current.peer_id) !== peerId) return false;
+        if (String(current.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        if (isAcked()) return true;
+
+        const sent = await sendBoardGameProtocolMessage(
+          gameId,
+          "move",
+          [sessionId, seq, fromRow, fromCol, toRow, toCol],
+          {{ destination_id: peerId, channel_index: sessionChannel }}
+        );
+        if (sent) {{
+          atLeastOneSent = true;
+          current.local_move_seq = Math.max(
+            Math.max(0, Math.trunc(Number(current.local_move_seq) || 0)),
+            seq
+          );
+          const attemptNumber = attemptIndex + 1;
+          const totalAttempts = waitPlan.length;
+          const label = boardGameLabel(gameId);
+          if (attemptNumber <= 1) {{
+            boardGameUpdateLinkStatus(gameId, `${{label}} move ${{moveLabel}} sent. Waiting for ACK...`);
+          }} else {{
+            boardGameUpdateLinkStatus(gameId, `${{label}} move ${{moveLabel}} retry ${{attemptNumber}}/${{totalAttempts}}. Waiting for ACK...`);
+          }}
+        }}
+        const acked = await waitForBoardGameMoveAck(isAcked, waitPlan[attemptIndex]);
+        if (acked) {{
+          boardGameUpdateLinkStatus(gameId, `Peer acknowledged ${{boardGameLabel(gameId)}} move ${{moveLabel}}.`);
+          return true;
+        }}
       }}
-      link.local_move_seq = seq;
-      return true;
+      if (atLeastOneSent) {{
+        boardGameUpdateLinkStatus(gameId, `${{boardGameLabel(gameId)}} move ${{moveLabel}} sent, but ACK has not arrived yet (high latency or packet loss).`);
+      }} else {{
+        boardGameUpdateLinkStatus(gameId, "Move applied locally, but network send failed.");
+      }}
+      return false;
+    }}
+
+    async function sendCheckersMoveToPeer(fromRow, fromCol, toRow, toCol) {{
+      return sendBoardGameMoveWithRetry("checkers", fromRow, fromCol, toRow, toCol);
     }}
 
     async function sendChessMoveToPeer(fromRow, fromCol, toRow, toCol) {{
-      if (!boardGameIsNetworkLinked("chess")) return false;
-      const link = boardGameRefs("chess").getLink();
-      const seq = Math.max(0, Math.trunc(Number(link.local_move_seq) || 0)) + 1;
-      const sessionChannelRaw = Number(link.channel_index);
-      const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
-        ? sessionChannelRaw
-        : meshChannelEffectiveSendIndexForApp("games");
-      const sent = await sendBoardGameProtocolMessage(
-        "chess",
-        "move",
-        [link.session_id, seq, fromRow, fromCol, toRow, toCol],
-        {{ destination_id: link.peer_id, channel_index: sessionChannel }}
-      );
-      if (!sent) {{
-        boardGameUpdateLinkStatus("chess", "Move applied locally, but network send failed.");
-        return false;
-      }}
-      link.local_move_seq = seq;
-      return true;
+      return sendBoardGameMoveWithRetry("chess", fromRow, fromCol, toRow, toCol);
     }}
 
     function syncBoardGameNetworkState(gameId, state = latestState) {{
@@ -183,6 +226,29 @@
           continue;
         }}
 
+        if (parsed.type === "ack") {{
+          const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
+          const ackKind = String(parsed.parts[3] || "").trim().toLowerCase();
+          const ackSeq = Math.max(0, Math.trunc(Number(parsed.parts[4]) || 0));
+          const link = refs.getLink();
+          if (!sessionId || ackKind !== "move" || ackSeq <= 0) {{
+            rememberBoardGameNetworkMessage(gameId, dedupeKey);
+            continue;
+          }}
+          if (!boardGameIsNetworkLinked(gameId)) continue;
+          if (String(link.session_id || "").trim().toLowerCase() !== sessionId) continue;
+          if (normalizeNodeId(link.peer_id) !== fromId) continue;
+          link.last_remote_ack_seq = Math.max(
+            Math.max(0, Math.trunc(Number(link.last_remote_ack_seq) || 0)),
+            ackSeq
+          );
+          if (ackSeq >= Math.max(0, Math.trunc(Number(link.local_move_seq) || 0))) {{
+            link.status = `${{reversiNodeLabel(fromId, safeState)}} acknowledged your move.`;
+          }}
+          rememberBoardGameNetworkMessage(gameId, dedupeKey);
+          continue;
+        }}
+
         if (parsed.type === "move") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           const seq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
@@ -207,7 +273,17 @@
           if (!boardGameIsNetworkLinked(gameId)) continue;
           if (link.session_id !== sessionId) continue;
           if (normalizeNodeId(link.peer_id) !== fromId) continue;
+          const ackChannelRaw = Number(link.channel_index);
+          const ackChannel = Number.isInteger(ackChannelRaw) && ackChannelRaw >= 0
+            ? ackChannelRaw
+            : messageMeshChannelIndex(msg);
           if (seq <= Math.max(0, Math.trunc(Number(link.remote_move_seq) || 0))) {{
+            void sendBoardGameProtocolMessage(
+              gameId,
+              "ack",
+              [sessionId, "move", seq],
+              {{ destination_id: fromId, channel_index: ackChannel }}
+            );
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
           }}
@@ -217,6 +293,12 @@
           if (!applied) continue;
           link.remote_move_seq = seq;
           link.status = `${{reversiNodeLabel(fromId, safeState)}} played ${{boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol)}}.`;
+          void sendBoardGameProtocolMessage(
+            gameId,
+            "ack",
+            [sessionId, "move", seq],
+            {{ destination_id: fromId, channel_index: ackChannel }}
+          );
           rememberBoardGameNetworkMessage(gameId, dedupeKey);
           continue;
         }}
