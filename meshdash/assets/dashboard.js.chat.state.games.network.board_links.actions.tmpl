@@ -1,0 +1,140 @@
+    async function hostBoardGameMatch(gameId) {{
+      const refs = boardGameRefs(gameId);
+      const peerId = normalizeNodeId(refs.getPeerId());
+      if (!isCanonicalNodeId(peerId)) {{
+        boardGameUpdateLinkStatus(gameId, "Select a peer before hosting.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const hostColor = boardGameParseColor(refs.getHostColorPreference(), refs.defaultLocalColor);
+      const guestColor = refs.opponent(hostColor);
+      const sessionChannel = meshChannelEffectiveSendIndexForApp("games");
+      const sessionId = generateBoardGameSessionId(gameId);
+
+      startBoardGameLocalState(gameId);
+      refs.setLink(createBoardGameLinkState(gameId, {{
+        mode: "pending_host",
+        role: "host",
+        session_id: sessionId,
+        peer_id: peerId,
+        channel_index: sessionChannel,
+        local_color: hostColor,
+        remote_color: guestColor,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Invite sent to ${{reversiNodeLabel(peerId)}}. You are ${{refs.playerLabel(hostColor)}}; waiting for accept...`,
+      }}));
+      removeAllBoardGamePendingInvitesFromPeer(gameId, peerId);
+      const sent = await sendBoardGameProtocolMessage(
+        gameId,
+        "invite",
+        [sessionId, normalizeNodeId(resolveLocalNodeId(latestState) || ""), hostColor],
+        {{ destination_id: peerId, channel_index: sessionChannel }}
+      );
+      if (!sent) {{
+        const link = refs.getLink();
+        link.mode = "local";
+        link.role = "";
+        link.session_id = "";
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function acceptBoardGameInvite(gameId) {{
+      const refs = boardGameRefs(gameId);
+      const invite = boardGamePendingInviteChoice(gameId);
+      if (!invite) {{
+        boardGameUpdateLinkStatus(gameId, "No pending invite to accept.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const peerId = normalizeNodeId(invite.from_id || "");
+      const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      const hostColor = boardGameParseColor(invite.host_color, refs.defaultLocalColor);
+      const guestColor = refs.opponent(hostColor);
+      const inviteChannelRaw = Number(invite.channel_index);
+      const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0
+        ? inviteChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      if (!isCanonicalNodeId(peerId) || !sessionId) {{
+        boardGameUpdateLinkStatus(gameId, "Invite details are invalid.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const link = refs.getLink();
+      if (
+        link.mode === "pending_host"
+        && isCanonicalNodeId(link.peer_id)
+        && String(link.session_id || "").trim()
+        && (
+          normalizeNodeId(link.peer_id) !== peerId
+          || String(link.session_id || "").trim().toLowerCase() !== sessionId
+        )
+      ) {{
+        await sendBoardGameProtocolMessage(
+          gameId,
+          "leave",
+          [link.session_id],
+          {{
+            destination_id: link.peer_id,
+            channel_index: Number.isInteger(Number(link.channel_index)) ? Number(link.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+          }}
+        );
+      }}
+      refs.setPeerId(peerId);
+      startBoardGameLocalState(gameId);
+      refs.setLink(createBoardGameLinkState(gameId, {{
+        mode: "connected",
+        role: "guest",
+        session_id: sessionId,
+        peer_id: peerId,
+        channel_index: inviteChannel,
+        local_color: guestColor,
+        remote_color: hostColor,
+        local_move_seq: 0,
+        remote_move_seq: 0,
+        status: `Connected to ${{reversiNodeLabel(peerId)}}. You are ${{refs.playerLabel(guestColor)}}.`,
+      }}));
+      removeBoardGamePendingInvite(gameId, peerId, sessionId);
+      removeAllBoardGamePendingInvitesFromPeer(gameId, peerId);
+      await sendBoardGameProtocolMessage(
+        gameId,
+        "accept",
+        [sessionId],
+        {{ destination_id: peerId, channel_index: inviteChannel }}
+      );
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function declineBoardGameInvite(gameId) {{
+      const invite = boardGamePendingInviteChoice(gameId);
+      if (!invite) {{
+        boardGameUpdateLinkStatus(gameId, "No pending invite to decline.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      const peerId = normalizeNodeId(invite.from_id || "");
+      const sessionId = String(invite.session_id || "").trim().toLowerCase();
+      removeBoardGamePendingInvite(gameId, peerId, sessionId);
+      boardGameUpdateLinkStatus(gameId, `Declined invite from ${{reversiNodeLabel(peerId)}}.`);
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    async function disconnectBoardGameMatch(gameId) {{
+      const refs = boardGameRefs(gameId);
+      const link = refs.getLink();
+      const linked = boardGameIsNetworkLinked(gameId) || link.mode === "pending_host";
+      if (linked && isCanonicalNodeId(link.peer_id) && String(link.session_id || "").trim()) {{
+        await sendBoardGameProtocolMessage(
+          gameId,
+          "leave",
+          [link.session_id],
+          {{
+            destination_id: link.peer_id,
+            channel_index: Number.isInteger(Number(link.channel_index)) ? Number(link.channel_index) : meshChannelEffectiveSendIndexForApp("games"),
+          }}
+        );
+      }}
+      boardGameResetNetworkLink(gameId, "Disconnected. Local hotseat mode.", {{ keepPeer: true }});
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}

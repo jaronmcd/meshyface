@@ -1,0 +1,499 @@
+    function chessOpponent(player) {{
+      return String(player || "").trim().toLowerCase() === "black" ? "white" : "black";
+    }}
+
+    function chessPlayerLabel(player) {{
+      return String(player || "").trim().toLowerCase() === "black" ? "Black" : "White";
+    }}
+
+    function chessInBounds(rowRaw, colRaw) {{
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      return row >= 0 && row < chessBoardSize && col >= 0 && col < chessBoardSize;
+    }}
+
+    function chessCellLabel(rowRaw, colRaw) {{
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      const file = chessFiles[col] || "?";
+      const rank = String(chessBoardSize - row);
+      return `${{file}}${{rank}}`;
+    }}
+
+    function chessPieceOwner(piece) {{
+      const token = String(piece || "").trim().toLowerCase();
+      if (!/^[wb][pnbrqk]$/.test(token)) return "";
+      return token[0] === "w" ? "white" : "black";
+    }}
+
+    function chessPieceType(piece) {{
+      const token = String(piece || "").trim().toLowerCase();
+      if (!/^[wb][pnbrqk]$/.test(token)) return "";
+      return token[1];
+    }}
+
+    function chessPieceGlyph(piece) {{
+      const type = chessPieceType(piece);
+      const owner = chessPieceOwner(piece);
+      if (!type || !owner) return "";
+      if (owner === "white") {{
+        if (type === "p") return "♟";
+        if (type === "n") return "♞";
+        if (type === "b") return "♝";
+        if (type === "r") return "♜";
+        if (type === "q") return "♛";
+        if (type === "k") return "♚";
+        return "";
+      }}
+      if (type === "p") return "♟";
+      if (type === "n") return "♞";
+      if (type === "b") return "♝";
+      if (type === "r") return "♜";
+      if (type === "q") return "♛";
+      if (type === "k") return "♚";
+      return "";
+    }}
+
+    function createInitialChessBoard() {{
+      const board = Array.from({{ length: chessBoardSize }}, () => (
+        Array.from({{ length: chessBoardSize }}, () => "")
+      ));
+      const back = ["r", "n", "b", "q", "k", "b", "n", "r"];
+      for (let col = 0; col < chessBoardSize; col += 1) {{
+        board[0][col] = `b${{back[col]}}`;
+        board[1][col] = "bp";
+        board[chessBoardSize - 2][col] = "wp";
+        board[chessBoardSize - 1][col] = `w${{back[col]}}`;
+      }}
+      return board;
+    }}
+
+    function cloneChessBoard(boardRaw) {{
+      const source = Array.isArray(boardRaw) ? boardRaw : [];
+      return Array.from({{ length: chessBoardSize }}, (_unusedRow, row) => {{
+        const sourceRow = Array.isArray(source[row]) ? source[row] : [];
+        return Array.from({{ length: chessBoardSize }}, (_unusedCol, col) => {{
+          const token = String(sourceRow[col] || "").trim().toLowerCase();
+          return /^[wb][pnbrqk]$/.test(token) ? token : "";
+        }});
+      }});
+    }}
+
+    function createNewChessState() {{
+      return {{
+        board: createInitialChessBoard(),
+        turn: "white",
+        move_count: 0,
+        game_over: false,
+        winner: "",
+        reason: "",
+        last_move: null,
+        notice: "White to move.",
+      }};
+    }}
+
+    function collectChessMoves(boardRaw, playerRaw, fromCell = null) {{
+      const board = cloneChessBoard(boardRaw);
+      const player = String(playerRaw || "").trim().toLowerCase() === "black" ? "black" : "white";
+      const moves = [];
+      const addMove = (fromRow, fromCol, toRow, toCol) => {{
+        if (!chessInBounds(toRow, toCol)) return;
+        const target = String(board[toRow] && board[toRow][toCol] || "").trim().toLowerCase();
+        if (target && chessPieceOwner(target) === player) return;
+        moves.push({{
+          from: [fromRow, fromCol],
+          to: [toRow, toCol],
+          capture: !!target,
+        }});
+      }};
+      const addSlideMoves = (fromRow, fromCol, dirs) => {{
+        for (const [dr, dc] of dirs) {{
+          let row = fromRow + dr;
+          let col = fromCol + dc;
+          while (chessInBounds(row, col)) {{
+            const target = String(board[row] && board[row][col] || "").trim().toLowerCase();
+            if (!target) {{
+              moves.push({{
+                from: [fromRow, fromCol],
+                to: [row, col],
+                capture: false,
+              }});
+              row += dr;
+              col += dc;
+              continue;
+            }}
+            if (chessPieceOwner(target) !== player) {{
+              moves.push({{
+                from: [fromRow, fromCol],
+                to: [row, col],
+                capture: true,
+              }});
+            }}
+            break;
+          }}
+        }}
+      }};
+
+      for (let row = 0; row < chessBoardSize; row += 1) {{
+        for (let col = 0; col < chessBoardSize; col += 1) {{
+          if (
+            Array.isArray(fromCell)
+            && fromCell.length >= 2
+            && (row !== Number(fromCell[0]) || col !== Number(fromCell[1]))
+          ) {{
+            continue;
+          }}
+          const piece = String(board[row] && board[row][col] || "").trim().toLowerCase();
+          if (!piece) continue;
+          if (chessPieceOwner(piece) !== player) continue;
+          const type = chessPieceType(piece);
+          if (!type) continue;
+
+          if (type === "p") {{
+            const dir = player === "white" ? -1 : 1;
+            const startRow = player === "white" ? 6 : 1;
+            const oneRow = row + dir;
+            if (chessInBounds(oneRow, col) && !String(board[oneRow] && board[oneRow][col] || "").trim()) {{
+              addMove(row, col, oneRow, col);
+              const twoRow = row + (dir * 2);
+              if (
+                row === startRow
+                && chessInBounds(twoRow, col)
+                && !String(board[twoRow] && board[twoRow][col] || "").trim()
+              ) {{
+                addMove(row, col, twoRow, col);
+              }}
+            }}
+            for (const deltaCol of [-1, 1]) {{
+              const capRow = row + dir;
+              const capCol = col + deltaCol;
+              if (!chessInBounds(capRow, capCol)) continue;
+              const target = String(board[capRow] && board[capRow][capCol] || "").trim().toLowerCase();
+              if (!target || chessPieceOwner(target) === player) continue;
+              addMove(row, col, capRow, capCol);
+            }}
+            continue;
+          }}
+
+          if (type === "n") {{
+            for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) {{
+              addMove(row, col, row + dr, col + dc);
+            }}
+            continue;
+          }}
+
+          if (type === "k") {{
+            for (let dr = -1; dr <= 1; dr += 1) {{
+              for (let dc = -1; dc <= 1; dc += 1) {{
+                if (dr === 0 && dc === 0) continue;
+                addMove(row, col, row + dr, col + dc);
+              }}
+            }}
+            continue;
+          }}
+
+          if (type === "b") {{
+            addSlideMoves(row, col, [[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+            continue;
+          }}
+          if (type === "r") {{
+            addSlideMoves(row, col, [[-1, 0], [1, 0], [0, -1], [0, 1]]);
+            continue;
+          }}
+          if (type === "q") {{
+            addSlideMoves(row, col, [[-1, -1], [-1, 1], [1, -1], [1, 1], [-1, 0], [1, 0], [0, -1], [0, 1]]);
+          }}
+        }}
+      }}
+      return moves;
+    }}
+
+    function chessMovesFromCell(rowRaw, colRaw) {{
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      return (Array.isArray(chessLegalMoves) ? chessLegalMoves : []).filter((move) => {{
+        const from = Array.isArray(move && move.from) ? move.from : null;
+        return !!(from && Number(from[0]) === row && Number(from[1]) === col);
+      }});
+    }}
+
+    function refreshChessGame() {{
+      if (!chessState || typeof chessState !== "object") {{
+        chessState = createNewChessState();
+      }}
+      chessState.board = cloneChessBoard(chessState.board);
+      if (chessState.game_over) {{
+        chessLegalMoves = [];
+        chessSelectedCell = null;
+        return;
+      }}
+      const turn = String(chessState.turn || "").trim().toLowerCase() === "black" ? "black" : "white";
+      chessState.turn = turn;
+      const legal = collectChessMoves(chessState.board, turn, null);
+      chessLegalMoves = legal;
+      if (legal.length < 1) {{
+        chessState.game_over = true;
+        chessState.winner = "";
+        chessState.reason = "stalemate";
+        chessState.notice = `No legal moves for ${{chessPlayerLabel(turn)}}. Draw.`;
+        chessSelectedCell = null;
+        return;
+      }}
+      if (
+        Array.isArray(chessSelectedCell)
+        && chessSelectedCell.length >= 2
+      ) {{
+        const selectedMoves = chessMovesFromCell(chessSelectedCell[0], chessSelectedCell[1]);
+        if (selectedMoves.length < 1) chessSelectedCell = null;
+      }}
+      if (!String(chessState.notice || "").trim()) {{
+        chessState.notice = `${{chessPlayerLabel(turn)}} to move.`;
+      }}
+    }}
+
+    function startNewChessGame() {{
+      if (chessLink.mode === "connected" || chessLink.mode === "pending_host") {{
+        boardGameResetNetworkLink("chess", "Started a fresh local game. Peer link closed.", {{ keepPeer: true }});
+      }}
+      chessState = createNewChessState();
+      chessSelectedCell = null;
+      refreshChessGame();
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function applyChessMove(fromRowRaw, fromColRaw, toRowRaw, toColRaw, options = {{}}) {{
+      if (!chessState || typeof chessState !== "object") return false;
+      if (chessState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
+      const fromRow = Math.trunc(Number(fromRowRaw) || 0);
+      const fromCol = Math.trunc(Number(fromColRaw) || 0);
+      const toRow = Math.trunc(Number(toRowRaw) || 0);
+      const toCol = Math.trunc(Number(toColRaw) || 0);
+      if (source !== "remote" && chessLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("chess", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") {{
+          renderGamesView(latestState);
+        }}
+        return false;
+      }}
+      if (boardGameIsNetworkLinked("chess")) {{
+        const currentPlayer = String(chessState.turn || "").trim().toLowerCase() === "black" ? "black" : "white";
+        const expectedPlayer = source === "remote"
+          ? boardGameRemoteColor("chess")
+          : boardGameLocalColor("chess");
+        if (currentPlayer !== expectedPlayer) {{
+          if (source !== "remote") {{
+            boardGameUpdateLinkStatus(
+              "chess",
+              `Waiting for ${{reversiNodeLabel(chessLink.peer_id)}} to move.`
+            );
+            if (activeLayoutView === "games") {{
+              renderGamesView(latestState);
+            }}
+          }}
+          return false;
+        }}
+      }}
+      const move = (Array.isArray(chessLegalMoves) ? chessLegalMoves : []).find((row) => {{
+        const from = Array.isArray(row && row.from) ? row.from : null;
+        const to = Array.isArray(row && row.to) ? row.to : null;
+        return !!(
+          from && to
+          && Number(from[0]) === fromRow
+          && Number(from[1]) === fromCol
+          && Number(to[0]) === toRow
+          && Number(to[1]) === toCol
+        );
+      }});
+      if (!move) return false;
+
+      const board = cloneChessBoard(chessState.board);
+      const piece = String(board[fromRow] && board[fromRow][fromCol] || "").trim().toLowerCase();
+      if (!piece) return false;
+      const player = chessPieceOwner(piece);
+      const targetPiece = String(board[toRow] && board[toRow][toCol] || "").trim().toLowerCase();
+      const capturedKing = chessPieceType(targetPiece) === "k";
+
+      board[fromRow][fromCol] = "";
+      let placedPiece = piece;
+      if (chessPieceType(piece) === "p" && (toRow === 0 || toRow === (chessBoardSize - 1))) {{
+        placedPiece = `${{piece[0]}}q`;
+      }}
+      board[toRow][toCol] = placedPiece;
+      chessState.board = board;
+      chessState.move_count = Math.max(0, Math.trunc(Number(chessState.move_count) || 0)) + 1;
+      chessState.last_move = {{ from: [fromRow, fromCol], to: [toRow, toCol] }};
+      chessSelectedCell = null;
+
+      if (capturedKing) {{
+        chessState.game_over = true;
+        chessState.winner = player;
+        chessState.reason = "king-captured";
+        chessLegalMoves = [];
+        chessState.notice = `Game over: ${{chessPlayerLabel(player)}} captured the king.`;
+        if (source !== "remote" && boardGameIsNetworkLinked("chess") && !suppressOutbound) {{
+          void sendChessMoveToPeer(fromRow, fromCol, toRow, toCol);
+        }}
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return true;
+      }}
+
+      const nextPlayer = chessOpponent(player);
+      chessState.turn = nextPlayer;
+      chessState.game_over = false;
+      chessState.winner = "";
+      chessState.reason = "";
+      chessState.notice = `${{chessPlayerLabel(player)}} moved to ${{chessCellLabel(toRow, toCol)}}. ${{chessPlayerLabel(nextPlayer)}} to move.`;
+      refreshChessGame();
+      if (source !== "remote" && boardGameIsNetworkLinked("chess") && !suppressOutbound) {{
+        void sendChessMoveToPeer(fromRow, fromCol, toRow, toCol);
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+      return true;
+    }}
+
+    function handleChessBoardClick(rowRaw, colRaw) {{
+      if (!chessState || typeof chessState !== "object") return;
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      if (!chessInBounds(row, col)) return;
+      if (chessState.game_over) return;
+      if (boardGameIsNetworkLinked("chess") && chessState.turn !== boardGameLocalColor("chess")) {{
+        boardGameUpdateLinkStatus(
+          "chess",
+          `Waiting for ${{reversiNodeLabel(chessLink.peer_id)}} to move.`
+        );
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+
+      const selected = (
+        Array.isArray(chessSelectedCell)
+        && chessSelectedCell.length >= 2
+      ) ? [
+        Math.trunc(Number(chessSelectedCell[0]) || 0),
+        Math.trunc(Number(chessSelectedCell[1]) || 0),
+      ] : null;
+      if (selected) {{
+        const didMove = applyChessMove(selected[0], selected[1], row, col);
+        if (didMove) return;
+      }}
+
+      const piece = String(chessState.board[row] && chessState.board[row][col] || "").trim().toLowerCase();
+      if (!piece) {{
+        chessSelectedCell = null;
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      if (chessPieceOwner(piece) !== chessState.turn) return;
+      const pieceMoves = chessMovesFromCell(row, col);
+      if (pieceMoves.length < 1) return;
+      chessSelectedCell = [row, col];
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+
+    function renderChessBoard() {{
+      const boardEl = document.getElementById("chess-board");
+      if (!(boardEl instanceof HTMLElement)) return;
+      if (!chessState || typeof chessState !== "object") {{
+        startNewChessGame();
+      }}
+      const board = cloneChessBoard(chessState && chessState.board);
+      const selected = (
+        Array.isArray(chessSelectedCell)
+        && chessSelectedCell.length >= 2
+      ) ? [Number(chessSelectedCell[0]), Number(chessSelectedCell[1])] : null;
+      const selectedMoves = selected ? chessMovesFromCell(selected[0], selected[1]) : [];
+      const targets = new Set(selectedMoves.map((move) => {{
+        const to = Array.isArray(move && move.to) ? move.to : [0, 0];
+        return `${{Number(to[0])}},${{Number(to[1])}}`;
+      }}));
+      const movers = new Set((Array.isArray(chessLegalMoves) ? chessLegalMoves : []).map((move) => {{
+        const from = Array.isArray(move && move.from) ? move.from : [0, 0];
+        return `${{Number(from[0])}},${{Number(from[1])}}`;
+      }}));
+      const lastMove = chessState && chessState.last_move && typeof chessState.last_move === "object"
+        ? chessState.last_move
+        : null;
+      const lastFrom = Array.isArray(lastMove && lastMove.from) ? lastMove.from : null;
+      const lastTo = Array.isArray(lastMove && lastMove.to) ? lastMove.to : null;
+      const html = [];
+
+      for (let row = 0; row < chessBoardSize; row += 1) {{
+        for (let col = 0; col < chessBoardSize; col += 1) {{
+          const key = `${{row}},${{col}}`;
+          const classes = ["chess-cell", (((row + col) % 2) === 0 ? "is-light" : "is-dark")];
+          if (selected && Number(selected[0]) === row && Number(selected[1]) === col) classes.push("is-selected");
+          if (targets.has(key)) classes.push("is-target");
+          if (movers.has(key)) classes.push("is-movable");
+          if (lastFrom && Number(lastFrom[0]) === row && Number(lastFrom[1]) === col) classes.push("is-last-from");
+          if (lastTo && Number(lastTo[0]) === row && Number(lastTo[1]) === col) classes.push("is-last-to");
+          const piece = String(board[row] && board[row][col] || "").trim().toLowerCase();
+          const owner = chessPieceOwner(piece);
+          const glyph = chessPieceGlyph(piece);
+          let pieceHtml = "";
+          if (owner && glyph) {{
+            pieceHtml = `<span class="chess-piece piece-${{owner}}" aria-hidden="true">${{escAttr(glyph)}}</span>`;
+          }} else if (targets.has(key)) {{
+            pieceHtml = '<span class="chess-hint" aria-hidden="true"></span>';
+          }}
+          const label = owner ? `${{chessPlayerLabel(owner)}} piece` : "empty";
+          html.push(
+            `<button class="${{escAttr(classes.join(" "))}}" type="button" data-row="${{row}}" data-col="${{col}}" title="${{escAttr(`${{chessCellLabel(row, col)}} • ${{label}}`)}}">${{pieceHtml}}</button>`
+          );
+        }}
+      }}
+      boardEl.innerHTML = html.join("");
+    }}
+
+    function renderChessStatus() {{
+      if (!chessState || typeof chessState !== "object") return;
+      const statusEl = document.getElementById("chess-status-text");
+      const whitePill = document.getElementById("chess-player-white-pill");
+      const blackPill = document.getElementById("chess-player-black-pill");
+      const whiteNameEl = document.getElementById("chess-player-white-name");
+      const blackNameEl = document.getElementById("chess-player-black-name");
+      const localColor = boardGameLocalColor("chess");
+      const localName = boardGameLocalParticipantName("chess", latestState);
+      const remoteName = boardGameRemoteParticipantName("chess", latestState);
+      let whiteCount = 0;
+      let blackCount = 0;
+      for (let row = 0; row < chessBoardSize; row += 1) {{
+        for (let col = 0; col < chessBoardSize; col += 1) {{
+          const owner = chessPieceOwner(chessState.board[row] && chessState.board[row][col]);
+          if (owner === "white") whiteCount += 1;
+          if (owner === "black") blackCount += 1;
+        }}
+      }}
+      if (statusEl instanceof HTMLElement) {{
+        statusEl.textContent = String(chessState.notice || `${{chessPlayerLabel(chessState.turn)}} to move.`);
+      }}
+      if (whitePill instanceof HTMLElement) {{
+        whitePill.classList.remove("is-active", "is-over");
+        if (chessState.game_over) {{
+          whitePill.classList.add("is-over");
+        }} else if (chessState.turn === "white") {{
+          whitePill.classList.add("is-active");
+        }}
+      }}
+      if (blackPill instanceof HTMLElement) {{
+        blackPill.classList.remove("is-active", "is-over");
+        if (chessState.game_over) {{
+          blackPill.classList.add("is-over");
+        }} else if (chessState.turn === "black") {{
+          blackPill.classList.add("is-active");
+        }}
+      }}
+      if (whiteNameEl instanceof HTMLElement) {{
+        whiteNameEl.textContent = localColor === "white" ? localName : remoteName;
+      }}
+      if (blackNameEl instanceof HTMLElement) {{
+        blackNameEl.textContent = localColor === "black" ? localName : remoteName;
+      }}
+      setText("chess-white-count", whiteCount);
+      setText("chess-black-count", blackCount);
+      setText("chess-move-count", Math.max(0, Math.trunc(Number(chessState.move_count) || 0)));
+      setText("chess-legal-count", chessState.game_over ? 0 : (Array.isArray(chessLegalMoves) ? chessLegalMoves.length : 0));
+    }}
+

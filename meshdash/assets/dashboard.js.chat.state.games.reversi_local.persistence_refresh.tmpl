@@ -1,0 +1,80 @@
+    function persistReversiState() {{
+      if (!reversiState || typeof reversiState !== "object") return;
+      try {{
+        window.localStorage.setItem(
+          reversiStateStorageKey,
+          JSON.stringify({{
+            board: reversiState.board,
+            current_player: reversiState.current_player,
+            move_count: reversiState.move_count,
+            last_move: reversiState.last_move,
+            game_over: reversiState.game_over,
+            winner: reversiState.winner,
+            pass_count: reversiState.pass_count,
+            notice: reversiState.notice,
+          }})
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function refreshReversiDerivedState({{ autoPass = false }} = {{}}) {{
+      if (!reversiState || typeof reversiState !== "object") {{
+        reversiState = createNewReversiState();
+      }}
+      const board = cloneReversiBoard(reversiState.board);
+      reversiState.board = board;
+      if (reversiState.game_over) {{
+        reversiLegalMoves = [];
+        reversiLegalMoveMap = new Map();
+        return;
+      }}
+      const active = Number(reversiState.current_player) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      let legalMoves = collectReversiLegalMoves(board, active);
+      if (legalMoves.length === 0 && autoPass) {{
+        const nextPlayer = reversiOpponent(active);
+        const nextMoves = collectReversiLegalMoves(board, nextPlayer);
+        if (nextMoves.length > 0) {{
+          reversiState.current_player = nextPlayer;
+          reversiState.pass_count = Math.max(1, Math.trunc(Number(reversiState.pass_count) || 0) + 1);
+          reversiState.notice = `${{reversiPlayerLabel(active)}} has no legal moves. Turn passes to ${{reversiPlayerLabel(nextPlayer)}}.`;
+          legalMoves = nextMoves;
+        }} else {{
+          reversiState.game_over = true;
+          reversiState.pass_count = Math.max(2, Math.trunc(Number(reversiState.pass_count) || 0) + 1);
+          const counts = countReversiPieces(board);
+          if (counts.black === counts.white) {{
+            reversiState.winner = reversiPiece.empty;
+            reversiState.notice = `Game over: draw at ${{counts.black}}-${{counts.white}}.`;
+          }} else if (counts.black > counts.white) {{
+            reversiState.winner = reversiPiece.black;
+            reversiState.notice = `Game over: Black wins ${{counts.black}}-${{counts.white}}.`;
+          }} else {{
+            reversiState.winner = reversiPiece.white;
+            reversiState.notice = `Game over: White wins ${{counts.white}}-${{counts.black}}.`;
+          }}
+          legalMoves = [];
+        }}
+      }} else {{
+        reversiState.current_player = active;
+        reversiState.pass_count = 0;
+      }}
+      reversiLegalMoves = legalMoves;
+      reversiLegalMoveMap = rebuildReversiLegalMap(legalMoves);
+    }}
+
+    function loadReversiState() {{
+      let parsed = null;
+      try {{
+        const raw = window.localStorage.getItem(reversiStateStorageKey);
+        parsed = raw ? JSON.parse(raw) : null;
+      }} catch (_err) {{
+        parsed = null;
+      }}
+      reversiState = normalizeReversiState(parsed) || createNewReversiState();
+      refreshReversiDerivedState({{ autoPass: true }});
+      persistReversiState();
+    }}
+

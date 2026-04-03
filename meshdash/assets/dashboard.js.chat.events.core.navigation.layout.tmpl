@@ -619,37 +619,20 @@
       }}
     }}
 
-    function normalizeAppsLayoutView(raw) {{
-      const clean = String(raw || "").trim().toLowerCase();
-      if (
-        clean === "macros"
-        || clean === "games"
-        || clean === "files"
-        || clean === "bbs"
-        || clean === "remote"
-      ) {{
-        return clean;
-      }}
-      return "macros";
+    function normalizeAppsLayoutView(_raw) {{
+      return "games";
     }}
 
     function isAppsLayoutView(viewName) {{
-      const clean = String(viewName || "").trim().toLowerCase();
-      return (
-        clean === "macros"
-        || clean === "games"
-        || clean === "files"
-        || clean === "bbs"
-        || clean === "remote"
-      );
+      return String(viewName || "").trim().toLowerCase() === "games";
     }}
 
     function loadPreferredAppsLayoutView() {{
       try {{
-        const raw = window.localStorage.getItem("meshDashboardAppsLayoutViewV1") || "macros";
+        const raw = window.localStorage.getItem("meshDashboardAppsLayoutViewV1") || "games";
         return normalizeAppsLayoutView(raw);
       }} catch (_err) {{
-        return "macros";
+        return "games";
       }}
     }}
 
@@ -676,11 +659,12 @@
         resolved = "chat";
       }}
 
-      // Public v0 rail: expose only Chat/Network/Console/Settings.
+      // Public v0 rail: expose only Chat/Network/Console/Games/Settings.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
+        || resolved === "games"
         || resolved === "settings"
       )
         ? resolved

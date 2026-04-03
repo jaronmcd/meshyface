@@ -1,4 +1,4 @@
-    // Core UI profile no-op stubs for omitted game/file/bot modules.
+    // Core UI profile no-op stubs for omitted file/bot modules.
     function loadFileTransferDestinationPreference() {{
       return;
     }}
@@ -17,38 +17,6 @@
 
     function hasActiveFileTransferSessions() {{
       return false;
-    }}
-
-    function loadReversiState() {{
-      return;
-    }}
-
-    function startNewCheckersGame() {{
-      return;
-    }}
-
-    function startNewChessGame() {{
-      return;
-    }}
-
-    function startNewPokerGame(_options = null) {{
-      return;
-    }}
-
-    function renderGamesView(_state = latestState) {{
-      return;
-    }}
-
-    function bindGamesControls() {{
-      return;
-    }}
-
-    function syncReversiNetworkState(_state = latestState) {{
-      return;
-    }}
-
-    function syncBoardGameNetworkState(_gameId = "", _state = latestState) {{
-      return;
     }}
 
     function loadBotRequestHistory() {{
@@ -260,20 +228,6 @@
 
     function renderManagedBotCommandList() {{
       return;
-    }}
-
-    function reversiNodeLabel(nodeId, state = latestState) {{
-      const clean = normalizeNodeId(nodeId || "");
-      if (!clean) return "Unknown";
-      const safeState = state && typeof state === "object" ? state : {{}};
-      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
-      for (const node of nodes) {{
-        const candidate = normalizeNodeId(node && node.id);
-        if (candidate !== clean) continue;
-        const label = preferredNodeName(node);
-        if (label) return label;
-      }}
-      return clean;
     }}
 
     function renderChatCoreUiFallback(state = latestState, renderError = null) {{

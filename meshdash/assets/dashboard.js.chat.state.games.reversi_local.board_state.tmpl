@@ -1,0 +1,154 @@
+    function createEmptyReversiBoard() {{
+      return Array.from({{ length: reversiBoardSize }}, () => (
+        Array.from({{ length: reversiBoardSize }}, () => reversiPiece.empty)
+      ));
+    }}
+
+    function cloneReversiBoard(board) {{
+      if (!Array.isArray(board)) return createEmptyReversiBoard();
+      return board.map((row) => (
+        Array.isArray(row)
+          ? row.map((cell) => {{
+              const value = Math.trunc(Number(cell) || 0);
+              return value === reversiPiece.black || value === reversiPiece.white ? value : reversiPiece.empty;
+            }})
+          : Array.from({{ length: reversiBoardSize }}, () => reversiPiece.empty)
+      ));
+    }}
+
+    function createInitialReversiBoard() {{
+      const board = createEmptyReversiBoard();
+      board[3][3] = reversiPiece.white;
+      board[3][4] = reversiPiece.black;
+      board[4][3] = reversiPiece.black;
+      board[4][4] = reversiPiece.white;
+      return board;
+    }}
+
+    function inReversiBounds(row, col) {{
+      const r = Math.trunc(Number(row) || 0);
+      const c = Math.trunc(Number(col) || 0);
+      return r >= 0 && r < reversiBoardSize && c >= 0 && c < reversiBoardSize;
+    }}
+
+    function collectReversiFlips(board, row, col, player) {{
+      if (!inReversiBounds(row, col)) return [];
+      const activePlayer = Number(player) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      if (Number(board[row][col] || 0) !== reversiPiece.empty) return [];
+      const enemy = reversiOpponent(activePlayer);
+      const allFlips = [];
+      for (const [dr, dc] of reversiDirections) {{
+        let r = row + dr;
+        let c = col + dc;
+        const directional = [];
+        while (inReversiBounds(r, c) && Number(board[r][c] || 0) === enemy) {{
+          directional.push([r, c]);
+          r += dr;
+          c += dc;
+        }}
+        if (directional.length < 1) continue;
+        if (!inReversiBounds(r, c)) continue;
+        if (Number(board[r][c] || 0) !== activePlayer) continue;
+        allFlips.push(...directional);
+      }}
+      return allFlips;
+    }}
+
+    function collectReversiLegalMoves(board, player) {{
+      const activePlayer = Number(player) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      const moves = [];
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          if (Number(board[row][col] || 0) !== reversiPiece.empty) continue;
+          const flips = collectReversiFlips(board, row, col, activePlayer);
+          if (flips.length < 1) continue;
+          moves.push({{ row, col, flips }});
+        }}
+      }}
+      return moves;
+    }}
+
+    function rebuildReversiLegalMap(moves) {{
+      const map = new Map();
+      for (const move of (Array.isArray(moves) ? moves : [])) {{
+        if (!move || typeof move !== "object") continue;
+        const row = Math.trunc(Number(move.row) || 0);
+        const col = Math.trunc(Number(move.col) || 0);
+        if (!inReversiBounds(row, col)) continue;
+        map.set(`${{row}},${{col}}`, Array.isArray(move.flips) ? move.flips : []);
+      }}
+      return map;
+    }}
+
+    function countReversiPieces(board) {{
+      let black = 0;
+      let white = 0;
+      for (const row of (Array.isArray(board) ? board : [])) {{
+        if (!Array.isArray(row)) continue;
+        for (const cell of row) {{
+          const value = Number(cell) || 0;
+          if (value === reversiPiece.black) {{
+            black += 1;
+          }} else if (value === reversiPiece.white) {{
+            white += 1;
+          }}
+        }}
+      }}
+      return {{ black, white }};
+    }}
+
+    function createNewReversiState() {{
+      const board = createInitialReversiBoard();
+      return {{
+        board,
+        current_player: reversiPiece.black,
+        move_count: 0,
+        last_move: null,
+        game_over: false,
+        winner: reversiPiece.empty,
+        pass_count: 0,
+        notice: "Black to move.",
+      }};
+    }}
+
+    function normalizeReversiState(raw) {{
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+      const boardRaw = raw.board;
+      if (!Array.isArray(boardRaw) || boardRaw.length !== reversiBoardSize) return null;
+      const board = createEmptyReversiBoard();
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        const sourceRow = boardRaw[row];
+        if (!Array.isArray(sourceRow) || sourceRow.length !== reversiBoardSize) return null;
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          const value = Math.trunc(Number(sourceRow[col]) || 0);
+          board[row][col] = (
+            value === reversiPiece.black || value === reversiPiece.white
+          ) ? value : reversiPiece.empty;
+        }}
+      }}
+      const currentRaw = Math.trunc(Number(raw.current_player ?? raw.currentPlayer) || reversiPiece.black);
+      const winnerRaw = Math.trunc(Number(raw.winner) || reversiPiece.empty);
+      const lastMoveRaw = Array.isArray(raw.last_move ?? raw.lastMove) ? (raw.last_move ?? raw.lastMove) : null;
+      const lastMove = (
+        lastMoveRaw
+        && lastMoveRaw.length >= 2
+        && inReversiBounds(lastMoveRaw[0], lastMoveRaw[1])
+      )
+        ? [Math.trunc(Number(lastMoveRaw[0]) || 0), Math.trunc(Number(lastMoveRaw[1]) || 0)]
+        : null;
+      return {{
+        board,
+        current_player: currentRaw === reversiPiece.white ? reversiPiece.white : reversiPiece.black,
+        move_count: Math.max(0, Math.trunc(Number(raw.move_count ?? raw.moveCount) || 0)),
+        last_move: lastMove,
+        game_over: parseBoolToken(raw.game_over ?? raw.gameOver, false),
+        winner: (
+          winnerRaw === reversiPiece.black
+          || winnerRaw === reversiPiece.white
+          || winnerRaw === reversiPiece.empty
+        ) ? winnerRaw : reversiPiece.empty,
+        pass_count: Math.max(0, Math.trunc(Number(raw.pass_count ?? raw.passCount) || 0)),
+        notice: String(raw.notice || "").trim().slice(0, 220),
+      }};
+    }}
+

@@ -1,0 +1,200 @@
+    function applyCheckersMove(fromRowRaw, fromColRaw, toRowRaw, toColRaw, options = {{}}) {{
+      if (!checkersState || typeof checkersState !== "object") return false;
+      if (checkersState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
+      const fromRow = Math.trunc(Number(fromRowRaw) || 0);
+      const fromCol = Math.trunc(Number(fromColRaw) || 0);
+      const toRow = Math.trunc(Number(toRowRaw) || 0);
+      const toCol = Math.trunc(Number(toColRaw) || 0);
+      if (source !== "remote" && checkersLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("checkers", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") {{
+          renderGamesView(latestState);
+        }}
+        return false;
+      }}
+      if (boardGameIsNetworkLinked("checkers")) {{
+        const currentPlayer = String(checkersState.turn || "").trim().toLowerCase() === "white" ? "white" : "black";
+        const expectedPlayer = source === "remote"
+          ? boardGameRemoteColor("checkers")
+          : boardGameLocalColor("checkers");
+        if (currentPlayer !== expectedPlayer) {{
+          if (source !== "remote") {{
+            boardGameUpdateLinkStatus(
+              "checkers",
+              `Waiting for ${{reversiNodeLabel(checkersLink.peer_id)}} to move.`
+            );
+            if (activeLayoutView === "games") {{
+              renderGamesView(latestState);
+            }}
+          }}
+          return false;
+        }}
+      }}
+      const move = (Array.isArray(checkersLegalMoves) ? checkersLegalMoves : []).find((row) => {{
+        const from = Array.isArray(row && row.from) ? row.from : null;
+        const to = Array.isArray(row && row.to) ? row.to : null;
+        return !!(
+          from && to
+          && Number(from[0]) === fromRow
+          && Number(from[1]) === fromCol
+          && Number(to[0]) === toRow
+          && Number(to[1]) === toCol
+        );
+      }});
+      if (!move) return false;
+
+      const board = cloneCheckersBoard(checkersState.board);
+      const piece = String(board[fromRow] && board[fromRow][fromCol] || "").trim();
+      if (!piece) return false;
+      const player = checkersPieceOwner(piece);
+      board[fromRow][fromCol] = "";
+      for (const capture of (Array.isArray(move.captures) ? move.captures : [])) {{
+        if (!Array.isArray(capture) || capture.length < 2) continue;
+        const capRow = Math.trunc(Number(capture[0]) || 0);
+        const capCol = Math.trunc(Number(capture[1]) || 0);
+        if (!checkersInBounds(capRow, capCol)) continue;
+        board[capRow][capCol] = "";
+      }}
+      let placed = piece;
+      if (!checkersPieceIsKing(piece)) {{
+        if (player === "black" && toRow === 0) placed = "B";
+        if (player === "white" && toRow === (checkersBoardSize - 1)) placed = "W";
+      }}
+      board[toRow][toCol] = placed;
+
+      checkersState.board = board;
+      checkersState.move_count = Math.max(0, Math.trunc(Number(checkersState.move_count) || 0)) + 1;
+      checkersState.last_move = {{ from: [fromRow, fromCol], to: [toRow, toCol] }};
+      checkersState.turn = player;
+      checkersState.forced_from = null;
+      checkersState.game_over = false;
+      checkersState.winner = "";
+
+      const didCapture = Array.isArray(move.captures) && move.captures.length > 0;
+      if (didCapture) {{
+        const jumps = collectCheckersMoves(board, player, [toRow, toCol]).filter((row) => (
+          Array.isArray(row && row.captures) && row.captures.length > 0
+        ));
+        if (jumps.length > 0) {{
+          checkersState.forced_from = [toRow, toCol];
+          checkersState.notice = `${{checkersPlayerLabel(player)}} captured at ${{checkersCellLabel(toRow, toCol)}}. Continue jump.`;
+          checkersSelectedCell = [toRow, toCol];
+          refreshCheckersGame();
+          if (source !== "remote" && boardGameIsNetworkLinked("checkers") && !suppressOutbound) {{
+            void sendCheckersMoveToPeer(fromRow, fromCol, toRow, toCol);
+          }}
+          if (activeLayoutView === "games") renderGamesView(latestState);
+          return true;
+        }}
+      }}
+
+      const nextPlayer = checkersOpponent(player);
+      checkersState.turn = nextPlayer;
+      checkersState.notice = `${{checkersPlayerLabel(player)}} moved to ${{checkersCellLabel(toRow, toCol)}}. ${{checkersPlayerLabel(nextPlayer)}} to move.`;
+      checkersSelectedCell = null;
+      refreshCheckersGame();
+      if (source !== "remote" && boardGameIsNetworkLinked("checkers") && !suppressOutbound) {{
+        void sendCheckersMoveToPeer(fromRow, fromCol, toRow, toCol);
+      }}
+      if (activeLayoutView === "games") renderGamesView(latestState);
+      return true;
+    }}
+
+    function handleCheckersBoardClick(rowRaw, colRaw) {{
+      if (!checkersState || typeof checkersState !== "object") return;
+      const row = Math.trunc(Number(rowRaw) || 0);
+      const col = Math.trunc(Number(colRaw) || 0);
+      if (!checkersInBounds(row, col) || !checkersIsDarkSquare(row, col)) return;
+      if (checkersState.game_over) return;
+      if (boardGameIsNetworkLinked("checkers") && checkersState.turn !== boardGameLocalColor("checkers")) {{
+        checkersState.notice = `Waiting for ${{reversiNodeLabel(checkersLink.peer_id)}} to move.`;
+        boardGameUpdateLinkStatus(
+          "checkers",
+          `Waiting for ${{reversiNodeLabel(checkersLink.peer_id)}} to move.`
+        );
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+
+      const selected = (
+        Array.isArray(checkersSelectedCell)
+        && checkersSelectedCell.length >= 2
+      ) ? [
+        Math.trunc(Number(checkersSelectedCell[0]) || 0),
+        Math.trunc(Number(checkersSelectedCell[1]) || 0),
+      ] : null;
+      const selectedMoves = selected ? checkersMovesFromCell(selected[0], selected[1]) : [];
+
+      if (selected) {{
+        const didMove = applyCheckersMove(selected[0], selected[1], row, col);
+        if (didMove) return;
+        const clickedPiece = String(checkersState.board[row] && checkersState.board[row][col] || "").trim();
+        const clickedOwner = checkersPieceOwner(clickedPiece);
+        if (selectedMoves.length > 0 && clickedOwner === checkersOpponent(checkersState.turn)) {{
+          const jumpsThroughClicked = selectedMoves.filter((move) => (
+            Array.isArray(move && move.captures)
+            && move.captures.some((capture) => (
+              Array.isArray(capture)
+              && Math.trunc(Number(capture[0]) || 0) === row
+              && Math.trunc(Number(capture[1]) || 0) === col
+            ))
+          ));
+          if (jumpsThroughClicked.length === 1) {{
+            const to = Array.isArray(jumpsThroughClicked[0] && jumpsThroughClicked[0].to)
+              ? jumpsThroughClicked[0].to
+              : null;
+            if (to && to.length >= 2) {{
+              const didJump = applyCheckersMove(selected[0], selected[1], to[0], to[1]);
+              if (didJump) return;
+            }}
+          }}
+        }}
+      }}
+
+      const piece = String(checkersState.board[row] && checkersState.board[row][col] || "").trim();
+      if (!piece) {{
+        if (selected && selectedMoves.length > 0) {{
+          const targets = checkersMoveTargetLabels(selectedMoves);
+          const targetText = targets.length > 0 ? targets.join(", ") : "a highlighted square";
+          checkersState.notice = `Selected ${{checkersCellLabel(selected[0], selected[1])}}. Move to ${{targetText}}.`;
+        }} else {{
+          checkersSelectedCell = null;
+        }}
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      if (checkersPieceOwner(piece) !== checkersState.turn) {{
+        if (selected && selectedMoves.length > 0) {{
+          const targets = checkersMoveTargetLabels(selectedMoves);
+          const targetText = targets.length > 0 ? targets.join(", ") : "a highlighted square";
+          checkersState.notice = `Selected ${{checkersCellLabel(selected[0], selected[1])}}. Move to ${{targetText}}.`;
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }}
+        return;
+      }}
+      const pieceMoves = checkersMovesFromCell(row, col);
+      if (pieceMoves.length < 1) {{
+        const captureRequired = (Array.isArray(checkersLegalMoves) ? checkersLegalMoves : [])
+          .some((move) => Array.isArray(move && move.captures) && move.captures.length > 0);
+        if (captureRequired) {{
+          const sources = checkersLegalSourceLabels(checkersLegalMoves);
+          const sourceText = sources.length > 0 ? ` from ${{sources.join(", ")}}` : "";
+          checkersState.notice = `${{checkersPlayerLabel(checkersState.turn)}} to move. Capture required${{sourceText}}.`;
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }} else if (selected && selectedMoves.length > 0) {{
+          const targets = checkersMoveTargetLabels(selectedMoves);
+          const targetText = targets.length > 0 ? targets.join(", ") : "a highlighted square";
+          checkersState.notice = `Selected ${{checkersCellLabel(selected[0], selected[1])}}. Move to ${{targetText}}.`;
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }}
+        return;
+      }}
+      checkersSelectedCell = [row, col];
+      const targets = checkersMoveTargetLabels(pieceMoves);
+      const targetText = targets.length > 0 ? targets.join(", ") : "a highlighted square";
+      checkersState.notice = `Selected ${{checkersCellLabel(row, col)}}. Move to ${{targetText}}.`;
+      if (activeLayoutView === "games") renderGamesView(latestState);
+    }}
+

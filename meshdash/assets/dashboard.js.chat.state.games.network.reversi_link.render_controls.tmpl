@@ -1,0 +1,241 @@
+    function renderReversiBoard() {{
+      const boardEl = document.getElementById("reversi-board");
+      if (!(boardEl instanceof HTMLElement)) return;
+      const board = (
+        reversiState
+        && reversiState.board
+        && Array.isArray(reversiState.board)
+      ) ? reversiState.board : createInitialReversiBoard();
+      const lastMove = Array.isArray(reversiState && reversiState.last_move) ? reversiState.last_move : null;
+      const gameOver = !!(reversiState && reversiState.game_over);
+      const currentPlayer = Number(reversiState && reversiState.current_player) === reversiPiece.white
+        ? reversiPiece.white
+        : reversiPiece.black;
+      const hintClass = currentPlayer === reversiPiece.white
+        ? "reversi-hint hint-white"
+        : "reversi-hint hint-black";
+      const hintHtml = `<span class="${{hintClass}}" aria-hidden="true"></span>`;
+      const html = [];
+      for (let row = 0; row < reversiBoardSize; row += 1) {{
+        for (let col = 0; col < reversiBoardSize; col += 1) {{
+          const value = Number(board[row] && board[row][col]) || reversiPiece.empty;
+          const moveKey = `${{row}},${{col}}`;
+          const isLegal = !gameOver && reversiLegalMoveMap.has(moveKey);
+          const isLastMove = !!(lastMove && Number(lastMove[0]) === row && Number(lastMove[1]) === col);
+          const classes = ["reversi-cell"];
+          if (isLastMove) classes.push("is-last");
+          const pieceHtml = value === reversiPiece.black
+            ? '<span class="reversi-disc disc-black" aria-hidden="true"></span>'
+            : (
+              value === reversiPiece.white
+                ? '<span class="reversi-disc disc-white" aria-hidden="true"></span>'
+                : (isLegal ? hintHtml : "")
+            );
+          const stateText = value === reversiPiece.black
+            ? "black disc"
+            : (value === reversiPiece.white ? "white disc" : "empty");
+          const clickText = isLegal ? `legal move for ${{reversiPlayerLabel(reversiState && reversiState.current_player)}}` : stateText;
+          const title = `${{reversiCellLabel(row, col)}} • ${{clickText}}`;
+          const disabledAttr = isLegal ? "" : " disabled";
+          html.push(
+            `<button class="${{escAttr(classes.join(" "))}}" type="button" data-row="${{row}}" data-col="${{col}}" title="${{escAttr(title)}}"${{disabledAttr}}>${{pieceHtml}}</button>`
+          );
+        }}
+      }}
+      boardEl.innerHTML = html.join("");
+    }}
+
+    function renderReversiStatus() {{
+      const statusEl = document.getElementById("reversi-status-text");
+      const localPlayerPillEl = document.getElementById("reversi-player-local-pill");
+      const localPlayerNameEl = document.getElementById("reversi-player-local-name");
+      const remotePlayerPillEl = document.getElementById("reversi-player-remote-pill");
+      const remotePlayerNameEl = document.getElementById("reversi-player-remote-name");
+      const blackEl = document.getElementById("reversi-black-count");
+      const whiteEl = document.getElementById("reversi-white-count");
+      const moveEl = document.getElementById("reversi-move-count");
+      const legalEl = document.getElementById("reversi-legal-count");
+      const state = reversiState && typeof reversiState === "object" ? reversiState : createNewReversiState();
+      const counts = countReversiPieces(state.board);
+      const isOver = !!state.game_over;
+      const currentPlayer = Number(state.current_player) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+      const localPlayerColor = reversiLocalColor();
+      const remotePlayerColor = reversiRemoteColor();
+      const localPlayerName = reversiLocalParticipantName(latestState);
+      const remotePlayerName = reversiRemoteParticipantName(latestState);
+      if (statusEl instanceof HTMLElement) {{
+        const fallback = isOver
+          ? (
+            state.winner === reversiPiece.empty
+              ? `Game over: draw at ${{counts.black}}-${{counts.white}}.`
+              : `Game over: ${{reversiPlayerLabel(state.winner)}} wins.`
+          )
+          : `${{reversiPlayerLabel(state.current_player)}} to move.`;
+        statusEl.textContent = String(state.notice || fallback);
+      }}
+      if (localPlayerNameEl instanceof HTMLElement) {{
+        localPlayerNameEl.textContent = localPlayerName;
+      }}
+      if (remotePlayerNameEl instanceof HTMLElement) {{
+        remotePlayerNameEl.textContent = remotePlayerName;
+      }}
+      if (localPlayerPillEl instanceof HTMLElement) {{
+        localPlayerPillEl.classList.remove("is-black", "is-white", "is-active", "is-over");
+        localPlayerPillEl.classList.add(localPlayerColor === reversiPiece.white ? "is-white" : "is-black");
+        localPlayerPillEl.title = `${{localPlayerName}} • ${{reversiPlayerLabel(localPlayerColor)}}`;
+        if (isOver) {{
+          localPlayerPillEl.classList.add("is-over");
+        }} else if (currentPlayer === localPlayerColor) {{
+          localPlayerPillEl.classList.add("is-active");
+        }}
+      }}
+      if (remotePlayerPillEl instanceof HTMLElement) {{
+        remotePlayerPillEl.classList.remove("is-black", "is-white", "is-active", "is-over");
+        remotePlayerPillEl.classList.add(remotePlayerColor === reversiPiece.white ? "is-white" : "is-black");
+        remotePlayerPillEl.title = `${{remotePlayerName}} • ${{reversiPlayerLabel(remotePlayerColor)}}`;
+        if (isOver) {{
+          remotePlayerPillEl.classList.add("is-over");
+        }} else if (currentPlayer === remotePlayerColor) {{
+          remotePlayerPillEl.classList.add("is-active");
+        }}
+      }}
+      if (blackEl instanceof HTMLElement) blackEl.textContent = String(counts.black);
+      if (whiteEl instanceof HTMLElement) whiteEl.textContent = String(counts.white);
+      if (moveEl instanceof HTMLElement) moveEl.textContent = String(Math.max(0, Math.trunc(Number(state.move_count) || 0)));
+      if (legalEl instanceof HTMLElement) legalEl.textContent = String(isOver ? 0 : reversiLegalMoves.length);
+    }}
+
+    function reversiPeerOptions(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const seen = new Set();
+      const rows = [];
+      for (const node of nodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isCanonicalNodeId(nodeId)) continue;
+        if (nodeId === localNodeId) continue;
+        if (seen.has(nodeId)) continue;
+        seen.add(nodeId);
+        const label = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
+        rows.push({{
+          id: nodeId,
+          label,
+        }});
+      }}
+      rows.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
+      return rows;
+    }}
+
+    function renderReversiPeerSelect(state = latestState) {{
+      const select = document.getElementById("reversi-peer-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const options = reversiPeerOptions(state);
+      const current = isCanonicalNodeId(reversiPeerId) ? reversiPeerId : "";
+      const next = ['<option value="">Select peer…</option>'];
+      for (const row of options) {{
+        const selectedAttr = row.id === current ? " selected" : "";
+        next.push(
+          `<option value="${{escAttr(row.id)}}"${{selectedAttr}}>${{escAttr(row.label)}} (${{escAttr(row.id)}})</option>`
+        );
+      }}
+      select.innerHTML = next.join("");
+      if (current && options.some((row) => row.id === current)) {{
+        select.value = current;
+      }} else if (!current) {{
+        select.value = "";
+      }}
+    }}
+
+    function renderReversiInviteList(state = latestState) {{
+      const listEl = document.getElementById("reversi-invite-list");
+      if (!(listEl instanceof HTMLElement)) return;
+      const invites = Array.isArray(reversiPendingInvites) ? reversiPendingInvites : [];
+      if (invites.length < 1) {{
+        listEl.innerHTML = '<div class="reversi-invite-empty">No pending invites.</div>';
+        return;
+      }}
+      if (!reversiSelectedInviteKey) {{
+        const first = invites[0];
+        reversiSelectedInviteKey = reversiInviteKey(first && first.from_id, first && first.session_id);
+      }}
+      const rows = invites.map((invite) => {{
+        const fromId = normalizeNodeId(invite && invite.from_id || "");
+        const sessionId = String(invite && invite.session_id || "").trim().toLowerCase();
+        const whenUnix = Math.max(0, Math.trunc(Number(invite && invite.received_unix) || 0));
+        const hostColor = Number(invite && invite.host_color) === reversiPiece.white ? reversiPiece.white : reversiPiece.black;
+        const inviteKey = reversiInviteKey(fromId, sessionId);
+        const inviteChannelRaw = Number(invite && invite.channel_index);
+        const inviteChannel = Number.isInteger(inviteChannelRaw) && inviteChannelRaw >= 0 ? inviteChannelRaw : 0;
+        const inviteChannelLabel = meshChannelLabelForIndex(inviteChannel, {{ compact: true, allowAll: false }});
+        const inviteChannelBadge = meshChannelBadgeHtml(
+          inviteChannel,
+          inviteChannelLabel,
+          {{
+            allowAll: false,
+            extraClass: "reversi-invite-channel-badge",
+            title: meshChannelLabelForIndex(inviteChannel, {{ verbose: true, allowAll: false }}),
+          }}
+        );
+        const selectedClass = inviteKey === String(reversiSelectedInviteKey || "").trim().toLowerCase()
+          ? " is-selected"
+          : "";
+        const yourColorLabel = hostColor === reversiPiece.black ? "White" : "Black";
+        return `<button
+          type="button"
+          class="reversi-invite-item${{selectedClass}}"
+          title="${{escAttr(fromId)}}"
+          data-from-id="${{escAttr(fromId)}}"
+          data-session-id="${{escAttr(sessionId)}}"
+        >
+          <div class="reversi-invite-main">${{escAttr(reversiNodeLabel(fromId, state))}}</div>
+          <div class="reversi-invite-meta">${{escAttr(fromId)}} • ${{escAttr(formatLocalChatTime(whenUnix, "now"))}} • ${{inviteChannelBadge}} • host ${{escAttr(reversiPlayerLabel(hostColor))}} • you ${{escAttr(yourColorLabel)}}</div>
+        </button>`;
+      }});
+      listEl.innerHTML = rows.join("");
+    }}
+
+    function renderReversiLinkUi(state = latestState) {{
+      renderReversiPeerSelect(state);
+      renderReversiInviteList(state);
+      const hostColorSelect = document.getElementById("reversi-host-color-select");
+      if (hostColorSelect instanceof HTMLSelectElement) {{
+        hostColorSelect.value = reversiHostColorPreference === reversiPiece.white ? "white" : "black";
+      }}
+      const statusEl = document.getElementById("reversi-link-status");
+      if (statusEl instanceof HTMLElement) {{
+        const sendCtx = meshChannelSendContext({{ appId: "games" }});
+        const channelBadge = meshChannelBadgeHtml(
+          sendCtx.sendIndex,
+          sendCtx.sendLabel,
+          {{
+            allowAll: false,
+            extraClass: "games-link-channel-badge",
+            title: meshChannelLabelForIndex(sendCtx.sendIndex, {{ verbose: true, allowAll: false }}),
+          }}
+        );
+        const statusText = String(reversiLink && reversiLink.status || "Local hotseat mode.");
+        statusEl.innerHTML = `${{escAttr(statusText)}} • ${{channelBadge}}`;
+      }}
+      const hostBtn = document.getElementById("reversi-host-btn");
+      const acceptBtn = document.getElementById("reversi-accept-btn");
+      const declineBtn = document.getElementById("reversi-decline-btn");
+      const disconnectBtn = document.getElementById("reversi-disconnect-btn");
+      const peerReady = isCanonicalNodeId(reversiPeerId);
+      const pendingInvite = reversiPendingInviteChoice();
+      if (hostBtn instanceof HTMLButtonElement) {{
+        hostBtn.disabled = !peerReady || reversiLink.mode === "connected" || reversiLink.mode === "pending_host";
+      }}
+      if (acceptBtn instanceof HTMLButtonElement) {{
+        acceptBtn.disabled = !(pendingInvite && isCanonicalNodeId(pendingInvite.from_id));
+      }}
+      if (declineBtn instanceof HTMLButtonElement) {{
+        declineBtn.disabled = !(pendingInvite && isCanonicalNodeId(pendingInvite.from_id));
+      }}
+      if (disconnectBtn instanceof HTMLButtonElement) {{
+        disconnectBtn.disabled = !(reversiLink.mode === "connected" || reversiLink.mode === "pending_host");
+      }}
+      if (hostColorSelect instanceof HTMLSelectElement) {{
+        hostColorSelect.disabled = reversiLink.mode === "connected" || reversiLink.mode === "pending_host";
+      }}
+    }}

@@ -1,0 +1,609 @@
+    function normalizeActiveGameId(value) {{
+      const token = String(value || "").trim().toLowerCase();
+      if (token === "checkers") return "checkers";
+      if (token === "chess") return "chess";
+      return "reversi";
+    }}
+
+    function syncGamesActivePanels() {{
+      activeGameId = normalizeActiveGameId(activeGameId);
+      const gameIds = ["reversi", "checkers", "chess"];
+      for (const gameId of gameIds) {{
+        const isActive = activeGameId === gameId;
+        const selectBtn = document.getElementById(`games-select-${{gameId}}-btn`);
+        if (selectBtn instanceof HTMLButtonElement) {{
+          selectBtn.classList.toggle("is-active", isActive);
+          selectBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
+        }}
+        const sidePanel = document.getElementById(`games-side-${{gameId}}`);
+        if (sidePanel instanceof HTMLElement) {{
+          sidePanel.hidden = !isActive;
+          sidePanel.classList.toggle("is-active", isActive);
+        }}
+        const mainPanel = document.getElementById(`games-main-${{gameId}}`);
+        if (mainPanel instanceof HTMLElement) {{
+          mainPanel.hidden = !isActive;
+          mainPanel.classList.toggle("is-active", isActive);
+        }}
+      }}
+    }}
+
+    function gamesQuickChatTrimText(value, maxLen = 120) {{
+      const text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+      return text.slice(0, Math.max(1, Math.trunc(Number(maxLen) || 120)));
+    }}
+
+    function gamesQuickChatResetRows(sessionKey = "") {{
+      gamesQuickChatSessionKey = String(sessionKey || "").trim();
+      gamesQuickChatRows = [];
+      gamesQuickChatSeenKeys = new Set();
+      gamesQuickChatSeenOrder = [];
+    }}
+
+    function gamesQuickChatRememberKey(key) {{
+      const clean = String(key || "").trim();
+      if (!clean || gamesQuickChatSeenKeys.has(clean)) return false;
+      gamesQuickChatSeenKeys.add(clean);
+      gamesQuickChatSeenOrder.push(clean);
+      const maxSeen = 96;
+      if (gamesQuickChatSeenOrder.length > maxSeen) {{
+        while (gamesQuickChatSeenOrder.length > Math.floor(maxSeen * 0.72)) {{
+          const stale = gamesQuickChatSeenOrder.shift();
+          if (stale) gamesQuickChatSeenKeys.delete(stale);
+        }}
+      }}
+      return true;
+    }}
+
+    function gamesQuickChatPushRow(row = {{}}, state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : latestState;
+      const fromId = normalizeNodeId(row.from_id || row.fromId || "");
+      const sender = isCanonicalNodeId(fromId)
+        ? reversiNodeLabel(fromId, safeState)
+        : (String(row.sender || "").trim() || "Player");
+      const text = gamesQuickChatTrimText(row.text, 120);
+      if (!text) return;
+      const unix = Math.max(0, Math.trunc(Number(row.unix) || 0)) || Math.floor(Date.now() / 1000);
+      gamesQuickChatRows.push({{
+        key: String(row.key || "").trim(),
+        game_id: normalizeActiveGameId(row.game_id || row.gameId || activeGameId),
+        session_id: String(row.session_id || row.sessionId || "").trim().toLowerCase(),
+        from_id: fromId,
+        sender,
+        text,
+        unix,
+      }});
+      if (gamesQuickChatRows.length > 24) {{
+        gamesQuickChatRows = gamesQuickChatRows.slice(-24);
+      }}
+    }}
+
+    function gamesQuickChatResolveContext(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : latestState;
+      const gameId = normalizeActiveGameId(activeGameId);
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const localLabel = isCanonicalNodeId(localNodeId)
+        ? reversiNodeLabel(localNodeId, safeState)
+        : "You";
+      if (gameId === "reversi") {{
+        if (reversiIsNetworkLinked()) {{
+          const sessionId = String(reversiLink && reversiLink.session_id || "").trim().toLowerCase();
+          const peerId = normalizeNodeId(reversiLink && reversiLink.peer_id || "");
+          const channelIndex = normalizeMeshChannelIndex(
+            Number.isInteger(Number(reversiLink && reversiLink.channel_index))
+              ? Number(reversiLink.channel_index)
+              : meshChannelEffectiveSendIndexForApp("games")
+          );
+          if (sessionId && isCanonicalNodeId(peerId)) {{
+            return {{
+              enabled: true,
+              gameId,
+              sessionId,
+              peerId,
+              channelIndex,
+              sessionKey: `${{gameId}}:${{sessionId}}:${{peerId}}`,
+              localNodeId,
+              localLabel,
+              peerLabel: reversiNodeLabel(peerId, safeState),
+              disabledText: "",
+            }};
+          }}
+        }}
+        return {{
+          enabled: false,
+          gameId,
+          sessionId: "",
+          peerId: "",
+          channelIndex: meshChannelEffectiveSendIndexForApp("games"),
+          sessionKey: "",
+          localNodeId,
+          localLabel,
+          peerLabel: "peer",
+          disabledText: "Connect to a peer to enable table chat.",
+        }};
+      }}
+      if (gameId === "checkers" || gameId === "chess") {{
+        const refs = boardGameRefs(gameId);
+        const link = refs.getLink();
+        if (boardGameIsNetworkLinked(gameId)) {{
+          const sessionId = String(link && link.session_id || "").trim().toLowerCase();
+          const peerId = normalizeNodeId(link && link.peer_id || "");
+          const channelIndex = normalizeMeshChannelIndex(
+            Number.isInteger(Number(link && link.channel_index))
+              ? Number(link.channel_index)
+              : meshChannelEffectiveSendIndexForApp("games")
+          );
+          if (sessionId && isCanonicalNodeId(peerId)) {{
+            return {{
+              enabled: true,
+              gameId,
+              sessionId,
+              peerId,
+              channelIndex,
+              sessionKey: `${{gameId}}:${{sessionId}}:${{peerId}}`,
+              localNodeId,
+              localLabel,
+              peerLabel: reversiNodeLabel(peerId, safeState),
+              disabledText: "",
+            }};
+          }}
+        }}
+        return {{
+          enabled: false,
+          gameId,
+          sessionId: "",
+          peerId: "",
+          channelIndex: meshChannelEffectiveSendIndexForApp("games"),
+          sessionKey: "",
+          localNodeId,
+          localLabel,
+          peerLabel: "peer",
+          disabledText: "Connect to a peer to enable table chat.",
+        }};
+      }}
+      return {{
+        enabled: false,
+        gameId,
+        sessionId: "",
+        peerId: "",
+        channelIndex: meshChannelEffectiveSendIndexForApp("games"),
+        sessionKey: "",
+        localNodeId,
+        localLabel,
+        peerLabel: "table",
+        disabledText: "Table chat is available for linked peer matches.",
+      }};
+    }}
+
+    function gamesQuickChatEnsureSessionContext(state = latestState) {{
+      const ctx = gamesQuickChatResolveContext(state);
+      const nextSessionKey = ctx.enabled ? String(ctx.sessionKey || "").trim() : "";
+      if (nextSessionKey !== String(gamesQuickChatSessionKey || "").trim()) {{
+        gamesQuickChatResetRows(nextSessionKey);
+        gamesQuickChatComposeOpen = false;
+        gamesQuickChatDraft = "";
+      }}
+      return ctx;
+    }}
+
+    function ingestGamesQuickChatMessage(message = {{}}, state = latestState) {{
+      const ctx = gamesQuickChatEnsureSessionContext(state);
+      if (!ctx.enabled) return false;
+      const gameId = normalizeActiveGameId(message.game_id || message.gameId || "");
+      const sessionId = String(message.session_id || message.sessionId || "").trim().toLowerCase();
+      const fromId = normalizeNodeId(message.from_id || message.fromId || "");
+      const text = gamesQuickChatTrimText(message.text, 120);
+      if (gameId !== ctx.gameId || sessionId !== ctx.sessionId) return false;
+      if (!isCanonicalNodeId(fromId) || !text) return false;
+      const unix = Math.max(0, Math.trunc(Number(message.unix) || 0)) || Math.floor(Date.now() / 1000);
+      const key = String(message.key || "").trim() || `${{gameId}}:${{sessionId}}:${{fromId}}:${{unix}}:${{text.toLowerCase()}}`;
+      if (!gamesQuickChatRememberKey(key)) return false;
+      gamesQuickChatPushRow({{
+        key,
+        game_id: gameId,
+        session_id: sessionId,
+        from_id: fromId,
+        text,
+        unix,
+      }}, state);
+      return true;
+    }}
+
+    function renderGamesQuickChatHeader(state = latestState) {{
+      const ctx = gamesQuickChatEnsureSessionContext(state);
+      const bannerEl = document.getElementById("games-chat-banner");
+      const tickerEl = document.getElementById("games-chat-ticker");
+      const trackEl = document.getElementById("games-chat-ticker-track");
+      const composeEl = document.getElementById("games-chat-compose");
+      const inputEl = document.getElementById("games-chat-input");
+      const sendBtn = document.getElementById("games-chat-send-btn");
+      if (!(bannerEl instanceof HTMLElement)) return;
+      const composeOpen = !!(ctx.enabled && gamesQuickChatComposeOpen);
+      bannerEl.classList.toggle("is-disabled", !ctx.enabled);
+      bannerEl.classList.toggle("is-compose-open", composeOpen);
+      bannerEl.setAttribute("aria-disabled", ctx.enabled ? "false" : "true");
+      bannerEl.setAttribute(
+        "aria-label",
+        ctx.enabled
+          ? `Game table chat with ${{ctx.peerLabel}}`
+          : ctx.disabledText
+      );
+      if (tickerEl instanceof HTMLElement) {{
+        tickerEl.hidden = composeOpen;
+      }}
+      if (composeEl instanceof HTMLElement) {{
+        composeEl.hidden = !composeOpen;
+      }}
+      if (inputEl instanceof HTMLInputElement) {{
+        if (document.activeElement !== inputEl && inputEl.value !== String(gamesQuickChatDraft || "")) {{
+          inputEl.value = String(gamesQuickChatDraft || "");
+        }}
+        inputEl.disabled = !ctx.enabled;
+        inputEl.placeholder = ctx.enabled
+          ? `Message ${{ctx.peerLabel}}...`
+          : ctx.disabledText;
+      }}
+      if (sendBtn instanceof HTMLButtonElement) {{
+        sendBtn.disabled = !ctx.enabled || !gamesQuickChatTrimText(gamesQuickChatDraft, 120);
+      }}
+      if (trackEl instanceof HTMLElement) {{
+        const recentRows = (Array.isArray(gamesQuickChatRows) ? gamesQuickChatRows : []).slice(-5);
+        const tickerText = recentRows.length
+          ? recentRows.map((row) => `${{row.sender}}: ${{row.text}}`).join("   •   ")
+          : (ctx.enabled
+            ? `Table chat with ${{ctx.peerLabel}}. Click here to reply.`
+            : ctx.disabledText);
+        const animatedText = `${{tickerText}}   •   `;
+        trackEl.textContent = animatedText;
+        const staticTicker = animatedText.length < 44;
+        if (tickerEl instanceof HTMLElement) {{
+          tickerEl.classList.toggle("is-static", staticTicker);
+        }}
+        const durationSec = Math.max(10, Math.min(90, Math.round(animatedText.length / 2.4)));
+        trackEl.style.setProperty("--games-chat-duration", `${{durationSec}}s`);
+      }}
+    }}
+
+    async function sendGamesQuickChatMessage(state = latestState) {{
+      const ctx = gamesQuickChatEnsureSessionContext(state);
+      const messageText = gamesQuickChatTrimText(gamesQuickChatDraft, 120);
+      if (!ctx.enabled || !messageText) {{
+        renderGamesQuickChatHeader(state);
+        return false;
+      }}
+      const sentUnix = Math.floor(Date.now() / 1000);
+      const payloadFields = [ctx.sessionId, sentUnix, messageText];
+      const sendOptions = {{
+        destination_id: ctx.peerId,
+        channel_index: ctx.channelIndex,
+      }};
+      const sent = ctx.gameId === "reversi"
+        ? await sendReversiProtocolMessage("chat", payloadFields, sendOptions)
+        : await sendBoardGameProtocolMessage(ctx.gameId, "chat", payloadFields, sendOptions);
+      if (!sent) {{
+        renderGamesQuickChatHeader(state);
+        return false;
+      }}
+      ingestGamesQuickChatMessage({{
+        key: `local:${{ctx.sessionKey}}:${{Date.now().toString(36)}}`,
+        game_id: ctx.gameId,
+        session_id: ctx.sessionId,
+        from_id: ctx.localNodeId,
+        text: messageText,
+        unix: sentUnix,
+      }}, state);
+      gamesQuickChatDraft = "";
+      gamesQuickChatComposeOpen = false;
+      if (activeLayoutView === "games") {{
+        renderGamesView(latestState);
+      }}
+      return true;
+    }}
+
+    function renderGamesView(_state = latestState) {{
+      syncReversiNetworkState(_state);
+      syncBoardGameNetworkState("checkers", _state);
+      syncBoardGameNetworkState("chess", _state);
+      syncGamesActivePanels();
+      renderGamesQuickChatHeader(_state);
+      if (activeGameId === "reversi") {{
+        renderReversiLinkUi(_state);
+        renderReversiBoard();
+        renderReversiStatus();
+        return;
+      }}
+      if (activeGameId === "checkers") {{
+        renderBoardGameLinkUi("checkers", _state);
+        refreshCheckersGame();
+        renderCheckersBoard();
+        renderCheckersStatus();
+        return;
+      }}
+      renderBoardGameLinkUi("chess", _state);
+      refreshChessGame();
+      renderChessBoard();
+      renderChessStatus();
+    }}
+
+    function bindGamesControls() {{
+      const reversiBtn = document.getElementById("games-select-reversi-btn");
+      if (reversiBtn instanceof HTMLButtonElement && reversiBtn.dataset.bound !== "1") {{
+        reversiBtn.dataset.bound = "1";
+        reversiBtn.addEventListener("click", () => {{
+          activeGameId = "reversi";
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+        }});
+      }}
+      const checkersBtn = document.getElementById("games-select-checkers-btn");
+      if (checkersBtn instanceof HTMLButtonElement && checkersBtn.dataset.bound !== "1") {{
+        checkersBtn.dataset.bound = "1";
+        checkersBtn.addEventListener("click", () => {{
+          activeGameId = "checkers";
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+        }});
+      }}
+      const chessBtn = document.getElementById("games-select-chess-btn");
+      if (chessBtn instanceof HTMLButtonElement && chessBtn.dataset.bound !== "1") {{
+        chessBtn.dataset.bound = "1";
+        chessBtn.addEventListener("click", () => {{
+          activeGameId = "chess";
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+        }});
+      }}
+      const gamesChatBanner = document.getElementById("games-chat-banner");
+      if (gamesChatBanner instanceof HTMLElement && gamesChatBanner.dataset.bound !== "1") {{
+        gamesChatBanner.dataset.bound = "1";
+        gamesChatBanner.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (target instanceof Element && target.closest("#games-chat-send-btn")) return;
+          const ctx = gamesQuickChatEnsureSessionContext(latestState);
+          if (!ctx.enabled) return;
+          gamesQuickChatComposeOpen = true;
+          renderGamesQuickChatHeader(latestState);
+          const inputEl = document.getElementById("games-chat-input");
+          if (inputEl instanceof HTMLInputElement) {{
+            requestAnimationFrame(() => {{
+              inputEl.focus({{ preventScroll: true }});
+              const end = inputEl.value.length;
+              inputEl.setSelectionRange(end, end);
+            }});
+          }}
+        }});
+        gamesChatBanner.addEventListener("keydown", (event) => {{
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const ctx = gamesQuickChatEnsureSessionContext(latestState);
+          if (!ctx.enabled) return;
+          event.preventDefault();
+          gamesQuickChatComposeOpen = true;
+          renderGamesQuickChatHeader(latestState);
+          const inputEl = document.getElementById("games-chat-input");
+          if (inputEl instanceof HTMLInputElement) {{
+            requestAnimationFrame(() => {{
+              inputEl.focus({{ preventScroll: true }});
+              const end = inputEl.value.length;
+              inputEl.setSelectionRange(end, end);
+            }});
+          }}
+        }});
+      }}
+      const gamesChatInput = document.getElementById("games-chat-input");
+      if (gamesChatInput instanceof HTMLInputElement && gamesChatInput.dataset.bound !== "1") {{
+        gamesChatInput.dataset.bound = "1";
+        gamesChatInput.addEventListener("input", () => {{
+          gamesQuickChatDraft = String(gamesChatInput.value || "").slice(0, 120);
+          renderGamesQuickChatHeader(latestState);
+        }});
+        gamesChatInput.addEventListener("keydown", (event) => {{
+          if (event.key === "Escape") {{
+            event.preventDefault();
+            gamesQuickChatComposeOpen = false;
+            renderGamesQuickChatHeader(latestState);
+            return;
+          }}
+          if (event.key === "Enter") {{
+            event.preventDefault();
+            void sendGamesQuickChatMessage(latestState);
+          }}
+        }});
+      }}
+      const gamesChatSendBtn = document.getElementById("games-chat-send-btn");
+      if (gamesChatSendBtn instanceof HTMLButtonElement && gamesChatSendBtn.dataset.bound !== "1") {{
+        gamesChatSendBtn.dataset.bound = "1";
+        gamesChatSendBtn.addEventListener("click", () => {{
+          void sendGamesQuickChatMessage(latestState);
+        }});
+      }}
+      const peerSelect = document.getElementById("reversi-peer-select");
+      if (peerSelect instanceof HTMLSelectElement && peerSelect.dataset.bound !== "1") {{
+        peerSelect.dataset.bound = "1";
+        peerSelect.addEventListener("change", () => {{
+          reversiPeerId = normalizeNodeId(peerSelect.value || "");
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }});
+      }}
+      const hostColorSelect = document.getElementById("reversi-host-color-select");
+      if (hostColorSelect instanceof HTMLSelectElement && hostColorSelect.dataset.bound !== "1") {{
+        hostColorSelect.dataset.bound = "1";
+        hostColorSelect.addEventListener("change", () => {{
+          reversiHostColorPreference = parseReversiColor(hostColorSelect.value, reversiPiece.black);
+          if (activeLayoutView === "games") renderGamesView(latestState);
+        }});
+      }}
+      const hostBtn = document.getElementById("reversi-host-btn");
+      if (hostBtn instanceof HTMLButtonElement && hostBtn.dataset.bound !== "1") {{
+        hostBtn.dataset.bound = "1";
+        hostBtn.addEventListener("click", () => {{
+          void hostReversiMatch();
+        }});
+      }}
+      const acceptBtn = document.getElementById("reversi-accept-btn");
+      if (acceptBtn instanceof HTMLButtonElement && acceptBtn.dataset.bound !== "1") {{
+        acceptBtn.dataset.bound = "1";
+        acceptBtn.addEventListener("click", () => {{
+          void acceptReversiInvite();
+        }});
+      }}
+      const declineBtn = document.getElementById("reversi-decline-btn");
+      if (declineBtn instanceof HTMLButtonElement && declineBtn.dataset.bound !== "1") {{
+        declineBtn.dataset.bound = "1";
+        declineBtn.addEventListener("click", () => {{
+          declineReversiInvite();
+        }});
+      }}
+      const disconnectBtn = document.getElementById("reversi-disconnect-btn");
+      if (disconnectBtn instanceof HTMLButtonElement && disconnectBtn.dataset.bound !== "1") {{
+        disconnectBtn.dataset.bound = "1";
+        disconnectBtn.addEventListener("click", () => {{
+          void disconnectReversiMatch();
+        }});
+      }}
+      for (const gameId of ["checkers", "chess"]) {{
+        const refs = boardGameRefs(gameId);
+        const peerSelectEl = document.getElementById(`${{refs.id}}-peer-select`);
+        if (peerSelectEl instanceof HTMLSelectElement && peerSelectEl.dataset.bound !== "1") {{
+          peerSelectEl.dataset.bound = "1";
+          peerSelectEl.addEventListener("change", () => {{
+            refs.setPeerId(normalizeNodeId(peerSelectEl.value || ""));
+            if (activeLayoutView === "games") renderGamesView(latestState);
+          }});
+        }}
+        const colorSelectEl = document.getElementById(`${{refs.id}}-host-color-select`);
+        if (colorSelectEl instanceof HTMLSelectElement && colorSelectEl.dataset.bound !== "1") {{
+          colorSelectEl.dataset.bound = "1";
+          colorSelectEl.addEventListener("change", () => {{
+            refs.setHostColorPreference(colorSelectEl.value || "");
+            if (activeLayoutView === "games") renderGamesView(latestState);
+          }});
+        }}
+        const hostBtnEl = document.getElementById(`${{refs.id}}-host-btn`);
+        if (hostBtnEl instanceof HTMLButtonElement && hostBtnEl.dataset.bound !== "1") {{
+          hostBtnEl.dataset.bound = "1";
+          hostBtnEl.addEventListener("click", () => {{
+            void hostBoardGameMatch(gameId);
+          }});
+        }}
+        const acceptBtnEl = document.getElementById(`${{refs.id}}-accept-btn`);
+        if (acceptBtnEl instanceof HTMLButtonElement && acceptBtnEl.dataset.bound !== "1") {{
+          acceptBtnEl.dataset.bound = "1";
+          acceptBtnEl.addEventListener("click", () => {{
+            void acceptBoardGameInvite(gameId);
+          }});
+        }}
+        const declineBtnEl = document.getElementById(`${{refs.id}}-decline-btn`);
+        if (declineBtnEl instanceof HTMLButtonElement && declineBtnEl.dataset.bound !== "1") {{
+          declineBtnEl.dataset.bound = "1";
+          declineBtnEl.addEventListener("click", () => {{
+            declineBoardGameInvite(gameId);
+          }});
+        }}
+        const disconnectBtnEl = document.getElementById(`${{refs.id}}-disconnect-btn`);
+        if (disconnectBtnEl instanceof HTMLButtonElement && disconnectBtnEl.dataset.bound !== "1") {{
+          disconnectBtnEl.dataset.bound = "1";
+          disconnectBtnEl.addEventListener("click", () => {{
+            void disconnectBoardGameMatch(gameId);
+          }});
+        }}
+        const inviteList = document.getElementById(`${{refs.id}}-invite-list`);
+        if (inviteList instanceof HTMLElement && inviteList.dataset.bound !== "1") {{
+          inviteList.dataset.bound = "1";
+          inviteList.addEventListener("click", (event) => {{
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            const row = target.closest("button.reversi-invite-item");
+            if (!(row instanceof HTMLButtonElement)) return;
+            const fromId = normalizeNodeId(row.dataset.fromId || "");
+            const sessionId = String(row.dataset.sessionId || "").trim().toLowerCase();
+            if (!isCanonicalNodeId(fromId) || !sessionId) return;
+            refs.setPeerId(fromId);
+            refs.setSelectedInviteKey(boardGameInviteKey(fromId, sessionId));
+            if (activeLayoutView === "games") {{
+              renderGamesView(latestState);
+            }}
+          }});
+        }}
+      }}
+      const newGameBtn = document.getElementById("reversi-new-game-btn");
+      if (newGameBtn instanceof HTMLButtonElement && newGameBtn.dataset.bound !== "1") {{
+        newGameBtn.dataset.bound = "1";
+        newGameBtn.addEventListener("click", () => {{
+          startNewReversiGame();
+        }});
+      }}
+      const checkersNewGameBtn = document.getElementById("checkers-new-game-btn");
+      if (checkersNewGameBtn instanceof HTMLButtonElement && checkersNewGameBtn.dataset.bound !== "1") {{
+        checkersNewGameBtn.dataset.bound = "1";
+        checkersNewGameBtn.addEventListener("click", () => {{
+          startNewCheckersGame();
+        }});
+      }}
+      const chessNewGameBtn = document.getElementById("chess-new-game-btn");
+      if (chessNewGameBtn instanceof HTMLButtonElement && chessNewGameBtn.dataset.bound !== "1") {{
+        chessNewGameBtn.dataset.bound = "1";
+        chessNewGameBtn.addEventListener("click", () => {{
+          startNewChessGame();
+        }});
+      }}
+      const boardEl = document.getElementById("reversi-board");
+      if (boardEl instanceof HTMLElement && boardEl.dataset.bound !== "1") {{
+        boardEl.dataset.bound = "1";
+        boardEl.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const button = target.closest("button.reversi-cell");
+          if (!(button instanceof HTMLButtonElement)) return;
+          const row = Math.trunc(Number(button.dataset.row) || 0);
+          const col = Math.trunc(Number(button.dataset.col) || 0);
+          applyReversiMove(row, col);
+        }});
+      }}
+      const checkersBoardEl = document.getElementById("checkers-board");
+      if (checkersBoardEl instanceof HTMLElement && checkersBoardEl.dataset.bound !== "1") {{
+        checkersBoardEl.dataset.bound = "1";
+        checkersBoardEl.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const button = target.closest("button.checkers-cell");
+          if (!(button instanceof HTMLButtonElement)) return;
+          const row = Math.trunc(Number(button.dataset.row) || 0);
+          const col = Math.trunc(Number(button.dataset.col) || 0);
+          handleCheckersBoardClick(row, col);
+        }});
+      }}
+      const chessBoardEl = document.getElementById("chess-board");
+      if (chessBoardEl instanceof HTMLElement && chessBoardEl.dataset.bound !== "1") {{
+        chessBoardEl.dataset.bound = "1";
+        chessBoardEl.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const button = target.closest("button.chess-cell");
+          if (!(button instanceof HTMLButtonElement)) return;
+          const row = Math.trunc(Number(button.dataset.row) || 0);
+          const col = Math.trunc(Number(button.dataset.col) || 0);
+          handleChessBoardClick(row, col);
+        }});
+      }}
+      const inviteListEl = document.getElementById("reversi-invite-list");
+      if (inviteListEl instanceof HTMLElement && inviteListEl.dataset.bound !== "1") {{
+        inviteListEl.dataset.bound = "1";
+        inviteListEl.addEventListener("click", (event) => {{
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const row = target.closest("button.reversi-invite-item");
+          if (!(row instanceof HTMLButtonElement)) return;
+          const fromId = normalizeNodeId(row.dataset.fromId || "");
+          const sessionId = String(row.dataset.sessionId || "").trim().toLowerCase();
+          if (!isCanonicalNodeId(fromId) || !sessionId) return;
+          reversiPeerId = fromId;
+          reversiSelectedInviteKey = reversiInviteKey(fromId, sessionId);
+          if (activeLayoutView === "games") {{
+            renderGamesView(latestState);
+          }}
+        }});
+      }}
+    }}

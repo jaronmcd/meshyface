@@ -208,7 +208,7 @@
       <button class="rail-btn" data-view="console" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Realtime dashboard console">Console</button>
       <button class="rail-btn" data-view="environment" type="button" hidden disabled onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Historical sensor telemetry">Sensors</button>
       <button class="rail-btn" data-view="history" type="button" hidden disabled onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Network and chat history">History</button>
-      <button class="rail-btn" data-view="apps" type="button" hidden disabled onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Apps workspace (Macros, Games, Files, BBS, Remote)">Apps</button>
+      <button class="rail-btn" data-view="apps" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Games workspace">Apps</button>
       <button class="rail-btn" data-view="bots" type="button" hidden disabled onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Bots workspace and command controls">Bots</button>
       <button class="rail-btn" data-view="chatlabs" type="button" hidden disabled onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Experimental console-rendered chat workspace">Labs</button>
       <button class="rail-btn" data-view="settings" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.view || "chat") : true);' title="Radio + dashboard settings">Settings</button>
@@ -346,11 +346,7 @@
     <div id="chat-panel-splitter" class="chat-panel-splitter" title="Drag to resize chat workspace and node navigator" aria-hidden="true"></div>
     <main class="workspace-main">
   <div id="apps-tabs-bar" class="apps-tabs-bar" role="tablist" aria-label="Apps tabs" hidden>
-    <button class="apps-tab-btn" data-app-view="games" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Games</button>
-    <button class="apps-tab-btn" data-app-view="files" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Files</button>
-    <button class="apps-tab-btn" data-app-view="bbs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>BBS</button>
-    <button class="apps-tab-btn" data-app-view="remote" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Remote</button>
-    <button class="apps-tab-btn is-active" data-app-view="macros" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "macros") : true);'>Macros</button>
+    <button class="apps-tab-btn is-active" data-app-view="games" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "games") : true);'>Games</button>
   </div>
   <div id="dashboard-layout" class="layout view-chat">
     <section class="card settings" aria-label="Settings">
@@ -1981,13 +1977,6 @@ Ready.
                 title="Chess"
                 data-game-id="chess"
               >Chess</button>
-              <button
-                id="games-select-poker-btn"
-                class="games-library-btn"
-                type="button"
-                title="5-card draw poker"
-                data-game-id="poker"
-              >Poker</button>
             </div>
             <div id="games-side-reversi" class="games-side-panel is-active" data-game-id="reversi">
               <div class="games-mode-note">Mode: local hotseat for now. Matchmaking can be layered in next.</div>
@@ -2160,80 +2149,6 @@ Ready.
                 </div>
               </div>
             </div>
-            <div id="games-side-poker" class="games-side-panel" data-game-id="poker" hidden>
-              <div class="games-mode-note">Mode: local hotseat 5-card draw with four phases: deal, betting, draw, showdown. Shared card/deck logic is built to support Texas Hold&apos;em and Blackjack next.</div>
-              <label class="games-peer-wrap" for="poker-player-count-select">
-                <span class="games-library-label">Players</span>
-                <select id="poker-player-count-select" class="games-peer-select" aria-label="Poker player count">
-                  <option value="2">2 players</option>
-                  <option value="3">3 players</option>
-                  <option value="4" selected>4 players</option>
-                </select>
-              </label>
-              <details class="poker-advanced-toggle">
-                <summary>Advanced Table Rules</summary>
-                <div class="poker-rules-grid" aria-label="Poker table rules">
-                  <label class="games-peer-wrap" for="poker-starting-stack-input">
-                    <span class="games-library-label">Start Stack</span>
-                    <input id="poker-starting-stack-input" class="games-peer-select" type="number" min="10" max="5000" step="10" value="200" />
-                  </label>
-                  <label class="games-peer-wrap" for="poker-ante-input">
-                    <span class="games-library-label">Ante</span>
-                    <input id="poker-ante-input" class="games-peer-select" type="number" min="0" max="500" step="1" value="1" />
-                  </label>
-                <label class="games-peer-wrap" for="poker-small-blind-input">
-                  <span class="games-library-label">Small Blind</span>
-                  <input id="poker-small-blind-input" class="games-peer-select" type="number" min="0" max="500" step="1" value="0" />
-                </label>
-                <label class="games-peer-wrap" for="poker-big-blind-input">
-                  <span class="games-library-label">Big Blind</span>
-                  <input id="poker-big-blind-input" class="games-peer-select" type="number" min="0" max="1000" step="1" value="0" />
-                </label>
-                </div>
-              </details>
-              <div class="reversi-link-actions poker-action-row">
-                <button id="poker-new-table-btn" class="btn" type="button">New table</button>
-                <button id="poker-next-phase-btn" class="btn btn-secondary" type="button">Deal hand</button>
-              </div>
-              <div class="poker-bet-controls" aria-label="Poker betting controls">
-                <label class="games-peer-wrap" for="poker-bet-amount-input">
-                  <span class="games-library-label">Bet / Raise By</span>
-                  <input id="poker-bet-amount-input" class="games-peer-select" type="number" min="1" max="5000" step="1" value="4" />
-                </label>
-                <div class="reversi-link-actions poker-bet-row">
-                  <button id="poker-check-call-btn" class="btn btn-secondary" type="button">Check</button>
-                  <button id="poker-bet-raise-btn" class="btn" type="button">Bet</button>
-                  <button id="poker-fold-btn" class="btn btn-danger" type="button">Fold</button>
-                </div>
-              </div>
-              <div id="poker-status-text" class="games-coming-soon" aria-live="polite">Set seats and deal the first hand.</div>
-              <div class="reversi-score-grid">
-                <div class="reversi-score-card">
-                  <span class="label">Deck</span>
-                  <strong id="poker-cards-left">52</strong>
-                </div>
-                <div class="reversi-score-card">
-                  <span class="label">Hand</span>
-                  <strong id="poker-hand-count">0</strong>
-                </div>
-                <div class="reversi-score-card">
-                  <span class="label">Pot</span>
-                  <strong id="poker-pot-total">0</strong>
-                </div>
-                <div class="reversi-score-card">
-                  <span class="label">Phase</span>
-                  <strong id="poker-phase-label">Deal</strong>
-                </div>
-                <div class="reversi-score-card">
-                  <span class="label">Turn</span>
-                  <strong id="poker-turn-label">-</strong>
-                </div>
-                <div class="reversi-score-card">
-                  <span class="label">Blinds</span>
-                  <strong id="poker-blinds-label">0/0</strong>
-                </div>
-              </div>
-            </div>
           </aside>
           <div class="games-main">
             <div id="games-main-reversi" class="games-main-panel is-active" data-game-id="reversi">
@@ -2244,19 +2159,6 @@ Ready.
             </div>
             <div id="games-main-chess" class="games-main-panel" data-game-id="chess" hidden>
               <div id="chess-board" class="chess-board" role="grid" aria-label="Chess board"></div>
-            </div>
-            <div id="games-main-poker" class="games-main-panel" data-game-id="poker" hidden>
-              <div class="poker-main-head" aria-label="Poker hand totals">
-                <div class="poker-main-pill">
-                  <span class="label">Pot</span>
-                  <strong id="poker-pot-main-total">0</strong>
-                </div>
-                <div class="poker-main-pill">
-                  <span class="label">Current Bet</span>
-                  <strong id="poker-current-bet-main">0</strong>
-                </div>
-              </div>
-              <div id="poker-table" class="poker-table" role="region" aria-label="Five card draw poker table"></div>
             </div>
           </div>
         </div>

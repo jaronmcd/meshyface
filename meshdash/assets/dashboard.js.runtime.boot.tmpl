@@ -28,7 +28,9 @@
     loadReversiState();
     startNewCheckersGame();
     startNewChessGame();
-    startNewPokerGame();
+    if (typeof startNewPokerGame === "function") {{
+      startNewPokerGame();
+    }}
     loadLayoutView();
     loadManualDirectPeers();
     loadChatNodeNavigatorPreferences();
