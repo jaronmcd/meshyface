@@ -43,6 +43,7 @@
       select.dataset.bound = "1";
       select.value = normalizeWeeklySummaryMetric(networkOverviewMetric);
       updateNetworkOverviewNodeSeriesControls(networkOverviewMetric);
+      updateNetworkOverviewPacketSeriesControls(networkOverviewMetric);
       select.addEventListener("change", () => {{
         applyNetworkOverviewMetric(select.value || "nodes", true);
         if (activeLayoutView === "network") {{
@@ -72,6 +73,29 @@
         }});
       }}
       updateNetworkOverviewNodeSeriesControls(networkOverviewMetric);
+    }}
+
+    function bindNetworkOverviewPacketSeriesControls() {{
+      for (const key of networkOverviewPacketSeriesOrder) {{
+        const toggleId = networkOverviewPacketSeriesControlIds[key];
+        const toggle = document.getElementById(toggleId);
+        if (!(toggle instanceof HTMLInputElement)) continue;
+        if (toggle.dataset.bound === "1") continue;
+        toggle.dataset.bound = "1";
+        toggle.checked = !!networkOverviewPacketSeriesEnabled[key];
+        toggle.addEventListener("change", () => {{
+          const nextSeries = {{}};
+          for (const innerKey of networkOverviewPacketSeriesOrder) {{
+            const innerToggleId = networkOverviewPacketSeriesControlIds[innerKey];
+            const innerToggle = document.getElementById(innerToggleId);
+            if (innerToggle instanceof HTMLInputElement) {{
+              nextSeries[innerKey] = innerToggle.checked;
+            }}
+          }}
+          applyNetworkOverviewPacketSeries(nextSeries, true);
+        }});
+      }}
+      updateNetworkOverviewPacketSeriesControls(networkOverviewMetric);
     }}
 
     function loadThemePreference() {{
@@ -165,6 +189,33 @@
         known_nodes: true,
         saved_nodes: true,
         position_nodes: true,
+      }}, false);
+    }}
+
+    function loadNetworkOverviewPacketSeriesPreference() {{
+      let storedJson = "";
+      try {{
+        storedJson = window.localStorage.getItem(networkOverviewPacketSeriesStorageKey) || "";
+      }} catch (_err) {{
+      }}
+      if (storedJson) {{
+        try {{
+          const parsed = JSON.parse(storedJson);
+          applyNetworkOverviewPacketSeries(parsed, false);
+          return;
+        }} catch (_err) {{
+        }}
+      }}
+      applyNetworkOverviewPacketSeries({{
+        all: true,
+        chat: false,
+        telemetry: false,
+        position: false,
+        routing: false,
+        nodeinfo: false,
+        admin: false,
+        encrypted: false,
+        other: false,
       }}, false);
     }}
 

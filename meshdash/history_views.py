@@ -1,5 +1,9 @@
 from typing import Callable, Optional, Protocol
 
+from .history_summary_sampling import (
+    summary_metrics_bucket_seconds as _summary_metrics_bucket_seconds,
+)
+
 
 class HistoryViewStore(Protocol):
     def load_node_history(
@@ -73,7 +77,23 @@ def empty_summary_metrics(window_hours: int) -> dict[str, object]:
     clean_hours = int(window_hours) if isinstance(window_hours, int) and window_hours > 0 else 72
     return {
         "window_hours": clean_hours,
+        "bucket_seconds": max(1, int(_summary_metrics_bucket_seconds())),
         "points": [],
+        "packet_series": {
+            "available": False,
+            "order": ["all", "chat", "telemetry", "position", "routing", "nodeinfo", "admin", "encrypted", "other"],
+            "series": {
+                "all": [],
+                "chat": [],
+                "telemetry": [],
+                "position": [],
+                "routing": [],
+                "nodeinfo": [],
+                "admin": [],
+                "encrypted": [],
+                "other": [],
+            },
+        },
         "summary": {
             "samples": 0,
             "window_start": None,

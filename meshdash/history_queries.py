@@ -1,5 +1,6 @@
 from .sql_contracts import SqlConnection, SqlRows
 from .history_summary_sampling import (
+    summary_metrics_bucket_seconds as _summary_metrics_bucket_seconds,
     summary_metrics_bucket_unix as _summary_metrics_bucket_unix,
 )
 
@@ -240,6 +241,36 @@ def fetch_summary_metrics_rows(
         LIMIT ?
         """,
         (cutoff_bucket, max(1, int(limit))),
+    ).fetchall()
+
+
+def fetch_summary_packet_type_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+) -> SqlRows:
+    cutoff_bucket = _summary_metrics_bucket_unix(int(cutoff))
+    bucket_seconds = max(1, int(_summary_metrics_bucket_seconds()))
+    return conn.execute(
+        """
+        SELECT created_unix - (created_unix % ?) AS bucket_unix,
+               CASE
+                 WHEN trim(COALESCE(portnum, '')) = '' THEN 'encrypted'
+                 WHEN upper(trim(portnum)) = 'TEXT_MESSAGE_APP' THEN 'chat'
+                 WHEN upper(trim(portnum)) = 'TELEMETRY_APP' THEN 'telemetry'
+                 WHEN upper(trim(portnum)) = 'POSITION_APP' THEN 'position'
+                 WHEN upper(trim(portnum)) = 'ROUTING_APP' THEN 'routing'
+                 WHEN upper(trim(portnum)) = 'NODEINFO_APP' THEN 'nodeinfo'
+                 WHEN upper(trim(portnum)) = 'ADMIN_APP' THEN 'admin'
+                 ELSE 'other'
+               END AS packet_type,
+               COUNT(*) AS packet_count
+        FROM packet_events
+        WHERE created_unix >= ?
+        GROUP BY bucket_unix, packet_type
+        ORDER BY bucket_unix ASC, packet_type ASC
+        """,
+        (bucket_seconds, cutoff_bucket),
     ).fetchall()
 
 

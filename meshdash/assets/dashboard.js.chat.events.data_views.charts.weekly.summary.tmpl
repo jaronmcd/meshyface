@@ -1,11 +1,29 @@
-    function buildWeeklySummaryChartRows(summaryHistory, metricKey) {{
+    function buildWeeklySummaryChartRows(summaryHistory, metricKey, options = {{}}) {{
       const normalizedMetric = normalizeWeeklySummaryMetric(metricKey);
+      const opts = (options && typeof options === "object") ? options : {{}};
       const payload = (summaryHistory && typeof summaryHistory === "object") ? summaryHistory : {{}};
       const points = Array.isArray(payload.points) ? payload.points : [];
       const rows = [];
       const packetRateMetric = normalizedMetric === "packets";
       const nodesMetric = normalizedMetric === "nodes";
       const linksMetric = normalizedMetric === "links";
+      const packetSeries = (opts.packetSeries && typeof opts.packetSeries === "object")
+        ? normalizeNetworkOverviewPacketSeries(opts.packetSeries)
+        : null;
+      const packetSeriesPayload = (payload.packet_series && typeof payload.packet_series === "object")
+        ? payload.packet_series
+        : null;
+      const packetSeriesByKey = (
+        packetSeriesPayload
+        && packetSeriesPayload.series
+        && typeof packetSeriesPayload.series === "object"
+      ) ? packetSeriesPayload.series : null;
+      const packetSeriesMetric = (
+        packetRateMetric
+        && !!packetSeries
+        && !!packetSeriesByKey
+        && packetSeriesPayload.available === true
+      );
       let prevPacketBucketUnix = null;
       let prevPacketTotal = null;
       let prevLiveCounter = null;
@@ -43,6 +61,9 @@
           prevLiveCounter = liveCounter;
         }}
         if (packetRateMetric) {{
+          if (packetSeriesMetric) {{
+            continue;
+          }}
           const packetTotal = liveCounter;
           if (!Number.isFinite(bucketUnix) || !Number.isFinite(packetTotal) || bucketUnix <= 0) continue;
           if (Number.isFinite(prevPacketBucketUnix) && Number.isFinite(prevPacketTotal) && bucketUnix > prevPacketBucketUnix) {{
@@ -105,6 +126,68 @@
         }});
       }}
 
+      if (packetSeriesMetric) {{
+        const bucketSeconds = Math.max(1, Number(payload.bucket_seconds) || 60);
+        const packetRateScale = 60 / bucketSeconds;
+        const selectedPacketSeriesKeys = networkOverviewPacketSeriesOrder.filter((key) => packetSeries[key]);
+        const packetSeriesLookups = new Map();
+        const bucketPointMap = new Map();
+        for (const point of points) {{
+          if (!point || typeof point !== "object") continue;
+          const bucketUnix = Number(point.bucket_unix);
+          if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+          bucketPointMap.set(bucketUnix, point);
+        }}
+        for (const key of networkOverviewPacketSeriesOrder) {{
+          const lookup = new Map();
+          const seriesRows = Array.isArray(packetSeriesByKey[key]) ? packetSeriesByKey[key] : [];
+          for (const row of seriesRows) {{
+            if (!row || typeof row !== "object") continue;
+            const bucketUnix = Number(row.bucket_unix);
+            const packetCount = Number(row.packet_count);
+            if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+            if (!Number.isFinite(packetCount) || packetCount <= 0) continue;
+            lookup.set(bucketUnix, packetCount);
+            if (!bucketPointMap.has(bucketUnix)) {{
+              bucketPointMap.set(bucketUnix, {{
+                bucket_unix: bucketUnix,
+                bucket_time: "",
+              }});
+            }}
+          }}
+          packetSeriesLookups.set(key, lookup);
+        }}
+        const orderedPacketPoints = Array.from(bucketPointMap.values())
+          .slice()
+          .sort((left, right) => Number(left.bucket_unix) - Number(right.bucket_unix));
+        for (const point of orderedPacketPoints) {{
+          if (!point || typeof point !== "object") continue;
+          const bucketUnix = Number(point.bucket_unix);
+          if (!Number.isFinite(bucketUnix) || bucketUnix <= 0) continue;
+          const bucketText = String(point.bucket_time || "").trim();
+          const liveCounter = Number(point.live_packet_count);
+          const seriesValues = {{}};
+          let primaryValue = null;
+          for (const key of selectedPacketSeriesKeys) {{
+            const lookup = packetSeriesLookups.get(key);
+            const packetCount = lookup instanceof Map ? Number(lookup.get(bucketUnix) || 0) : 0;
+            const packetRate = Math.max(0, packetCount) * packetRateScale;
+            seriesValues[key] = packetRate;
+            if (primaryValue === null) {{
+              primaryValue = packetRate;
+            }}
+          }}
+          if (primaryValue === null) continue;
+          rows.push({{
+            value: primaryValue,
+            series: seriesValues,
+            totalValue: Number.isFinite(liveCounter) ? liveCounter : null,
+            bucketText,
+            bucketUnix,
+          }});
+        }}
+      }}
+
       let chartRows = rows;
       if (nodesMetric && rows.length > 0) {{
         const firstPositiveIndex = rows.findIndex((row) => Number(row && row.value) > 0);
@@ -117,6 +200,7 @@
         payload,
         chartRows,
         packetRateMetric,
+        packetSeriesMetric,
         nodesMetric,
         linksMetric,
       }};
@@ -129,11 +213,18 @@
       const nodeSeries = normalizeWeeklySummaryNodeSeries(
         opts.nodeSeries || weeklySummaryNodeSeriesEnabled
       );
-      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, nodeSeries);
-      const built = buildWeeklySummaryChartRows(summaryHistory, metricKey);
+      const packetSeries = (opts.packetSeries && typeof opts.packetSeries === "object")
+        ? normalizeNetworkOverviewPacketSeries(opts.packetSeries)
+        : null;
+      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, nodeSeries, packetSeries);
+      const built = buildWeeklySummaryChartRows(summaryHistory, metricKey, {{
+        targetKey: target.key,
+        packetSeries,
+      }});
       const chartRows = built.chartRows;
       const payload = built.payload;
       const packetRateMetric = built.packetRateMetric;
+      const packetSeriesMetric = built.packetSeriesMetric;
       const nodesMetric = built.nodesMetric;
 
       const caption = document.getElementById(target.captionId);
@@ -143,9 +234,11 @@
       if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
       if (!(overview instanceof HTMLElement)) return;
 
-      const emptyMessage = packetRateMetric
-        ? "Need at least two saved samples to estimate packets/min."
-        : "No weekly summary history yet.";
+      const emptyMessage = packetSeriesMetric
+        ? "No packet activity yet in this window."
+        : (packetRateMetric
+          ? "Need at least two saved samples to estimate packets/min."
+          : "No weekly summary history yet.");
       const captionPrefix = String(target.captionPrefix || "Weekly trend for").trim();
 
       if (chartRows.length === 0) {{
@@ -194,7 +287,11 @@
           ? (selectedNodeSeriesLabels.length > 1
             ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
             : ` Showing ${{selectedNodeSeriesLabels[0] || "Online Nodes"}} line.`)
-          : "";
+          : (packetSeriesMetric
+            ? (selectedNodeSeriesLabels.length > 1
+              ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
+              : ` Showing ${{selectedNodeSeriesLabels[0] || "All Packets"}} line.`)
+            : "");
         caption.textContent = `${{captionPrefix}} ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
       }}
 
@@ -254,5 +351,6 @@
         targetKey: "network-overview",
         metricKey: networkOverviewMetric,
         nodeSeries: networkOverviewNodeSeriesEnabled,
+        packetSeries: networkOverviewPacketSeriesEnabled,
       }});
     }}

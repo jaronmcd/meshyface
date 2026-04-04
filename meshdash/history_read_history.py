@@ -5,6 +5,7 @@ from .history_read_contracts import (
     BuildSummaryMetricsPayloadFn,
     BuildNodeHistoryPayloadFn,
     BuildOnlineActivityPayloadFn,
+    FetchSummaryPacketTypeRowsFn,
     FetchSummaryMetricsRowsFn,
     FetchNodeHistoryRowsFn,
     FetchOnlineActivityRowsFn,
@@ -12,6 +13,7 @@ from .history_read_contracts import (
     TimezoneLabelFn,
 )
 from .history_summary_sampling import (
+    summary_metrics_bucket_seconds as _summary_metrics_bucket_seconds,
     summary_metrics_query_limit as _summary_metrics_query_limit,
 )
 from .runtime_types import NowUnixFn
@@ -84,6 +86,7 @@ def load_summary_metrics_history_data(
     *,
     window_hours: int,
     fetch_summary_metrics_rows_fn: FetchSummaryMetricsRowsFn,
+    fetch_summary_packet_type_rows_fn: FetchSummaryPacketTypeRowsFn | None,
     build_summary_metrics_payload_fn: BuildSummaryMetricsPayloadFn,
     now_unix_fn: NowUnixFn = time.time,
 ) -> HistoryPayload:
@@ -95,7 +98,15 @@ def load_summary_metrics_history_data(
         cutoff=cutoff,
         limit=limit,
     )
+    packet_type_rows = []
+    if callable(fetch_summary_packet_type_rows_fn):
+        packet_type_rows = fetch_summary_packet_type_rows_fn(
+            conn,
+            cutoff=cutoff,
+        )
     return build_summary_metrics_payload_fn(
         window_hours=hours,
         rows=rows,
+        packet_type_rows=packet_type_rows,
+        bucket_seconds=_summary_metrics_bucket_seconds(),
     )

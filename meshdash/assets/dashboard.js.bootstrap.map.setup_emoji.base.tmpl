@@ -422,6 +422,7 @@
     const weeklySummaryNodeSeriesStorageKey = "meshDashboardWeeklySummaryNodeSeriesV1";
     const networkOverviewMetricStorageKey = "meshDashboardNetworkOverviewMetricV1";
     const networkOverviewNodeSeriesStorageKey = "meshDashboardNetworkOverviewNodeSeriesV1";
+    const networkOverviewPacketSeriesStorageKey = "meshDashboardNetworkOverviewPacketSeriesV1";
     const weeklySummaryNodesCompareLegacyStorageKey = "meshDashboardWeeklySummaryNodesCompareV1";
     const weeklySummaryNodeSeriesOrder = [
       "online_nodes",
@@ -440,6 +441,28 @@
       known_nodes: "network-overview-node-line-known",
       saved_nodes: "network-overview-node-line-saved",
       position_nodes: "network-overview-node-line-position",
+    }};
+    const networkOverviewPacketSeriesOrder = [
+      "all",
+      "chat",
+      "telemetry",
+      "position",
+      "routing",
+      "nodeinfo",
+      "admin",
+      "encrypted",
+      "other",
+    ];
+    const networkOverviewPacketSeriesControlIds = {{
+      all: "network-overview-packet-line-all",
+      chat: "network-overview-packet-line-chat",
+      telemetry: "network-overview-packet-line-telemetry",
+      position: "network-overview-packet-line-position",
+      routing: "network-overview-packet-line-routing",
+      nodeinfo: "network-overview-packet-line-nodeinfo",
+      admin: "network-overview-packet-line-admin",
+      encrypted: "network-overview-packet-line-encrypted",
+      other: "network-overview-packet-line-other",
     }};
     const weeklySummaryNodeSeriesLabels = {{
       online_nodes: "Online Nodes",
@@ -464,6 +487,50 @@
       known_nodes: true,
       saved_nodes: true,
       position_nodes: true,
+    }};
+    const networkOverviewPacketSeriesLabels = {{
+      all: "All Packets",
+      chat: "Chat",
+      telemetry: "Telemetry",
+      position: "Position",
+      routing: "Routing",
+      nodeinfo: "Node Info",
+      admin: "Admin",
+      encrypted: "Encrypted",
+      other: "Other",
+    }};
+    const networkOverviewPacketSeriesStyles = {{
+      all: {{ tone: "line", dashed: false, width: 2.4 }},
+      chat: {{ tone: "compare", dashed: false, width: 2.15 }},
+      telemetry: {{ tone: "aux1", dashed: false, width: 2.05 }},
+      position: {{ tone: "aux2", dashed: true, width: 1.95 }},
+      routing: {{ tone: "compare", dashed: true, width: 1.9 }},
+      nodeinfo: {{ tone: "aux3", dashed: false, width: 1.9 }},
+      admin: {{ tone: "aux1", dashed: true, width: 1.8 }},
+      encrypted: {{ tone: "aux2", dashed: false, width: 2.0 }},
+      other: {{ tone: "aux3", dashed: true, width: 1.8 }},
+    }};
+    const networkOverviewPacketSeriesPaletteNames = {{
+      all: "bluish green",
+      chat: "sky blue",
+      telemetry: "orange",
+      position: "reddish purple",
+      routing: "blue",
+      nodeinfo: "yellow",
+      admin: "gray",
+      encrypted: "vermillion",
+      other: "gray",
+    }};
+    const networkOverviewPacketSeriesDefaults = {{
+      all: true,
+      chat: false,
+      telemetry: false,
+      position: false,
+      routing: false,
+      nodeinfo: false,
+      admin: false,
+      encrypted: false,
+      other: false,
     }};
     const weeklySummaryMetricCatalog = new Map([
       ["packets", { label: "Packets / min", decimals: 1, smoothingWindow: 19 }],

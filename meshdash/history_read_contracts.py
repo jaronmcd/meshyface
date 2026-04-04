@@ -79,12 +79,23 @@ class FetchSummaryMetricsRowsFn(Protocol):
     ) -> HistoryRows: ...
 
 
+class FetchSummaryPacketTypeRowsFn(Protocol):
+    def __call__(
+        self,
+        conn: SqlConnection,
+        *,
+        cutoff: int,
+    ) -> HistoryRows: ...
+
+
 class BuildSummaryMetricsPayloadFn(Protocol):
     def __call__(
         self,
         *,
         window_hours: int,
         rows: Iterable[HistoryRow],
+        packet_type_rows: Iterable[HistoryRow],
+        bucket_seconds: int,
     ) -> HistoryPayload: ...
 
 

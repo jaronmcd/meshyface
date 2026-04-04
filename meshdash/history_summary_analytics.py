@@ -4,16 +4,64 @@ from typing import Optional
 from .helpers import format_epoch as _format_epoch
 from .helpers import to_int as _to_int
 
+_PACKET_TYPE_ORDER = (
+    "all",
+    "chat",
+    "telemetry",
+    "position",
+    "routing",
+    "nodeinfo",
+    "admin",
+    "encrypted",
+    "other",
+)
+
+
+def _empty_packet_series_payload() -> dict[str, object]:
+    return {
+        "available": True,
+        "order": list(_PACKET_TYPE_ORDER),
+        "series": {key: [] for key in _PACKET_TYPE_ORDER},
+    }
+
 
 def build_summary_metrics_payload(
     *,
     window_hours: int,
     rows: Iterable[tuple[object, ...]],
+    packet_type_rows: Iterable[tuple[object, ...]],
+    bucket_seconds: int,
 ) -> dict[str, object]:
     hours = max(1, int(window_hours))
     points: list[dict[str, object]] = []
     first: Optional[dict[str, object]] = None
     latest: Optional[dict[str, object]] = None
+    packet_counts_by_bucket: dict[int, dict[str, int]] = {}
+
+    for raw_packet_row in packet_type_rows:
+        if isinstance(raw_packet_row, tuple):
+            raw_row = raw_packet_row
+        elif isinstance(raw_packet_row, list):
+            raw_row = tuple(raw_packet_row)
+        else:
+            try:
+                raw_row = tuple(raw_packet_row)
+            except Exception:
+                continue
+        if len(raw_row) < 3:
+            continue
+        bucket = _to_int(raw_row[0])
+        packet_type = str(raw_row[1] or "").strip().lower()
+        packet_count = max(0, _to_int(raw_row[2]) or 0)
+        if bucket is None or bucket <= 0 or packet_count <= 0:
+            continue
+        clean_type = packet_type if packet_type in _PACKET_TYPE_ORDER else "other"
+        bucket_counts = packet_counts_by_bucket.setdefault(
+            bucket,
+            {key: 0 for key in _PACKET_TYPE_ORDER},
+        )
+        bucket_counts[clean_type] = int(bucket_counts.get(clean_type, 0)) + packet_count
+        bucket_counts["all"] = int(bucket_counts.get("all", 0)) + packet_count
 
     for row in rows:
         if isinstance(row, tuple):
@@ -108,6 +156,22 @@ def build_summary_metrics_payload(
 
     return {
         "window_hours": hours,
+        "bucket_seconds": max(1, int(bucket_seconds)),
         "points": points,
+        "packet_series": {
+            "available": True,
+            "order": list(_PACKET_TYPE_ORDER),
+            "series": {
+                key: [
+                    {
+                        "bucket_unix": bucket,
+                        "packet_count": int(bucket_counts.get(key, 0)),
+                    }
+                    for bucket, bucket_counts in sorted(packet_counts_by_bucket.items())
+                    if int(bucket_counts.get(key, 0)) > 0
+                ]
+                for key in _PACKET_TYPE_ORDER
+            },
+        } if packet_counts_by_bucket else _empty_packet_series_payload(),
         "summary": summary,
     }

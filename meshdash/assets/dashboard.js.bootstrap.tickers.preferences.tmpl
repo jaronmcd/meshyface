@@ -53,12 +53,71 @@
       return "";
     }}
 
-    function resolveWeeklySummaryMetricMeta(metricKey, nodeSeries = weeklySummaryNodeSeriesEnabled) {{
+    function normalizeNetworkOverviewPacketSeries(raw) {{
+      const normalized = {{}};
+      for (const key of networkOverviewPacketSeriesOrder) {{
+        normalized[key] = networkOverviewPacketSeriesDefaults[key] === true;
+      }}
+      if (raw && typeof raw === "object") {{
+        for (const key of networkOverviewPacketSeriesOrder) {{
+          if (Object.prototype.hasOwnProperty.call(raw, key)) {{
+            normalized[key] = !!raw[key];
+          }}
+        }}
+      }}
+      if (!networkOverviewPacketSeriesOrder.some((key) => normalized[key])) {{
+        normalized.all = true;
+      }}
+      return normalized;
+    }}
+
+    function networkOverviewPacketSeriesPaletteColor(seriesKey) {{
+      const paletteName = String(networkOverviewPacketSeriesPaletteNames[seriesKey] || "").trim().toLowerCase();
+      if (!paletteName) return "";
+      for (const palette of meshChannelColorPalette) {{
+        const name = String(palette && palette.name || "").trim().toLowerCase();
+        if (name !== paletteName) continue;
+        const fill = String(palette && palette.fill || "").trim();
+        if (fill) return fill;
+      }}
+      return "";
+    }}
+
+    function resolveWeeklySummaryMetricMeta(
+      metricKey,
+      nodeSeries = weeklySummaryNodeSeriesEnabled,
+      packetSeries = null
+    ) {{
       const metric = normalizeWeeklySummaryMetric(metricKey);
       const base = weeklySummaryMetricCatalog.get(metric) || {{
         label: "Metric",
         decimals: 0,
       }};
+      if (metric === "packets" && packetSeries && typeof packetSeries === "object") {{
+        const normalizedSeries = normalizeNetworkOverviewPacketSeries(packetSeries);
+        const seriesOrder = networkOverviewPacketSeriesOrder.filter((key) => normalizedSeries[key]);
+        const resolvedStyles = {{}};
+        for (const seriesKey of networkOverviewPacketSeriesOrder) {{
+          const baseStyle = (
+            networkOverviewPacketSeriesStyles[seriesKey]
+            && typeof networkOverviewPacketSeriesStyles[seriesKey] === "object"
+          ) ? networkOverviewPacketSeriesStyles[seriesKey] : {{}};
+          const paletteColor = networkOverviewPacketSeriesPaletteColor(seriesKey);
+          resolvedStyles[seriesKey] = paletteColor
+            ? {{
+                ...baseStyle,
+                color: paletteColor,
+                labelColor: paletteColor,
+              }}
+            : {{ ...baseStyle }};
+        }}
+        return {{
+          ...base,
+          seriesOrder: seriesOrder.length ? seriesOrder : ["all"],
+          seriesLabels: networkOverviewPacketSeriesLabels,
+          seriesStyles: resolvedStyles,
+        }};
+      }}
       if (metric !== "nodes") {{
         return base;
       }}
@@ -167,6 +226,28 @@
       }}
     }}
 
+    function updateNetworkOverviewPacketSeriesControls(metricKey = networkOverviewMetric) {{
+      const metric = normalizeWeeklySummaryMetric(metricKey);
+      const showLines = metric === "packets";
+      const wrap = document.getElementById("network-overview-packet-lines-wrap");
+      if (wrap instanceof HTMLElement) {{
+        wrap.hidden = !showLines;
+      }}
+      for (const key of networkOverviewPacketSeriesOrder) {{
+        const toggleId = networkOverviewPacketSeriesControlIds[key];
+        const toggle = document.getElementById(toggleId);
+        if (!(toggle instanceof HTMLInputElement)) continue;
+        const seriesColor = networkOverviewPacketSeriesPaletteColor(key);
+        if (seriesColor) {{
+          toggle.style.accentColor = seriesColor;
+        }} else {{
+          toggle.style.removeProperty("accent-color");
+        }}
+        toggle.checked = !!networkOverviewPacketSeriesEnabled[key];
+        toggle.disabled = !showLines;
+      }}
+    }}
+
     function applyNetworkOverviewMetric(metricKey, persist = true) {{
       const normalized = normalizeWeeklySummaryMetric(metricKey);
       networkOverviewMetric = normalized;
@@ -175,6 +256,7 @@
         select.value = normalized;
       }}
       updateNetworkOverviewNodeSeriesControls(normalized);
+      updateNetworkOverviewPacketSeriesControls(normalized);
       const cached = summaryMetricsCache.get(String(weeklySummaryHours));
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
@@ -198,6 +280,23 @@
         window.localStorage.setItem(
           networkOverviewNodeSeriesStorageKey,
           JSON.stringify(networkOverviewNodeSeriesEnabled)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function applyNetworkOverviewPacketSeries(nextSeries, persist = true) {{
+      networkOverviewPacketSeriesEnabled = normalizeNetworkOverviewPacketSeries(nextSeries);
+      updateNetworkOverviewPacketSeriesControls(networkOverviewMetric);
+      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      if (cached && cached.data) {{
+        renderNetworkOverviewSummary(cached.data);
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(
+          networkOverviewPacketSeriesStorageKey,
+          JSON.stringify(networkOverviewPacketSeriesEnabled)
         );
       }} catch (_err) {{
       }}

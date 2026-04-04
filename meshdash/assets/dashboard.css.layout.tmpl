@@ -718,9 +718,14 @@
       background: #f7fcf7;
       padding: 4px 9px;
     }}
+    .history-metric-wrap[hidden] {{
+      display: none !important;
+    }}
     .history-metric-wrap-lines {{
       gap: 10px;
       padding-right: 10px;
+      flex-wrap: wrap;
+      row-gap: 6px;
     }}
     .history-metric-controls {{
       display: flex;
@@ -2829,8 +2834,8 @@
       display: flex;
     }}
     .layout.view-network #network-overview-chart-wrap {{
-      min-height: clamp(260px, 44vh, 420px);
-      height: clamp(260px, 44vh, 420px);
+      min-height: clamp(280px, 48vh, 460px);
+      height: clamp(280px, 48vh, 460px);
     }}
     .layout.view-network .network-overview-card .overview-grid {{
       margin-top: 2px;

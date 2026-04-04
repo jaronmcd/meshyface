@@ -534,10 +534,15 @@
       const nodeSeries = target && target.key === "network-overview"
         ? networkOverviewNodeSeriesEnabled
         : weeklySummaryNodeSeriesEnabled;
-      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, nodeSeries);
-      const emptyMessage = metricKey === "packets"
-        ? "Need at least two saved samples to estimate packets/min."
-        : "No weekly summary history yet.";
+      const packetSeries = target && target.key === "network-overview"
+        ? networkOverviewPacketSeriesEnabled
+        : null;
+      const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, nodeSeries, packetSeries);
+      const emptyMessage = metricKey === "packets" && packetSeries
+        ? "No packet activity yet in this window."
+        : (metricKey === "packets"
+          ? "Need at least two saved samples to estimate packets/min."
+          : "No weekly summary history yet.");
       renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage, {{ targetKey: target.key }});
     }}
 

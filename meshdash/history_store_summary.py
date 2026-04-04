@@ -6,6 +6,7 @@ from .history_analytics import (
     build_summary_metrics_payload as _build_summary_metrics_payload_helper,
 )
 from .history_queries import (
+    fetch_summary_packet_type_rows as _fetch_summary_packet_type_rows_helper,
     fetch_summary_metrics_rows as _fetch_summary_metrics_rows_helper,
 )
 from .history_read_history import (
@@ -90,6 +91,7 @@ def load_summary_metrics(store: HistoryStoreReadState, window_hours: int) -> dic
             read_conn,
             window_hours=window_hours,
             fetch_summary_metrics_rows_fn=_fetch_summary_metrics_rows_helper,
+            fetch_summary_packet_type_rows_fn=_fetch_summary_packet_type_rows_helper,
             build_summary_metrics_payload_fn=_build_summary_metrics_payload_helper,
             now_unix_fn=time.time,
         )
