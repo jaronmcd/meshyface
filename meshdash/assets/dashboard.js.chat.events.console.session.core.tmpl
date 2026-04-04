@@ -502,11 +502,29 @@
       }}
     }}
 
+    function persistConsoleTimestampsPreference() {{
+      try {{
+        window.localStorage.setItem(consoleTimestampsStorageKey, consoleShowTimestamps ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
     function loadConsoleFontSizePreference() {{
       try {{
         consoleFontSize = normalizeConsoleFontSize(window.localStorage.getItem(consoleFontSizeStorageKey) || "md");
       }} catch (_err) {{
         consoleFontSize = "md";
+      }}
+    }}
+
+    function loadConsoleTimestampsPreference() {{
+      try {{
+        consoleShowTimestamps = parseBoolToken(
+          window.localStorage.getItem(consoleTimestampsStorageKey),
+          false
+        );
+      }} catch (_err) {{
+        consoleShowTimestamps = false;
       }}
     }}
 

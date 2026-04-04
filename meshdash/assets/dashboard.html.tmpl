@@ -1350,6 +1350,24 @@
               <div class="settings-help-note">
                 Off keeps tag colors, but untagged nodes use the shared neutral tint.
               </div>
+              <div class="settings-help-note">
+                <strong>Console</strong> tuning for packet logs and command output.
+              </div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Console text size</span>
+                  <select id="console-font-size-select" class="settings-select" aria-label="Console text size">
+                    <option value="sm">Small</option>
+                    <option value="md">Medium</option>
+                    <option value="lg">Large</option>
+                    <option value="xl">XL</option>
+                  </select>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="console-timestamps" type="checkbox" />
+                  <span>Show timestamps in Console</span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -2822,14 +2840,6 @@ Ready.
       <div class="body">
         <div class="console-controls">
           <label><input id="console-autoscroll" type="checkbox" checked /> Auto-scroll</label>
-          <label><input id="console-timestamps" type="checkbox" /> Timestamps</label>
-          <label class="console-select-label" for="console-font-size-select">Text size</label>
-          <select id="console-font-size-select" class="console-select" aria-label="Console text size">
-            <option value="sm">Small</option>
-            <option value="md">Medium</option>
-            <option value="lg">Large</option>
-            <option value="xl">XL</option>
-          </select>
         </div>
         <div id="console-terminal-screen" class="console-terminal-screen">
           <pre id="live-console"></pre>

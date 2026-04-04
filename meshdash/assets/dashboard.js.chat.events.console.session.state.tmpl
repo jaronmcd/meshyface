@@ -32,7 +32,6 @@
         lines: consoleLines.slice(-consoleMaxLines),
         commandHistory: consoleCommandHistory.slice(-consoleCommandHistoryMax),
         autoscroll: !!consoleAutoscroll,
-        timestamps: !!consoleShowTimestamps,
         interactiveSession,
         eventCounter: Math.max(0, Math.trunc(Number(consoleEventCounter) || 0)),
       }};
@@ -106,7 +105,6 @@
         consoleCommandHistoryCursor = -1;
         consoleCommandDraft = "";
         consoleAutoscroll = payload.autoscroll !== false;
-        consoleShowTimestamps = payload.timestamps === true;
         consoleFilterText = "";
         consoleInteractiveSession = normalizeConsoleInteractiveSession(payload.interactiveSession);
         consoleEventCounter = Math.max(0, Math.trunc(Number(payload.eventCounter) || 0));

@@ -130,32 +130,6 @@
           }}
         }});
       }}
-      const timestamps = document.getElementById("console-timestamps");
-      if (timestamps instanceof HTMLInputElement) {{
-        timestamps.checked = !!consoleShowTimestamps;
-        if (timestamps.dataset.bound !== "1") {{
-          timestamps.dataset.bound = "1";
-          timestamps.addEventListener("change", () => {{
-            consoleShowTimestamps = !!timestamps.checked;
-            persistConsoleSessionState();
-            renderConsoleBuffer(false);
-          }});
-        }}
-      }}
-      const fontSizeSelect = document.getElementById("console-font-size-select");
-      if (fontSizeSelect instanceof HTMLSelectElement) {{
-        fontSizeSelect.value = normalizeConsoleFontSize(consoleFontSize);
-        if (fontSizeSelect.dataset.bound !== "1") {{
-          fontSizeSelect.dataset.bound = "1";
-          fontSizeSelect.addEventListener("change", () => {{
-            consoleFontSize = normalizeConsoleFontSize(fontSizeSelect.value);
-            fontSizeSelect.value = consoleFontSize;
-            persistConsoleFontSizePreference();
-            applyConsoleFontSizePreference();
-            renderConsoleBuffer(false);
-          }});
-        }}
-      }}
       const pre = document.getElementById("live-console");
       if (pre instanceof HTMLElement && pre.dataset.scrollBound !== "1") {{
         pre.dataset.scrollBound = "1";

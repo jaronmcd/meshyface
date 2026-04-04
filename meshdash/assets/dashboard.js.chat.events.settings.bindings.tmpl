@@ -6,6 +6,8 @@
         controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
         || controlId === "settings-appearance-unique-node-colors"
+        || controlId === "console-timestamps"
+        || controlId === "console-font-size-select"
       );
 
       for (const tabBtn of settingsCard.querySelectorAll(".settings-tab-btn[data-settings-tab]")) {{
@@ -76,6 +78,36 @@
             rerender: true,
             announce: true,
           }});
+        }}
+        if (target instanceof HTMLInputElement && target.id === "console-timestamps") {{
+          consoleShowTimestamps = !!target.checked;
+          if (typeof persistConsoleTimestampsPreference === "function") {{
+            persistConsoleTimestampsPreference();
+          }}
+          if (typeof syncSettingsAppearanceControls === "function") {{
+            syncSettingsAppearanceControls();
+          }}
+          renderConsoleBuffer(false);
+          setSettingsStatusText(
+            consoleShowTimestamps
+              ? "Console timestamps enabled."
+              : "Console timestamps hidden."
+          );
+        }}
+        if (target instanceof HTMLSelectElement && target.id === "console-font-size-select") {{
+          consoleFontSize = normalizeConsoleFontSize(target.value);
+          target.value = consoleFontSize;
+          if (typeof persistConsoleFontSizePreference === "function") {{
+            persistConsoleFontSizePreference();
+          }}
+          if (typeof applyConsoleFontSizePreference === "function") {{
+            applyConsoleFontSizePreference();
+          }}
+          if (typeof syncSettingsAppearanceControls === "function") {{
+            syncSettingsAppearanceControls();
+          }}
+          renderConsoleBuffer(false);
+          setSettingsStatusText(`Console text size set to ${{consoleFontSize.toUpperCase()}}.`);
         }}
         if (
           target instanceof HTMLInputElement

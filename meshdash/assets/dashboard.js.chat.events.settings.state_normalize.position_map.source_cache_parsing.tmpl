@@ -61,6 +61,14 @@
       if (toggle instanceof HTMLInputElement) {{
         toggle.checked = !!settingsUniqueNodeColorsEnabled;
       }}
+      const consoleTimestampsToggle = document.getElementById("console-timestamps");
+      if (consoleTimestampsToggle instanceof HTMLInputElement) {{
+        consoleTimestampsToggle.checked = !!consoleShowTimestamps;
+      }}
+      const consoleFontSizeSelect = document.getElementById("console-font-size-select");
+      if (consoleFontSizeSelect instanceof HTMLSelectElement) {{
+        consoleFontSizeSelect.value = normalizeConsoleFontSize(consoleFontSize);
+      }}
     }}
 
     function setSettingsUniqueNodeColorsEnabled(enabled, options = null) {{
