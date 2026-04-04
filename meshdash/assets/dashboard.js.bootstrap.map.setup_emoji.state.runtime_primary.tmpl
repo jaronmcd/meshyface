@@ -115,6 +115,8 @@
     const fileTransferAckProbeCursorByKey = new Map();
     const fileTransferAckProbeStateByKey = new Map();
     const fileTransferAckObservedChunksByKey = new Map();
+    const fileTransferDismissedTransferKeys = new Set();
+    let fileTransferDismissedLoaded = false;
     const fileTransferConsoleLines = [];
     let fileTransferMaintenanceInFlight = false;
     let fileTransferMaintenanceQueued = false;

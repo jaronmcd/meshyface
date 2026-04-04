@@ -106,6 +106,18 @@ PYTHON_UNBUFFERED="${MESH_DASH_DEPLOY_PYTHON_UNBUFFERED:-1}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-12288}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
+FILE_TRANSFER_ENABLE_SET=0
+FILE_TRANSFER_MAX_BYTES_SET=0
+ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=0
+if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE+x}" ]]; then
+  FILE_TRANSFER_ENABLE_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES+x}" ]]; then
+  FILE_TRANSFER_MAX_BYTES_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER+x}" ]]; then
+  ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
+fi
 SSH_OPTS=(-F /dev/null)
 SCP_OPTS=(-F /dev/null)
 if [[ -n "${USER:-}" ]]; then
@@ -122,6 +134,11 @@ ssh_cmd() {
 
 scp_cmd() {
   scp "${SCP_OPTS[@]}" "$@"
+}
+
+read_existing_dashboard_env_value() {
+  local key="$1"
+  ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { print substr(\$0, length(key) + 2); exit }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
 POSITIONAL_TARGET_SET=0
@@ -177,23 +194,28 @@ while [[ $# -gt 0 ]]; do
       ;;
     --file-transfer-enable)
       FILE_TRANSFER_ENABLE=1
+      FILE_TRANSFER_ENABLE_SET=1
       shift
       ;;
     --no-file-transfer-enable)
       FILE_TRANSFER_ENABLE=0
+      FILE_TRANSFER_ENABLE_SET=1
       shift
       ;;
     --file-transfer-max-bytes)
       require_arg "$1" "${2:-}"
       FILE_TRANSFER_MAX_BYTES="$2"
+      FILE_TRANSFER_MAX_BYTES_SET=1
       shift 2
       ;;
     --accept-file-transfer-traffic-disclaimer)
       ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=1
+      ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
       shift
       ;;
     --no-accept-file-transfer-traffic-disclaimer)
       ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=0
+      ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
       shift
       ;;
     --service)
@@ -290,6 +312,27 @@ fi
 if [[ "${BOOTSTRAP}" -eq 1 && -z "${MESH_HOST}" ]]; then
   echo "--bootstrap requires --mesh-host (or an existing ${CONFIG_DIR}/dashboard.env on target)" >&2
   exit 1
+fi
+
+if [[ "${FILE_TRANSFER_ENABLE_SET}" -eq 0 ]]; then
+  existing_file_transfer_enable="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_ENABLE")"
+  if [[ -n "${existing_file_transfer_enable}" ]]; then
+    FILE_TRANSFER_ENABLE="${existing_file_transfer_enable}"
+  fi
+fi
+
+if [[ "${FILE_TRANSFER_MAX_BYTES_SET}" -eq 0 ]]; then
+  existing_file_transfer_max_bytes="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_MAX_BYTES")"
+  if [[ -n "${existing_file_transfer_max_bytes}" ]]; then
+    FILE_TRANSFER_MAX_BYTES="${existing_file_transfer_max_bytes}"
+  fi
+fi
+
+if [[ "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET}" -eq 0 ]]; then
+  existing_file_transfer_disclaimer="$(read_existing_dashboard_env_value "MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER")"
+  if [[ -n "${existing_file_transfer_disclaimer}" ]]; then
+    ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${existing_file_transfer_disclaimer}"
+  fi
 fi
 
 if ! [[ "${FILE_TRANSFER_MAX_BYTES}" =~ ^[0-9]+$ ]]; then

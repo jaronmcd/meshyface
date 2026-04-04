@@ -1,4 +1,93 @@
+    function ensureFileTransferDismissedStateLoaded() {{
+      if (fileTransferDismissedLoaded) return;
+      fileTransferDismissedLoaded = true;
+      try {{
+        const raw = String(window.localStorage.getItem(fileTransferDismissedStorageKey) || "");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const value of parsed) {{
+          const clean = String(value || "").trim();
+          if (!clean) continue;
+          fileTransferDismissedTransferKeys.add(clean);
+          if (fileTransferDismissedTransferKeys.size >= 1200) {{
+            break;
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistFileTransferDismissedState() {{
+      try {{
+        if (fileTransferDismissedTransferKeys.size <= 0) {{
+          window.localStorage.removeItem(fileTransferDismissedStorageKey);
+          return;
+        }}
+        const payload = Array.from(fileTransferDismissedTransferKeys).slice(-1200);
+        window.localStorage.setItem(fileTransferDismissedStorageKey, JSON.stringify(payload));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function isFileTransferDismissedKey(rawKey) {{
+      const key = String(rawKey || "").trim();
+      if (!key) return false;
+      ensureFileTransferDismissedStateLoaded();
+      return fileTransferDismissedTransferKeys.has(key);
+    }}
+
+    function clearFinishedFileTransferRows() {{
+      ensureFileTransferDismissedStateLoaded();
+      let cleared = 0;
+      for (const row of (Array.isArray(fileTransferRows) ? fileTransferRows : [])) {{
+        if (!(row && typeof row === "object")) continue;
+        const key = String(row.key || "").trim();
+        if (!key) continue;
+        const progressState = String(row.progressState || "").trim().toLowerCase();
+        const finished = !!row.delivered || progressState === "error" || !!row.inboundDeclined;
+        if (!finished) continue;
+        if (fileTransferDismissedTransferKeys.has(key)) continue;
+        fileTransferDismissedTransferKeys.add(key);
+        fileTransferChunkCacheByKey.delete(key);
+        fileTransferBlobByKey.delete(key);
+        const staleUrl = fileTransferDownloadUrlByKey.get(key);
+        if (staleUrl) {{
+          try {{
+            URL.revokeObjectURL(staleUrl);
+          }} catch (_err) {{
+          }}
+        }}
+        fileTransferDownloadUrlByKey.delete(key);
+        fileTransferAckSentState.delete(key);
+        fileTransferAckObservedChunksByKey.delete(key);
+        fileTransferAckProbeCursorByKey.delete(key);
+        fileTransferAckProbeStateByKey.delete(key);
+        fileTransferAckMissingChannelWarnByKey.delete(key);
+        const transferId = String(row.transferId || "").trim().toLowerCase();
+        const destination = normalizeNodeId(row.toId || "");
+        if (transferId && isCanonicalNodeId(destination)) {{
+          const exactToken = fileTransferOutgoingTokenFor(transferId, destination, row.channelIndex);
+          fileTransferOutgoingByToken.delete(exactToken);
+        }}
+        for (const [token, session] of fileTransferOutgoingByToken.entries()) {{
+          if (!(session && typeof session === "object")) continue;
+          if (String(session.transferId || "").trim().toLowerCase() !== transferId) continue;
+          const sessionDestination = normalizeNodeId(session.destination || "");
+          if (destination && sessionDestination !== destination) continue;
+          fileTransferOutgoingByToken.delete(token);
+        }}
+        cleared += 1;
+      }}
+      if (cleared > 0) {{
+        persistFileTransferDismissedState();
+        renderFilesView(latestState);
+      }}
+      return cleared;
+    }}
+
     function buildFileTransferRows(state = latestState) {{
+      ensureFileTransferDismissedStateLoaded();
       const frameState = collectFileTransferFrames(state, {{ respectActiveChannel: true }});
       const transfers = frameState.transfers;
       const ackByTransferKey = frameState.ackByTransferKey;
@@ -7,7 +96,10 @@
       const rows = [];
       const transferKeysSeen = new Set();
       for (const transfer of transfers.values()) {{
-        transferKeysSeen.add(String(transfer && transfer.key ? transfer.key : ""));
+        const transferKey = String(transfer && transfer.key ? transfer.key : "").trim();
+        if (!transferKey) continue;
+        if (isFileTransferDismissedKey(transferKey)) continue;
+        transferKeysSeen.add(transferKey);
         const direction = fileTransferDirectionMeta(transfer.fromId, transfer.toId, localNodeId);
         const peerMeta = fileTransferPeerMeta(direction.peerId, nodesById, localNodeId);
         const inboundRequiresAccept = !!transfer.requiresInboundAccept;
@@ -228,7 +320,7 @@
           : meshChannelLabelForIndex(resolvedChannelIndex, {{ allowAll: false }});
         const sortUnix = Number(transfer.latestUnix || transfer.firstUnix || 0);
         rows.push({{
-          key: transfer.key,
+          key: transferKey,
           transferId: transfer.transferId,
           unix: sortUnix > 0 ? sortUnix : null,
           sortUnix,
@@ -266,6 +358,7 @@
       for (const [transferKeyRaw, ack] of ackByTransferKey.entries()) {{
         const transferKey = String(transferKeyRaw || "").trim();
         if (!transferKey) continue;
+        if (isFileTransferDismissedKey(transferKey)) continue;
         if (transferKeysSeen.has(transferKey)) continue;
         if (!(ack && typeof ack === "object")) continue;
         const senderId = normalizeNodeId(ack.originalSenderId || "");
@@ -292,8 +385,10 @@
             ? `unknown-file-${{fileTransferShortTransferId(transferId)}}`
             : "unknown-file"
         );
+        const ackOnlyKey = `${{transferKey}}|ack-only`;
+        if (isFileTransferDismissedKey(ackOnlyKey)) continue;
         rows.push({{
-          key: `${{transferKey}}|ack-only`,
+          key: ackOnlyKey,
           transferId,
           unix: Number(ack.latestUnix || 0) || null,
           sortUnix: Number(ack.latestUnix || 0) || 0,

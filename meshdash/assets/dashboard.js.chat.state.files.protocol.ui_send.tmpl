@@ -297,6 +297,22 @@
           setFileTransferStatus("Transfer console cleared.");
         }});
       }}
+      const clearFinishedBtn = document.getElementById("files-transfers-clear-finished-btn");
+      if (clearFinishedBtn instanceof HTMLButtonElement && clearFinishedBtn.dataset.bound !== "1") {{
+        clearFinishedBtn.dataset.bound = "1";
+        clearFinishedBtn.addEventListener("click", () => {{
+          const cleared = Number(clearFinishedFileTransferRows()) || 0;
+          if (cleared <= 0) {{
+            setFileTransferStatus("No finished transfers to clear.");
+            return;
+          }}
+          const suffix = cleared === 1 ? "" : "s";
+          setFileTransferStatus(`Cleared ${{cleared}} finished transfer${{suffix}}.`);
+          appendFileTransferConsole(
+            `Cleared ${{cleared}} finished transfer${{suffix}} from the Files table.`
+          );
+        }});
+      }}
       renderFileTransferConsole();
     }}
 
