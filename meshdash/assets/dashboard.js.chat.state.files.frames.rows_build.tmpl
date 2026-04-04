@@ -34,7 +34,82 @@
       const key = String(rawKey || "").trim();
       if (!key) return false;
       ensureFileTransferDismissedStateLoaded();
-      return fileTransferDismissedTransferKeys.has(key);
+      if (fileTransferDismissedTransferKeys.has(key)) return true;
+      if (key.endsWith("|ack-only")) {{
+        const baseKey = key.slice(0, -9);
+        return !!(baseKey && fileTransferDismissedTransferKeys.has(baseKey));
+      }}
+      return fileTransferDismissedTransferKeys.has(`${{key}}|ack-only`);
+    }}
+
+    function dismissFileTransferRowByKey(rawKey) {{
+      const key = String(rawKey || "").trim();
+      if (!key) return false;
+      ensureFileTransferDismissedStateLoaded();
+      const aliases = [key];
+      if (key.endsWith("|ack-only")) {{
+        const baseKey = key.slice(0, -9);
+        if (baseKey) aliases.push(baseKey);
+      }} else {{
+        aliases.push(`${{key}}|ack-only`);
+      }}
+      let changed = false;
+      for (const alias of aliases) {{
+        if (!alias || fileTransferDismissedTransferKeys.has(alias)) continue;
+        fileTransferDismissedTransferKeys.add(alias);
+        changed = true;
+      }}
+      if (!changed) return false;
+
+      for (const alias of aliases) {{
+        if (!alias) continue;
+        fileTransferChunkCacheByKey.delete(alias);
+        fileTransferBlobByKey.delete(alias);
+        const staleUrl = fileTransferDownloadUrlByKey.get(alias);
+        if (staleUrl) {{
+          try {{
+            URL.revokeObjectURL(staleUrl);
+          }} catch (_err) {{
+          }}
+        }}
+        fileTransferDownloadUrlByKey.delete(alias);
+        fileTransferAckSentState.delete(alias);
+        fileTransferAckObservedChunksByKey.delete(alias);
+        fileTransferAckProbeCursorByKey.delete(alias);
+        fileTransferAckProbeStateByKey.delete(alias);
+        fileTransferAckMissingChannelWarnByKey.delete(alias);
+      }}
+
+      const row = fileTransferRows.find((entry) => entry && entry.key === key) || null;
+      const baseKey = key.endsWith("|ack-only") ? key.slice(0, -9) : key;
+      const keyParts = String(baseKey || "").split("|");
+      const transferIdFromKey = keyParts.length >= 3
+        ? String(keyParts[2] || "").trim().toLowerCase()
+        : "";
+      const destinationFromKey = keyParts.length >= 2
+        ? normalizeNodeId(keyParts[1] || "")
+        : "";
+      const transferId = String((row && row.transferId) || transferIdFromKey || "").trim().toLowerCase();
+      const destination = normalizeNodeId(
+        (row && (row.toId || row.peerId))
+        || destinationFromKey
+        || ""
+      );
+      if (transferId) {{
+        if (isCanonicalNodeId(destination)) {{
+          const exactToken = fileTransferOutgoingTokenFor(transferId, destination, row && row.channelIndex);
+          fileTransferOutgoingByToken.delete(exactToken);
+        }}
+        for (const [token, session] of fileTransferOutgoingByToken.entries()) {{
+          if (!(session && typeof session === "object")) continue;
+          if (String(session.transferId || "").trim().toLowerCase() !== transferId) continue;
+          const sessionDestination = normalizeNodeId(session.destination || "");
+          if (isCanonicalNodeId(destination) && sessionDestination !== destination) continue;
+          fileTransferOutgoingByToken.delete(token);
+        }}
+      }}
+      persistFileTransferDismissedState();
+      return true;
     }}
 
     function clearFinishedFileTransferRows() {{
@@ -48,53 +123,30 @@
         const progressState = String(row.progressState || "").trim().toLowerCase();
         const rowUnix = Math.max(0, Math.trunc(Number(row.sortUnix || row.unix) || 0));
         const rowAgeSec = rowUnix > 0 ? Math.max(0, nowUnix - rowUnix) : 0;
+        const sessionLost = !!row.outgoingSessionMissing;
         const stalePending = (
           !row.delivered
           && !row.inboundDeclined
-          && rowAgeSec >= Math.max(60, Number(fileTransferStalePendingClearSec) || 0)
           && (
-            !!row.inboundPending
-            || !!row.outgoingWaitingForAccept
-            || progressState === "pending"
-            || progressState === "active"
+            sessionLost
+            || (
+              rowAgeSec >= Math.max(60, Number(fileTransferStalePendingClearSec) || 0)
+              && (
+                !!row.inboundPending
+                || !!row.outgoingWaitingForAccept
+                || progressState === "pending"
+                || progressState === "active"
+              )
+            )
           )
         );
         const finished = !!row.delivered || progressState === "error" || !!row.inboundDeclined;
         if (!finished && !stalePending) continue;
-        if (fileTransferDismissedTransferKeys.has(key)) continue;
-        fileTransferDismissedTransferKeys.add(key);
-        fileTransferChunkCacheByKey.delete(key);
-        fileTransferBlobByKey.delete(key);
-        const staleUrl = fileTransferDownloadUrlByKey.get(key);
-        if (staleUrl) {{
-          try {{
-            URL.revokeObjectURL(staleUrl);
-          }} catch (_err) {{
-          }}
+        if (dismissFileTransferRowByKey(key)) {{
+          cleared += 1;
         }}
-        fileTransferDownloadUrlByKey.delete(key);
-        fileTransferAckSentState.delete(key);
-        fileTransferAckObservedChunksByKey.delete(key);
-        fileTransferAckProbeCursorByKey.delete(key);
-        fileTransferAckProbeStateByKey.delete(key);
-        fileTransferAckMissingChannelWarnByKey.delete(key);
-        const transferId = String(row.transferId || "").trim().toLowerCase();
-        const destination = normalizeNodeId(row.toId || "");
-        if (transferId && isCanonicalNodeId(destination)) {{
-          const exactToken = fileTransferOutgoingTokenFor(transferId, destination, row.channelIndex);
-          fileTransferOutgoingByToken.delete(exactToken);
-        }}
-        for (const [token, session] of fileTransferOutgoingByToken.entries()) {{
-          if (!(session && typeof session === "object")) continue;
-          if (String(session.transferId || "").trim().toLowerCase() !== transferId) continue;
-          const sessionDestination = normalizeNodeId(session.destination || "");
-          if (destination && sessionDestination !== destination) continue;
-          fileTransferOutgoingByToken.delete(token);
-        }}
-        cleared += 1;
       }}
       if (cleared > 0) {{
-        persistFileTransferDismissedState();
         renderFilesView(latestState);
       }}
       return cleared;

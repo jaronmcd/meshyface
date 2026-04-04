@@ -275,6 +275,16 @@
           restartOutgoingFileTransferAction(transferKey);
           return;
         }}
+        if (action === "clear") {{
+          if (!dismissFileTransferRowByKey(transferKey)) {{
+            setFileTransferStatus("Transfer row could not be cleared.", true);
+            return;
+          }}
+          setFileTransferStatus("Cleared transfer row.");
+          appendFileTransferConsole("Cleared 1 transfer row from the Files table.");
+          renderFilesView(latestState);
+          return;
+        }}
         downloadFileTransferByKey(transferKey);
       }});
     }}
@@ -432,29 +442,30 @@
                 data-transfer-key="${{escAttr(row.key || "")}}"
                 title="${{escAttr(restartTitle)}}"
               >Restart</button>`;
+          }} else if (row && row.outgoingSessionMissing && !(row && row.canDownload)) {{
+            actionSort = 1;
+            actionHtml = `<button
+                type="button"
+                class="files-transfer-action"
+                data-action="clear"
+                data-transfer-key="${{escAttr(row.key || "")}}"
+                title="Remove this stale transfer row (sender session state is unavailable)."
+              >Clear</button>`;
           }} else {{
             const actionLabel = row && row.canDownload
               ? "Download"
               : (
-                row && row.outgoingSessionMissing
-                  ? "Session lost"
-                  : (
-                    row && row.outgoingPausedOffline
-                      ? "Paused"
-                      : (row && row.outgoingRetrying ? "Retrying" : "Waiting")
-                  )
+                row && row.outgoingPausedOffline
+                  ? "Paused"
+                  : (row && row.outgoingRetrying ? "Retrying" : "Waiting")
               );
             const actionDisabled = row && row.canDownload ? "" : " disabled";
             const actionTitle = row && row.canDownload
               ? `Download ${{row.downloadName || row.fileName || "file"}}`
               : (
-                row && row.outgoingSessionMissing
-                  ? "Sender session state was lost (likely after dashboard restart). Re-send the file to start a fresh session."
-                  : (
-                    row && row.outgoingPausedOffline
-                      ? "Transfer is auto-paused while peer appears offline."
-                      : (row && row.outgoingWaitingForAccept ? "Waiting for receiver accept" : "Waiting for all chunks")
-                  )
+                row && row.outgoingPausedOffline
+                  ? "Transfer is auto-paused while peer appears offline."
+                  : (row && row.outgoingWaitingForAccept ? "Waiting for receiver accept" : "Waiting for all chunks")
               );
             actionSort = row && row.canDownload ? 3 : 0;
             actionHtml = `<button
