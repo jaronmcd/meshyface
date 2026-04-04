@@ -54,6 +54,13 @@
       }}
     }}
 
+    function persistChatNodeListSplitState() {{
+      try {{
+        window.localStorage.setItem(chatNodeListSplitStorageKey, String(chatNodeListPct));
+      }} catch (_err) {{
+      }}
+    }}
+
     function persistMacrosPanelSplitState() {{
       try {{
         window.localStorage.setItem(macrosPanelSplitStorageKey, String(macrosPanelWidthPx));

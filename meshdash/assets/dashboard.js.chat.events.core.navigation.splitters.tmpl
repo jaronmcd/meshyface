@@ -257,6 +257,51 @@
       }});
     }}
 
+    function bindChatNodeDetailsSplitter() {{
+      const splitter = document.getElementById("chat-node-details-splitter");
+      if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;
+      const section = splitter.closest(".chat-left-section.chat-users-section");
+      if (!(section instanceof HTMLElement)) return;
+      splitter.dataset.bound = "1";
+
+      splitter.addEventListener("pointerdown", (ev) => {{
+        if (window.matchMedia("(max-width: 1100px)").matches) return;
+        if (!section.classList.contains("has-node-details")) return;
+        ev.preventDefault();
+        splitter.classList.add("active");
+        document.body.classList.add("resizing-panels-y");
+        splitter.setPointerCapture(ev.pointerId);
+
+        const updateFromClientY = (clientY) => {{
+          const rect = section.getBoundingClientRect();
+          if (rect.height < 80) return;
+          const relativeY = clientY - rect.top;
+          const pct = clampChatNodeListPct((relativeY / rect.height) * 100);
+          chatNodeListPct = pct;
+          applyChatNodeListSplitState();
+        }};
+
+        updateFromClientY(ev.clientY);
+
+        const onMove = (moveEv) => {{
+          updateFromClientY(moveEv.clientY);
+        }};
+
+        const onUp = () => {{
+          splitter.classList.remove("active");
+          document.body.classList.remove("resizing-panels-y");
+          persistChatNodeListSplitState();
+          splitter.removeEventListener("pointermove", onMove);
+          splitter.removeEventListener("pointerup", onUp);
+          splitter.removeEventListener("pointercancel", onUp);
+        }};
+
+        splitter.addEventListener("pointermove", onMove);
+        splitter.addEventListener("pointerup", onUp);
+        splitter.addEventListener("pointercancel", onUp);
+      }});
+    }}
+
     function bindMacrosPanelSplitter() {{
       const splitter = document.getElementById("macros-panel-splitter");
       if (!(splitter instanceof HTMLElement) || splitter.dataset.bound === "1") return;

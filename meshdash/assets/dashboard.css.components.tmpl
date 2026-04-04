@@ -3242,6 +3242,17 @@
     [data-theme="dark"] .network-node-history-host {{
       border-top: none;
     }}
+    [data-theme="dark"] .chat-node-details-splitter {{
+      border-color: var(--ui-border);
+      background: linear-gradient(90deg, #1a2430, #16202c);
+    }}
+    [data-theme="dark"] .chat-node-details-splitter::before {{
+      background: #44566a;
+    }}
+    [data-theme="dark"] .chat-node-details-splitter:hover::before,
+    [data-theme="dark"] .chat-node-details-splitter.active::before {{
+      background: #79c0ff;
+    }}
     [data-theme="dark"] .network-node-splitter {{
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);

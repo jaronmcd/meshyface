@@ -55,6 +55,10 @@
       return Math.max(min, Math.min(max, Math.round(numeric)));
     }}
 
+    function clampChatNodeListPct(value) {{
+      return Math.max(18, Math.min(82, value));
+    }}
+
     function clampMacrosPanelWidthPx(value, containerWidth = window.innerWidth) {{
       const numeric = Number(value);
       if (!Number.isFinite(numeric)) return 460;
@@ -125,6 +129,12 @@
       const rect = shell.getBoundingClientRect();
       chatPanelWidthPx = clampChatPanelWidthPx(chatPanelWidthPx, rect.width);
       shell.style.setProperty("--chat-panel-width", `${{chatPanelWidthPx}}px`);
+    }}
+
+    function applyChatNodeListSplitState() {{
+      const panel = document.getElementById("chat-left-panel");
+      if (!(panel instanceof HTMLElement)) return;
+      panel.style.setProperty("--chat-node-list-pct", `${{chatNodeListPct}}%`);
     }}
 
     function applyMacrosPanelSplitState() {{
@@ -275,6 +285,20 @@
       }} catch (_err) {{
       }}
       applyChatPanelSplitState();
+    }}
+
+    function loadChatNodeListSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(chatNodeListSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            chatNodeListPct = clampChatNodeListPct(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyChatNodeListSplitState();
     }}
 
     function loadMacrosPanelSplitState() {{

@@ -3860,6 +3860,49 @@
       flex-direction: column;
       gap: 3px;
     }}
+    .chat-node-details-splitter {{
+      display: none;
+      position: relative;
+      border-radius: 8px;
+      border: 1px solid #d1e0cb;
+      background: linear-gradient(90deg, #f4faf3, #edf5ea);
+      cursor: row-resize;
+      touch-action: none;
+      user-select: none;
+      min-height: 6px;
+      flex: 0 0 var(--splitter-size);
+      margin: 0;
+    }}
+    .chat-node-details-splitter::before {{
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+      background: #b8cab9;
+      border-radius: 1px;
+    }}
+    .chat-node-details-splitter:hover::before,
+    .chat-node-details-splitter.active::before {{
+      background: #2f855a;
+    }}
+    .chat-left-section.chat-users-section.has-node-details .chat-member-list {{
+      flex: 0 0 var(--chat-node-list-pct, 56%);
+      min-height: 92px;
+      max-height: none;
+    }}
+    .chat-left-section.chat-users-section.has-node-details .chat-node-details-splitter {{
+      display: block;
+    }}
+    .chat-left-section.chat-users-section.has-node-details .chat-node-details-drawer {{
+      flex: 1 1 auto;
+      min-height: 160px;
+      height: auto;
+      max-height: none;
+      margin-top: 0;
+    }}
     .chat-node-details-drawer {{
       border: 1px solid #d2e1d0;
       border-radius: 8px;

@@ -428,6 +428,7 @@
       const drawer = document.getElementById("chat-node-details-drawer");
       const titleEl = document.getElementById("chat-node-details-title");
       const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const detailsSplitter = document.getElementById("chat-node-details-splitter");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
       const dmBtn = document.getElementById("chat-node-details-dm-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
@@ -445,6 +446,16 @@
       const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
       const expanded = !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(selectedId);
       chatNodeDetailsDrawerTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
+      const usersSection = drawer.closest(".chat-left-section.chat-users-section");
+      if (usersSection instanceof HTMLElement) {{
+        usersSection.classList.toggle("has-node-details", expanded);
+      }}
+      if (detailsSplitter instanceof HTMLElement) {{
+        detailsSplitter.hidden = !expanded;
+      }}
+      if (typeof applyChatNodeListSplitState === "function") {{
+        applyChatNodeListSplitState();
+      }}
 
       drawer.hidden = !expanded;
       if (closeBtn instanceof HTMLButtonElement) {{
