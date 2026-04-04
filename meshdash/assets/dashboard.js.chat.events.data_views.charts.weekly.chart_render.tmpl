@@ -1,6 +1,30 @@
+    function resolveWeeklySummaryChartLayout(targetKey = "history") {{
+      const base = historyTrendChartLayout || {{}};
+      const clean = String(targetKey || "").trim().toLowerCase();
+      if (clean === "network-overview") {{
+        return {{
+          width: Number(base.width) || 900,
+          height: Number(base.height) || 220,
+          padLeft: 38,
+          padRight: 18,
+          padTop: Number(base.padTop) || 12,
+          padBottom: 18,
+        }};
+      }}
+      return {{
+        width: Number(base.width) || 900,
+        height: Number(base.height) || 220,
+        padLeft: Number(base.padLeft) || 46,
+        padRight: Number(base.padRight) || 10,
+        padTop: Number(base.padTop) || 12,
+        padBottom: Number(base.padBottom) || 24,
+      }};
+    }}
+
     function renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage, options = {{}}) {{
       const opts = (options && typeof options === "object") ? options : {{}};
       const target = resolveWeeklySummaryRenderTarget(opts.targetKey || "history");
+      const chartLayout = resolveWeeklySummaryChartLayout(target && target.key);
       const svg = document.getElementById(target.svgId);
       const empty = document.getElementById(target.emptyId);
       const chartState = target && target.chartState;
@@ -104,9 +128,9 @@
         renderTimeline(
           chartState.timelineId,
           plotRows,
-          historyTrendChartLayout.padLeft,
-          historyTrendChartLayout.padRight,
-          historyTrendChartLayout.width,
+          chartLayout.padLeft,
+          chartLayout.padRight,
+          chartLayout.width,
           (row) => timelinePointUnix(row, "bucketUnix", ["bucketText"])
         );
         return false;
@@ -156,12 +180,12 @@
         maxVal = minVal + 1;
       }}
 
-      const width = historyTrendChartLayout.width;
-      const height = historyTrendChartLayout.height;
-      const padLeft = historyTrendChartLayout.padLeft;
-      const padRight = historyTrendChartLayout.padRight;
-      const padTop = historyTrendChartLayout.padTop;
-      const padBottom = historyTrendChartLayout.padBottom;
+      const width = chartLayout.width;
+      const height = chartLayout.height;
+      const padLeft = chartLayout.padLeft;
+      const padRight = chartLayout.padRight;
+      const padTop = chartLayout.padTop;
+      const padBottom = chartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
       const n = plotRows.length;
