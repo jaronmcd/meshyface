@@ -40,6 +40,19 @@
       }}
     }}
 
+    function renderNodeNameHistoryPanel(entries, options = null) {{
+      const host = document.getElementById("node-name-history-host");
+      if (!(host instanceof HTMLElement)) return;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      host.innerHTML = savedDetailNameHistorySectionHtml(entries, {{
+        loading: opts.loading === true,
+        maxRows: Number.isFinite(Number(opts.maxRows)) ? Math.max(1, Math.trunc(Number(opts.maxRows))) : 24,
+        title: opts.title || "Name History",
+        emptyMessage: opts.emptyMessage || "No saved name updates yet.",
+        noteText: opts.noteText || "",
+      }});
+    }}
+
     function renderNodeHistoryUnavailable(nodeId, reason = "") {{
       setMapDataMode("node");
       syncNodeHistoryDock();
@@ -72,6 +85,10 @@
         "node-packets-timeline",
         "Timeline unavailable while re-rendering packet history."
       );
+      renderNodeNameHistoryPanel([], {{
+        emptyMessage: "Name history is temporarily unavailable for this node.",
+        noteText: String(reason || "").trim() || "Reselect the node to retry.",
+      }});
     }}
 
     function renderNodeHistory(history, nodes) {{
@@ -83,6 +100,9 @@
       const signalPoints = Array.isArray(history && history.signal_points)
         ? history.signal_points
         : (history.points || []);
+      const nameHistoryEntries = Array.isArray(history && history.name_history)
+        ? history.name_history
+        : [];
       const caption = document.getElementById("node-history-caption");
       if (caption) {{
         const fallbackNodeId = resolveSavedViewNodeId(latestState);
@@ -144,8 +164,17 @@
           "Timeline unavailable while re-rendering packet history."
         );
       }}
+      const namesRendered = runHistoryViewRenderStep("name history", () => {{
+        renderNodeNameHistoryPanel(nameHistoryEntries);
+      }});
+      if (!namesRendered.ok) {{
+        renderNodeNameHistoryPanel([], {{
+          emptyMessage: "Name history is temporarily unavailable for this node.",
+          noteText: "Reselect the node to retry.",
+        }});
+      }}
       setHistoryTab(activeHistoryTab);
-      return signalRendered.ok || onlineRendered.ok || packetsRendered.ok;
+      return signalRendered.ok || onlineRendered.ok || packetsRendered.ok || namesRendered.ok;
     }}
 
     async function fetchNodeHistory(nodeId, opts = null) {{

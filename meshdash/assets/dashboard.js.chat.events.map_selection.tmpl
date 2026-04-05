@@ -466,7 +466,7 @@
 
     function setHistoryTab(tabName) {{
       const nextTab = String(tabName || "").trim().toLowerCase();
-      activeHistoryTab = (nextTab === "online" || nextTab === "packets")
+      activeHistoryTab = (nextTab === "online" || nextTab === "packets" || nextTab === "names")
         ? nextTab
         : "signal";
       for (const btn of document.querySelectorAll(".history-tab-btn")) {{
@@ -476,9 +476,11 @@
       const signalPanel = document.getElementById("tab-panel-signal");
       const onlinePanel = document.getElementById("tab-panel-online");
       const packetsPanel = document.getElementById("tab-panel-packets");
+      const namesPanel = document.getElementById("tab-panel-names");
       if (signalPanel) signalPanel.hidden = activeHistoryTab !== "signal";
       if (onlinePanel) onlinePanel.hidden = activeHistoryTab !== "online";
       if (packetsPanel) packetsPanel.hidden = activeHistoryTab !== "packets";
+      if (namesPanel) namesPanel.hidden = activeHistoryTab !== "names";
     }}
 
     function bindHistoryTabs() {{
@@ -555,6 +557,9 @@
         packetEmpty.textContent = "Loading packet-rate history...";
       }}
       setNodePacketsTimelineMessage("Loading timeline...");
+      renderNodeNameHistoryPanel([], {{
+        loading: true,
+      }});
       renderSavedNodeDetails(latestState || {{}}, null, nodeId);
     }}
 

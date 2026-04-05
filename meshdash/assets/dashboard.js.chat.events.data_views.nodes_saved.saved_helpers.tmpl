@@ -58,14 +58,19 @@
     function savedDetailNameHistorySectionHtml(entries, {{
       loading = false,
       maxRows = 12,
+      title = "Name History",
+      emptyMessage = "No saved name updates yet.",
+      noteText = "",
     }} = {{}}) {{
       const safeEntries = Array.isArray(entries) ? entries : [];
       const safeMaxRows = Math.max(1, Math.trunc(Number(maxRows) || 12));
+      const titleText = String(title || "Name History").trim() || "Name History";
+      const emptyText = String(emptyMessage || "No saved name updates yet.").trim() || "No saved name updates yet.";
       let bodyHtml = "";
       if (loading && safeEntries.length === 0) {{
         bodyHtml = '<div class="saved-node-name-history-empty">Name history is loading...</div>';
       }} else if (safeEntries.length === 0) {{
-        bodyHtml = '<div class="saved-node-name-history-empty">No saved name updates yet.</div>';
+        bodyHtml = `<div class="saved-node-name-history-empty">${{escAttr(emptyText)}}</div>`;
       }} else {{
         const shown = safeEntries.slice(-safeMaxRows).reverse();
         bodyHtml = `<ul class="saved-node-name-history-list">${{shown.map((entry) => {{
@@ -83,11 +88,13 @@
           </li>`;
         }}).join("")}}</ul>`;
       }}
-      const note = safeEntries.length > safeMaxRows
-        ? `Showing newest ${{safeMaxRows}} of ${{safeEntries.length}} saved name updates.`
-        : "Newest first.";
+      const note = String(noteText || "").trim() || (
+        safeEntries.length > safeMaxRows
+          ? `Showing newest ${{safeMaxRows}} of ${{safeEntries.length}} saved name updates.`
+          : "Newest first."
+      );
       return `<section class="saved-node-section">
-        <h3 class="saved-node-section-title">Name History</h3>
+        <h3 class="saved-node-section-title">${{escAttr(titleText)}}</h3>
         ${{bodyHtml}}
         <div class="saved-node-note">${{escAttr(note)}}</div>
       </section>`;

@@ -637,6 +637,20 @@
     .history-panel[hidden] {{
       display: none !important;
     }}
+    #tab-panel-names {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      gap: 8px;
+    }}
+    .node-name-history-host {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }}
     #signal-chart-wrap,
     #node-online-chart-wrap,
     #node-packets-chart-wrap,
@@ -3584,7 +3598,8 @@
     }}
     .layout.view-saved .saved-node-history-host #tab-panel-signal,
     .layout.view-saved .saved-node-history-host #tab-panel-online,
-    .layout.view-saved .saved-node-history-host #tab-panel-packets {{
+    .layout.view-saved .saved-node-history-host #tab-panel-packets,
+    .layout.view-saved .saved-node-history-host #tab-panel-names {{
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -3593,6 +3608,7 @@
     .layout.view-saved .saved-node-history-host #tab-panel-signal,
     .layout.view-saved .saved-node-history-host #tab-panel-online,
     .layout.view-saved .saved-node-history-host #tab-panel-packets,
+    .layout.view-saved .saved-node-history-host #tab-panel-names,
     .layout.view-saved .saved-node-history-host #tab-panel-overview {{
       flex: 1 1 auto;
       min-height: 0;
@@ -4077,6 +4093,7 @@
     .chat-node-details-history-host #tab-panel-signal,
     .chat-node-details-history-host #tab-panel-online,
     .chat-node-details-history-host #tab-panel-packets,
+    .chat-node-details-history-host #tab-panel-names,
     .chat-node-details-history-host #tab-panel-overview {{
       min-height: 0;
       overflow: auto;

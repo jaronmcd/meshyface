@@ -402,10 +402,6 @@
         ? String(nodeNoteDraftById.get(nodeId) || "")
         : null;
       const notesSection = savedNodeNotesSectionHtml(nodeId, nodeNoteEntry(nodeId), noteDraft);
-      const nameHistorySection = savedDetailNameHistorySectionHtml(historyNameEntries, {{
-        loading: historyLoading,
-      }});
-
       const historySection = savedDetailSectionHtml("History", [
         ["Window", historyWindowText],
         ["Samples (1m)", String(historyPointCount)],
@@ -464,7 +460,6 @@
             <div class="saved-node-sections">
               ${{nodeSection}}
               ${{renderNotesInDrawer ? "" : notesSection}}
-              ${{nameHistorySection}}
               ${{historySection}}
               ${{locationSection}}
               ${{chatSection}}
