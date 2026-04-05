@@ -469,7 +469,7 @@
 
     function setHistoryTab(tabName) {{
       const nextTab = String(tabName || "").trim().toLowerCase();
-      activeHistoryTab = (nextTab === "online" || nextTab === "packets" || nextTab === "names")
+      activeHistoryTab = (nextTab === "online" || nextTab === "packets" || nextTab === "names" || nextTab === "overview")
         ? nextTab
         : "signal";
       for (const btn of document.querySelectorAll(".history-tab-btn")) {{
@@ -480,10 +480,12 @@
       const onlinePanel = document.getElementById("tab-panel-online");
       const packetsPanel = document.getElementById("tab-panel-packets");
       const namesPanel = document.getElementById("tab-panel-names");
+      const overviewPanel = document.getElementById("tab-panel-overview");
       if (signalPanel) signalPanel.hidden = activeHistoryTab !== "signal";
       if (onlinePanel) onlinePanel.hidden = activeHistoryTab !== "online";
       if (packetsPanel) packetsPanel.hidden = activeHistoryTab !== "packets";
       if (namesPanel) namesPanel.hidden = activeHistoryTab !== "names";
+      if (overviewPanel) overviewPanel.hidden = activeHistoryTab !== "overview";
     }}
 
     function bindHistoryTabs() {{
@@ -562,6 +564,10 @@
       setNodePacketsTimelineMessage("Loading timeline...");
       renderNodeNameHistoryPanel([], {{
         loading: true,
+      }});
+      renderNodeHistoryOverviewPanel(null, {{
+        loading: true,
+        defaultWindowHours: nodeHistoryHours,
       }});
       renderSavedNodeDetails(latestState || {{}}, null, nodeId);
     }}

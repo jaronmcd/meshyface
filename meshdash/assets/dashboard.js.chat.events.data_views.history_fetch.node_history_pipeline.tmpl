@@ -53,6 +53,20 @@
       }});
     }}
 
+    function renderNodeHistoryOverviewPanel(history, options = null) {{
+      const host = document.getElementById("node-history-overview-host");
+      if (!(host instanceof HTMLElement)) return;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      host.innerHTML = savedNodeHistoryOverviewSectionHtml(history, {{
+        loading: opts.loading === true,
+        title: opts.title || "History",
+        noteText: opts.noteText || "",
+        defaultWindowHours: Number.isFinite(Number(opts.defaultWindowHours))
+          ? Math.max(1, Math.trunc(Number(opts.defaultWindowHours)))
+          : nodeHistoryHours,
+      }});
+    }}
+
     function renderNodeHistoryUnavailable(nodeId, reason = "") {{
       setMapDataMode("node");
       syncNodeHistoryDock();
@@ -88,6 +102,10 @@
       renderNodeNameHistoryPanel([], {{
         emptyMessage: "Name history is temporarily unavailable for this node.",
         noteText: String(reason || "").trim() || "Reselect the node to retry.",
+      }});
+      renderNodeHistoryOverviewPanel(null, {{
+        noteText: String(reason || "").trim() || "Reselect the node to retry.",
+        defaultWindowHours: nodeHistoryHours,
       }});
     }}
 
@@ -173,8 +191,19 @@
           noteText: "Reselect the node to retry.",
         }});
       }}
+      const overviewRendered = runHistoryViewRenderStep("history overview", () => {{
+        renderNodeHistoryOverviewPanel(history, {{
+          defaultWindowHours: nodeHistoryHours,
+        }});
+      }});
+      if (!overviewRendered.ok) {{
+        renderNodeHistoryOverviewPanel(null, {{
+          noteText: "Reselect the node to retry.",
+          defaultWindowHours: nodeHistoryHours,
+        }});
+      }}
       setHistoryTab(activeHistoryTab);
-      return signalRendered.ok || onlineRendered.ok || packetsRendered.ok || namesRendered.ok;
+      return signalRendered.ok || onlineRendered.ok || packetsRendered.ok || namesRendered.ok || overviewRendered.ok;
     }}
 
     async function fetchNodeHistory(nodeId, opts = null) {{

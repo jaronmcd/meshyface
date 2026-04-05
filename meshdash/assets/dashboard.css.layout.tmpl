@@ -637,13 +637,15 @@
     .history-panel[hidden] {{
       display: none !important;
     }}
-    #tab-panel-names {{
+    #tab-panel-names,
+    #tab-panel-overview {{
       display: flex;
       flex-direction: column;
       min-height: 0;
       gap: 8px;
     }}
-    .node-name-history-host {{
+    .node-name-history-host,
+    .node-history-overview-host {{
       display: flex;
       flex-direction: column;
       flex: 1 1 auto;
@@ -3599,7 +3601,8 @@
     .layout.view-saved .saved-node-history-host #tab-panel-signal,
     .layout.view-saved .saved-node-history-host #tab-panel-online,
     .layout.view-saved .saved-node-history-host #tab-panel-packets,
-    .layout.view-saved .saved-node-history-host #tab-panel-names {{
+    .layout.view-saved .saved-node-history-host #tab-panel-names,
+    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
       display: flex;
       flex-direction: column;
       min-height: 0;

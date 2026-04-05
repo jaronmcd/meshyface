@@ -100,6 +100,98 @@
       </section>`;
     }}
 
+    function savedNodeHistoryOverviewSectionHtml(history, {{
+      loading = false,
+      title = "History",
+      noteText = "",
+      defaultWindowHours = null,
+    }} = {{}}) {{
+      const safeHistory = (history && typeof history === "object") ? history : {{}};
+      const historySummary = (safeHistory.summary && typeof safeHistory.summary === "object")
+        ? safeHistory.summary
+        : {{}};
+      const historyPoints = Array.isArray(safeHistory.points) ? safeHistory.points : [];
+      const historyPositions = Array.isArray(safeHistory.positions) ? safeHistory.positions : [];
+      const historyWindowHours = Number(safeHistory.window_hours);
+      const fallbackWindowHours = Number(defaultWindowHours);
+      const historyWindowText = Number.isFinite(historyWindowHours) && historyWindowHours > 0
+        ? `${{Math.round(historyWindowHours)}}h`
+        : (Number.isFinite(fallbackWindowHours) && fallbackWindowHours > 0
+          ? `${{Math.round(fallbackWindowHours)}}h`
+          : "n/a");
+      const historyPointCount = Number.isFinite(Number(historySummary.points))
+        ? Number(historySummary.points)
+        : historyPoints.length;
+      const historyTotalPackets = Number.isFinite(Number(historySummary.total_packets))
+        ? Number(historySummary.total_packets)
+        : historyPoints.reduce((sum, point) => sum + Math.max(0, Number(point && point.packet_count) || 0), 0);
+      const activeMinutes = historyPoints.reduce((sum, point) => (
+        sum + ((Number(point && point.packet_count) || 0) > 0 ? 1 : 0)
+      ), 0);
+      const activeHoursText = `${{(activeMinutes / 60).toFixed(1)}}h`;
+      const firstPointUnix = historyPoints.length
+        ? Number(historyPoints[0] && historyPoints[0].bucket_unix)
+        : null;
+      const lastPointUnix = historyPoints.length
+        ? Number(historyPoints[historyPoints.length - 1] && historyPoints[historyPoints.length - 1].bucket_unix)
+        : null;
+      const coveredHoursText = savedDetailDurationHours(firstPointUnix, lastPointUnix);
+      const peakPacketsPerMinute = historyPoints.reduce((peak, point) => {{
+        const count = Number(point && point.packet_count);
+        if (!Number.isFinite(count)) return peak;
+        return Math.max(peak, count);
+      }}, 0);
+
+      let snrWeighted = 0;
+      let snrWeight = 0;
+      let rssiWeighted = 0;
+      let rssiWeight = 0;
+      let hopsWeighted = 0;
+      let hopsWeight = 0;
+      for (const point of historyPoints) {{
+        const weight = Math.max(1, Number(point && point.packet_count) || 0);
+        const snr = Number(point && point.avg_snr);
+        const rssi = Number(point && point.avg_rssi);
+        const hops = Number(point && point.avg_hops);
+        if (Number.isFinite(snr)) {{
+          snrWeighted += snr * weight;
+          snrWeight += weight;
+        }}
+        if (Number.isFinite(rssi)) {{
+          rssiWeighted += rssi * weight;
+          rssiWeight += weight;
+        }}
+        if (Number.isFinite(hops)) {{
+          hopsWeighted += hops * weight;
+          hopsWeight += weight;
+        }}
+      }}
+      const snrAvg = snrWeight > 0 ? (snrWeighted / snrWeight) : null;
+      const rssiAvg = rssiWeight > 0 ? (rssiWeighted / rssiWeight) : null;
+      const hopsAvg = hopsWeight > 0 ? (hopsWeighted / hopsWeight) : null;
+      const snrRange = `${{formatMetricValue(historySummary.snr_min, 1)}} to ${{formatMetricValue(historySummary.snr_max, 1)}} dB`;
+      const rssiRange = `${{formatMetricValue(historySummary.rssi_min, 0)}} to ${{formatMetricValue(historySummary.rssi_max, 0)}} dBm`;
+      const note = String(noteText || "").trim() || (loading ? "Historical points are loading for this node." : "");
+
+      return savedDetailSectionHtml(String(title || "History").trim() || "History", [
+        ["Window", historyWindowText],
+        ["Samples (1m)", String(historyPointCount)],
+        ["Active Hours", activeHoursText],
+        ["Covered Range", coveredHoursText],
+        ["Total Packets", String(historyTotalPackets)],
+        ["Peak Packets/min", String(Math.round(peakPacketsPerMinute || 0))],
+        ["First Bucket", savedDetailText(historySummary.first_bucket)],
+        ["Last Bucket", savedDetailText(historySummary.last_bucket)],
+        ["History Last Seen", savedDetailText(historySummary.last_seen)],
+        ["Avg SNR", Number.isFinite(snrAvg) ? `${{formatMetricValue(snrAvg, 2)}} dB` : "n/a"],
+        ["SNR Range", snrRange],
+        ["Avg RSSI", Number.isFinite(rssiAvg) ? `${{formatMetricValue(rssiAvg, 1)}} dBm` : "n/a"],
+        ["RSSI Range", rssiRange],
+        ["Avg Hops", Number.isFinite(hopsAvg) ? formatMetricValue(hopsAvg, 2) : "n/a"],
+        ["Trail Points", String(Number.isFinite(Number(historySummary.trail_points)) ? Number(historySummary.trail_points) : historyPositions.length)],
+      ], note);
+    }}
+
     function computeSavedChatStats(nodeId, messages) {{
       const stats = {{
         touches: 0,

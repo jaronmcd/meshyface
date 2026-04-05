@@ -7,7 +7,7 @@ from meshdash.html_js import build_dashboard_js
 from meshdash.html_template import render_html
 
 
-def test_render_html_includes_node_history_names_tab() -> None:
+def test_render_html_includes_node_history_names_and_overview_tabs() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -25,17 +25,26 @@ def test_render_html_includes_node_history_names_tab() -> None:
     assert 'data-tab="names"' in html
     assert 'id="tab-panel-names"' in html
     assert 'id="node-name-history-host"' in html
+    assert 'id="tab-btn-overview"' in html
+    assert 'data-tab="overview"' in html
+    assert 'id="tab-panel-overview"' in html
+    assert 'id="node-history-overview-host"' in html
 
 
-def test_dashboard_js_renders_name_history_under_history_tab() -> None:
+def test_dashboard_js_renders_name_history_and_overview_under_history_tab() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert 'nextTab === "online" || nextTab === "packets" || nextTab === "names"' in js
+    assert 'nextTab === "online" || nextTab === "packets" || nextTab === "names" || nextTab === "overview"' in js
     assert 'const namesPanel = document.getElementById("tab-panel-names");' in js
+    assert 'const overviewPanel = document.getElementById("tab-panel-overview");' in js
     assert 'renderNodeNameHistoryPanel(nameHistoryEntries);' in js
     assert 'renderNodeNameHistoryPanel([], {' in js
     assert 'const nameHistoryEntries = Array.isArray(history && history.name_history)' in js
+    assert 'const host = document.getElementById("node-history-overview-host");' in js
+    assert 'renderNodeHistoryOverviewPanel(history, {' in js
+    assert 'savedNodeHistoryOverviewSectionHtml(history, {' in js
+    assert 'const historySection = savedDetailSectionHtml("History",' not in js
