@@ -187,6 +187,16 @@
       }});
     }}
 
+    function chatNodeNavigatorStatusSortValue(item, projection) {{
+      const statusKey = normalizeFreshnessKey(item && item.status);
+      if (statusKey && statusKey !== "unknown") {{
+        return (typeof statusRank === "function") ? statusRank(statusKey) : 99;
+      }}
+      return Number.isFinite(Number(projection && projection.statusSort))
+        ? Number(projection.statusSort)
+        : 99;
+    }}
+
     function chatNodeNavigatorSortValue(item, projection, sortKeyRaw, nowUnixRaw = null) {{
       const sortKey = normalizeChatNodeNavigatorSortKeyPref(sortKeyRaw);
       const safeItem = item && typeof item === "object" ? item : {{}};
@@ -197,9 +207,7 @@
         ? Math.trunc(Number(nowUnixRaw))
         : Math.floor(Date.now() / 1000);
       if (sortKey === "status") {{
-        return Number.isFinite(Number(safeProjection.statusSort))
-          ? Number(safeProjection.statusSort)
-          : 99;
+        return chatNodeNavigatorStatusSortValue(safeItem, safeProjection);
       }}
       if (sortKey === "activity") {{
         return Number(safeItem.lastMessageUnix) || 0;
@@ -263,7 +271,10 @@
           return sortDir === "desc" ? -cmp : cmp;
         }}
 
-        const statusCmp = chatNodeNavigatorCompareSortValues(aProjection.statusSort, bProjection.statusSort);
+        const statusCmp = chatNodeNavigatorCompareSortValues(
+          chatNodeNavigatorStatusSortValue(a, aProjection),
+          chatNodeNavigatorStatusSortValue(b, bProjection)
+        );
         if (statusCmp !== 0) return statusCmp;
 
         const activityCmp = chatNodeNavigatorCompareSortValues(

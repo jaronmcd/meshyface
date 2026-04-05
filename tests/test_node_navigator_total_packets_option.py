@@ -125,3 +125,18 @@ def test_dashboard_js_supports_idle_toggle_in_node_navigator() -> None:
     assert 'const idleRowHtml = showIdle' in js
     assert 'const memberMetaRowParts = [];' in js
     assert 'const memberMetaRowHtml = memberMetaRowParts.length > 0' in js
+
+
+def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function chatNodeNavigatorStatusSortValue(item, projection) {" in js
+    assert 'const statusKey = normalizeFreshnessKey(item && item.status);' in js
+    assert 'return (typeof statusRank === "function") ? statusRank(statusKey) : 99;' in js
+    assert "return chatNodeNavigatorStatusSortValue(safeItem, safeProjection);" in js
+    assert "chatNodeNavigatorStatusSortValue(a, aProjection)" in js
+    assert "chatNodeNavigatorStatusSortValue(b, bProjection)" in js
