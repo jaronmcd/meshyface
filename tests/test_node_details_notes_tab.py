@@ -93,9 +93,31 @@ def test_render_html_places_location_chat_links_before_notes_in_drawer_tabs() ->
     chat_index = html.index('id="chat-node-details-tab-chat"')
     links_index = html.index('id="chat-node-details-tab-links"')
     notes_index = html.index('id="chat-node-details-tab-notes"')
-    spacer_index = html.index('class="chat-node-details-tab-spacer"')
 
-    assert history_index < location_index < chat_index < links_index < notes_index < spacer_index
+    assert history_index < location_index < chat_index < links_index < notes_index
+
+
+def test_render_html_places_mute_and_send_message_actions_in_drawer_header() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    head_index = html.index('class="chat-node-details-head"')
+    title_index = html.index('id="chat-node-details-title"')
+    mute_index = html.index('id="chat-node-details-mute-btn"')
+    dm_index = html.index('id="chat-node-details-dm-btn"')
+    tabs_index = html.index('class="chat-node-details-tabs"')
+
+    assert head_index < title_index < mute_index < dm_index < tabs_index
 
 
 def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:

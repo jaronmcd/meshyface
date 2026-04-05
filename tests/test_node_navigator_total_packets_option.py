@@ -140,3 +140,16 @@ def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:
     assert "return chatNodeNavigatorStatusSortValue(safeItem, safeProjection);" in js
     assert "chatNodeNavigatorStatusSortValue(a, aProjection)" in js
     assert "chatNodeNavigatorStatusSortValue(b, bProjection)" in js
+
+
+def test_dashboard_js_marks_muted_nodes_in_navigator_rows() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'const muted = (typeof isMutedNode === "function") && isMutedNode(nodeId);' in js
+    assert 'const mutedClass = muted ? " muted-node" : "";' in js
+    assert '`Muted: ${muted ? "yes" : "no"}`' in js
+    assert '${mutedClass}' in js

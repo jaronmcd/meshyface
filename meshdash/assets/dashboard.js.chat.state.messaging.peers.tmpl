@@ -705,6 +705,7 @@
           : ((caps && caps.has_position === true) ? "history only" : "n/a");
         const noteEntry = (typeof nodeNoteEntry === "function") ? nodeNoteEntry(nodeId) : null;
         const noteText = String((noteEntry && noteEntry.note) || "").trim();
+        const muted = (typeof isMutedNode === "function") && isMutedNode(nodeId);
         const idleText = Number.isFinite(Number(snapshot && snapshot.lastSeenUnix))
           ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
           : "n/a";
@@ -762,6 +763,7 @@
           `Battery: ${{batteryText}}`,
           `Hops: ${{hopsText}}`,
           `GPS: ${{gpsText}}`,
+          `Muted: ${{muted ? "yes" : "no"}}`,
           `Saved P2P: ${{item && item.p2pPinned ? "yes" : "no"}}`,
         ];
         if (showPacketTrendRow) {{
@@ -881,6 +883,7 @@
           ? `${{nodeTintStyleVars(nodeId, memberTintOptions)}}${{tagStyleVars}}`
           : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || 145)))}};${{tagStyleVars}}`;
         const tagClass = tagActive ? " tagged-node" : "";
+        const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
           ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
           : "";
@@ -888,7 +891,7 @@
         const actionRowHtml = removeBtn
           ? `<span class="chat-member-actions">${{removeBtn}}</span>`
           : '<span class="chat-member-actions"></span>';
-        return `<div class="chat-member-item status-${{statusKey}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{packetSparkClass}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
+        return `<div class="chat-member-item status-${{statusKey}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{mutedClass}}${{packetSparkClass}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
           <span class="chat-member-status status-${{statusKey}}">●</span>
           <span class="chat-member-main">
             <span class="chat-member-name-row">

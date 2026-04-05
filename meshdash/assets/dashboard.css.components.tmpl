@@ -3142,6 +3142,33 @@
       background: rgba(164, 60, 60, 0.24);
       color: #ffc8c8;
     }}
+    [data-theme="dark"] .chat-member-item.muted-node {{
+      background:
+        linear-gradient(
+          90deg,
+          rgba(34, 38, 37, 0.72),
+          rgba(40, 45, 43, 0.58) 58%,
+          rgba(52, 58, 56, 0.36) 100%
+        ),
+        var(--chat-member-node-gradient),
+        var(--chat-member-node-bg);
+      border-color: rgba(84, 92, 89, 0.84);
+    }}
+    [data-theme="dark"] .chat-member-item.muted-node .chat-member-status {{
+      color: #6f7a74;
+    }}
+    [data-theme="dark"] .chat-member-item.muted-node .chat-member-name,
+    [data-theme="dark"] .chat-member-item.muted-node .chat-member-meta-row,
+    [data-theme="dark"] .chat-member-item.muted-node .chat-member-fields-row,
+    [data-theme="dark"] .chat-member-item.muted-node .chat-member-tag-chip {{
+      opacity: 0.56;
+    }}
+    [data-theme="dark"] .chat-member-item.muted-node.selected-node {{
+      border-color: rgba(116, 126, 122, 0.92) !important;
+      box-shadow:
+        inset 2px 0 0 rgba(116, 126, 122, 0.58),
+        inset 0 0 0 1px rgba(82, 90, 87, 0.64);
+    }}
     [data-theme="dark"] .chat-node-details-tab-btn.is-active {{
       border-color: #5f9a7c;
       background: #214032;

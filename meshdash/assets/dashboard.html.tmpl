@@ -262,7 +262,26 @@
         ></div>
         <section id="chat-node-details-drawer" class="chat-node-details-drawer" hidden>
           <div class="chat-node-details-head">
-            <div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>
+            <div class="chat-node-details-head-main">
+              <div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>
+              <div class="chat-node-details-head-actions">
+                <button
+                  id="chat-node-details-mute-btn"
+                  class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn"
+                  type="button"
+                  title="Mute this user in chat feed"
+                  aria-pressed="false"
+                  hidden
+                ><span class="chat-node-details-mute-label">Mute</span></button>
+                <button
+                  id="chat-node-details-dm-btn"
+                  class="chat-node-details-action-btn chat-node-details-dm-btn"
+                  type="button"
+                  title="Open peer message window"
+                  hidden
+                >Send message</button>
+              </div>
+            </div>
             <button
               id="chat-node-details-close-btn"
               class="chat-node-details-close-btn"
@@ -330,22 +349,6 @@
               aria-selected="false"
               data-drawer-tab="notes"
             >Notes</button>
-            <span class="chat-node-details-tab-spacer" aria-hidden="true"></span>
-            <button
-              id="chat-node-details-mute-btn"
-              class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn"
-              type="button"
-              title="Mute this user in chat feed"
-              aria-pressed="false"
-              hidden
-            ><span class="chat-node-details-mute-label">Mute</span></button>
-            <button
-              id="chat-node-details-dm-btn"
-              class="chat-node-details-action-btn chat-node-details-dm-btn"
-              type="button"
-              title="Open peer message window"
-              hidden
-            >Send message</button>
           </div>
           <div
             id="chat-node-details-panel-details"
