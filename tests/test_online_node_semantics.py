@@ -34,3 +34,17 @@ def test_dashboard_js_roster_health_uses_summary_online_count() -> None:
     )
     assert '{ key: "Offline", value: String(offlineCount) }' in js
     assert '{ key: "Total", value: String(totalCount) }' in js
+
+
+def test_dashboard_js_node_online_history_shows_status_and_official_windows() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "const meshtasticOnlineWindowSeconds = 2 * 60 * 60;" in js
+    assert "Status (10m online / 30m stale)" in js
+    assert "Official (2h online)" in js
+    assert 'Status O/A/S: ${percentText(statusOnlinePercent)} / ${percentText(statusWarnPercent)} / ${percentText(statusStalePercent)}%' in js
+    assert 'Official online: ${percentText(officialOnlinePercent)}%' in js

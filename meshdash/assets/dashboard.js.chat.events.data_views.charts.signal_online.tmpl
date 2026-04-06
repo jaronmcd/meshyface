@@ -253,9 +253,17 @@
           packetsByBucket.set(bucketMinute, Math.max(normalizedCount, packetsByBucket.get(bucketMinute) || 0));
         }}
       }}
-      const onlineHoldSeconds = Math.max(
+      const statusOnlineWindowSeconds = Math.max(
         60,
-        Math.round((Number(chatStaleWindowSeconds) || Number(chatWarnWindowSeconds) || 1800) / 60) * 60
+        Math.round((Number(chatWarnWindowSeconds) || 600) / 60) * 60
+      );
+      const statusWarnWindowSeconds = Math.max(
+        statusOnlineWindowSeconds,
+        Math.round((Number(chatStaleWindowSeconds) || 1800) / 60) * 60
+      );
+      const officialOnlineWindowSeconds = Math.max(
+        statusWarnWindowSeconds,
+        Math.round((Number(meshtasticOnlineWindowSeconds) || (2 * 60 * 60)) / 60) * 60
       );
       const width = signalChartLayout.width;
       const height = signalChartLayout.height;
@@ -265,40 +273,23 @@
       const padBottom = signalChartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
-      const yOnline = padTop + (plotH * 0.22);
-      const yOffline = padTop + (plotH * 0.82);
 
       const eventBuckets = Array.from(packetsByBucket.entries())
         .filter(([bucket, count]) => Number.isFinite(bucket) && Number.isFinite(count) && count > 0)
         .map(([bucket]) => Math.trunc(bucket))
         .sort((a, b) => a - b);
 
-      const intervals = [];
-      for (const bucket of eventBuckets) {{
-        const packetUnix = Math.max(startUnix - onlineHoldSeconds, Math.trunc(bucket));
-        const intervalStart = Math.max(startUnix, packetUnix);
-        const intervalEnd = Math.min(endUnix, packetUnix + onlineHoldSeconds);
-        if (!(intervalEnd > intervalStart)) continue;
-        const last = intervals[intervals.length - 1];
-        if (last && intervalStart <= last.end_unix) {{
-          last.end_unix = Math.max(last.end_unix, intervalEnd);
-        }} else {{
-          intervals.push({{
-            start_unix: intervalStart,
-            end_unix: intervalEnd,
-          }});
-        }}
-      }}
-
       const timelinePoints = new Set([startUnix, endUnix]);
       for (const bucket of eventBuckets) {{
         if (bucket >= startUnix && bucket <= endUnix) {{
           timelinePoints.add(bucket);
         }}
-      }}
-      for (const interval of intervals) {{
-        timelinePoints.add(interval.start_unix);
-        timelinePoints.add(interval.end_unix);
+        const statusOnlineEdge = Math.min(endUnix, Math.max(startUnix, bucket + statusOnlineWindowSeconds));
+        const statusWarnEdge = Math.min(endUnix, Math.max(startUnix, bucket + statusWarnWindowSeconds));
+        const officialEdge = Math.min(endUnix, Math.max(startUnix, bucket + officialOnlineWindowSeconds));
+        timelinePoints.add(statusOnlineEdge);
+        timelinePoints.add(statusWarnEdge);
+        timelinePoints.add(officialEdge);
       }}
       const allPlotRows = Array.from(timelinePoints)
         .filter((unixTs) => Number.isFinite(unixTs))
@@ -307,7 +298,11 @@
       chartState.points = allPlotRows;
       const visible = getVisibleHistoryTrendRows(chartState, allPlotRows);
       const plotRows = visible.rows;
-      setHistoryTrendChartTitle(svg, "Node online history chart", visible.zoomed);
+      setHistoryTrendChartTitle(
+        svg,
+        "Node online history chart (status transitions + Meshtastic official window)",
+        visible.zoomed
+      );
 
       if (allPlotRows.length === 0 || plotRows.length === 0) {{
         svg.innerHTML = "";
@@ -339,67 +334,188 @@
         const ratio = Math.max(0, Math.min(1, (Number(unixTs) - viewStartUnix) / viewWindowSeconds));
         return padLeft + (ratio * plotW);
       }};
-      const clippedIntervals = [];
-      for (const interval of intervals) {{
-        const clippedStart = Math.max(viewStartUnix, Number(interval.start_unix));
-        const clippedEnd = Math.min(viewEndUnix, Number(interval.end_unix));
-        if (!(clippedEnd > clippedStart)) continue;
-        clippedIntervals.push({{
-          start_unix: clippedStart,
-          end_unix: clippedEnd,
+      const breakpointSet = new Set([viewStartUnix, viewEndUnix]);
+      for (const row of plotRows) {{
+        const rowUnix = normalizeUnixSeconds(row && row.bucket_unix);
+        if (!Number.isFinite(rowUnix)) continue;
+        if (rowUnix < viewStartUnix || rowUnix > viewEndUnix) continue;
+        breakpointSet.add(Math.trunc(rowUnix));
+      }}
+      const breakpoints = Array.from(breakpointSet).sort((a, b) => a - b);
+      const statusDurations = {{
+        online: 0,
+        warn: 0,
+        stale: 0,
+      }};
+      const officialDurations = {{
+        online: 0,
+        offline: 0,
+      }};
+      const segments = [];
+      let eventCursor = 0;
+      let latestEventUnix = null;
+      for (let idx = 0; idx < (breakpoints.length - 1); idx += 1) {{
+        const segmentStart = Math.max(viewStartUnix, Math.trunc(Number(breakpoints[idx]) || 0));
+        const segmentEnd = Math.min(viewEndUnix, Math.trunc(Number(breakpoints[idx + 1]) || 0));
+        if (!(segmentEnd > segmentStart)) continue;
+        const midUnix = segmentStart + Math.max(1, Math.floor((segmentEnd - segmentStart) / 2));
+        while (eventCursor < eventBuckets.length && eventBuckets[eventCursor] <= midUnix) {{
+          latestEventUnix = eventBuckets[eventCursor];
+          eventCursor += 1;
+        }}
+        let statusKey = "stale";
+        let officialKey = "offline";
+        if (Number.isFinite(latestEventUnix) && latestEventUnix > 0) {{
+          const ageSeconds = Math.max(0, midUnix - latestEventUnix);
+          if (ageSeconds <= statusOnlineWindowSeconds) {{
+            statusKey = "online";
+          }} else if (ageSeconds <= statusWarnWindowSeconds) {{
+            statusKey = "warn";
+          }}
+          if (ageSeconds <= officialOnlineWindowSeconds) {{
+            officialKey = "online";
+          }}
+        }}
+        const duration = Math.max(0, segmentEnd - segmentStart);
+        statusDurations[statusKey] += duration;
+        officialDurations[officialKey] += duration;
+        segments.push({{
+          start_unix: segmentStart,
+          end_unix: segmentEnd,
+          statusKey,
+          officialKey,
         }});
       }}
-      empty.hidden = clippedIntervals.length > 0;
+      empty.hidden = true;
 
-      let path = `M ${{xFromUnix(viewStartUnix).toFixed(2)}} ${{yOffline.toFixed(2)}}`;
-      const onlineRects = [];
-      let onlineDuration = 0;
-      for (const interval of clippedIntervals) {{
-        const startX = xFromUnix(interval.start_unix);
-        const endX = xFromUnix(interval.end_unix);
-        path += ` L ${{startX.toFixed(2)}} ${{yOffline.toFixed(2)}}`;
-        path += ` L ${{startX.toFixed(2)}} ${{yOnline.toFixed(2)}}`;
-        path += ` L ${{endX.toFixed(2)}} ${{yOnline.toFixed(2)}}`;
-        path += ` L ${{endX.toFixed(2)}} ${{yOffline.toFixed(2)}}`;
-        const rectW = Math.max(1, endX - startX);
-        onlineRects.push(
-          `<rect x="${{startX.toFixed(2)}}" y="${{padTop.toFixed(2)}}" width="${{rectW.toFixed(2)}}" height="${{plotH.toFixed(2)}}" fill="currentColor" opacity="0.12"></rect>`
-        );
-        onlineDuration += Math.max(0, Number(interval.end_unix) - Number(interval.start_unix));
-      }}
-      path += ` L ${{xFromUnix(viewEndUnix).toFixed(2)}} ${{yOffline.toFixed(2)}}`;
+      const statusLaneTop = padTop + 8;
+      const statusLaneBottom = padTop + (plotH * 0.60);
+      const officialLaneTop = padTop + (plotH * 0.72);
+      const officialLaneBottom = padTop + plotH;
+      const statusLaneHeight = Math.max(24, statusLaneBottom - statusLaneTop);
+      const officialLaneHeight = Math.max(18, officialLaneBottom - officialLaneTop);
+      const statusYByKey = {{
+        online: statusLaneTop + (statusLaneHeight * 0.14),
+        warn: statusLaneTop + (statusLaneHeight * 0.50),
+        stale: statusLaneTop + (statusLaneHeight * 0.86),
+      }};
+      const officialYByKey = {{
+        online: officialLaneTop + (officialLaneHeight * 0.22),
+        offline: officialLaneTop + (officialLaneHeight * 0.78),
+      }};
 
-      const onlinePercent = viewWindowSeconds > 0 ? (onlineDuration / viewWindowSeconds) * 100 : 0;
-      const onlinePercentText = onlinePercent < 1
-        ? onlinePercent.toFixed(1)
-        : String(Math.round(onlinePercent));
-      if (clippedIntervals.length === 0) {{
-        empty.textContent = "No online packets observed in selected window.";
-      }}
+      const percentText = (value) => {{
+        const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+        return safe < 9.95 ? safe.toFixed(1) : String(Math.round(safe));
+      }};
+      const statusOnlinePercent = viewWindowSeconds > 0 ? (statusDurations.online / viewWindowSeconds) * 100 : 0;
+      const statusWarnPercent = viewWindowSeconds > 0 ? (statusDurations.warn / viewWindowSeconds) * 100 : 0;
+      const statusStalePercent = viewWindowSeconds > 0 ? (statusDurations.stale / viewWindowSeconds) * 100 : 0;
+      const officialOnlinePercent = viewWindowSeconds > 0 ? (officialDurations.online / viewWindowSeconds) * 100 : 0;
       const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
       const chartPalette = darkTheme
         ? {{
             grid: "#324152",
-            line: "#58c878",
             label: "#a4d0ff",
+            connector: "#9fb3c8",
+            statusOnline: "#58c878",
+            statusWarn: "#d9b95c",
+            statusStale: "#e27b7b",
+            officialOnline: "#79c0ff",
+            officialOffline: "#7f90a5",
           }}
         : {{
             grid: "#dce8df",
-            line: "#1f6f53",
             label: "#3b5c4b",
+            connector: "#7b8992",
+            statusOnline: "#1f6f53",
+            statusWarn: "#9a7724",
+            statusStale: "#b45151",
+            officialOnline: "#265d7b",
+            officialOffline: "#8b98a3",
           }};
+      const renderSegmentLines = (rows, stateKeyName, yByState, colorByState, strokeWidth = 2.6) => {{
+        const horizontals = [];
+        const connectors = [];
+        let previousState = "";
+        for (let idx = 0; idx < rows.length; idx += 1) {{
+          const row = rows[idx];
+          const stateKey = String(row && row[stateKeyName] ? row[stateKeyName] : "").trim();
+          const startX = xFromUnix(row && row.start_unix);
+          const endX = xFromUnix(row && row.end_unix);
+          const y = Number(yByState[stateKey]);
+          const previousY = Number(yByState[previousState]);
+          if (!Number.isFinite(startX) || !Number.isFinite(endX) || !Number.isFinite(y)) continue;
+          horizontals.push(
+            `<line x1="${{startX.toFixed(2)}}" y1="${{y.toFixed(2)}}" x2="${{endX.toFixed(2)}}" y2="${{y.toFixed(2)}}" stroke="${{escAttr(colorByState[stateKey] || chartPalette.connector)}}" stroke-width="${{strokeWidth.toFixed(2)}}" stroke-linecap="round"></line>`
+          );
+          if (idx > 0 && previousState && Number.isFinite(previousY) && previousY !== y) {{
+            connectors.push(
+              `<line x1="${{startX.toFixed(2)}}" y1="${{previousY.toFixed(2)}}" x2="${{startX.toFixed(2)}}" y2="${{y.toFixed(2)}}" stroke="${{escAttr(chartPalette.connector)}}" stroke-width="1.35" stroke-linecap="round" opacity="0.9"></line>`
+            );
+          }}
+          previousState = stateKey;
+        }}
+        return {{
+          horizontals,
+          connectors,
+        }};
+      }};
+      const statusLines = renderSegmentLines(
+        segments,
+        "statusKey",
+        statusYByKey,
+        {{
+          online: chartPalette.statusOnline,
+          warn: chartPalette.statusWarn,
+          stale: chartPalette.statusStale,
+        }},
+        3.1
+      );
+      const officialLines = renderSegmentLines(
+        segments,
+        "officialKey",
+        officialYByKey,
+        {{
+          online: chartPalette.officialOnline,
+          offline: chartPalette.officialOffline,
+        }},
+        2.7
+      );
+      const officialRects = segments
+        .filter((segment) => String(segment && segment.officialKey || "") === "online")
+        .map((segment) => {{
+          const startX = xFromUnix(segment && segment.start_unix);
+          const endX = xFromUnix(segment && segment.end_unix);
+          const rectW = Math.max(1, endX - startX);
+          return `<rect x="${{startX.toFixed(2)}}" y="${{officialLaneTop.toFixed(2)}}" width="${{rectW.toFixed(2)}}" height="${{officialLaneHeight.toFixed(2)}}" fill="${{escAttr(chartPalette.officialOnline)}}" opacity="0.12"></rect>`;
+        }});
 
       svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
       svg.innerHTML = `
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
         <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{yOnline.toFixed(2)}}" x2="${{width - padRight}}" y2="${{yOnline.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <line x1="${{padLeft}}" y1="${{yOffline.toFixed(2)}}" x2="${{width - padRight}}" y2="${{yOffline.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        <g style="color:${{chartPalette.line}}">${{onlineRects.join("")}}</g>
-        <path d="${{path}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="2.3"></path>
-        <text x="${{padLeft - 4}}" y="${{(yOnline + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">Online</text>
-        <text x="${{padLeft - 4}}" y="${{(yOffline + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">Offline</text>
-        <text x="${{width - padRight + 4}}" y="${{(padTop + 10).toFixed(2)}}" font-size="10" text-anchor="start" fill="${{chartPalette.label}}">${{onlinePercentText}}% online</text>
+        <line x1="${{padLeft}}" y1="${{statusLaneTop.toFixed(2)}}" x2="${{width - padRight}}" y2="${{statusLaneTop.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{statusYByKey.online.toFixed(2)}}" x2="${{width - padRight}}" y2="${{statusYByKey.online.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{statusYByKey.warn.toFixed(2)}}" x2="${{width - padRight}}" y2="${{statusYByKey.warn.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{statusYByKey.stale.toFixed(2)}}" x2="${{width - padRight}}" y2="${{statusYByKey.stale.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{officialLaneTop.toFixed(2)}}" x2="${{width - padRight}}" y2="${{officialLaneTop.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{officialYByKey.online.toFixed(2)}}" x2="${{width - padRight}}" y2="${{officialYByKey.online.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <line x1="${{padLeft}}" y1="${{officialYByKey.offline.toFixed(2)}}" x2="${{width - padRight}}" y2="${{officialYByKey.offline.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        <g>${{officialRects.join("")}}</g>
+        <g>${{statusLines.connectors.join("")}}${{statusLines.horizontals.join("")}}</g>
+        <g>${{officialLines.connectors.join("")}}${{officialLines.horizontals.join("")}}</g>
+        <text x="${{(padLeft + 4).toFixed(2)}}" y="${{(statusLaneTop - 2).toFixed(2)}}" font-size="10" text-anchor="start" fill="${{chartPalette.label}}">Status (10m online / 30m stale)</text>
+        <text x="${{(padLeft - 4).toFixed(2)}}" y="${{(statusYByKey.online + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.statusOnline}}">Online</text>
+        <text x="${{(padLeft - 4).toFixed(2)}}" y="${{(statusYByKey.warn + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.statusWarn}}">Aging</text>
+        <text x="${{(padLeft - 4).toFixed(2)}}" y="${{(statusYByKey.stale + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.statusStale}}">Stale</text>
+        <text x="${{(padLeft + 4).toFixed(2)}}" y="${{(officialLaneTop - 2).toFixed(2)}}" font-size="10" text-anchor="start" fill="${{chartPalette.label}}">Official (2h online)</text>
+        <text x="${{(padLeft - 4).toFixed(2)}}" y="${{(officialYByKey.online + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.officialOnline}}">Online</text>
+        <text x="${{(padLeft - 4).toFixed(2)}}" y="${{(officialYByKey.offline + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.officialOffline}}">Offline</text>
+        <text x="${{(width - padRight + 4).toFixed(2)}}" y="${{(padTop + 10).toFixed(2)}}" font-size="10" text-anchor="start" fill="${{chartPalette.label}}">
+          <tspan x="${{(width - padRight + 4).toFixed(2)}}" dy="0">Status O/A/S: ${{percentText(statusOnlinePercent)}} / ${{percentText(statusWarnPercent)}} / ${{percentText(statusStalePercent)}}%</tspan>
+          <tspan x="${{(width - padRight + 4).toFixed(2)}}" dy="12">Official online: ${{percentText(officialOnlinePercent)}}%</tspan>
+        </text>
       `;
 
       renderTimeline(
