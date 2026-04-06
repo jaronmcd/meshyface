@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from meshdash.html_css import build_dashboard_css
 from meshdash.html_js import build_dashboard_js
 from meshdash.html_sections import build_html_shell
 
@@ -36,3 +37,12 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'return clean === "overview" || clean === "graph" || clean === "sensors" ? clean : "map";' in js
     assert 'function renderNetworkGraphView(state = latestState)' in js
     assert 'activeNetworkSubview === "graph"' in js
+
+
+def test_network_layout_uses_single_row_map_track() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert ".layout.view-network {" in css
+    assert "grid-template-rows: minmax(0, 1fr);" in css
+    assert ".layout.view-network .map {" in css
+    assert "grid-row: 1;" in css
