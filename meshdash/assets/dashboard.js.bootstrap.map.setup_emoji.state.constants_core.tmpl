@@ -71,6 +71,11 @@
     function nodeExplorerBuildProjection(nodeInput, options = null) {{
       const node = nodeInput && typeof nodeInput === "object" ? nodeInput : {{}};
       const opts = options && typeof options === "object" ? options : {{}};
+      const caps = (
+        opts.historyCaps && typeof opts.historyCaps === "object"
+          ? opts.historyCaps
+          : (opts.caps && typeof opts.caps === "object" ? opts.caps : null)
+      );
       const nowUnix = Number.isFinite(Number(opts.nowUnix))
         ? Math.trunc(Number(opts.nowUnix))
         : Math.floor(Date.now() / 1000);
@@ -86,7 +91,11 @@
       const hardwareText = String((node && (node.hardware_model || node.hardware)) || "").trim() || "n/a";
       const snrRaw = Number(node && node.snr);
       const snrNum = Number.isFinite(snrRaw) ? snrRaw : null;
-      const hopsRaw = Number(node && node.hops_away);
+      const hopsRaw = Number(
+        (node && node.hops_away != null)
+          ? node.hops_away
+          : (caps && caps.last_hops)
+      );
       const hopsNum = Number.isFinite(hopsRaw) ? Math.trunc(hopsRaw) : null;
       const batteryRaw = Number(node && node.battery_level);
       const batteryNum = Number.isFinite(batteryRaw) ? Math.max(0, Math.min(100, Math.round(batteryRaw))) : null;

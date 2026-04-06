@@ -237,9 +237,15 @@
       return field ? field.sort : "";
     }}
 
-    function sortChatNodeNavigatorParticipants(participantsList, nodesById, nowUnix = Math.floor(Date.now() / 1000)) {{
+    function sortChatNodeNavigatorParticipants(
+      participantsList,
+      nodesById,
+      nowUnix = Math.floor(Date.now() / 1000),
+      historyCapsById = null
+    ) {{
       const rows = Array.isArray(participantsList) ? participantsList : [];
       const sourceNodes = nodesById instanceof Map ? nodesById : new Map();
+      const sourceHistoryCaps = historyCapsById instanceof Map ? historyCapsById : new Map();
       const sortKey = normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey);
       const sortDir = normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir);
       const projectionById = new Map();
@@ -251,7 +257,10 @@
         const node = sourceNodes.get(nodeId) || null;
         const projection = nodeExplorerBuildProjection(
           node || {{ id: nodeId, long_name: (entry && entry.name) || nodeId }},
-          {{ nowUnix }}
+          {{
+            nowUnix,
+            historyCaps: sourceHistoryCaps.get(nodeId) || null,
+          }}
         );
         projectionById.set(nodeId, projection);
         return projection;
@@ -644,7 +653,7 @@
 
       const rows = Array.from(participants.values());
       if (typeof sortChatNodeNavigatorParticipants === "function") {{
-        return sortChatNodeNavigatorParticipants(rows, nodesById, nowUnix);
+        return sortChatNodeNavigatorParticipants(rows, nodesById, nowUnix, historyCapsById);
       }}
       return rows.sort((a, b) => String((a && (a.name || a.id)) || "").localeCompare(String((b && (b.name || b.id)) || "")));
     }}
@@ -667,7 +676,10 @@
         const node = nodesById.get(nodeId) || null;
         const nodeProjection = nodeExplorerBuildProjection(
           node || {{ id: nodeId, long_name: (item && item.name) || nodeId }},
-          {{ nowUnix }}
+          {{
+            nowUnix,
+            historyCaps: historyCapsById.get(nodeId) || null,
+          }}
         );
         const caps = historyCapsById.get(nodeId) || null;
         const statusKey = normalizeFreshnessKey(item && item.status);
@@ -1021,7 +1033,7 @@
       const rosterAll = Array.isArray(opts.rosterAll)
         ? (
             typeof sortChatNodeNavigatorParticipants === "function"
-              ? sortChatNodeNavigatorParticipants(opts.rosterAll.slice(), nodesById, nowUnix)
+              ? sortChatNodeNavigatorParticipants(opts.rosterAll.slice(), nodesById, nowUnix, historyCapsById)
               : opts.rosterAll.slice()
           )
         : buildChatNodeNavigatorDefaultRoster(
