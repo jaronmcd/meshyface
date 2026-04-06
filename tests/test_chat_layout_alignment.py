@@ -18,9 +18,13 @@ def test_chat_layout_spacing_matches_tighter_network_style() -> None:
     assert ".chat-main-pane {" in css
     assert "row-gap: 0;" in css
     assert ".chat-compose-shell {" in css
-    assert "border-radius: 8px;" in css
-    assert "padding: 1px;" in css
+    assert "border-radius: 10px;" in css
+    assert "padding: 6px;" in css
     assert "gap: 0;" in css
+    assert ".list-search-input,\n    #chat-input {" in css
+    assert "#chat-input:hover {" not in css
+    assert "[data-theme=\"dark\"] #chat-input:hover {" not in css
+    assert "[data-theme=\"dark\"] #chat-input:focus {" not in css
 
 
 def test_chat_compose_notices_float_above_composer_shell() -> None:
