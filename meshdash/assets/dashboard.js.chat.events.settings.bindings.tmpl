@@ -253,6 +253,20 @@
         }});
       }}
 
+      const resetNodeDbBtn = document.getElementById("settings-reset-nodedb");
+      if (resetNodeDbBtn instanceof HTMLButtonElement) {{
+        resetNodeDbBtn.addEventListener("click", () => {{
+          void resetRadioNodeDb();
+        }});
+      }}
+
+      const resetDashboardDbBtn = document.getElementById("settings-reset-dashboard-db");
+      if (resetDashboardDbBtn instanceof HTMLButtonElement) {{
+        resetDashboardDbBtn.addEventListener("click", () => {{
+          void resetDashboardDb();
+        }});
+      }}
+
       const resetBtn = document.getElementById("settings-reset");
       if (resetBtn instanceof HTMLButtonElement) {{
         resetBtn.addEventListener("click", () => {{
