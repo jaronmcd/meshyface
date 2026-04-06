@@ -32,3 +32,18 @@ def test_dashboard_js_registers_console_nodes_aliases() -> None:
     assert 'name: "--nodes"' in js
     assert 'usage: "--nodes [pattern]' in js
     assert "runConsoleNodeListCommand" in js
+
+
+def test_dashboard_js_registers_console_traceroute_commands() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'name: "traceroute"' in js
+    assert 'usage: "traceroute <id|name|num>' in js
+    assert 'name: "--traceroute"' in js
+    assert 'usage: "--traceroute <id|name|num>' in js
+    assert "resolveConsoleNodeTarget" in js
+    assert "postNetworkToolCommand" in js

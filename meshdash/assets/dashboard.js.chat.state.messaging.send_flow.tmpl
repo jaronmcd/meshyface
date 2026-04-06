@@ -1587,6 +1587,25 @@
       return payload;
     }}
 
+    async function postNetworkToolCommand(body) {{
+      const resp = await fetch("/api/tools/network", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(body || {{}}),
+      }});
+      const payload = await resp.json().catch(() => ({{}}));
+      if (!resp.ok || !payload.ok) {{
+        const message = payload && payload.error ? payload.error : `network tool failed (${{resp.status}})`;
+        const err = new Error(message);
+        try {{
+          err.payload = payload;
+        }} catch (_err) {{
+        }}
+        throw err;
+      }}
+      return payload;
+    }}
+
     function restoreChatInputFocus(input) {{
       if (!(input instanceof HTMLInputElement)) return;
       window.requestAnimationFrame(() => {{

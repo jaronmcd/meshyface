@@ -378,6 +378,20 @@
         run: runNodeLookupCommand,
       }});
       registerConsoleCommand({{
+        name: "traceroute",
+        usage: "traceroute <id|name|num> [--dest=<id>] [--ch-index=<n>] [--hop-limit=<n>] [timeout=<ms>]",
+        description: "Trace a route to one node over the mesh.",
+        supportsVerbosity: false,
+        run: runConsoleTracerouteCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--traceroute",
+        usage: "--traceroute <id|name|num> [--dest=<id>] [--ch-index=<n>] [--hop-limit=<n>] [timeout=<ms>]",
+        description: "Meshtastic-style alias for traceroute.",
+        supportsVerbosity: false,
+        run: runConsoleTracerouteCommand,
+      }});
+      registerConsoleCommand({{
         name: "zork",
         usage: "zork",
         description: "Start a standalone local Zork session in Console.",

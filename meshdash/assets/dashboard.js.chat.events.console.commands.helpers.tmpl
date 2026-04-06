@@ -401,6 +401,114 @@
       return lines;
     }}
 
+    function consoleNodeRowNum(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      for (const value of [safeRow.num, raw.num, raw.node_num, raw.nodeNum]) {{
+        const parsed = parseNodeNum(value);
+        if (Number.isInteger(parsed) && parsed >= 0) {{
+          return parsed;
+        }}
+      }}
+      return null;
+    }}
+
+    function resolveConsoleNodeTarget(rawTarget, state = latestState) {{
+      const target = String(rawTarget == null ? "" : rawTarget).trim();
+      const rows = collectConsoleNodeRows(state);
+      if (!target) {{
+        return {{
+          target,
+          rows,
+          matches: [],
+          mode: "missing",
+        }};
+      }}
+
+      const normalizedId = normalizeNodeId(target);
+      if (isCanonicalNodeId(normalizedId)) {{
+        const exactIdMatches = rows.filter((row) => normalizeNodeId(row && row.id) === normalizedId);
+        if (exactIdMatches.length) {{
+          return {{
+            target,
+            rows,
+            matches: exactIdMatches,
+            mode: "exact-id",
+          }};
+        }}
+      }}
+
+      const targetNum = parseNodeNum(target);
+      if (Number.isInteger(targetNum) && targetNum >= 0) {{
+        const exactNumMatches = rows.filter((row) => consoleNodeRowNum(row) === targetNum);
+        if (exactNumMatches.length) {{
+          return {{
+            target,
+            rows,
+            matches: exactNumMatches,
+            mode: "exact-num",
+          }};
+        }}
+      }}
+
+      const exactName = target.toLowerCase();
+      const exactNameMatches = rows.filter((row) => (
+        collectConsoleNodeLookupNameVariants(row)
+          .some((value) => String(value == null ? "" : value).trim().toLowerCase() === exactName)
+      ));
+      if (exactNameMatches.length) {{
+        return {{
+          target,
+          rows,
+          matches: exactNameMatches,
+          mode: "exact-name",
+        }};
+      }}
+
+      const pattern = normalizeWildcardPattern(target);
+      const partialIdMatches = rows.filter((row) => wildcardMatches(pattern, row && row.id ? row.id : ""));
+      if (partialIdMatches.length === 1) {{
+        return {{
+          target,
+          rows,
+          matches: partialIdMatches,
+          mode: "partial-id",
+        }};
+      }}
+
+      const partialNameMatches = rows.filter((row) => (
+        collectConsoleNodeLookupNameVariants(row)
+          .some((value) => wildcardMatches(pattern, value))
+      ));
+      if (partialNameMatches.length === 1) {{
+        return {{
+          target,
+          rows,
+          matches: partialNameMatches,
+          mode: "partial-name",
+        }};
+      }}
+
+      const deduped = [];
+      const seen = new Set();
+      const pushRows = (entries) => {{
+        for (const row of entries) {{
+          const key = normalizeNodeId(row && row.id);
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(row);
+        }}
+      }};
+      pushRows(partialIdMatches);
+      pushRows(partialNameMatches);
+      return {{
+        target,
+        rows,
+        matches: deduped,
+        mode: deduped.length ? "ambiguous" : "none",
+      }};
+    }}
+
     function collectConsoleNodeLookupNameVariants(row) {{
       const safeRow = (row && typeof row === "object") ? row : {{}};
       const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
@@ -555,6 +663,111 @@
       }}
 
       return lines;
+    }}
+
+    async function runConsoleTracerouteCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const parseIntOption = (rawValue, label, minValue) => {{
+        if (rawValue == null) return {{ ok: true, value: null }};
+        const clean = String(rawValue).trim();
+        if (!clean) return {{ ok: true, value: null }};
+        const numeric = Number(clean);
+        if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {{
+          return {{ ok: false, error: `[traceroute] invalid ${{label}}: ${{clean}}` }};
+        }}
+        if (numeric < minValue) {{
+          return {{ ok: false, error: `[traceroute] ${{label}} must be >= ${{minValue}}` }};
+        }}
+        return {{ ok: true, value: Math.trunc(numeric) }};
+      }};
+
+      const channelIndexParsed = parseIntOption(
+        options["ch-index"] ?? options.ch_index ?? options["channel-index"] ?? options.channel_index,
+        "ch-index",
+        0,
+      );
+      if (!channelIndexParsed.ok) return channelIndexParsed.error;
+      const hopLimitParsed = parseIntOption(options["hop-limit"] ?? options.hop_limit, "hop-limit", 1);
+      if (!hopLimitParsed.ok) return hopLimitParsed.error;
+      const timeoutParsed = parseIntOption(options.timeout ?? options.timeout_ms, "timeout", 1);
+      if (!timeoutParsed.ok) return timeoutParsed.error;
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const rawTarget = String(explicitDest || args.join(" ")).trim();
+      if (!rawTarget) {{
+        return "[traceroute] missing target. Example: traceroute !abcd1234";
+      }}
+
+      let destination = "";
+      const normalizedDirectId = normalizeNodeId(rawTarget);
+      if (isCanonicalNodeId(normalizedDirectId)) {{
+        destination = normalizedDirectId;
+      }} else {{
+        const lookup = resolveConsoleNodeTarget(rawTarget, ctx && ctx.state);
+        const matches = Array.isArray(lookup && lookup.matches) ? lookup.matches : [];
+        if (matches.length < 1) {{
+          const quotedTarget = /[\s"]/.test(rawTarget) ? JSON.stringify(rawTarget) : rawTarget;
+          return [
+            `[traceroute] unknown target: ${{rawTarget}}`,
+            `[traceroute] try: list ${{quotedTarget}}`,
+          ];
+        }}
+        if (matches.length > 1) {{
+          const show = matches.slice(0, 10);
+          const lines = [`[traceroute] ambiguous target "${{rawTarget}}". Matches:`];
+          for (const row of show) {{
+            lines.push(`  ${{formatConsoleNodeLookupListLine(row)}}`);
+          }}
+          if (matches.length > show.length) {{
+            lines.push(`  ... ${{matches.length - show.length}} more match(es).`);
+          }}
+          lines.push("[traceroute] retry with a more specific id, name, or node number.");
+          return lines;
+        }}
+        destination = String(matches[0] && matches[0].id ? matches[0].id : "").trim();
+      }}
+
+      if (!isCanonicalNodeId(destination)) {{
+        return `[traceroute] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "traceroute",
+        destination,
+      }};
+      if (channelIndexParsed.value != null) {{
+        body.channel_index = channelIndexParsed.value;
+      }}
+      if (hopLimitParsed.value != null) {{
+        body.hop_limit = hopLimitParsed.value;
+      }}
+      if (timeoutParsed.value != null) {{
+        body.timeout_ms = timeoutParsed.value;
+      }}
+
+      try {{
+        const payload = await postNetworkToolCommand(body);
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        return lines.length ? lines : [`[traceroute] ${{destination}} | request completed`];
+      }} catch (err) {{
+        const payload = (err && typeof err === "object") ? err.payload : null;
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        if (lines.length) {{
+          return lines;
+        }}
+        throw err;
+      }}
     }}
 
     function parseConsoleLiveLayerCsv(rawValue) {{
