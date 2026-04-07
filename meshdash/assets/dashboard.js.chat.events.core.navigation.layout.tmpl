@@ -865,10 +865,129 @@
       return `${{text.slice(0, Math.max(1, maxLength - 3)).trimEnd()}}...`;
     }}
 
+    const networkGraphPacketFromIdKeys = ["from_id", "fromId", "from", "source_id", "sourceId", "source", "from_num", "fromNum"];
+    const networkGraphPacketToIdKeys = ["to_id", "toId", "to", "dest_id", "destId", "destination", "dest", "to_num", "toNum"];
+
+    function resolveNetworkGraphPacketNodeId(packet, keys, nodeIdByNum) {{
+      const safePacket = (packet && typeof packet === "object") ? packet : null;
+      const safeKeys = Array.isArray(keys) ? keys : [];
+      const numericLookup = nodeIdByNum instanceof Map ? nodeIdByNum : new Map();
+      for (const key of safeKeys) {{
+        const rawValue = safePacket ? safePacket[key] : null;
+        const clean = normalizeNodeId(rawValue);
+        if (isCanonicalNodeId(clean) || clean === "^all" || clean === "local") {{
+          return clean;
+        }}
+        const nodeNum = parseNodeNum(rawValue);
+        if (Number.isInteger(nodeNum) && numericLookup.has(nodeNum)) {{
+          return normalizeNodeId(numericLookup.get(nodeNum) || "");
+        }}
+      }}
+      return "";
+    }}
+
+    function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets) {{
+      const signalMeta = new Map();
+      const nodeIdByNum = new Map();
+      for (const [nodeId, node] of (nodeMap instanceof Map ? nodeMap.entries() : [])) {{
+        const nodeNum = parseNodeNum(node && node.num);
+        if (Number.isInteger(nodeNum) && nodeNum >= 0 && !nodeIdByNum.has(nodeNum)) {{
+          nodeIdByNum.set(nodeNum, nodeId);
+        }}
+        const lastHeardRaw = Number(node && (node.last_heard_unix ?? node.last_heard_epoch ?? 0));
+        const lastHeardUnix = Number.isFinite(lastHeardRaw) && lastHeardRaw > 0
+          ? Math.trunc(lastHeardRaw)
+          : 0;
+        const savedPacketsRaw = Number(node && node.saved_packets);
+        const savedPackets = Number.isFinite(savedPacketsRaw)
+          ? Math.max(0, Math.trunc(savedPacketsRaw))
+          : 0;
+        const hopsRaw = Number(node && node.hops_away);
+        const hopsAway = Number.isFinite(hopsRaw) ? Math.trunc(hopsRaw) : null;
+        signalMeta.set(nodeId, {{
+          packetCount: 0,
+          broadcastPacketCount: 0,
+          directTargetCount: 0,
+          incomingDirectCount: 0,
+          lastPortnum: "",
+          lastHeardUnix,
+          savedPackets,
+          hopsAway,
+        }});
+      }}
+
+      const ensureSignal = (nodeId) => {{
+        const clean = normalizeNodeId(nodeId || "");
+        if (!isCanonicalNodeId(clean) || !(nodeMap instanceof Map) || !nodeMap.has(clean)) return null;
+        if (!signalMeta.has(clean)) {{
+          signalMeta.set(clean, {{
+            packetCount: 0,
+            broadcastPacketCount: 0,
+            directTargetCount: 0,
+            incomingDirectCount: 0,
+            lastPortnum: "",
+            lastHeardUnix: 0,
+            savedPackets: 0,
+            hopsAway: null,
+          }});
+        }}
+        return signalMeta.get(clean) || null;
+      }};
+
+      for (const packet of (Array.isArray(recentPackets) ? recentPackets : [])) {{
+        if (!(packet && typeof packet === "object")) continue;
+        const fromId = resolveNetworkGraphPacketNodeId(packet, networkGraphPacketFromIdKeys, nodeIdByNum);
+        const toId = resolveNetworkGraphPacketNodeId(packet, networkGraphPacketToIdKeys, nodeIdByNum);
+        const portnum = String((packet.portnum ?? packet.portNum ?? "") || "").trim();
+        const fromSignal = ensureSignal(fromId);
+        if (fromSignal) {{
+          fromSignal.packetCount += 1;
+          if (portnum) {{
+            fromSignal.lastPortnum = portnum;
+          }}
+          if (isCanonicalNodeId(toId) && toId !== fromId) {{
+            fromSignal.directTargetCount += 1;
+          }} else {{
+            fromSignal.broadcastPacketCount += 1;
+          }}
+        }}
+        if (isCanonicalNodeId(toId) && toId !== fromId) {{
+          const toSignal = ensureSignal(toId);
+          if (toSignal) {{
+            toSignal.incomingDirectCount += 1;
+          }}
+        }}
+      }}
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      for (const [nodeId, meta] of signalMeta.entries()) {{
+        const lastHeardUnix = Number(meta.lastHeardUnix || 0);
+        const isFreshByNodeState = !!(
+          Number.isFinite(lastHeardUnix)
+          && lastHeardUnix > 0
+          && Math.max(0, nowUnix - lastHeardUnix) <= networkGraphBroadcastOnlyFreshnessSeconds
+        );
+        meta.hasBroadcastOnlyEvidence = !!(
+          meta.broadcastPacketCount > 0
+          && meta.directTargetCount <= 0
+          && meta.incomingDirectCount <= 0
+        );
+        meta.hasNodeStateBroadcastHint = !!(
+          isFreshByNodeState
+          && Number(meta.savedPackets || 0) > 0
+          && Number.isFinite(Number(meta.hopsAway))
+          && Number(meta.hopsAway) >= 0
+        );
+        signalMeta.set(nodeId, meta);
+      }}
+      return signalMeta;
+    }}
+
     const networkGraphViewportBase = Object.freeze({{ x: 0, y: 0, width: 960, height: 620 }});
     const networkGraphZoomBounds = Object.freeze({{ minScale: 0.62, maxScale: 5.5 }});
     const networkGraphFocusAnimationDurationMs = 680;
     const networkGraphRootHistoryLimit = 48;
+    const networkGraphBroadcastOnlyFreshnessSeconds = 2 * 60 * 60;
     const networkGraphViewState = {{
       initialized: false,
       lastRootId: "",
@@ -1030,7 +1149,7 @@
 
       const ringMarkup = rings.map((ring) => `
         <g class="network-graph-ring-wrap">
-          <circle class="network-graph-ring${{ring.detached ? " is-detached" : ""}}" cx="480" cy="310" r="${{Number(ring.radius).toFixed(1)}}"></circle>
+          <circle class="network-graph-ring${{ring.detached ? " is-detached" : ""}}${{ring.broadcastOnly ? " is-broadcast-only" : ""}}" cx="480" cy="310" r="${{Number(ring.radius).toFixed(1)}}"></circle>
           <text class="network-graph-ring-label" x="480" y="${{(310 - Number(ring.radius) - 8).toFixed(1)}}" text-anchor="middle">${{escAttr(ring.label)}}</text>
         </g>
       `).join("");
@@ -1080,12 +1199,19 @@
           "network-graph-node",
           item.nodeId === rootId ? "is-root" : "",
           item.nodeId === selectedId ? "is-selected" : "",
-          item.disconnected ? "is-detached" : "",
+          item.detached ? "is-detached" : "",
+          item.broadcastOnly ? "is-broadcast-only" : "",
         ].filter(Boolean).join(" ");
         const displayName = networkGraphNodeDisplayName(item.nodeId, nodeMap);
         const label = truncateNetworkGraphLabel(displayName, item.layer === 0 ? 28 : 16);
-        const statusLine = item.disconnected
-          ? "Detached from current root"
+        const statusLine = item.broadcastOnly
+          ? (
+            item.nodeId === rootId
+              ? "Heard recently via broadcast only"
+              : "No explicit node link, only recent broadcast evidence"
+          )
+          : item.detached
+          ? "No current path from the root"
           : (item.layer === 0 ? "Root node" : `${{item.layer}} hop${{item.layer === 1 ? "" : "s"}} away`);
         const title = [
           displayName,
@@ -1093,8 +1219,15 @@
           statusLine,
           `Visible links: ${{item.degree}}`,
           `Observed packets on links: ${{Math.round(item.weight)}}`,
+          item.signalMeta && item.broadcastOnly
+            ? (
+              Number(item.signalMeta.broadcastPacketCount || 0) > 0
+                ? `Recent broadcast packets: ${{item.signalMeta.broadcastPacketCount}}${{item.signalMeta.lastPortnum ? ` (${{item.signalMeta.lastPortnum}})` : ""}}`
+                : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
+            )
+            : "",
           `Last heard: ${{(item.node && item.node.last_heard) || "n/a"}}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         return `
           <g
             class="${{classes}}"
@@ -1104,7 +1237,7 @@
             <circle class="network-graph-node-core" r="${{Number(item.radius).toFixed(1)}}"></circle>
             ${{
               item.showLabel
-                ? `<text class="network-graph-node-label${{item.disconnected ? " is-secondary" : ""}}" x="0" y="${{(Number(item.radius) + 14).toFixed(1)}}" text-anchor="middle">${{escAttr(label)}}</text>`
+                ? `<text class="network-graph-node-label${{(item.detached || item.broadcastOnly) ? " is-secondary" : ""}}${{item.broadcastOnly ? " is-broadcast-only" : ""}}" x="0" y="${{(Number(item.radius) + 14).toFixed(1)}}" text-anchor="middle">${{escAttr(label)}}</text>`
                 : ""
             }}
             <title>${{escAttr(title)}}</title>
@@ -1143,6 +1276,7 @@
               radius: Number(ring && ring.radius),
               label: String((ring && ring.label) || ""),
               detached: !!(ring && ring.detached),
+              broadcastOnly: !!(ring && ring.broadcastOnly),
             }}))
           : [],
       }};
@@ -1856,6 +1990,9 @@
 
     function buildNetworkGraphLayout(nodeMap, combinedEdges, state) {{
       const adjacency = buildNetworkGraphAdjacency(nodeMap, combinedEdges);
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const safeTraffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const recentPackets = Array.isArray(safeTraffic.recent_packets) ? safeTraffic.recent_packets : [];
       const degreeMeta = new Map();
       for (const nodeId of nodeMap.keys()) {{
         const peers = adjacency.get(nodeId) || new Map();
@@ -1868,6 +2005,7 @@
           weight: totalWeight,
         }});
       }}
+      const signalMetaByNodeId = buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets);
 
       const rootId = resolveNetworkGraphRootId(nodeMap, adjacency, degreeMeta, state);
       if (!rootId) {{
@@ -1880,7 +2018,9 @@
           layers: new Map(),
           rings: [],
           edges: combinedEdges,
+          signalMetaByNodeId,
           connectedCount: 0,
+          broadcastOnlyCount: 0,
           disconnectedCount: 0,
         }};
       }}
@@ -1911,21 +2051,50 @@
         ids.sort((a, b) => compareNetworkGraphNodeIds(a, b, degreeMeta, nodeMap));
       }}
 
-      const disconnected = Array.from(nodeMap.keys())
+      const disconnectedCandidates = Array.from(nodeMap.keys())
         .filter((nodeId) => !layerByNodeId.has(nodeId))
         .sort((a, b) => compareNetworkGraphNodeIds(a, b, degreeMeta, nodeMap));
+      const broadcastOnlyDisconnected = [];
+      const disconnected = [];
+      for (const nodeId of disconnectedCandidates) {{
+        const meta = degreeMeta.get(nodeId) || {{ degree: 0, weight: 0 }};
+        const signalMeta = signalMetaByNodeId.get(nodeId) || null;
+        const isBroadcastOnly = !!(
+          Number(meta.degree || 0) <= 0
+          && signalMeta
+          && (signalMeta.hasBroadcastOnlyEvidence || signalMeta.hasNodeStateBroadcastHint)
+        );
+        if (isBroadcastOnly) {{
+          broadcastOnlyDisconnected.push(nodeId);
+        }} else {{
+          disconnected.push(nodeId);
+        }}
+      }}
 
       const centerX = 480;
       const centerY = 310;
       const positions = new Map();
       const polarAngleByNodeId = new Map();
-      positions.set(rootId, {{ x: centerX, y: centerY, layer: 0, disconnected: false }});
+      positions.set(rootId, {{
+        x: centerX,
+        y: centerY,
+        layer: 0,
+        disconnected: false,
+        broadcastOnly: !!(
+          (degreeMeta.get(rootId) || {{ degree: 0 }}).degree <= 0
+          && (
+            (signalMetaByNodeId.get(rootId) || {{}}).hasBroadcastOnlyEvidence
+            || (signalMetaByNodeId.get(rootId) || {{}}).hasNodeStateBroadcastHint
+          )
+        ),
+      }});
       polarAngleByNodeId.set(rootId, -Math.PI / 2);
 
       const connectedLayers = Array.from(layers.keys()).filter((layer) => layer > 0).sort((a, b) => a - b);
       const maxConnectedLayer = connectedLayers.length ? connectedLayers[connectedLayers.length - 1] : 0;
       const firstRingRadius = maxConnectedLayer <= 0 ? 0 : (maxConnectedLayer === 1 ? 180 : 116);
-      const outerConnectedRadius = disconnected.length ? 228 : 262;
+      const disconnectedRingCount = (broadcastOnlyDisconnected.length ? 1 : 0) + (disconnected.length ? 1 : 0);
+      const outerConnectedRadius = disconnectedRingCount ? 228 : 262;
       const ringStep = maxConnectedLayer > 1
         ? Math.max(46, Math.min(88, (outerConnectedRadius - firstRingRadius) / Math.max(1, maxConnectedLayer - 1)))
         : 0;
@@ -1980,19 +2149,42 @@
         }});
       }}
 
+      const disconnectedGroups = [];
+      if (broadcastOnlyDisconnected.length) {{
+        disconnectedGroups.push({{
+          nodeIds: broadcastOnlyDisconnected,
+          label: "broadcast-only",
+          detached: false,
+          broadcastOnly: true,
+        }});
+      }}
       if (disconnected.length) {{
-        const detachedRadius = Math.min(302, Math.max(206, outerConnectedRadius + 46));
+        disconnectedGroups.push({{
+          nodeIds: disconnected,
+          label: "detached",
+          detached: true,
+          broadcastOnly: false,
+        }});
+      }}
+
+      if (disconnectedGroups.length) {{
+        const firstDetachedRadius = Math.min(296, Math.max(206, outerConnectedRadius + 42));
+        const detachedRingStep = disconnectedGroups.length > 1 ? 34 : 0;
         const span = Math.PI * 1.84;
         const startAngle = Math.PI * 0.08;
-        const step = disconnected.length > 1 ? (span / Math.max(1, disconnected.length - 1)) : 0;
-        disconnected.forEach((nodeId, index) => {{
-          const angle = disconnected.length === 1 ? (Math.PI / 2) : (startAngle + (step * index));
-          polarAngleByNodeId.set(nodeId, angle);
-          positions.set(nodeId, {{
-            x: centerX + (Math.cos(angle) * detachedRadius),
-            y: centerY + (Math.sin(angle) * detachedRadius),
-            layer: maxConnectedLayer + 1,
-            disconnected: true,
+        disconnectedGroups.forEach((group, groupIndex) => {{
+          const radius = Math.min(328, firstDetachedRadius + (groupIndex * detachedRingStep));
+          const step = group.nodeIds.length > 1 ? (span / Math.max(1, group.nodeIds.length - 1)) : 0;
+          group.nodeIds.forEach((nodeId, index) => {{
+            const angle = group.nodeIds.length === 1 ? (Math.PI / 2) : (startAngle + (step * index));
+            polarAngleByNodeId.set(nodeId, angle);
+            positions.set(nodeId, {{
+              x: centerX + (Math.cos(angle) * radius),
+              y: centerY + (Math.sin(angle) * radius),
+              layer: maxConnectedLayer + 1 + groupIndex,
+              disconnected: true,
+              broadcastOnly: !!group.broadcastOnly,
+            }});
           }});
         }});
       }}
@@ -2007,19 +2199,25 @@
           detached: false,
         }};
       }});
-      if (disconnected.length) {{
+      disconnectedGroups.forEach((group, groupIndex) => {{
+        const radius = Math.min(
+          328,
+          Math.min(296, Math.max(206, outerConnectedRadius + 42)) + (groupIndex * (disconnectedGroups.length > 1 ? 34 : 0))
+        );
         rings.push({{
-          radius: Math.min(302, Math.max(206, outerConnectedRadius + 46)),
-          label: "detached",
-          detached: true,
+          radius,
+          label: group.label,
+          detached: !!group.detached,
+          broadcastOnly: !!group.broadcastOnly,
         }});
-      }}
+      }});
 
       const selectedId = normalizeNodeId(selectedNodeId || "");
       const firstLayerCount = Array.isArray(layers.get(1)) ? layers.get(1).length : 0;
       const items = Array.from(positions.entries()).map(([nodeId, position]) => {{
         const node = nodeMap.get(nodeId) || null;
         const meta = degreeMeta.get(nodeId) || {{ degree: 0, weight: 0 }};
+        const signalMeta = signalMetaByNodeId.get(nodeId) || null;
         const baseRadius = position.layer === 0
           ? 13
           : Math.max(5.5, Math.min(10.5, 5.4 + (Math.log2(Math.max(1, meta.weight) + 1) * 0.9) + Math.min(2.6, meta.degree * 0.2)));
@@ -2030,8 +2228,11 @@
           y: Number(position.y),
           layer: Number(position.layer || 0),
           disconnected: !!position.disconnected,
+          detached: !!position.disconnected && !position.broadcastOnly,
+          broadcastOnly: !!position.broadcastOnly,
           degree: meta.degree,
           weight: meta.weight,
+          signalMeta,
           radius: position.disconnected ? Math.max(5, baseRadius - 0.7) : baseRadius,
           showLabel: (
             nodeId === rootId
@@ -2052,7 +2253,14 @@
         layers,
         rings,
         edges: combinedEdges,
+        signalMetaByNodeId,
         connectedCount: layerByNodeId.size,
+        broadcastOnlyCount: broadcastOnlyDisconnected.length
+          + (
+            positions.get(rootId) && positions.get(rootId).broadcastOnly
+              ? 1
+              : 0
+          ),
         disconnectedCount: disconnected.length,
       }};
     }}
@@ -2106,15 +2314,26 @@
       const rootLabel = networkGraphNodeDisplayName(rootId, nodeMap);
       const firstHopCount = Array.isArray(layout.layers.get(1)) ? layout.layers.get(1).length : 0;
       const realLinkCount = combinedEdges.filter((edge) => !!(edge && edge.isReal)).length;
+      const rootItem = layout.items.find((item) => item && item.nodeId === rootId) || null;
       const summaryParts = [
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Root</span><strong>${{escAttr(truncateNetworkGraphLabel(rootLabel, 28))}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Nodes</span><strong>${{layout.items.length}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Links</span><strong>${{combinedEdges.length}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Reach</span><strong>${{layout.connectedCount}}/${{layout.items.length}}</strong></span>`,
       ];
+      if (rootItem && rootItem.broadcastOnly) {{
+        summaryParts.push(
+          `<span class="network-graph-chip"><span class="network-graph-chip-label">Root signal</span><strong>Broadcast only</strong></span>`
+        );
+      }}
       if (firstHopCount > 0) {{
         summaryParts.push(
           `<span class="network-graph-chip"><span class="network-graph-chip-label">1 Hop</span><strong>${{firstHopCount}}</strong></span>`
+        );
+      }}
+      if (layout.broadcastOnlyCount > 0) {{
+        summaryParts.push(
+          `<span class="network-graph-chip"><span class="network-graph-chip-label">Broadcast only</span><strong>${{layout.broadcastOnlyCount}}</strong></span>`
         );
       }}
       if (layout.disconnectedCount > 0) {{
@@ -2165,7 +2384,8 @@
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-root"></span>Root / selected node</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-real"></span>${{realLinkCount}} confirmed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-observed"></span>${{Math.max(0, combinedEdges.length - realLinkCount)}} observed links</span>`,
-        `<span class="network-graph-legend-item"><span class="network-graph-swatch is-detached"></span>Nodes with no current path from the root</span>`,
+        `<span class="network-graph-legend-item"><span class="network-graph-swatch is-broadcast-only"></span>Nodes heard recently, but only via broadcast</span>`,
+        `<span class="network-graph-legend-item"><span class="network-graph-swatch is-detached"></span>Nodes with no current path or recent broadcast evidence</span>`,
         `<span class="network-graph-legend-item hint">Click to refocus, scroll to zoom, and use Back, Home, or Reset view from inside the graph.</span>`,
       ].join("");
       const scene = {{

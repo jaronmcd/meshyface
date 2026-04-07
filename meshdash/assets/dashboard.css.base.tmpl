@@ -3885,6 +3885,9 @@
     .network-graph-swatch.is-observed {{
       background: rgba(141, 165, 149, 0.42);
     }}
+    .network-graph-swatch.is-broadcast-only {{
+      background: rgba(197, 153, 67, 0.58);
+    }}
     .network-graph-swatch.is-detached {{
       background: rgba(158, 166, 175, 0.46);
     }}
@@ -3897,6 +3900,10 @@
     .network-graph-ring.is-detached {{
       stroke: rgba(143, 152, 160, 0.28);
       stroke-dasharray: 3 9;
+    }}
+    .network-graph-ring.is-broadcast-only {{
+      stroke: rgba(173, 136, 59, 0.34);
+      stroke-dasharray: 10 7;
     }}
     .network-graph-ring-label {{
       fill: #557063;
@@ -3946,6 +3953,14 @@
       fill: rgba(241, 244, 242, 0.94);
       stroke: rgba(141, 149, 154, 0.78);
     }}
+    .network-graph-node.is-broadcast-only .network-graph-node-core {{
+      fill: rgba(248, 245, 234, 0.96);
+      stroke: rgba(184, 143, 55, 0.84);
+    }}
+    .network-graph-node.is-root.is-broadcast-only .network-graph-node-core {{
+      fill: rgba(243, 237, 210, 0.98);
+      stroke: rgba(186, 139, 39, 0.96);
+    }}
     .network-graph-node-label {{
       fill: #284335;
       font-size: 10px;
@@ -3962,6 +3977,9 @@
       fill: #557063;
       font-size: 9px;
       font-weight: 600;
+    }}
+    .network-graph-node-label.is-broadcast-only {{
+      fill: #7d5f20;
     }}
     .network-overview-card {{
       display: flex;

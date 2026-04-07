@@ -58,10 +58,13 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function animateNetworkGraphViewBox(svg, rawViewBox, options = {})' in js
     assert 'function buildNetworkGraphSceneMarkup(scene)' in js
     assert 'function animateNetworkGraphScene(svg, fromLayout, toLayout, options = {})' in js
+    assert 'function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets)' in js
     assert 'function setNetworkGraphRootNode(nodeId, options = {})' in js
     assert 'function navigateNetworkGraphBack()' in js
     assert 'function focusNetworkGraphNodeFromSelection(nodeId, options = {})' in js
     assert 'function recenterNetworkGraphView(svg, options = {})' in js
+    assert 'Broadcast only' in js
+    assert 'is-broadcast-only' in js
     assert 'pointerDownNodeId' in js
     assert 'svg.addEventListener("wheel"' in js
     assert 'cancelNetworkGraphViewAnimation();' in js
@@ -82,6 +85,9 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-stage {" in css
     assert "touch-action: none;" in css
     assert ".network-graph-stage.is-panning {" in css
+    assert ".network-graph-swatch.is-broadcast-only {" in css
+    assert ".network-graph-ring.is-broadcast-only {" in css
+    assert ".network-graph-node.is-broadcast-only .network-graph-node-core {" in css
     assert "padding: 0;" in graph_panel_css
     assert "pointer-events: auto;" in graph_label_css
     assert "position: absolute;" in graph_toolbar_css
