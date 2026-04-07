@@ -97,6 +97,8 @@ def test_chat_compose_controls_order_matches_current_layout() -> None:
 def test_chat_send_channel_compact_dot_trigger_geometry() -> None:
     css = build_dashboard_css(theme_css="")
 
+    assert ".chat-composer-input-row {" in css
+    assert "gap: 6px;" in css
     assert ".chat-send-channel-wrap {" in css
     assert "flex: 0 0 27px;" in css
     assert "min-width: 27px;" in css
