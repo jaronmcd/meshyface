@@ -3729,54 +3729,43 @@
     }}
     .network-graph-panel {{
       gap: 0;
+      overflow: hidden;
+      padding: 0;
     }}
     .network-graph-card {{
+      position: relative;
       display: flex;
       flex: 1 1 auto;
       min-height: 0;
       flex-direction: column;
-      gap: 14px;
-      border: 1px solid rgba(184, 209, 191, 0.92);
+      gap: 0;
+      border: none;
       border-radius: 16px;
-      padding: 16px;
-      background:
-        radial-gradient(circle at top left, rgba(110, 190, 139, 0.12), transparent 34%),
-        linear-gradient(180deg, rgba(248, 252, 248, 0.98), rgba(237, 245, 239, 0.98));
-      box-shadow: 0 18px 38px rgba(20, 37, 26, 0.08);
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
       box-sizing: border-box;
+      overflow: hidden;
     }}
     .network-graph-toolbar {{
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 3;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
+      pointer-events: none;
     }}
     .network-graph-toolbar-actions {{
       display: inline-flex;
       align-items: center;
       gap: 8px;
       flex: 0 0 auto;
-    }}
-    .network-graph-heading {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 220px;
-      max-width: 540px;
-    }}
-    .network-graph-heading h3 {{
-      margin: 0;
-      font-size: 15px;
-      line-height: 1.2;
-      color: #214031;
-      letter-spacing: 0.14px;
-    }}
-    .network-graph-heading p {{
-      margin: 0;
-      font-size: 11px;
-      line-height: 1.45;
-      color: #4f6a5a;
+      pointer-events: auto;
     }}
     .network-graph-summary {{
       display: flex;
@@ -3784,21 +3773,23 @@
       justify-content: flex-end;
       gap: 8px;
       flex-wrap: wrap;
-      flex: 1 1 240px;
+      flex: 1 1 auto;
+      margin-left: auto;
+      min-width: min(100%, 320px);
     }}
     .network-graph-chip {{
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 5px 10px;
+      padding: 4px 9px;
       border-radius: 999px;
       border: 1px solid rgba(140, 177, 151, 0.86);
-      background: rgba(248, 252, 249, 0.92);
+      background: rgba(248, 252, 249, 0.82);
       color: #274333;
       font-size: 11px;
       line-height: 1.2;
       white-space: nowrap;
-      box-shadow: 0 4px 12px rgba(24, 41, 31, 0.08);
+      box-shadow: none;
     }}
     .network-graph-chip-label {{
       color: #5a7363;
@@ -3811,9 +3802,10 @@
       position: relative;
       display: flex;
       flex: 1 1 auto;
-      min-height: 360px;
+      min-height: 0;
+      height: 100%;
       border: 1px solid rgba(154, 182, 164, 0.68);
-      border-radius: 14px;
+      border-radius: 16px;
       overflow: hidden;
       cursor: grab;
       touch-action: none;
@@ -3848,13 +3840,7 @@
       backdrop-filter: blur(4px);
     }}
     .network-graph-legend {{
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      color: #4e6659;
-      font-size: 11px;
-      line-height: 1.35;
+      display: none;
     }}
     .network-graph-legend-item {{
       display: inline-flex;
@@ -3863,8 +3849,24 @@
       white-space: nowrap;
     }}
     .network-graph-legend-item.hint {{
+      margin-left: auto;
       white-space: normal;
-      max-width: 520px;
+      max-width: min(100%, 420px);
+    }}
+    @media (max-width: 900px) {{
+      .network-graph-panel {{
+        padding: 0;
+      }}
+      .network-graph-toolbar {{
+        top: 10px;
+        left: 10px;
+        right: 10px;
+      }}
+      .network-graph-summary {{
+        justify-content: flex-start;
+        margin-left: 0;
+        min-width: 0;
+      }}
     }}
     .network-graph-swatch {{
       width: 18px;

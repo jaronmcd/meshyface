@@ -908,6 +908,20 @@
       }};
     }}
 
+    function getNetworkGraphStageAspectRatio(svg = null) {{
+      if (svg instanceof SVGElement) {{
+        const rect = svg.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {{
+          return rect.width / rect.height;
+        }}
+      }}
+      const current = cloneNetworkGraphViewBox(networkGraphViewState.viewBox);
+      if (current.width > 0 && current.height > 0) {{
+        return current.width / current.height;
+      }}
+      return networkGraphViewportBase.width / networkGraphViewportBase.height;
+    }}
+
     function computeNetworkGraphBounds(layout) {{
       if (!layout || !Array.isArray(layout.items) || !layout.items.length) {{
         return defaultNetworkGraphBounds();
@@ -950,14 +964,20 @@
       }};
     }}
 
-    function clampNetworkGraphViewBox(rawViewBox) {{
+    function clampNetworkGraphViewBox(rawViewBox, options = {{}}) {{
       const next = cloneNetworkGraphViewBox(rawViewBox);
       const minWidth = networkGraphViewportBase.width / networkGraphZoomBounds.maxScale;
       const maxWidth = networkGraphViewportBase.width / networkGraphZoomBounds.minScale;
-      const clampedWidth = Math.min(maxWidth, Math.max(minWidth, next.width));
-      const aspectRatio = networkGraphViewportBase.height / networkGraphViewportBase.width;
+      const requestedAspectRatio = Number(options && options.aspectRatio);
+      const aspectRatio = Number.isFinite(requestedAspectRatio) && requestedAspectRatio > 0
+        ? requestedAspectRatio
+        : getNetworkGraphStageAspectRatio();
+      const fallbackWidth = Number.isFinite(next.height) && next.height > 0
+        ? (next.height * aspectRatio)
+        : networkGraphViewportBase.width;
+      const clampedWidth = Math.min(maxWidth, Math.max(minWidth, next.width || fallbackWidth));
       next.width = clampedWidth;
-      next.height = clampedWidth * aspectRatio;
+      next.height = clampedWidth / aspectRatio;
 
       const bounds = networkGraphViewState.bounds || defaultNetworkGraphBounds();
       const spanWidth = Math.max(1, Number(bounds.maxX) - Number(bounds.minX));
@@ -977,13 +997,13 @@
       return next;
     }}
 
-    function fitNetworkGraphViewBoxToBounds(bounds) {{
+    function fitNetworkGraphViewBoxToBounds(bounds, svg = null) {{
       const safeBounds = (bounds && typeof bounds === "object") ? bounds : defaultNetworkGraphBounds();
       const centerX = (Number(safeBounds.minX) + Number(safeBounds.maxX)) / 2;
       const centerY = (Number(safeBounds.minY) + Number(safeBounds.maxY)) / 2;
       const rawWidth = Math.max(220, Number(safeBounds.maxX) - Number(safeBounds.minX));
       const rawHeight = Math.max(160, Number(safeBounds.maxY) - Number(safeBounds.minY));
-      const viewAspect = networkGraphViewportBase.width / networkGraphViewportBase.height;
+      const viewAspect = getNetworkGraphStageAspectRatio(svg);
       let width = rawWidth;
       let height = rawHeight;
       if ((width / height) > viewAspect) {{
@@ -996,12 +1016,12 @@
         y: centerY - (height / 2),
         width,
         height,
-      }});
+      }}, {{ aspectRatio: viewAspect }});
     }}
 
     function applyNetworkGraphViewBox(svg, rawViewBox) {{
       if (!(svg instanceof SVGElement)) return cloneNetworkGraphViewBox();
-      const next = clampNetworkGraphViewBox(rawViewBox);
+      const next = clampNetworkGraphViewBox(rawViewBox, {{ aspectRatio: getNetworkGraphStageAspectRatio(svg) }});
       svg.setAttribute(
         "viewBox",
         `${{next.x.toFixed(2)}} ${{next.y.toFixed(2)}} ${{next.width.toFixed(2)}} ${{next.height.toFixed(2)}}`
@@ -1013,7 +1033,7 @@
 
     function resetNetworkGraphView(svg) {{
       if (!(svg instanceof SVGElement)) return;
-      applyNetworkGraphViewBox(svg, fitNetworkGraphViewBoxToBounds(networkGraphViewState.bounds));
+      applyNetworkGraphViewBox(svg, fitNetworkGraphViewBoxToBounds(networkGraphViewState.bounds, svg));
     }}
 
     function recenterNetworkGraphView(svg, options = {{}}) {{
@@ -1733,7 +1753,7 @@
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-real"></span>${{realLinkCount}} confirmed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-observed"></span>${{Math.max(0, combinedEdges.length - realLinkCount)}} observed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-detached"></span>Nodes with no current path from the root</span>`,
-        `<span class="network-graph-legend-item hint">Click any node to make it the new graph focus while keeping your zoom level, sync the left roster selection, and keep surfing with Back, Home, drag, scroll, or Reset view.</span>`,
+        `<span class="network-graph-legend-item hint">Click to refocus, scroll to zoom, and use Back, Home, or Reset view from inside the graph.</span>`,
       ].join("");
 
       const ringMarkup = layout.rings.map((ring) => `

@@ -2458,37 +2458,33 @@ Ready.
             >
               <div class="network-overview-panel network-graph-panel">
                 <section class="network-graph-card">
-                  <div class="network-graph-toolbar">
-                    <div class="network-graph-heading">
-                      <h3>Link Graph</h3>
-                      <p>Topology web of observed node-to-node links. Click any node to shift focus while keeping your zoom level, then surf outward from that part of the mesh.</p>
-                    </div>
-                    <div class="network-graph-toolbar-actions">
-                      <button
-                        id="network-graph-back-btn"
-                        class="map-reset-view-btn"
-                        type="button"
-                        title="Go back to the previous graph focus"
-                        aria-controls="network-graph-svg"
-                      >Back</button>
-                      <button
-                        id="network-graph-home-btn"
-                        class="map-reset-view-btn"
-                        type="button"
-                        title="Return graph focus to the local node"
-                        aria-controls="network-graph-svg"
-                      >Home</button>
-                      <button
-                        id="network-graph-reset-view-btn"
-                        class="map-reset-view-btn"
-                        type="button"
-                        title="Reset graph view"
-                        aria-controls="network-graph-svg"
-                      >Reset view</button>
-                    </div>
-                    <div id="network-graph-summary" class="network-graph-summary" aria-live="polite"></div>
-                  </div>
                   <div class="network-graph-stage">
+                    <div class="network-graph-toolbar">
+                      <div class="network-graph-toolbar-actions">
+                        <button
+                          id="network-graph-back-btn"
+                          class="map-reset-view-btn"
+                          type="button"
+                          title="Go back to the previous graph focus"
+                          aria-controls="network-graph-svg"
+                        >Back</button>
+                        <button
+                          id="network-graph-home-btn"
+                          class="map-reset-view-btn"
+                          type="button"
+                          title="Return graph focus to the local node"
+                          aria-controls="network-graph-svg"
+                        >Home</button>
+                        <button
+                          id="network-graph-reset-view-btn"
+                          class="map-reset-view-btn"
+                          type="button"
+                          title="Reset graph view"
+                          aria-controls="network-graph-svg"
+                        >Reset view</button>
+                      </div>
+                      <div id="network-graph-summary" class="network-graph-summary" aria-live="polite"></div>
+                    </div>
                     <svg
                       id="network-graph-svg"
                       viewBox="0 0 960 620"
@@ -2496,8 +2492,13 @@ Ready.
                       aria-label="Network link graph"
                     ></svg>
                     <div id="network-graph-empty" class="signal-empty" hidden>No node links recorded yet.</div>
+                    <div
+                      id="network-graph-legend"
+                      class="network-graph-legend"
+                      aria-label="Network graph legend"
+                      hidden
+                    ></div>
                   </div>
-                  <div id="network-graph-legend" class="network-graph-legend" aria-label="Network graph legend"></div>
                 </section>
               </div>
             </div>

@@ -28,7 +28,8 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-graph-back-btn"' in html
     assert 'id="network-graph-home-btn"' in html
     assert 'id="network-graph-reset-view-btn"' in html
-    assert "keeping your zoom level" in html
+    assert 'id="network-graph-summary"' in html
+    assert 'id="network-graph-legend"' in html
 
 
 def test_dashboard_js_supports_network_graph_subview() -> None:
@@ -45,6 +46,7 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const networkGraphRootHistory = [];' in js
     assert 'const networkGraphViewState = {' in js
     assert 'function bindNetworkGraphInteractions(svg)' in js
+    assert 'function getNetworkGraphStageAspectRatio(svg = null)' in js
     assert 'function setNetworkGraphRootNode(nodeId, options = {})' in js
     assert 'function navigateNetworkGraphBack()' in js
     assert 'function recenterNetworkGraphView(svg, options = {})' in js
@@ -55,7 +57,10 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
 
 def test_network_layout_uses_single_row_map_track() -> None:
     css = build_dashboard_css(theme_css="")
+    graph_panel_css = css[css.index(".network-graph-panel {"):css.index(".network-graph-card {")]
     graph_label_css = css[css.index(".network-graph-node-label {"):css.index(".network-graph-node-label.is-secondary {")]
+    graph_toolbar_css = css[css.index(".network-graph-toolbar {"):css.index(".network-graph-toolbar-actions {")]
+    graph_legend_css = css[css.index(".network-graph-legend {"):css.index(".network-graph-legend-item {")]
 
     assert ".layout.view-network {" in css
     assert "grid-template-rows: minmax(0, 1fr);" in css
@@ -64,4 +69,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-stage {" in css
     assert "touch-action: none;" in css
     assert ".network-graph-stage.is-panning {" in css
+    assert "padding: 0;" in graph_panel_css
     assert "pointer-events: auto;" in graph_label_css
+    assert "position: absolute;" in graph_toolbar_css
+    assert "display: none;" in graph_legend_css
