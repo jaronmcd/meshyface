@@ -40,14 +40,21 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'data-view="chat"' in html
     assert 'data-view="network"' in html
     assert 'data-view="apps"' in html
+    assert 'id="chat-users-title"' not in html
+    assert 'class="chat-peer-add-toggle-btn chat-node-navigator-menu-btn chat-users-head-view-btn"' in html
     assert '<aside class="teams-rail"' not in html
     assert re.search(
         r'<div class="workspace-launcher-row"[\s\S]*id="layout-view-menu-btn"[\s\S]*id="topbar-update-ticker"',
         html,
     )
+    assert re.search(
+        r'<div class="chat-users-head"[\s\S]*id="chat-node-navigator-menu-btn"[\s\S]*id="chat-peer-add-toggle-btn"',
+        html,
+    )
 
     assert ".workspace-launcher-row {" in css
     assert ".workspace-launcher-shell {" in css
+    assert ".chat-users-head-view-btn {" in css
     assert "min-height: 38px;" in css
     assert ".topbar-update-ticker {" in css
     assert ".workspace-update-ticker {" in css
