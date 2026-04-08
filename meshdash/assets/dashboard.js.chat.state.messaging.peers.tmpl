@@ -1402,21 +1402,22 @@
       const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
       const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
       const expanded = !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(selectedId);
+      const visibleExpanded = expanded && !chatPanelCollapsed;
       chatNodeDetailsDrawerTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
       const usersSection = drawer.closest(".chat-left-section.chat-users-section");
       if (usersSection instanceof HTMLElement) {{
-        usersSection.classList.toggle("has-node-details", expanded);
+        usersSection.classList.toggle("has-node-details", visibleExpanded);
       }}
       if (detailsSplitter instanceof HTMLElement) {{
-        detailsSplitter.hidden = !expanded;
+        detailsSplitter.hidden = !visibleExpanded;
       }}
       if (typeof applyChatNodeListSplitState === "function") {{
         applyChatNodeListSplitState();
       }}
 
-      drawer.hidden = !expanded;
+      drawer.hidden = !visibleExpanded;
       if (closeBtn instanceof HTMLButtonElement) {{
-        closeBtn.disabled = !expanded;
+        closeBtn.disabled = !visibleExpanded;
       }}
       if (muteBtn instanceof HTMLButtonElement) {{
         muteBtn.hidden = true;
@@ -1434,7 +1435,7 @@
         dmBtn.disabled = true;
         dmBtn.dataset.nodeId = "";
       }}
-      if (!expanded) {{
+      if (!visibleExpanded) {{
         if (locationHost instanceof HTMLElement) {{
           locationHost.innerHTML = "";
         }}

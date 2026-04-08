@@ -1291,7 +1291,7 @@
     }}
     .workspace-shell {{
       --chat-panel-width: 250px;
-      --chat-panel-collapsed-width: 96px;
+      --chat-panel-collapsed-width: 160px;
       --chat-panel-splitter-size: 8px;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -1317,7 +1317,7 @@
     .workspace-shell.chat-panel-open.chat-panel-collapsed {{
       grid-template-columns:
         var(--chat-panel-collapsed-width)
-        0px
+        var(--chat-panel-splitter-size)
         minmax(0, 1fr)
       ;
     }}
@@ -1450,9 +1450,6 @@
     .workspace-shell:not(.chat-panel-open) .chat-panel-splitter {{
       display: none !important;
     }}
-    .workspace-shell.chat-panel-collapsed .chat-panel-splitter {{
-      display: none !important;
-    }}
     .chat-left-panel[hidden] {{
       display: none !important;
     }}
@@ -1547,7 +1544,10 @@
       gap: 4px;
     }}
     .workspace-shell.chat-panel-collapsed .chat-users-head {{
-      justify-content: center;
+      justify-content: flex-end;
+    }}
+    .workspace-shell.chat-panel-collapsed .chat-users-head-actions {{
+      margin-left: auto;
     }}
     .workspace-shell.chat-panel-collapsed .chat-users-head-view-btn,
     .workspace-shell.chat-panel-collapsed #chat-peer-add-toggle-btn,

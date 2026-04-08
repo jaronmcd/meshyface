@@ -217,12 +217,13 @@
         splitter.setPointerCapture(ev.pointerId);
 
         const startX = ev.clientX;
+        const collapsedMode = !!chatPanelCollapsed;
         const panelRect = panel.getBoundingClientRect();
         const splitterRect = splitter.getBoundingClientRect();
         const panelOnLeft = panelRect.right <= splitterRect.left + 1;
         const startWidth = Number.isFinite(panelRect.width) && panelRect.width > 0
           ? panelRect.width
-          : chatPanelWidthPx;
+          : (collapsedMode ? chatPanelCollapsedWidthPx : chatPanelWidthPx);
 
         const updateFromClientX = (clientX) => {{
           const deltaX = clientX - startX;
@@ -230,7 +231,11 @@
           const nextWidth = panelOnLeft
             ? (startWidth + deltaX)
             : (startWidth - deltaX);
-          chatPanelWidthPx = clampChatPanelWidthPx(nextWidth, shellRect.width);
+          if (collapsedMode) {{
+            chatPanelCollapsedWidthPx = clampChatPanelCollapsedWidthPx(nextWidth, shellRect.width);
+          }} else {{
+            chatPanelWidthPx = clampChatPanelWidthPx(nextWidth, shellRect.width);
+          }}
           applyChatPanelSplitState();
           requestMapResize();
         }};
@@ -244,7 +249,11 @@
         const onUp = () => {{
           splitter.classList.remove("active");
           document.body.classList.remove("resizing-panels-x");
-          persistChatPanelSplitState();
+          if (collapsedMode) {{
+            persistChatPanelCollapsedSplitState();
+          }} else {{
+            persistChatPanelSplitState();
+          }}
           requestMapResize();
           splitter.removeEventListener("pointermove", onMove);
           splitter.removeEventListener("pointerup", onUp);

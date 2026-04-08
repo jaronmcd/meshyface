@@ -55,6 +55,16 @@
       return Math.max(min, Math.min(max, Math.round(numeric)));
     }}
 
+    function clampChatPanelCollapsedWidthPx(value, containerWidth = window.innerWidth) {{
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 160;
+      const min = 96;
+      const width = Number(containerWidth);
+      const safeWidth = Number.isFinite(width) && width > 0 ? width : window.innerWidth;
+      const max = Math.max(160, Math.min(420, safeWidth - 220));
+      return Math.max(min, Math.min(max, Math.round(numeric)));
+    }}
+
     function clampChatNodeListPct(value) {{
       return Math.max(18, Math.min(82, value));
     }}
@@ -128,7 +138,9 @@
       if (!(shell instanceof HTMLElement)) return;
       const rect = shell.getBoundingClientRect();
       chatPanelWidthPx = clampChatPanelWidthPx(chatPanelWidthPx, rect.width);
+      chatPanelCollapsedWidthPx = clampChatPanelCollapsedWidthPx(chatPanelCollapsedWidthPx, rect.width);
       shell.style.setProperty("--chat-panel-width", `${{chatPanelWidthPx}}px`);
+      shell.style.setProperty("--chat-panel-collapsed-width", `${{chatPanelCollapsedWidthPx}}px`);
     }}
 
     function applyChatPanelCollapseState() {{
@@ -152,6 +164,11 @@
       }}
       if (toggleGlyph instanceof HTMLElement) {{
         toggleGlyph.textContent = collapsed ? ">" : "<";
+      }}
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
       }}
       if (typeof scheduleChatNodeNavigatorSearchBoundsSync === "function") {{
         scheduleChatNodeNavigatorSearchBoundsSync();
@@ -330,6 +347,20 @@
           const parsed = Number(raw);
           if (Number.isFinite(parsed)) {{
             chatPanelWidthPx = clampChatPanelWidthPx(parsed);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      applyChatPanelSplitState();
+    }}
+
+    function loadChatPanelCollapsedSplitState() {{
+      try {{
+        const raw = window.localStorage.getItem(chatPanelCollapsedSplitStorageKey) || "";
+        if (raw) {{
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) {{
+            chatPanelCollapsedWidthPx = clampChatPanelCollapsedWidthPx(parsed);
           }}
         }}
       }} catch (_err) {{
