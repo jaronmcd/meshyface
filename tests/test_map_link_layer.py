@@ -74,6 +74,10 @@ def test_dashboard_js_packet_line_fade_tracks_node_freshness_windows() -> None:
     assert "Number(chatStaleWindowSeconds) || (30 * 60)" in js
     assert "const fadeStartSec = 45 * 60;" not in js
     assert "const fadeFullSec = 24 * 60 * 60;" not in js
+    assert "const minOpacity = isReal ? 0.56 : 0.44;" in js
+    assert "Math.max(isReal ? 2.2 : 1.7, baseWeight * 0.62)" in js
+    assert 'lineCap: "round"' in js
+    assert 'lineJoin: "round"' in js
 
 
 def test_record_direct_edge_observation_tracks_signal_metrics() -> None:

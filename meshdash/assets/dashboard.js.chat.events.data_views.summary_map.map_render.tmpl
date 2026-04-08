@@ -398,11 +398,14 @@
             const ageMinutes = Number.isFinite(lastSeenUnix) && lastSeenUnix > 0
               ? Math.max(0, Math.floor((nowUnix - lastSeenUnix) / 60))
               : -1;
-            const baseOpacity = isReal ? 0.74 : 0.52;
-            const minOpacity = isReal ? 0.38 : 0.3;
+            const baseOpacity = isReal ? 0.82 : 0.64;
+            const minOpacity = isReal ? 0.56 : 0.44;
             const edgeOpacity = minOpacity + ((baseOpacity - minOpacity) * recencyFade);
             const baseWeight = Math.min(8, 2 + lifetimeCount);
-            const minWeight = Math.max(1.2, baseWeight * 0.45);
+            const minWeight = Math.min(
+              baseWeight - 0.2,
+              Math.max(isReal ? 2.2 : 1.7, baseWeight * 0.62)
+            );
             const edgeWeight = minWeight + ((baseWeight - minWeight) * recencyFade);
             const lastAgeLabel = Number.isFinite(lastSeenUnix) && lastSeenUnix > 0
               ? (
@@ -450,6 +453,8 @@
               dashArray: isReal ? null : "6 6",
               opacity: edgeOpacity,
               weight: edgeWeight,
+              lineCap: "round",
+              lineJoin: "round",
               bubblingMouseEvents: false,
             }});
             line.bindTooltip(`
