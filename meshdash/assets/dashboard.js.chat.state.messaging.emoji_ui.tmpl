@@ -39,6 +39,177 @@
       }}
     }}
 
+    function prefersReducedChatEmojiMotion() {{
+      return !!(
+        window.matchMedia
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    }}
+
+    function cancelChatEmojiPanelAnimations(panel = null) {{
+      const targetPanel = panel instanceof HTMLElement ? panel : chatEmojiPanelElement();
+      if (!(targetPanel instanceof HTMLElement) || typeof targetPanel.getAnimations !== "function") {{
+        return;
+      }}
+      for (const animation of targetPanel.getAnimations()) {{
+        animation.cancel();
+      }}
+    }}
+
+    function animateChatEmojiPanelTransition(previousRect = null, options = null) {{
+      const panel = chatEmojiPanelElement();
+      if (
+        !(panel instanceof HTMLElement)
+        || panel.hidden
+        || prefersReducedChatEmojiMotion()
+        || typeof panel.animate !== "function"
+      ) {{
+        return;
+      }}
+
+      cancelChatEmojiPanelAnimations(panel);
+      const nextRect = panel.getBoundingClientRect();
+      if (nextRect.width <= 0 || nextRect.height <= 0) return;
+
+      const duration = Math.max(120, Number(options && options.duration) || 0) || 170;
+      const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
+      const offsetY = Number.isFinite(Number(options && options.offsetY))
+        ? Number(options && options.offsetY)
+        : 6;
+      let keyframes = null;
+
+      if (
+        previousRect
+        && Number.isFinite(previousRect.left)
+        && Number.isFinite(previousRect.top)
+        && Number.isFinite(previousRect.width)
+        && Number.isFinite(previousRect.height)
+        && previousRect.width > 0
+        && previousRect.height > 0
+      ) {{
+        const deltaX = previousRect.left - nextRect.left;
+        const deltaY = previousRect.top - nextRect.top;
+        const scaleX = previousRect.width / nextRect.width;
+        const scaleY = previousRect.height / nextRect.height;
+        keyframes = [
+          {{
+            opacity: 0.92,
+            transformOrigin: "top left",
+            transform: `translate(${{deltaX}}px, ${{deltaY}}px) scale(${{scaleX}}, ${{scaleY}})`,
+          }},
+          {{
+            opacity: 1,
+            transformOrigin: "top left",
+            transform: "translate(0px, 0px) scale(1, 1)",
+          }},
+        ];
+      }} else {{
+        keyframes = [
+          {{
+            opacity: 0,
+            transformOrigin: "top left",
+            transform: `translateY(${{offsetY}}px) scale(0.985)`,
+          }},
+          {{
+            opacity: 1,
+            transformOrigin: "top left",
+            transform: "translateY(0px) scale(1)",
+          }},
+        ];
+      }}
+
+      const animation = panel.animate(keyframes, {{
+        duration,
+        easing,
+        fill: "both",
+      }});
+      animation.finished.catch(() => {{}}).finally(() => {{
+        if (!panel.isConnected) return;
+        panel.style.transformOrigin = "";
+      }});
+    }}
+
+    function finalizeChatEmojiPanelClose(panel = null) {{
+      const targetPanel = panel instanceof HTMLElement ? panel : chatEmojiPanelElement();
+      chatEmojiMode = "compose";
+      chatReactionTargetId = null;
+      chatReactionPickerExpanded = false;
+      chatEmojiAnchorElement = null;
+      chatEmojiSearchQuery = "";
+      if (targetPanel instanceof HTMLElement) {{
+        targetPanel.hidden = true;
+        targetPanel.dataset.closing = "0";
+        targetPanel.dataset.closeNonce = "";
+        targetPanel.classList.remove("is-closing");
+        targetPanel.classList.remove("chat-emoji-panel-react-collapsed");
+        targetPanel.classList.remove("chat-emoji-panel-react-expanded");
+        targetPanel.style.maxHeight = "";
+        targetPanel.style.position = "";
+        targetPanel.style.left = "";
+        targetPanel.style.top = "";
+        targetPanel.style.right = "";
+        targetPanel.style.bottom = "";
+        targetPanel.style.opacity = "";
+        targetPanel.style.transform = "";
+      }}
+      const searchInput = document.getElementById("chat-emoji-search");
+      if (searchInput instanceof HTMLInputElement) {{
+        searchInput.value = "";
+      }}
+      setChatEmojiButtonsExpanded(false, null);
+      syncChatReactionAnchorLabels();
+    }}
+
+    function animateChatEmojiPanelClose(options = null) {{
+      const panel = chatEmojiPanelElement();
+      if (!(panel instanceof HTMLElement)) {{
+        finalizeChatEmojiPanelClose(null);
+        return;
+      }}
+
+      const offsetY = Number.isFinite(Number(options && options.offsetY))
+        ? Number(options && options.offsetY)
+        : 4;
+      const duration = Math.max(110, Number(options && options.duration) || 0) || 135;
+      const closeNonce = `${{Date.now()}}:${{Math.random().toString(36).slice(2, 8)}}`;
+      panel.dataset.closing = "1";
+      panel.dataset.closeNonce = closeNonce;
+      panel.classList.add("is-closing");
+
+      if (prefersReducedChatEmojiMotion() || typeof panel.animate !== "function") {{
+        finalizeChatEmojiPanelClose(panel);
+        return;
+      }}
+
+      cancelChatEmojiPanelAnimations(panel);
+      const animation = panel.animate([
+        {{
+          opacity: 1,
+          transformOrigin: "top left",
+          transform: "translateY(0px) scale(1)",
+        }},
+        {{
+          opacity: 0,
+          transformOrigin: "top left",
+          transform: `translateY(${{offsetY}}px) scale(0.985)`,
+        }},
+      ], {{
+        duration,
+        easing: "cubic-bezier(0.4, 0, 1, 1)",
+        fill: "both",
+      }});
+      animation.finished.catch(() => {{}}).finally(() => {{
+        if (
+          !panel.isConnected
+          || panel.dataset.closing !== "1"
+          || panel.dataset.closeNonce !== closeNonce
+        ) {{
+          return;
+        }}
+        finalizeChatEmojiPanelClose(panel);
+      }});
+    }}
+
     function isChatReactionPickerOpenForAnchor(anchor) {{
       if (!(anchor instanceof HTMLButtonElement)) return false;
       const panel = chatEmojiPanelElement();
@@ -99,10 +270,20 @@
         syncChatReactionAnchorLabels();
         return false;
       }}
+      const panel = chatEmojiPanelElement();
+      const previousRect = (
+        panel instanceof HTMLElement && !panel.hidden
+          ? panel.getBoundingClientRect()
+          : null
+      );
       chatReactionPickerExpanded = nextExpanded;
       clearChatReactionPickerHideTimer();
       renderChatEmojiPickerPanel();
       positionChatEmojiPanel();
+      animateChatEmojiPanelTransition(previousRect, {{
+        duration: 170,
+        offsetY: nextExpanded ? 4 : -4,
+      }});
       if (nextExpanded && focusSearch) {{
         focusChatEmojiSearchInput();
       }}
@@ -604,6 +785,10 @@
       const chatBtn = document.getElementById("chat-emoji-btn");
       if (!(panel instanceof HTMLElement)) return;
       clearChatReactionPickerHideTimer();
+      cancelChatEmojiPanelAnimations(panel);
+      panel.dataset.closing = "0";
+      panel.dataset.closeNonce = "";
+      panel.classList.remove("is-closing");
       chatEmojiMode = mode === "react" ? "react" : "compose";
       chatReactionPickerExpanded = chatEmojiMode === "react"
         ? !!expandReactionPicker
@@ -619,6 +804,10 @@
       panel.hidden = false;
       positionChatEmojiPanel();
       syncChatReactionAnchorLabels();
+      animateChatEmojiPanelTransition(null, {{
+        duration: 160,
+        offsetY: chatEmojiMode === "react" && !chatReactionPickerExpanded ? 4 : 8,
+      }});
       if (!(chatEmojiMode === "react" && !chatReactionPickerExpanded)) {{
         focusChatEmojiSearchInput();
       }}
@@ -639,28 +828,19 @@
     function closeChatEmojiPanel() {{
       const panel = chatEmojiPanelElement();
       clearChatReactionPickerHideTimer();
-      chatEmojiMode = "compose";
-      chatReactionTargetId = null;
-      chatReactionPickerExpanded = false;
-      chatEmojiAnchorElement = null;
-      chatEmojiSearchQuery = "";
-      if (panel instanceof HTMLElement) {{
-        panel.hidden = true;
-        panel.classList.remove("chat-emoji-panel-react-collapsed");
-        panel.classList.remove("chat-emoji-panel-react-expanded");
-        panel.style.maxHeight = "";
-        panel.style.position = "";
-        panel.style.left = "";
-        panel.style.top = "";
-        panel.style.right = "";
-        panel.style.bottom = "";
+      if (!(panel instanceof HTMLElement) || panel.hidden) {{
+        finalizeChatEmojiPanelClose(panel);
+        return;
       }}
-      const searchInput = document.getElementById("chat-emoji-search");
-      if (searchInput instanceof HTMLInputElement) {{
-        searchInput.value = "";
-      }}
-      setChatEmojiButtonsExpanded(false, null);
-      syncChatReactionAnchorLabels();
+      const closeOffsetY = (
+        chatEmojiMode === "react" && chatReactionPickerExpanded
+          ? -4
+          : 4
+      );
+      animateChatEmojiPanelClose({{
+        duration: 135,
+        offsetY: closeOffsetY,
+      }});
     }}
 
     function insertEmojiAtCursor(emoji) {{

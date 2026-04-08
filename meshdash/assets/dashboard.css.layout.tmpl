@@ -6520,6 +6520,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 180ms ease, transform 180ms ease;
     }}
     .chat-reaction-summary:hover {{
       background: rgba(223, 240, 228, 0.92);
@@ -6548,11 +6549,14 @@
       color: #214734;
       position: relative;
       z-index: 10;
+      box-shadow: 0 6px 14px rgba(42, 82, 61, 0.12);
+      transform: translateY(-1px);
     }}
     .chat-reaction-summary.is-empty.is-reaction-expanded {{
       background: rgba(223, 240, 228, 0.96);
       border-color: rgba(97, 144, 113, 0.64);
       color: #173726;
+      box-shadow: 0 10px 20px rgba(31, 70, 53, 0.18);
     }}
     .chat-reaction-summary-icons {{
       display: inline-flex;
@@ -6590,7 +6594,7 @@
       font-size: 10px;
       font-weight: 600;
       letter-spacing: 0.01em;
-      transition: color 140ms ease;
+      transition: color 140ms ease, letter-spacing 140ms ease;
     }}
     .chat-reply-tail {{
       margin-left: auto;

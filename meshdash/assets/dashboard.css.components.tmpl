@@ -354,9 +354,15 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      transform-origin: top left;
+      will-change: transform, opacity;
+      transition: border-color 160ms ease, border-radius 160ms ease, box-shadow 180ms ease;
     }}
     .chat-emoji-panel[hidden] {{
       display: none !important;
+    }}
+    .chat-emoji-panel.is-closing {{
+      pointer-events: none;
     }}
     .chat-emoji-toolbar {{
       display: flex;
@@ -469,18 +475,22 @@
     .chat-emoji-panel.chat-emoji-panel-react-expanded {{
       width: min(360px, 92vw);
       overflow: hidden;
+      box-shadow: 0 12px 26px rgba(16, 36, 24, 0.22);
     }}
     .chat-emoji-panel.chat-emoji-panel-react-expanded #chat-emoji-controls-row {{
       order: 4;
+      animation: chatEmojiPanelContentIn 150ms cubic-bezier(0.22, 1, 0.36, 1);
     }}
     .chat-emoji-panel.chat-emoji-panel-react-expanded #chat-emoji-grid {{
       order: 5;
       flex: 1 1 auto;
       min-height: 0;
       max-height: none;
+      animation: chatEmojiPanelContentIn 170ms cubic-bezier(0.22, 1, 0.36, 1);
     }}
     .chat-emoji-panel.chat-emoji-panel-react-expanded #chat-emoji-search-row {{
       order: 6;
+      animation: chatEmojiPanelContentIn 190ms cubic-bezier(0.22, 1, 0.36, 1);
     }}
     .chat-emoji-panel.chat-emoji-panel-react-expanded .chat-emoji-react-toggle-row {{
       order: 7;
@@ -497,6 +507,16 @@
     }}
     .chat-emoji-grid[hidden] {{
       display: none !important;
+    }}
+    @keyframes chatEmojiPanelContentIn {{
+      0% {{
+        opacity: 0;
+        transform: translateY(5px);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translateY(0px);
+      }}
     }}
     .chat-emoji-empty {{
       grid-column: 1 / -1;
