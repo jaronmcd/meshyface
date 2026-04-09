@@ -83,3 +83,19 @@ def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None
     assert "padding: 0;" in body_section
     assert ".settings-chrome {" in css
     assert ".settings-panel {" in css
+
+
+def test_games_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
+    css = build_dashboard_css(theme_css="")
+    games_section = css.split(".layout.view-games .games {", 1)[1].split("}", 1)[0]
+    body_section = css.split(".layout.view-games .games .body {", 1)[1].split("}", 1)[0]
+
+    assert "background: transparent;" in games_section
+    assert "border: 0;" in games_section
+    assert "box-shadow: none;" in games_section
+    assert "overflow: visible;" in games_section
+    assert "background: transparent;" in body_section
+    assert "padding: 0;" in body_section
+    assert ".games-toolbar {" in css
+    assert ".games-sidebar {" in css
+    assert ".games-main {" in css

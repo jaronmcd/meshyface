@@ -38,6 +38,10 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .card.files {" in css
     assert "[data-theme=\"dark\"] .games-sidebar," in css
     assert "[data-theme=\"dark\"] .layout.view-games .games .body," in css
+    assert "[data-theme=\"dark\"] .reversi-status-text," in css
+    assert "[data-theme=\"dark\"] .reversi-link-status," in css
+    assert "[data-theme=\"dark\"] .reversi-invite-list {" in css
+    assert "[data-theme=\"dark\"] .reversi-player-pill {" in css
     assert "[data-theme=\"dark\"] .apps-tabs-bar.workspace-chrome-bar," in css
     assert "[data-theme=\"dark\"] .settings-tab-btn {" in css
     assert "[data-theme=\"dark\"] .settings-panel {" in css
