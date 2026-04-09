@@ -32,6 +32,7 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert 'class="chat-card-head workspace-chrome-bar"' in html
     assert 'class="games-toolbar workspace-chrome-bar"' in html
     assert 'class="games-tab-btn workspace-pill-btn is-active"' in html
+    assert "<h2>Files</h2>" not in html
     assert 'id="network-map-chrome" class="network-map-chrome"' in html
     assert 'class="network-map-subview-tabs"' in html
 
@@ -350,8 +351,38 @@ def test_peer_dm_menu_and_popout_follow_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-border)" in input_section
     assert "var(--workspace-shell-text)" in input_section
     assert "var(--ui-accent, var(--accent))" in send_section
+    assert "black 76%" in send_section
     assert "#13241b" not in menu_list_section
     assert "#152633" not in input_section
+
+
+def test_lists_and_about_panels_follow_workspace_shell_tokens() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    list_section = css.split("[data-theme=\"dark\"] .node-visibility-section {", 1)[1].split("}", 1)[0]
+    list_card_section = css.split("[data-theme=\"dark\"] .node-visibility-card,", 1)[1].split("}", 1)[0]
+    list_empty_section = css.split("[data-theme=\"dark\"] .node-visibility-card-empty,", 1)[1].split("}", 1)[0]
+    list_btn_section = css.split("[data-theme=\"dark\"] .node-visibility-section .btn {", 1)[1].split("}", 1)[0]
+    badge_section = css.split("[data-theme=\"dark\"] .node-visibility-badge {", 1)[1].split("}", 1)[0]
+    about_meta_section = css.split("[data-theme=\"dark\"] .chat-settings-meta-item {", 1)[1].split("}", 1)[0]
+    about_disk_section = css.split("[data-theme=\"dark\"] .settings-system-disk-meter {", 1)[1].split("}", 1)[0]
+
+    assert "var(--workspace-shell-border)" in list_section
+    assert "var(--workspace-shell-bg-alt)" in list_section
+    assert "var(--workspace-shell-bg)" in list_section
+    assert "var(--workspace-shell-border)" in list_card_section
+    assert "var(--workspace-shell-text-soft)" in list_empty_section
+    assert "var(--workspace-shell-border-muted)" in list_btn_section
+    assert "var(--workspace-shell-text)" in list_btn_section
+    assert "var(--workspace-shell-active-bg)" in badge_section
+    assert "var(--workspace-shell-border-strong)" in badge_section
+    assert "var(--workspace-shell-active-text)" in badge_section
+    assert "var(--workspace-shell-border-muted)" in about_meta_section
+    assert "var(--workspace-shell-text)" in about_meta_section
+    assert "var(--workspace-shell-border-muted)" in about_disk_section
+    assert "var(--workspace-shell-text)" in about_disk_section
+    assert "#13241b" not in about_meta_section
+    assert "#15241c" not in list_section
 
 
 def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
