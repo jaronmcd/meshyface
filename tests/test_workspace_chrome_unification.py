@@ -70,6 +70,7 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     dark_zoom_section = css.split("[data-theme=\"dark\"] .leaflet-control-zoom {", 1)[1].split("}", 1)[0]
     dark_status_section = css.split("[data-theme=\"dark\"] .map-basemap-status {", 1)[1].split("}", 1)[0]
     dark_leaflet_section = css.rsplit("[data-theme=\"dark\"] .leaflet-container {", 1)[1].split("}", 1)[0]
+    dark_offline_leaflet_section = css.split("[data-theme=\"dark\"] .map-frame.map-basemap-offline .leaflet-container {", 1)[1].split("}", 1)[0]
     dark_leaflet_overlay_section = css.split("[data-theme=\"dark\"] .map-frame:not(.map-basemap-offline) .leaflet-container::before {", 1)[1].split("}", 1)[0]
 
     assert "accent-color: var(--accent);" in heatmap_input_section
@@ -79,7 +80,8 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     assert "var(--workspace-shell-border)" in dark_heatmap_section
     assert "var(--workspace-shell-bg-alt)" in dark_zoom_section
     assert "var(--workspace-shell-text-soft)" in dark_status_section
-    assert "var(--workspace-shell-bg)" in dark_leaflet_section
+    assert "var(--ui-bg-elev)" in dark_leaflet_section
+    assert "var(--workspace-shell-bg)" in dark_offline_leaflet_section
     assert "z-index: 250;" in dark_leaflet_overlay_section
     assert "var(--ui-accent)" in dark_leaflet_overlay_section
     assert "var(--workspace-shell-active-bg)" in dark_leaflet_overlay_section

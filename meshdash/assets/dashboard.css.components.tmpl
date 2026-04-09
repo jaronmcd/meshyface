@@ -4537,6 +4537,9 @@
       background: var(--ui-accent-soft);
     }}
     [data-theme="dark"] .leaflet-container {{
+      background: color-mix(in srgb, var(--ui-bg-elev) 78%, black 22%);
+    }}
+    [data-theme="dark"] .map-frame.map-basemap-offline .leaflet-container {{
       background: color-mix(in srgb, var(--workspace-shell-bg) 90%, black 10%);
     }}
     [data-theme="dark"] .map-frame:not(.map-basemap-offline) .leaflet-container::before {{
