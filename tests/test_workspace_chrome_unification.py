@@ -56,3 +56,15 @@ def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
     assert "border-top: 1px solid var(--network-pane-head-border);" in frame_section
     assert "background: #08110d;" in frame_section
     assert "padding: 1px;" in frame_section
+
+
+def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
+    css = build_dashboard_css(theme_css="")
+    body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]
+
+    assert ".layout.view-console .console .body {" in css
+    assert "background: transparent;" in body_section
+    assert "padding: 0;" in body_section
+    assert ".console-terminal-screen {" in css
+    assert "border: 1px solid #7ab18a;" in css
+    assert "border-radius: 8px;" in css
