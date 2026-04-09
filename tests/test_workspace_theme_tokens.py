@@ -39,3 +39,8 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .games-sidebar," in css
     assert "[data-theme=\"dark\"] .layout.view-games .games .body," in css
     assert "[data-theme=\"dark\"] .apps-tabs-bar.workspace-chrome-bar," in css
+    assert "[data-theme=\"dark\"] .settings-tab-btn {" in css
+    assert "[data-theme=\"dark\"] .settings-panel {" in css
+    assert "[data-theme=\"dark\"] .settings-ticker-config {" in css
+    assert "[data-theme=\"dark\"] .layout.view-settings .settings," in css
+    assert "[data-theme=\"dark\"] .layout.view-settings .settings .body {" in css

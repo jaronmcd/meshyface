@@ -1613,24 +1613,35 @@
     }}
 
     [data-theme="dark"] .settings-tab-btn {{
-      background: #21352a;
-      border-color: #3a5346;
-      color: #a9c8b9;
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-toolbar {{
-      border-bottom-color: #31473b;
-      background: linear-gradient(180deg, rgba(27, 43, 34, 0.98), rgba(27, 43, 34, 0.9));
+      border-bottom-color: #2d8f5d;
+      border-bottom-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: linear-gradient(180deg, var(--workspace-shell-bg-alt), var(--workspace-shell-bg));
     }}
     [data-theme="dark"] .settings-tab-btn:hover {{
-      background: #2a4033;
-      border-color: #4b6a5a;
-      color: #c2dece;
+      background: #0d1d13;
+      background: var(--workspace-shell-hover-bg);
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .settings-tab-btn.is-active,
     [data-theme="dark"] .settings-tab-btn[aria-selected="true"] {{
-      background: #2b4a39;
-      border-color: #4f8f6c;
-      color: #d1eadb;
+      background: #173126;
+      background: var(--workspace-shell-active-bg);
+      border-color: #3f8f68;
+      border-color: var(--workspace-shell-border-strong);
+      color: #8ce7b4;
+      color: var(--workspace-shell-active-text);
       box-shadow: 0 0 0 1px rgba(79, 143, 108, 0.3);
     }}
     [data-theme="dark"] .apps-tabs-bar {{
@@ -1665,9 +1676,12 @@
       box-shadow: 0 0 0 1px rgba(79, 143, 108, 0.3);
     }}
     [data-theme="dark"] .settings-help-note {{
-      color: #98b7a7;
-      background: rgba(12, 21, 17, 0.45);
-      border-color: #31473b;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
+      background: #07140d;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
     }}
     [data-theme="dark"] .node-visibility-section {{
       background: #15241c;
@@ -1701,112 +1715,187 @@
       color: #cfe7d8;
     }}
     [data-theme="dark"] .settings-panel {{
-      background: #1a2a21;
-      border-color: #31473b;
-      color: #dbece3;
+      background: #08120d;
+      background: var(--workspace-shell-bg);
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .channels-dashboard-panel.settings-panel {{
-      background: #1a2a21;
-      border-color: #31473b;
-      color: #dbece3;
+      background: #08120d;
+      background: var(--workspace-shell-bg);
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .channels-dashboard-panel-activity.settings-panel {{
-      background: #18261f;
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .channels-activity-table-wrap {{
-      --channels-fill-row-odd: #16212b;
-      --channels-fill-row-even: #1a2631;
-      --channels-fill-row-border: #31473b;
+      --channels-fill-row-odd: var(--workspace-shell-bg);
+      --channels-fill-row-even: var(--workspace-shell-bg-alt);
+      --channels-fill-row-border: var(--workspace-shell-border-muted);
     }}
     [data-theme="dark"] .channels-panel-copy {{
-      color: #98b7a7;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .channels-action-placeholder {{
-      color: #8ea99b;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .channels-app-routing {{
-      border-color: #31473b;
-      background: #15241c;
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .channels-app-routing-copy {{
-      color: #98b7a7;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .channels-app-routing-summary {{
-      color: #a9c7b8;
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .channels-app-route-placeholder {{
-      color: #8ea99b;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .channels-app-route-row {{
-      border-color: #31473b;
-      background: #122017;
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      background: #08120d;
+      background: var(--workspace-shell-bg);
     }}
     [data-theme="dark"] .channels-app-route-title,
     [data-theme="dark"] .channels-app-route-effective-value {{
-      color: #d7eadf;
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .channels-app-route-copy,
     [data-theme="dark"] .channels-app-route-effective-copy {{
-      color: #8ea99b;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .channels-app-route-effective-label {{
-      color: #7ea08f;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
 
     [data-theme="dark"] .settings-channels-simple-actions {{
-      border-color: #31473b;
-      background: rgba(12, 21, 17, 0.35);
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      background: #07140d;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, transparent);
     }}
     [data-theme="dark"] .settings-panel h3 {{
-      color: #9fbead;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-label {{
-      color: #98b7a7;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-input,
     [data-theme="dark"] .settings-select {{
-      background: #22342a;
-      border-color: #3a5346;
-      color: #dbece3;
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .settings-fixed-map-help {{
-      color: #98b7a7;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-fixed-map {{
-      border-color: #3a5346;
-      background: #132019;
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .settings-status {{
-      color: #9fbead;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-ticker-list {{
-      border-color: #31473b;
-      background: rgba(12, 21, 17, 0.35);
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .settings-ticker-item {{
-      border-color: #3a5346;
-      background: #21352a;
-      color: #c4ddcf;
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-ticker-item:hover {{
-      border-color: #4b6a5a;
-      background: #2a4033;
+      border-color: #236744;
+      border-color: var(--workspace-shell-border-muted);
+      background: #0d1d13;
+      background: var(--workspace-shell-hover-bg);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .settings-ticker-item.is-active {{
-      border-color: #4f8f6c;
+      border-color: #3f8f68;
+      border-color: var(--workspace-shell-border-strong);
       box-shadow: 0 0 0 1px rgba(79, 143, 108, 0.3);
-      background: #2b4a39;
-      color: #d1eadb;
+      background: #173126;
+      background: var(--workspace-shell-active-bg);
+      color: #8ce7b4;
+      color: var(--workspace-shell-active-text);
     }}
     [data-theme="dark"] .settings-ticker-item-order {{
-      color: #98b7a7;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-ticker-item-state {{
-      color: #9fbead;
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-ticker-config {{
-      border-color: #31473b;
-      background: #1d2d24;
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #08120d;
+      background: var(--workspace-shell-bg);
+    }}
+    [data-theme="dark"] .layout.view-settings .settings,
+    [data-theme="dark"] .layout.view-settings .settings .body {{
+      background: #08120d;
+      background: var(--workspace-shell-bg);
+    }}
+    [data-theme="dark"] .layout.view-settings .settings-actions:not(.settings-actions-top) {{
+      border-top-color: #236744;
+      border-top-color: var(--workspace-shell-border-muted);
+      background: #08120d;
+      background: var(--workspace-shell-bg);
+    }}
+    [data-theme="dark"] .layout.view-settings .settings-time-sync-controls {{
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
+    }}
+    [data-theme="dark"] .layout.view-settings .settings-time-sync-timezone .settings-label {{
+      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .layout.view-settings .settings-time-sync-timezone .settings-select {{
+      border-color: #2d8f5d;
+      border-color: var(--workspace-shell-border);
+      background: #07140d;
+      background: var(--workspace-shell-bg-alt);
+      color: #c6ffdb;
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .btn {{
       border-color: #3a5346;
