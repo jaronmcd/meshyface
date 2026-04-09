@@ -1,3 +1,96 @@
+    function normalizeMetricTickerState(rawState) {{
+      const clean = String(rawState || "").trim().toLowerCase();
+      if (clean === "good" || clean === "warn" || clean === "bad" || clean === "neutral") {{
+        return clean;
+      }}
+      return "neutral";
+    }}
+
+    function clearMetricTickerStateClasses(container) {{
+      if (!(container instanceof HTMLElement)) return;
+      container.classList.remove(
+        "trend-up",
+        "trend-down",
+        "trend-flat",
+        "state-good",
+        "state-warn",
+        "state-bad",
+        "state-neutral",
+      );
+      delete container.dataset.trend;
+      delete container.dataset.state;
+      const item = container.closest(".summary-ticker-item");
+      if (item instanceof HTMLElement) {{
+        item.classList.remove(
+          "metric-state-good",
+          "metric-state-warn",
+          "metric-state-bad",
+          "metric-state-neutral",
+        );
+        delete item.dataset.metricTrend;
+        delete item.dataset.metricState;
+      }}
+    }}
+
+    function applyMetricTickerStateClasses(container, trend, state) {{
+      if (!(container instanceof HTMLElement)) return;
+      const resolvedTrend = trend === "up" || trend === "down" || trend === "flat"
+        ? trend
+        : "flat";
+      const resolvedState = normalizeMetricTickerState(state);
+      clearMetricTickerStateClasses(container);
+      container.classList.add(`trend-${{resolvedTrend}}`, `state-${{resolvedState}}`);
+      container.dataset.trend = resolvedTrend;
+      container.dataset.state = resolvedState;
+      const item = container.closest(".summary-ticker-item");
+      if (item instanceof HTMLElement) {{
+        item.classList.add(`metric-state-${{resolvedState}}`);
+        item.dataset.metricTrend = resolvedTrend;
+        item.dataset.metricState = resolvedState;
+      }}
+    }}
+
+    function resolveMetricTickerState(latest, delta, trend, config = {{}}) {{
+      const profile = String(config.stateProfile || "").trim().toLowerCase();
+      const warnAbove = Number(config.warnAbove);
+      const badAbove = Number(config.badAbove);
+      const warnBelow = Number(config.warnBelow);
+      const badBelow = Number(config.badBelow);
+      switch (profile) {{
+        case "count_delta":
+          return trend === "up" ? "good" : (trend === "down" ? "bad" : "neutral");
+        case "traffic_delta":
+          return trend === "up" ? "good" : "neutral";
+        case "channel_util":
+          if (!Number.isFinite(latest)) return "neutral";
+          if (Number.isFinite(badAbove) && latest >= badAbove) return "bad";
+          if (Number.isFinite(warnAbove) && latest >= warnAbove) return "warn";
+          return "good";
+        case "battery_pct":
+          if (!Number.isFinite(latest)) return "neutral";
+          if (Number.isFinite(badBelow) && latest <= badBelow) return "bad";
+          if (Number.isFinite(warnBelow) && latest <= warnBelow) return "warn";
+          return "good";
+        case "signal_rssi":
+          if (!Number.isFinite(latest)) return "neutral";
+          if (Number.isFinite(badBelow) && latest <= badBelow) return "bad";
+          if (Number.isFinite(warnBelow) && latest <= warnBelow) return "warn";
+          return "good";
+        case "signal_snr":
+          if (!Number.isFinite(latest)) return "neutral";
+          if (Number.isFinite(badBelow) && latest <= badBelow) return "bad";
+          if (Number.isFinite(warnBelow) && latest <= warnBelow) return "warn";
+          return "good";
+        case "wifi_rssi":
+          if (!Number.isFinite(latest)) return "neutral";
+          if (Number.isFinite(badBelow) && latest < badBelow) return "bad";
+          if (Number.isFinite(warnBelow) && latest < warnBelow) return "warn";
+          return "good";
+        default:
+          return trend === "up" ? "good" : (trend === "down" ? "bad" : "neutral");
+      }}
+    }}
+
     function updateMetricTicker(metricKey, rawValue, config = {{}}) {{
       const container = document.getElementById(config.containerId || "");
       const deltaEl = document.getElementById(config.deltaId || "");
@@ -8,6 +101,7 @@
       }}
       const value = Number(rawValue);
       if (!Number.isFinite(value)) {{
+        clearMetricTickerStateClasses(container);
         container.hidden = true;
         return;
       }}
@@ -19,6 +113,7 @@
         Number(config.maxPoints) || metricTickerMaxPoints
       );
       if (!Array.isArray(points) || points.length === 0) {{
+        clearMetricTickerStateClasses(container);
         container.hidden = true;
         return;
       }}
@@ -32,6 +127,7 @@
       let trend = "flat";
       if (delta > epsilon) trend = "up";
       else if (delta < -epsilon) trend = "down";
+      const state = resolveMetricTickerState(latest, delta, trend, config);
 
       const deltaAbsBaseText = formatTickerNumber(Math.abs(delta), config.digits);
       const deltaAbsText = `${{deltaAbsBaseText}}${{valueUnit}}`;
@@ -48,8 +144,7 @@
       }}
       deltaEl.textContent = deltaText;
 
-      container.classList.remove("trend-up", "trend-down", "trend-flat");
-      container.classList.add(`trend-${{trend}}`);
+      applyMetricTickerStateClasses(container, trend, state);
       container.hidden = false;
 
       chart.innerHTML = "";
@@ -84,7 +179,7 @@
       }}
       const fromText = `${{formatTickerNumber(baseline, config.digits)}}${{valueUnit}}`;
       const toText = `${{formatTickerNumber(latest, config.digits)}}${{valueUnit}}`;
-      container.title = `Trend (${{rangeMinutes}}m): ${{fromText}} -> ${{toText}}; delta ${{deltaText}}; rate ${{rateText}}`;
+      container.title = `Trend (${{rangeMinutes}}m): ${{fromText}} -> ${{toText}}; delta ${{deltaText}}; rate ${{rateText}}; state ${{state}}`;
     }}
 
     function compactTargetMetric(value, maxLen = 44) {{
@@ -216,4 +311,3 @@
 
       return {{ unix: null, source: "" }};
     }}
-

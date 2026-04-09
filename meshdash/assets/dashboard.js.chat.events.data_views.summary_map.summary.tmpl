@@ -499,6 +499,7 @@
         digits: def.tickerDigits,
         rateDigits: def.rateDigits,
         flatThreshold: def.flatThreshold,
+        stateProfile: "traffic_delta",
         valueUnit: def.valueUnit,
         windowMs: envAggregateTickerWindowMs,
         maxPoints: envAggregateTickerMaxPoints,
@@ -1436,6 +1437,7 @@
         rateId: "ticker-rate-nodes",
         chartId: "ticker-chart-nodes",
         digits: 0,
+        stateProfile: "count_delta",
       }});
       const nodesTicker = document.getElementById("ticker-nodes");
       if (nodesTicker instanceof HTMLElement && !showKnownNodesTrend) {{
@@ -1447,6 +1449,7 @@
         rateId: "ticker-rate-online-nodes",
         chartId: "ticker-chart-online-nodes",
         digits: 0,
+        stateProfile: "count_delta",
       }});
       const onlineNodesTicker = document.getElementById("ticker-online-nodes");
       if (onlineNodesTicker instanceof HTMLElement && !showOnlineNodesTrend) {{
@@ -1464,6 +1467,7 @@
         rateId: "ticker-rate-live-packets",
         chartId: "ticker-chart-live-packets",
         digits: 1,
+        stateProfile: "traffic_delta",
       }});
       const packetsTicker = document.getElementById("ticker-live-packets");
       if (packetsTicker instanceof HTMLElement && !showPacketsTrend) {{
@@ -1493,6 +1497,9 @@
           digits: 1,
           rateDigits: 1,
           flatThreshold: 0.3,
+          stateProfile: "channel_util",
+          warnAbove: 10,
+          badAbove: 25,
           valueUnit: "%",
           windowMs: 2 * 60 * 60 * 1000,
           maxPoints: 240,
@@ -1516,6 +1523,9 @@
           digits: 1,
           rateDigits: 2,
           flatThreshold: 0.15,
+          stateProfile: "battery_pct",
+          warnBelow: 35,
+          badBelow: 15,
           valueUnit: "%",
           windowMs: batteryTrendWindowMs,
           maxPoints: 480,
@@ -1578,6 +1588,9 @@
           digits: nodeSignalDigits,
           rateDigits: 1,
           flatThreshold: 0.4,
+          stateProfile: Number.isFinite(nodeRssi) ? "signal_rssi" : "signal_snr",
+          warnBelow: Number.isFinite(nodeRssi) ? -95 : 5,
+          badBelow: Number.isFinite(nodeRssi) ? -110 : 0,
           valueUnit: nodeSignalUnit,
           windowMs: 2 * 60 * 60 * 1000,
           maxPoints: 240,
@@ -1705,6 +1718,9 @@
           digits: 0,
           rateDigits: 1,
           flatThreshold: 1,
+          stateProfile: "wifi_rssi",
+          warnBelow: -67,
+          badBelow: -80,
           valueUnit: "dBm",
           windowMs: 2 * 60 * 60 * 1000,
           maxPoints: 240,

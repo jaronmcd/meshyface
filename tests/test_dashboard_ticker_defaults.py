@@ -41,6 +41,23 @@ def test_dashboard_js_defaults_unique_node_colors_to_off() -> None:
     )
 
 
+def test_dashboard_js_uses_semantic_ticker_state_profiles() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'function resolveMetricTickerState(latest, delta, trend, config = {}) {' in js
+    assert 'item.classList.add(`metric-state-${resolvedState}`);' in js
+    assert 'stateProfile: "count_delta"' in js
+    assert 'stateProfile: "traffic_delta"' in js
+    assert 'stateProfile: "channel_util"' in js
+    assert 'stateProfile: "battery_pct"' in js
+    assert 'stateProfile: Number.isFinite(nodeRssi) ? "signal_rssi" : "signal_snr"' in js
+    assert 'stateProfile: "wifi_rssi"' in js
+
+
 def test_dashboard_js_normalizes_full_profile_to_core_ui() -> None:
     core_js = build_dashboard_js(
         refresh_ms=1000,

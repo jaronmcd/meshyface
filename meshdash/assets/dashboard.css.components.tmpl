@@ -3106,6 +3106,89 @@
     [data-theme="dark"] .summary-updated-row {{
       color: var(--ui-text-soft);
     }}
+    [data-theme="dark"] .topbar .summary-ticker-item {{
+      --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
+      --ticker-card-accent-soft: var(--workspace-shell-active-text);
+      border-color: var(--workspace-shell-border);
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, var(--ticker-card-accent) 14%),
+          color-mix(in srgb, var(--workspace-shell-bg) 94%, var(--workspace-shell-bg-alt) 6%)
+        );
+      color: var(--workspace-shell-text);
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-muted) 62%, transparent),
+        0 10px 18px rgba(2, 6, 4, 0.16);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item:hover {{
+      border-color: var(--workspace-shell-border-strong);
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-hover-bg) 84%, var(--ticker-card-accent) 16%),
+          color-mix(in srgb, var(--workspace-shell-bg) 88%, var(--workspace-shell-hover-bg) 12%)
+        );
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item.metric-state-neutral {{
+      --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--workspace-shell-text-soft) 18%);
+      --ticker-card-accent-soft: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item.metric-state-good {{
+      --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-strong) 68%, var(--ui-accent) 32%);
+      --ticker-card-accent-soft: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item.metric-state-warn {{
+      --ticker-card-accent: #d1a24f;
+      --ticker-card-accent-soft: #f1cd93;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item.metric-state-bad {{
+      --ticker-card-accent: #cf6f6f;
+      --ticker-card-accent-soft: #f0b6b6;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .label {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .value,
+    [data-theme="dark"] .topbar .summary-ticker-item .value.node-ticker-value .node-ticker-val,
+    [data-theme="dark"] .topbar .summary-ticker-item .value.wifi-ticker-value .wifi-ticker-val,
+    [data-theme="dark"] .topbar .summary-ticker-item .time-ticker-val {{
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .value.node-ticker-value .node-ticker-key,
+    [data-theme="dark"] .topbar .summary-ticker-item .value.wifi-ticker-value .wifi-ticker-key,
+    [data-theme="dark"] .topbar .summary-ticker-item .time-ticker-key {{
+      color: color-mix(in srgb, var(--workspace-shell-text-soft) 88%, var(--ticker-card-accent-soft) 12%);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .metric-ticker-delta,
+    [data-theme="dark"] .topbar .summary-ticker-item .metric-ticker-rate {{
+      color: var(--ticker-card-accent-soft);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .metric-ticker-chart path {{
+      stroke: var(--ticker-card-accent);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, transparent);
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-online {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 84%, transparent);
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-warn,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-stale,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-unknown {{
+      border-color: rgba(209, 162, 79, 0.84);
+      background: rgba(161, 98, 7, 0.26);
+      color: #f4deb2;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-lost {{
+      border-color: rgba(207, 111, 111, 0.9);
+      background: rgba(153, 27, 27, 0.3);
+      color: #f3c8c8;
+    }}
     [data-theme="dark"] .summary-freshness {{
       border-color: rgba(124, 161, 190, 0.36);
       background: rgba(121, 192, 255, 0.08);

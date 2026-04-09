@@ -148,6 +148,26 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     assert "#172820" not in tab_section
 
 
+def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    ticker_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
+    neutral_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-neutral {", 1)[1].split("}", 1)[0]
+    bad_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-bad {", 1)[1].split("}", 1)[0]
+    chart_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .metric-ticker-chart path {", 1)[1].split("}", 1)[0]
+    target_status_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .target-radio-status {", 1)[1].split("}", 1)[0]
+
+    assert "var(--workspace-shell-border)" in ticker_section
+    assert "var(--workspace-shell-bg-alt)" in ticker_section
+    assert "var(--workspace-shell-bg)" in ticker_section
+    assert "var(--workspace-shell-text)" in ticker_section
+    assert "var(--workspace-shell-text-soft)" in neutral_section
+    assert "#cf6f6f" in bad_section
+    assert "var(--ticker-card-accent)" in chart_section
+    assert "var(--workspace-shell-border-muted)" in target_status_section
+    assert "var(--workspace-shell-text-soft)" in target_status_section
+
+
 def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     css = build_dashboard_css(theme_css="")
     body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]
