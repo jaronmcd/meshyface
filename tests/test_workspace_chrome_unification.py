@@ -177,6 +177,8 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
 def test_topbar_controls_share_workspace_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
+    launcher_section = css.split("[data-theme=\"dark\"] .topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
+    launcher_hover_section = css.split("[data-theme=\"dark\"] .topbar-view-menu-btn:hover,", 1)[1].split("}", 1)[0]
     update_section = css.split("[data-theme=\"dark\"] .topbar-update-ticker {", 1)[1].split("}", 1)[0]
     update_text_section = css.split("[data-theme=\"dark\"] .topbar-update-text,", 1)[1].split("}", 1)[0]
     icon_section = css.split("[data-theme=\"dark\"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn,", 1)[1].split("}", 1)[0]
@@ -185,6 +187,9 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
 
     assert "--topbar-shell-border:" not in css
     assert "--topbar-shell-control-bg:" not in css
+    assert "var(--workspace-shell-border-muted)" in launcher_section
+    assert "var(--workspace-shell-border-strong)" in launcher_hover_section
+    assert "accent-2" not in launcher_section
     assert "var(--workspace-shell-border)" in update_section
     assert "var(--workspace-shell-bg-alt)" in update_section
     assert "var(--workspace-shell-bg)" in update_section

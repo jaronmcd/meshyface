@@ -1501,6 +1501,7 @@
           color-mix(in srgb, var(--workspace-shell-bg) 92%, black)
         );
       color: var(--workspace-shell-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-muted) 54%, transparent);
     }}
     [data-theme="dark"] .topbar-view-menu-btn:hover,
     [data-theme="dark"] .topbar-view-menu-btn[aria-expanded="true"] {{
@@ -1511,9 +1512,11 @@
           color-mix(in srgb, var(--workspace-shell-hover-bg) 86%, var(--ui-panel-alt)),
           color-mix(in srgb, var(--workspace-shell-bg) 92%, var(--workspace-shell-hover-bg))
         );
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 48%, transparent);
     }}
     [data-theme="dark"] .topbar-view-menu-btn.has-unread {{
       border-color: var(--ui-accent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 24%, transparent);
     }}
     [data-theme="dark"] .topbar-view-menu-btn-badge {{
       border-color: color-mix(in srgb, var(--ui-accent) 34%, transparent);
