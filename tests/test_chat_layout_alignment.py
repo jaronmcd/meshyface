@@ -339,11 +339,12 @@ def test_chat_node_list_can_collapse_into_compact_rail() -> None:
 
     assert 'id="chat-panel-collapse-btn"' in html
     assert 'id="chat-panel-collapse-glyph"' in html
-    assert "--chat-panel-collapsed-width: 96px;" in css
+    assert "--chat-panel-collapsed-width: 160px;" in css
     assert ".workspace-shell.chat-panel-open.chat-panel-collapsed {" in css
-    assert ".workspace-shell.chat-panel-collapsed .chat-users-head-title," in css
+    assert ".workspace-shell.chat-panel-collapsed .chat-users-head-title {" in css
     assert ".workspace-shell.chat-panel-collapsed .chat-users-head-view-btn," in css
     assert ".workspace-shell.chat-panel-collapsed .chat-member-meta-row," in css
+    assert ".workspace-shell.chat-panel-collapsed #chat-peer-add-toggle-btn," in css
     assert "const chatPanelCollapsedStorageKey = \"meshDashboardChatPanelCollapsedV1\";" in js
     assert "let chatPanelCollapsed = false;" in js
     assert "function applyChatPanelCollapseState() {" in js
