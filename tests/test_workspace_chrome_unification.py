@@ -231,6 +231,30 @@ def test_chat_header_pills_follow_workspace_shell_tab_tokens() -> None:
     assert "rgba(20, 35, 28, 0.34)" not in channel_pill_section
 
 
+def test_node_navigator_menu_follows_workspace_shell_tokens() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    menu_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-menu,", 1)[1].split("}", 1)[0]
+    sort_btn_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-sort-dir-btn,", 1)[1].split("}", 1)[0]
+    label_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-label,", 1)[1].split("}", 1)[0]
+    head_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-fields-head {", 1)[1].split("}", 1)[0]
+    sort_btn_hover_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-sort-dir-btn:hover,", 1)[1].split("}", 1)[0]
+    checkbox_section = css.split(".chat-node-navigator-field-option input {", 1)[1].split("}", 1)[0]
+
+    assert "var(--workspace-shell-bg)" in menu_section
+    assert "var(--workspace-shell-border)" in menu_section
+    assert "var(--workspace-shell-bg-alt)" in sort_btn_section
+    assert "var(--workspace-shell-border-muted)" in sort_btn_section
+    assert "var(--workspace-shell-text-soft)" in sort_btn_section
+    assert "var(--workspace-shell-text)" in label_section
+    assert "var(--workspace-shell-text-soft)" in head_section
+    assert "var(--workspace-shell-hover-bg)" in sort_btn_hover_section
+    assert "var(--workspace-shell-border-strong)" in sort_btn_hover_section
+    assert "var(--ui-accent, var(--accent))" in checkbox_section
+    assert "#0d1711" not in menu_section
+    assert "#16261f" not in sort_btn_section
+
+
 def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     css = build_dashboard_css(theme_css="")
 
