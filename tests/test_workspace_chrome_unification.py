@@ -151,12 +151,18 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
 def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     css = build_dashboard_css(theme_css="")
 
+    topbar_section = css.rsplit("[data-theme=\"dark\"] .topbar {", 1)[1].split("}", 1)[0]
     ticker_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
     neutral_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-neutral {", 1)[1].split("}", 1)[0]
     bad_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-bad {", 1)[1].split("}", 1)[0]
     chart_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .metric-ticker-chart path {", 1)[1].split("}", 1)[0]
     target_status_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .target-radio-status {", 1)[1].split("}", 1)[0]
 
+    assert "var(--workspace-shell-active-bg)" in topbar_section
+    assert "var(--workspace-shell-bg-alt)" in topbar_section
+    assert "var(--workspace-shell-bg)" in topbar_section
+    assert "var(--workspace-shell-border)" in topbar_section
+    assert "#121a25" not in topbar_section
     assert "var(--workspace-shell-border)" in ticker_section
     assert "var(--workspace-shell-bg-alt)" in ticker_section
     assert "var(--workspace-shell-bg)" in ticker_section
@@ -199,6 +205,9 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
 def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     css = build_dashboard_css(theme_css="")
     body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]
+    dark_screen_section = css.split("[data-theme=\"dark\"] .console-terminal-screen {", 1)[1].split("}", 1)[0]
+    dark_overlay_section = css.split("[data-theme=\"dark\"] .console-terminal-screen::before {", 1)[1].split("}", 1)[0]
+    dark_live_console_section = css.split("[data-theme=\"dark\"] #live-console {", 1)[1].split("}", 1)[0]
 
     assert ".layout.view-console .console .body {" in css
     assert "background: transparent;" in body_section
@@ -206,6 +215,15 @@ def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     assert ".console-terminal-screen {" in css
     assert "border: 1px solid #7ab18a;" in css
     assert "border-radius: 8px;" in css
+    assert "var(--workspace-shell-border)" in dark_screen_section
+    assert "var(--workspace-shell-bg)" in dark_screen_section
+    assert "var(--workspace-shell-bg-alt)" in dark_screen_section
+    assert "var(--workspace-shell-active-bg)" in dark_screen_section
+    assert "var(--workspace-shell-hover-bg)" in dark_screen_section
+    assert "rgba(83, 170, 112, 0.09)" not in dark_screen_section
+    assert "var(--workspace-shell-border-muted)" in dark_overlay_section
+    assert "var(--workspace-shell-text)" in dark_live_console_section
+    assert "var(--workspace-shell-active-text)" in dark_live_console_section
 
 
 def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:

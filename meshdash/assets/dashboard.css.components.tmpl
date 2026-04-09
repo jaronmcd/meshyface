@@ -3008,14 +3008,30 @@
       border-color: #2d8f5d;
       border-color: var(--workspace-shell-border);
       background:
-        radial-gradient(circle at top, rgba(83, 170, 112, 0.09), transparent 42%),
-        linear-gradient(180deg, var(--workspace-shell-bg) 0%, var(--workspace-shell-bg-alt) 100%);
+        radial-gradient(
+          circle at top,
+          color-mix(in srgb, var(--workspace-shell-active-bg) 24%, transparent) 0,
+          transparent 46%
+        ),
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg) 96%, black),
+          color-mix(in srgb, var(--workspace-shell-bg-alt) 90%, black)
+        );
       box-shadow:
-        inset 0 0 0 1px rgba(127, 255, 177, 0.08),
-        inset 0 0 28px rgba(10, 71, 40, 0.28);
+        inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-muted) 62%, transparent),
+        inset 0 0 28px color-mix(in srgb, var(--workspace-shell-hover-bg) 34%, transparent);
     }}
     [data-theme="dark"] .console-terminal-screen::before {{
-      opacity: 0.45;
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-border-muted) 16%, transparent) 0,
+          color-mix(in srgb, var(--workspace-shell-border-muted) 16%, transparent) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+      opacity: 0.28;
     }}
     [data-theme="dark"] .console-context-menu {{
       border-color: rgba(57, 175, 114, 0.52);
@@ -3041,10 +3057,11 @@
       color: rgba(177, 255, 204, 0.72);
     }}
     [data-theme="dark"] .console-scroll-status {{
-      background: rgba(3, 14, 9, 0.42);
+      border: 1px solid var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, black 22%);
       box-shadow:
         0 10px 20px rgba(0, 0, 0, 0.42);
-      color: #cbffe0;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .console-controls button {{
       background: #07140d;
@@ -3087,13 +3104,23 @@
       text-shadow: none;
     }}
     [data-theme="dark"] .topbar {{
-      background: linear-gradient(180deg, #121a25 0%, #0f1721 100%) !important;
-      border-bottom: 1px solid var(--ui-border);
-      box-shadow: var(--ui-shadow);
+      background:
+        radial-gradient(
+          circle at top center,
+          color-mix(in srgb, var(--workspace-shell-active-bg) 18%, transparent) 0,
+          transparent 58%
+        ),
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, black),
+          color-mix(in srgb, var(--workspace-shell-bg) 92%, black)
+        ) !important;
+      border-bottom: 1px solid var(--workspace-shell-border);
+      box-shadow: var(--workspace-shell-shadow);
     }}
     [data-theme="dark"] .topbar h1,
     [data-theme="dark"] .topbar .sub {{
-      color: var(--ui-text);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .topbar .sub .sub-text,
     [data-theme="dark"] .topbar .revision-text,
@@ -3101,10 +3128,10 @@
     [data-theme="dark"] #updated-at,
     [data-theme="dark"] #local-state-error,
     [data-theme="dark"] .signal-legend .legend-chip {{
-      color: var(--ui-text-soft) !important;
+      color: var(--workspace-shell-text-soft) !important;
     }}
     [data-theme="dark"] .summary-updated-row {{
-      color: var(--ui-text-soft);
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .topbar-update-ticker {{
       border-color: var(--workspace-shell-border);
@@ -3258,7 +3285,8 @@
     [data-theme="dark"] #live-console {{
       background: transparent;
       border-color: transparent !important;
-      color: #c6ffdb;
+      color: color-mix(in srgb, var(--workspace-shell-text) 92%, var(--workspace-shell-active-text) 8%);
+      text-shadow: none;
     }}
     [data-theme="dark"] th {{
       background: #1d2733;
