@@ -122,6 +122,32 @@ def test_games_boards_follow_runtime_theme_tokens() -> None:
     assert "#113a2b" not in dark_reversi_board_section
 
 
+def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    drawer_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer {", 1)[1].split("}", 1)[0]
+    head_section = css.split("[data-theme=\"dark\"] .chat-node-details-head {", 1)[1].split("}", 1)[0]
+    tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn {", 1)[1].split("}", 1)[0]
+    active_tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn.is-active {", 1)[1].split("}", 1)[0]
+    action_section = css.split("[data-theme=\"dark\"] .chat-node-details-action-btn {", 1)[1].split("}", 1)[0]
+    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .saved-node-details {", 1)[1].split("}", 1)[0]
+    saved_section = css.split("[data-theme=\"dark\"] .saved-node-section {", 1)[1].split("}", 1)[0]
+    saved_stat_section = css.split("[data-theme=\"dark\"] .saved-node-stat {", 1)[1].split("}", 1)[0]
+
+    assert "var(--workspace-shell-border)" in drawer_section
+    assert "var(--workspace-shell-bg)" in drawer_section
+    assert "var(--workspace-shell-bg-alt)" in head_section
+    assert "var(--workspace-shell-text-soft)" in tab_section
+    assert "var(--workspace-shell-active-bg)" in active_tab_section
+    assert "var(--workspace-shell-active-text)" in active_tab_section
+    assert "var(--workspace-shell-border-muted)" in action_section
+    assert "var(--workspace-shell-bg)" in saved_details_section
+    assert "var(--workspace-shell-bg-alt)" in saved_section
+    assert "var(--workspace-shell-border-muted)" in saved_stat_section
+    assert "#0e1713" not in drawer_section
+    assert "#172820" not in tab_section
+
+
 def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     css = build_dashboard_css(theme_css="")
     body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]
