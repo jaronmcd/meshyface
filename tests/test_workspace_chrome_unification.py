@@ -68,3 +68,18 @@ def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     assert ".console-terminal-screen {" in css
     assert "border: 1px solid #7ab18a;" in css
     assert "border-radius: 8px;" in css
+
+
+def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
+    css = build_dashboard_css(theme_css="")
+    settings_section = css.split(".layout.view-settings .settings {", 1)[1].split("}", 1)[0]
+    body_section = css.split(".layout.view-settings .settings .body {", 1)[1].split("}", 1)[0]
+
+    assert "background: transparent;" in settings_section
+    assert "border: 0;" in settings_section
+    assert "box-shadow: none;" in settings_section
+    assert "overflow: visible;" in settings_section
+    assert "background: transparent;" in body_section
+    assert "padding: 0;" in body_section
+    assert ".settings-chrome {" in css
+    assert ".settings-panel {" in css
