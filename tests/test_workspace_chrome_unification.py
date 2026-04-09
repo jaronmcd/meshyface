@@ -43,3 +43,16 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert ".chat-card-head.workspace-chrome-bar {" in css
     assert "[data-theme=\"dark\"] .settings-chrome.workspace-chrome-bar," in css
     assert "[data-theme=\"dark\"] .network-map-subview-tab,\n    [data-theme=\"dark\"] .workspace-pill-btn {" in css
+
+
+def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
+    css = build_dashboard_css(theme_css="")
+    body_section = css.split(".layout.view-network .map .body {", 1)[1].split("}", 1)[0]
+    frame_section = css.split(".layout.view-network .map-frame {", 1)[1].split("}", 1)[0]
+
+    assert ".layout.view-network .map-frame {" in css
+    assert "background: transparent;" in body_section
+    assert "padding: 0;" in body_section
+    assert "border-top: 1px solid var(--network-pane-head-border);" in frame_section
+    assert "background: #08110d;" in frame_section
+    assert "padding: 1px;" in frame_section
