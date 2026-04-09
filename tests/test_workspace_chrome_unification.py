@@ -58,6 +58,26 @@ def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
     assert "padding: 1px;" in frame_section
 
 
+def test_network_map_controls_follow_theme_tokens() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    heatmap_input_section = css.split(".map-heatmap-wrap input {", 1)[1].split("}", 1)[0]
+    reset_section = css.split(".map-reset-view-btn {", 1)[1].split("}", 1)[0]
+    zoom_section = css.split(".leaflet-control-zoom {", 1)[1].split("}", 1)[0]
+    tabs_section = css.split(".network-map-subview-tabs {", 1)[1].split("}", 1)[0]
+    dark_heatmap_section = css.split("[data-theme=\"dark\"] .map-heatmap-wrap {", 1)[1].split("}", 1)[0]
+    dark_zoom_section = css.split("[data-theme=\"dark\"] .leaflet-control-zoom {", 1)[1].split("}", 1)[0]
+    dark_status_section = css.split("[data-theme=\"dark\"] .map-basemap-status {", 1)[1].split("}", 1)[0]
+
+    assert "accent-color: var(--accent);" in heatmap_input_section
+    assert "var(--accent)" in reset_section
+    assert "var(--line)" in zoom_section
+    assert "var(--accent)" in tabs_section
+    assert "var(--workspace-shell-border)" in dark_heatmap_section
+    assert "var(--workspace-shell-bg-alt)" in dark_zoom_section
+    assert "var(--workspace-shell-text-soft)" in dark_status_section
+
+
 def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     css = build_dashboard_css(theme_css="")
     body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]

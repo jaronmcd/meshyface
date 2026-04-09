@@ -4369,17 +4369,18 @@
       color: var(--ui-text);
     }}
     [data-theme="dark"] .leaflet-control-zoom {{
-      border-color: #355343 !important;
-      background: #16231d;
+      border-color: var(--workspace-shell-border) !important;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, var(--ui-bg-elev) 18%);
+      box-shadow: var(--workspace-shell-shadow);
     }}
     [data-theme="dark"] .leaflet-control-zoom a {{
-      background: #101914;
-      color: #cbe8d7;
-      border-bottom-color: #355343;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--workspace-shell-bg) 22%);
+      color: var(--workspace-shell-text);
+      border-bottom-color: var(--workspace-shell-border);
     }}
     [data-theme="dark"] .leaflet-control-zoom a:hover {{
-      background: #1b2b23;
-      color: #e1f7ea;
+      background: var(--workspace-shell-hover-bg);
+      color: var(--workspace-shell-active-text);
     }}
     [data-theme="dark"] .leaflet-control-zoom a:last-child {{
       border-bottom: 0;
@@ -4459,22 +4460,22 @@
       padding: 8px 10px 7px 10px;
     }}
     [data-theme="dark"] .map-heatmap-wrap {{
-      background: #16231d;
-      border-color: #355343;
-      color: #cbe8d7;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .map-heatmap-wrap input {{
-      accent-color: #5aa878;
+      accent-color: var(--ui-accent);
     }}
     [data-theme="dark"] .map-heatmap-mode-wrap {{
-      background: #16231d;
-      border-color: #355343;
-      color: #cbe8d7;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .map-heatmap-mode {{
-      background: #101914;
-      border-color: #355343;
-      color: #cbe8d7;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--workspace-shell-bg) 28%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .map-position-badge {{
       background: #16231d;
@@ -4498,27 +4499,24 @@
     }}
 
     [data-theme="dark"] .map-reset-view-btn {{
-      background: #07140d;
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2d8f5d;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-accent) 16%);
       border-color: var(--workspace-shell-border);
-      color: #c6ffdb;
       color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .map-reset-view-btn:hover {{
-      background: #0d1d13;
-      background: var(--workspace-shell-hover-bg);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-accent) 28%);
     }}
     [data-theme="dark"] .map-basemap-status {{
-      background: #151f2b;
-      border-color: #3c506c;
-      color: #c9ddfb;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--ui-bg-elev) 28%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 78%, var(--ui-border) 22%);
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .map-basemap-status:hover {{
-      background: #1b293a;
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-bg-elev) 28%);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .map-basemap-status:focus-visible {{
-      outline-color: rgba(137, 176, 230, 0.65);
+      outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .map-basemap-status.status-online {{
       background: #173126;
@@ -4542,32 +4540,22 @@
       border-color: #5f7ea7;
     }}
     [data-theme="dark"] .network-map-subview-tabs {{
-      border-color: #236744;
-      border-color: var(--workspace-shell-border-muted);
-      background: #07140d;
-      background: var(--workspace-shell-bg-alt);
-      box-shadow: 0 12px 28px rgba(2, 6, 4, 0.5);
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
       box-shadow: var(--workspace-shell-shadow);
     }}
     [data-theme="dark"] .network-map-subview-tab {{
-      color: #b8d6c4;
       color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .network-map-subview-tab:hover {{
-      background: #0d1d13;
-      background: var(--workspace-shell-hover-bg);
-      border-color: #236744;
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
       border-color: var(--workspace-shell-border-muted);
-      color: #c6ffdb;
       color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .network-map-subview-tab.is-active,
     [data-theme="dark"] .network-map-subview-tab[aria-selected="true"] {{
-      background: #173126;
-      background: var(--workspace-shell-active-bg);
-      border-color: #3f8f68;
-      border-color: var(--workspace-shell-border-strong);
-      color: #8ce7b4;
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--ui-accent-soft) 22%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
       color: var(--workspace-shell-active-text);
       box-shadow: 0 6px 16px rgba(4, 14, 8, 0.42);
     }}
@@ -6680,25 +6668,25 @@
     }}
     [data-theme="dark"] .network-map-subview-tab,
     [data-theme="dark"] .workspace-pill-btn {{
-      color: #b8d6c4;
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .network-map-subview-tab:hover,
     [data-theme="dark"] .workspace-pill-btn:hover {{
-      background: rgba(26, 48, 34, 0.92);
-      border-color: rgba(67, 116, 87, 0.88);
-      color: #e0f7e7;
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .network-map-subview-tab.is-active,
     [data-theme="dark"] .network-map-subview-tab[aria-selected="true"],
     [data-theme="dark"] .workspace-pill-btn.is-active,
     [data-theme="dark"] .workspace-pill-btn[aria-selected="true"] {{
-      background: #173126;
-      border-color: #3f8f68;
-      color: #8ce7b4;
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--ui-accent-soft) 22%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
+      color: var(--workspace-shell-active-text);
       box-shadow: 0 6px 16px rgba(4, 14, 8, 0.42);
     }}
     [data-theme="dark"] .workspace-pill-btn:focus-visible {{
-      outline-color: rgba(137, 176, 230, 0.65);
+      outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .workspace-action-chip {{
       background: rgba(20, 35, 28, 0.52);
