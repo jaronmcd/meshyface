@@ -164,7 +164,8 @@ def test_dark_chat_palette_matches_green_workspace_theme() -> None:
     assert "--chat-feed-node-hue: 148;" in css
     assert "--chat-feed-node-tint-end-hue: 170;" in css
     assert "--chat-feed-node-outline-hue: 154;" in css
-    assert "rgba(83, 160, 112, 0.11)" in css
+    assert "--chat-feed-node-gradient: linear-gradient(" in css
+    assert "color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--ui-bg-elev) 12%)" in css
     assert "[data-theme=\"dark\"] .chat-feed-item.kind-status {" in css
     assert "rgba(44, 82, 60, 0.58)" in css
     assert "[data-theme=\"dark\"] .card.chat .chat-reaction-chip," in css
@@ -174,12 +175,12 @@ def test_dark_chat_palette_matches_green_workspace_theme() -> None:
     assert "[data-theme=\"dark\"] .chat-member-item {" in css
     assert "--chat-member-node-dark-sat-mult: 1.02;" in css
     assert "--chat-member-node-outline-dark-sat-mult: 1.18;" in css
-    assert "calc(46% * var(--chat-member-node-dark-sat-mult, 1))" in css
+    assert "calc(44% * var(--chat-member-node-dark-sat-mult, 1))" in css
     assert "calc(18% * var(--chat-member-node-dark-sat-mult, 1))" in css
     assert "color: var(--ui-text);" in css
     assert "[data-theme=\"dark\"] .chat-member-item:hover {" in css
-    assert "rgba(83, 160, 112, 0.12)" in css
-    assert "calc(50% * var(--chat-member-node-dark-sat-mult, 1))" in css
+    assert "color-mix(in srgb, var(--chat-member-node-outline) 88%, var(--ui-accent) 12%)" in css
+    assert "color-mix(in srgb, var(--workspace-shell-border-strong) 68%, var(--ui-accent) 32%)" in css
     assert "[data-theme=\"dark\"] .chat-member-item.selected-node {" in css
     assert "hsl(var(--chat-member-node-outline-hue, 154) calc(30% * var(--chat-member-node-outline-dark-sat-mult, 1.1))" in css
     assert "hsl(var(--chat-member-node-hue, 145) calc(44% * var(--chat-member-node-dark-sat-mult, 1))" in css
@@ -205,6 +206,22 @@ def test_chat_compose_controls_order_matches_current_layout() -> None:
     emoji_idx = html.index('id="chat-emoji-btn"')
 
     assert channel_idx < input_idx < send_idx < emoji_idx
+
+
+def test_chat_ui_flags_nodes_with_malformed_text_payloads() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert "function malformedTextPayloadRecord(packetEntry) {" in js
+    assert "function mapMalformedTextPayloadByNode(recentPackets) {" in js
+    assert "Malformed text payloads detected:" in js
+    assert "Malformed Text Packets" in js
+    assert ".chat-member-alert-chip {" in css
+    assert "[data-theme=\"dark\"] .chat-member-alert-chip {" in css
 
 
 def test_chat_send_channel_compact_dot_trigger_geometry() -> None:

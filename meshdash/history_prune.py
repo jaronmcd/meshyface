@@ -19,6 +19,7 @@ def prune_history_tables(
     if event_retention_seconds > 0:
         event_cutoff = int(now_unix) - int(event_retention_seconds)
         conn.execute("DELETE FROM packet_events WHERE created_unix < ?", (event_cutoff,))
+        conn.execute("DELETE FROM malformed_text_payloads WHERE created_unix < ?", (event_cutoff,))
         conn.execute("DELETE FROM node_positions WHERE created_unix < ?", (event_cutoff,))
         conn.execute("DELETE FROM node_capabilities WHERE last_seen_unix < ?", (event_cutoff,))
     if rollup_retention_seconds > 0:
@@ -63,6 +64,13 @@ def prune_history_tables(
             """
             DELETE FROM packet_events
             WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM packet_events)
+            """,
+            (int(event_max_rows),),
+        )
+        conn.execute(
+            """
+            DELETE FROM malformed_text_payloads
+            WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM malformed_text_payloads)
             """,
             (int(event_max_rows),),
         )

@@ -3,6 +3,7 @@ import time
 from typing import Optional, Protocol
 
 from .helpers import to_int
+from .history_malformed_text import save_malformed_text_payload as _save_malformed_text_payload_helper
 from .sql_contracts import SqlConnection
 
 
@@ -36,11 +37,21 @@ def save_packet_record(
     packet = packet_entry.get("packet")
     summary_json = json.dumps(summary, separators=(",", ":"))
     packet_json = json.dumps(packet, separators=(",", ":"))
+    created_unix = int(now_unix_fn())
 
-    conn.execute(
+    cursor = conn.execute(
         "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(?, ?, ?)",
-        (int(now_unix_fn()), summary_json, packet_json),
+        (created_unix, summary_json, packet_json),
     )
+    packet_row_id = int(getattr(cursor, "lastrowid", 0) or 0)
+    if packet_row_id > 0:
+        _save_malformed_text_payload_helper(
+            conn,
+            created_unix=created_unix,
+            packet_row_id=packet_row_id,
+            summary=summary if isinstance(summary, dict) else None,
+            packet=packet if isinstance(packet, dict) else None,
+        )
     if isinstance(summary, dict) and save_packet_event_and_rollups_fn is not None:
         save_packet_event_and_rollups_fn(
             conn,

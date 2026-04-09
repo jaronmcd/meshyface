@@ -24,12 +24,17 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
 
     assert 'data-network-subview="graph"' in html
     assert 'id="network-map-panel-graph"' in html
+    assert 'data-network-subview="diagnostics"' in html
+    assert 'id="network-map-panel-diagnostics"' in html
     assert 'id="network-graph-svg"' in html
     assert 'id="network-graph-back-btn"' in html
     assert 'id="network-graph-home-btn"' in html
     assert 'id="network-graph-reset-view-btn"' in html
     assert 'id="network-graph-summary"' in html
     assert 'id="network-graph-legend"' in html
+    assert 'id="network-diagnostics-window"' in html
+    assert 'id="network-diagnostics-senders"' in html
+    assert 'id="network-diagnostics-entries"' in html
 
 
 def test_dashboard_js_supports_network_graph_subview() -> None:
@@ -39,8 +44,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
         node_history_max_points=240,
     )
 
-    assert 'return clean === "overview" || clean === "graph" || clean === "sensors" ? clean : "map";' in js
+    assert 'return clean === "overview" || clean === "graph" || clean === "sensors" || clean === "diagnostics" ? clean : "map";' in js
     assert 'function renderNetworkGraphView(state = latestState)' in js
+    assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
+    assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
+    assert 'name: "maltext"' in js
     assert 'activeNetworkSubview === "graph"' in js
     assert 'activeLayoutView !== "network"\n          || activeNetworkSubview === "map"' in js
     assert 'let networkGraphRootNodeId = "";' in js

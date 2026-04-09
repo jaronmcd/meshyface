@@ -2534,6 +2534,14 @@ Ready.
                   aria-controls="network-map-panel-sensors"
                   data-network-subview="sensors"
                 >Sensors</button>
+                <button
+                  class="network-map-subview-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="network-map-panel-diagnostics"
+                  data-network-subview="diagnostics"
+                >Diagnostics</button>
               </div>
               <div id="network-map-controls-host" class="network-map-controls-host" aria-hidden="true"></div>
             </div>
@@ -2758,6 +2766,65 @@ Ready.
             >
               <div class="network-overview-panel network-sensors-panel">
                 <div id="network-sensors-host" class="environment-metrics-home network-sensors-host"></div>
+              </div>
+            </div>
+            <div
+              id="network-map-panel-diagnostics"
+              class="network-map-subview-panel"
+              role="tabpanel"
+              data-network-subview-panel="diagnostics"
+              hidden
+            >
+              <div class="network-overview-panel network-diagnostics-panel">
+                <section class="network-diagnostics-card">
+                  <div class="network-diagnostics-toolbar">
+                    <div class="network-diagnostics-toolbar-copy">
+                      <h3>Malformed Text Activity</h3>
+                      <p id="network-diagnostics-summary-note" class="network-diagnostics-summary-note">
+                        Review persisted malformed <code>TEXT_MESSAGE_APP</code> payloads, grouped by sender.
+                      </p>
+                    </div>
+                    <div class="network-diagnostics-toolbar-actions">
+                      <label class="history-metric-wrap network-diagnostics-window-wrap" for="network-diagnostics-window">
+                        <span class="history-metric-label">Window</span>
+                        <select id="network-diagnostics-window" class="history-metric-select" aria-label="Malformed text diagnostics window">
+                          <option value="24">24h</option>
+                          <option value="72" selected>72h</option>
+                          <option value="168">7d</option>
+                          <option value="720">30d</option>
+                        </select>
+                      </label>
+                      <button
+                        id="network-diagnostics-refresh-btn"
+                        class="map-reset-view-btn"
+                        type="button"
+                        title="Refresh malformed text diagnostics"
+                      >Refresh</button>
+                    </div>
+                  </div>
+                  <div id="network-diagnostics-overview" class="overview-grid network-diagnostics-overview"></div>
+                  <div id="network-diagnostics-empty" class="signal-empty" hidden>No malformed text payloads recorded in this window.</div>
+                  <div class="network-diagnostics-layout">
+                    <section class="network-diagnostics-pane">
+                      <div class="network-diagnostics-pane-head">
+                        <h3>Senders</h3>
+                        <button
+                          id="network-diagnostics-clear-sender-btn"
+                          class="map-reset-view-btn"
+                          type="button"
+                          hidden
+                        >Show all</button>
+                      </div>
+                      <div id="network-diagnostics-senders" class="network-diagnostics-sender-list"></div>
+                    </section>
+                    <section class="network-diagnostics-pane">
+                      <div class="network-diagnostics-pane-head">
+                        <h3 id="network-diagnostics-entries-title">Recent Payloads</h3>
+                      </div>
+                      <div id="network-diagnostics-entries" class="network-diagnostics-entry-list"></div>
+                    </section>
+                  </div>
+                </section>
               </div>
             </div>
           </div>

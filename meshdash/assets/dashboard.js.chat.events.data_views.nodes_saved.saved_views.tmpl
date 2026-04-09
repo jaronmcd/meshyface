@@ -267,8 +267,16 @@
       const historyPositions = Array.isArray(history && history.positions) ? history.positions : [];
       const historyNameEntries = Array.isArray(history && history.name_history) ? history.name_history : [];
       const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const recentPackets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
       const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
       const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
+      const malformedTextByNode = (typeof mapMalformedTextPayloadByNode === "function")
+        ? mapMalformedTextPayloadByNode(recentPackets)
+        : new Map();
+      const malformedTextEntry = malformedTextByNode.get(nodeId) || null;
+      const malformedTextCount = Math.max(0, Math.trunc(Number(malformedTextEntry && malformedTextEntry.count) || 0));
+      const malformedTextLatestUnix = Number(malformedTextEntry && malformedTextEntry.latestUnix);
+      const malformedTextPayloadPreview = String((malformedTextEntry && malformedTextEntry.payloadPreview) || "").trim();
       const chatStats = computeSavedChatStats(nodeId, chatMessages);
       const chatTouch = Number.isFinite(chatStats.lastChatUnix)
         ? {{ unix: Math.trunc(chatStats.lastChatUnix), text: chatStats.lastChatText }}
@@ -415,7 +423,7 @@
         ["Trail End", savedDetailText(historySummary.trail_end)],
       ], "Radio screens can show a newer local GPS fix before that fix is broadcast to this dashboard.");
 
-      const chatSection = savedDetailSectionHtml("Chat (Recent Buffer)", [
+      const chatSectionRows = [
         ["Messages Touching Node", String(chatStats.touches)],
         ["Sent", String(chatStats.sent)],
         ["Received", String(chatStats.received)],
@@ -424,7 +432,23 @@
         ["Reactions Sent", String(chatStats.reactionsSent)],
         ["Active Peers", String(chatStats.peers.size)],
         ["Last Chat", savedDetailText(chatStats.lastChatText)],
-      ], `Based on current in-memory chat buffer (${{chatMessages.length}} messages).`);
+      ];
+      if (malformedTextCount > 0) {{
+        const malformedTextLatestText = (
+          Number.isFinite(malformedTextLatestUnix) && malformedTextLatestUnix > 0
+            ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{savedDetailAge(malformedTextLatestUnix, nowUnix)}})`
+            : "n/a"
+        );
+        chatSectionRows.push(
+          ["Malformed Text Packets", `${{malformedTextCount}} recent packet${{malformedTextCount === 1 ? "" : "s"}}`],
+          ["Last Malformed Text", malformedTextLatestText],
+          ["Malformed Payload Preview", malformedTextPayloadPreview || "n/a"],
+        );
+      }}
+      const chatSectionNote = malformedTextCount > 0
+        ? `Based on current in-memory packet/chat buffers. Warning: this node recently sent non-UTF-8 bytes on TEXT_MESSAGE_APP, which usually means a buggy or experimental sender rather than normal chat traffic.`
+        : `Based on current in-memory chat buffer (${{chatMessages.length}} messages).`;
+      const chatSection = savedDetailSectionHtml("Chat (Recent Buffer)", chatSectionRows, chatSectionNote);
 
       const linksSection = savedDetailSectionHtml("Links", [
         ["Directed Links", String(linkStats.links)],

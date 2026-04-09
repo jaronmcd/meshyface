@@ -315,6 +315,136 @@
         run: (ctx) => runConsoleNodeListCommand(ctx, "nodes"),
       }});
       registerConsoleCommand({{
+        name: "maltext",
+        usage: "maltext [-v|-vv] [node=<id|name>] [hours=<n>] [limit=<n>]",
+        description: "Review persisted malformed TEXT_MESSAGE_APP payloads.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+
+          const parseBoundedInt = (rawValue, fallback, min, max, label) => {{
+            if (rawValue == null || String(rawValue).trim() === "") return fallback;
+            const parsed = Number(rawValue);
+            if (!Number.isFinite(parsed)) {{
+              throw new Error(`[maltext] invalid ${{label}} value: ${{rawValue}}`);
+            }}
+            const clean = Math.trunc(parsed);
+            if (clean < min || clean > max) {{
+              throw new Error(`[maltext] ${{label}} must be between ${{min}} and ${{max}}.`);
+            }}
+            return clean;
+          }};
+
+          let hours = 72;
+          let limit = 10;
+          try {{
+            hours = parseBoundedInt(options.hours ?? options.window, 72, 1, 24 * 365, "hours");
+            limit = parseBoundedInt(options.limit ?? options.n, 10, 1, 200, "limit");
+          }} catch (err) {{
+            return err instanceof Error ? err.message : String(err || "[maltext] invalid arguments");
+          }}
+
+          const rawTarget = String(
+            options.node
+            ?? options.id
+            ?? options.sender
+            ?? args.join(" ")
+            ?? ""
+          ).trim();
+          let nodeId = "";
+          let targetLabel = "";
+          if (rawTarget) {{
+            const cleanTargetId = normalizeNodeId(rawTarget);
+            if (typeof isCanonicalNodeId === "function" && isCanonicalNodeId(cleanTargetId)) {{
+              nodeId = cleanTargetId;
+              targetLabel = cleanTargetId;
+            }} else {{
+              const lookup = resolveConsoleNodeLookupMatches(rawTarget, ctx && ctx.state);
+              const matches = Array.isArray(lookup && lookup.matches) ? lookup.matches : [];
+              if (matches.length < 1) {{
+                return `[maltext] no node matches for "${{rawTarget}}".`;
+              }}
+              if (matches.length > 1) {{
+                const preview = matches.slice(0, 8).map((row) => `  ${{formatConsoleNodeLookupListLine(row)}}`);
+                return [
+                  `[maltext] ${{matches.length}} node matches for "${{rawTarget}}"; be more specific.`,
+                  ...preview,
+                ];
+              }}
+              const match = matches[0];
+              nodeId = normalizeNodeId(match && match.id ? match.id : "");
+              targetLabel = String(match && match.name ? match.name : nodeId).trim() || nodeId;
+            }}
+          }}
+
+          let payload;
+          try {{
+            payload = await fetchMalformedTextHistory({{
+              windowHours: hours,
+              limit,
+              nodeId,
+            }});
+          }} catch (err) {{
+            const message = err instanceof Error ? err.message : String(err || "request failed");
+            return `[maltext] ${{message}}`;
+          }}
+          if (!(payload && payload.ok)) {{
+            return `[maltext] ${{String((payload && payload.error) || "request failed")}}`;
+          }}
+
+          const summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {{}};
+          const totalPackets = Math.max(0, Math.trunc(Number(summary.total_packets) || 0));
+          const distinctSenders = Math.max(0, Math.trunc(Number(summary.distinct_senders) || 0));
+          if (totalPackets < 1) {{
+            return `[maltext] no malformed TEXT_MESSAGE_APP payloads in the last ${{hours}}h${{targetLabel ? ` for ${{targetLabel}}` : ""}}.`;
+          }}
+
+          const lines = [
+            `[maltext] ${{totalPackets}} malformed TEXT_MESSAGE_APP payload(s) from ${{distinctSenders}} sender(s) in the last ${{hours}}h${{targetLabel ? ` for ${{targetLabel}}` : ""}}.`,
+          ];
+          const senders = Array.isArray(payload.senders) ? payload.senders : [];
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+
+          if (!nodeId) {{
+            lines.push("[maltext] senders:");
+            for (const sender of senders.slice(0, limit)) {{
+              const senderLabel = resolveMalformedDiagnosticsSenderLabel(sender, ctx && ctx.state);
+              const senderId = normalizeNodeId(sender && (sender.from_id || sender.fromId) || "");
+              const senderCount = Math.max(0, Math.trunc(Number(sender && sender.count) || 0));
+              const senderLastSeen = formatMalformedDiagnosticsTimestamp(sender && sender.last_seen_unix);
+              const senderPreview = previewMalformedDiagnosticsPayload(sender && sender.last_payload_preview, 52);
+              const suffix = verbosity > 0 ? ` | preview=${{senderPreview}}` : "";
+              lines.push(`  ${{senderId}} | ${{senderLabel}} | count=${{senderCount}} | last=${{senderLastSeen}}${{suffix}}`);
+            }}
+            if (senders.length > limit) {{
+              lines.push(`  ... ${{senders.length - limit}} more sender(s). Use limit=<n> to show more.`);
+            }}
+          }}
+
+          if (nodeId || verbosity > 0) {{
+            lines.push(nodeId ? "[maltext] recent payloads:" : "[maltext] latest payloads:");
+            for (const entry of entries.slice(0, limit)) {{
+              const entryLabel = resolveMalformedDiagnosticsSenderLabel(entry, ctx && ctx.state);
+              const entryId = normalizeNodeId(entry && (entry.from_id || entry.fromId) || "");
+              const entryUnix = Number(entry && (entry.rx_time_unix ?? entry.created_unix));
+              const whenText = formatMalformedDiagnosticsTimestamp(entryUnix);
+              const packetId = Number(entry && entry.packet_id);
+              const packetLabel = Number.isFinite(packetId) && packetId > 0 ? `packet=${{Math.trunc(packetId)}}` : "packet=n/a";
+              const payloadText = String(entry && entry.payload_text || "").trim();
+              const renderedPayload = verbosity > 1
+                ? payloadText
+                : previewMalformedDiagnosticsPayload(payloadText, 72);
+              lines.push(`  ${{entryId}} | ${{entryLabel}} | ${{packetLabel}} | ${{whenText}} | ${{renderedPayload}}`);
+            }}
+          }}
+          return lines;
+        }},
+      }});
+      registerConsoleCommand({{
         name: "--nodes",
         usage: "--nodes [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
         description: "Meshtastic-style alias for nodes.",

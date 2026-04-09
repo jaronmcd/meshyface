@@ -691,7 +691,8 @@
     function normalizeNetworkSubview(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "details") return "sensors";
-      return clean === "overview" || clean === "graph" || clean === "sensors" ? clean : "map";
+      if (clean === "diag") return "diagnostics";
+      return clean === "overview" || clean === "graph" || clean === "sensors" || clean === "diagnostics" ? clean : "map";
     }}
 
     function loadPreferredNetworkSubview() {{
@@ -750,6 +751,291 @@
       const targetHost = dockInNetwork ? networkHost : homeHost;
       if (explorer.parentElement !== targetHost) {{
         targetHost.appendChild(explorer);
+      }}
+    }}
+
+    function formatMalformedDiagnosticsTimestamp(unixValue) {{
+      const parsed = Number(unixValue);
+      if (!Number.isFinite(parsed) || parsed <= 0) return "n/a";
+      try {{
+        return new Date(Math.floor(parsed) * 1000).toLocaleString();
+      }} catch (_err) {{
+        return "n/a";
+      }}
+    }}
+
+    function previewMalformedDiagnosticsPayload(value, maxLength = 64) {{
+      const text = String(value == null ? "" : value).trim();
+      if (!text) return "n/a";
+      if (text.length <= maxLength) return text;
+      return `${{text.slice(0, Math.max(12, maxLength - 3))}}...`;
+    }}
+
+    function resolveMalformedDiagnosticsSenderLabel(sender, state = latestState) {{
+      const safeSender = (sender && typeof sender === "object") ? sender : {{}};
+      const cleanId = normalizeNodeId(safeSender.from_id || safeSender.fromId || "");
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      let node = null;
+      for (const entry of nodes) {{
+        if (!entry || typeof entry !== "object") continue;
+        if (normalizeNodeId(entry.id || entry.node_id || entry.nodeId || "") === cleanId) {{
+          node = entry;
+          break;
+        }}
+      }}
+      const preferred = node ? String(preferredNodeName(node) || "").trim() : "";
+      const cached = (nodeNameCache instanceof Map)
+        ? String(nodeNameCache.get(cleanId) || "").trim()
+        : "";
+      const fallback = String(safeSender.from_label || safeSender.fromLabel || cleanId || "Unknown node").trim();
+      return preferred || cached || fallback || "Unknown node";
+    }}
+
+    function renderNetworkDiagnosticsLoading() {{
+      const overviewHost = document.getElementById("network-diagnostics-overview");
+      const emptyHost = document.getElementById("network-diagnostics-empty");
+      const sendersHost = document.getElementById("network-diagnostics-senders");
+      const entriesHost = document.getElementById("network-diagnostics-entries");
+      const titleHost = document.getElementById("network-diagnostics-entries-title");
+      const noteHost = document.getElementById("network-diagnostics-summary-note");
+      const layoutHost = document.querySelector("#network-map-panel-diagnostics .network-diagnostics-layout");
+      if (overviewHost instanceof HTMLElement) {{
+        overviewHost.innerHTML = "";
+      }}
+      if (sendersHost instanceof HTMLElement) {{
+        sendersHost.innerHTML = "";
+      }}
+      if (entriesHost instanceof HTMLElement) {{
+        entriesHost.innerHTML = "";
+      }}
+      if (titleHost instanceof HTMLElement) {{
+        titleHost.textContent = "Recent Payloads";
+      }}
+      if (noteHost instanceof HTMLElement) {{
+        noteHost.innerHTML = `Reviewing persisted malformed <code>TEXT_MESSAGE_APP</code> payloads...`;
+      }}
+      if (layoutHost instanceof HTMLElement) {{
+        layoutHost.hidden = true;
+      }}
+      if (emptyHost instanceof HTMLElement) {{
+        emptyHost.hidden = false;
+        emptyHost.textContent = "Loading malformed text diagnostics...";
+      }}
+    }}
+
+    function renderNetworkDiagnosticsError(message) {{
+      const emptyHost = document.getElementById("network-diagnostics-empty");
+      const layoutHost = document.querySelector("#network-map-panel-diagnostics .network-diagnostics-layout");
+      const noteHost = document.getElementById("network-diagnostics-summary-note");
+      if (layoutHost instanceof HTMLElement) {{
+        layoutHost.hidden = true;
+      }}
+      if (noteHost instanceof HTMLElement) {{
+        noteHost.innerHTML = `Malformed text diagnostics are unavailable right now.`;
+      }}
+      if (emptyHost instanceof HTMLElement) {{
+        emptyHost.hidden = false;
+        emptyHost.textContent = `Could not load malformed text diagnostics: ${{String(message || "unknown error")}}`;
+      }}
+    }}
+
+    function bindNetworkDiagnosticsControls() {{
+      const windowSelect = document.getElementById("network-diagnostics-window");
+      if (windowSelect instanceof HTMLSelectElement) {{
+        const desiredValue = String(Math.max(1, Math.round(Number(networkDiagnosticsWindowHours) || 72)));
+        if (windowSelect.value !== desiredValue) {{
+          windowSelect.value = desiredValue;
+        }}
+        if (windowSelect.dataset.bound !== "1") {{
+          windowSelect.dataset.bound = "1";
+          windowSelect.addEventListener("change", () => {{
+            networkDiagnosticsWindowHours = Math.max(1, Math.round(Number(windowSelect.value) || 72));
+            networkDiagnosticsSelectedSenderId = "";
+            malformedTextHistoryCache.clear();
+            void refreshNetworkDiagnosticsPanel(true);
+          }});
+        }}
+      }}
+
+      const refreshBtn = document.getElementById("network-diagnostics-refresh-btn");
+      if (refreshBtn instanceof HTMLButtonElement && refreshBtn.dataset.bound !== "1") {{
+        refreshBtn.dataset.bound = "1";
+        refreshBtn.addEventListener("click", () => {{
+          malformedTextHistoryCache.clear();
+          void refreshNetworkDiagnosticsPanel(true);
+        }});
+      }}
+
+      const clearBtn = document.getElementById("network-diagnostics-clear-sender-btn");
+      if (clearBtn instanceof HTMLButtonElement && clearBtn.dataset.bound !== "1") {{
+        clearBtn.dataset.bound = "1";
+        clearBtn.addEventListener("click", () => {{
+          networkDiagnosticsSelectedSenderId = "";
+          void refreshNetworkDiagnosticsPanel(false);
+        }});
+      }}
+
+      const sendersHost = document.getElementById("network-diagnostics-senders");
+      if (sendersHost instanceof HTMLElement && sendersHost.dataset.bound !== "1") {{
+        sendersHost.dataset.bound = "1";
+        sendersHost.addEventListener("click", (ev) => {{
+          const trigger = ev.target instanceof Element
+            ? ev.target.closest("[data-malformed-sender-id]")
+            : null;
+          if (!(trigger instanceof HTMLElement)) return;
+          const nextId = normalizeNodeId(trigger.dataset.malformedSenderId || "");
+          if (!nextId) return;
+          networkDiagnosticsSelectedSenderId = (networkDiagnosticsSelectedSenderId === nextId) ? "" : nextId;
+          void refreshNetworkDiagnosticsPanel(false);
+        }});
+      }}
+    }}
+
+    function renderNetworkDiagnosticsPayload(payload, detailPayload = null) {{
+      const safePayload = (payload && typeof payload === "object") ? payload : {{}};
+      const safeDetailPayload = (detailPayload && typeof detailPayload === "object") ? detailPayload : null;
+      const summary = (safePayload.summary && typeof safePayload.summary === "object") ? safePayload.summary : {{}};
+      const senders = Array.isArray(safePayload.senders) ? safePayload.senders : [];
+      const selectedSenderId = normalizeNodeId(networkDiagnosticsSelectedSenderId || "");
+      const detailEntries = Array.isArray(safeDetailPayload && safeDetailPayload.entries)
+        ? safeDetailPayload.entries
+        : (Array.isArray(safePayload.entries) ? safePayload.entries : []);
+      const overviewHost = document.getElementById("network-diagnostics-overview");
+      const emptyHost = document.getElementById("network-diagnostics-empty");
+      const sendersHost = document.getElementById("network-diagnostics-senders");
+      const entriesHost = document.getElementById("network-diagnostics-entries");
+      const titleHost = document.getElementById("network-diagnostics-entries-title");
+      const noteHost = document.getElementById("network-diagnostics-summary-note");
+      const clearBtn = document.getElementById("network-diagnostics-clear-sender-btn");
+      const layoutHost = document.querySelector("#network-map-panel-diagnostics .network-diagnostics-layout");
+
+      const totalPackets = Math.max(0, Math.trunc(Number(summary.total_packets) || 0));
+      const distinctSenders = Math.max(0, Math.trunc(Number(summary.distinct_senders) || 0));
+      const firstSeenText = formatMalformedDiagnosticsTimestamp(summary.first_seen_unix);
+      const lastSeenText = formatMalformedDiagnosticsTimestamp(summary.last_seen_unix);
+      const selectedSender = selectedSenderId
+        ? senders.find((entry) => normalizeNodeId(entry && (entry.from_id || entry.fromId) || "") === selectedSenderId) || null
+        : null;
+      const selectedSenderLabel = selectedSender
+        ? resolveMalformedDiagnosticsSenderLabel(selectedSender)
+        : "";
+
+      if (overviewHost instanceof HTMLElement) {{
+        overviewHost.innerHTML = [
+          ["Malformed packets", String(totalPackets)],
+          ["Distinct senders", String(distinctSenders)],
+          ["First seen", firstSeenText],
+          ["Last seen", lastSeenText],
+        ].map(([label, value]) => `<div class="overview-item"><div class="k">${{escAttr(label)}}</div><div class="v">${{escAttr(value)}}</div></div>`).join("");
+      }}
+
+      if (noteHost instanceof HTMLElement) {{
+        if (selectedSender && selectedSenderLabel) {{
+          noteHost.innerHTML = `Showing persisted malformed <code>TEXT_MESSAGE_APP</code> payloads for <strong>${{escAttr(selectedSenderLabel)}}</strong>.`;
+        }} else {{
+          noteHost.innerHTML = `Review persisted malformed <code>TEXT_MESSAGE_APP</code> payloads, grouped by sender.`;
+        }}
+      }}
+
+      if (clearBtn instanceof HTMLButtonElement) {{
+        clearBtn.hidden = !selectedSenderId;
+      }}
+
+      if (titleHost instanceof HTMLElement) {{
+        titleHost.textContent = selectedSender && selectedSenderLabel
+          ? `Recent Payloads • ${{selectedSenderLabel}}`
+          : "Recent Payloads";
+      }}
+
+      if (sendersHost instanceof HTMLElement) {{
+        sendersHost.innerHTML = senders.length > 0
+          ? senders.map((sender) => {{
+            const senderId = normalizeNodeId(sender && (sender.from_id || sender.fromId) || "");
+            const senderLabel = resolveMalformedDiagnosticsSenderLabel(sender);
+            const senderCount = Math.max(0, Math.trunc(Number(sender && sender.count) || 0));
+            const isActive = !!selectedSenderId && senderId === selectedSenderId;
+            const senderLastSeen = formatMalformedDiagnosticsTimestamp(sender && sender.last_seen_unix);
+            const senderPreview = previewMalformedDiagnosticsPayload(sender && sender.last_payload_preview, 68);
+            return `<button class="network-diagnostics-sender${{isActive ? " is-active" : ""}}" type="button" data-malformed-sender-id="${{escAttr(senderId)}}">
+              <span class="network-diagnostics-sender-line">
+                <span class="network-diagnostics-sender-name">${{escAttr(senderLabel)}}</span>
+                <span class="network-diagnostics-count-chip">${{escAttr(String(senderCount))}}</span>
+              </span>
+              <span class="network-diagnostics-sender-meta">${{escAttr(senderId || "unknown")}} · last ${{escAttr(senderLastSeen)}}</span>
+              <span class="network-diagnostics-sender-preview">${{escAttr(senderPreview)}}</span>
+            </button>`;
+          }}).join("")
+          : `<div class="network-diagnostics-empty-copy">No flagged senders in this window.</div>`;
+      }}
+
+      if (entriesHost instanceof HTMLElement) {{
+        entriesHost.innerHTML = detailEntries.length > 0
+          ? detailEntries.map((entry) => {{
+            const entrySenderLabel = resolveMalformedDiagnosticsSenderLabel(entry);
+            const entrySenderId = normalizeNodeId(entry && (entry.from_id || entry.fromId) || "");
+            const entryUnix = Number(entry && (entry.rx_time_unix ?? entry.created_unix));
+            const packetId = Number(entry && entry.packet_id);
+            const packetLabel = Number.isFinite(packetId) && packetId > 0
+              ? `packet #${{Math.trunc(packetId)}}`
+              : "packet n/a";
+            return `<article class="network-diagnostics-entry">
+              <div class="network-diagnostics-entry-meta">
+                <span class="network-diagnostics-entry-chip">${{escAttr(entrySenderLabel)}}</span>
+                <span>${{escAttr(entrySenderId || "unknown")}}</span>
+                <span>${{escAttr(packetLabel)}}</span>
+                <span>${{escAttr(formatMalformedDiagnosticsTimestamp(entryUnix))}}</span>
+              </div>
+              <code class="network-diagnostics-entry-payload">${{escAttr(String(entry && entry.payload_text || ""))}}</code>
+            </article>`;
+          }}).join("")
+          : `<div class="network-diagnostics-empty-copy">No malformed payloads to show for this sender.</div>`;
+      }}
+
+      if (layoutHost instanceof HTMLElement) {{
+        layoutHost.hidden = totalPackets < 1;
+      }}
+      if (emptyHost instanceof HTMLElement) {{
+        emptyHost.hidden = totalPackets > 0;
+        emptyHost.textContent = "No malformed text payloads recorded in this window.";
+      }}
+    }}
+
+    async function refreshNetworkDiagnosticsPanel(force = false) {{
+      if (activeLayoutView !== "network" || activeNetworkSubview !== "diagnostics") return;
+      bindNetworkDiagnosticsControls();
+      const windowHours = Math.max(1, Math.round(Number(networkDiagnosticsWindowHours) || 72));
+      if (force) {{
+        malformedTextHistoryCache.clear();
+      }}
+      renderNetworkDiagnosticsLoading();
+      try {{
+        const payload = await fetchMalformedTextHistory({{
+          windowHours,
+          limit: 120,
+        }});
+        if (activeLayoutView !== "network" || activeNetworkSubview !== "diagnostics") return;
+        const senders = Array.isArray(payload && payload.senders) ? payload.senders : [];
+        const selectedSenderId = normalizeNodeId(networkDiagnosticsSelectedSenderId || "");
+        if (
+          selectedSenderId
+          && !senders.some((sender) => normalizeNodeId(sender && (sender.from_id || sender.fromId) || "") === selectedSenderId)
+        ) {{
+          networkDiagnosticsSelectedSenderId = "";
+        }}
+        const detailPayload = networkDiagnosticsSelectedSenderId
+          ? await fetchMalformedTextHistory({{
+            windowHours,
+            limit: 120,
+            nodeId: networkDiagnosticsSelectedSenderId,
+          }})
+          : null;
+        if (activeLayoutView !== "network" || activeNetworkSubview !== "diagnostics") return;
+        renderNetworkDiagnosticsPayload(payload, detailPayload);
+      }} catch (reason) {{
+        if (activeLayoutView !== "network" || activeNetworkSubview !== "diagnostics") return;
+        const message = reason instanceof Error ? reason.message : String(reason || "unknown error");
+        renderNetworkDiagnosticsError(message);
       }}
     }}
 
@@ -825,6 +1111,9 @@
         if (typeof renderEnvironmentMetricsView === "function") {{
           void renderEnvironmentMetricsView(false);
         }}
+      }}
+      if (normalizedView === "network" && next === "diagnostics") {{
+        void refreshNetworkDiagnosticsPanel(false);
       }}
 
       if (showMapPanel && (normalizedView === "network" || normalizedView === "saved")) {{
@@ -3037,6 +3326,9 @@
         }}
         if (next === "network") {{
           renderNodes(latestState.nodes || []);
+          if (activeNetworkSubview === "diagnostics") {{
+            void refreshNetworkDiagnosticsPanel(false);
+          }}
         }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory);
         if (

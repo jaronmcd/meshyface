@@ -30,6 +30,9 @@ from .history_store_packets import (
     search_packets as _search_packets_helper,
     save_packet as _save_packet_helper,
 )
+from .history_store_malformed_text import (
+    load_malformed_text_history as _load_malformed_text_history_helper,
+)
 from .history_store_summary import (
     load_summary_metrics as _load_summary_metrics_helper,
     save_summary_metrics as _save_summary_metrics_helper,
@@ -114,6 +117,20 @@ class HistoryStore:
             self,
             window_hours=window_hours,
             metric=metric,
+            node_id=node_id,
+            limit=limit,
+        )
+
+    def load_malformed_text_history(
+        self,
+        *,
+        window_hours: int | None = None,
+        node_id: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, object]:
+        return _load_malformed_text_history_helper(
+            self,
+            window_hours=window_hours,
             node_id=node_id,
             limit=limit,
         )

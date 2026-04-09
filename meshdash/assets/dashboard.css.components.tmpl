@@ -4455,6 +4455,12 @@
       color: var(--node-tag-color, #63c191);
       background: rgba(14, 26, 20, 0.62);
     }}
+    [data-theme="dark"] .chat-member-alert-chip {{
+      border-color: rgba(226, 179, 76, 0.72);
+      color: #ffe39b;
+      background: rgba(71, 45, 10, 0.58);
+      box-shadow: inset 0 0 0 1px rgba(255, 214, 120, 0.08);
+    }}
     [data-theme="dark"] .chat-member-metadata-key {{
       opacity: 0.74;
     }}
@@ -4995,6 +5001,58 @@
     }}
     [data-theme="dark"] .network-sensors-panel .env-node-legend-toggle:focus-visible {{
       outline-color: var(--workspace-shell-border-strong);
+    }}
+    [data-theme="dark"] .network-diagnostics-summary-note {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .network-diagnostics-summary-note code {{
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .network-diagnostics-pane {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 92%, black 8%);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .network-diagnostics-pane-head {{
+      border-bottom-color: var(--workspace-shell-border-muted);
+    }}
+    [data-theme="dark"] .network-diagnostics-toolbar-copy h3,
+    [data-theme="dark"] .network-diagnostics-pane-head h3 {{
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .network-diagnostics-sender {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--workspace-shell-bg-alt) 22%);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .network-diagnostics-sender:hover {{
+      background: var(--workspace-shell-hover-bg);
+    }}
+    [data-theme="dark"] .network-diagnostics-sender.is-active {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--workspace-shell-active-bg) 22%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 28%, transparent);
+    }}
+    [data-theme="dark"] .network-diagnostics-sender-meta,
+    [data-theme="dark"] .network-diagnostics-sender-preview,
+    [data-theme="dark"] .network-diagnostics-empty-copy,
+    [data-theme="dark"] .network-diagnostics-entry-meta {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .network-diagnostics-count-chip,
+    [data-theme="dark"] .network-diagnostics-entry-chip {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--workspace-shell-active-bg) 28%);
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .network-diagnostics-entry {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 72%, var(--workspace-shell-bg-alt) 28%);
+    }}
+    [data-theme="dark"] .network-diagnostics-entry-payload {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg) 88%, black 12%);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .network-graph-card {{
       background: transparent;

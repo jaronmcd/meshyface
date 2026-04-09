@@ -48,6 +48,19 @@ TABLE_SCHEMA_STATEMENTS = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS malformed_text_payloads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_unix INTEGER NOT NULL,
+      packet_row_id INTEGER NOT NULL UNIQUE,
+      from_id TEXT,
+      from_label TEXT,
+      portnum TEXT NOT NULL,
+      packet_id INTEGER,
+      rx_time_unix INTEGER,
+      payload_text TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS node_positions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_unix INTEGER NOT NULL,

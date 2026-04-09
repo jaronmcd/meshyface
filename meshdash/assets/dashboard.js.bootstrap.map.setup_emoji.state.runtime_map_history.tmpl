@@ -106,8 +106,11 @@
     let nodeHistoryFetchNodeId = "";
     const onlineActivityCache = new Map();
     const summaryMetricsCache = new Map();
+    const malformedTextHistoryCache = new Map();
     let summaryMetricsHydrated = false;
     let summaryMetricsHydrateInFlight = null;
+    let networkDiagnosticsWindowHours = 72;
+    let networkDiagnosticsSelectedSenderId = "";
     const nodeNameCache = new Map();
     const favoriteNodeIds = new Set();
     const nodeTagByNodeId = new Map();

@@ -66,6 +66,31 @@
       return (payload && typeof payload === "object") ? payload : {{}};
     }}
 
+    async function fetchMalformedTextHistory(opts = null) {{
+      const options = (opts && typeof opts === "object") ? opts : {{}};
+      const windowHours = Math.max(1, Math.round(Number(options.windowHours ?? options.hours) || networkDiagnosticsWindowHours || 72));
+      const limit = Math.max(1, Math.min(500, Math.round(Number(options.limit) || 100)));
+      const nodeId = normalizeNodeId(options.nodeId ?? options.node ?? "");
+      const cacheKey = `${{windowHours}}|${{limit}}|${{nodeId}}`;
+      const cached = malformedTextHistoryCache.get(cacheKey);
+      const nowMs = Date.now();
+      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 2, 12000)) {{
+        return cached.data;
+      }}
+      const params = new URLSearchParams();
+      params.set("hours", String(windowHours));
+      params.set("limit", String(limit));
+      if (nodeId) {{
+        params.set("node_id", nodeId);
+      }}
+      const resp = await fetch(`/api/history/malformed?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`malformed history API ${{resp.status}}`);
+      const payload = await resp.json();
+      const data = (payload && typeof payload === "object") ? payload : {{}};
+      malformedTextHistoryCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
+      return data;
+    }}
+
     function hydrateTickerSeriesFromSummaryMetrics(historyPayload) {{
       const payload = (historyPayload && typeof historyPayload === "object") ? historyPayload : {{}};
       const points = sliceSummaryPointsAfterLiveCounterReset(payload.points);

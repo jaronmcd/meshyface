@@ -97,6 +97,10 @@ def test_network_subviews_follow_workspace_theme_tokens() -> None:
     overview_stat_section = css.split("[data-theme=\"dark\"] .network-overview-panel .overview-item {", 1)[1].split("}", 1)[0]
     sensors_control_section = css.split("[data-theme=\"dark\"] .network-sensors-panel .env-metrics-control-group {", 1)[1].split("}", 1)[0]
     sensors_chart_section = css.split("[data-theme=\"dark\"] .network-sensors-panel #env-metrics-chart-wrap {", 1)[1].split("}", 1)[0]
+    diagnostics_pane_section = css.split("[data-theme=\"dark\"] .network-diagnostics-pane {", 1)[1].split("}", 1)[0]
+    diagnostics_sender_section = css.split("[data-theme=\"dark\"] .network-diagnostics-sender {", 1)[1].split("}", 1)[0]
+    diagnostics_entry_section = css.split("[data-theme=\"dark\"] .network-diagnostics-entry {", 1)[1].split("}", 1)[0]
+    diagnostics_payload_section = css.split("[data-theme=\"dark\"] .network-diagnostics-entry-payload {", 1)[1].split("}", 1)[0]
     graph_chip_section = css.split("[data-theme=\"dark\"] .network-graph-chip {", 1)[1].split("}", 1)[0]
     graph_stage_section = css.split("[data-theme=\"dark\"] .network-graph-stage {", 1)[1].split("}", 1)[0]
     graph_edge_section = css.split("[data-theme=\"dark\"] .network-graph-edge {", 1)[1].split("}", 1)[0]
@@ -111,6 +115,12 @@ def test_network_subviews_follow_workspace_theme_tokens() -> None:
     assert "var(--workspace-shell-active-bg)" in overview_stat_section
     assert "var(--workspace-shell-border-muted)" in sensors_control_section
     assert "var(--workspace-shell-border)" in sensors_chart_section
+    assert "var(--workspace-shell-border)" in diagnostics_pane_section
+    assert "var(--workspace-shell-bg-alt)" in diagnostics_pane_section
+    assert "var(--workspace-shell-border-muted)" in diagnostics_sender_section
+    assert "var(--workspace-shell-active-bg)" in diagnostics_sender_section
+    assert "var(--workspace-shell-border-muted)" in diagnostics_entry_section
+    assert "var(--workspace-shell-bg)" in diagnostics_payload_section
     assert "var(--workspace-shell-bg-alt)" in graph_chip_section
     assert "var(--workspace-shell-border)" in graph_stage_section
     assert "var(--ui-accent)" in graph_edge_section

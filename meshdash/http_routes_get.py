@@ -371,6 +371,66 @@ def handle_dashboard_get(
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
         return
 
+    if path == "/api/history/malformed":
+        query_obj = parse_qs(query or "")
+        hours_override = deps.to_int_fn(
+            query_obj.get("hours", [""])[0]
+            or query_obj.get("window", [""])[0]
+        )
+        limit = deps.to_int_fn(
+            query_obj.get("limit", [""])[0]
+            or query_obj.get("scan", [""])[0]
+            or query_obj.get("n", [""])[0]
+        )
+        node_id = str(
+            query_obj.get("node_id", [""])[0]
+            or query_obj.get("node", [""])[0]
+            or query_obj.get("from_id", [""])[0]
+            or ""
+        ).strip()
+        malformed_history_fn = getattr(deps.state_fn, "malformed_text_history_fn", None)
+        if callable(malformed_history_fn):
+            try:
+                response_obj = malformed_history_fn(
+                    window_hours=hours_override,
+                    node_id=node_id or None,
+                    limit=limit,
+                )
+            except Exception as exc:
+                response_obj = {
+                    "ok": False,
+                    "error": str(exc or "malformed history failed"),
+                    "window_hours": hours_override,
+                    "limit": limit,
+                    "node_id": node_id,
+                    "summary": {
+                        "total_packets": 0,
+                        "distinct_senders": 0,
+                        "first_seen_unix": None,
+                        "last_seen_unix": None,
+                    },
+                    "senders": [],
+                    "entries": [],
+                }
+        else:
+            response_obj = {
+                "ok": False,
+                "error": "malformed text history unavailable on this node",
+                "window_hours": hours_override,
+                "limit": limit,
+                "node_id": node_id,
+                "summary": {
+                    "total_packets": 0,
+                    "distinct_senders": 0,
+                    "first_seen_unix": None,
+                    "last_seen_unix": None,
+                },
+                "senders": [],
+                "entries": [],
+            }
+        deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
+        return
+
     if path == "/api/history/search":
         if deps.private_mode:
             _record_private_mode_block(deps)

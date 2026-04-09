@@ -4188,6 +4188,180 @@
       margin-top: 4px;
       font-size: 14px;
     }}
+    .network-diagnostics-panel {{
+      gap: 0;
+    }}
+    .network-diagnostics-card {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      flex-direction: column;
+      gap: 14px;
+    }}
+    .network-diagnostics-toolbar {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }}
+    .network-diagnostics-toolbar-copy {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      flex: 1 1 320px;
+    }}
+    .network-diagnostics-toolbar-copy h3,
+    .network-diagnostics-pane-head h3 {{
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.2;
+      letter-spacing: 0.12px;
+    }}
+    .network-diagnostics-summary-note {{
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.45;
+    }}
+    .network-diagnostics-summary-note code {{
+      font-size: 11px;
+    }}
+    .network-diagnostics-toolbar-actions {{
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 0 1 auto;
+    }}
+    .network-diagnostics-window-wrap {{
+      min-width: 124px;
+    }}
+    .network-diagnostics-overview {{
+      flex: 0 0 auto;
+    }}
+    .network-diagnostics-layout {{
+      display: grid;
+      grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+      gap: 12px;
+      min-height: 320px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }}
+    .network-diagnostics-pane {{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border: 1px solid rgba(188, 214, 195, 0.9);
+      border-radius: 12px;
+      background: rgba(249, 253, 249, 0.92);
+      box-shadow: 0 14px 34px rgba(22, 40, 30, 0.08);
+      overflow: hidden;
+    }}
+    .network-diagnostics-pane-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(188, 214, 195, 0.72);
+    }}
+    .network-diagnostics-sender-list,
+    .network-diagnostics-entry-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow: auto;
+      padding: 10px;
+    }}
+    .network-diagnostics-sender {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(174, 198, 184, 0.88);
+      border-radius: 10px;
+      background: rgba(246, 251, 245, 0.88);
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+    }}
+    .network-diagnostics-sender:hover {{
+      transform: translateY(-1px);
+    }}
+    .network-diagnostics-sender.is-active {{
+      background: rgba(236, 246, 239, 0.96);
+    }}
+    .network-diagnostics-sender-line,
+    .network-diagnostics-entry-meta {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .network-diagnostics-sender-name {{
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.25;
+    }}
+    .network-diagnostics-sender-meta,
+    .network-diagnostics-sender-preview,
+    .network-diagnostics-empty-copy,
+    .network-diagnostics-entry-meta {{
+      font-size: 11px;
+      line-height: 1.45;
+    }}
+    .network-diagnostics-sender-preview,
+    .network-diagnostics-empty-copy {{
+      word-break: break-word;
+    }}
+    .network-diagnostics-count-chip,
+    .network-diagnostics-entry-chip {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 20px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 184, 162, 0.82);
+      background: rgba(232, 243, 236, 0.94);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }}
+    .network-diagnostics-entry {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid rgba(174, 198, 184, 0.88);
+      border-radius: 10px;
+      background: rgba(246, 251, 245, 0.88);
+    }}
+    .network-diagnostics-entry-payload {{
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px dashed rgba(156, 184, 167, 0.82);
+      background: rgba(236, 243, 239, 0.92);
+      font-size: 12px;
+      line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      box-sizing: border-box;
+    }}
+    @media (max-width: 1200px) {{
+      .network-diagnostics-layout {{
+        grid-template-columns: 1fr;
+      }}
+    }}
     .network-graph-panel {{
       gap: 0;
       overflow: hidden;

@@ -547,6 +547,35 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
+    load_malformed_text_history_fn = getattr(
+        history_store,
+        "load_malformed_text_history",
+        None,
+    )
+    if callable(load_malformed_text_history_fn):
+        def _malformed_text_history(
+            *,
+            window_hours=None,
+            node_id=None,
+            limit=None,
+        ):
+            return load_malformed_text_history_fn(
+                window_hours=window_hours,
+                node_id=node_id,
+                limit=limit,
+            )
+
+        try:
+            setattr(loaders.state_fn, "malformed_text_history_fn", _malformed_text_history)
+        except Exception:
+            pass
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(state_lite_fn, "malformed_text_history_fn", _malformed_text_history)
+            except Exception:
+                pass
+
     return DashboardRuntimeContext(
         target=target,
         iface=iface,

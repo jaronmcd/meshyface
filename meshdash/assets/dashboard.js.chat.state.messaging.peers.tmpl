@@ -659,6 +659,73 @@
       return rows.sort((a, b) => String((a && (a.name || a.id)) || "").localeCompare(String((b && (b.name || b.id)) || "")));
     }}
 
+    function malformedTextPayloadRecord(packetEntry) {{
+      const entry = packetEntry && typeof packetEntry === "object" ? packetEntry : null;
+      if (!entry) return null;
+      const summary = entry.summary && typeof entry.summary === "object" ? entry.summary : {{}};
+      const packet = entry.packet && typeof entry.packet === "object" ? entry.packet : {{}};
+      const decoded = packet.decoded && typeof packet.decoded === "object" ? packet.decoded : {{}};
+      const rawPacket = packet.raw && typeof packet.raw === "object" ? packet.raw : {{}};
+      const rawDecoded = rawPacket.decoded && typeof rawPacket.decoded === "object" ? rawPacket.decoded : {{}};
+      const portnum = String(summary.portnum ?? decoded.portnum ?? packet.portnum ?? "").trim().toUpperCase();
+      if (portnum !== "TEXT_MESSAGE_APP") return null;
+      if (summary.is_reaction === true) return null;
+      const decodedText = String(summary.decoded_text ?? decoded.text ?? rawDecoded.text ?? packet.text ?? "").trim();
+      if (decodedText) return null;
+      const payloadText = String(decoded.payload ?? rawDecoded.payload ?? "").trim();
+      if (!payloadText) return null;
+      const nodeId = normalizeNodeId(summary.from || packet.fromId || packet.from || "");
+      if (!isSelectableNodeId(nodeId)) return null;
+      const latestUnix = latestUnixTimestamp(
+        summary.rx_time_unix,
+        packet.rxTime,
+        rawPacket.rx_time,
+        summary.rx_time,
+        summary.captured_at
+      );
+      const packetIdRaw = Number(summary.packet_id ?? packet.id);
+      const packetId = Number.isFinite(packetIdRaw) && packetIdRaw > 0
+        ? Math.trunc(packetIdRaw)
+        : null;
+      return {{
+        nodeId,
+        latestUnix: Number.isFinite(Number(latestUnix)) && Number(latestUnix) > 0
+          ? Math.trunc(Number(latestUnix))
+          : 0,
+        latestPacketId: packetId,
+        payloadPreview: payloadText.length > 28 ? `${{payloadText.slice(0, 28)}}...` : payloadText,
+      }};
+    }}
+
+    function mapMalformedTextPayloadByNode(recentPackets) {{
+      const packets = Array.isArray(recentPackets) ? recentPackets : [];
+      const byNode = new Map();
+      for (const entry of packets) {{
+        const record = malformedTextPayloadRecord(entry);
+        if (!record) continue;
+        const existing = byNode.get(record.nodeId);
+        if (!existing) {{
+          byNode.set(record.nodeId, {{
+            count: 1,
+            latestUnix: record.latestUnix,
+            latestPacketId: record.latestPacketId,
+            payloadPreview: record.payloadPreview,
+          }});
+          continue;
+        }}
+        existing.count = Math.max(0, Math.trunc(Number(existing.count) || 0)) + 1;
+        const existingLatestUnix = Number(existing.latestUnix) || 0;
+        if ((Number(record.latestUnix) || 0) >= existingLatestUnix) {{
+          existing.latestUnix = record.latestUnix;
+          existing.latestPacketId = record.latestPacketId;
+          existing.payloadPreview = record.payloadPreview;
+        }} else if (!existing.payloadPreview && record.payloadPreview) {{
+          existing.payloadPreview = record.payloadPreview;
+        }}
+      }}
+      return byNode;
+    }}
+
     function buildChatNodeNavigatorMemberHtml(item, context) {{
       try {{
         const ctx = context && typeof context === "object" ? context : {{}};
@@ -669,6 +736,7 @@
         const historyCapsById = ctx.historyCapsById instanceof Map ? ctx.historyCapsById : new Map();
         const packetTickerByNode = ctx.packetTickerByNode instanceof Map ? ctx.packetTickerByNode : new Map();
         const packetSparklineByNode = ctx.packetSparklineByNode instanceof Map ? ctx.packetSparklineByNode : new Map();
+        const malformedTextByNode = ctx.malformedTextByNode instanceof Map ? ctx.malformedTextByNode : new Map();
         const resolveChatNodeFreshnessFn = (typeof ctx.resolveChatNodeFreshnessFn === "function")
           ? ctx.resolveChatNodeFreshnessFn
           : (() => ({{ id: normalizeNodeId(item && item.id), lastSeenUnix: null, status: "unknown" }}));
@@ -763,6 +831,15 @@
             ? `${{formatLocalChatTime(packetLastRxUnix, "n/a", nowUnix)}} (${{formatIdleAge(packetLastRxUnix, nowUnix)}})`
             : "n/a"
         );
+        const malformedTextEntry = malformedTextByNode.get(nodeId) || null;
+        const malformedTextCount = Math.max(0, Math.trunc(Number(malformedTextEntry && malformedTextEntry.count) || 0));
+        const malformedTextLatestUnix = Number(malformedTextEntry && malformedTextEntry.latestUnix);
+        const malformedTextLatestText = (
+          Number.isFinite(malformedTextLatestUnix) && malformedTextLatestUnix > 0
+            ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{formatIdleAge(malformedTextLatestUnix, nowUnix)}})`
+            : "n/a"
+        );
+        const malformedTextPayloadPreview = String((malformedTextEntry && malformedTextEntry.payloadPreview) || "").trim();
         const packetTickerDetail = packetTotal > 0
           ? `Radio packets: RX ${{packetRxRecent5m}} / TX ${{packetTxRecent5m}} in 5m, RX ${{packetRxTotal}} / TX ${{packetTxTotal}} total, last any ${{packetLastText}}, last RX ${{packetLastRxText}}, last TX ${{packetLastTxText}}. Trend window: ${{packetSparklineWindowMin}}m`
           : "Radio packets: none in current packet buffer";
@@ -781,6 +858,15 @@
         ];
         if (showPacketTrendRow) {{
           tooltipLines.splice(4, 0, packetTickerDetail);
+        }}
+        if (malformedTextCount > 0) {{
+          tooltipLines.push(
+            `Malformed text payloads: ${{malformedTextCount}} recent packet${{malformedTextCount === 1 ? "" : "s"}} on TEXT_MESSAGE_APP.`,
+            `Last malformed text packet: ${{malformedTextLatestText}}`
+          );
+          if (malformedTextPayloadPreview) {{
+            tooltipLines.push(`Latest malformed payload: ${{malformedTextPayloadPreview}}`);
+          }}
         }}
         if (noteText) {{
           tooltipLines.push(`Notes: ${{noteText}}`);
@@ -906,6 +992,9 @@
         const tagChipHtml = (showTagBadge && tagActive)
           ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
           : "";
+        const malformedTextChipHtml = malformedTextCount > 0
+          ? `<span class="chat-member-alert-chip" title="${{escAttr(`Malformed text payloads detected: ${{malformedTextCount}} recent packet${{malformedTextCount === 1 ? "" : "s"}} on TEXT_MESSAGE_APP. Last seen ${{malformedTextLatestText}}${{malformedTextPayloadPreview ? `. Payload: ${{malformedTextPayloadPreview}}` : ""}`)}}">bad text</span>`
+          : "";
         const packetSparkClass = packetSparkWrapHtml ? " has-packet-spark" : "";
         const statusGlyph = muted ? "‖" : "●";
         const statusGlyphClass = muted ? " is-muted" : "";
@@ -919,6 +1008,7 @@
               <span class="chat-member-name-left">
                 <span class="chat-member-name status-${{statusKey}}">${{escAttr((item && item.name) || nodeId || "Unknown node")}}</span>
                 ${{tagChipHtml}}
+                ${{malformedTextChipHtml}}
               </span>
               ${{actionRowHtml}}
             </span>
@@ -1077,6 +1167,17 @@
             resolveLocalNodeId(safeState),
             nowUnix
           );
+      const malformedTextByNode = opts.malformedTextByNode instanceof Map
+        ? opts.malformedTextByNode
+        : (
+            typeof mapMalformedTextPayloadByNode === "function"
+              ? mapMalformedTextPayloadByNode(
+                  Array.isArray((safeState.traffic || {{}}).recent_packets)
+                    ? (safeState.traffic || {{}}).recent_packets
+                    : []
+                )
+              : new Map()
+          );
       const rosterAll = Array.isArray(opts.rosterAll)
         ? (
             typeof sortChatNodeNavigatorParticipants === "function"
@@ -1104,6 +1205,7 @@
             historyCapsById,
             packetTickerByNode: packetMaps.packetTickerByNode,
             packetSparklineByNode: packetMaps.packetSparklineByNode,
+            malformedTextByNode,
             resolveChatNodeFreshnessFn,
           }})).join("")
         : (rosterQuery
