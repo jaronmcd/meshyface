@@ -1532,14 +1532,19 @@
         0 0 12px color-mix(in srgb, var(--ui-accent) 24%, transparent);
     }}
     [data-theme="dark"] .chat-panel-collapse-btn {{
-      border-color: var(--ui-border);
-      background: color-mix(in srgb, var(--ui-panel-alt) 82%, var(--workspace-shell-bg-alt));
-      color: var(--ui-link);
+      border-color: var(--workspace-shell-border-muted);
+      background: var(--workspace-shell-bg-alt);
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .chat-panel-collapse-btn:hover {{
-      background: color-mix(in srgb, var(--ui-panel-alt) 72%, var(--ui-accent-soft));
-      border-color: color-mix(in srgb, var(--ui-link) 46%, var(--ui-border));
-      color: white;
+      background: var(--workspace-shell-hover-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .chat-panel-collapse-btn[aria-pressed="true"] {{
+      background: var(--workspace-shell-active-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-active-text);
     }}
     [data-theme="dark"] .topbar-view-menu-btn-label {{
       color: var(--workspace-shell-text);
@@ -2683,18 +2688,20 @@
       background: rgba(34, 53, 43, 0.7);
     }}
     [data-theme="dark"] .mesh-channel-pill {{
-      background: rgba(20, 35, 28, 0.34);
-      border-color: rgba(52, 84, 66, 0.7);
-      color: #deeee5;
+      background: var(--workspace-shell-bg-alt);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .mesh-channel-pill:hover {{
-      background: rgba(28, 47, 37, 0.82);
-      border-color: rgba(90, 130, 106, 0.7);
+      background: var(--workspace-shell-hover-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .mesh-channel-pill.active {{
-      background: rgba(34, 53, 43, 0.88);
-      border-color: rgba(222, 238, 229, 0.72);
-      box-shadow: inset 0 0 0 1px rgba(222, 238, 229, 0.08);
+      background: var(--workspace-shell-active-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-active-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 30%, transparent);
     }}
     [data-theme="dark"] .mesh-channel-menu {{
       border-color: #345442;
@@ -3637,7 +3644,17 @@
       background: #0d1711;
       border-color: #2e4a3a;
     }}
-    [data-theme="dark"] .chat-peer-add-toggle-btn,
+    [data-theme="dark"] .chat-peer-add-toggle-btn {{
+      background: var(--workspace-shell-bg-alt);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .chat-peer-add-toggle-btn[aria-expanded="true"],
+    [data-theme="dark"] .chat-peer-add-toggle-btn[aria-pressed="true"] {{
+      background: var(--workspace-shell-active-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-active-text);
+    }}
     [data-theme="dark"] .chat-node-navigator-sort-dir-btn,
     [data-theme="dark"] .chat-peer-add-btn,
     [data-theme="dark"] .chat-peer-remove-btn {{
@@ -4436,7 +4453,11 @@
       color: #f0fff6;
       background: rgba(82, 134, 105, 0.34);
     }}
-    [data-theme="dark"] .chat-peer-add-toggle-btn:hover,
+    [data-theme="dark"] .chat-peer-add-toggle-btn:hover {{
+      background: var(--workspace-shell-hover-bg);
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-text);
+    }}
     [data-theme="dark"] .chat-node-navigator-sort-dir-btn:hover,
     [data-theme="dark"] .chat-peer-add-btn:hover,
     [data-theme="dark"] .chat-peer-remove-btn:hover,

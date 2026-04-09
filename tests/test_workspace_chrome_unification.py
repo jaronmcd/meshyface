@@ -205,6 +205,32 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     assert "#172820" not in tab_section
 
 
+def test_chat_header_pills_follow_workspace_shell_tab_tokens() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    toggle_section = css.split("[data-theme=\"dark\"] .chat-peer-add-toggle-btn {", 1)[1].split("}", 1)[0]
+    toggle_active_section = css.split("[data-theme=\"dark\"] .chat-peer-add-toggle-btn[aria-expanded=\"true\"],", 1)[1].split("}", 1)[0]
+    collapse_section = css.split("[data-theme=\"dark\"] .chat-panel-collapse-btn {", 1)[1].split("}", 1)[0]
+    collapse_active_section = css.split("[data-theme=\"dark\"] .chat-panel-collapse-btn[aria-pressed=\"true\"] {", 1)[1].split("}", 1)[0]
+    channel_pill_section = css.split("[data-theme=\"dark\"] .mesh-channel-pill {", 1)[1].split("}", 1)[0]
+    channel_pill_active_section = css.split("[data-theme=\"dark\"] .mesh-channel-pill.active {", 1)[1].split("}", 1)[0]
+
+    assert "var(--workspace-shell-border-muted)" in toggle_section
+    assert "var(--workspace-shell-bg-alt)" in toggle_section
+    assert "var(--workspace-shell-text-soft)" in toggle_section
+    assert "var(--workspace-shell-active-bg)" in toggle_active_section
+    assert "var(--workspace-shell-active-text)" in toggle_active_section
+    assert "var(--workspace-shell-border-muted)" in collapse_section
+    assert "var(--workspace-shell-bg-alt)" in collapse_section
+    assert "var(--workspace-shell-active-bg)" in collapse_active_section
+    assert "var(--workspace-shell-text-soft)" in channel_pill_section
+    assert "var(--workspace-shell-border-muted)" in channel_pill_section
+    assert "var(--workspace-shell-active-bg)" in channel_pill_active_section
+    assert "var(--workspace-shell-active-text)" in channel_pill_active_section
+    assert "#16261f" not in toggle_section
+    assert "rgba(20, 35, 28, 0.34)" not in channel_pill_section
+
+
 def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     css = build_dashboard_css(theme_css="")
 
