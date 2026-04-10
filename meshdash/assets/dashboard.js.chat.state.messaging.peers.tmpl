@@ -8,6 +8,15 @@
       return clean === "desc" ? "desc" : "asc";
     }}
 
+    function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {{
+      if (typeof parseBoolToken === "function") {{
+        return parseBoolToken(value, false);
+      }}
+      if (value == null) return false;
+      const clean = String(value).trim().toLowerCase();
+      return clean === "1" || clean === "true" || clean === "on" || clean === "yes";
+    }}
+
     function normalizeChatNodeNavigatorShowPacketDirectionPref(value) {{
       if (typeof parseBoolToken === "function") {{
         return parseBoolToken(value, true);
@@ -61,6 +70,7 @@
         const payload = {{
           sortKey: normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey),
           sortDir: normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir),
+          pinDirectHistory: normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory),
           showIdle: normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle),
           showPacketDirection: normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection),
           metaFields: normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
@@ -81,6 +91,9 @@
       const nextSortDir = normalizeChatNodeNavigatorSortDirPref(
         prefs.sortDir != null ? prefs.sortDir : chatNodeNavigatorSortDir
       );
+      const nextPinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
+        prefs.pinDirectHistory != null ? prefs.pinDirectHistory : chatNodeNavigatorPinDirectHistory
+      );
       const nextShowIdle = normalizeChatNodeNavigatorShowIdlePref(
         prefs.showIdle != null ? prefs.showIdle : chatNodeNavigatorShowIdle
       );
@@ -94,6 +107,7 @@
       const changed = (
         nextSortKey !== chatNodeNavigatorSortKey
         || nextSortDir !== chatNodeNavigatorSortDir
+        || nextPinDirectHistory !== chatNodeNavigatorPinDirectHistory
         || nextShowIdle !== chatNodeNavigatorShowIdle
         || nextShowPacketDirection !== chatNodeNavigatorShowPacketDirection
         || !chatNodeNavigatorMetaFieldIdsEqual(nextMetaFieldIds, chatNodeNavigatorMetaFieldIds)
@@ -101,9 +115,11 @@
       const sortChanged = (
         nextSortKey !== chatNodeNavigatorSortKey
         || nextSortDir !== chatNodeNavigatorSortDir
+        || nextPinDirectHistory !== chatNodeNavigatorPinDirectHistory
       );
       chatNodeNavigatorSortKey = nextSortKey;
       chatNodeNavigatorSortDir = nextSortDir;
+      chatNodeNavigatorPinDirectHistory = nextPinDirectHistory;
       chatNodeNavigatorShowIdle = nextShowIdle;
       chatNodeNavigatorShowPacketDirection = nextShowPacketDirection;
       chatNodeNavigatorMetaFieldIds = nextMetaFieldIds;
@@ -181,6 +197,52 @@
         unreadByPeer.set(peerId, (unreadByPeer.get(peerId) || 0) + 1);
       }}
       return unreadByPeer;
+    }}
+
+    function chatNodeNavigatorDirectHistoryPeerIds(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : (latestState || {{}});
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object")
+        ? safeState.traffic
+        : {{}};
+      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
+      const localNodeId = normalizeNodeId(
+        typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : ""
+      );
+      const peerIds = new Set();
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (typeof classifyMessageChannel === "function" && classifyMessageChannel(msg) !== "direct") continue;
+        const endpoints = (typeof endpointsForMessage === "function")
+          ? endpointsForMessage(msg)
+          : {{
+              fromId: normalizeNodeId(msg && (msg.from || msg.sender || "")),
+              toId: normalizeNodeId(msg && (msg.to || msg.destination || "")),
+            }};
+        const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+        const toId = normalizeNodeId(endpoints && endpoints.toId);
+        const candidates = [];
+        if (isCanonicalNodeId(localNodeId)) {{
+          if (fromId === localNodeId && isSelectableNodeId(toId) && !isSelfNodeId(toId)) {{
+            candidates.push(toId);
+          }}
+          if (toId === localNodeId && isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
+            candidates.push(fromId);
+          }}
+        }}
+        if (candidates.length <= 0) {{
+          if (isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
+            candidates.push(fromId);
+          }}
+          if (isSelectableNodeId(toId) && toId !== fromId && !isSelfNodeId(toId)) {{
+            candidates.push(toId);
+          }}
+        }}
+        for (const peerId of candidates) {{
+          if (!isNodeVisibleByLists(peerId)) continue;
+          peerIds.add(peerId);
+        }}
+      }}
+      return peerIds;
     }}
 
     function chatNodeNavigatorUnreadDirectCount(unreadDirectByPeer, rawPeerId) {{
@@ -1282,6 +1344,8 @@
               : new Map()
           );
       const unreadDirectByPeer = normalizeChatNodeNavigatorUnreadDirectByPeer(opts.unreadDirectByPeer);
+      const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);
+      const directHistoryPeerIds = pinDirectHistory ? chatNodeNavigatorDirectHistoryPeerIds(safeState) : new Set();
       const rosterSource = Array.isArray(opts.rosterAll)
         ? opts.rosterAll.slice()
         : buildChatNodeNavigatorDefaultRoster(
@@ -1309,6 +1373,7 @@
       chatRosterModel = rosterAll;
       const pinnedUnreadRows = [];
       const pinnedManualRows = [];
+      const historyPriorityRows = [];
       const regularRows = [];
       for (const item of rosterFiltered) {{
         const nodeId = normalizeNodeId(item && item.id);
@@ -1316,6 +1381,8 @@
           pinnedUnreadRows.push(item);
         }} else if ((typeof isPinnedNode === "function") && isPinnedNode(nodeId)) {{
           pinnedManualRows.push(item);
+        }} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {{
+          historyPriorityRows.push(item);
         }} else {{
           regularRows.push(item);
         }}
@@ -1362,8 +1429,9 @@
           pinnedCountEl.textContent = String(pinnedManualRows.length);
         }}
       }}
-      const nextRoomListHtml = regularRows.length > 0
-        ? regularRows.map((item) => buildChatNodeNavigatorMemberHtml(item, {{
+      const orderedRoomRows = historyPriorityRows.concat(regularRows);
+      const nextRoomListHtml = orderedRoomRows.length > 0
+        ? orderedRoomRows.map((item) => buildChatNodeNavigatorMemberHtml(item, {{
             nowUnix,
             nodesById,
             historyCapsById,
@@ -1455,6 +1523,9 @@
             fallbackToDefaults: false,
           }})
         );
+        const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
+          chatNodeNavigatorPinDirectHistory
+        );
         const showIdle = normalizeChatNodeNavigatorShowIdlePref(
           chatNodeNavigatorShowIdle
         );
@@ -1470,6 +1541,10 @@
             <span>${{escAttr(def.label || fieldId)}}</span>
           </label>`;
         }}).join("")
+          + `<label class="chat-node-navigator-field-option">
+            <input type="checkbox" data-nav-toggle-id="direct-history"${{pinDirectHistory ? " checked" : ""}} />
+            <span>DM history first</span>
+          </label>`
           + `<label class="chat-node-navigator-field-option">
             <input type="checkbox" data-nav-toggle-id="idle"${{showIdle ? " checked" : ""}} />
             <span>Idle</span>
@@ -1490,6 +1565,9 @@
           for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-toggle-id]')) {{
             if (!(input instanceof HTMLInputElement)) continue;
             const toggleId = String(input.dataset.navToggleId || "").trim().toLowerCase();
+            if (toggleId === "direct-history") {{
+              input.checked = pinDirectHistory;
+            }}
             if (toggleId === "idle") {{
               input.checked = showIdle;
             }}
@@ -1550,6 +1628,15 @@
           if (!(target instanceof HTMLInputElement)) return;
           if (target.type !== "checkbox") return;
           const toggleId = String(target.dataset.navToggleId || "").trim().toLowerCase();
+          if (toggleId === "direct-history") {{
+            applyChatNodeNavigatorPreferences({{
+              pinDirectHistory: !!target.checked,
+            }}, {{
+              persist: true,
+              rerender: true,
+            }});
+            return;
+          }}
           if (toggleId === "idle") {{
             applyChatNodeNavigatorPreferences({{
               showIdle: !!target.checked,

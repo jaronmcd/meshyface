@@ -115,6 +115,29 @@ def test_dashboard_js_temporarily_suppresses_selected_node_autoscroll_after_sort
     assert 'targetList.addEventListener("scroll"' in js
 
 
+def test_dashboard_js_supports_dm_history_first_toggle_in_node_navigator() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "let chatNodeNavigatorPinDirectHistory = false;" in js
+    assert "function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {" in js
+    assert "pinDirectHistory: normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory)," in js
+    assert "prefs.pinDirectHistory != null ? prefs.pinDirectHistory : chatNodeNavigatorPinDirectHistory" in js
+    assert 'data-nav-toggle-id="direct-history"' in js
+    assert "<span>DM history first</span>" in js
+    assert 'pinDirectHistory: !!target.checked,' in js
+    assert "const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);" in js
+    assert "const directHistoryPeerIds = pinDirectHistory ? chatNodeNavigatorDirectHistoryPeerIds(safeState) : new Set();" in js
+    assert "const historyPriorityRows = [];" in js
+    assert "} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {" in js
+    assert "historyPriorityRows.push(item);" in js
+    assert "const orderedRoomRows = historyPriorityRows.concat(regularRows);" in js
+    assert "function chatNodeNavigatorDirectHistoryPeerIds(state = latestState) {" in js
+
+
 def test_dashboard_js_prefers_numeric_roster_sort_for_numeric_like_values() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
