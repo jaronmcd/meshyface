@@ -166,6 +166,9 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'setChatNodeDetailsDrawerTab("messages"' in js
     assert 'const drawerMessagesHost = document.getElementById("chat-node-details-messages-host");' in js
     assert 'mode: "drawer"' in js
+    assert "const scheduleBodyScrollToBottom = (bodyEl) => {" in js
+    assert "window.requestAnimationFrame(() => {" in js
+    assert "scheduleBodyScrollToBottom(bodyEl);" in js
 
 
 def test_dashboard_html_places_messages_tab_first_in_node_drawer() -> None:

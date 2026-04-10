@@ -432,6 +432,19 @@
         const priorSelectionEnd = preserveInputFocus
           ? Number(priorInput.selectionEnd)
           : null;
+        const scheduleBodyScrollToBottom = (bodyEl) => {{
+          if (!(bodyEl instanceof HTMLElement)) return;
+          const scrollToBottom = () => {{
+            bodyEl.scrollTop = bodyEl.scrollHeight;
+          }};
+          scrollToBottom();
+          window.requestAnimationFrame(() => {{
+            scrollToBottom();
+            window.requestAnimationFrame(() => {{
+              scrollToBottom();
+            }});
+          }});
+        }};
 
         if (!isCanonicalNodeId(peerId) || isSelfNodeId(peerId)) {{
           host.innerHTML = unavailableMessage && !isPopout
@@ -873,7 +886,7 @@
         }}
         const bodyEl = host.querySelector('[data-peer-dm-role="body"]');
         if (bodyEl instanceof HTMLElement) {{
-          bodyEl.scrollTop = bodyEl.scrollHeight;
+          scheduleBodyScrollToBottom(bodyEl);
         }}
       }};
 
