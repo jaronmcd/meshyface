@@ -1511,8 +1511,19 @@
           180deg,
           color-mix(in srgb, var(--workspace-shell-hover-bg) 86%, var(--ui-panel-alt)),
           color-mix(in srgb, var(--workspace-shell-bg) 92%, var(--workspace-shell-hover-bg))
-        );
+      );
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 48%, transparent);
+    }}
+    [data-theme="dark"] .chat-users-head-launcher-shell .topbar-view-menu-btn:hover,
+    [data-theme="dark"] .chat-users-head-launcher-shell .topbar-view-menu-btn[aria-expanded="true"] {{
+      border-color: var(--workspace-shell-border);
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-panel)),
+          color-mix(in srgb, var(--workspace-shell-bg) 92%, black)
+        );
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-muted) 54%, transparent);
     }}
     [data-theme="dark"] .topbar-view-menu-btn.has-unread {{
       border-color: var(--ui-accent);

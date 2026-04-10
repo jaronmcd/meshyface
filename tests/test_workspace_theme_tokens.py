@@ -43,6 +43,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .reversi-invite-list {" in css
     assert "[data-theme=\"dark\"] .reversi-player-pill {" in css
     assert "[data-theme=\"dark\"] .apps-tabs-bar.workspace-chrome-bar," in css
+    assert "[data-theme=\"dark\"] .chat-users-head-launcher-shell .topbar-view-menu-btn:hover," in css
     assert "[data-theme=\"dark\"] .settings-tab-btn {" in css
     assert "[data-theme=\"dark\"] .settings-panel {" in css
     assert "[data-theme=\"dark\"] .settings-ticker-config {" in css
