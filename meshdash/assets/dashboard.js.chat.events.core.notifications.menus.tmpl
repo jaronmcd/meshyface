@@ -126,34 +126,6 @@
       }}
     }}
 
-    function updatePeerDmBadge(count) {{
-      const safeCount = Math.max(0, Math.floor(Number(count) || 0));
-      const btn = document.getElementById("peer-dm-toggle-btn");
-      if (btn instanceof HTMLButtonElement) {{
-        btn.classList.toggle("has-unread", safeCount > 0);
-        const countLabel = safeCount > 99 ? "99+" : String(safeCount);
-        btn.title = safeCount > 0
-          ? `${{countLabel}} unread peer-to-peer message${{safeCount === 1 ? "" : "s"}}`
-          : "Peer conversations";
-        btn.setAttribute(
-          "aria-label",
-          safeCount > 0
-            ? `Peer conversations (${{countLabel}} unread)`
-            : "Peer conversations"
-        );
-      }}
-      const badge = document.getElementById("peer-dm-badge");
-      if (badge instanceof HTMLElement) {{
-        if (safeCount > 0) {{
-          badge.hidden = false;
-          badge.textContent = safeCount > 99 ? "99+" : String(safeCount);
-        }} else {{
-          badge.hidden = true;
-          badge.textContent = "0";
-        }}
-      }}
-    }}
-
     function renderChatChangeSummary(nowUnix = Math.floor(Date.now() / 1000)) {{
       const panel = document.getElementById("chat-change-summary");
       if (!(panel instanceof HTMLElement)) return;
@@ -272,7 +244,8 @@
                   renderChat(latestState);
                 }}
               }} else {{
-                setPeerDmMenuOpen(true);
+                setPeerDmMenuOpen(false);
+                setChatSendStatus("Select a node from the list to view direct messages.", true);
               }}
               return;
             }}
@@ -418,49 +391,8 @@
     }}
 
     function bindPeerDmMenuControls() {{
-      const btn = document.getElementById("peer-dm-toggle-btn");
-      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", (ev) => {{
-          ev.preventDefault();
-          ev.stopPropagation();
-          setPeerDmMenuOpen(!peerDmMenuOpen);
-        }});
-      }}
-
-      const panel = document.getElementById("peer-dm-menu");
-      if (panel instanceof HTMLElement && panel.dataset.bound !== "1") {{
-        panel.dataset.bound = "1";
-        panel.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (!(target instanceof Element)) return;
-          const item = target.closest(".peer-dm-menu-item");
-          if (!(item instanceof HTMLButtonElement)) return;
-          ev.preventDefault();
-          const nodeId = normalizeNodeId(item.dataset.peerNodeId || "");
-          if (!isCanonicalNodeId(nodeId)) return;
-          peerDmActivePeerId = nodeId;
-          setPeerDmMenuOpen(false);
-          if (latestState) {{
-            renderChat(latestState);
-          }}
-        }});
-      }}
-
       if (document.body.dataset.peerDmMenuDocBound !== "1") {{
         document.body.dataset.peerDmMenuDocBound = "1";
-        document.addEventListener("pointerdown", (ev) => {{
-          if (!peerDmMenuOpen) return;
-          const target = ev.target;
-          if (!(target instanceof Element)) {{
-            setPeerDmMenuOpen(false);
-            return;
-          }}
-          if (target.closest("#peer-dm-toggle-btn") || target.closest("#peer-dm-menu")) {{
-            return;
-          }}
-          setPeerDmMenuOpen(false);
-        }});
         document.addEventListener("keydown", (ev) => {{
           if (ev.key !== "Escape") return;
           if (peerDmMenuOpen) {{

@@ -175,6 +175,11 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'setChatNodeDetailsDrawerTab("messages"' in js
     assert 'const drawerMessagesHost = document.getElementById("chat-node-details-messages-host");' in js
     assert 'mode: "drawer"' in js
+    assert "const showPopoutAction = !!opts.showPopoutAction;" in js
+    assert 'data-peer-dm-action="popout"' in js
+    assert 'const popoutActionLabel = popoutActiveForPeer ? "Pop in" : "Pop out";' in js
+    assert 'const popoutBtn = host.querySelector(\'[data-peer-dm-action="popout"]\');' in js
+    assert 'showPopoutAction: true,' in js
     assert "const unreadDirectFocusKeysByPeer = new Map();" in js
     assert "let unreadThreadNoticeAckQueued = false;" in js
     assert "const acknowledgeUnreadThreadNotices = () => {" in js

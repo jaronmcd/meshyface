@@ -346,79 +346,12 @@
           unreadDirectFocusKeysByPeer.set(peerId, focusKeys);
         }}
       }}
-      const directConversationRows = Array.from(directConversationPeerIds)
-        .map((peerId) => {{
-          const bucket = directBucketForPeer(peerId);
-          const lastMsg = bucket.length > 0 ? bucket[bucket.length - 1] : null;
-          const lastUnix = lastMsg
-            ? latestUnixTimestamp(lastMsg && lastMsg.rx_time, lastMsg && lastMsg.captured_at)
-            : 0;
-          const lastRaw = lastMsg
-            ? String((lastMsg && (lastMsg.rx_time || lastMsg.captured_at)) || "").trim()
-            : "";
-          const endpoints = lastMsg ? endpointsForMessage(lastMsg) : {{ fromId: "", toId: "" }};
-          const fromId = normalizeNodeId(endpoints && endpoints.fromId);
-          const isOwnLast = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
-          const textPreview = lastMsg
-            ? compactInlineMessage(lastMsg && lastMsg.text, 72)
-            : "";
-          const emojiPreview = lastMsg ? String(emojiOf(lastMsg) || "").trim() : "";
-          const previewCore = textPreview || emojiPreview || "No direct messages yet.";
-          const preview = isOwnLast ? `You: ${{previewCore}}` : previewCore;
-          const node = nodesById.get(peerId);
-          const name = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
-          const unread = Math.max(0, Number(unreadDirectByPeer.get(peerId) || 0));
-          return {{
-            id: peerId,
-            name,
-            preview,
-            unread,
-            lastUnix: Number.isFinite(lastUnix) ? lastUnix : 0,
-            lastRaw,
-          }};
-        }})
-        .sort((a, b) => {{
-          const unreadDiff = Number(b.unread || 0) - Number(a.unread || 0);
-          if (unreadDiff !== 0) return unreadDiff;
-          const timeDiff = Number(b.lastUnix || 0) - Number(a.lastUnix || 0);
-          if (timeDiff !== 0) return timeDiff;
-          return String(a.name || a.id).localeCompare(String(b.name || b.id));
-        }});
-      const directUnreadTotal = directConversationRows.reduce(
-        (sum, row) => sum + Math.max(0, Number(row.unread || 0)),
-        0
-      );
-      updatePeerDmBadge(directUnreadTotal);
-      const peerDmMenuList = document.getElementById("peer-dm-menu-list");
-      if (peerDmMenuList instanceof HTMLElement) {{
-        const nextPeerDmMenuHtml = directConversationRows.length > 0
-          ? directConversationRows.map((row) => {{
-              const lastSeenText = row.lastUnix > 0
-                ? formatLocalChatTime(row.lastUnix, row.lastRaw || "n/a", nowUnix)
-                : "no traffic";
-              const unreadChip = row.unread > 0
-                ? `<span class="peer-dm-menu-unread" title="${{row.unread}} unread">${{row.unread > 99 ? "99+" : row.unread}}</span>`
-                : "";
-              const activeClass = normalizeNodeId(peerDmActivePeerId || "") === row.id ? " is-active" : "";
-              return `<button type="button" class="peer-dm-menu-item${{activeClass}}" data-peer-node-id="${{escAttr(row.id)}}" title="${{escAttr(`${{row.name}} (${{row.id}})` )}}">
-                <span class="peer-dm-menu-item-main">
-                  <span class="peer-dm-menu-peer">${{escAttr(row.name)}}</span>
-                  <span class="peer-dm-menu-preview">${{escAttr(row.preview)}}</span>
-                </span>
-                <span class="peer-dm-menu-meta">
-                  <span>${{escAttr(lastSeenText)}}</span>
-                  ${{unreadChip}}
-                </span>
-              </button>`;
-            }}).join("")
-          : '<div class="peer-dm-menu-empty">No peer-to-peer conversations yet.</div>';
-        setElementHtmlIfChanged(peerDmMenuList, nextPeerDmMenuHtml, "peer-dm-menu-list");
-      }}
       const renderPeerDmThreadHost = (host, peerIdRaw, options = null) => {{
         if (!(host instanceof HTMLElement)) return;
         const opts = options && typeof options === "object" ? options : {{}};
         const mode = String(opts.mode || "drawer").trim().toLowerCase();
         const isPopout = mode === "popout";
+        const showPopoutAction = !!opts.showPopoutAction;
         const showFocusAction = !!opts.showFocusAction;
         const showCloseAction = !!opts.showCloseAction;
         const unavailableMessage = String(opts.unavailableMessage || "").trim();
@@ -626,7 +559,19 @@
               </div>`;
             }}).join("")
           : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
+        const popoutActiveForPeer = (
+          !isPopout
+          && isCanonicalNodeId(peerDmActivePeerId)
+          && normalizeNodeId(peerDmActivePeerId) === peerId
+        );
         const actionButtons = [];
+        if (showPopoutAction) {{
+          const popoutActionLabel = popoutActiveForPeer ? "Pop in" : "Pop out";
+          const popoutActionTitle = popoutActiveForPeer
+            ? "Close the floating peer thread and keep chatting here"
+            : "Open this peer thread in a floating window";
+          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="popout" title="${{escAttr(popoutActionTitle)}}">${{escAttr(popoutActionLabel)}}</button>`);
+        }}
         if (showFocusAction) {{
           actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="focus"${{isPopout ? ' id="peer-dm-popout-open-main-btn"' : ""}} title="Focus this peer in the node list">Focus node</button>`);
         }}
@@ -714,6 +659,45 @@
             applyLayoutView("chat", true);
             applyChatChannel("all", true);
             selectNode(peerId, true, false);
+          }});
+        }}
+        const popoutBtn = host.querySelector('[data-peer-dm-action="popout"]');
+        if (popoutBtn instanceof HTMLButtonElement) {{
+          popoutBtn.addEventListener("click", (ev) => {{
+            ev.preventDefault();
+            const activePeerId = normalizeNodeId(peerDmActivePeerId || "");
+            const activeForPeer = isCanonicalNodeId(activePeerId) && activePeerId === peerId;
+            if (activeForPeer) {{
+              if (typeof setPeerDmPopoutStatusDisplay === "function") {{
+                setPeerDmPopoutStatusDisplay(peerId, "");
+              }}
+              peerDmActivePeerId = "";
+              if (latestState) {{
+                renderChat(latestState);
+              }}
+              window.requestAnimationFrame(() => {{
+                const drawerInput = host.querySelector('[data-peer-dm-role="input"]');
+                if (drawerInput instanceof HTMLInputElement) {{
+                  drawerInput.focus({{ preventScroll: true }});
+                }}
+              }});
+              return;
+            }}
+            peerDmActivePeerId = peerId;
+            setPeerDmMenuOpen(false);
+            if (latestState) {{
+              renderChat(latestState);
+            }}
+            window.requestAnimationFrame(() => {{
+              const popoutInput = document.getElementById("peer-dm-popout-input");
+              if (!(popoutInput instanceof HTMLInputElement)) return;
+              popoutInput.focus({{ preventScroll: true }});
+              const tail = popoutInput.value.length;
+              try {{
+                popoutInput.setSelectionRange(tail, tail);
+              }} catch (_err) {{
+              }}
+            }});
           }});
         }}
         const closeBtn = host.querySelector('[data-peer-dm-action="close"]');
@@ -1023,6 +1007,7 @@
           chatNodeDetailsDrawerTargetNodeId(selectedNodeId),
           {{
             mode: "drawer",
+            showPopoutAction: true,
             unavailableMessage: "Direct messaging is unavailable for this node.",
           }}
         );

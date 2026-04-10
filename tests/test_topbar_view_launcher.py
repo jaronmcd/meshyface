@@ -34,8 +34,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-btn-label"' in html
     assert 'class="topbar-view-menu-btn-label">Chat<' in html
     assert 'class="topbar-update-ticker workspace-update-ticker"' in html
-    assert 'workspace-peer-dm-menu-wrap' in html
-    assert 'id="peer-dm-toggle-btn"' in html
+    assert 'workspace-peer-dm-menu-wrap' not in html
+    assert 'id="peer-dm-toggle-btn"' not in html
     assert 'id="layout-view-menu-head-mark"' in html
     assert 'id="layout-view-menu-head-brand"' in html
     assert 'id="layout-view-menu-head-version"' in html
@@ -64,10 +64,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="chat-users-head-gear-icon"' in html
     assert '>View</button>' not in html
     assert '<aside class="teams-rail"' not in html
-    assert re.search(
-        r'<div class="workspace-launcher-row"[\s\S]*id="topbar-update-ticker"[\s\S]*id="peer-dm-toggle-btn"',
-        html,
-    )
+    assert re.search(r'<div class="workspace-launcher-row"[\s\S]*id="topbar-update-ticker"', html)
     assert re.search(
         r'<div class="chat-users-head"[\s\S]*id="layout-view-menu-btn"[\s\S]*id="chat-panel-collapse-btn"',
         html,
@@ -80,7 +77,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".workspace-launcher-row {" in css
     assert "z-index: 500;" in css
     assert ".workspace-launcher-shell {" in css
-    assert ".workspace-peer-dm-menu-wrap {" in css
     assert ".chat-users-head-launcher-shell {" in css
     assert ".chat-users-head-view-btn {" in css
     assert ".chat-users-head-action-btn {" in css
@@ -105,8 +101,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-menu-item-icon {" in css
     assert ".topbar-view-menu {" in css
     assert "z-index: 1350;" in css
-    assert ".workspace-peer-dm-menu-wrap .peer-dm-toggle-btn {" in css
-    assert "width: 38px;" in css
     assert '.chat-panel-collapse-btn[aria-pressed="false"] .chat-panel-collapse-glyph {' in css
     assert re.search(
         r"\.workspace-shell \{\s*--chat-panel-width: 250px;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);",
