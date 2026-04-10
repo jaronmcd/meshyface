@@ -1438,6 +1438,7 @@
       if (clean === "chat") return "chat";
       if (clean === "links") return "links";
       if (clean === "notes") return "notes";
+      if (clean === "messages") return "messages";
       if (clean === "tag") return "tag";
       return "details";
     }}
@@ -1489,6 +1490,7 @@
       const chatTabBtn = document.getElementById("chat-node-details-tab-chat");
       const linksTabBtn = document.getElementById("chat-node-details-tab-links");
       const notesTabBtn = document.getElementById("chat-node-details-tab-notes");
+      const messagesTabBtn = document.getElementById("chat-node-details-tab-messages");
       const historyTabBtn = document.getElementById("chat-node-details-tab-history");
       const tagTabBtn = document.getElementById("chat-node-details-tab-tag");
       const tagTabLabel = document.getElementById("chat-node-details-tab-tag-label");
@@ -1498,12 +1500,14 @@
       const chatPanel = document.getElementById("chat-node-details-panel-chat");
       const linksPanel = document.getElementById("chat-node-details-panel-links");
       const notesPanel = document.getElementById("chat-node-details-panel-notes");
+      const messagesPanel = document.getElementById("chat-node-details-panel-messages");
       const historyPanel = document.getElementById("chat-node-details-panel-history");
       const tagPanel = document.getElementById("chat-node-details-panel-tag");
       const locationHost = document.getElementById("chat-node-details-location-host");
       const chatHost = document.getElementById("chat-node-details-chat-host");
       const linksHost = document.getElementById("chat-node-details-links-host");
       const notesHost = document.getElementById("chat-node-details-notes-host");
+      const messagesHost = document.getElementById("chat-node-details-messages-host");
       const tagHost = document.getElementById("chat-node-details-tag-host");
       if (!(drawer instanceof HTMLElement)) return;
 
@@ -1556,6 +1560,9 @@
         if (notesHost instanceof HTMLElement) {{
           notesHost.innerHTML = "";
         }}
+        if (messagesHost instanceof HTMLElement) {{
+          messagesHost.innerHTML = "";
+        }}
         syncSavedNodeDetailsDock(true);
         syncNodeHistoryDock();
         return;
@@ -1587,6 +1594,11 @@
         notesTabBtn.classList.toggle("is-active", isActive);
         notesTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
       }}
+      if (messagesTabBtn instanceof HTMLButtonElement) {{
+        const isActive = activeTab === "messages";
+        messagesTabBtn.classList.toggle("is-active", isActive);
+        messagesTabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
       if (historyTabBtn instanceof HTMLButtonElement) {{
         const isActive = activeTab === "history";
         historyTabBtn.classList.toggle("is-active", isActive);
@@ -1611,6 +1623,9 @@
       }}
       if (notesPanel instanceof HTMLElement) {{
         notesPanel.hidden = activeTab !== "notes";
+      }}
+      if (messagesPanel instanceof HTMLElement) {{
+        messagesPanel.hidden = activeTab !== "messages";
       }}
       if (historyPanel instanceof HTMLElement) {{
         historyPanel.hidden = activeTab !== "history";
@@ -1669,7 +1684,7 @@
         dmBtn.disabled = !canOpenPeerDm;
         dmBtn.dataset.nodeId = canOpenPeerDm ? selectedId : "";
         dmBtn.title = canOpenPeerDm
-          ? `Open peer message window with ${{titleName}}`
+          ? `Open direct messages with ${{titleName}}`
           : "Send message unavailable for this node";
       }}
       if (muteBtn instanceof HTMLButtonElement) {{
@@ -1758,6 +1773,10 @@
       const nextTab = normalizeChatNodeDetailsDrawerTab(tab);
       const opts = options && typeof options === "object" ? options : {{}};
       chatNodeDetailsDrawerTab = nextTab;
+      if (nextTab === "messages" && latestState) {{
+        renderChat(latestState);
+        return nextTab;
+      }}
       syncChatNodeDetailsDrawer(latestState, {{
         fetchHistory: opts.fetchHistory !== false,
       }});
@@ -1798,11 +1817,19 @@
         dmBtn.addEventListener("click", () => {{
           const nodeId = normalizeNodeId(dmBtn.dataset.nodeId || "");
           if (!isCanonicalNodeId(nodeId) || isSelfNodeId(nodeId)) return;
-          peerDmActivePeerId = nodeId;
           setPeerDmMenuOpen(false);
-          if (latestState) {{
-            renderChat(latestState);
-          }}
+          setChatNodeDetailsDrawerTab("messages", {{
+            fetchHistory: false,
+          }});
+          window.requestAnimationFrame(() => {{
+            const input = document.querySelector("#chat-node-details-messages-host .peer-dm-popout-input");
+            if (!(input instanceof HTMLInputElement)) return;
+            try {{
+              input.focus({{ preventScroll: true }});
+            }} catch (_err) {{
+              input.focus();
+            }}
+          }});
         }});
       }}
       if (drawer instanceof HTMLElement) {{

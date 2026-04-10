@@ -4143,6 +4143,7 @@
     .chat-node-details-chat-host,
     .chat-node-details-links-host,
     .chat-node-details-notes-host,
+    .chat-node-details-messages-host,
     .chat-node-details-history-host,
     .chat-node-details-tag-host {{
       flex: 1 1 auto;
@@ -4157,6 +4158,7 @@
     .chat-node-details-chat-host,
     .chat-node-details-links-host,
     .chat-node-details-notes-host,
+    .chat-node-details-messages-host,
     .chat-node-details-tag-host {{
       overflow: auto;
     }}
@@ -5520,6 +5522,15 @@
       flex-direction: column;
       overflow: hidden;
     }}
+    .peer-dm-popout-window.is-embedded {{
+      width: 100%;
+      max-width: none;
+      max-height: none;
+      height: 100%;
+      min-height: 0;
+      border-radius: 10px;
+      box-shadow: none;
+    }}
     .peer-dm-popout-head {{
       border-bottom: 1px solid rgba(var(--peer-dm-channel-rgb), 0.35);
       background:
@@ -5615,6 +5626,10 @@
       gap: 6px;
       min-height: 0;
     }}
+    .peer-dm-popout-window.is-embedded .peer-dm-popout-body {{
+      flex: 1 1 auto;
+      max-height: none;
+    }}
     .peer-dm-popout-empty {{
       border: 1px dashed rgba(var(--peer-dm-channel-rgb), 0.42);
       border-radius: 8px;
@@ -5624,6 +5639,12 @@
       line-height: 1.35;
       text-align: center;
       background: rgba(var(--peer-dm-channel-rgb), 0.06);
+    }}
+    .peer-dm-popout-window.is-embedded .peer-dm-popout-empty {{
+      min-height: 88px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }}
     .peer-dm-popout-msg {{
       display: inline-flex;

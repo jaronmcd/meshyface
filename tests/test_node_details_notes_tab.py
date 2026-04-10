@@ -73,6 +73,10 @@ def test_render_html_includes_chat_node_details_location_chat_and_links_tabs() -
     assert 'data-drawer-tab="links"' in html
     assert 'id="chat-node-details-panel-links"' in html
     assert 'id="chat-node-details-links-host"' in html
+    assert 'id="chat-node-details-tab-messages"' in html
+    assert 'data-drawer-tab="messages"' in html
+    assert 'id="chat-node-details-panel-messages"' in html
+    assert 'id="chat-node-details-messages-host"' in html
 
 
 def test_render_html_places_location_chat_links_before_notes_in_drawer_tabs() -> None:
@@ -94,8 +98,9 @@ def test_render_html_places_location_chat_links_before_notes_in_drawer_tabs() ->
     chat_index = html.index('id="chat-node-details-tab-chat"')
     links_index = html.index('id="chat-node-details-tab-links"')
     notes_index = html.index('id="chat-node-details-tab-notes"')
+    messages_index = html.index('id="chat-node-details-tab-messages"')
 
-    assert history_index < location_index < chat_index < links_index < notes_index
+    assert history_index < location_index < chat_index < links_index < notes_index < messages_index
 
 
 def test_render_html_places_mute_and_send_message_actions_in_drawer_header() -> None:
@@ -131,15 +136,19 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'if (clean === "location") return "location";' in js
     assert 'if (clean === "chat") return "chat";' in js
     assert 'if (clean === "links") return "links";' in js
+    assert 'if (clean === "messages") return "messages";' in js
     assert 'const locationTabBtn = document.getElementById("chat-node-details-tab-location");' in js
     assert 'const chatTabBtn = document.getElementById("chat-node-details-tab-chat");' in js
     assert 'const linksTabBtn = document.getElementById("chat-node-details-tab-links");' in js
+    assert 'const messagesTabBtn = document.getElementById("chat-node-details-tab-messages");' in js
     assert 'const locationPanel = document.getElementById("chat-node-details-panel-location");' in js
     assert 'const chatPanel = document.getElementById("chat-node-details-panel-chat");' in js
     assert 'const linksPanel = document.getElementById("chat-node-details-panel-links");' in js
+    assert 'const messagesPanel = document.getElementById("chat-node-details-panel-messages");' in js
     assert 'const locationHost = document.getElementById("chat-node-details-location-host");' in js
     assert 'const chatHost = document.getElementById("chat-node-details-chat-host");' in js
     assert 'const linksHost = document.getElementById("chat-node-details-links-host");' in js
+    assert 'const messagesHost = document.getElementById("chat-node-details-messages-host");' in js
     assert 'if (clean === "notes") return "notes";' in js
     assert 'const notesTabBtn = document.getElementById("chat-node-details-tab-notes");' in js
     assert 'const notesPanel = document.getElementById("chat-node-details-panel-notes");' in js
@@ -152,6 +161,11 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'const nextChatHtml = renderChatInDrawer ? chatSection : "";' in js
     assert 'const nextLinksHtml = renderLinksInDrawer ? linksSection : "";' in js
     assert 'const nextNotesHtml = renderNotesInDrawer ? notesSection : "";' in js
+    assert 'messagesHost.innerHTML = "";' in js
+    assert 'messagesPanel.hidden = activeTab !== "messages";' in js
+    assert 'setChatNodeDetailsDrawerTab("messages"' in js
+    assert 'const drawerMessagesHost = document.getElementById("chat-node-details-messages-host");' in js
+    assert 'mode: "drawer"' in js
 
 
 def test_dashboard_js_avoids_rebuilding_saved_node_details_on_unchanged_polls() -> None:

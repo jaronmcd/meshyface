@@ -406,24 +406,484 @@
           : '<div class="peer-dm-menu-empty">No peer-to-peer conversations yet.</div>';
         setElementHtmlIfChanged(peerDmMenuList, nextPeerDmMenuHtml, "peer-dm-menu-list");
       }}
+      const renderPeerDmThreadHost = (host, peerIdRaw, options = null) => {{
+        if (!(host instanceof HTMLElement)) return;
+        const opts = options && typeof options === "object" ? options : {{}};
+        const mode = String(opts.mode || "drawer").trim().toLowerCase();
+        const isPopout = mode === "popout";
+        const showFocusAction = !!opts.showFocusAction;
+        const showCloseAction = !!opts.showCloseAction;
+        const unavailableMessage = String(opts.unavailableMessage || "").trim();
+        const peerId = normalizeNodeId(peerIdRaw || "");
+        const priorWindow = host.querySelector(".peer-dm-popout-window");
+        const priorInput = host.querySelector(".peer-dm-popout-input");
+        const priorPeerId = normalizeNodeId(
+          priorWindow instanceof HTMLElement
+            ? (priorWindow.dataset.peerNodeId || "")
+            : peerId
+        );
+        const preserveInputFocus = (
+          priorInput instanceof HTMLInputElement
+          && document.activeElement === priorInput
+        );
+        const priorSelectionStart = preserveInputFocus
+          ? Number(priorInput.selectionStart)
+          : null;
+        const priorSelectionEnd = preserveInputFocus
+          ? Number(priorInput.selectionEnd)
+          : null;
+
+        if (!isCanonicalNodeId(peerId) || isSelfNodeId(peerId)) {{
+          host.innerHTML = unavailableMessage && !isPopout
+            ? `<section class="peer-dm-popout-window is-embedded">
+              <div class="peer-dm-popout-body">
+                <div class="peer-dm-popout-empty">${{escAttr(unavailableMessage)}}</div>
+              </div>
+            </section>`
+            : "";
+          return;
+        }}
+
+        const node = nodesById.get(peerId);
+        const peerName = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+        const bucketRaw = directMessagesByPeer.get(peerId);
+        const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
+        const messages = bucket.length > chatFeedMaxEntries
+          ? bucket.slice(-chatFeedMaxEntries)
+          : bucket;
+        const draft = String(peerDmDraftByPeer.get(peerId) || "");
+        const fileState = summarizePeerDmFileTransferState(peerId);
+        const filePercent = fileState
+          ? Math.max(0, Math.min(100, Math.round(Number(fileState.percent) || 0)))
+          : 0;
+        const fileText = fileState
+          ? String(fileState.text || "").trim()
+          : "";
+        const filePhase = fileState ? String(fileState.phase || "").trim().toLowerCase() : "";
+        const fileLabel = fileState && fileState.fileName
+          ? normalizeFileTransferName(fileState.fileName)
+          : "";
+        const fileProgressTitle = fileLabel
+          ? `File transfer: ${{fileLabel}}`
+          : "File transfer";
+        const threadChannelIndex = (() => {{
+          for (let idx = bucket.length - 1; idx >= 0; idx -= 1) {{
+            const candidate = bucket[idx];
+            if (!candidate || typeof candidate !== "object") continue;
+            const explicitIdx = (typeof explicitMessageMeshChannelIndex === "function")
+              ? explicitMessageMeshChannelIndex(candidate)
+              : null;
+            if (Number.isInteger(explicitIdx) && explicitIdx >= 0) {{
+              return Math.trunc(explicitIdx);
+            }}
+          }}
+          const sendCtx = meshChannelSendContext();
+          return normalizeMeshChannelIndex(sendCtx && sendCtx.sendIndex);
+        }})();
+        const threadChannelLabel = meshChannelLabelForIndex(
+          threadChannelIndex,
+          {{ compact: true, allowAll: false }}
+        );
+        const threadChannelMeta = meshChannelColorMeta(threadChannelIndex, {{ allowAll: false }});
+        const threadChannelStyle = `--peer-dm-channel-fill: ${{threadChannelMeta.fill}}; --peer-dm-channel-rgb: ${{hexColorRgbTriplet(threadChannelMeta.fill)}};`;
+        const messageRows = messages.length > 0
+          ? messages.map((msg) => {{
+              const endpoints = endpointsForMessage(msg);
+              const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+              const isOwn = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
+              const fromMeta = chatEndpointParts(
+                fromId,
+                latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at)
+              );
+              const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
+              const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
+              const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+              const timeLabel = formatLocalChatTime(msgUnix, rawTime || "n/a", nowUnix);
+              const isLocalEcho = msg && (msg.local_echo === true || msg.localEcho === true);
+              const deliveryState = normalizeDeliveryState(msg && (msg.delivery_state ?? msg.deliveryState));
+              const deliveryError = String((msg && (msg.delivery_error ?? msg.deliveryError)) || "").trim();
+              const compactDeliveryError = (typeof trimInlineError === "function")
+                ? trimInlineError(deliveryError, 72)
+                : (deliveryError.length > 72 ? `${{deliveryError.slice(0, 69)}}...` : deliveryError);
+              const deliverySuffix = (() => {{
+                if (!isOwn || !isLocalEcho) return "";
+                if (!deliveryState || deliveryState === "sent" || deliveryState === "acked") return "";
+                if (deliveryState === "pending") return " • awaiting ACK";
+                if (deliveryState === "nak") {{
+                  return compactDeliveryError
+                    ? ` • failed (${{compactDeliveryError}})`
+                    : " • failed";
+                }}
+                if (deliveryState === "error") {{
+                  return compactDeliveryError
+                    ? ` • error (${{compactDeliveryError}})`
+                    : " • error";
+                }}
+                return ` • ${{deliveryState}}`;
+              }})();
+              const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
+                || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
+              return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}">
+                <div class="peer-dm-popout-msg-meta"><span>${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
+                <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
+              </div>`;
+            }}).join("")
+          : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
+        const actionButtons = [];
+        if (showFocusAction) {{
+          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="focus"${{isPopout ? ' id="peer-dm-popout-open-main-btn"' : ""}} title="Focus this peer in the node list">Focus node</button>`);
+        }}
+        if (showCloseAction) {{
+          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="close"${{isPopout ? ' id="peer-dm-popout-close-btn"' : ""}} title="Close this peer window">&times;</button>`);
+        }}
+        const actionsHtml = actionButtons.length > 0
+          ? `<div class="peer-dm-popout-actions">${{actionButtons.join("")}}</div>`
+          : "";
+        host.innerHTML = `<section
+          class="peer-dm-popout-window${{isPopout ? "" : " is-embedded"}}"
+          data-peer-node-id="${{escAttr(peerId)}}"
+          data-peer-dm-channel-index="${{escAttr(threadChannelIndex)}}"
+          style="${{escAttr(threadChannelStyle)}}"
+        >
+          <header class="peer-dm-popout-head">
+            <div class="peer-dm-popout-title">
+              <span class="peer-dm-popout-name">${{escAttr(peerName)}}</span>
+              <span class="peer-dm-popout-id-row">
+                <span class="peer-dm-popout-id">${{escAttr(peerId)}}</span>
+                <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(threadChannelLabel)}}</span>
+              </span>
+            </div>
+            ${{actionsHtml}}
+          </header>
+          <div class="peer-dm-popout-body" data-peer-dm-role="body"${{isPopout ? ' id="peer-dm-popout-body"' : ""}}>${{messageRows}}</div>
+          <div class="peer-dm-popout-composer">
+            <input
+              class="peer-dm-popout-input"
+              data-peer-dm-role="input"
+              ${{isPopout ? 'id="peer-dm-popout-input"' : ""}}
+              type="text"
+              autocomplete="off"
+              placeholder="Direct message to ${{escAttr(peerId)}}..."
+              value="${{escAttr(draft)}}"
+            />
+            <button
+              type="button"
+              class="peer-dm-popout-send-btn"
+              data-peer-dm-role="send"
+              ${{isPopout ? 'id="peer-dm-popout-send-btn"' : ""}}
+              ${{chatSendInFlight ? "disabled" : ""}}
+            >Send</button>
+            <div
+              class="peer-dm-popout-file-progress${{fileState && fileState.isError ? " is-error" : ""}}${{filePhase === "delivered" ? " is-success" : ""}}"
+              data-peer-dm-role="file-progress"
+              ${{isPopout ? 'id="peer-dm-popout-file-progress"' : ""}}
+              title="${{escAttr(fileProgressTitle)}}"
+              ${{fileState ? "" : "hidden"}}
+            >
+              <div class="peer-dm-popout-file-progress-head">
+                <span
+                  class="peer-dm-popout-file-progress-text"
+                  data-peer-dm-role="file-progress-text"
+                  ${{isPopout ? 'id="peer-dm-popout-file-progress-text"' : ""}}
+                >${{escAttr(fileText || "No file transfer activity yet.")}}</span>
+                <span
+                  class="peer-dm-popout-file-progress-pct"
+                  data-peer-dm-role="file-progress-pct"
+                  ${{isPopout ? 'id="peer-dm-popout-file-progress-pct"' : ""}}
+                >${{escAttr(`${{filePercent}}%`)}}</span>
+              </div>
+              <div class="peer-dm-popout-file-progress-meter">
+                <span
+                  data-peer-dm-role="file-progress-fill"
+                  ${{isPopout ? 'id="peer-dm-popout-file-progress-fill"' : ""}}
+                  style="width:${{escAttr(String(filePercent))}}%;"
+                ></span>
+              </div>
+            </div>
+            <div
+              class="peer-dm-popout-status"
+              data-peer-dm-role="status"
+              ${{isPopout ? 'id="peer-dm-popout-status"' : ""}}
+              hidden
+            ></div>
+          </div>
+        </section>`;
+
+        const focusBtn = host.querySelector('[data-peer-dm-action="focus"]');
+        if (focusBtn instanceof HTMLButtonElement) {{
+          focusBtn.addEventListener("click", (ev) => {{
+            ev.preventDefault();
+            setPeerDmMenuOpen(false);
+            applyLayoutView("chat", true);
+            applyChatChannel("all", true);
+            selectNode(peerId, true, false);
+          }});
+        }}
+        const closeBtn = host.querySelector('[data-peer-dm-action="close"]');
+        if (closeBtn instanceof HTMLButtonElement) {{
+          closeBtn.addEventListener("click", (ev) => {{
+            ev.preventDefault();
+            if (isPopout && typeof setPeerDmPopoutStatusDisplay === "function") {{
+              setPeerDmPopoutStatusDisplay(peerId, "");
+            }}
+            if (isPopout) {{
+              peerDmActivePeerId = "";
+            }}
+            host.innerHTML = "";
+          }});
+        }}
+
+        const input = host.querySelector('[data-peer-dm-role="input"]');
+        const sendBtn = host.querySelector('[data-peer-dm-role="send"]');
+        const fileProgress = host.querySelector('[data-peer-dm-role="file-progress"]');
+        const fileProgressText = host.querySelector('[data-peer-dm-role="file-progress-text"]');
+        const fileProgressPct = host.querySelector('[data-peer-dm-role="file-progress-pct"]');
+        const fileProgressFill = host.querySelector('[data-peer-dm-role="file-progress-fill"]');
+        const statusEl = host.querySelector('[data-peer-dm-role="status"]');
+        const statusMaxAgeSecForState = (state) => {{
+          const clean = normalizeDeliveryState(state);
+          if (clean === "sent") return 12;
+          if (clean === "acked") return 20;
+          if (clean === "nak" || clean === "timeout" || clean === "error") return 30;
+          return null;
+        }};
+        const statusStateStillFresh = (state, updateUnix) => {{
+          const ttlSec = statusMaxAgeSecForState(state);
+          if (!Number.isFinite(Number(ttlSec)) || ttlSec == null) return true;
+          const stamp = Number(updateUnix);
+          if (!Number.isFinite(stamp) || stamp <= 0) return false;
+          return (nowUnix - stamp) <= ttlSec;
+        }};
+        const statusRemainingMs = (state, updateUnix) => {{
+          const ttlSec = statusMaxAgeSecForState(state);
+          if (!Number.isFinite(Number(ttlSec)) || ttlSec == null) return null;
+          const stamp = Number(updateUnix);
+          if (!Number.isFinite(stamp) || stamp <= 0) return 0;
+          return Math.max(0, Math.round((ttlSec - Math.max(0, nowUnix - stamp)) * 1000));
+        }};
+        const setStatus = (text, isError = false, statusOptions = null) => {{
+          const localOptions = statusOptions && typeof statusOptions === "object" ? statusOptions : {{}};
+          if (isPopout && typeof setPeerDmPopoutStatusDisplay === "function") {{
+            const handled = setPeerDmPopoutStatusDisplay(peerId, text, {{
+              isError,
+              ttlMs: localOptions.ttlMs,
+              statusToken: localOptions.statusToken,
+            }});
+            if (handled) return;
+          }}
+          if (!(statusEl instanceof HTMLElement)) return;
+          const label = String(text || "").trim();
+          if (!label) {{
+            statusEl.textContent = "";
+            statusEl.classList.remove("is-error");
+            statusEl.hidden = true;
+            return;
+          }}
+          statusEl.textContent = label;
+          statusEl.classList.toggle("is-error", !!isError);
+          statusEl.hidden = false;
+        }};
+        const renderFileTransferState = () => {{
+          const snapshot = summarizePeerDmFileTransferState(peerId);
+          if (!(fileProgress instanceof HTMLElement)) return;
+          if (!snapshot) {{
+            fileProgress.hidden = true;
+            fileProgress.classList.remove("is-error");
+            fileProgress.classList.remove("is-success");
+            if (fileProgressText instanceof HTMLElement) {{
+              fileProgressText.textContent = "";
+            }}
+            if (fileProgressPct instanceof HTMLElement) {{
+              fileProgressPct.textContent = "";
+            }}
+            if (fileProgressFill instanceof HTMLElement) {{
+              fileProgressFill.style.width = "0%";
+            }}
+            return;
+          }}
+          const pct = Math.max(0, Math.min(100, Math.round(Number(snapshot.percent) || 0)));
+          const text = String(snapshot.text || "").trim() || "File transfer active";
+          const phase = String(snapshot.phase || "").trim().toLowerCase();
+          fileProgress.hidden = false;
+          fileProgress.classList.toggle("is-error", !!snapshot.isError);
+          fileProgress.classList.toggle("is-success", phase === "delivered" && !snapshot.isError);
+          const liveFileLabel = snapshot.fileName
+            ? normalizeFileTransferName(snapshot.fileName)
+            : "file transfer";
+          fileProgress.title = `File transfer: ${{liveFileLabel}}`;
+          if (fileProgressText instanceof HTMLElement) {{
+            fileProgressText.textContent = text;
+          }}
+          if (fileProgressPct instanceof HTMLElement) {{
+            fileProgressPct.textContent = `${{pct}}%`;
+          }}
+          if (fileProgressFill instanceof HTMLElement) {{
+            fileProgressFill.style.width = `${{pct}}%`;
+          }}
+        }};
+        const latestOwnDirectEcho = (() => {{
+          for (let idx = bucket.length - 1; idx >= 0; idx -= 1) {{
+            const msg = bucket[idx];
+            if (!(msg && (msg.local_echo === true || msg.localEcho === true))) continue;
+            const endpoints = endpointsForMessage(msg);
+            const fromId = normalizeNodeId(endpoints && endpoints.fromId);
+            const toId = normalizeNodeId(endpoints && endpoints.toId);
+            if (isCanonicalNodeId(localNodeId) && fromId !== localNodeId) continue;
+            if (isCanonicalNodeId(peerId) && toId !== peerId) continue;
+            return msg;
+          }}
+          return null;
+        }})();
+        if (latestOwnDirectEcho) {{
+          const deliveryState = normalizeDeliveryState(
+            latestOwnDirectEcho && (latestOwnDirectEcho.delivery_state ?? latestOwnDirectEcho.deliveryState)
+          );
+          const deliveryErrorRaw = String(
+            (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_error ?? latestOwnDirectEcho.deliveryError)) || ""
+          ).trim();
+          const deliveryError = (typeof trimInlineError === "function")
+            ? trimInlineError(deliveryErrorRaw, 92)
+            : deliveryErrorRaw;
+          const updateRawTime = String(
+            (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_updated_at || latestOwnDirectEcho.rx_time || latestOwnDirectEcho.captured_at)) || ""
+          ).trim();
+          const updateUnix = latestUnixTimestamp(
+            latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_unix,
+            latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_at,
+            latestOwnDirectEcho && latestOwnDirectEcho.rx_time,
+            latestOwnDirectEcho && latestOwnDirectEcho.captured_at
+          );
+          const updateTime = formatLocalChatTime(updateUnix, updateRawTime || "n/a", nowUnix);
+          if (deliveryState === "pending") {{
+            setStatus(`Awaiting ACK · ${{updateTime}}`);
+          }} else if (deliveryState === "acked" && statusStateStillFresh(deliveryState, updateUnix)) {{
+            setStatus(`Delivered · ${{updateTime}}`, false, {{
+              ttlMs: statusRemainingMs(deliveryState, updateUnix),
+              statusToken: `acked:${{updateUnix}}`,
+            }});
+          }} else if (
+            (deliveryState === "nak" || deliveryState === "timeout" || deliveryState === "error")
+            && statusStateStillFresh(deliveryState, updateUnix)
+          ) {{
+            const base = deliveryState === "timeout" ? "Delivery timeout" : "Delivery failed";
+            setStatus(
+              deliveryError ? `${{base}} · ${{deliveryError}}` : base,
+              true,
+              {{
+                ttlMs: statusRemainingMs(deliveryState, updateUnix),
+                statusToken: `${{deliveryState}}:${{updateUnix}}:${{deliveryError}}`,
+              }}
+            );
+          }} else if (deliveryState === "sent" && statusStateStillFresh(deliveryState, updateUnix)) {{
+            setStatus(`Sent · ${{updateTime}}`, false, {{
+              ttlMs: statusRemainingMs(deliveryState, updateUnix),
+              statusToken: `sent:${{updateUnix}}`,
+            }});
+          }} else {{
+            setStatus("");
+          }}
+        }} else {{
+          setStatus("");
+        }}
+        renderFileTransferState();
+
+        const submitMessage = async () => {{
+          if (!(input instanceof HTMLInputElement)) return;
+          if (!isCanonicalNodeId(peerId)) return;
+          if (chatSendInFlight) return;
+          const text = String(input.value || "").trim();
+          if (!text) return;
+          setStatus("Sending...");
+          const sendChannelIndex = normalizeMeshChannelIndex(threadChannelIndex);
+          const sendChannelLabel = meshChannelLabelForIndex(
+            sendChannelIndex,
+            {{ compact: true, allowAll: false }}
+          );
+          const payload = await sendChatPayload(
+            {{
+              text,
+              destination: peerId,
+              channel_index: sendChannelIndex,
+            }},
+            null,
+            {{
+              statusFn: setStatus,
+              showSendingStatus: false,
+              showSuccessStatus: false,
+              showErrorStatus: true,
+            }}
+          );
+          if (!(payload && payload.ok)) return;
+          peerDmDraftByPeer.delete(peerId);
+          input.value = "";
+          const awaitingAck = (
+            payload.ack_requested === true
+            && normalizeDeliveryState(payload.delivery_state) === "pending"
+          );
+          if (awaitingAck) {{
+            setStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}} (awaiting ACK)`);
+          }} else {{
+            setStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}}`);
+          }}
+          if (latestState) {{
+            renderChat(latestState);
+          }}
+        }};
+        if (input instanceof HTMLInputElement) {{
+          input.addEventListener("input", () => {{
+            const nextDraft = String(input.value || "");
+            if (nextDraft.trim()) {{
+              peerDmDraftByPeer.set(peerId, nextDraft);
+            }} else {{
+              peerDmDraftByPeer.delete(peerId);
+            }}
+          }});
+          input.addEventListener("keydown", (ev) => {{
+            if (ev.key !== "Enter" || ev.shiftKey) return;
+            ev.preventDefault();
+            void submitMessage();
+          }});
+          if (preserveInputFocus && priorPeerId === peerId) {{
+            const valueLen = String(input.value || "").length;
+            const nextSelectionStart = Number.isFinite(priorSelectionStart)
+              ? Math.max(0, Math.min(valueLen, Math.trunc(Number(priorSelectionStart))))
+              : valueLen;
+            const nextSelectionEnd = Number.isFinite(priorSelectionEnd)
+              ? Math.max(nextSelectionStart, Math.min(valueLen, Math.trunc(Number(priorSelectionEnd))))
+              : nextSelectionStart;
+            window.requestAnimationFrame(() => {{
+              if (input.disabled) return;
+              try {{
+                input.focus({{ preventScroll: true }});
+              }} catch (_err) {{
+                input.focus();
+              }}
+              try {{
+                input.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+              }} catch (_err) {{
+              }}
+            }});
+          }}
+        }}
+        if (sendBtn instanceof HTMLButtonElement) {{
+          sendBtn.addEventListener("click", (ev) => {{
+            ev.preventDefault();
+            void submitMessage();
+          }});
+        }}
+        const bodyEl = host.querySelector('[data-peer-dm-role="body"]');
+        if (bodyEl instanceof HTMLElement) {{
+          bodyEl.scrollTop = bodyEl.scrollHeight;
+        }}
+      }};
+
       const peerDmHost = document.getElementById("peer-dm-popout-host");
-      const priorPopoutInput = document.getElementById("peer-dm-popout-input");
       const priorPopoutWindow = document.querySelector("#peer-dm-popout-host .peer-dm-popout-window");
       const priorPopoutPeerId = normalizeNodeId(
         priorPopoutWindow instanceof HTMLElement
           ? (priorPopoutWindow.dataset.peerNodeId || "")
           : (peerDmActivePeerId || "")
       );
-      const preservePopoutInputFocus = (
-        priorPopoutInput instanceof HTMLInputElement
-        && document.activeElement === priorPopoutInput
-      );
-      const priorPopoutSelectionStart = preservePopoutInputFocus
-        ? Number(priorPopoutInput.selectionStart)
-        : null;
-      const priorPopoutSelectionEnd = preservePopoutInputFocus
-        ? Number(priorPopoutInput.selectionEnd)
-        : null;
       let activePopoutPeerId = normalizeNodeId(peerDmActivePeerId || "");
       const activePopoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
       const activePopoutHasMessages = (
@@ -439,403 +899,36 @@
           && !activePopoutHasMessages
         )
       ) {{
+        if (typeof setPeerDmPopoutStatusDisplay === "function") {{
+          setPeerDmPopoutStatusDisplay(priorPopoutPeerId || peerDmActivePeerId || "", "");
+        }}
         activePopoutPeerId = "";
         peerDmActivePeerId = "";
       }}
-      if (peerDmHost instanceof HTMLElement) {{
-        if (!isCanonicalNodeId(activePopoutPeerId)) {{
-          if (typeof setPeerDmPopoutStatusDisplay === "function") {{
-            setPeerDmPopoutStatusDisplay(priorPopoutPeerId || peerDmActivePeerId || "", "");
+      renderPeerDmThreadHost(peerDmHost, activePopoutPeerId, {{
+        mode: "popout",
+        showFocusAction: true,
+        showCloseAction: true,
+      }});
+
+      const drawerMessagesHost = document.getElementById("chat-node-details-messages-host");
+      const drawerMessagesActive = (
+        drawerMessagesHost instanceof HTMLElement
+        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+        && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "messages"
+      );
+      if (drawerMessagesActive) {{
+        renderPeerDmThreadHost(
+          drawerMessagesHost,
+          chatNodeDetailsDrawerTargetNodeId(selectedNodeId),
+          {{
+            mode: "drawer",
+            unavailableMessage: "Direct messaging is unavailable for this node.",
           }}
-          peerDmHost.innerHTML = "";
-        }} else {{
-          const popoutNode = nodesById.get(activePopoutPeerId);
-          const popoutName = preferredNodeName(popoutNode) || nodeNameCache.get(activePopoutPeerId) || activePopoutPeerId;
-          const popoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
-          const popoutBucket = Array.isArray(popoutBucketRaw) ? popoutBucketRaw : [];
-          const popoutMessages = popoutBucket.length > chatFeedMaxEntries
-            ? popoutBucket.slice(-chatFeedMaxEntries)
-            : popoutBucket;
-          const popoutDraft = String(peerDmDraftByPeer.get(activePopoutPeerId) || "");
-          const popoutFileState = summarizePeerDmFileTransferState(activePopoutPeerId);
-          const popoutFilePercent = popoutFileState
-            ? Math.max(0, Math.min(100, Math.round(Number(popoutFileState.percent) || 0)))
-            : 0;
-          const popoutFileText = popoutFileState
-            ? String(popoutFileState.text || "").trim()
-            : "";
-          const popoutFilePhase = popoutFileState ? String(popoutFileState.phase || "").trim().toLowerCase() : "";
-          const popoutFileLabel = popoutFileState && popoutFileState.fileName
-            ? normalizeFileTransferName(popoutFileState.fileName)
-            : "";
-          const popoutFileProgressTitle = popoutFileLabel
-            ? `File transfer: ${{popoutFileLabel}}`
-            : "File transfer";
-          const popoutThreadChannelIndex = (() => {{
-            for (let idx = popoutBucket.length - 1; idx >= 0; idx -= 1) {{
-              const candidate = popoutBucket[idx];
-              if (!candidate || typeof candidate !== "object") continue;
-              const explicitIdx = (typeof explicitMessageMeshChannelIndex === "function")
-                ? explicitMessageMeshChannelIndex(candidate)
-                : null;
-              if (Number.isInteger(explicitIdx) && explicitIdx >= 0) {{
-                return Math.trunc(explicitIdx);
-              }}
-            }}
-            const sendCtx = meshChannelSendContext();
-            return normalizeMeshChannelIndex(sendCtx && sendCtx.sendIndex);
-          }})();
-          const popoutThreadChannelLabel = meshChannelLabelForIndex(
-            popoutThreadChannelIndex,
-            {{ compact: true, allowAll: false }}
-          );
-          const popoutThreadChannelMeta = meshChannelColorMeta(popoutThreadChannelIndex, {{ allowAll: false }});
-          const popoutThreadChannelStyle = `--peer-dm-channel-fill: ${{popoutThreadChannelMeta.fill}}; --peer-dm-channel-rgb: ${{hexColorRgbTriplet(popoutThreadChannelMeta.fill)}};`;
-          const popoutMessageRows = popoutMessages.length > 0
-            ? popoutMessages.map((msg) => {{
-                const endpoints = endpointsForMessage(msg);
-                const fromId = normalizeNodeId(endpoints && endpoints.fromId);
-                const isOwn = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
-                const fromMeta = chatEndpointParts(fromId, latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at));
-                const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
-                const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
-                const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
-                const timeLabel = formatLocalChatTime(msgUnix, rawTime || "n/a", nowUnix);
-                const isLocalEcho = msg && (msg.local_echo === true || msg.localEcho === true);
-                const deliveryState = normalizeDeliveryState(msg && (msg.delivery_state ?? msg.deliveryState));
-                const deliveryError = String((msg && (msg.delivery_error ?? msg.deliveryError)) || "").trim();
-                const compactDeliveryError = (typeof trimInlineError === "function")
-                  ? trimInlineError(deliveryError, 72)
-                  : (deliveryError.length > 72 ? `${{deliveryError.slice(0, 69)}}...` : deliveryError);
-                const deliverySuffix = (() => {{
-                  if (!isOwn || !isLocalEcho) return "";
-                  if (!deliveryState || deliveryState === "sent" || deliveryState === "acked") return "";
-                  if (deliveryState === "pending") return " • awaiting ACK";
-                  if (deliveryState === "nak") {{
-                    return compactDeliveryError
-                      ? ` • failed (${{compactDeliveryError}})`
-                      : " • failed";
-                  }}
-                  if (deliveryState === "error") {{
-                    return compactDeliveryError
-                      ? ` • error (${{compactDeliveryError}})`
-                      : " • error";
-                  }}
-                  return ` • ${{deliveryState}}`;
-                }})();
-                const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
-                  || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
-                return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}">
-                  <div class="peer-dm-popout-msg-meta"><span>${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
-                  <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
-                </div>`;
-              }}).join("")
-            : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
-          peerDmHost.innerHTML = `<section
-            class="peer-dm-popout-window"
-            data-peer-node-id="${{escAttr(activePopoutPeerId)}}"
-            data-peer-dm-channel-index="${{escAttr(popoutThreadChannelIndex)}}"
-            style="${{escAttr(popoutThreadChannelStyle)}}"
-          >
-            <header class="peer-dm-popout-head">
-              <div class="peer-dm-popout-title">
-                <span class="peer-dm-popout-name">${{escAttr(popoutName)}}</span>
-                <span class="peer-dm-popout-id-row">
-                  <span class="peer-dm-popout-id">${{escAttr(activePopoutPeerId)}}</span>
-                  <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(popoutThreadChannelLabel)}}</span>
-                </span>
-              </div>
-              <div class="peer-dm-popout-actions">
-                <button type="button" id="peer-dm-popout-open-main-btn" class="peer-dm-popout-btn" title="Focus this peer in the node list">Focus node</button>
-                <button type="button" id="peer-dm-popout-close-btn" class="peer-dm-popout-btn" title="Close this peer window">&times;</button>
-              </div>
-            </header>
-            <div id="peer-dm-popout-body" class="peer-dm-popout-body">${{popoutMessageRows}}</div>
-            <div class="peer-dm-popout-composer">
-              <input id="peer-dm-popout-input" class="peer-dm-popout-input" type="text" autocomplete="off" placeholder="Direct message to ${{escAttr(activePopoutPeerId)}}..." value="${{escAttr(popoutDraft)}}" />
-              <button type="button" id="peer-dm-popout-send-btn" class="peer-dm-popout-send-btn"${{chatSendInFlight ? " disabled" : ""}}>Send</button>
-              <div
-                id="peer-dm-popout-file-progress"
-                class="peer-dm-popout-file-progress${{popoutFileState && popoutFileState.isError ? " is-error" : ""}}${{popoutFilePhase === "delivered" ? " is-success" : ""}}"
-                title="${{escAttr(popoutFileProgressTitle)}}"
-                ${{popoutFileState ? "" : "hidden"}}
-              >
-                <div class="peer-dm-popout-file-progress-head">
-                  <span id="peer-dm-popout-file-progress-text" class="peer-dm-popout-file-progress-text">${{escAttr(popoutFileText || "No file transfer activity yet.")}}</span>
-                  <span id="peer-dm-popout-file-progress-pct" class="peer-dm-popout-file-progress-pct">${{escAttr(`${{popoutFilePercent}}%`)}}</span>
-                </div>
-                <div class="peer-dm-popout-file-progress-meter">
-                  <span id="peer-dm-popout-file-progress-fill" style="width:${{escAttr(String(popoutFilePercent))}}%;"></span>
-                </div>
-              </div>
-              <div id="peer-dm-popout-status" class="peer-dm-popout-status" hidden></div>
-            </div>
-          </section>`;
-          const openMainBtn = document.getElementById("peer-dm-popout-open-main-btn");
-          if (openMainBtn instanceof HTMLButtonElement) {{
-            openMainBtn.addEventListener("click", (ev) => {{
-              ev.preventDefault();
-              setPeerDmMenuOpen(false);
-              applyLayoutView("chat", true);
-              applyChatChannel("all", true);
-              selectNode(activePopoutPeerId, true, false);
-            }});
-          }}
-          const closeBtn = document.getElementById("peer-dm-popout-close-btn");
-          if (closeBtn instanceof HTMLButtonElement) {{
-            closeBtn.addEventListener("click", (ev) => {{
-              ev.preventDefault();
-              if (typeof setPeerDmPopoutStatusDisplay === "function") {{
-                setPeerDmPopoutStatusDisplay(activePopoutPeerId, "");
-              }}
-              peerDmActivePeerId = "";
-              if (peerDmHost instanceof HTMLElement) {{
-                peerDmHost.innerHTML = "";
-              }}
-            }});
-          }}
-          const popoutInput = document.getElementById("peer-dm-popout-input");
-          const popoutSendBtn = document.getElementById("peer-dm-popout-send-btn");
-          const popoutFileProgress = document.getElementById("peer-dm-popout-file-progress");
-          const popoutFileProgressText = document.getElementById("peer-dm-popout-file-progress-text");
-          const popoutFileProgressPct = document.getElementById("peer-dm-popout-file-progress-pct");
-          const popoutFileProgressFill = document.getElementById("peer-dm-popout-file-progress-fill");
-          const popoutStatus = document.getElementById("peer-dm-popout-status");
-          const popoutStatusMaxAgeSecForState = (state) => {{
-            const clean = normalizeDeliveryState(state);
-            if (clean === "sent") return 12;
-            if (clean === "acked") return 20;
-            if (clean === "nak" || clean === "timeout" || clean === "error") return 30;
-            return null;
-          }};
-          const popoutStatusStateStillFresh = (state, updateUnix) => {{
-            const ttlSec = popoutStatusMaxAgeSecForState(state);
-            if (!Number.isFinite(Number(ttlSec)) || ttlSec == null) return true;
-            const stamp = Number(updateUnix);
-            if (!Number.isFinite(stamp) || stamp <= 0) return false;
-            return (nowUnix - stamp) <= ttlSec;
-          }};
-          const popoutStatusRemainingMs = (state, updateUnix) => {{
-            const ttlSec = popoutStatusMaxAgeSecForState(state);
-            if (!Number.isFinite(Number(ttlSec)) || ttlSec == null) return null;
-            const stamp = Number(updateUnix);
-            if (!Number.isFinite(stamp) || stamp <= 0) return 0;
-            return Math.max(0, Math.round((ttlSec - Math.max(0, nowUnix - stamp)) * 1000));
-          }};
-          const setPopoutStatus = (text, isError = false, options = null) => {{
-            const opts = options && typeof options === "object" ? options : {{}};
-            if (typeof setPeerDmPopoutStatusDisplay === "function") {{
-              const handled = setPeerDmPopoutStatusDisplay(activePopoutPeerId, text, {{
-                isError,
-                ttlMs: opts.ttlMs,
-                statusToken: opts.statusToken,
-              }});
-              if (handled) return;
-            }}
-            if (!(popoutStatus instanceof HTMLElement)) return;
-            const label = String(text || "").trim();
-            if (!label) {{
-              popoutStatus.textContent = "";
-              popoutStatus.classList.remove("is-error");
-              popoutStatus.hidden = true;
-              return;
-            }}
-            popoutStatus.textContent = label;
-            popoutStatus.classList.toggle("is-error", !!isError);
-            popoutStatus.hidden = false;
-          }};
-          const renderPopoutFileTransferState = () => {{
-            const snapshot = summarizePeerDmFileTransferState(activePopoutPeerId);
-            if (!(popoutFileProgress instanceof HTMLElement)) return;
-            if (!snapshot) {{
-              popoutFileProgress.hidden = true;
-              popoutFileProgress.classList.remove("is-error");
-              popoutFileProgress.classList.remove("is-success");
-              if (popoutFileProgressText instanceof HTMLElement) {{
-                popoutFileProgressText.textContent = "";
-              }}
-              if (popoutFileProgressPct instanceof HTMLElement) {{
-                popoutFileProgressPct.textContent = "";
-              }}
-              if (popoutFileProgressFill instanceof HTMLElement) {{
-                popoutFileProgressFill.style.width = "0%";
-              }}
-              return;
-            }}
-            const pct = Math.max(0, Math.min(100, Math.round(Number(snapshot.percent) || 0)));
-            const text = String(snapshot.text || "").trim() || "File transfer active";
-            const phase = String(snapshot.phase || "").trim().toLowerCase();
-            popoutFileProgress.hidden = false;
-            popoutFileProgress.classList.toggle("is-error", !!snapshot.isError);
-            popoutFileProgress.classList.toggle("is-success", phase === "delivered" && !snapshot.isError);
-            const fileLabel = snapshot.fileName
-              ? normalizeFileTransferName(snapshot.fileName)
-              : "file transfer";
-            popoutFileProgress.title = `File transfer: ${{fileLabel}}`;
-            if (popoutFileProgressText instanceof HTMLElement) {{
-              popoutFileProgressText.textContent = text;
-            }}
-            if (popoutFileProgressPct instanceof HTMLElement) {{
-              popoutFileProgressPct.textContent = `${{pct}}%`;
-            }}
-            if (popoutFileProgressFill instanceof HTMLElement) {{
-              popoutFileProgressFill.style.width = `${{pct}}%`;
-            }}
-          }};
-          const latestOwnDirectEcho = (() => {{
-            for (let idx = popoutBucket.length - 1; idx >= 0; idx -= 1) {{
-              const msg = popoutBucket[idx];
-              if (!(msg && (msg.local_echo === true || msg.localEcho === true))) continue;
-              const endpoints = endpointsForMessage(msg);
-              const fromId = normalizeNodeId(endpoints && endpoints.fromId);
-              const toId = normalizeNodeId(endpoints && endpoints.toId);
-              if (isCanonicalNodeId(localNodeId) && fromId !== localNodeId) continue;
-              if (isCanonicalNodeId(activePopoutPeerId) && toId !== activePopoutPeerId) continue;
-              return msg;
-            }}
-            return null;
-          }})();
-          if (latestOwnDirectEcho) {{
-            const deliveryState = normalizeDeliveryState(
-              latestOwnDirectEcho && (latestOwnDirectEcho.delivery_state ?? latestOwnDirectEcho.deliveryState)
-            );
-            const deliveryErrorRaw = String(
-              (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_error ?? latestOwnDirectEcho.deliveryError)) || ""
-            ).trim();
-            const deliveryError = (typeof trimInlineError === "function")
-              ? trimInlineError(deliveryErrorRaw, 92)
-              : deliveryErrorRaw;
-            const updateRawTime = String(
-              (latestOwnDirectEcho && (latestOwnDirectEcho.delivery_updated_at || latestOwnDirectEcho.rx_time || latestOwnDirectEcho.captured_at)) || ""
-            ).trim();
-            const updateUnix = latestUnixTimestamp(
-              latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_unix,
-              latestOwnDirectEcho && latestOwnDirectEcho.delivery_updated_at,
-              latestOwnDirectEcho && latestOwnDirectEcho.rx_time,
-              latestOwnDirectEcho && latestOwnDirectEcho.captured_at
-            );
-            const updateTime = formatLocalChatTime(updateUnix, updateRawTime || "n/a", nowUnix);
-            if (deliveryState === "pending") {{
-              setPopoutStatus(`Awaiting ACK · ${{updateTime}}`);
-            }} else if (deliveryState === "acked" && popoutStatusStateStillFresh(deliveryState, updateUnix)) {{
-              setPopoutStatus(`Delivered · ${{updateTime}}`, false, {{
-                ttlMs: popoutStatusRemainingMs(deliveryState, updateUnix),
-                statusToken: `acked:${{updateUnix}}`,
-              }});
-            }} else if (
-              (deliveryState === "nak" || deliveryState === "timeout" || deliveryState === "error")
-              && popoutStatusStateStillFresh(deliveryState, updateUnix)
-            ) {{
-              const base = deliveryState === "timeout" ? "Delivery timeout" : "Delivery failed";
-              setPopoutStatus(
-                deliveryError ? `${{base}} · ${{deliveryError}}` : base,
-                true,
-                {{
-                  ttlMs: popoutStatusRemainingMs(deliveryState, updateUnix),
-                  statusToken: `${{deliveryState}}:${{updateUnix}}:${{deliveryError}}`,
-                }}
-              );
-            }} else if (deliveryState === "sent" && popoutStatusStateStillFresh(deliveryState, updateUnix)) {{
-              setPopoutStatus(`Sent · ${{updateTime}}`, false, {{
-                ttlMs: popoutStatusRemainingMs(deliveryState, updateUnix),
-                statusToken: `sent:${{updateUnix}}`,
-              }});
-            }} else {{
-              setPopoutStatus("");
-            }}
-          }} else {{
-            setPopoutStatus("");
-          }}
-          renderPopoutFileTransferState();
-          const submitPopoutMessage = async () => {{
-            if (!(popoutInput instanceof HTMLInputElement)) return;
-            if (!isCanonicalNodeId(activePopoutPeerId)) return;
-            if (chatSendInFlight) return;
-            const text = String(popoutInput.value || "").trim();
-            if (!text) return;
-            setPopoutStatus("Sending...");
-            const sendChannelIndex = normalizeMeshChannelIndex(popoutThreadChannelIndex);
-            const sendChannelLabel = meshChannelLabelForIndex(
-              sendChannelIndex,
-              {{ compact: true, allowAll: false }}
-            );
-            const payload = await sendChatPayload(
-              {{
-                text,
-                destination: activePopoutPeerId,
-                channel_index: sendChannelIndex,
-              }},
-              null,
-              {{
-                statusFn: setPopoutStatus,
-                showSendingStatus: false,
-                showSuccessStatus: false,
-                showErrorStatus: true,
-              }}
-            );
-            if (!(payload && payload.ok)) return;
-            peerDmDraftByPeer.delete(activePopoutPeerId);
-            popoutInput.value = "";
-            const awaitingAck = (
-              payload.ack_requested === true
-              && normalizeDeliveryState(payload.delivery_state) === "pending"
-            );
-            if (awaitingAck) {{
-              setPopoutStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}} (awaiting ACK)`);
-            }} else {{
-              setPopoutStatus(`Sent on ${{sendChannelLabel}} at ${{payload.sent_at || "now"}}`);
-            }}
-            if (latestState) {{
-              renderChat(latestState);
-            }}
-          }};
-          if (popoutInput instanceof HTMLInputElement) {{
-            popoutInput.addEventListener("input", () => {{
-              const nextDraft = String(popoutInput.value || "");
-              if (nextDraft.trim()) {{
-                peerDmDraftByPeer.set(activePopoutPeerId, nextDraft);
-              }} else {{
-                peerDmDraftByPeer.delete(activePopoutPeerId);
-              }}
-            }});
-            popoutInput.addEventListener("keydown", (ev) => {{
-              if (ev.key !== "Enter" || ev.shiftKey) return;
-              ev.preventDefault();
-              void submitPopoutMessage();
-            }});
-            if (preservePopoutInputFocus && priorPopoutPeerId === activePopoutPeerId) {{
-              const valueLen = String(popoutInput.value || "").length;
-              const nextSelectionStart = Number.isFinite(priorPopoutSelectionStart)
-                ? Math.max(0, Math.min(valueLen, Math.trunc(Number(priorPopoutSelectionStart))))
-                : valueLen;
-              const nextSelectionEnd = Number.isFinite(priorPopoutSelectionEnd)
-                ? Math.max(nextSelectionStart, Math.min(valueLen, Math.trunc(Number(priorPopoutSelectionEnd))))
-                : nextSelectionStart;
-              window.requestAnimationFrame(() => {{
-                if (popoutInput.disabled) return;
-                try {{
-                  popoutInput.focus({{ preventScroll: true }});
-                }} catch (_err) {{
-                  popoutInput.focus();
-                }}
-                try {{
-                  popoutInput.setSelectionRange(nextSelectionStart, nextSelectionEnd);
-                }} catch (_err) {{
-                }}
-              }});
-            }}
-          }}
-          if (popoutSendBtn instanceof HTMLButtonElement) {{
-            popoutSendBtn.addEventListener("click", (ev) => {{
-              ev.preventDefault();
-              void submitPopoutMessage();
-            }});
-          }}
-          const popoutBody = document.getElementById("peer-dm-popout-body");
-          if (popoutBody instanceof HTMLElement) {{
-            popoutBody.scrollTop = popoutBody.scrollHeight;
-          }}
-        }}
+        );
+      }} else if (drawerMessagesHost instanceof HTMLElement) {{
+        drawerMessagesHost.innerHTML = "";
       }}
       renderChatNodeNavigatorList(state, {{
         nowUnix,
