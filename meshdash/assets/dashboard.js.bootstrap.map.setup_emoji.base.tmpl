@@ -10,6 +10,11 @@
       fadeAnimation: false,
       markerZoomAnimation: false,
       inertia: false,
+      // Keep center constrained to Web Mercator tile coverage.
+      // Without this, stale setView/pan state can show "blank" map areas after
+      // view/tab switches (only a thin tile strip rendered at one edge).
+      maxBounds: [[-85.05112878, -180], [85.05112878, 180]],
+      maxBoundsViscosity: 1.0,
       // Wheel zoom should work out of the box. (We previously guarded this to avoid
       // hijacking page scroll, but that can feel broken and isn't worth the friction.)
       scrollWheelZoom: true,
