@@ -486,20 +486,21 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     chart_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .metric-ticker-chart path {", 1)[1].split("}", 1)[0]
     target_status_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .target-radio-status {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-active-bg)" in topbar_section
-    assert "var(--workspace-shell-bg-alt)" in topbar_section
-    assert "var(--workspace-shell-bg)" in topbar_section
-    assert "var(--workspace-shell-border)" in topbar_section
+    assert "var(--floating-stage-bg)" in topbar_section
+    assert "border-bottom: 0;" in topbar_section
+    assert "box-shadow: none;" in topbar_section
     assert "#121a25" not in topbar_section
-    assert "var(--workspace-shell-border)" in ticker_section
-    assert "var(--workspace-shell-bg-alt)" in ticker_section
-    assert "var(--workspace-shell-bg)" in ticker_section
-    assert "var(--workspace-shell-text)" in ticker_section
+    assert "var(--workspace-shell-border-strong)" in ticker_section
+    assert "var(--workspace-shell-active-text)" in ticker_section
+    assert "var(--ui-panel)" in ticker_section
+    assert "var(--ui-text)" in ticker_section
+    assert "box-shadow: none;" in ticker_section
     assert "var(--workspace-shell-text-soft)" in neutral_section
     assert "#cf6f6f" in bad_section
     assert "var(--ticker-card-accent)" in chart_section
-    assert "var(--workspace-shell-border-muted)" in target_status_section
-    assert "var(--workspace-shell-text-soft)" in target_status_section
+    assert "var(--ui-border)" in target_status_section
+    assert "var(--ui-panel-alt)" in target_status_section
+    assert "var(--ui-text-soft)" in target_status_section
 
 
 def test_topbar_controls_share_workspace_shell_tokens() -> None:
@@ -515,13 +516,15 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
 
     assert "--topbar-shell-border:" not in css
     assert "--topbar-shell-control-bg:" not in css
-    assert "var(--workspace-shell-border-muted)" in launcher_section
+    assert "var(--workspace-shell-border)" in launcher_section
     assert "var(--workspace-shell-border-strong)" in launcher_hover_section
     assert "accent-2" not in launcher_section
+    assert "box-shadow: none;" in launcher_section
     assert "var(--workspace-shell-border)" in update_section
     assert "var(--workspace-shell-bg-alt)" in update_section
     assert "var(--workspace-shell-bg)" in update_section
     assert "var(--workspace-shell-text)" in update_section
+    assert "box-shadow: none;" in update_section
     assert "var(--workspace-shell-text-soft)" in update_text_section
     assert "var(--workspace-shell-border)" in icon_section
     assert "var(--workspace-shell-bg-alt)" in icon_section

@@ -28,7 +28,7 @@
       padding: 8px 12px;
       background: var(--floating-stage-bg);
       color: #f4fff7;
-      box-shadow: var(--shadow);
+      box-shadow: none;
       position: sticky;
       top: 0;
       z-index: 1200;
@@ -236,7 +236,7 @@
       opacity: 1;
       transition: opacity 220ms ease;
       overflow: hidden;
-      box-shadow: inset 0 0 0 1px rgba(203, 236, 219, 0.08);
+      box-shadow: none;
     }}
     .workspace-update-ticker {{
       flex: 1 1 auto;
@@ -381,9 +381,7 @@
       column-gap: 5px;
       row-gap: 1px;
       align-items: end;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.44),
-        0 8px 18px color-mix(in srgb, var(--accent-2) 8%, transparent);
+      box-shadow: none;
     }}
     .topbar .summary-ticker-item[hidden] {{
       display: none !important;
@@ -447,10 +445,8 @@
       font-weight: 700;
       text-align: left;
       color: color-mix(in srgb, var(--ink) 86%, var(--accent-2));
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        0 8px 18px color-mix(in srgb, var(--accent-2) 14%, transparent);
-      transition: border-color 140ms ease, background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+      box-shadow: none;
+      transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
     }}
     .topbar-view-menu-btn:hover,
     .topbar-view-menu-btn[aria-expanded="true"] {{
@@ -461,15 +457,11 @@
           color-mix(in srgb, var(--panel) 90%, var(--accent) 10%),
           color-mix(in srgb, var(--panel) 76%, var(--accent) 24%)
         );
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.48),
-        0 10px 22px color-mix(in srgb, var(--accent-2) 18%, transparent);
+      box-shadow: none;
     }}
     .topbar-view-menu-btn.has-unread {{
       border-color: var(--accent);
-      box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
-        0 10px 22px color-mix(in srgb, var(--accent-2) 18%, transparent);
+      box-shadow: none;
     }}
     .topbar-view-menu-btn:focus-visible {{
       outline: 2px solid color-mix(in srgb, var(--accent-2) 74%, black);
@@ -497,7 +489,7 @@
       font-size: 10px;
       line-height: 1;
       font-weight: 700;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+      box-shadow: none;
     }}
     .topbar-view-menu-btn-attention {{
       flex: 0 0 auto;
@@ -956,14 +948,12 @@
     }}
     .topbar .summary-ticker-item {{
       cursor: pointer;
-      transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+      transition: border-color 120ms ease, background 120ms ease;
     }}
     .topbar .summary-ticker-item:hover {{
       border-color: color-mix(in srgb, var(--accent) 48%, var(--line) 52%);
       background: color-mix(in srgb, var(--panel) 92%, var(--accent) 8%);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.52),
-        0 10px 22px color-mix(in srgb, var(--accent-2) 10%, transparent);
+      box-shadow: none;
     }}
     .topbar.ticker-expanded .sub .summary-ticker-row {{
       grid-auto-flow: row;

@@ -103,6 +103,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-menu-item-icon {" in css
     assert ".topbar-view-menu {" in css
     assert "z-index: 1350;" in css
+    topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
+    topbar_ticker_section = css.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
+    topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
+    topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
+    assert "box-shadow: none;" in topbar_section
+    assert "box-shadow: none;" in topbar_ticker_section
+    assert "box-shadow: none;" in topbar_update_section
+    assert "box-shadow: none;" in topbar_launcher_section
     assert '.chat-panel-collapse-btn[aria-pressed="false"] .chat-panel-collapse-glyph {' in css
     assert re.search(
         r"\.workspace-shell \{\s*--chat-panel-width: 250px;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*column-gap: 8px;[\s\S]*row-gap: 0;",
