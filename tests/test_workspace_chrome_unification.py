@@ -23,7 +23,10 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     )
     css = build_dashboard_css(theme_css="")
 
-    assert 'id="apps-tabs-bar" class="apps-tabs-bar workspace-chrome-bar workspace-pillbar"' in html
+    assert 'id="layout-view-menu-apps-current"' in html
+    assert 'id="layout-view-menu-apps-submenu"' in html
+    assert 'class="topbar-view-menu-item topbar-view-menu-item-has-submenu"' in html
+    assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'data-app-view="bbs"' in html
     assert 'class="settings-chrome workspace-chrome-bar"' in html
     assert 'class="settings-toolbar workspace-chrome-row"' in html
@@ -38,12 +41,15 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert "<h2>Files</h2>" not in html
     assert 'id="network-map-chrome" class="network-map-chrome"' in html
     assert 'class="network-map-subview-tabs"' in html
+    assert 'id="apps-tabs-bar"' not in html
 
     assert ".workspace-chrome-bar {" in css
-    assert ".apps-tabs-bar.workspace-chrome-bar {" in css
     assert "margin-bottom: 0;" in css
     assert ".workspace-pillbar {" in css
     assert ".workspace-chrome-row {" in css
+    assert ".topbar-view-menu-item-context {" in css
+    assert ".topbar-view-submenu {" in css
+    assert ".topbar-view-submenu-item {" in css
     assert ".chat-users-head-launcher-shell .topbar-view-menu-btn {" in css
     assert "min-height: 27px;" in css
     assert ".chat-users-head-launcher-shell .topbar-view-menu-btn:hover," in css
@@ -53,6 +59,7 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert ".chat-card-head.workspace-chrome-bar {" in css
     assert ".games-toolbar-picker {" in css
     assert ".settings-status.settings-status-top:empty {" in css
+    assert ".apps-tabs-bar.workspace-chrome-bar {" not in css
     workspace_status_section = css.split(".workspace-chrome-status {", 1)[1].split("}", 1)[0]
     assert "position: absolute;" in workspace_status_section
     assert "clip-path: inset(50%);" in workspace_status_section
@@ -63,30 +70,54 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert "[data-theme=\"dark\"] .network-map-subview-tab,\n    [data-theme=\"dark\"] .workspace-pill-btn {" in css
 
 
-def test_apps_views_promote_apps_tabs_to_desktop_side_rail() -> None:
+def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
     css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
 
-    apps_main_section = css.split(
-        '.workspace-shell[data-layout-view="games"] .workspace-main,',
-        1,
-    )[1].split("}", 1)[0]
-    apps_tabs_section = css.split(
-        '.workspace-shell[data-layout-view="games"] #apps-tabs-bar,',
-        1,
-    )[1].split("}", 1)[0]
-    apps_btn_section = css.split(
-        '.workspace-shell[data-layout-view="games"] .apps-tab-btn,',
-        1,
-    )[1].split("}", 1)[0]
+    assert 'data-submenu="apps"' in html
+    assert 'id="layout-view-menu-apps-current"' in html
+    assert 'id="layout-view-menu-apps-meta"' in html
+    assert 'id="layout-view-menu-apps-submenu"' in html
+    assert 'data-app-view="games"' in html
+    assert 'data-app-view="files"' in html
+    assert 'data-app-view="bbs"' in html
+    assert 'id="apps-tabs-bar"' not in html
 
-    assert "grid-template-columns: minmax(68px, 82px) minmax(0, 1fr);" in apps_main_section
-    assert "grid-template-rows: minmax(0, 1fr);" in apps_main_section
-    assert "flex-direction: column;" in apps_tabs_section
-    assert "align-items: stretch;" in apps_tabs_section
-    assert "justify-content: flex-start;" in apps_tabs_section
-    assert "width: 100%;" in apps_btn_section
-    assert "min-height: 38px;" in apps_btn_section
-    assert "justify-content: center;" in apps_btn_section
+    assert ".topbar-view-menu-item-has-submenu {" in css
+    assert ".topbar-view-menu-item-branch {" in css
+    assert ".topbar-view-submenu {" in css
+    assert ".topbar-view-submenu[data-side=\"overlay\"] {" in css
+    assert ".topbar-view-submenu-item {" in css
+    assert ".topbar-view-submenu-item.is-active," in css
+    assert ".apps-tabs-bar {" not in css
+    assert ".apps-tab-btn {" not in css
+
+    assert "function appsLayoutViewLabel(viewName = \"\") {" in js
+    assert "function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {" in js
+    assert "function closeLayoutViewSubmenus() {" in js
+    assert "function openLayoutViewSubmenu(name = \"\") {" in js
+    assert "function toggleLayoutViewSubmenu(name = \"\") {" in js
+    assert 'document.getElementById("layout-view-menu-apps-current")' in js
+    assert 'document.getElementById("layout-view-menu-apps-submenu")' in js
+    assert 'target.closest("#layout-view-menu .topbar-view-submenu-item")' in js
+    assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
+    assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
 
 
 def test_workspace_main_gap_stays_uniform_across_apps_and_chat_views() -> None:
@@ -94,16 +125,10 @@ def test_workspace_main_gap_stays_uniform_across_apps_and_chat_views() -> None:
 
     workspace_main_section = css.split(".workspace-main {", 1)[1].split("}", 1)[0]
     assert "gap: 8px;" in workspace_main_section
-
-    assert '.workspace-shell[data-layout-view="games"] .workspace-main,' in css
-    assert '.workspace-shell[data-layout-view="files"] .workspace-main,' in css
-    assert '.workspace-shell[data-layout-view="bbs"] .workspace-main {' in css
-    apps_gap_section = css.split(
-        '.workspace-shell[data-layout-view="games"] .workspace-main,',
-        1,
-    )[1].split("}", 1)[0]
-    assert "gap: 8px;" in apps_gap_section
-    assert "gap: 0;" not in apps_gap_section
+    assert "gap: 0;" not in workspace_main_section
+    assert '.workspace-shell[data-layout-view="games"] .workspace-main,' not in css
+    assert '.workspace-shell[data-layout-view="files"] .workspace-main,' not in css
+    assert '.workspace-shell[data-layout-view="bbs"] .workspace-main {' not in css
 
 
 def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
@@ -294,6 +319,34 @@ def test_games_boards_follow_runtime_theme_tokens() -> None:
     assert "var(--workspace-shell-bg)" in dark_classic_board_section
     assert "#173526" not in dark_board_wrap_section
     assert "#113a2b" not in dark_reversi_board_section
+
+
+def test_apps_views_bias_space_toward_primary_canvas() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    files_shell_section = css.split(".files-shell {", 1)[1].split("}", 1)[0]
+    bbs_shell_section = css.split(".bbs-shell {", 1)[1].split("}", 1)[0]
+    bbs_list_section = css.split(".bbs-board-list {", 1)[1].split("}", 1)[0]
+    games_shell_section = css.split(".games-shell {", 1)[1].split("}", 1)[0]
+    games_main_section = css.split(".games-main {", 1)[1].split("}", 1)[0]
+    games_board_wrap_section = css.split(".games-board-wrap {", 1)[1].split("}", 1)[0]
+    reversi_board_section = css.split(".reversi-board {", 1)[1].split("}", 1)[0]
+    checkers_board_section = css.split(".checkers-board {", 1)[1].split("}", 1)[0]
+    container_query_section = css.split("@supports (width: 1cqi) {", 1)[1]
+
+    assert "height: 100%;" in files_shell_section
+    assert "grid-template-columns: clamp(232px, 24vw, 300px) minmax(0, 1fr);" in bbs_shell_section
+    assert "flex: 1 1 auto;" in bbs_list_section
+    assert "max-height: none;" in bbs_list_section
+    assert "grid-template-columns: clamp(176px, 16vw, 220px) minmax(0, 1fr) clamp(140px, 12vw, 176px);" in games_shell_section
+    assert "padding: 4px;" in games_main_section
+    assert "padding: 4px;" in games_board_wrap_section
+    assert "--reversi-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);" in reversi_board_section
+    assert "--checkers-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);" in checkers_board_section
+    assert "--chess-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);" in css
+    assert "--reversi-cell-size: clamp(30px, 14.1cqi, 94px);" in container_query_section
+    assert "--checkers-cell-size: clamp(30px, 14.1cqi, 94px);" in container_query_section
+    assert "--chess-cell-size: clamp(30px, 14.1cqi, 94px);" in container_query_section
 
 
 def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
@@ -691,6 +744,28 @@ def test_games_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
     assert ".games-toolbar {" in css
     assert ".games-sidebar {" in css
     assert ".games-main {" in css
+
+
+def test_files_and_bbs_views_remove_outer_card_shells_for_full_app_canvas() -> None:
+    css = build_dashboard_css(theme_css="")
+    files_section = css.split(".layout.view-files .files {", 1)[1].split("}", 1)[0]
+    files_body_section = css.split(".layout.view-files .files .body {", 1)[1].split("}", 1)[0]
+    bbs_section = css.split(".layout.view-bbs .bbs {", 1)[1].split("}", 1)[0]
+    bbs_body_section = css.split(".layout.view-bbs .bbs .body {", 1)[1].split("}", 1)[0]
+
+    assert "background: transparent;" in files_section
+    assert "border: 0;" in files_section
+    assert "box-shadow: none;" in files_section
+    assert "overflow: visible;" in files_section
+    assert "background: transparent;" in files_body_section
+    assert "padding: 0;" in files_body_section
+
+    assert "background: transparent;" in bbs_section
+    assert "border: 0;" in bbs_section
+    assert "box-shadow: none;" in bbs_section
+    assert "overflow: visible;" in bbs_section
+    assert "background: transparent;" in bbs_body_section
+    assert "padding: 0;" in bbs_body_section
 
 
 def test_files_view_uses_theme_tokens_in_light_and_dark_modes() -> None:

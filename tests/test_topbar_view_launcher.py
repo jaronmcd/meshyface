@@ -47,6 +47,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="chat-users-head-commit"' not in html
     assert 'id="layout-view-menu-btn"' in html
     assert 'id="layout-view-menu"' in html
+    assert 'data-submenu="apps"' in html
+    assert 'id="layout-view-menu-apps-current"' in html
+    assert 'id="layout-view-menu-apps-meta"' in html
+    assert 'id="layout-view-menu-apps-submenu"' in html
+    assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' in html
     assert 'id="settings-about-commit"' in html
     assert 'data-view="chat"' in html
@@ -101,7 +106,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-menu-head-version," not in css
     assert ".topbar-view-menu-head-commit {" not in css
     assert ".topbar-view-menu-item-icon {" in css
+    assert ".topbar-view-menu-item-label-row {" in css
+    assert ".topbar-view-menu-item-context {" in css
+    assert ".topbar-view-menu-item-has-submenu {" in css
+    assert ".topbar-view-menu-item-branch {" in css
     assert ".topbar-view-menu {" in css
+    assert ".topbar-view-submenu {" in css
+    assert ".topbar-view-submenu[data-side=\"overlay\"] {" in css
+    assert ".topbar-view-submenu-item {" in css
     assert "z-index: 1350;" in css
     topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
     topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
@@ -145,6 +157,15 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'target.closest("#layout-view-menu .topbar-view-menu-item")' in js
     assert 'document.getElementById("layout-view-menu-btn-label")' in js
     assert 'document.getElementById("layout-view-menu-btn")' in js
+    assert 'document.getElementById("layout-view-menu-apps-current")' in js
+    assert 'document.getElementById("layout-view-menu-apps-submenu")' in js
+    assert "function closeLayoutViewSubmenus() {" in js
+    assert "function openLayoutViewSubmenu(name = \"\") {" in js
+    assert "function toggleLayoutViewSubmenu(name = \"\") {" in js
+    assert "function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {" in js
+    assert 'target.closest("#layout-view-menu .topbar-view-submenu-item")' in js
+    assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
+    assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
     assert 'Math.max(260, Math.ceil(btnRect.width))' in js
     assert 'if (!shouldCloseLayoutViewMenuForScrollTarget(ev ? ev.target : null)) {' in js
     assert 'return target === document.body || target === document.documentElement;' in js

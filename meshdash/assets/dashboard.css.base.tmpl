@@ -584,6 +584,12 @@
       flex-direction: column;
       gap: 2px;
     }}
+    .topbar-view-menu-item-label-row {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }}
     .topbar-view-menu-item-badge {{
       min-width: 22px;
       height: 20px;
@@ -625,12 +631,131 @@
       font-weight: 700;
       color: inherit;
     }}
+    .topbar-view-menu-item-context {{
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 100px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: color-mix(in srgb, white 90%, var(--accent) 10%);
+      font-size: 9px;
+      line-height: 1.1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
     .topbar-view-menu-item-meta {{
       font-size: 10px;
       color: color-mix(in srgb, white 70%, var(--accent) 30%);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }}
+    .topbar-view-menu-item-has-submenu {{
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+    }}
+    .topbar-view-menu-item-branch {{
+      width: 7px;
+      height: 7px;
+      border-top: 1.5px solid currentColor;
+      border-right: 1.5px solid currentColor;
+      transform: rotate(45deg);
+      opacity: 0.82;
+      margin-right: 1px;
+    }}
+    .topbar-view-menu-group-apps {{
+      position: relative;
+    }}
+    .topbar-view-submenu {{
+      position: absolute;
+      top: 0;
+      left: calc(100% + 10px);
+      min-width: 220px;
+      max-width: min(260px, calc(100vw - 28px));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, #b8d3c2);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--accent-2) 42%, #07140f);
+      box-shadow: 0 16px 32px color-mix(in srgb, var(--accent-2) 22%, rgba(4, 12, 8, 0.46));
+      backdrop-filter: blur(14px);
+      z-index: 1;
+    }}
+    .topbar-view-submenu[hidden] {{
+      display: none !important;
+    }}
+    .topbar-view-submenu[data-side="overlay"] {{
+      left: 0;
+    }}
+    .topbar-view-submenu-item {{
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: transparent;
+      color: #f2fff7;
+      padding: 9px 10px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      column-gap: 10px;
+      text-align: left;
+      cursor: pointer;
+      line-height: 1.2;
+    }}
+    .topbar-view-submenu-item-icon {{
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      border: 1px solid color-mix(in srgb, var(--accent) 18%, rgba(214, 238, 223, 0.18));
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: rgba(239, 255, 246, 0.92);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }}
+    .topbar-view-submenu-item-copy {{
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }}
+    .topbar-view-submenu-item-label {{
+      font-size: 12px;
+      font-weight: 700;
+      color: inherit;
+    }}
+    .topbar-view-submenu-item-meta {{
+      font-size: 10px;
+      color: color-mix(in srgb, white 68%, var(--accent) 32%);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .topbar-view-submenu-item:hover {{
+      border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+    }}
+    .topbar-view-submenu-item.is-active,
+    .topbar-view-submenu-item[aria-checked="true"] {{
+      border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+    }}
+    .topbar-view-submenu-item:focus-visible {{
+      outline: 2px solid rgba(214, 238, 223, 0.92);
+      outline-offset: 2px;
     }}
     .topbar .summary-ticker-item-target {{
       grid-column: span 1;
@@ -1402,52 +1527,6 @@
     .workspace-shell.chat-panel-open .workspace-main {{
       grid-column: 3;
       grid-row: 2;
-    }}
-    .workspace-shell[data-layout-view="games"] .workspace-main,
-    .workspace-shell[data-layout-view="files"] .workspace-main,
-    .workspace-shell[data-layout-view="bbs"] .workspace-main {{
-      gap: 8px;
-      grid-template-columns: minmax(68px, 82px) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-      align-items: stretch;
-    }}
-    .workspace-shell[data-layout-view="games"] #apps-tabs-bar,
-    .workspace-shell[data-layout-view="files"] #apps-tabs-bar,
-    .workspace-shell[data-layout-view="bbs"] #apps-tabs-bar {{
-      grid-column: 1;
-      grid-row: 1;
-      align-self: stretch;
-      width: 100%;
-      min-width: 0;
-      padding: 8px 6px;
-      display: flex;
-      flex-direction: column;
-      flex-wrap: nowrap;
-      align-items: stretch;
-      justify-content: flex-start;
-      gap: 6px;
-      overflow: hidden;
-    }}
-    .workspace-shell[data-layout-view="games"] .apps-tab-btn,
-    .workspace-shell[data-layout-view="files"] .apps-tab-btn,
-    .workspace-shell[data-layout-view="bbs"] .apps-tab-btn {{
-      width: 100%;
-      min-height: 38px;
-      padding: 7px 6px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      white-space: normal;
-      line-height: 1.15;
-      font-size: 10px;
-    }}
-    .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
-    .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
-    .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs {{
-      grid-column: 2;
-      grid-row: 1;
-      min-width: 0;
     }}
     .workspace-main > .layout {{
       min-height: 0;
@@ -2642,6 +2721,7 @@
       flex-direction: column;
       gap: 8px;
       flex: 1 1 auto;
+      height: 100%;
       min-height: 0;
     }}
     .files-controls {{
@@ -3040,13 +3120,13 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      padding: 8px;
+      padding: 0;
       background: transparent;
     }}
     .bbs-shell {{
       display: grid;
-      grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
-      gap: 10px;
+      grid-template-columns: clamp(232px, 24vw, 300px) minmax(0, 1fr);
+      gap: 8px;
       min-height: 0;
       height: 100%;
       flex: 1 1 auto;
@@ -3054,10 +3134,10 @@
     .bbs-sidebar {{
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       min-height: 0;
       overflow: auto;
-      padding: 10px;
+      padding: 8px;
       border: 1px solid color-mix(in srgb, var(--surface-tint-border, #d2e1d0) 76%, var(--ui-accent, #2f855a) 24%);
       border-radius: 14px;
       background:
@@ -3079,7 +3159,7 @@
           color-mix(in srgb, var(--panel, #ffffff) 82%, var(--surface-tint-bg-soft, #f4faf3) 18%) 0%,
           color-mix(in srgb, var(--panel, #ffffff) 90%, var(--surface-tint-bg, #edf6ec) 10%) 100%
         );
-      padding: 10px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -3188,7 +3268,8 @@
       flex-direction: column;
       gap: 7px;
       min-height: 130px;
-      max-height: 280px;
+      flex: 1 1 auto;
+      max-height: none;
       overflow: auto;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
     }}
@@ -3263,6 +3344,7 @@
     }}
     .bbs-main {{
       min-height: 0;
+      height: 100%;
       border: 1px solid color-mix(in srgb, var(--surface-tint-border-strong, #b8cab9) 44%, #183026 56%);
       border-radius: 16px;
       background:
@@ -5463,48 +5545,6 @@
       outline-offset: 1px;
     }}
 
-    .apps-tabs-bar {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      padding: 8px 10px;
-      border: 1px solid #d7e5d2;
-      border-radius: 10px;
-      background: linear-gradient(90deg, #f4faf3, #edf5ea);
-    }}
-    .apps-tabs-bar[hidden] {{
-      display: none !important;
-    }}
-    .apps-tab-btn {{
-      appearance: none;
-      border: 1px solid #cfe0cf;
-      border-radius: 999px;
-      background: #ffffff;
-      color: #2a4d37;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      cursor: pointer;
-      transition: border-color .12s ease, background-color .12s ease, color .12s ease, box-shadow .12s ease;
-    }}
-    .apps-tab-btn:hover {{
-      border-color: #2f855a;
-      color: #1f5d3d;
-      background: #eef8f1;
-    }}
-    .apps-tab-btn.is-active {{
-      border-color: #2f855a;
-      background: #e6f5ec;
-      color: #1f5d3d;
-      box-shadow: 0 0 0 1px rgba(47, 133, 90, 0.24);
-    }}
-    .apps-tab-btn:focus-visible {{
-      outline: 2px solid #2f855a;
-      outline-offset: 1px;
-    }}
-
     .workspace-chrome-bar {{
       margin: 0 0 8px;
       padding: 8px 10px;
@@ -5513,9 +5553,6 @@
       background: rgba(248, 252, 247, 0.9);
       box-shadow: 0 10px 26px rgba(19, 35, 24, 0.16);
       backdrop-filter: blur(10px);
-    }}
-    .apps-tabs-bar.workspace-chrome-bar {{
-      margin-bottom: 0;
     }}
     .workspace-chrome-row {{
       display: flex;
@@ -6438,12 +6475,12 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      padding: 8px;
+      padding: 0;
     }}
     .games-shell {{
       display: grid;
-      grid-template-columns: minmax(210px, 248px) minmax(0, 1fr) minmax(168px, 216px);
-      gap: 10px;
+      grid-template-columns: clamp(176px, 16vw, 220px) minmax(0, 1fr) clamp(140px, 12vw, 176px);
+      gap: 8px;
       min-height: 0;
       height: 100%;
       flex: 1 1 auto;
@@ -6452,10 +6489,10 @@
       border: 1px solid #d7e5d2;
       border-radius: 10px;
       background: #f8fcf7;
-      padding: 8px;
+      padding: 6px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       min-height: 0;
       overflow: auto;
     }}
@@ -6465,7 +6502,7 @@
     .games-status-panel {{
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       min-height: 0;
     }}
     .games-status-panel[hidden] {{
@@ -6487,7 +6524,7 @@
     .games-peer-select {{
       border: 1px solid #c8d7c4;
       border-radius: 8px;
-      padding: 7px 9px;
+      padding: 6px 8px;
       font-size: 12px;
       background: #ffffff;
       color: #254837;
@@ -6500,7 +6537,7 @@
       border-color: #4c8f67;
     }}
     .games-peer-selected-display {{
-      min-height: 34px;
+      min-height: 32px;
       display: flex;
       align-items: center;
       line-height: 1.25;
@@ -6514,7 +6551,7 @@
     .games-side-panel {{
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       min-height: 0;
     }}
     .games-side-panel[hidden] {{
@@ -6537,8 +6574,8 @@
       color: #2c4f3f;
       font-size: 11px;
       line-height: 1.35;
-      padding: 7px 8px;
-      min-height: 36px;
+      padding: 6px 7px;
+      min-height: 34px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -6607,7 +6644,7 @@
       flex-direction: column;
       gap: 6px;
       min-height: 46px;
-      max-height: 146px;
+      max-height: 132px;
       overflow: auto;
     }}
     .reversi-invite-empty {{
@@ -6677,7 +6714,7 @@
       align-items: stretch;
       justify-content: stretch;
       overflow: hidden;
-      padding: 8px;
+      padding: 4px;
     }}
     .games-main-panel {{
       width: 100%;
@@ -6715,7 +6752,7 @@
       border-radius: 12px;
       background: var(--games-board-active-background);
       box-shadow: inset 0 0 0 1px var(--games-board-inner-line);
-      padding: 8px;
+      padding: 4px;
       transition: background 300ms ease, border-color 240ms ease, box-shadow 280ms ease;
     }}
     .games-board-wrap::before,
@@ -6816,13 +6853,13 @@
       color: #2c4f3f;
       font-size: 11px;
       line-height: 1.35;
-      padding: 8px;
-      min-height: 40px;
+      padding: 7px;
+      min-height: 36px;
     }}
     .reversi-player-row {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 6px;
       min-width: 0;
     }}
     .reversi-player-pill {{
@@ -6830,7 +6867,7 @@
       border-radius: 10px;
       background: #ffffff;
       color: #274935;
-      padding: 6px 8px;
+      padding: 5px 7px;
       min-width: 0;
       display: flex;
       flex-direction: column;
@@ -6873,23 +6910,23 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.25;
       font-weight: 700;
     }}
     .reversi-score-grid {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 6px;
     }}
     @media (max-width: 1560px) {{
       .games-shell {{
-        grid-template-columns: minmax(198px, 232px) minmax(0, 1fr) minmax(156px, 196px);
+        grid-template-columns: clamp(168px, 18vw, 208px) minmax(0, 1fr) clamp(132px, 14vw, 164px);
       }}
     }}
     @media (max-width: 1180px) {{
       .games-shell {{
-        grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+        grid-template-columns: clamp(160px, 28vw, 204px) minmax(0, 1fr);
       }}
       .games-status-sidebar {{
         grid-column: 1 / -1;
@@ -6899,7 +6936,7 @@
       border: 1px solid #d7e5d2;
       border-radius: 8px;
       background: #ffffff;
-      padding: 7px 8px;
+      padding: 6px 7px;
       min-width: 0;
     }}
     .reversi-score-card .label {{
@@ -6914,7 +6951,7 @@
       display: block;
       margin-top: 2px;
       color: #183926;
-      font-size: 16px;
+      font-size: 15px;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }}
@@ -6928,7 +6965,7 @@
       --reversi-board-cell-hover: color-mix(in srgb, var(--reversi-board-root) 74%, #f7fdf9);
       --reversi-board-grid: color-mix(in srgb, var(--reversi-board-root) 58%, #dceee4);
       --reversi-board-focus: color-mix(in srgb, var(--reversi-board-accent-strong) 58%, #ffffff);
-      --reversi-cell-size: clamp(30px, 5.4vw, 76px);
+      --reversi-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);
       display: grid;
       grid-template-columns: repeat(8, var(--reversi-cell-size));
       grid-template-rows: repeat(8, var(--reversi-cell-size));
@@ -7016,7 +7053,7 @@
       --classic-board-target: color-mix(in srgb, var(--classic-board-accent) 58%, #f3fff7);
     }}
     .checkers-board {{
-      --checkers-cell-size: clamp(30px, 5.4vw, 76px);
+      --checkers-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);
       display: grid;
       grid-template-columns: repeat(8, var(--checkers-cell-size));
       grid-template-rows: repeat(8, var(--checkers-cell-size));
@@ -7102,7 +7139,7 @@
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--classic-board-frame) 42%, transparent);
     }}
     .chess-board {{
-      --chess-cell-size: clamp(30px, 5.4vw, 76px);
+      --chess-cell-size: clamp(32px, min(6.9vw, 8.7vh), 94px);
       display: grid;
       grid-template-columns: repeat(8, var(--chess-cell-size));
       grid-template-rows: repeat(8, var(--chess-cell-size));
@@ -7201,16 +7238,16 @@
         container-type: inline-size;
       }}
       .reversi-board {{
-        --reversi-cell-size: clamp(28px, 11.6cqi, 76px);
+        --reversi-cell-size: clamp(30px, 14.1cqi, 94px);
       }}
       .checkers-board {{
-        --checkers-cell-size: clamp(28px, 11.6cqi, 76px);
+        --checkers-cell-size: clamp(30px, 14.1cqi, 94px);
       }}
       .chess-board {{
-        --chess-cell-size: clamp(28px, 11.6cqi, 76px);
+        --chess-cell-size: clamp(30px, 14.1cqi, 94px);
       }}
       .checkers-disc {{
-        font-size: clamp(10px, 2.5cqi, 15px);
+        font-size: clamp(10px, 2.8cqi, 16px);
       }}
     }}
     .poker-action-row {{

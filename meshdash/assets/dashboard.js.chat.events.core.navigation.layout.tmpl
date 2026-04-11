@@ -2797,21 +2797,134 @@
       }}
     }}
 
+    function appsLayoutViewLabel(viewName = "") {{
+      const normalized = normalizeAppsLayoutView(viewName);
+      if (normalized === "files") return "Files";
+      if (normalized === "bbs") return "BBS";
+      return "Games";
+    }}
+
+    function currentAppsLauncherViewName(viewName = activeLayoutView) {{
+      const normalized = normalizeLayoutView(viewName);
+      return isAppsLayoutView(normalized)
+        ? normalizeAppsLayoutView(normalized)
+        : loadPreferredAppsLayoutView();
+    }}
+
+    function currentAppsLauncherLabel(viewName = activeLayoutView) {{
+      return appsLayoutViewLabel(currentAppsLauncherViewName(viewName));
+    }}
+
+    function appsLauncherMenuMetaText() {{
+      return fileTransferFeatureEnabled
+        ? "Boards, files, and BBS"
+        : "Boards and BBS";
+    }}
+
+    function closeLayoutViewSubmenus() {{
+      const appsTrigger = document.querySelector('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
+      const appsSubmenu = document.getElementById("layout-view-menu-apps-submenu");
+      if (appsSubmenu instanceof HTMLElement) {{
+        appsSubmenu.hidden = true;
+        appsSubmenu.style.removeProperty("top");
+        appsSubmenu.style.removeProperty("left");
+        appsSubmenu.dataset.side = "";
+      }}
+      if (appsTrigger instanceof HTMLButtonElement) {{
+        appsTrigger.setAttribute("aria-expanded", "false");
+      }}
+    }}
+
+    function openLayoutViewSubmenu(name = "") {{
+      const clean = String(name || "").trim().toLowerCase();
+      if (clean !== "apps") return;
+      const menu = document.getElementById("layout-view-menu");
+      const trigger = document.querySelector('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
+      const submenu = document.getElementById("layout-view-menu-apps-submenu");
+      if (!(menu instanceof HTMLElement)) return;
+      if (!(trigger instanceof HTMLButtonElement)) return;
+      if (!(submenu instanceof HTMLElement)) return;
+
+      closeLayoutViewSubmenus();
+      syncAppsTabBar(activeLayoutView);
+
+      submenu.hidden = false;
+      submenu.dataset.side = "right";
+      submenu.style.left = `${{menu.offsetWidth + 10}}px`;
+      submenu.style.top = `${{Math.max(0, trigger.offsetTop)}}px`;
+      trigger.setAttribute("aria-expanded", "true");
+
+      const menuRect = menu.getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+      const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
+      const viewportHeight = Math.max(0, window.innerHeight || document.documentElement.clientHeight || 0);
+
+      let top = Math.max(0, trigger.offsetTop);
+      if (viewportHeight > 0) {{
+        const absoluteBottom = menuRect.top + top + submenuRect.height;
+        if (absoluteBottom > (viewportHeight - 8)) {{
+          top = Math.max(0, Math.floor(menu.clientHeight - submenuRect.height));
+        }}
+      }}
+
+      let left = menu.offsetWidth + 10;
+      if (viewportWidth > 0 && (menuRect.left + left + submenuRect.width) > (viewportWidth - 8)) {{
+        left = Math.max(0, Math.floor(menu.offsetWidth - submenuRect.width));
+        submenu.dataset.side = "overlay";
+      }}
+
+      submenu.style.top = `${{top}}px`;
+      submenu.style.left = `${{left}}px`;
+    }}
+
+    function toggleLayoutViewSubmenu(name = "") {{
+      const clean = String(name || "").trim().toLowerCase();
+      if (clean !== "apps") return false;
+      const trigger = document.querySelector('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
+      const submenu = document.getElementById("layout-view-menu-apps-submenu");
+      if (!(trigger instanceof HTMLButtonElement)) return false;
+      if (!(submenu instanceof HTMLElement)) return false;
+      if (!submenu.hidden) {{
+        closeLayoutViewSubmenus();
+      }} else {{
+        openLayoutViewSubmenu(clean);
+      }}
+      return false;
+    }}
+
     function syncAppsTabBar(viewName = activeLayoutView) {{
       const normalized = normalizeLayoutView(viewName);
-      for (const btn of document.querySelectorAll(".apps-tab-btn")) {{
+      const activeAppView = currentAppsLauncherViewName(viewName);
+      const activeLabel = currentAppsLauncherLabel(viewName);
+      const appsCurrent = document.getElementById("layout-view-menu-apps-current");
+      const appsMeta = document.getElementById("layout-view-menu-apps-meta");
+      if (appsCurrent instanceof HTMLElement) {{
+        appsCurrent.textContent = activeLabel;
+      }}
+      if (appsMeta instanceof HTMLElement) {{
+        appsMeta.textContent = appsLauncherMenuMetaText();
+      }}
+      for (const btn of document.querySelectorAll("#layout-view-menu .topbar-view-submenu-item")) {{
         if (!(btn instanceof HTMLButtonElement)) continue;
-        const rawTarget = String(btn.dataset.appView || "").trim().toLowerCase();
-        const btnView = normalizeLayoutView(rawTarget);
-        const isActive = btnView === normalized;
+        const rawTarget = String(btn.dataset.view || btn.dataset.appView || "").trim().toLowerCase();
+        const btnView = normalizeAppsLayoutView(rawTarget);
+        const isActive = btnView === activeAppView;
         btn.classList.toggle("is-active", isActive);
-        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+        btn.setAttribute("aria-checked", isActive ? "true" : "false");
+        btn.setAttribute("aria-current", isActive ? "page" : "false");
+        const label = appsLayoutViewLabel(btnView);
+        btn.setAttribute(
+          "aria-label",
+          isActive
+            ? `${{label}}. Current app.`
+            : label
+        );
       }}
     }}
 
     function syncFileTransferFeatureVisibility() {{
       const enabled = !!fileTransferFeatureEnabled;
-      const filesTabBtn = document.querySelector('.apps-tab-btn[data-app-view="files"]');
+      const filesTabBtn = document.querySelector('#layout-view-menu .topbar-view-submenu-item[data-app-view="files"]');
       if (filesTabBtn instanceof HTMLButtonElement) {{
         filesTabBtn.hidden = !enabled;
         filesTabBtn.disabled = !enabled;
@@ -2825,17 +2938,20 @@
     }}
 
     function syncAppsTabBarVisibility(viewName = activeLayoutView) {{
-      const tabsBar = document.getElementById("apps-tabs-bar");
-      if (!(tabsBar instanceof HTMLElement)) return;
-      const next = normalizeLayoutView(viewName);
-      const showTabs = isAppsLayoutView(next);
-      tabsBar.hidden = !showTabs;
-      tabsBar.setAttribute("aria-hidden", showTabs ? "false" : "true");
+      syncAppsTabBar(viewName);
     }}
 
     function resolveTopbarLauncherLayoutView(viewName) {{
       const normalized = normalizeLayoutView(viewName);
       return isAppsLayoutView(normalized) ? "apps" : normalized;
+    }}
+
+    function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {{
+      const normalized = resolveTopbarLauncherLayoutView(viewName);
+      if (normalized === "apps") {{
+        return `Apps · ${{currentAppsLauncherLabel(viewName)}}`;
+      }}
+      return topbarLauncherLayoutLabel(viewName);
     }}
 
     function topbarLauncherLayoutLabel(viewName) {{
@@ -2991,7 +3107,7 @@
       const attentionIndicator = document.getElementById("layout-view-menu-attention-indicator");
       if (!(launcherBtn instanceof HTMLButtonElement)) return;
 
-      const activeLabel = topbarLauncherLayoutLabel(viewName);
+      const activeLabel = currentWorkspaceLauncherLabel(viewName);
       if (launcherLabel instanceof HTMLElement) {{
         launcherLabel.textContent = activeLabel;
       }}
@@ -3034,6 +3150,7 @@
         if (!(btn instanceof HTMLButtonElement)) continue;
         const btnView = String(btn.dataset.view || "").trim().toLowerCase();
         const isActive = btnView === launcherView;
+        const hasSubmenu = String(btn.dataset.submenu || "").trim().length > 0;
         const notificationCount = workspaceLauncherViewNotificationCount(btnView);
         const notificationLabel = workspaceLauncherNotificationLabel(notificationCount);
         const notificationText = notificationCount > 0
@@ -3052,29 +3169,35 @@
         }}
         btn.classList.toggle("is-active", isActive);
         btn.classList.toggle("has-notifications", notificationCount > 0);
-        btn.setAttribute("aria-checked", isActive ? "true" : "false");
+        if (hasSubmenu) {{
+          btn.removeAttribute("aria-checked");
+        }} else {{
+          btn.setAttribute("aria-checked", isActive ? "true" : "false");
+        }}
         btn.setAttribute("aria-current", isActive ? "page" : "false");
         const label = topbarLauncherLayoutLabel(btnView);
+        const spokenLabel = hasSubmenu ? `${{label}}. Current app: ${{currentAppsLauncherLabel(viewName)}}.` : label;
         if (notificationText) {{
           btn.title = baseTitle
             ? `${{baseTitle}} • ${{notificationText}}`
-            : `${{label}} • ${{notificationText}}`;
+            : `${{spokenLabel}} • ${{notificationText}}`;
           btn.setAttribute(
             "aria-label",
             isActive
-              ? `${{label}}. ${{notificationText}}. Current view.`
-              : `${{label}}. ${{notificationText}}.`
+              ? `${{spokenLabel}} ${{notificationText}}. Current view.`
+              : `${{spokenLabel}} ${{notificationText}}.`
           );
         }} else {{
           btn.title = baseTitle;
           btn.setAttribute(
             "aria-label",
             isActive
-              ? `${{label}}. Current view.`
-              : label
+              ? `${{spokenLabel}} Current view.`
+              : spokenLabel
           );
         }}
       }}
+      syncAppsTabBar(viewName);
       syncLayoutViewLauncherButtonState(viewName);
     }}
 
@@ -3089,6 +3212,7 @@
         menu.style.removeProperty("min-width");
         menu.style.removeProperty("visibility");
       }}
+      closeLayoutViewSubmenus();
       if (launcherBtn instanceof HTMLButtonElement) {{
         launcherBtn.setAttribute("aria-expanded", "false");
         if (restoreFocus) {{
@@ -3103,6 +3227,7 @@
       if (!(launcherBtn instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return;
 
       syncLayoutViewMenu(activeLayoutView);
+      closeLayoutViewSubmenus();
       menu.hidden = false;
       menu.style.visibility = "hidden";
       launcherBtn.setAttribute("aria-expanded", "true");
@@ -3160,16 +3285,17 @@
         : ((rawTarget instanceof Node) ? rawTarget.parentElement : null);
       if (!(target instanceof Element)) return "";
 
+      const appsSubmenuBtn = target.closest("#layout-view-menu .topbar-view-submenu-item");
+      if (appsSubmenuBtn instanceof HTMLButtonElement) {{
+        if (appsSubmenuBtn.disabled) return "";
+        return String(appsSubmenuBtn.dataset.view || appsSubmenuBtn.dataset.appView || "chat");
+      }}
+
       const launcherBtn = target.closest("#layout-view-menu .topbar-view-menu-item");
       if (launcherBtn instanceof HTMLButtonElement) {{
         if (launcherBtn.disabled) return "";
+        if (String(launcherBtn.dataset.submenu || "").trim()) return "";
         return String(launcherBtn.dataset.view || "chat");
-      }}
-
-      const appsBtn = target.closest(".apps-tab-btn");
-      if (appsBtn instanceof HTMLButtonElement) {{
-        if (appsBtn.disabled) return "";
-        return String(appsBtn.dataset.appView || "chat");
       }}
 
       return "";
@@ -3589,6 +3715,17 @@
         if (launcherBtn instanceof HTMLButtonElement) {{
           ev.preventDefault();
           toggleLayoutViewMenu();
+          return;
+        }}
+        const submenuToggle = target.closest('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
+        if (submenuToggle instanceof HTMLButtonElement) {{
+          ev.preventDefault();
+          toggleLayoutViewSubmenu("apps");
+          return;
+        }}
+        const submenuItem = target.closest("#layout-view-menu .topbar-view-submenu-item");
+        if (submenuItem instanceof HTMLButtonElement) {{
+          closeLayoutViewMenu();
           return;
         }}
         const launcherItem = target.closest("#layout-view-menu .topbar-view-menu-item");

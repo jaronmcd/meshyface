@@ -194,21 +194,77 @@
                 </span>
                 <span class="topbar-view-menu-item-badge" hidden>0</span>
               </button>
-              <button
-                class="topbar-view-menu-item"
-                data-view="apps"
-                type="button"
-                role="menuitemradio"
-                aria-checked="false"
-                title="Games and file transfer workspace"
-              >
-                <span class="topbar-view-menu-item-icon" aria-hidden="true">AP</span>
-                <span class="topbar-view-menu-item-copy">
-                  <span class="topbar-view-menu-item-label">Apps</span>
-                  <span class="topbar-view-menu-item-meta">Games and files</span>
-                </span>
-                <span class="topbar-view-menu-item-badge" hidden>0</span>
-              </button>
+              <div class="topbar-view-menu-group topbar-view-menu-group-apps">
+                <button
+                  class="topbar-view-menu-item topbar-view-menu-item-has-submenu"
+                  data-view="apps"
+                  data-submenu="apps"
+                  type="button"
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  title="Games, file transfer, and bulletin board workspace"
+                >
+                  <span class="topbar-view-menu-item-icon" aria-hidden="true">AP</span>
+                  <span class="topbar-view-menu-item-copy">
+                    <span class="topbar-view-menu-item-label-row">
+                      <span class="topbar-view-menu-item-label">Apps</span>
+                      <span id="layout-view-menu-apps-current" class="topbar-view-menu-item-context">Games</span>
+                    </span>
+                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">Boards, files, and BBS</span>
+                  </span>
+                  <span class="topbar-view-menu-item-badge" hidden>0</span>
+                  <span class="topbar-view-menu-item-branch" aria-hidden="true"></span>
+                </button>
+                <div id="layout-view-menu-apps-submenu" class="topbar-view-submenu" role="menu" hidden>
+                  <button
+                    class="topbar-view-submenu-item is-active"
+                    data-view="games"
+                    data-app-view="games"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="true"
+                    title="Games workspace"
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">GM</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label">Games</span>
+                      <span class="topbar-view-submenu-item-meta">Boards and matches</span>
+                    </span>
+                  </button>
+                  <button
+                    class="topbar-view-submenu-item"
+                    data-view="files"
+                    data-app-view="files"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="false"
+                    title="Files workspace"
+                    {file_transfer_files_tab_hidden_attrs}
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">FL</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label">Files</span>
+                      <span class="topbar-view-submenu-item-meta">Transfers and inbox</span>
+                    </span>
+                  </button>
+                  <button
+                    class="topbar-view-submenu-item"
+                    data-view="bbs"
+                    data-app-view="bbs"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="false"
+                    title="BBS workspace"
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BB</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label">BBS</span>
+                      <span class="topbar-view-submenu-item-meta">Boards and posts</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
               <button
                 class="topbar-view-menu-item"
                 data-view="settings"
@@ -485,11 +541,6 @@
     </aside>
     <div id="chat-panel-splitter" class="chat-panel-splitter" title="Drag to resize chat workspace and node navigator" aria-hidden="true"></div>
     <main class="workspace-main">
-  <div id="apps-tabs-bar" class="apps-tabs-bar workspace-chrome-bar workspace-pillbar" role="tablist" aria-label="Apps tabs" hidden>
-    <button class="apps-tab-btn workspace-pill-btn is-active" data-app-view="games" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "games") : true);'>Games</button>
-    <button class="apps-tab-btn workspace-pill-btn" data-app-view="files" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "games") : true);'{file_transfer_files_tab_hidden_attrs}>Files</button>
-    <button class="apps-tab-btn workspace-pill-btn" data-app-view="bbs" type="button" onclick='return (window.meshSelectLayoutView ? window.meshSelectLayoutView(this.dataset.appView || "games") : true);'>BBS</button>
-  </div>
   <div id="dashboard-layout" class="layout view-chat">
     <section class="card settings" aria-label="Settings">
       <div class="body">
