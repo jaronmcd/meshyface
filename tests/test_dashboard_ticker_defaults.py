@@ -132,6 +132,27 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     )
 
 
+def test_render_html_widens_ticker_cards_for_phone_swipe_scrolling() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "@media (max-width: 760px) {" in html
+    assert "grid-auto-columns: minmax(168px, 82vw);" in html
+    assert "scroll-snap-type: x proximity;" in html
+    assert ".topbar .summary-ticker-item {" in html
+    assert "scroll-snap-align: start;" in html
+
+
 def test_render_html_exposes_live_update_ticker_toggle_in_settings() -> None:
     html = render_html(
         refresh_ms=1000,

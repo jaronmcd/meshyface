@@ -365,10 +365,17 @@
     }}
 
     function loadChatPanelCollapseState() {{
+      let hasStoredPreference = false;
       try {{
         const raw = String(window.localStorage.getItem(chatPanelCollapsedStorageKey) || "").trim().toLowerCase();
-        chatPanelCollapsed = raw === "1" || raw === "true";
+        if (raw) {{
+          hasStoredPreference = true;
+          chatPanelCollapsed = raw === "1" || raw === "true";
+        }}
       }} catch (_err) {{
+      }}
+      if (!hasStoredPreference && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches) {{
+        chatPanelCollapsed = true;
       }}
       applyChatPanelCollapseState();
     }}

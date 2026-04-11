@@ -2423,6 +2423,68 @@
       background: #edf6ec;
       padding: 6px 8px;
     }}
+    @media (max-width: 760px) {{
+      .layout.view-chat .chat-card-head.workspace-chrome-bar {{
+        padding: 8px 8px 6px 8px;
+      }}
+      .layout.view-chat .chat-card-head .chat-card-head-actions {{
+        --chat-header-compose-trailing-space: 0px;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 6px;
+        padding-right: 0;
+      }}
+      .layout.view-chat .chat-card-head .chat-mesh-channel-wrap {{
+        flex: 1 1 100%;
+        width: 100%;
+      }}
+      .layout.view-chat .chat-card-head .mesh-channel-pill-strip {{
+        flex: 1 1 100%;
+        width: 100%;
+        gap: 5px;
+        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+      }}
+      .layout.view-chat .chat-card-head .mesh-channel-pill {{
+        scroll-snap-align: start;
+      }}
+      .layout.view-chat .chat-compose-shell {{
+        padding: 6px;
+      }}
+      .chat-feed-item {{
+        padding: 7px 8px;
+      }}
+      .chat-feed-line {{
+        flex-direction: column;
+        gap: 4px;
+      }}
+      .chat-feed-summary {{
+        width: 100%;
+      }}
+      .chat-feed-side {{
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 6px;
+      }}
+      .chat-feed-time {{
+        margin-left: auto;
+      }}
+      .chat-reply-inline {{
+        flex-wrap: wrap;
+        gap: 4px;
+      }}
+      .chat-reply-inline .chat-reply-inline-label,
+      .chat-reply-inline .chat-reply-inline-text,
+      .chat-reply-inline .chat-reply-inline-meta {{
+        white-space: normal;
+      }}
+      .chat-reaction-row {{
+        gap: 6px;
+      }}
+    }}
     .workspace-shell[data-layout-view="chat"] .chat-left-bottom-bar {{
       margin: 0;
       border: 1px solid #d2e1d0;

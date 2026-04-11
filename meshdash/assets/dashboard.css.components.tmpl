@@ -6841,9 +6841,17 @@
         max-height: 220px;
       }}
       .workspace-shell.chat-panel-collapsed .chat-left-panel {{
-        max-height: 112px;
+        max-height: 44px;
+        overflow: visible;
+      }}
+      .workspace-shell.chat-panel-collapsed .chat-left-head-shell {{
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
       }}
       .workspace-shell.chat-panel-open .workspace-main {{
+        grid-column: 1;
         grid-row: 3;
       }}
       .layout {{
@@ -7053,6 +7061,49 @@
       .chat-left-panel {{
         max-height: 180px;
       }}
+      .layout.view-network .map .body {{
+        grid-template-rows: minmax(320px, 1fr);
+      }}
+      .network-map-chrome {{
+        top: 6px;
+        left: 6px;
+        right: 6px;
+        gap: 6px;
+      }}
+      .network-map-subview-tabs,
+      .map-controls-dock {{
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        flex-wrap: nowrap;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }}
+      .network-map-subview-tab,
+      .map-control-group,
+      .map-reset-view-btn,
+      .map-basemap-status,
+      .map-heatmap-wrap,
+      .map-heatmap-mode-wrap {{
+        flex: 0 0 auto;
+      }}
+      .games-shell {{
+        gap: 8px;
+      }}
+      .games-sidebar {{
+        padding: 8px;
+      }}
+      .games-main {{
+        min-height: clamp(280px, 52vh, 420px);
+        padding: 8px;
+      }}
+      .games-main-panel {{
+        justify-content: stretch;
+      }}
+      .games-board-wrap {{
+        padding: 8px;
+      }}
       .reversi-board {{
         --reversi-cell-size: clamp(34px, 9vw, 52px);
       }}
@@ -7080,13 +7131,25 @@
         font-size: 9px;
       }}
       .topbar .sub .summary-ticker-row {{
-        grid-auto-columns: minmax(104px, 1fr);
+        grid-auto-columns: minmax(168px, 82vw);
+        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+      }}
+      .topbar .summary-ticker-item {{
+        scroll-snap-align: start;
       }}
       .topbar.ticker-expanded .sub .summary-ticker-row {{
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }}
       .topbar.ticker-expanded .summary-ticker-item .value {{
         font-size: 18px;
+      }}
+      .workspace-shell.chat-panel-collapsed .chat-left-panel {{
+        max-height: none;
+      }}
+      .workspace-shell.chat-panel-collapsed .chat-left-section.chat-users-section {{
+        display: none;
       }}
     }}
     [data-theme="dark"] .card.chat .chat-reply-inline {{

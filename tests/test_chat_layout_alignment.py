@@ -446,11 +446,34 @@ def test_chat_node_list_can_collapse_into_compact_rail() -> None:
     assert "function applyChatPanelCollapseState() {" in js
     assert "function setChatPanelCollapsed(nextCollapsed, options = null) {" in js
     assert "function loadChatPanelCollapseState() {" in js
+    assert "let hasStoredPreference = false;" in js
+    assert 'window.matchMedia("(max-width: 760px)").matches' in js
     assert "function persistChatPanelCollapseState() {" in js
     assert "function bindChatPanelCollapseToggle() {" in js
     assert 'window.localStorage.setItem(chatPanelCollapsedStorageKey, chatPanelCollapsed ? "1" : "0");' in js
     assert 'loadChatPanelCollapseState();' in js
     assert 'bindChatPanelCollapseToggle();' in js
+
+
+def test_chat_mobile_layout_stacks_feed_meta_and_header_filters() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    mobile_section = css.split("@media (max-width: 760px) {", 1)[1]
+
+    assert ".layout.view-chat .chat-card-head .chat-card-head-actions {" in mobile_section
+    assert "--chat-header-compose-trailing-space: 0px;" in mobile_section
+    assert ".workspace-shell.chat-panel-open .workspace-main {" in mobile_section
+    assert "grid-column: 1;" in mobile_section
+    assert ".layout.view-chat .chat-card-head .mesh-channel-pill-strip {" in mobile_section
+    assert "scroll-snap-type: x proximity;" in mobile_section
+    assert ".chat-feed-line {" in mobile_section
+    assert "flex-direction: column;" in mobile_section
+    assert ".chat-feed-side {" in mobile_section
+    assert "justify-content: flex-end;" in mobile_section
+    assert ".chat-reply-inline {" in mobile_section
+    assert "flex-wrap: wrap;" in mobile_section
+    assert ".workspace-shell.chat-panel-collapsed .chat-left-head-shell {" in mobile_section
+    assert "background: transparent;" in mobile_section
 
 
 def test_launcher_menu_head_tracks_local_radio_identity() -> None:
