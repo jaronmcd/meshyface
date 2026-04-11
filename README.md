@@ -84,6 +84,8 @@ Key runtime notes:
 ## Requirements
 
 - Linux host strongly recommended for server mode
+  - Debian-based hosts such as Raspberry Pi OS Bookworm work with the bundled
+    deploy helper
 - Python 3.11+
 - Meshtastic-accessible radio over either:
   - TCP (`--mesh-host` + `--mesh-tcp-port`)
@@ -111,7 +113,7 @@ unavailable.
 - `meshdash/tracker*.py` - receive path, live packet tracking, in-memory state
 - `meshdash/history*.py`, `meshdash/history/` - SQLite schema, reads, writes,
   analytics, rollups, pruning
-- `scripts/deploy_dashboard.sh` - remote deploy/bootstrap helper
+- `scripts/deploy_meshyface.sh` - remote deploy/bootstrap helper
 - `scripts/deploy_dual.sh` - dual private/public deploy helper
 - `scripts/check_public_branch_drift.sh` - branch-drift guard
 - `scripts/release_public.sh` - allowlist-driven public release packager
@@ -256,7 +258,7 @@ dashboard in a VM or container and connect over network.
 From this repo:
 
 ```bash
-./scripts/deploy_dashboard.sh \
+./scripts/deploy_meshyface.sh \
   --target j@192.168.1.241 \
   --bootstrap \
   --mesh-host 192.168.1.69 \
@@ -268,19 +270,62 @@ From this repo:
 This installs the runtime, deploys app files, writes `dashboard.env`, and
 restarts the service.
 
+Bootstrap assumptions:
+
+- target host has `apt-get`, `systemd`, `ssh`, and `sudo`
+- target Python must be `3.11+` after bootstrap; Raspberry Pi OS Bookworm is a
+  good baseline
+- when you do not override `MESH_DASH_DEPLOY_ROOT`, the deploy helper now uses
+  the remote login user's home and installs under `<remote-home>/mesh`
+- the generated service unit uses the remote login user by default and keeps
+  `dialout` as the default service group for serial-access-friendly installs
+
 Important naming note:
 
 - In the runtime CLI, the TCP radio port flag is `--mesh-tcp-port`.
-- In `scripts/deploy_dashboard.sh` and the bundled `dashboard.env`,
+- In `scripts/deploy_meshyface.sh` and the bundled `dashboard.env`,
   `MESH_PORT` is the TCP port for historical reasons.
 
 #### Update loop
 
 ```bash
-./scripts/deploy_dashboard.sh \
+./scripts/deploy_meshyface.sh \
   --target j@192.168.1.241 \
   --mesh-host 192.168.1.69 \
   --mesh-port 4403 \
+  --ui-profile core-ui \
+  --clean-app-dir
+```
+
+#### Raspberry Pi target
+
+For a Raspberry Pi running Raspberry Pi OS Bookworm or newer, the same
+bootstrap flow works as long as the SSH user has `sudo` access:
+
+```bash
+./scripts/deploy_meshyface.sh \
+  --target pi@raspberrypi.local \
+  --bootstrap \
+  --mesh-host 192.168.1.211 \
+  --mesh-port 4403 \
+  --ui-profile core-ui \
+  --clean-app-dir
+```
+
+That will default to:
+
+- app root: `/home/pi/mesh`
+- service user: `pi`
+- service group: `dialout`
+
+If the Pi has a radio attached over USB serial instead of TCP, use the stable
+`/dev/serial/by-id/...` path:
+
+```bash
+./scripts/deploy_meshyface.sh \
+  --target pi@raspberrypi.local \
+  --bootstrap \
+  --serial-path /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 \
   --ui-profile core-ui \
   --clean-app-dir
 ```
@@ -312,6 +357,11 @@ After passthrough, verify the same `ls` commands inside the container.
 The included `meshtastic-dashboard.service` is an example service file for a
 host laid out under `/home/j/mesh`. Adjust `User`, `Group`, paths, and serial
 permissions to match your host.
+
+The bootstrap path in `scripts/deploy_meshyface.sh` does not copy that example
+verbatim anymore. It renders a host-specific unit from the resolved deploy
+settings, including the remote root, app/config paths, venv path, service user,
+and service group.
 
 It reads env from `/home/j/mesh/config/dashboard.env`.
 
@@ -388,7 +438,7 @@ Optional size cap:
 Deploy helper example:
 
 ```bash
-./scripts/deploy_dashboard.sh \
+./scripts/deploy_meshyface.sh \
   --target j@192.168.1.241 \
   --mesh-host 192.168.1.69 \
   --file-transfer-enable \
@@ -397,7 +447,7 @@ Deploy helper example:
   --clean-app-dir
 ```
 
-`scripts/deploy_dashboard.sh` preserves existing file-transfer env values from
+`scripts/deploy_meshyface.sh` preserves existing file-transfer env values from
 the target `dashboard.env` unless you explicitly pass file-transfer flags or
 env overrides.
 
@@ -513,9 +563,12 @@ The deploy helper also accepts:
 - `MESH_DASH_DEPLOY_REMOTE_VENV`
 - `MESH_DASH_DEPLOY_REMOTE_PYTHON`
 - `MESH_DASH_DEPLOY_SERVICE`
+- `MESH_DASH_DEPLOY_SERVICE_USER`
+- `MESH_DASH_DEPLOY_SERVICE_GROUP`
 - `MESH_DASH_DEPLOY_CLEAN_APP_DIR`
 - `MESH_DASH_DEPLOY_MESH_HOST`
 - `MESH_DASH_DEPLOY_MESH_PORT`
+- `MESH_DASH_DEPLOY_SERIAL_PATH`
 - `MESH_DASH_DEPLOY_DASH_HOST`
 - `MESH_DASH_DEPLOY_DASH_PORT`
 - `MESH_DASH_DEPLOY_REFRESH_MS`

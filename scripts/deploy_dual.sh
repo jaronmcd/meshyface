@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BASE_DEPLOY_SCRIPT="${ROOT_DIR}/scripts/deploy_dashboard.sh"
+BASE_DEPLOY_SCRIPT="${ROOT_DIR}/scripts/deploy_meshyface.sh"
 
 MAIN_BRANCH="main"
 PUBLIC_BRANCH="release/public-v0"
@@ -219,7 +219,7 @@ deploy_one() {
   git -C "${ROOT_DIR}" rev-parse --verify "${branch}^{commit}" >/dev/null 2>&1 \
     || { echo "branch not found: ${branch}" >&2; exit 1; }
 
-  cmd=("./scripts/deploy_dashboard.sh" "--target" "${target}" "--mesh-host" "${mesh_host}")
+  cmd=("./scripts/deploy_meshyface.sh" "--target" "${target}" "--mesh-host" "${mesh_host}")
   if [[ -n "${ui_profile}" ]]; then
     cmd+=("--ui-profile" "${ui_profile}")
   fi

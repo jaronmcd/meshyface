@@ -6,14 +6,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/deploy_dashboard.sh [target] [options]
+  ./scripts/deploy_meshyface.sh [target] [options]
 
 Examples:
   # Fast update to an already configured host
-  ./scripts/deploy_dashboard.sh j@192.168.1.241
+  ./scripts/deploy_meshyface.sh j@192.168.1.241
 
   # First-time bootstrap + deploy
-  ./scripts/deploy_dashboard.sh \
+  ./scripts/deploy_meshyface.sh \
     --target j@192.168.1.29 \
     --bootstrap \
     --mesh-host 192.168.1.211
@@ -24,6 +24,7 @@ Options:
   --clean-app-dir          Remove stale managed app code in APP_DIR before copy.
   --mesh-host <ip_or_dns>  Radio host for dashboard.env MESH_HOST.
   --mesh-port <port>       Radio TCP port (default: 4403).
+  --serial-path <path>     Radio serial device path for dashboard.env MESH_SERIAL_PATH.
   --dash-host <ip_or_dns>  Dashboard bind host (default: 0.0.0.0).
   --dash-port <port>       Dashboard bind port (default: 8877).
   --refresh-ms <ms>        Poll interval in ms (default: 3000).
@@ -38,6 +39,8 @@ Options:
   --no-accept-file-transfer-traffic-disclaimer
                            Clear disclaimer acceptance in dashboard.env.
   --service <name>         Systemd service name (default: meshtastic-dashboard).
+  --service-user <name>    Systemd service user on target (default: remote SSH user).
+  --service-group <name>   Systemd service group on target (default: dialout).
   --app-dir <path>         App directory on target host.
   --config-dir <path>      Config directory on target host.
   --logs-dir <path>        Logs directory on target host.
@@ -54,9 +57,12 @@ Env overrides:
   MESH_DASH_DEPLOY_REMOTE_VENV
   MESH_DASH_DEPLOY_REMOTE_PYTHON
   MESH_DASH_DEPLOY_SERVICE
+  MESH_DASH_DEPLOY_SERVICE_USER
+  MESH_DASH_DEPLOY_SERVICE_GROUP
   MESH_DASH_DEPLOY_CLEAN_APP_DIR
   MESH_DASH_DEPLOY_MESH_HOST
   MESH_DASH_DEPLOY_MESH_PORT
+  MESH_DASH_DEPLOY_SERIAL_PATH
   MESH_DASH_DEPLOY_DASH_HOST
   MESH_DASH_DEPLOY_DASH_PORT
   MESH_DASH_DEPLOY_REFRESH_MS
@@ -100,23 +106,26 @@ is_truthy() {
 }
 
 TARGET="${MESH_DASH_DEPLOY_TARGET:-}"
-REMOTE_ROOT="${MESH_DASH_DEPLOY_ROOT:-/home/j/mesh}"
-APP_DIR="${MESH_DASH_DEPLOY_APP_DIR:-${REMOTE_ROOT}/app}"
-CONFIG_DIR="${MESH_DASH_DEPLOY_CONFIG_DIR:-${REMOTE_ROOT}/config}"
-LOG_DIR="${MESH_DASH_DEPLOY_LOG_DIR:-${REMOTE_ROOT}/logs}"
-REMOTE_VENV="${MESH_DASH_DEPLOY_REMOTE_VENV:-${REMOTE_ROOT}/.venv}"
-REMOTE_PYTHON="${MESH_DASH_DEPLOY_REMOTE_PYTHON:-${REMOTE_VENV}/bin/python}"
+REMOTE_ROOT="${MESH_DASH_DEPLOY_ROOT:-}"
+APP_DIR="${MESH_DASH_DEPLOY_APP_DIR:-}"
+CONFIG_DIR="${MESH_DASH_DEPLOY_CONFIG_DIR:-}"
+LOG_DIR="${MESH_DASH_DEPLOY_LOG_DIR:-}"
+REMOTE_VENV="${MESH_DASH_DEPLOY_REMOTE_VENV:-}"
+REMOTE_PYTHON="${MESH_DASH_DEPLOY_REMOTE_PYTHON:-}"
 SERVICE_NAME="${MESH_DASH_DEPLOY_SERVICE:-meshtastic-dashboard}"
+SERVICE_USER="${MESH_DASH_DEPLOY_SERVICE_USER:-}"
+SERVICE_GROUP="${MESH_DASH_DEPLOY_SERVICE_GROUP:-dialout}"
 
 BOOTSTRAP=0
 CLEAN_APP_DIR="${MESH_DASH_DEPLOY_CLEAN_APP_DIR:-0}"
 MESH_HOST="${MESH_DASH_DEPLOY_MESH_HOST:-}"
 MESH_PORT="${MESH_DASH_DEPLOY_MESH_PORT:-4403}"
+SERIAL_PATH="${MESH_DASH_DEPLOY_SERIAL_PATH:-}"
 DASH_HOST="${MESH_DASH_DEPLOY_DASH_HOST:-0.0.0.0}"
 DASH_PORT="${MESH_DASH_DEPLOY_DASH_PORT:-8877}"
 REFRESH_MS="${MESH_DASH_DEPLOY_REFRESH_MS:-3000}"
 UI_PROFILE="${MESH_DASH_DEPLOY_UI_PROFILE:-core-ui}"
-HISTORY_DB="${MESH_DASH_DEPLOY_HISTORY_DB:-${REMOTE_ROOT}/mesh_dashboard_history.sqlite3}"
+HISTORY_DB="${MESH_DASH_DEPLOY_HISTORY_DB:-}"
 PYTHON_UNBUFFERED="${MESH_DASH_DEPLOY_PYTHON_UNBUFFERED:-1}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
@@ -156,6 +165,19 @@ read_existing_dashboard_env_value() {
   ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { print substr(\$0, length(key) + 2); exit }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
+read_remote_identity() {
+  local identity
+  identity="$(
+    ssh_cmd "${TARGET}" "id -un; (getent passwd \"\$(id -un)\" | cut -d: -f6) || printf '%s\n' \"\$HOME\""
+  )"
+  REMOTE_LOGIN_USER="$(printf '%s\n' "${identity}" | sed -n '1p')"
+  REMOTE_HOME_DIR="$(printf '%s\n' "${identity}" | sed -n '2p')"
+  if [[ -z "${REMOTE_LOGIN_USER}" || -z "${REMOTE_HOME_DIR}" ]]; then
+    echo "failed to determine remote user/home for ${TARGET}" >&2
+    exit 1
+  fi
+}
+
 POSITIONAL_TARGET_SET=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -180,6 +202,11 @@ while [[ $# -gt 0 ]]; do
     --mesh-port)
       require_arg "$1" "${2:-}"
       MESH_PORT="$2"
+      shift 2
+      ;;
+    --serial-path)
+      require_arg "$1" "${2:-}"
+      SERIAL_PATH="$2"
       shift 2
       ;;
     --dash-host)
@@ -236,6 +263,16 @@ while [[ $# -gt 0 ]]; do
     --service)
       require_arg "$1" "${2:-}"
       SERVICE_NAME="$2"
+      shift 2
+      ;;
+    --service-user)
+      require_arg "$1" "${2:-}"
+      SERVICE_USER="$2"
+      shift 2
+      ;;
+    --service-group)
+      require_arg "$1" "${2:-}"
+      SERVICE_GROUP="$2"
       shift 2
       ;;
     --app-dir)
@@ -301,20 +338,47 @@ if [[ -z "${TARGET}" ]]; then
 No deploy target supplied.
 
 Copy/paste one of these, then change only the last IP number:
-  ./scripts/deploy_dashboard.sh --target j@192.168.1.29
-  ./scripts/deploy_dashboard.sh --target j@192.168.1.29 --bootstrap --mesh-host 192.168.1.211
+  ./scripts/deploy_meshyface.sh --target j@192.168.1.29
+  ./scripts/deploy_meshyface.sh --target j@192.168.1.29 --bootstrap --mesh-host 192.168.1.211
 
 You can also set MESH_DASH_DEPLOY_TARGET in your environment.
 EOF
   exit 2
 fi
 
-for local_required in mesh_dashboard.py mesh_connection.py meshdash meshtastic-dashboard.service; do
+for local_required in mesh_dashboard.py mesh_connection.py meshdash; do
   if [[ ! -e "${ROOT_DIR}/${local_required}" ]]; then
     echo "${local_required} not found under ${ROOT_DIR}" >&2
     exit 1
   fi
 done
+
+read_remote_identity
+
+if [[ -z "${SERVICE_USER}" ]]; then
+  SERVICE_USER="${REMOTE_LOGIN_USER}"
+fi
+if [[ -z "${REMOTE_ROOT}" ]]; then
+  REMOTE_ROOT="${REMOTE_HOME_DIR}/mesh"
+fi
+if [[ -z "${APP_DIR}" ]]; then
+  APP_DIR="${REMOTE_ROOT}/app"
+fi
+if [[ -z "${CONFIG_DIR}" ]]; then
+  CONFIG_DIR="${REMOTE_ROOT}/config"
+fi
+if [[ -z "${LOG_DIR}" ]]; then
+  LOG_DIR="${REMOTE_ROOT}/logs"
+fi
+if [[ -z "${REMOTE_VENV}" ]]; then
+  REMOTE_VENV="${REMOTE_ROOT}/.venv"
+fi
+if [[ -z "${REMOTE_PYTHON}" ]]; then
+  REMOTE_PYTHON="${REMOTE_VENV}/bin/python"
+fi
+if [[ -z "${HISTORY_DB}" ]]; then
+  HISTORY_DB="${REMOTE_ROOT}/mesh_dashboard_history.sqlite3"
+fi
 
 if [[ -z "${MESH_HOST}" ]]; then
   MESH_HOST="$(
@@ -324,8 +388,17 @@ if [[ -z "${MESH_HOST}" ]]; then
   )"
 fi
 
-if [[ "${BOOTSTRAP}" -eq 1 && -z "${MESH_HOST}" ]]; then
-  echo "--bootstrap requires --mesh-host (or an existing ${CONFIG_DIR}/dashboard.env on target)" >&2
+if [[ -z "${SERIAL_PATH}" ]]; then
+  SERIAL_PATH="$(read_existing_dashboard_env_value "MESH_SERIAL_PATH")"
+fi
+
+if [[ -n "${MESH_HOST}" && -n "${SERIAL_PATH}" ]]; then
+  echo "set either --mesh-host or --serial-path, not both" >&2
+  exit 2
+fi
+
+if [[ "${BOOTSTRAP}" -eq 1 && -z "${MESH_HOST}" && -z "${SERIAL_PATH}" ]]; then
+  echo "--bootstrap requires --mesh-host or --serial-path (or an existing ${CONFIG_DIR}/dashboard.env on target)" >&2
   exit 1
 fi
 
@@ -367,8 +440,12 @@ fi
 echo "[deploy] target=${TARGET}"
 echo "[deploy] app_dir=${APP_DIR} config_dir=${CONFIG_DIR} logs_dir=${LOG_DIR}"
 echo "[deploy] service=${SERVICE_NAME} bootstrap=${BOOTSTRAP} clean_app_dir=${CLEAN_APP_DIR}"
+echo "[deploy] service_user=${SERVICE_USER} service_group=${SERVICE_GROUP}"
 if [[ -n "${MESH_HOST}" ]]; then
   echo "[deploy] mesh=${MESH_HOST}:${MESH_PORT} dash=${DASH_HOST}:${DASH_PORT} refresh_ms=${REFRESH_MS}"
+fi
+if [[ -n "${SERIAL_PATH}" ]]; then
+  echo "[deploy] mesh_serial_path=${SERIAL_PATH} dash=${DASH_HOST}:${DASH_PORT} refresh_ms=${REFRESH_MS}"
 fi
 if [[ -n "${UI_PROFILE}" ]]; then
   echo "[deploy] ui_profile=${UI_PROFILE}"
@@ -421,19 +498,50 @@ fi"
   ssh_cmd "${TARGET}" "'${REMOTE_VENV}/bin/pip' install --upgrade pip"
   ssh_cmd "${TARGET}" "'${REMOTE_VENV}/bin/pip' install meshtastic pypubsub protobuf"
 
+  if [[ -n "${SERIAL_PATH}" ]]; then
+    SERVICE_EXEC_START="${REMOTE_PYTHON} ${APP_DIR}/mesh_dashboard.py --mesh-port \${MESH_SERIAL_PATH} --http-host \${DASH_HOST} --http-port \${DASH_PORT} --refresh-ms \${REFRESH_MS}"
+  else
+    SERVICE_EXEC_START="${REMOTE_PYTHON} ${APP_DIR}/mesh_dashboard.py --mesh-host \${MESH_HOST} --mesh-tcp-port \${MESH_PORT} --http-host \${DASH_HOST} --http-port \${DASH_PORT} --refresh-ms \${REFRESH_MS}"
+  fi
+
+  local_service="$(mktemp "${TMPDIR:-/tmp}/meshdash-service.XXXXXX")"
+  cat > "${local_service}" <<EOF
+[Unit]
+Description=Meshtastic Dashboard Web Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_GROUP}
+WorkingDirectory=${REMOTE_ROOT}
+EnvironmentFile=${CONFIG_DIR}/dashboard.env
+ExecStart=${SERVICE_EXEC_START}
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
   tmp_service="/tmp/${SERVICE_NAME}.service"
-  scp_cmd "${ROOT_DIR}/meshtastic-dashboard.service" "${TARGET}:${tmp_service}"
+  scp_cmd "${local_service}" "${TARGET}:${tmp_service}"
+  rm -f "${local_service}"
   ssh_cmd -tt "${TARGET}" "\
 sudo install -m 0644 '${tmp_service}' '/etc/systemd/system/${SERVICE_NAME}.service' && \
 rm -f '${tmp_service}' && \
 sudo systemctl daemon-reload"
 fi
 
-if [[ -n "${MESH_HOST}" ]] || [[ "${BOOTSTRAP}" -eq 1 ]]; then
+if [[ -n "${MESH_HOST}" || -n "${SERIAL_PATH}" ]] || [[ "${BOOTSTRAP}" -eq 1 ]]; then
   echo "[deploy] writing ${CONFIG_DIR}/dashboard.env"
   ssh_cmd "${TARGET}" "cat > '${CONFIG_DIR}/dashboard.env' <<'EOF'
 MESH_HOST=${MESH_HOST}
 MESH_PORT=${MESH_PORT}
+MESH_SERIAL_PATH=${SERIAL_PATH}
 DASH_HOST=${DASH_HOST}
 DASH_PORT=${DASH_PORT}
 REFRESH_MS=${REFRESH_MS}
