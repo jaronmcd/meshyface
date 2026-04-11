@@ -109,6 +109,9 @@
       if (consoleFontSizeSelect instanceof HTMLSelectElement) {{
         consoleFontSizeSelect.value = normalizeConsoleFontSize(consoleFontSize);
       }}
+      if (typeof syncLayoutViewLauncherButtonState === "function") {{
+        syncLayoutViewLauncherButtonState(activeLayoutView);
+      }}
       if (typeof syncThemeCustomControls === "function") {{
         syncThemeCustomControls();
       }}

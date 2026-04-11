@@ -163,6 +163,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("layout-view-menu-btn-label")' in js
     assert 'document.getElementById("layout-view-menu-btn-mark")' in js
     assert 'document.getElementById("layout-view-menu-btn")' in js
+    assert 'if (typeof syncLayoutViewLauncherButtonState === "function") {' in js
+    assert 'syncLayoutViewLauncherButtonState(activeLayoutView);' in js
     assert 'document.getElementById("layout-view-menu-apps-current")' in js
     assert 'document.getElementById("layout-view-menu-apps-submenu")' in js
     assert "function closeLayoutViewSubmenus() {" in js
