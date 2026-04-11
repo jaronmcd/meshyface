@@ -12,6 +12,7 @@ class DashboardArgs(Protocol):
     history_rollup_retention_days: int
     packet_limit: int
     show_secrets: bool
+    debug_mode: bool
     node_history_hours: int
     node_history_max_points: int
     refresh_ms: int

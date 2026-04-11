@@ -73,6 +73,7 @@ def build_dashboard_server_with_dependencies(
         reset_ticker_scale_on_restart=bool(
             getattr(dependencies.args, "reset_ticker_scale_on_restart", True)
         ),
+        debug_mode=bool(getattr(dependencies.args, "debug_mode", False)),
         revision_label=dependencies.revision_info.label,
         revision_title=dependencies.revision_info.title,
     )

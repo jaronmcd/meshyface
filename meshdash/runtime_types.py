@@ -47,6 +47,7 @@ class RenderHtmlFn(Protocol):
         revision_label: str,
         revision_title: str,
         reset_ticker_scale_on_restart: bool = True,
+        debug_mode: bool = False,
         light_theme_vars: dict | None = None,
         dark_theme_vars: dict | None = None,
     ) -> str:

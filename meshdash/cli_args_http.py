@@ -53,6 +53,15 @@ def add_http_runtime_args(
         help="Display sensitive config values (private keys/passwords/PSKs) in raw JSON panels.",
     )
     parser.add_argument(
+        "--debug-mode",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Expose debug-only dashboard surfaces such as advanced diagnostics tabs "
+            "(default: False)"
+        ),
+    )
+    parser.add_argument(
         "--private-mode",
         action=argparse.BooleanOptionalAction,
         default=default_private_mode,

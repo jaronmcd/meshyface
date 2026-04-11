@@ -25,7 +25,9 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'data-network-subview="graph"' in html
     assert 'id="network-map-panel-graph"' in html
     assert 'data-network-subview="diagnostics"' in html
+    assert 'hidden disabled aria-hidden="true"' in html
     assert 'id="network-map-panel-diagnostics"' in html
+    assert 'hidden aria-hidden="true"' in html
     assert 'id="network-graph-svg"' in html
     assert 'id="network-graph-back-btn"' in html
     assert 'id="network-graph-home-btn"' in html
@@ -37,6 +39,26 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-diagnostics-entries"' in html
 
 
+def test_dashboard_html_shows_network_diagnostics_when_debug_mode_enabled() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+        network_diagnostics_tab_hidden_attrs="",
+        network_diagnostics_panel_hidden_attrs="",
+    )
+
+    assert 'data-network-subview="diagnostics"' in html
+    assert '>Diagnostics</button>' in html
+
+
 def test_dashboard_js_supports_network_graph_subview() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
@@ -44,7 +66,9 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
         node_history_max_points=240,
     )
 
-    assert 'return clean === "overview" || clean === "graph" || clean === "sensors" || clean === "diagnostics" ? clean : "map";' in js
+    assert 'const networkDiagnosticsEnabled = !!Number(0);' in js
+    assert 'if (clean === "diag") return networkDiagnosticsEnabled ? "diagnostics" : "map";' in js
+    assert 'if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";' in js
     assert 'function renderNetworkGraphView(state = latestState)' in js
     assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
     assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
@@ -78,6 +102,18 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'svg.addEventListener("wheel"' in js
     assert 'cancelNetworkGraphViewAnimation();' in js
     assert 'svg.addEventListener("pointerup", finishPan);' in js
+
+
+def test_dashboard_js_allows_diagnostics_subview_in_debug_mode() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        debug_mode=True,
+    )
+
+    assert 'const networkDiagnosticsEnabled = !!Number(1);' in js
+    assert 'if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";' in js
 
 
 def test_network_layout_uses_single_row_map_track() -> None:

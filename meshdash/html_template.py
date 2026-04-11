@@ -21,6 +21,7 @@ def render_html(
     revision_label: str,
     revision_title: str,
     reset_ticker_scale_on_restart: bool = True,
+    debug_mode: bool = False,
     ui_profile: str | None = None,
     light_theme_vars: dict | None = None,
     dark_theme_vars: dict | None = None,
@@ -41,15 +42,21 @@ def render_html(
         node_history_hours=node_history_hours,
         node_history_max_points=node_history_max_points,
         reset_ticker_scale_on_restart=reset_ticker_scale_on_restart,
+        debug_mode=debug_mode,
         ui_profile=ui_profile,
         file_transfer_enabled=file_transfer_enabled,
         file_transfer_max_bytes=file_transfer_max_bytes,
     )
     file_transfer_files_tab_hidden_attrs = ""
     file_transfer_section_hidden_attrs = ""
+    network_diagnostics_tab_hidden_attrs = ""
+    network_diagnostics_panel_hidden_attrs = ""
     if not file_transfer_enabled:
         file_transfer_files_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
         file_transfer_section_hidden_attrs = ' hidden aria-hidden="true"'
+    if not debug_mode:
+        network_diagnostics_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
+        network_diagnostics_panel_hidden_attrs = ' hidden aria-hidden="true"'
     return _build_html_shell_helper(
         app_title=_APP_TITLE,
         app_heading=_APP_HEADING,
@@ -63,4 +70,6 @@ def render_html(
         refresh_ms=refresh_ms,
         file_transfer_files_tab_hidden_attrs=file_transfer_files_tab_hidden_attrs,
         file_transfer_section_hidden_attrs=file_transfer_section_hidden_attrs,
+        network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
+        network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
     )

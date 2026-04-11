@@ -185,6 +185,7 @@ def build_dashboard_js(
     node_history_hours: int,
     node_history_max_points: int,
     reset_ticker_scale_on_restart: bool = True,
+    debug_mode: bool = False,
     ui_profile: str | None = None,
     file_transfer_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
@@ -205,6 +206,7 @@ def build_dashboard_js(
         "reset_ticker_scale_on_restart": (
             1 if bool(reset_ticker_scale_on_restart) else 0
         ),
+        "debug_mode_enabled": 1 if bool(debug_mode) else 0,
         "file_transfer_enabled": 1 if bool(file_transfer_enabled) else 0,
         "file_transfer_max_bytes": normalized_file_transfer_max_bytes,
     }

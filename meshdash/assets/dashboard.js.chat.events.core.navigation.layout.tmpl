@@ -688,11 +688,15 @@
       return view === "saved" || (view === "network" && activeNetworkSubview === "map");
     }}
 
+    const networkDiagnosticsEnabled = !!Number({debug_mode_enabled});
+
     function normalizeNetworkSubview(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "details") return "sensors";
-      if (clean === "diag") return "diagnostics";
-      return clean === "overview" || clean === "graph" || clean === "sensors" || clean === "diagnostics" ? clean : "map";
+      if (clean === "diag") return networkDiagnosticsEnabled ? "diagnostics" : "map";
+      if (clean === "overview" || clean === "graph" || clean === "sensors") return clean;
+      if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";
+      return "map";
     }}
 
     function loadPreferredNetworkSubview() {{
