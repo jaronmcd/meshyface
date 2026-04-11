@@ -44,6 +44,11 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert ".theme-live-preview {" in css
     assert ".theme-preview-card-shell {" in css
     assert "color-mix(in srgb, var(--panel) 94%, var(--bg) 6%)" in css
+    assert "[data-theme=\"dark\"] .theme-preview-shell-meter-fill {" in css
+    dark_shell_meter_fill_section = css.split("[data-theme=\"dark\"] .theme-preview-shell-meter-fill {", 1)[1].split("}", 1)[0]
+    assert "var(--workspace-shell-border-strong)" in dark_shell_meter_fill_section
+    assert "var(--ui-accent)" in dark_shell_meter_fill_section
+    assert "var(--accent)" not in dark_shell_meter_fill_section
     assert ".theme-preview-card-tint {" in css
     assert "var(--surface-tint-bg-soft, #f4faf3)" in css
     assert ".theme-preview-card-console {" in css
