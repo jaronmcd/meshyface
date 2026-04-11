@@ -286,6 +286,26 @@
           }}
         }}
 
+        const chatEntries = collectChatMessageEntries(state);
+        const hasFreshDirectEntry = chatEntries.some((entry) => {{
+          if (!entry || entry.channel !== "direct") return false;
+          const key = String(entry.key || "").trim();
+          if (!key) return false;
+          return !chatSeenMessageKeys.has(key);
+        }});
+        const shouldBackgroundRenderDirectChat = (
+          !isChatWorkspaceLayoutView(activeLayoutView)
+          && (
+            hasFreshDirectEntry
+            || isCanonicalNodeId(peerDmActivePeerId || "")
+          )
+        );
+        let chatRenderedThisPoll = false;
+        if (shouldBackgroundRenderDirectChat) {{
+          renderChat(state);
+          chatRenderedThisPoll = true;
+        }}
+
         if (
           !isChatWorkspaceLayoutView(activeLayoutView)
           && shouldHydrateNodeNavigatorRoster(state)
@@ -293,12 +313,18 @@
           if (typeof renderChatNodeNavigatorList === "function") {{
             renderChatNodeNavigatorList(state);
           }} else {{
-            renderChat(state);
+            if (!chatRenderedThisPoll) {{
+              renderChat(state);
+              chatRenderedThisPoll = true;
+            }}
           }}
         }}
 
         if (isChatWorkspaceLayoutView(activeLayoutView)) {{
-          renderChat(state);
+          if (!chatRenderedThisPoll) {{
+            renderChat(state);
+            chatRenderedThisPoll = true;
+          }}
           if (activeLayoutView === "chatlabs") {{
             renderChatLabsView(state);
           }}
@@ -310,11 +336,15 @@
           renderGamesView(state);
         }} else if (activeLayoutView === "remote") {{
           renderRemoteView(state);
-          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          if (!chatRenderedThisPoll) {{
+            syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          }}
           renderChatChangeSummary();
           bindChatChangeSummaryControls();
         }} else {{
-          syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          if (!chatRenderedThisPoll) {{
+            syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
+          }}
           renderChatChangeSummary();
           bindChatChangeSummaryControls();
         }}
