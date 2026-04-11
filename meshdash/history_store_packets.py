@@ -769,6 +769,8 @@ def load_environment_metrics_history(
                 read_conn,
                 cutoff=cutoff,
                 limit=clean_limit,
+                metric=clean_metric or None,
+                node_id=clean_node_id or None,
             )
         )
         packet_rows: list[tuple[object, ...]] = []

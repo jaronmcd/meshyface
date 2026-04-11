@@ -27,7 +27,8 @@
       legendScopeKey: "",
     }};
 
-    const envMetricsHistoryCache = new Map();
+    const envMetricsCatalogCache = new Map();
+    const envMetricsSeriesCache = new Map();
     const envMetricColorPalette = [
       "#2f855a",
       "#2b6cb0",
@@ -1226,34 +1227,40 @@
       );
     }}
 
-    function applyEnvironmentMetricsPayload(payload) {{
+    function applyEnvironmentMetricsCatalogPayload(payload) {{
       const data = (payload && typeof payload === "object") ? payload : {{}};
-      envMetricsViewState.points = Array.isArray(data.points) ? data.points : [];
       envMetricsViewState.metrics = Array.isArray(data.metrics) ? data.metrics : [];
       envMetricsViewState.nodes = Array.isArray(data.nodes) ? data.nodes : [];
-      envMetricsViewState.source = String(data.source || "");
-      envMetricsViewState.scannedPackets = Math.max(0, Math.trunc(Number(data.scanned_packets) || 0));
-      envMetricsViewState.cutoffUnix = Math.max(0, Math.trunc(Number(data.cutoff_unix) || 0));
       envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(data.window_hours || envMetricsViewState.selectedWindowHours);
-      if (!envMetricsViewState.selectedMetric) {{
+      const selectedMetric = normalizeEnvMetricKey(envMetricsViewState.selectedMetric || "");
+      if (!selectedMetric || !envMetricsViewState.metrics.some((meta) => normalizeEnvMetricKey(meta && meta.key) === selectedMetric)) {{
         const firstMetric = envMetricsViewState.metrics[0];
         envMetricsViewState.selectedMetric = firstMetric ? normalizeEnvMetricKey(firstMetric.key) : "";
       }}
       const cleanSelectedNode = normalizeNodeId(envMetricsViewState.selectedNodeId || "");
       const selectableNodes = resolveEnvironmentNodeOptions(
         envMetricsViewState.nodes,
-        envMetricsViewState.points,
+        [],
       );
       if (cleanSelectedNode && !selectableNodes.some((node) => normalizeNodeId(node.id) === cleanSelectedNode)) {{
         envMetricsViewState.selectedNodeId = "";
       }}
     }}
 
-    async function fetchEnvironmentMetricsHistory(windowHours, forceRefresh = false) {{
+    function applyEnvironmentMetricsSeriesPayload(payload) {{
+      const data = (payload && typeof payload === "object") ? payload : {{}};
+      envMetricsViewState.points = Array.isArray(data.points) ? data.points : [];
+      envMetricsViewState.source = String(data.source || "");
+      envMetricsViewState.scannedPackets = Math.max(0, Math.trunc(Number(data.scanned_packets) || 0));
+      envMetricsViewState.cutoffUnix = Math.max(0, Math.trunc(Number(data.cutoff_unix) || 0));
+      envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(data.window_hours || envMetricsViewState.selectedWindowHours);
+    }}
+
+    async function fetchEnvironmentMetricsCatalog(windowHours, forceRefresh = false) {{
       const cleanHours = normalizeEnvHistoryHours(windowHours);
       const cacheKey = String(cleanHours);
       const nowMs = Date.now();
-      const cached = envMetricsHistoryCache.get(cacheKey);
+      const cached = envMetricsCatalogCache.get(cacheKey);
       const ttlMs = Math.max(refreshMs * 4, 15000);
       if (!forceRefresh && cached && cached.data && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
         return cached.data;
@@ -1270,7 +1277,43 @@
       if (payload.ok === false) {{
         throw new Error(String(payload.error || "sensor history unavailable"));
       }}
-      envMetricsHistoryCache.set(cacheKey, {{
+      envMetricsCatalogCache.set(cacheKey, {{
+        fetchedAt: nowMs,
+        data: payload,
+      }});
+      return payload;
+    }}
+
+    async function fetchEnvironmentMetricsSeries(windowHours, metricKey, nodeId, forceRefresh = false) {{
+      const cleanHours = normalizeEnvHistoryHours(windowHours);
+      const cleanMetric = normalizeEnvMetricKey(metricKey || "");
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const cacheKey = [String(cleanHours), cleanMetric, cleanNodeId].join("|");
+      const nowMs = Date.now();
+      const cached = envMetricsSeriesCache.get(cacheKey);
+      const ttlMs = Math.max(refreshMs * 4, 15000);
+      if (!forceRefresh && cached && cached.data && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
+        return cached.data;
+      }}
+      const params = new URLSearchParams();
+      params.set("hours", String(cleanHours));
+      params.set("limit", "100000");
+      if (cleanMetric) {{
+        params.set("metric", cleanMetric);
+      }}
+      if (cleanNodeId) {{
+        params.set("node_id", cleanNodeId);
+      }}
+      const resp = await fetch(`/api/history/environment?${{params.toString()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) throw new Error(`sensor history API ${{resp.status}}`);
+      const payload = await resp.json();
+      if (!payload || typeof payload !== "object") {{
+        throw new Error("sensor history returned an invalid payload");
+      }}
+      if (payload.ok === false) {{
+        throw new Error(String(payload.error || "sensor history unavailable"));
+      }}
+      envMetricsSeriesCache.set(cacheKey, {{
         fetchedAt: nowMs,
         data: payload,
       }});
@@ -1292,7 +1335,7 @@
         metricSelect.dataset.bound = "1";
         metricSelect.addEventListener("change", () => {{
           envMetricsViewState.selectedMetric = normalizeEnvMetricKey(metricSelect.value);
-          renderEnvironmentMetricsSnapshot();
+          void renderEnvironmentMetricsView(false);
         }});
       }}
 
@@ -1301,7 +1344,7 @@
         nodeSelect.dataset.bound = "1";
         nodeSelect.addEventListener("change", () => {{
           envMetricsViewState.selectedNodeId = normalizeNodeId(nodeSelect.value || "");
-          renderEnvironmentMetricsSnapshot();
+          void renderEnvironmentMetricsView(false);
         }});
       }}
 
@@ -1325,8 +1368,25 @@
       const windowHours = syncEnvironmentWindowPicker();
       setEnvironmentMetricsStatus(`Loading saved sensor telemetry (${windowHours}h window)...`, "info");
       try {{
-        const payload = await fetchEnvironmentMetricsHistory(windowHours, forceRefresh);
-        applyEnvironmentMetricsPayload(payload);
+        const catalogPayload = await fetchEnvironmentMetricsCatalog(windowHours, forceRefresh);
+        applyEnvironmentMetricsCatalogPayload(catalogPayload);
+        const selectedMetric = syncEnvironmentMetricPicker(envMetricsViewState.metrics);
+        const selectedNodeId = syncEnvironmentNodePicker(envMetricsViewState.nodes);
+        if (!selectedMetric) {{
+          envMetricsViewState.points = [];
+          envMetricsViewState.source = "";
+          envMetricsViewState.scannedPackets = 0;
+          envMetricsViewState.cutoffUnix = 0;
+          renderEnvironmentMetricsSnapshot();
+          return;
+        }}
+        const seriesPayload = await fetchEnvironmentMetricsSeries(
+          windowHours,
+          selectedMetric,
+          selectedNodeId,
+          forceRefresh,
+        );
+        applyEnvironmentMetricsSeriesPayload(seriesPayload);
         renderEnvironmentMetricsSnapshot();
       }} catch (err) {{
         const msg = err instanceof Error ? err.message : String(err || "unknown error");

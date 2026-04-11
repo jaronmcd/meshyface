@@ -91,25 +91,36 @@ def fetch_environment_metric_rollup_rows(
     *,
     cutoff: int,
     limit: int,
+    metric: str | None = None,
+    node_id: str | None = None,
 ) -> SqlRows:
-    clean_limit = max(1, min(100000, int(limit)))
+    clean_limit = max(1, min(300000, int(limit)))
     clean_cutoff = max(0, int(cutoff))
-    return conn.execute(
-        """
+    where_clauses = ["last_seen_unix >= ?"]
+    params: list[object] = [clean_cutoff]
+    clean_metric = str(metric or "").strip()
+    if clean_metric:
+        where_clauses.append("metric_key = ?")
+        params.append(clean_metric)
+    clean_node_id = str(node_id or "").strip()
+    if clean_node_id:
+        where_clauses.append("node_id = ?")
+        params.append(clean_node_id)
+    params.append(clean_limit)
+    sql = f"""
         SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
                sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
         FROM (
           SELECT bucket_unix, node_id, node_label, metric_key, metric_label,
                  sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
           FROM environment_metrics_1m
-          WHERE last_seen_unix >= ?
+          WHERE {' AND '.join(where_clauses)}
           ORDER BY bucket_unix DESC, last_seen_unix DESC
           LIMIT ?
         )
         ORDER BY bucket_unix ASC, node_id ASC, metric_key ASC
-        """,
-        (clean_cutoff, clean_limit),
-    ).fetchall()
+        """
+    return conn.execute(sql, tuple(params)).fetchall()
 
 
 def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
