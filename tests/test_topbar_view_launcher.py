@@ -104,10 +104,15 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-menu {" in css
     assert "z-index: 1350;" in css
     topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
+    topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
+    topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
     topbar_ticker_section = css.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
     topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
     topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
+    assert "padding: 8px 8px 0;" in topbar_section
     assert "box-shadow: none;" in topbar_section
+    assert "padding: 0;" in topbar_sub_section
+    assert "padding-right: 0;" in topbar_summary_row_padding_section
     assert "box-shadow: none;" in topbar_ticker_section
     assert "box-shadow: none;" in topbar_update_section
     assert "box-shadow: none;" in topbar_launcher_section

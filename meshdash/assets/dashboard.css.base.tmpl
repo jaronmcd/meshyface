@@ -3,7 +3,7 @@
     :root {{
       --topbar-sticky-offset: 72px;
       --workspace-viewport-offset: 84px;
-      --topbar-right-inset: max(12px, env(safe-area-inset-right));
+      --topbar-right-inset: max(8px, env(safe-area-inset-right));
       --topbar-corner-reserve: 0px;
       --floating-stage-bg: color-mix(in srgb, var(--accent) 64%, var(--accent-2) 36%);
     }}
@@ -25,7 +25,7 @@
       min-height: 100dvh;
     }}
     .topbar {{
-      padding: 8px 12px;
+      padding: 8px 8px 0;
       background: var(--floating-stage-bg);
       color: #f4fff7;
       box-shadow: none;
@@ -254,7 +254,7 @@
       flex-direction: column;
       align-items: stretch;
       gap: 2px;
-      padding: 4px;
+      padding: 0;
       border: 0;
       border-radius: 10px;
       background: var(--floating-stage-bg);
@@ -264,7 +264,7 @@
       margin-right: calc(var(--topbar-corner-reserve, 0px) * -1);
     }}
     .topbar .sub .summary-ticker-row {{
-      padding-right: var(--topbar-right-inset);
+      padding-right: 0;
     }}
     .topbar-update-ticker.is-fading {{
       opacity: 0;
