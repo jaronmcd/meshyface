@@ -3124,6 +3124,7 @@
       const launcherBtn = document.getElementById("layout-view-menu-btn");
       const launcherMark = document.getElementById("layout-view-menu-btn-mark");
       const launcherLabel = document.getElementById("layout-view-menu-btn-label");
+      const launcherLabelText = document.getElementById("layout-view-menu-btn-label-text");
       const launcherBadge = document.getElementById("layout-view-menu-btn-badge");
       const attentionIndicator = document.getElementById("layout-view-menu-attention-indicator");
       if (!(launcherBtn instanceof HTMLButtonElement)) return;
@@ -3134,11 +3135,16 @@
           launcherMark.textContent = activeMark.text;
         }}
         launcherMark.dataset.markStyle = activeMark.style;
+        launcherMark.hidden = activeMark.style === "emoji";
       }}
 
       const activeLabel = currentWorkspaceLauncherLabel(viewName);
       if (launcherLabel instanceof HTMLElement) {{
-        launcherLabel.textContent = activeLabel;
+        launcherLabel.dataset.labelStyle = activeMark.style === "emoji" ? "emoji-inline" : "text-mark";
+      }}
+      const launcherLabelTarget = (launcherLabelText instanceof HTMLElement) ? launcherLabelText : launcherLabel;
+      if (launcherLabelTarget instanceof HTMLElement && launcherLabelTarget.textContent !== activeLabel) {{
+        launcherLabelTarget.textContent = activeLabel;
       }}
 
       const totalCount = totalWorkspaceLauncherNotificationCount();

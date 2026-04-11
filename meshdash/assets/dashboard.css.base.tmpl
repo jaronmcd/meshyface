@@ -434,11 +434,11 @@
         );
       color: #f2fff7;
       border-radius: 999px;
-      padding: 0 7px 0 4px;
+      padding: 0 9px 0 6px;
       display: inline-flex;
       align-items: center;
       justify-content: flex-start;
-      gap: 8px;
+      gap: 0;
       cursor: pointer;
       font-size: 12px;
       line-height: 1.2;
@@ -450,8 +450,9 @@
     }}
     .topbar-view-menu-btn-mark {{
       flex: 0 0 auto;
-      width: 22px;
-      height: 22px;
+      min-width: 0;
+      width: auto;
+      height: auto;
       border: 0;
       background: transparent;
       color: color-mix(in srgb, var(--ink) 78%, var(--accent-2) 22%);
@@ -500,14 +501,23 @@
     .topbar-view-menu-btn-label {{
       min-width: 0;
       flex: 1 1 auto;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       font-size: 12px;
       line-height: 1;
       font-weight: 700;
       letter-spacing: 0.16px;
       color: color-mix(in srgb, var(--ink) 84%, var(--accent-2));
+    }}
+    .topbar-view-menu-btn-label[data-label-style="emoji-inline"] {{
+      gap: 0;
+    }}
+    .topbar-view-menu-btn-label-text {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }}
     .topbar-view-menu-btn-badge {{
       flex: 0 0 auto;
@@ -545,6 +555,7 @@
       transform: rotate(18deg);
     }}
     .topbar-view-menu-btn-badge[hidden],
+    .topbar-view-menu-btn-mark[hidden],
     .topbar-view-menu-btn-attention[hidden],
     .topbar-view-menu-item-badge[hidden] {{
       display: none !important;
@@ -810,9 +821,21 @@
     }}
     .topbar .summary-ticker-item-target .value.target-node-value .target-node-name {{
       min-width: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       font-size: 11px;
       font-weight: 750;
       line-height: 1.05;
+    }}
+    .topbar .summary-ticker-item-target .value.target-node-value .target-node-name .target-node-mark {{
+      flex: 0 0 auto;
+      font-size: 0.95em;
+      line-height: 1;
+    }}
+    .topbar .summary-ticker-item-target .value.target-node-value .target-node-name .target-node-name-text {{
+      min-width: 0;
+      flex: 1 1 auto;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1891,7 +1914,7 @@
     .workspace-shell.chat-panel-collapsed .chat-users-head-launcher-shell .topbar-view-menu-btn {{
       width: 100%;
       min-width: 0;
-      padding: 0 7px 0 4px;
+      padding: 0 9px 0 6px;
     }}
     .workspace-shell.chat-panel-collapsed .chat-users-head-actions {{
       margin-left: auto;

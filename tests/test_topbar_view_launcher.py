@@ -35,7 +35,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-btn-mark"' in html
     assert 'data-default-mark="' in html
     assert 'id="layout-view-menu-btn-label"' in html
-    assert 'class="topbar-view-menu-btn-label">Chat<' in html
+    assert 'id="layout-view-menu-btn-label-text"' in html
+    assert 'class="topbar-view-menu-btn-label-text">Chat<' in html
     assert 'class="topbar-update-ticker workspace-update-ticker"' in html
     assert 'workspace-peer-dm-menu-wrap' not in html
     assert 'id="peer-dm-toggle-btn"' not in html
@@ -101,8 +102,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "padding-right: var(--topbar-right-inset);" in css
     assert ".topbar-view-menu-btn {" in css
     assert ".topbar-view-menu-btn-mark {" in css
+    assert ".topbar-view-menu-btn-mark[hidden]," in css
     assert ".topbar-view-menu-btn-main {" in css
     assert ".topbar-view-menu-btn-label {" in css
+    assert ".topbar-view-menu-btn-label-text {" in css
     assert ".topbar-view-menu-head {" not in css
     assert ".topbar-view-menu-brand {" not in css
     assert ".topbar-view-menu-brand-mark {" not in css
@@ -161,7 +164,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("chat-users-head-commit")' not in js
     assert 'target.closest("#layout-view-menu .topbar-view-menu-item")' in js
     assert 'document.getElementById("layout-view-menu-btn-label")' in js
+    assert 'const launcherLabelText = document.getElementById("layout-view-menu-btn-label-text");' in js
     assert 'document.getElementById("layout-view-menu-btn-mark")' in js
+    assert 'launcherMark.hidden = activeMark.style === "emoji";' in js
     assert 'document.getElementById("layout-view-menu-btn")' in js
     assert 'if (typeof syncLayoutViewLauncherButtonState === "function") {' in js
     assert 'syncLayoutViewLauncherButtonState(activeLayoutView);' in js

@@ -1436,16 +1436,33 @@
       const targetMetric = document.getElementById("m-target");
       if (targetMetric instanceof HTMLElement) {{
         const fullTarget = String(targetValue == null ? "" : targetValue).trim();
+        const badgeEmoji = (
+          typeof settingsBadgeEmojiChoiceSet !== "undefined"
+          && settingsBadgeEmojiChoiceSet instanceof Set
+          && settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())
+        )
+          ? String(settingsBadgeEmoji || "").trim()
+          : "";
         targetMetric.classList.remove("target-node-value", "node-ticker-value");
         targetMetric.replaceChildren();
         if (hasLocalIdentity) {{
           targetMetric.classList.add("target-node-value", "node-ticker-value");
           const nameRow = document.createElement("div");
           nameRow.className = "target-node-name";
-          nameRow.textContent = localName || "Local node";
+          if (badgeEmoji) {{
+            const badgeMark = document.createElement("span");
+            badgeMark.className = "target-node-mark";
+            badgeMark.textContent = badgeEmoji;
+            badgeMark.setAttribute("aria-hidden", "true");
+            nameRow.appendChild(badgeMark);
+          }}
+          const nameText = document.createElement("span");
+          nameText.className = "target-node-name-text";
+          nameText.textContent = localName || "Local node";
           const idRow = document.createElement("div");
           idRow.className = "target-node-id";
           idRow.textContent = isCanonicalNodeId(localId) ? localId : "ID unavailable";
+          nameRow.appendChild(nameText);
           targetMetric.append(nameRow, idRow);
           const titleParts = [localName || "Local node"];
           if (isCanonicalNodeId(localId)) {{

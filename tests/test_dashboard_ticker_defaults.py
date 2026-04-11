@@ -188,6 +188,8 @@ def test_dashboard_js_renders_local_identity_in_target_ticker() -> None:
     assert 'targetLabel.textContent = hasLocalIdentity ? "Node" : "Target";' in js
     assert 'targetMetric.classList.add("target-node-value", "node-ticker-value");' in js
     assert 'nameRow.className = "target-node-name";' in js
+    assert 'badgeMark.className = "target-node-mark";' in js
+    assert 'nameText.className = "target-node-name-text";' in js
     assert 'idRow.className = "target-node-id";' in js
     assert 'targetMetric.textContent = targetDisplay;' in js
 
@@ -208,6 +210,8 @@ def test_render_html_styles_local_identity_target_ticker() -> None:
 
     assert ".topbar .summary-ticker-item-target .value.target-node-value {" in html
     assert ".target-node-name {" in html
+    assert ".target-node-mark {" in html
+    assert ".target-node-name-text {" in html
     assert ".target-node-id {" in html
 
 
