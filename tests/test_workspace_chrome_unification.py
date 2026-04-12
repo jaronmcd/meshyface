@@ -175,6 +175,17 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     assert "var(--workspace-shell-active-bg)" in dark_leaflet_overlay_section
 
 
+def test_node_list_names_keep_uniform_color_while_status_dots_remain() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert ".chat-member-name.status-warn {" not in css
+    assert ".chat-member-name.status-stale {" not in css
+    assert ".chat-member-name.status-unknown {" not in css
+    assert ".chat-member-status.status-warn {" in css
+    assert ".chat-member-status.status-stale {" in css
+    assert ".chat-member-status.status-unknown {" in css
+
+
 def test_mobile_network_and_games_shells_expand_to_single_phone_column() -> None:
     css = build_dashboard_css(theme_css="")
 
