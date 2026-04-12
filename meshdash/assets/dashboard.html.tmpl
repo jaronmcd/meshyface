@@ -133,6 +133,19 @@
     <aside id="chat-left-panel" class="chat-left-panel" aria-label="Global node selection and search">
       <div class="chat-left-head-shell">
         <div class="chat-users-head">
+          <button
+            id="theme-toggle-inline-btn"
+            class="chat-peer-add-toggle-btn chat-users-head-theme-btn"
+            type="button"
+            data-theme-toggle="compact"
+            title="Toggle theme between dark and light"
+            aria-label="Toggle theme between dark and light"
+            aria-pressed="false"
+          >
+            <svg class="chat-users-head-theme-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 2A10 10 0 0 0 2 12A10 10 0 0 0 12 22V2Z" />
+            </svg>
+          </button>
           <div class="workspace-launcher-shell chat-users-head-launcher-shell">
             <button
               id="layout-view-menu-btn"
@@ -297,7 +310,8 @@
               aria-controls="chat-left-panel"
             >
               <svg id="chat-panel-collapse-glyph" class="chat-panel-collapse-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="m9 6 6 6-6 6"/>
+                <path class="chat-panel-collapse-glyph-collapse" d="M7 5V19M15 7L11 12L15 17" />
+                <path class="chat-panel-collapse-glyph-expand" d="M17 5V19M9 7L13 12L9 17" />
               </svg>
             </button>
             <button id="chat-peer-add-toggle-btn" class="chat-peer-add-toggle-btn" type="button" title="Add a peer-to-peer user" hidden>Add</button>
@@ -1596,6 +1610,7 @@
                   id="theme-toggle-btn"
                   class="btn btn-secondary"
                   type="button"
+                  data-theme-toggle="full"
                   title="Toggle theme between dark and light"
                 >Theme: Dark</button>
               </label>

@@ -32,6 +32,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="workspace-launcher-row"' in html
     assert 'class="workspace-launcher-row" aria-label="Dashboard views">' in html
     assert 'class="workspace-launcher-shell chat-users-head-launcher-shell"' in html
+    assert 'id="theme-toggle-inline-btn"' in html
+    assert 'data-theme-toggle="compact"' in html
+    assert 'class="chat-users-head-theme-icon"' in html
     assert 'id="layout-view-menu-btn-label"' in html
     assert 'id="layout-view-menu-btn-label-text"' in html
     assert 'class="topbar-view-menu-btn-label-text">Chat<' in html
@@ -74,7 +77,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert '<aside class="teams-rail"' not in html
     assert re.search(r'<div class="workspace-launcher-row"[\s\S]*id="topbar-update-ticker"', html)
     assert re.search(
-        r'<div class="chat-users-head"[\s\S]*id="layout-view-menu-btn"[\s\S]*id="chat-panel-collapse-btn"',
+        r'<div class="chat-users-head"[\s\S]*id="theme-toggle-inline-btn"[\s\S]*id="layout-view-menu-btn"[\s\S]*id="chat-panel-collapse-btn"',
         html,
     )
     assert re.search(
@@ -87,6 +90,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "z-index: 500;" in css
     assert ".workspace-launcher-shell {" in css
     assert ".chat-users-head-launcher-shell {" in css
+    assert ".chat-users-head-theme-btn {" in css
+    assert ".chat-users-head-theme-icon {" in css
+    assert '.chat-users-head-theme-btn[aria-pressed="true"] {' in css
     assert ".chat-users-head-view-btn {" in css
     assert ".chat-users-head-action-btn {" in css
     assert ".chat-users-head-gear-icon {" in css
@@ -131,7 +137,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "box-shadow: none;" in topbar_ticker_section
     assert "box-shadow: none;" in topbar_update_section
     assert "box-shadow: none;" in topbar_launcher_section
-    assert '.chat-panel-collapse-btn[aria-pressed="false"] .chat-panel-collapse-glyph {' in css
+    assert ".chat-panel-collapse-glyph-collapse {" in css
+    assert ".chat-panel-collapse-glyph-expand {" in css
+    assert '.chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-collapse {' in css
+    assert '.chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-expand {' in css
     assert re.search(
         r"\.workspace-shell \{\s*--chat-panel-width: 250px;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*column-gap: 8px;[\s\S]*row-gap: 0;",
         css,
@@ -161,6 +170,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("layout-view-menu-btn-label")' in js
     assert 'const launcherLabelText = document.getElementById("layout-view-menu-btn-label-text");' in js
     assert 'document.getElementById("layout-view-menu-btn")' in js
+    assert 'document.querySelectorAll("[data-theme-toggle]")' in js
+    assert 'btn.dataset.themeToggleBound = "1";' in js
     assert 'if (typeof syncLayoutViewLauncherButtonState === "function") {' in js
     assert 'syncLayoutViewLauncherButtonState(activeLayoutView);' in js
     assert 'document.getElementById("layout-view-menu-apps-current")' in js

@@ -685,16 +685,22 @@
     }}
 
     function updateThemeToggleLabel(resolvedTheme) {{
-      const btn = document.getElementById("theme-toggle-btn");
-      if (!(btn instanceof HTMLButtonElement)) return;
       const resolvedText = resolvedTheme === "dark" ? "Dark" : "Light";
-      btn.textContent = `Theme: ${{resolvedText}}`;
-      if (themePreference === "auto") {{
-        btn.title = `Theme follows system (${{resolvedText}}). Click to lock Light/Dark toggle.`;
-      }} else {{
-        btn.title = `Theme locked to ${{resolvedText}}. Click to toggle Light/Dark.`;
+      const nextText = resolvedTheme === "dark" ? "Light" : "Dark";
+      for (const btn of document.querySelectorAll("[data-theme-toggle]")) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const variant = String(btn.dataset.themeToggle || "").trim().toLowerCase();
+        if (variant !== "compact") {{
+          btn.textContent = `Theme: ${{resolvedText}}`;
+        }}
+        if (themePreference === "auto") {{
+          btn.title = `Theme follows system (${{resolvedText}}). Click to lock ${{nextText}}.`;
+        }} else {{
+          btn.title = `Theme locked to ${{resolvedText}}. Click to switch to ${{nextText}}.`;
+        }}
+        btn.setAttribute("aria-label", btn.title);
+        btn.setAttribute("aria-pressed", resolvedTheme === "dark" ? "true" : "false");
       }}
-      btn.setAttribute("aria-label", btn.title);
     }}
 
     function applyThemePreference(mode, persist = true) {{
@@ -734,9 +740,9 @@
     }}
 
     function bindThemeToggle() {{
-      const btn = document.getElementById("theme-toggle-btn");
-      if (btn instanceof HTMLButtonElement && btn.dataset.bound !== "1") {{
-        btn.dataset.bound = "1";
+      for (const btn of document.querySelectorAll("[data-theme-toggle]")) {{
+        if (!(btn instanceof HTMLButtonElement) || btn.dataset.themeToggleBound === "1") continue;
+        btn.dataset.themeToggleBound = "1";
         btn.addEventListener("click", () => {{
           const resolved = themePreference === "auto" ? systemPreferredTheme() : themePreference;
           const next = resolved === "dark" ? "light" : "dark";

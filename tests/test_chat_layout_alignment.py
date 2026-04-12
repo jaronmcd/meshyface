@@ -48,6 +48,7 @@ def test_chat_layout_spacing_matches_tighter_network_style() -> None:
     assert ".workspace-shell[data-layout-view=\"chat\"] .chat-users-head {" in css
     assert "border-radius: 0;" in css
     assert "min-height: 27px;" in css
+    assert ".chat-users-head-theme-btn {" in css
     assert ".chat-users-head-launcher-shell {" in css
     assert ".workspace-shell[data-layout-view=\"chat\"] .chat-users-head-launcher-shell {" in css
     assert ".workspace-shell[data-layout-view=\"chat\"] .chat-users-head-launcher-shell .topbar-view-menu-btn {" in css
@@ -185,6 +186,7 @@ def test_chat_left_column_uses_distinct_head_and_roster_shells() -> None:
 
     assert 'class="chat-left-head-shell"' in html
     assert 'class="chat-left-section chat-users-section chat-left-roster-shell"' in html
+    assert 'id="theme-toggle-inline-btn"' in html
     assert 'class="workspace-launcher-shell chat-users-head-launcher-shell"' in html
     assert 'id="chat-node-navigator-menu-btn"' in html
     assert 'class="chat-node-navigator-menu chat-node-navigator-menu-docked"' in html

@@ -1781,12 +1781,39 @@
       flex: 1 1 auto;
       min-width: 0;
     }}
+    .chat-users-head-theme-btn {{
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      font-weight: 700;
+      letter-spacing: 0.12px;
+    }}
+    .chat-users-head-theme-icon {{
+      width: 13px;
+      height: 13px;
+      display: block;
+      fill: currentColor;
+    }}
+    .chat-users-head-theme-btn[aria-pressed="true"] {{
+      background: color-mix(in srgb, var(--panel) 76%, var(--accent) 24%);
+      border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+      color: color-mix(in srgb, var(--ink) 78%, var(--accent-2) 22%);
+    }}
     .chat-users-head-launcher-shell .topbar-view-menu-btn {{
       width: 100%;
       min-width: 0;
       min-height: 27px;
       height: 27px;
+      padding: 0 11px 0 7px;
       transition: none;
+    }}
+    .chat-users-head-launcher-shell .topbar-view-menu-caret {{
+      margin-left: 4px;
     }}
     .chat-users-head-launcher-shell .topbar-view-menu-btn:hover,
     .chat-users-head-launcher-shell .topbar-view-menu-btn[aria-expanded="true"] {{
@@ -1851,11 +1878,15 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
-      transform-origin: 50% 50%;
-      transition: transform 160ms ease;
     }}
-    .chat-panel-collapse-btn[aria-pressed="false"] .chat-panel-collapse-glyph {{
-      transform: rotate(180deg);
+    .chat-panel-collapse-glyph-expand {{
+      display: none;
+    }}
+    .chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-collapse {{
+      display: none;
+    }}
+    .chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-expand {{
+      display: block;
     }}
     .chat-peer-add-toggle-btn {{
       border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent));
@@ -1886,7 +1917,7 @@
     .workspace-shell.chat-panel-collapsed .chat-users-head-launcher-shell .topbar-view-menu-btn {{
       width: 100%;
       min-width: 0;
-      padding: 0 9px 0 6px;
+      padding: 0 11px 0 7px;
     }}
     .workspace-shell.chat-panel-collapsed .chat-users-head-actions {{
       margin-left: auto;
