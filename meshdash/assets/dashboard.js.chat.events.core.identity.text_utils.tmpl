@@ -40,17 +40,67 @@
       return {{ url, trailing }};
     }}
 
+    const chatEmojiSegmenter = (
+      typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+    )
+      ? new Intl.Segmenter(undefined, {{ granularity: "grapheme" }})
+      : null;
+    const chatInlineEmojiTokenRe = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3)/u;
+
+    function chatSplitGraphemes(textValue) {{
+      const raw = String(textValue == null ? "" : textValue);
+      if (!raw) return [];
+      return chatEmojiSegmenter
+        ? Array.from(chatEmojiSegmenter.segment(raw), (segment) => String(segment.segment || ""))
+        : Array.from(raw);
+    }}
+
+    function chatIsEmojiOnlyText(textValue) {{
+      const raw = String(textValue == null ? "" : textValue).trim();
+      if (!raw) return false;
+
+      let sawEmoji = false;
+      for (const grapheme of chatSplitGraphemes(raw)) {{
+        if (!grapheme || !grapheme.trim()) continue;
+        if (chatInlineEmojiTokenRe.test(grapheme)) {{
+          sawEmoji = true;
+          continue;
+        }}
+        return false;
+      }}
+      return sawEmoji;
+    }}
+
+    function chatEscapeTextWithBreaksAndEmoji(textValue) {{
+      const raw = String(textValue == null ? "" : textValue);
+      if (!raw) return "";
+
+      const parts = [];
+      const chunks = raw.split(/(\\n|\n)/);
+      for (const chunk of chunks) {{
+        if (!chunk) continue;
+        if (chunk === "\\n" || chunk === "\n") {{
+          parts.push("<br/>");
+          continue;
+        }}
+        for (const grapheme of chatSplitGraphemes(chunk)) {{
+          const escaped = escAttr(grapheme);
+          if (chatInlineEmojiTokenRe.test(grapheme)) {{
+            parts.push(`<span class="chat-inline-emoji">${{escaped}}</span>`);
+          }} else {{
+            parts.push(escaped);
+          }}
+        }}
+      }}
+      return parts.join("");
+    }}
+
     function chatPlainTextToHtml(value, linkify = false) {{
       const raw = String(value == null ? "" : value);
       if (!raw) return "";
 
-      const escapeWithBreaks = (textValue) => {{
-        const escaped = escAttr(textValue);
-        return escaped.split("\\n").join("<br/>").split("\n").join("<br/>");
-      }};
-
       if (!linkify) {{
-        return escapeWithBreaks(raw);
+        return chatEscapeTextWithBreaksAndEmoji(raw);
       }}
 
       const parts = [];
@@ -62,7 +112,7 @@
         const token = String(match[0] || "");
         if (!token) continue;
         if (index > start) {{
-          parts.push(escapeWithBreaks(raw.slice(start, index)));
+          parts.push(chatEscapeTextWithBreaksAndEmoji(raw.slice(start, index)));
         }}
         const split = splitTrailingUrlPunctuation(token);
         const href = String(split.url || "");
@@ -70,15 +120,14 @@
         const hrefLower = href.toLowerCase();
         if (href && (hrefLower.startsWith("http://") || hrefLower.startsWith("https://"))) {{
           parts.push(`<a class="chat-link" href="${{escAttr(href)}}" target="_blank" rel="noopener noreferrer">${{escAttr(href)}}</a>`);
-          if (suffix) parts.push(escapeWithBreaks(suffix));
+          if (suffix) parts.push(chatEscapeTextWithBreaksAndEmoji(suffix));
         }} else {{
-          parts.push(escapeWithBreaks(token));
+          parts.push(chatEscapeTextWithBreaksAndEmoji(token));
         }}
         start = index + token.length;
       }}
       if (start < raw.length) {{
-        parts.push(escapeWithBreaks(raw.slice(start)));
+        parts.push(chatEscapeTextWithBreaksAndEmoji(raw.slice(start)));
       }}
       return parts.join("");
     }}
-

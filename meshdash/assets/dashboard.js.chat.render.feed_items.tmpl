@@ -98,6 +98,7 @@
           .join(" | ");
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
         const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);
+        const textEmojiOnlyClass = chatIsEmojiOnlyText(msg.text || "") ? " chat-feed-text-emoji-only" : "";
         const textCompact = compactInlineMessage(msg.text || "", 140);
         const messageId = messageIdOf(msg);
         const packetEntry = messageId ? packetSummaryById.get(String(messageId)) : null;
@@ -493,13 +494,13 @@
           </div>`;
         }}
         const summaryBody = isStatusMessage
-          ? `${{replyInline}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`
+          ? `${{replyInline}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline${{textEmojiOnlyClass}}">${{textHtml || "&nbsp;"}}</span>`
           : `${{replyInline}}${{statusBadge}}
               <span class="chat-endpoint chat-feed-author" title="${{escAttr(fromMeta.title)}}">
-                <span class="chat-name status-${{fromMeta.status}}">${{escAttr(fromMeta.label)}}</span>
+                <span class="chat-name">${{escAttr(fromMeta.label)}}</span>
               </span>
               <span class="chat-feed-colon">:</span>
-              <span class="chat-feed-text chat-feed-text-inline">${{textHtml || "&nbsp;"}}</span>`;
+              <span class="chat-feed-text chat-feed-text-inline${{textEmojiOnlyClass}}">${{textHtml || "&nbsp;"}}</span>`;
         const sideHtml = monitorMode
           ? ""
           : `<span class="chat-feed-side">

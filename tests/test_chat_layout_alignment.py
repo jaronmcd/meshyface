@@ -359,6 +359,38 @@ def test_chat_send_status_reuses_input_placeholder_instead_of_notice_row() -> No
     assert "clearChatInputPlaceholderStatus(token);" in js
 
 
+def test_chat_text_renderer_wraps_inline_emoji_for_subtle_feed_contrast() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert "const chatEmojiSegmenter = (" in js
+    assert "const chatInlineEmojiTokenRe =" in js
+    assert "function chatIsEmojiOnlyText(textValue) {" in js
+    assert "function chatEscapeTextWithBreaksAndEmoji(textValue) {" in js
+    assert 'parts.push(`<span class="chat-inline-emoji">${escaped}</span>`);' in js
+    assert "chat-feed-text-emoji-only" in js
+    assert ".chat-inline-emoji {" in css
+    assert ".chat-inline-emoji::before {" in css
+    assert ".chat-feed-text-inline.chat-feed-text-emoji-only {" in css
+    assert "font-size: 1.72em;" in css
+    assert "drop-shadow(0 0 6px rgba(255, 214, 94, 0.38))" in css
+    assert "[data-theme=\"dark\"] .chat-inline-emoji {" in css
+
+
+def test_chat_feed_author_names_do_not_encode_status_color() -> None:
+    feed_src = Path("meshdash/assets/dashboard.js.chat.render.feed_items.tmpl").read_text()
+    css = build_dashboard_css(theme_css="")
+
+    assert '<span class="chat-name">${{escAttr(fromMeta.label)}}</span>' in feed_src
+    assert 'status-${{fromMeta.status}}' not in feed_src
+    assert ".chat-feed-author .chat-name {" in css
+    assert "color: #2f4b3a;" in css
+
+
 def test_chat_node_search_syncs_to_live_navigator_row_bounds() -> None:
     js_src = Path("meshdash/assets/dashboard.js.chat.state.messaging.peers.tmpl").read_text()
 

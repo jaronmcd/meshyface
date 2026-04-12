@@ -6617,6 +6617,10 @@
       gap: 0;
       user-select: text;
     }}
+    .chat-feed-author .chat-name {{
+      color: #2f4b3a;
+      font-weight: 500;
+    }}
     .chat-feed-colon {{
       color: #6a8572;
       font-weight: 600;
@@ -6854,6 +6858,51 @@
     }}
     .chat-feed-text-inline > :last-child {{
       margin-bottom: 0;
+    }}
+    .chat-feed-text-inline.chat-feed-text-emoji-only {{
+      font-size: 18px;
+      line-height: 1.1;
+    }}
+    .chat-inline-emoji {{
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.08em;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", "EmojiOne Color", sans-serif;
+      font-size: 1.28em;
+      line-height: 1;
+      text-align: center;
+      vertical-align: -0.16em;
+      filter:
+        saturate(1.2)
+        contrast(1.08)
+        drop-shadow(0 1px 0 rgba(255, 255, 255, 0.72))
+        drop-shadow(0 0 4px rgba(255, 214, 94, 0.32));
+    }}
+    .chat-inline-emoji::before {{
+      content: "";
+      position: absolute;
+      inset: 12% 8% 10%;
+      z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.92) 0%,
+        rgba(255, 248, 213, 0.72) 34%,
+        rgba(255, 255, 255, 0) 72%
+      );
+      transform: scale(1.18);
+      opacity: 0.9;
+    }}
+    .chat-feed-text-inline.chat-feed-text-emoji-only .chat-inline-emoji {{
+      min-width: 1.16em;
+      font-size: 1.72em;
+      vertical-align: -0.18em;
+      filter:
+        saturate(1.26)
+        contrast(1.1)
+        drop-shadow(0 1px 0 rgba(255, 255, 255, 0.78))
+        drop-shadow(0 0 6px rgba(255, 214, 94, 0.38));
     }}
     .chat-feed-text-inline p,
     .chat-feed-text-inline div {{

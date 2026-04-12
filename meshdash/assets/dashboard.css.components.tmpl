@@ -2753,6 +2753,28 @@
     [data-theme="dark"] #history-chat-table .chat-link:hover {{
       color: #b8dcff;
     }}
+    [data-theme="dark"] .chat-inline-emoji {{
+      filter:
+        saturate(1.16)
+        contrast(1.1)
+        drop-shadow(0 1px 0 rgba(4, 11, 8, 0.64))
+        drop-shadow(0 0 4px rgba(110, 194, 141, 0.28));
+    }}
+    [data-theme="dark"] .chat-inline-emoji::before {{
+      background: radial-gradient(
+        circle,
+        rgba(172, 222, 193, 0.26) 0%,
+        rgba(110, 194, 141, 0.16) 38%,
+        rgba(8, 18, 13, 0) 74%
+      );
+    }}
+    [data-theme="dark"] .chat-feed-text-inline.chat-feed-text-emoji-only .chat-inline-emoji {{
+      filter:
+        saturate(1.2)
+        contrast(1.12)
+        drop-shadow(0 1px 0 rgba(4, 11, 8, 0.68))
+        drop-shadow(0 0 6px rgba(110, 194, 141, 0.34));
+    }}
     [data-theme="dark"] .chat-endpoint .chat-id-bg {{
       background: #24382f;
       border-color: #416253;
