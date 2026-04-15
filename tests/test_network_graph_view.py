@@ -129,12 +129,12 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert '<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip"' in js
     assert 'bindNetworkGraphSummaryControls();' in js
     assert 'Avg packet hops: ${edge.avgHops == null ? "n/a" : edge.avgHops}' in js
-    assert 'Graph distance from root: ${item.layer}' in js
+    assert '${item.layer} hop${item.layer === 1 ? "" : "s"} away' in js
     assert 'last packet hops away:' in js
-    assert 'label: `distance ${layer}`,' in js
+    assert 'label: `${layer} hop${layer === 1 ? "" : "s"}`,' in js
     assert 'Switch Links view between stored history topology and the current session topology' in js
-    assert '<span class="network-graph-chip-label">Distance 1</span>' in js
-    assert 'Numbered rings show shortest graph distance from the current root, not literal packet-route hops.' in js
+    assert '<span class="network-graph-chip-label">1 Hop</span>' in js
+    assert 'Numbered hop rings show shortest graph distance from the current root, not literal packet-route hops.' in js
     assert 'const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph";' in js
     assert 'const weeklySummaryPromise = (activeLayoutView === "history" || activeLayoutView === "network")' in js
     assert 'if (weeklySummaryPromise) {' in js
