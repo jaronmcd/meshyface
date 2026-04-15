@@ -31,7 +31,12 @@ def test_dashboard_js_skips_redundant_chat_workspace_poll_renders() -> None:
     assert 'const linksSection = needsLinksSection && linkStats' in js
     assert "renderChatChangeSummary(nowUnix);" in js
     assert "function syncNetworkGraphSceneSelection(svg, options = {}) {" in js
+    assert "function buildNetworkGraphSceneStructureSignature(scene) {" in js
+    assert "function syncNetworkGraphSceneData(svg, scene) {" in js
     assert "const canPatchSelectionOnly = !!(" in js
     assert "const canSkipSceneRender = !!(" in js
+    assert "const canPatchSceneDataOnly = !!(" in js
     assert "syncNetworkGraphSceneSelection(svg, { rootId, selectedId });" in js
+    assert 'data-network-graph-edge-key="${escAttr(buildNetworkGraphEdgeDomKey(edge))}"' in js
+    assert "syncNetworkGraphSceneData(svg, scene);" in js
     assert "hash = hashMixStr(hash, normalizeNodeId(selectedNodeId || \"\"));" not in js
