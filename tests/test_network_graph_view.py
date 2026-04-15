@@ -32,6 +32,7 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-graph-back-btn"' in html
     assert 'id="network-graph-home-btn"' in html
     assert 'id="network-graph-reset-view-btn"' in html
+    assert 'id="network-graph-live-toggle"' in html
     assert 'id="network-graph-summary"' in html
     assert 'id="network-graph-legend"' in html
     assert 'id="network-diagnostics-window"' in html
@@ -81,6 +82,7 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'emptyRetryTimer: null,' in js
     assert 'emptyRetryCount: 0,' in js
     assert 'pendingEntryViewportSync: false,' in js
+    assert 'pendingModeViewportSync: false,' in js
     assert 'function bindNetworkGraphInteractions(svg)' in js
     assert 'function getNetworkGraphStageAspectRatio(svg = null)' in js
     assert 'function isNetworkGraphPointVisible(viewBox, x, y, paddingRatio = 0.08)' in js
@@ -92,11 +94,22 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function buildNetworkGraphSceneMarkup(scene)' in js
     assert 'function animateNetworkGraphScene(svg, fromLayout, toLayout, options = {})' in js
     assert 'function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets)' in js
+    assert 'const networkGraphModeStorageKey = "meshDashboardNetworkGraphModeV1";' in js
+    assert 'let networkGraphEdgeMode = "history";' in js
+    assert 'function normalizeNetworkGraphEdgeMode(raw)' in js
+    assert 'function loadPreferredNetworkGraphEdgeMode()' in js
+    assert 'function persistPreferredNetworkGraphEdgeMode(modeName)' in js
     assert 'const networkGraphZoomBounds = Object.freeze({ minScale: 0.42, maxScale: 5.5 });' in js
     assert 'function networkGraphNodeHasLinkPeers(nodeId, adjacency, nodeMap = null)' in js
     assert 'function buildNetworkGraphPlaceholderNode(nodeId, caps = null)' in js
-    assert 'function buildNetworkGraphNodeMap(nodes, historyCapsRaw, rawEdges)' in js
+    assert 'function buildNetworkGraphNodeMap(nodes, historyCapsRaw, rawEdges, options = {})' in js
+    assert 'const includeAllLiveNodes = !(options && options.includeAllLiveNodes === false);' in js
+    assert 'const pinnedNodeIds = Array.isArray(options && options.pinnedNodeIds)' in js
+    assert 'function filterNetworkGraphRawEdgesByMode(rawEdges, mode = networkGraphEdgeMode)' in js
     assert 'function doesNetworkGraphViewBoxContainBounds(viewBox, bounds, paddingRatio = 0.04)' in js
+    assert 'function syncNetworkGraphModeToggle()' in js
+    assert 'function bindNetworkGraphSummaryControls()' in js
+    assert 'function setNetworkGraphEdgeMode(modeName, options = {})' in js
     assert 'function setNetworkGraphRootNode(nodeId, options = {})' in js
     assert 'function navigateNetworkGraphBack()' in js
     assert 'function focusNetworkGraphNodeFromSelection(nodeId, options = {})' in js
@@ -104,13 +117,21 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const localNodeHasLinkPeers = localNodeAvailable' in js
     assert 'if (localNodeAvailable && (localNodeHasLinkPeers || bestDegree <= 0)) {' in js
     assert 'Object.entries((historyCapsRaw && typeof historyCapsRaw === "object") ? historyCapsRaw : {})' in js
-    assert 'buildNetworkGraphPlaceholderNode(fromId, historyCapsById.get(fromId) || null)' in js
-    assert 'buildNetworkGraphPlaceholderNode(toId, historyCapsById.get(toId) || null)' in js
-    assert 'const nodeMap = buildNetworkGraphNodeMap(nodes, historyCaps, rawEdges);' in js
-    assert 'const nodeMap = buildNetworkGraphNodeMap(liveNodes, historyCaps, rawEdges);' in js
+    assert 'buildNetworkGraphPlaceholderNode(clean, historyCapsById.get(clean) || null)' in js
+    assert 'const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, edgeMode);' in js
+    assert 'const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, networkGraphEdgeMode);' in js
+    assert 'includeAllLiveNodes: edgeMode !== "live",' in js
+    assert 'includeAllLiveNodes: normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) !== "live",' in js
+    assert 'const nodeMap = buildNetworkGraphNodeMap(nodes, historyCaps, filteredRawEdges, {' in js
+    assert 'const nodeMap = buildNetworkGraphNodeMap(liveNodes, historyCaps, filteredRawEdges, {' in js
+    assert 'const parsedWeight = useSessionWeight ? parsedSession : parsedLifetime;' in js
+    assert 'empty.textContent = edgeMode === "live"' in js
+    assert '<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip"' in js
+    assert 'bindNetworkGraphSummaryControls();' in js
     assert 'const fittedViewBox = fitNetworkGraphViewBoxToBounds(networkGraphViewState.bounds, svg);' in js
     assert 'const rootChanged = networkGraphViewState.lastRootId !== rootId;' in js
     assert '&& !doesNetworkGraphViewBoxContainBounds(networkGraphViewState.viewBox, networkGraphViewState.bounds, 0.05)' in js
+    assert 'const shouldRefitForModeChange = !!(' in js
     assert 'animateNetworkGraphViewBox(svg, fittedViewBox);' in js
     assert 'Broadcast only' in js
     assert 'is-broadcast-only' in js
@@ -146,6 +167,8 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-stage {" in css
     assert "touch-action: none;" in css
     assert ".network-graph-stage.is-panning {" in css
+    assert ".network-graph-live-toggle[aria-pressed=\"true\"] {" in css
+    assert ".network-graph-mode-chip {" in css
     assert ".network-graph-swatch.is-broadcast-only {" in css
     assert ".network-graph-ring.is-broadcast-only {" in css
     assert ".network-graph-node.is-broadcast-only .network-graph-node-core {" in css

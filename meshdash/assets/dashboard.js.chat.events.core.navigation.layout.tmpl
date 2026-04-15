@@ -689,6 +689,8 @@
     }}
 
     const networkDiagnosticsEnabled = !!Number({debug_mode_enabled});
+    const networkGraphModeStorageKey = "meshDashboardNetworkGraphModeV1";
+    let networkGraphEdgeMode = "history";
 
     function normalizeNetworkSubview(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
@@ -697,6 +699,10 @@
       if (clean === "overview" || clean === "graph" || clean === "sensors") return clean;
       if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";
       return "map";
+    }}
+
+    function normalizeNetworkGraphEdgeMode(raw) {{
+      return String(raw || "").trim().toLowerCase() === "live" ? "live" : "history";
     }}
 
     function loadPreferredNetworkSubview() {{
@@ -712,6 +718,23 @@
       const next = normalizeNetworkSubview(subviewName);
       try {{
         window.localStorage.setItem(networkSubviewStorageKey, next);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadPreferredNetworkGraphEdgeMode() {{
+      try {{
+        const raw = window.localStorage.getItem(networkGraphModeStorageKey) || "history";
+        return normalizeNetworkGraphEdgeMode(raw);
+      }} catch (_err) {{
+        return "history";
+      }}
+    }}
+
+    function persistPreferredNetworkGraphEdgeMode(modeName) {{
+      const next = normalizeNetworkGraphEdgeMode(modeName);
+      try {{
+        window.localStorage.setItem(networkGraphModeStorageKey, next);
       }} catch (_err) {{
       }}
     }}
@@ -1052,6 +1075,7 @@
         clearNetworkGraphEmptyRetry();
       }}
       activeNetworkSubview = next;
+      syncNetworkGraphModeToggle();
 
       const normalizedView = normalizeLayoutView(activeLayoutView);
       const showTabbedSubview = normalizedView === "network";
@@ -1309,6 +1333,7 @@
       initialized: false,
       lastRootId: "",
       pendingEntryViewportSync: false,
+      pendingModeViewportSync: false,
       bounds: {{
         minX: networkGraphViewportBase.x,
         minY: networkGraphViewportBase.y,
@@ -1997,6 +2022,59 @@
       }}
     }}
 
+    function syncNetworkGraphModeToggle() {{
+      const toggleBtn = document.getElementById("network-graph-live-toggle");
+      if (!(toggleBtn instanceof HTMLButtonElement)) return;
+      const isLiveMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) === "live";
+      toggleBtn.classList.toggle("is-active", isLiveMode);
+      toggleBtn.setAttribute("aria-pressed", isLiveMode ? "true" : "false");
+      toggleBtn.title = isLiveMode
+        ? "Showing current-session links. Click to switch back to stored history."
+        : "Showing stored history links. Click to show the current session only.";
+      toggleBtn.setAttribute(
+        "aria-label",
+        isLiveMode
+          ? "Links view is showing the current session. Click to switch to stored history."
+          : "Links view is showing stored history. Click to switch to the current session."
+      );
+    }}
+
+    function bindNetworkGraphSummaryControls() {{
+      const modeChip = document.getElementById("network-graph-mode-chip");
+      if (!(modeChip instanceof HTMLButtonElement) || modeChip.dataset.bound === "1") return;
+      modeChip.dataset.bound = "1";
+      modeChip.addEventListener("click", () => {{
+        const nextMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) === "live"
+          ? "history"
+          : "live";
+        setNetworkGraphEdgeMode(nextMode, {{ persist: true, rerender: true }});
+      }});
+    }}
+
+    function setNetworkGraphEdgeMode(modeName, options = {{}}) {{
+      const next = normalizeNetworkGraphEdgeMode(modeName);
+      const changed = next !== normalizeNetworkGraphEdgeMode(networkGraphEdgeMode);
+      networkGraphEdgeMode = next;
+      syncNetworkGraphModeToggle();
+      if (!(options && options.persist === false)) {{
+        persistPreferredNetworkGraphEdgeMode(next);
+      }}
+      if (changed) {{
+        networkGraphViewState.pendingEntryViewportSync = true;
+        networkGraphViewState.pendingModeViewportSync = true;
+      }}
+      if (
+        changed
+        && !(options && options.rerender === false)
+        && activeLayoutView === "network"
+        && activeNetworkSubview === "graph"
+        && typeof renderNetworkGraphView === "function"
+      ) {{
+        renderNetworkGraphView(latestState);
+      }}
+      return changed;
+    }}
+
     function setNetworkGraphRootNode(nodeId, options = {{}}) {{
       const nextId = normalizeNodeId(nodeId || "");
       if (!isSelectableNodeId(nextId)) return false;
@@ -2063,7 +2141,15 @@
         ? latestState.traffic
         : {{}};
       const rawEdges = Array.isArray(traffic.edges) ? traffic.edges : [];
-      const nodeMap = buildNetworkGraphNodeMap(liveNodes, historyCaps, rawEdges);
+      const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, networkGraphEdgeMode);
+      const nodeMap = buildNetworkGraphNodeMap(liveNodes, historyCaps, filteredRawEdges, {{
+        includeAllLiveNodes: normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) !== "live",
+        pinnedNodeIds: [
+          networkGraphRootNodeId,
+          selectedNodeId,
+          resolveLocalNodeId(latestState),
+        ],
+      }});
       while (networkGraphRootHistory.length) {{
         const previousId = normalizeNodeId(networkGraphRootHistory.pop() || "");
         if (!isSelectableNodeId(previousId)) continue;
@@ -2111,6 +2197,18 @@
           resetNetworkGraphView(svg);
         }});
       }}
+
+      const liveToggleBtn = document.getElementById("network-graph-live-toggle");
+      if (liveToggleBtn instanceof HTMLButtonElement && liveToggleBtn.dataset.bound !== "1") {{
+        liveToggleBtn.dataset.bound = "1";
+        liveToggleBtn.addEventListener("click", () => {{
+          const nextMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) === "live"
+            ? "history"
+            : "live";
+          setNetworkGraphEdgeMode(nextMode, {{ persist: true, rerender: true }});
+        }});
+      }}
+      syncNetworkGraphModeToggle();
 
       svg.addEventListener("pointerdown", (event) => {{
         if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -2245,13 +2343,25 @@
       }};
     }}
 
-    function buildNetworkGraphNodeMap(nodes, historyCapsRaw, rawEdges) {{
-      const nodeMap = new Map();
+    function buildNetworkGraphNodeMap(nodes, historyCapsRaw, rawEdges, options = {{}}) {{
+      const liveNodeById = new Map();
       for (const node of (Array.isArray(nodes) ? nodes : [])) {{
         const nodeId = normalizeNodeId(node && node.id);
-        if (!isSelectableNodeId(nodeId) || nodeMap.has(nodeId)) continue;
-        nodeMap.set(nodeId, node);
+        if (!isSelectableNodeId(nodeId) || liveNodeById.has(nodeId)) continue;
+        liveNodeById.set(nodeId, node);
       }}
+      const nodeMap = new Map();
+      const includeAllLiveNodes = !(options && options.includeAllLiveNodes === false);
+      if (includeAllLiveNodes) {{
+        for (const [nodeId, node] of liveNodeById.entries()) {{
+          nodeMap.set(nodeId, node);
+        }}
+      }}
+      const pinnedNodeIds = Array.isArray(options && options.pinnedNodeIds)
+        ? options.pinnedNodeIds
+          .map((nodeId) => normalizeNodeId(nodeId))
+          .filter((nodeId) => isSelectableNodeId(nodeId))
+        : [];
 
       const historyCapsById = new Map(
         Object.entries((historyCapsRaw && typeof historyCapsRaw === "object") ? historyCapsRaw : {{}})
@@ -2259,27 +2369,55 @@
           .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
       );
 
+      const ensureNode = (nodeId) => {{
+        const clean = normalizeNodeId(nodeId || "");
+        if (!isSelectableNodeId(clean) || nodeMap.has(clean)) return;
+        if (liveNodeById.has(clean)) {{
+          nodeMap.set(clean, liveNodeById.get(clean));
+          return;
+        }}
+        nodeMap.set(clean, buildNetworkGraphPlaceholderNode(clean, historyCapsById.get(clean) || null));
+      }};
+
+      for (const nodeId of pinnedNodeIds) {{
+        ensureNode(nodeId);
+      }}
+
       for (const edge of (Array.isArray(rawEdges) ? rawEdges : [])) {{
         const fromId = normalizeNodeId(edge && edge.from);
         const toId = normalizeNodeId(edge && edge.to);
-        if (isSelectableNodeId(fromId) && !nodeMap.has(fromId)) {{
-          nodeMap.set(fromId, buildNetworkGraphPlaceholderNode(fromId, historyCapsById.get(fromId) || null));
-        }}
-        if (isSelectableNodeId(toId) && !nodeMap.has(toId)) {{
-          nodeMap.set(toId, buildNetworkGraphPlaceholderNode(toId, historyCapsById.get(toId) || null));
-        }}
+        ensureNode(fromId);
+        ensureNode(toId);
       }}
 
       return nodeMap;
     }}
 
-    function combineNetworkGraphEdges(rawEdges, nodeMap) {{
+    function filterNetworkGraphRawEdgesByMode(rawEdges, mode = networkGraphEdgeMode) {{
+      const safeEdges = Array.isArray(rawEdges) ? rawEdges : [];
+      const edgeMode = normalizeNetworkGraphEdgeMode(mode);
+      if (edgeMode !== "live") return safeEdges;
+      return safeEdges.filter((edge) => {{
+        const sessionCount = Number(edge && (edge.session_count ?? edge.count ?? 0));
+        return Number.isFinite(sessionCount) && sessionCount > 0;
+      }});
+    }}
+
+    function combineNetworkGraphEdges(rawEdges, nodeMap, options = {{}}) {{
+      const edgeMode = normalizeNetworkGraphEdgeMode(options && options.mode);
+      const useSessionWeight = edgeMode === "live";
       const buckets = new Map();
       for (const edge of (rawEdges || [])) {{
         const fromId = normalizeNodeId(edge && edge.from);
         const toId = normalizeNodeId(edge && edge.to);
         if (!isSelectableNodeId(fromId) || !isSelectableNodeId(toId) || fromId === toId) continue;
         if (!(nodeMap instanceof Map) || !nodeMap.has(fromId) || !nodeMap.has(toId)) continue;
+        const lifetimeCount = Number(edge && (edge.lifetime_count ?? edge.count ?? 0));
+        const sessionCount = Number(edge && (edge.session_count ?? edge.count ?? 0));
+        const parsedLifetime = Number.isFinite(lifetimeCount) ? Math.max(0, lifetimeCount) : 0;
+        const parsedSession = Number.isFinite(sessionCount) ? Math.max(0, sessionCount) : 0;
+        const parsedWeight = useSessionWeight ? parsedSession : parsedLifetime;
+        if (parsedWeight <= 0) continue;
         const a = fromId < toId ? fromId : toId;
         const b = fromId < toId ? toId : fromId;
         const key = `${{a}}::${{b}}`;
@@ -2309,11 +2447,7 @@
         }}
         const bucket = buckets.get(key);
         if (!bucket) continue;
-        const lifetimeCount = Number(edge && (edge.lifetime_count ?? edge.count ?? 0));
-        const sessionCount = Number(edge && (edge.session_count ?? edge.count ?? 0));
-        const parsedLifetime = Number.isFinite(lifetimeCount) ? Math.max(0, lifetimeCount) : 0;
-        const parsedSession = Number.isFinite(sessionCount) ? Math.max(0, sessionCount) : 0;
-        bucket.weight += parsedLifetime;
+        bucket.weight += parsedWeight;
         bucket.sessionWeight += parsedSession;
         bucket.isReal = bucket.isReal || !!(edge && edge.is_real);
         bucket.directionCount += 1;
@@ -2737,9 +2871,19 @@
         : {{}};
       const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
       const rawEdges = Array.isArray(traffic.edges) ? traffic.edges : [];
-      const nodeMap = buildNetworkGraphNodeMap(nodes, historyCaps, rawEdges);
+      const edgeMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode);
+      const modeLabel = edgeMode === "live" ? "Live" : "History";
+      const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, edgeMode);
+      const nodeMap = buildNetworkGraphNodeMap(nodes, historyCaps, filteredRawEdges, {{
+        includeAllLiveNodes: edgeMode !== "live",
+        pinnedNodeIds: [
+          networkGraphRootNodeId,
+          selectedNodeId,
+          resolveLocalNodeId(safeState),
+        ],
+      }});
 
-      const combinedEdges = combineNetworkGraphEdges(rawEdges, nodeMap);
+      const combinedEdges = combineNetworkGraphEdges(filteredRawEdges, nodeMap, {{ mode: edgeMode }});
       const layout = buildNetworkGraphLayout(nodeMap, combinedEdges, safeState);
       const rootId = layout.rootId;
       if (!rootId || !layout.items.length) {{
@@ -2750,6 +2894,7 @@
         networkGraphViewState.lastRootId = "";
         networkGraphViewState.initialized = false;
         networkGraphViewState.pendingEntryViewportSync = false;
+        networkGraphViewState.pendingModeViewportSync = false;
         networkGraphViewState.renderedPositions = new Map();
         networkGraphViewState.renderedLayoutSnapshot = null;
         networkGraphViewState.pendingFocusTransition = null;
@@ -2757,6 +2902,9 @@
         applyNetworkGraphViewBox(svg, networkGraphViewportBase);
         summary.innerHTML = "";
         legend.innerHTML = "";
+        empty.textContent = edgeMode === "live"
+          ? "No live node links recorded in this session yet."
+          : "No node links recorded yet.";
         empty.hidden = false;
         scheduleNetworkGraphEmptyRetry();
         return;
@@ -2764,12 +2912,14 @@
 
       clearNetworkGraphEmptyRetry();
       empty.hidden = true;
+      syncNetworkGraphModeToggle();
       const selectedId = normalizeNodeId(selectedNodeId || "");
       const rootLabel = networkGraphNodeDisplayName(rootId, nodeMap);
       const firstHopCount = Array.isArray(layout.layers.get(1)) ? layout.layers.get(1).length : 0;
       const realLinkCount = combinedEdges.filter((edge) => !!(edge && edge.isReal)).length;
       const rootItem = layout.items.find((item) => item && item.nodeId === rootId) || null;
       const summaryParts = [
+        `<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip" type="button" aria-pressed="${{edgeMode === "live" ? "true" : "false"}}" title="Switch Links view between stored history and the current session"><span class="network-graph-chip-label">Mode</span><strong>${{modeLabel}}</strong></button>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Root</span><strong>${{escAttr(truncateNetworkGraphLabel(rootLabel, 28))}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Nodes</span><strong>${{layout.items.length}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Links</span><strong>${{combinedEdges.length}}</strong></span>`,
@@ -2796,6 +2946,7 @@
         );
       }}
       summary.innerHTML = summaryParts.join("");
+      bindNetworkGraphSummaryControls();
       networkGraphViewState.bounds = computeNetworkGraphBounds(layout);
       networkGraphRootNodeId = rootId;
       const fittedViewBox = fitNetworkGraphViewBoxToBounds(networkGraphViewState.bounds, svg);
@@ -2822,9 +2973,16 @@
         rootChanged
         && !doesNetworkGraphViewBoxContainBounds(networkGraphViewState.viewBox, networkGraphViewState.bounds, 0.05)
       );
+      const shouldRefitForModeChange = !!(
+        networkGraphViewState.pendingModeViewportSync
+        && !doesNetworkGraphViewBoxContainBounds(networkGraphViewState.viewBox, networkGraphViewState.bounds, 0.05)
+      );
       if (!networkGraphViewState.initialized) {{
         stopNetworkGraphPan(svg);
         resetNetworkGraphView(svg, {{ animate: false }});
+      }} else if (shouldRefitForModeChange) {{
+        stopNetworkGraphPan(svg);
+        animateNetworkGraphViewBox(svg, fittedViewBox);
       }} else if (rootChanged) {{
         stopNetworkGraphPan(svg);
         if (shouldRefitForRootChange) {{
@@ -2839,12 +2997,14 @@
         applyNetworkGraphViewBox(svg, networkGraphViewState.viewBox);
       }}
       networkGraphViewState.pendingEntryViewportSync = false;
+      networkGraphViewState.pendingModeViewportSync = false;
       networkGraphViewState.pendingFocusTransition = null;
       networkGraphViewState.lastRootId = rootId;
       networkGraphViewState.renderedPositions = new Map(layout.positions);
       networkGraphViewState.renderedLayoutSnapshot = cloneNetworkGraphLayoutSnapshot(layout);
 
       legend.innerHTML = [
+        `<span class="network-graph-legend-item hint">${{modeLabel}} mode: ${{edgeMode === "live" ? "current-session links only" : "stored link history"}}</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-root"></span>Root / selected node</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-real"></span>${{realLinkCount}} confirmed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-observed"></span>${{Math.max(0, combinedEdges.length - realLinkCount)}} observed links</span>`,
@@ -3781,6 +3941,7 @@
         rawPreferred = String(window.localStorage.getItem(layoutViewStorageKey) || "chat");
       }} catch (_err) {{
       }}
+      networkGraphEdgeMode = loadPreferredNetworkGraphEdgeMode();
       activeNetworkSubview = loadPreferredNetworkSubview();
       setActiveNetworkSubview(activeNetworkSubview, {{ persist: false }});
       const preferred = normalizeLayoutView(rawPreferred);
