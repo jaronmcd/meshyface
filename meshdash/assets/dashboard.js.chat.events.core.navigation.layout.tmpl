@@ -2703,10 +2703,10 @@
     }}
 
     function resolveNetworkGraphRootId(nodeMap, adjacency, degreeMeta, state) {{
-      const graphRootId = normalizeNodeId(networkGraphRootNodeId || "");
-      if (graphRootId && nodeMap.has(graphRootId)) return graphRootId;
       const selectedId = normalizeNodeId(selectedNodeId || "");
       if (selectedId && nodeMap.has(selectedId)) return selectedId;
+      const graphRootId = normalizeNodeId(networkGraphRootNodeId || "");
+      if (graphRootId && nodeMap.has(graphRootId)) return graphRootId;
       const localNodeId = normalizeNodeId(resolveLocalNodeId(state || latestState || {{}}) || "");
       const localNodeAvailable = !!(localNodeId && nodeMap.has(localNodeId));
       const localNodeHasLinkPeers = localNodeAvailable

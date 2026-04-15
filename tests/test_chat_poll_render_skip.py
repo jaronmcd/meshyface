@@ -33,6 +33,8 @@ def test_dashboard_js_skips_redundant_chat_workspace_poll_renders() -> None:
     assert "function syncNetworkGraphSceneSelection(svg, options = {}) {" in js
     assert "function buildNetworkGraphSceneStructureSignature(scene) {" in js
     assert "function syncNetworkGraphSceneData(svg, scene) {" in js
+    assert 'const selectedId = normalizeNodeId(selectedNodeId || "");' in js
+    assert 'if (selectedId && nodeMap.has(selectedId)) return selectedId;' in js
     assert "const nodeSelectionUiState = {" in js
     assert "const nodeSelectionPerfState = {" in js
     assert "function beginNodeSelectionPerf(nodeId, meta = {}) {" in js
@@ -42,6 +44,9 @@ def test_dashboard_js_skips_redundant_chat_workspace_poll_renders() -> None:
     assert "function flushNodeSelectionUiRefresh() {" in js
     assert 'const networkMapVisible = activeLayoutView === "network" && activeNetworkSubviewName === "map";' in js
     assert 'if (latestState && (activeLayoutView !== "network" || networkMapVisible)) {' in js
+    assert 'const shouldPrefetchNodeHistory = !!(' in js
+    assert 'activeTab === "history"' in js
+    assert 'if (activeLayoutView === "saved" || networkMapVisible) {' in js
     assert "const canPatchSelectionOnly = !!(" in js
     assert "const canSkipSceneRender = !!(" in js
     assert "const canPatchSceneDataOnly = !!(" in js

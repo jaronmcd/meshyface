@@ -2018,8 +2018,21 @@
       if (notesHost instanceof HTMLElement && !notesHost.querySelector("#saved-node-note-input")) {{
         notesHost.innerHTML = "";
       }}
-      if (opts.fetchHistory !== false) {{
-        // Even on the Details tab we want the network map trail ready when the drawer opens.
+      const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
+        ? normalizeNetworkSubview(activeNetworkSubview)
+        : String(activeNetworkSubview || "map").trim().toLowerCase();
+      const shouldPrefetchNodeHistory = !!(
+        opts.fetchHistory !== false
+        && (
+          activeLayoutView === "saved"
+          || (activeLayoutView === "network" && activeNetworkSubviewName === "map")
+          || activeTab === "details"
+          || activeTab === "location"
+          || activeTab === "history"
+        )
+      );
+      if (shouldPrefetchNodeHistory) {{
+        // Preload history only for tabs/views that can immediately use it.
         void refreshSelectedNodeHistory(false);
       }}
 

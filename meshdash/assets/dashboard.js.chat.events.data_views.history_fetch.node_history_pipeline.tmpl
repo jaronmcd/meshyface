@@ -254,6 +254,10 @@
       const nodes = state.nodes || [];
       const traffic = (state.traffic || {{}});
       const edges = traffic.edges || [];
+      const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
+        ? normalizeNetworkSubview(activeNetworkSubview)
+        : String(activeNetworkSubview || "map").trim().toLowerCase();
+      const networkMapVisible = activeLayoutView === "network" && activeNetworkSubviewName === "map";
       const drawerExpanded = (
         typeof isChatNodeDetailsDrawerExpanded === "function"
         && isChatNodeDetailsDrawerExpanded()
@@ -265,13 +269,13 @@
       const shouldShowNodeHistoryPanel = activeLayoutView === "saved" || drawerHistoryActive;
       let historyPanelRendered = false;
 
-      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+      if (activeLayoutView === "saved" || networkMapVisible) {{
         runHistoryViewRenderStep("map render", () => {{
           renderMap(nodes, edges, nodeHistory);
         }});
       }}
 
-      if (activeLayoutView === "network" && pendingMapHistoryFocus) {{
+      if (networkMapVisible && pendingMapHistoryFocus) {{
         runHistoryViewRenderStep("map focus", () => {{
           const historyNodeId = normalizeNodeId((nodeHistory && nodeHistory.node_id) || "");
           const selectionId = normalizeNodeId(selectedNodeId || "");
@@ -283,7 +287,7 @@
       }}
 
       // The signal plot lives in the map-data panel, rendered by renderTraffic.
-      if (activeLayoutView === "saved" || activeLayoutView === "network") {{
+      if (activeLayoutView === "saved" || networkMapVisible) {{
         const trafficRender = runHistoryViewRenderStep("map data panel", () => (
           renderTraffic(traffic, nodes, nodeHistory)
         ));
