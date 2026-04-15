@@ -1520,7 +1520,7 @@
           `Packets: ${{Math.round(edge.weight)}}`,
           `Directions observed: ${{edge.directionCount}}`,
           `Last seen: ${{lastAgeLabel}}`,
-          `Avg hops: ${{edge.avgHops == null ? "n/a" : edge.avgHops}}`,
+          `Avg packet hops: ${{edge.avgHops == null ? "n/a" : edge.avgHops}}`,
         ].join("\n");
         return `
           <line
@@ -1554,7 +1554,7 @@
           )
           : item.detached
           ? "No current path from the root"
-          : (item.layer === 0 ? "Root node" : `${{item.layer}} hop${{item.layer === 1 ? "" : "s"}} away`);
+          : (item.layer === 0 ? "Root node" : `Graph distance from root: ${{item.layer}}`);
         const title = [
           displayName,
           item.nodeId,
@@ -1565,7 +1565,7 @@
             ? (
               Number(item.signalMeta.broadcastPacketCount || 0) > 0
                 ? `Recent broadcast packets: ${{item.signalMeta.broadcastPacketCount}}${{item.signalMeta.lastPortnum ? ` (${{item.signalMeta.lastPortnum}})` : ""}}`
-                : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
+                : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, last packet hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
             )
             : "",
           `Last heard: ${{(item.node && item.node.last_heard) || "n/a"}}`,
@@ -2785,7 +2785,7 @@
           : (firstRingRadius + ((layer - 1) * ringStep));
         return {{
           radius,
-          label: `${{layer}} hop${{layer === 1 ? "" : "s"}}`,
+          label: `distance ${{layer}}`,
           detached: false,
         }};
       }});
@@ -2919,7 +2919,7 @@
       const realLinkCount = combinedEdges.filter((edge) => !!(edge && edge.isReal)).length;
       const rootItem = layout.items.find((item) => item && item.nodeId === rootId) || null;
       const summaryParts = [
-        `<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip" type="button" aria-pressed="${{edgeMode === "live" ? "true" : "false"}}" title="Switch Links view between stored history and the current session"><span class="network-graph-chip-label">Mode</span><strong>${{modeLabel}}</strong></button>`,
+        `<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip" type="button" aria-pressed="${{edgeMode === "live" ? "true" : "false"}}" title="Switch Links view between stored history topology and the current session topology"><span class="network-graph-chip-label">Mode</span><strong>${{modeLabel}}</strong></button>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Root</span><strong>${{escAttr(truncateNetworkGraphLabel(rootLabel, 28))}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Nodes</span><strong>${{layout.items.length}}</strong></span>`,
         `<span class="network-graph-chip"><span class="network-graph-chip-label">Links</span><strong>${{combinedEdges.length}}</strong></span>`,
@@ -2932,7 +2932,7 @@
       }}
       if (firstHopCount > 0) {{
         summaryParts.push(
-          `<span class="network-graph-chip"><span class="network-graph-chip-label">1 Hop</span><strong>${{firstHopCount}}</strong></span>`
+          `<span class="network-graph-chip"><span class="network-graph-chip-label">Distance 1</span><strong>${{firstHopCount}}</strong></span>`
         );
       }}
       if (layout.broadcastOnlyCount > 0) {{
@@ -3004,12 +3004,13 @@
       networkGraphViewState.renderedLayoutSnapshot = cloneNetworkGraphLayoutSnapshot(layout);
 
       legend.innerHTML = [
-        `<span class="network-graph-legend-item hint">${{modeLabel}} mode: ${{edgeMode === "live" ? "current-session links only" : "stored link history"}}</span>`,
+        `<span class="network-graph-legend-item hint">${{modeLabel}} mode: ${{edgeMode === "live" ? "current-session link topology only" : "stored link-history topology"}}</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-root"></span>Root / selected node</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-real"></span>${{realLinkCount}} confirmed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-observed"></span>${{Math.max(0, combinedEdges.length - realLinkCount)}} observed links</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-broadcast-only"></span>Nodes heard recently, but only via broadcast</span>`,
         `<span class="network-graph-legend-item"><span class="network-graph-swatch is-detached"></span>Nodes with no current path or recent broadcast evidence</span>`,
+        `<span class="network-graph-legend-item hint">Numbered rings show shortest graph distance from the current root, not literal packet-route hops.</span>`,
         `<span class="network-graph-legend-item hint">Click to refocus, scroll to zoom, and use Back, Home, or Reset view from inside the graph.</span>`,
       ].join("");
       const scene = {{
@@ -3728,6 +3729,7 @@
       syncNodeHistoryDock();
       syncEnvironmentMetricsDock(next, activeNetworkSubview);
       if (latestState) {{
+        const networkGraphActive = next === "network" && activeNetworkSubview === "graph";
         let cachedNodeHistory = null;
         const viewHistoryNodeId = next === "saved"
           ? resolveSavedViewNodeId(latestState)
@@ -3753,6 +3755,9 @@
         }}
         if (next === "network") {{
           renderNodes(latestState.nodes || []);
+          if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
+            renderNetworkGraphView(latestState);
+          }}
           if (activeNetworkSubview === "diagnostics") {{
             void refreshNetworkDiagnosticsPanel(false);
           }}

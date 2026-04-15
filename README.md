@@ -236,6 +236,23 @@ python mesh_dashboard.py \
 If you pass the base history path and multiple profiled DBs exist, backfill
 selects the most recently modified matching profiled DB.
 
+## Links View Semantics
+
+The `Links` subview is a topology view, not a packet-route replay.
+
+- `History` mode draws from the stored link history saved in SQLite.
+- `Live` mode draws from current-session link observations only.
+- The numbered rings show shortest graph distance from the current root using a
+  breadth-first search over the observed link graph.
+- Those ring numbers are not literal Meshtastic forwarding hops and are not a
+  real-time packet trace.
+- Packet-hop metadata, when available, is still shown separately in node or
+  edge details as packet-hop values.
+
+The current root is the node the graph is centered around. Selecting a
+different node changes the root and recomputes the numbered distance rings from
+that node.
+
 ## Proxmox And Service Deployment
 
 You have two common deployment models:

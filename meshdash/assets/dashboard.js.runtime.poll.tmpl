@@ -105,8 +105,12 @@
           if (mapVisible304) {{
             renderMap(nodes304, traffic304.edges || [], cachedHistory304);
           }}
+          const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph";
           if (activeLayoutView === "network") {{
             renderNodes(nodes304);
+            if (networkGraphActive304 && typeof renderNetworkGraphView === "function") {{
+              renderNetworkGraphView(latestState);
+            }}
           }}
           if (trafficVisible304) {{
             renderTraffic(traffic304, nodes304, cachedHistory304);
@@ -246,6 +250,7 @@
           && (mapDataFocus !== "activity" || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
+        const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph";
 
         if (mapVisible && !mapBootstrapFocusDone) {{
           const bootstrap = applyMapBootstrapFocus(state.nodes || [], state);
@@ -261,18 +266,13 @@
           }}
         }}
 
-        let weeklySummary = null;
-        if (activeLayoutView === "history" || activeLayoutView === "network") {{
-          try {{
-            weeklySummary = await fetchSummaryMetrics(weeklySummaryHours);
-          }} catch (summaryErr) {{
-            weeklySummary = {{
+        const weeklySummaryPromise = (activeLayoutView === "history" || activeLayoutView === "network")
+          ? fetchSummaryMetrics(weeklySummaryHours).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
                 : String(summaryErr || "unknown error"),
-            }};
-          }}
-        }}
+            }}))
+          : null;
         // Summary metrics now live in the global header ticker row, so keep them
         // refreshed for every active view.
         renderSummary(state);
@@ -283,16 +283,14 @@
 
         if (activeLayoutView === "network") {{
           renderNodes(state.nodes || []);
-          if (weeklySummary && !weeklySummary.error) {{
-            renderNetworkOverviewSummary(weeklySummary);
-          }} else if (weeklySummary && weeklySummary.error) {{
-            renderNetworkOverviewSummaryError(weeklySummary.error);
-          }} else {{
-            renderNetworkOverviewSummaryLoading();
-          }}
-          if (activeNetworkSubview === "graph" && typeof renderNetworkGraphView === "function") {{
+          if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(state);
           }}
+        }}
+
+        let weeklySummary = null;
+        if (weeklySummaryPromise) {{
+          weeklySummary = await weeklySummaryPromise;
         }}
 
         if (trafficVisible) {{
@@ -310,6 +308,15 @@
             renderWeeklySummaryError(weeklySummary.error);
           }} else {{
             renderWeeklySummaryLoading();
+          }}
+        }}
+        if (activeLayoutView === "network") {{
+          if (weeklySummary && !weeklySummary.error) {{
+            renderNetworkOverviewSummary(weeklySummary);
+          }} else if (weeklySummary && weeklySummary.error) {{
+            renderNetworkOverviewSummaryError(weeklySummary.error);
+          }} else {{
+            renderNetworkOverviewSummaryLoading();
           }}
         }}
 
