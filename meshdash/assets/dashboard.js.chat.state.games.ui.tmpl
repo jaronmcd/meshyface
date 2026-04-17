@@ -273,7 +273,7 @@
           disabledText: "Connect to a peer to start a match.",
         }};
       }}
-      if (gameId === "checkers" || gameId === "chess") {{
+      if (gameId === "checkers" || gameId === "chess" || gameId === "wallchess") {{
         const refs = boardGameRefs(gameId);
         const link = refs.getLink();
         if (boardGameIsNetworkLinked(gameId)) {{
@@ -310,20 +310,6 @@
           localLabel,
           peerLabel: "peer",
           disabledText: "Connect to a peer to start a match.",
-        }};
-      }}
-      if (gameId === "wallchess") {{
-        return {{
-          enabled: false,
-          gameId,
-          sessionId: "",
-          peerId: "",
-          channelIndex: meshChannelEffectiveSendIndexForApp("games"),
-          sessionKey: "",
-          localNodeId,
-          localLabel,
-          peerLabel: "peer",
-          disabledText: "Wall Chess is local hotseat in this build.",
         }};
       }}
       return {{
@@ -441,6 +427,7 @@
       syncReversiNetworkState(_state);
       syncBoardGameNetworkState("checkers", _state);
       syncBoardGameNetworkState("chess", _state);
+      syncBoardGameNetworkState("wallchess", _state);
       syncGamesActivePanels();
       ensureActiveGamesBoardResizeTracking();
       renderGamesQuickChatHeader(_state);
@@ -460,6 +447,7 @@
         return;
       }}
       if (activeGameId === "wallchess") {{
+        renderBoardGameLinkUi("wallchess", _state);
         refreshWallChessGame();
         renderWallChessBoard();
         renderWallChessStatus();
@@ -550,7 +538,7 @@
           void disconnectReversiMatch();
         }});
       }}
-      for (const gameId of ["checkers", "chess"]) {{
+      for (const gameId of ["checkers", "chess", "wallchess"]) {{
         const refs = boardGameRefs(gameId);
         const colorSelectEl = document.getElementById(`${{refs.id}}-host-color-select`);
         if (colorSelectEl instanceof HTMLSelectElement && colorSelectEl.dataset.bound !== "1") {{

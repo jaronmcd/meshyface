@@ -26,6 +26,27 @@
     let wallChessSelectedCell = null;
     let wallChessLegalMoves = [];
     let wallChessLegalMoveTargets = new Map();
+    let wallChessPeerId = "";
+    let wallChessHostColorPreference = "white";
+    let wallChessPendingInvites = [];
+    let wallChessSelectedInviteKey = "";
+    let wallChessSeenNetworkMessageKeys = new Set();
+    let wallChessSeenNetworkMessageOrder = [];
+    let wallChessLink = {{
+      mode: "local",
+      role: "",
+      session_id: "",
+      peer_id: "",
+      channel_index: 0,
+      local_color: "white",
+      remote_color: "black",
+      local_move_seq: 0,
+      remote_move_seq: 0,
+      last_remote_ack_seq: 0,
+      local_control_seq: 0,
+      last_remote_control_ack_seq: 0,
+      status: "Local hotseat mode.",
+    }};
     let chessLink = {{
       mode: "local",
       role: "",

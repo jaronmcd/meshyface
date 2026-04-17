@@ -20,6 +20,8 @@ def test_dashboard_js_includes_wall_chess_game_hooks() -> None:
     assert 'function renderWallChessStatus() {' in js
     assert 'function handleWallChessWallClick(orientationRaw, rowRaw, colRaw) {' in js
     assert 'if (normalizedGameId === "wallchess") return 10.36;' in js
+    assert 'syncBoardGameNetworkState("wallchess", _state);' in js
+    assert 'function sendWallChessActionToPeer(actionType, payload = {}) {' in js
 
 
 def test_render_html_includes_wall_chess_panels() -> None:
@@ -41,4 +43,6 @@ def test_render_html_includes_wall_chess_panels() -> None:
     assert 'id="games-main-wallchess"' in html
     assert 'id="wallchess-board"' in html
     assert 'id="games-status-wallchess"' in html
+    assert 'id="wallchess-host-btn"' in html
+    assert 'id="wallchess-invite-list"' in html
     assert ".wall-chess-board {" in html

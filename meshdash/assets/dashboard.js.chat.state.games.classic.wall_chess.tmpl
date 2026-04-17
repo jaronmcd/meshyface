@@ -298,26 +298,51 @@
     }}
 
     function startNewWallChessGame() {{
+      if (wallChessLink.mode === "connected" || wallChessLink.mode === "pending_host") {{
+        boardGameResetNetworkLink("wallchess", "Started a fresh local game. Peer link closed.", {{ keepPeer: true }});
+      }}
       wallChessState = createNewWallChessState();
       wallChessSelectedCell = [Number(wallChessState.white.row), Number(wallChessState.white.col)];
       refreshWallChessGame();
       if (activeLayoutView === "games") renderGamesView(latestState);
     }}
 
-    function applyWallChessMove(move) {{
+    function applyWallChessMove(move, options = {{}}) {{
       const nextMove = move && typeof move === "object" ? move : null;
       if (!nextMove || !Array.isArray(nextMove.to) || nextMove.to.length < 2) return false;
       if (!wallChessState || typeof wallChessState !== "object") return false;
       if (wallChessState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
       const player = String(wallChessState.turn || "").trim().toLowerCase() === "black" ? "black" : "white";
       const piece = wallChessPlayerState(player, wallChessState);
       const toRow = Math.trunc(Number(nextMove.to[0]) || 0);
       const toCol = Math.trunc(Number(nextMove.to[1]) || 0);
       if (!wallChessInBounds(toRow, toCol)) return false;
+      if (source !== "remote" && wallChessLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("wallchess", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return false;
+      }}
+      if (boardGameIsNetworkLinked("wallchess")) {{
+        const expectedPlayer = source === "remote"
+          ? boardGameRemoteColor("wallchess")
+          : boardGameLocalColor("wallchess");
+        if (player !== expectedPlayer) {{
+          if (source !== "remote") {{
+            boardGameUpdateLinkStatus("wallchess", `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`);
+            if (activeLayoutView === "games") renderGamesView(latestState);
+          }}
+          return false;
+        }}
+      }}
+      const legalMove = wallChessLegalMoveTargets.get(wallChessAnchorKey(toRow, toCol)) || null;
+      if (!legalMove) return false;
+      const moveFrom = Array.isArray(legalMove.from) ? [Number(legalMove.from[0]), Number(legalMove.from[1])] : [Number(piece.row), Number(piece.col)];
       piece.row = toRow;
       piece.col = toCol;
       wallChessState.last_move = {{
-        from: Array.isArray(nextMove.from) ? [Number(nextMove.from[0]), Number(nextMove.from[1])] : null,
+        from: moveFrom,
         to: [toRow, toCol],
         player,
       }};
@@ -332,16 +357,43 @@
         wallChessState.notice = `${{wallChessPlayerLabel(player)}} moved to ${{wallChessCellLabel(toRow, toCol)}}. ${{wallChessPlayerLabel(wallChessState.turn)}} to move.`;
       }}
       wallChessSelectedCell = [toRow, toCol];
+      refreshWallChessGame();
+      if (source !== "remote" && boardGameIsNetworkLinked("wallchess") && !suppressOutbound) {{
+        void sendWallChessActionToPeer("pawn", {{
+          from: moveFrom,
+          to: [toRow, toCol],
+        }});
+      }}
       if (activeLayoutView === "games") renderGamesView(latestState);
       return true;
     }}
 
-    function applyWallChessWall(orientationRaw, rowRaw, colRaw) {{
+    function applyWallChessWall(orientationRaw, rowRaw, colRaw, options = {{}}) {{
       if (!wallChessState || typeof wallChessState !== "object") return false;
       if (wallChessState.game_over) return false;
+      const source = String(options.source || "local").trim().toLowerCase();
+      const suppressOutbound = !!(options.suppress_outbound ?? options.suppressOutbound);
       const orientation = String(orientationRaw || "").trim().toLowerCase();
       const row = Math.trunc(Number(rowRaw) || 0);
       const col = Math.trunc(Number(colRaw) || 0);
+      if (source !== "remote" && wallChessLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("wallchess", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return false;
+      }}
+      if (boardGameIsNetworkLinked("wallchess")) {{
+        const currentPlayer = String(wallChessState.turn || "").trim().toLowerCase() === "black" ? "black" : "white";
+        const expectedPlayer = source === "remote"
+          ? boardGameRemoteColor("wallchess")
+          : boardGameLocalColor("wallchess");
+        if (currentPlayer !== expectedPlayer) {{
+          if (source !== "remote") {{
+            boardGameUpdateLinkStatus("wallchess", `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`);
+            if (activeLayoutView === "games") renderGamesView(latestState);
+          }}
+          return false;
+        }}
+      }}
       if (!wallChessCanPlaceWall(wallChessState, orientation, row, col)) return false;
       const player = String(wallChessState.turn || "").trim().toLowerCase() === "black" ? "black" : "white";
       const current = wallChessPlayerState(player, wallChessState);
@@ -363,6 +415,10 @@
       wallChessState.turn = wallChessOpponent(player);
       wallChessState.notice = `${{wallChessPlayerLabel(player)}} placed a ${{orientation === "h" ? "horizontal" : "vertical"}} wall. ${{wallChessPlayerLabel(wallChessState.turn)}} to move.`;
       wallChessSelectedCell = [Number(wallChessState[wallChessState.turn].row), Number(wallChessState[wallChessState.turn].col)];
+      refreshWallChessGame();
+      if (source !== "remote" && boardGameIsNetworkLinked("wallchess") && !suppressOutbound) {{
+        void sendWallChessActionToPeer("wall", {{ orientation, row, col }});
+      }}
       if (activeLayoutView === "games") renderGamesView(latestState);
       return true;
     }}
@@ -370,6 +426,17 @@
     function handleWallChessCellClick(rowRaw, colRaw) {{
       if (!wallChessState || typeof wallChessState !== "object") return;
       if (wallChessState.game_over) return;
+      if (wallChessLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("wallchess", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      if (boardGameIsNetworkLinked("wallchess") && wallChessState.turn !== boardGameLocalColor("wallchess")) {{
+        wallChessState.notice = `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`;
+        boardGameUpdateLinkStatus("wallchess", `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`);
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
       const row = Math.trunc(Number(rowRaw) || 0);
       const col = Math.trunc(Number(colRaw) || 0);
       if (!wallChessInBounds(row, col)) return;
@@ -391,6 +458,17 @@
     function handleWallChessWallClick(orientationRaw, rowRaw, colRaw) {{
       if (!wallChessState || typeof wallChessState !== "object") return;
       if (wallChessState.game_over) return;
+      if (wallChessLink.mode === "pending_host") {{
+        boardGameUpdateLinkStatus("wallchess", "Waiting for invite acceptance before first move.");
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
+      if (boardGameIsNetworkLinked("wallchess") && wallChessState.turn !== boardGameLocalColor("wallchess")) {{
+        wallChessState.notice = `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`;
+        boardGameUpdateLinkStatus("wallchess", `Waiting for ${{reversiNodeLabel(wallChessLink.peer_id)}} to move.`);
+        if (activeLayoutView === "games") renderGamesView(latestState);
+        return;
+      }}
       const orientation = String(orientationRaw || "").trim().toLowerCase();
       const row = Math.trunc(Number(rowRaw) || 0);
       const col = Math.trunc(Number(colRaw) || 0);
@@ -507,6 +585,8 @@
 
       const whitePill = document.getElementById("wallchess-player-white-pill");
       const blackPill = document.getElementById("wallchess-player-black-pill");
+      const whiteRoleEl = whitePill instanceof HTMLElement ? whitePill.querySelector(".reversi-player-role") : null;
+      const blackRoleEl = blackPill instanceof HTMLElement ? blackPill.querySelector(".reversi-player-role") : null;
       if (whitePill instanceof HTMLElement) {{
         whitePill.classList.toggle("is-active", !state.game_over && state.turn === "white");
         whitePill.classList.toggle("is-over", state.game_over && state.winner === "white");
@@ -517,6 +597,32 @@
       }}
       const whiteNameEl = document.getElementById("wallchess-player-white-name");
       const blackNameEl = document.getElementById("wallchess-player-black-name");
-      if (whiteNameEl instanceof HTMLElement) whiteNameEl.textContent = "White";
-      if (blackNameEl instanceof HTMLElement) blackNameEl.textContent = "Black";
+      const linked = boardGameIsNetworkLinked("wallchess");
+      const linkMode = String(wallChessLink && wallChessLink.mode || "local").trim().toLowerCase();
+      const pendingHost = linkMode === "pending_host";
+      const localColor = boardGameLocalColor("wallchess");
+      const localName = boardGameLocalParticipantName("wallchess", latestState);
+      const remoteName = linked
+        ? boardGameRemoteParticipantName("wallchess", latestState)
+        : (pendingHost ? "Awaiting Accept" : "Remote Player");
+      if (whiteNameEl instanceof HTMLElement) {{
+        whiteNameEl.textContent = linkMode === "local"
+          ? "White"
+          : (localColor === "white" ? localName : remoteName);
+      }}
+      if (blackNameEl instanceof HTMLElement) {{
+        blackNameEl.textContent = linkMode === "local"
+          ? "Black"
+          : (localColor === "black" ? localName : remoteName);
+      }}
+      if (whiteRoleEl instanceof HTMLElement) {{
+        whiteRoleEl.textContent = linkMode === "local"
+          ? "South"
+          : (localColor === "white" ? "Local" : "Remote");
+      }}
+      if (blackRoleEl instanceof HTMLElement) {{
+        blackRoleEl.textContent = linkMode === "local"
+          ? "North"
+          : (localColor === "black" ? "Local" : "Remote");
+      }}
     }}

@@ -95,6 +95,87 @@
       return sendBoardGameMoveWithRetry("chess", fromRow, fromCol, toRow, toCol);
     }}
 
+    function wallChessActionLabel(actionType, payload = {{}}) {{
+      const kind = String(actionType || "").trim().toLowerCase();
+      if (kind === "wall") {{
+        const orientation = String(payload.orientation || "").trim().toLowerCase() === "v" ? "vertical" : "horizontal";
+        return `${{orientation}} wall @ ${{chessFiles[Math.trunc(Number(payload.col) || 0)] || "?"}}${{wallChessBoardSize - Math.trunc(Number(payload.row) || 0)}}`;
+      }}
+      const from = Array.isArray(payload.from) ? payload.from : null;
+      const to = Array.isArray(payload.to) ? payload.to : null;
+      if (from && to) {{
+        return `${{wallChessCellLabel(from[0], from[1])}}→${{wallChessCellLabel(to[0], to[1])}}`;
+      }}
+      return "action";
+    }}
+
+    async function sendWallChessActionToPeer(actionType, payload = {{}}) {{
+      if (!boardGameIsNetworkLinked("wallchess")) return false;
+      const refs = boardGameRefs("wallchess");
+      const link = refs.getLink();
+      const sessionId = String(link.session_id || "").trim().toLowerCase();
+      const peerId = normalizeNodeId(link.peer_id || "");
+      if (!sessionId || !isCanonicalNodeId(peerId)) return false;
+      const seq = Math.max(0, Math.trunc(Number(link.local_move_seq) || 0)) + 1;
+      const sessionChannelRaw = Number(link.channel_index);
+      const sessionChannel = Number.isInteger(sessionChannelRaw) && sessionChannelRaw >= 0
+        ? sessionChannelRaw
+        : meshChannelEffectiveSendIndexForApp("games");
+      const waitPlan = Array.isArray(gamesMoveAckWaitPlanMs) && gamesMoveAckWaitPlanMs.length
+        ? gamesMoveAckWaitPlanMs
+        : [2500, 3500, 5000, 7000];
+      const label = wallChessActionLabel(actionType, payload);
+      const isAcked = () => {{
+        if (!boardGameIsNetworkLinked("wallchess")) return false;
+        const current = refs.getLink();
+        if (normalizeNodeId(current.peer_id) !== peerId) return false;
+        if (String(current.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        return Math.max(0, Math.trunc(Number(current.last_remote_ack_seq) || 0)) >= seq;
+      }};
+      const moveFields = String(actionType || "").trim().toLowerCase() === "wall"
+        ? [sessionId, seq, "wall", payload.orientation, payload.row, payload.col]
+        : [sessionId, seq, "pawn", payload.from && payload.from[0], payload.from && payload.from[1], payload.to && payload.to[0], payload.to && payload.to[1]];
+      let atLeastOneSent = false;
+      for (let attemptIndex = 0; attemptIndex < waitPlan.length; attemptIndex += 1) {{
+        if (!boardGameIsNetworkLinked("wallchess")) return false;
+        const current = refs.getLink();
+        if (normalizeNodeId(current.peer_id) !== peerId) return false;
+        if (String(current.session_id || "").trim().toLowerCase() !== sessionId) return false;
+        if (isAcked()) return true;
+        const sent = await sendBoardGameProtocolMessage(
+          "wallchess",
+          "move",
+          moveFields,
+          {{ destination_id: peerId, channel_index: sessionChannel }}
+        );
+        if (sent) {{
+          atLeastOneSent = true;
+          current.local_move_seq = Math.max(
+            Math.max(0, Math.trunc(Number(current.local_move_seq) || 0)),
+            seq
+          );
+          const attemptNumber = attemptIndex + 1;
+          const totalAttempts = waitPlan.length;
+          if (attemptNumber <= 1) {{
+            boardGameUpdateLinkStatus("wallchess", `Wall Chess ${{label}} sent. Waiting for ACK...`);
+          }} else {{
+            boardGameUpdateLinkStatus("wallchess", `Wall Chess ${{label}} retry ${{attemptNumber}}/${{totalAttempts}}. Waiting for ACK...`);
+          }}
+        }}
+        const acked = await waitForBoardGameMoveAck(isAcked, waitPlan[attemptIndex]);
+        if (acked) {{
+          boardGameUpdateLinkStatus("wallchess", `Peer acknowledged Wall Chess ${{label}}.`);
+          return true;
+        }}
+      }}
+      if (atLeastOneSent) {{
+        boardGameUpdateLinkStatus("wallchess", `Wall Chess ${{label}} sent, but ACK has not arrived yet (high latency or packet loss).`);
+      }} else {{
+        boardGameUpdateLinkStatus("wallchess", "Action applied locally, but network send failed.");
+      }}
+      return false;
+    }}
+
     function syncBoardGameNetworkState(gameId, state = latestState) {{
       const refs = boardGameRefs(gameId);
       const safeState = state && typeof state === "object" ? state : null;
@@ -330,20 +411,54 @@
         if (parsed.type === "move") {{
           const sessionId = String(parsed.parts[2] || "").trim().toLowerCase();
           const seq = Math.max(0, Math.trunc(Number(parsed.parts[3]) || 0));
-          const fromRow = boardGameProtocolParseCoordinate(parsed.parts[4], -1);
-          const fromCol = boardGameProtocolParseCoordinate(parsed.parts[5], -1);
-          const toRow = boardGameProtocolParseCoordinate(parsed.parts[6], -1);
-          const toCol = boardGameProtocolParseCoordinate(parsed.parts[7], -1);
           if (!sessionId || seq <= 0) {{
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
           }}
-          if (boardGameNormalizeId(gameId) === "chess") {{
+          const normalizedGameId = boardGameNormalizeId(gameId);
+          let fromRow = -1;
+          let fromCol = -1;
+          let toRow = -1;
+          let toCol = -1;
+          let wallMoveType = "";
+          let wallOrientation = "";
+          let wallRow = -1;
+          let wallCol = -1;
+          if (normalizedGameId === "wallchess") {{
+            wallMoveType = String(parsed.parts[4] || "").trim().toLowerCase();
+            if (wallMoveType === "pawn") {{
+              fromRow = boardGameProtocolParseCoordinate(parsed.parts[5], -1);
+              fromCol = boardGameProtocolParseCoordinate(parsed.parts[6], -1);
+              toRow = boardGameProtocolParseCoordinate(parsed.parts[7], -1);
+              toCol = boardGameProtocolParseCoordinate(parsed.parts[8], -1);
+              if (!wallChessInBounds(fromRow, fromCol) || !wallChessInBounds(toRow, toCol)) {{
+                rememberBoardGameNetworkMessage(gameId, dedupeKey);
+                continue;
+              }}
+            }} else if (wallMoveType === "wall") {{
+              wallOrientation = String(parsed.parts[5] || "").trim().toLowerCase() === "v" ? "v" : "h";
+              wallRow = boardGameProtocolParseCoordinate(parsed.parts[6], -1);
+              wallCol = boardGameProtocolParseCoordinate(parsed.parts[7], -1);
+              if (wallRow < 0 || wallRow >= (wallChessBoardSize - 1) || wallCol < 0 || wallCol >= (wallChessBoardSize - 1)) {{
+                rememberBoardGameNetworkMessage(gameId, dedupeKey);
+                continue;
+              }}
+            }} else {{
+              rememberBoardGameNetworkMessage(gameId, dedupeKey);
+              continue;
+            }}
+          }} else {{
+            fromRow = boardGameProtocolParseCoordinate(parsed.parts[4], -1);
+            fromCol = boardGameProtocolParseCoordinate(parsed.parts[5], -1);
+            toRow = boardGameProtocolParseCoordinate(parsed.parts[6], -1);
+            toCol = boardGameProtocolParseCoordinate(parsed.parts[7], -1);
+          }}
+          if (normalizedGameId === "chess") {{
             if (!chessInBounds(fromRow, fromCol) || !chessInBounds(toRow, toCol)) {{
               rememberBoardGameNetworkMessage(gameId, dedupeKey);
               continue;
             }}
-          }} else if (!checkersInBounds(fromRow, fromCol) || !checkersInBounds(toRow, toCol)) {{
+          }} else if (normalizedGameId === "checkers" && (!checkersInBounds(fromRow, fromCol) || !checkersInBounds(toRow, toCol))) {{
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
           }}
@@ -365,12 +480,22 @@
             rememberBoardGameNetworkMessage(gameId, dedupeKey);
             continue;
           }}
-          const applied = boardGameNormalizeId(gameId) === "chess"
-            ? applyChessMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }})
-            : applyCheckersMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }});
+          const applied = normalizedGameId === "wallchess"
+            ? (
+              wallMoveType === "wall"
+                ? applyWallChessWall(wallOrientation, wallRow, wallCol, {{ source: "remote", suppress_outbound: true }})
+                : applyWallChessMove({{ from: [fromRow, fromCol], to: [toRow, toCol] }}, {{ source: "remote", suppress_outbound: true }})
+            )
+            : (
+              normalizedGameId === "chess"
+                ? applyChessMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }})
+                : applyCheckersMove(fromRow, fromCol, toRow, toCol, {{ source: "remote", suppress_outbound: true }})
+            );
           if (!applied) continue;
           link.remote_move_seq = seq;
-          link.status = `${{reversiNodeLabel(fromId, safeState)}} played ${{boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol)}}.`;
+          link.status = normalizedGameId === "wallchess"
+            ? `${{reversiNodeLabel(fromId, safeState)}} played ${{wallChessActionLabel(wallMoveType, wallMoveType === "wall" ? {{ orientation: wallOrientation, row: wallRow, col: wallCol }} : {{ from: [fromRow, fromCol], to: [toRow, toCol] }})}}.`
+            : `${{reversiNodeLabel(fromId, safeState)}} played ${{boardGameMoveLabel(gameId, fromRow, fromCol, toRow, toCol)}}.`;
           void sendBoardGameProtocolMessage(
             gameId,
             "ack",

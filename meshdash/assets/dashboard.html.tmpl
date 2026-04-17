@@ -2237,7 +2237,28 @@
               <button id="checkers-new-game-btn" class="btn" type="button">New game</button>
             </div>
             <div id="games-side-wallchess" class="games-side-panel" data-game-id="wallchess" hidden>
-              <div class="reversi-link-status">Local hotseat mode.</div>
+              <div id="wallchess-link-status" class="reversi-link-status">Local hotseat mode.</div>
+              <div class="games-peer-wrap">
+                <span class="games-library-label">Invite Target</span>
+                <div id="wallchess-peer-selected-display" class="games-peer-select games-peer-selected-display is-empty" aria-live="polite">Select a node in the list to choose an invite target.</div>
+              </div>
+              <label class="games-peer-wrap" for="wallchess-host-color-select">
+                <span class="games-library-label">Host Color</span>
+                <select id="wallchess-host-color-select" class="games-peer-select" aria-label="Wall Chess host color">
+                  <option value="white">White (south, first move)</option>
+                  <option value="black">Black (north, second move)</option>
+                </select>
+              </label>
+              <div class="reversi-link-actions">
+                <button id="wallchess-host-btn" class="btn btn-secondary reversi-link-btn" type="button">Host Invite</button>
+                <button id="wallchess-accept-btn" class="btn btn-secondary reversi-link-btn" type="button">Accept Invite</button>
+                <button id="wallchess-decline-btn" class="btn btn-secondary reversi-link-btn" type="button">Decline Invite</button>
+                <button id="wallchess-disconnect-btn" class="btn btn-secondary reversi-link-btn" type="button">Disconnect</button>
+              </div>
+              <div class="reversi-invite-wrap">
+                <div class="games-library-label">Pending Invites</div>
+                <div id="wallchess-invite-list" class="reversi-invite-list" aria-live="polite"></div>
+              </div>
               <div class="games-coming-soon">
                 Reach the opposite side first. Move one square orthogonally, or place a two-segment wall to redirect the other player. Each side starts with 10 walls.
               </div>

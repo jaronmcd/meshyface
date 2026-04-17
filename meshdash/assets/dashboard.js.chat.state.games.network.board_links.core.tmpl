@@ -1,9 +1,15 @@
     function boardGameNormalizeId(value) {{
-      return String(value || "").trim().toLowerCase() === "chess" ? "chess" : "checkers";
+      const token = String(value || "").trim().toLowerCase();
+      if (token === "chess") return "chess";
+      if (token === "wallchess") return "wallchess";
+      return "checkers";
     }}
 
     function boardGameLabel(gameId) {{
-      return boardGameNormalizeId(gameId) === "chess" ? "Chess" : "Checkers";
+      const id = boardGameNormalizeId(gameId);
+      if (id === "chess") return "Chess";
+      if (id === "wallchess") return "Wall Chess";
+      return "Checkers";
     }}
 
     function boardGameParseColor(value, fallback = "black") {{
@@ -204,6 +210,54 @@
           }},
         }};
       }}
+      if (id === "wallchess") {{
+        return {{
+          id,
+          protocolVersion: wallChessProtocolVersion,
+          maxSeenMessages: wallChessMaxSeenNetworkMessages,
+          defaultLocalColor: "white",
+          defaultRemoteColor: "black",
+          opponent: wallChessOpponent,
+          playerLabel: wallChessPlayerLabel,
+          getPeerId: () => wallChessPeerId,
+          setPeerId: (value) => {{ wallChessPeerId = normalizeNodeId(value || ""); }},
+          getHostColorPreference: () => wallChessHostColorPreference,
+          setHostColorPreference: (value) => {{
+            wallChessHostColorPreference = boardGameParseColor(value, "white");
+          }},
+          getPendingInvites: () => (Array.isArray(wallChessPendingInvites) ? wallChessPendingInvites : []),
+          setPendingInvites: (rows) => {{
+            wallChessPendingInvites = Array.isArray(rows) ? rows : [];
+          }},
+          getSelectedInviteKey: () => wallChessSelectedInviteKey,
+          setSelectedInviteKey: (value) => {{
+            wallChessSelectedInviteKey = String(value || "").trim().toLowerCase();
+          }},
+          getSeenKeys: () => wallChessSeenNetworkMessageKeys,
+          getSeenOrder: () => wallChessSeenNetworkMessageOrder,
+          setSeenOrder: (rows) => {{
+            wallChessSeenNetworkMessageOrder = Array.isArray(rows) ? rows : [];
+          }},
+          getLink: () => wallChessLink,
+          setLink: (value) => {{
+            wallChessLink = value && typeof value === "object" ? value : {{
+              mode: "local",
+              role: "",
+              session_id: "",
+              peer_id: "",
+              channel_index: 0,
+              local_color: "white",
+              remote_color: "black",
+              local_move_seq: 0,
+              remote_move_seq: 0,
+              last_remote_ack_seq: 0,
+              local_control_seq: 0,
+              last_remote_control_ack_seq: 0,
+              status: "Local hotseat mode.",
+            }};
+          }},
+        }};
+      }}
       return {{
         id: "checkers",
         protocolVersion: checkersProtocolVersion,
@@ -319,7 +373,10 @@
     }}
 
     function generateBoardGameSessionId(gameId) {{
-      const prefix = boardGameNormalizeId(gameId) === "chess" ? "ch" : "ck";
+      const normalizedGameId = boardGameNormalizeId(gameId);
+      const prefix = normalizedGameId === "chess"
+        ? "ch"
+        : (normalizedGameId === "wallchess" ? "wc" : "ck");
       const now = Date.now().toString(36).slice(-4);
       const rand = Math.random().toString(36).slice(2, 8);
       return `${{prefix}}${{now}}${{rand}}`.slice(0, 10);
@@ -430,6 +487,36 @@
       if (cleanType === "move") {{
         const sessionId = boardGameProtocolSanitizeField(fields[0]);
         const seq = boardGameProtocolEncodeInt(fields[1]);
+        if (boardGameNormalizeId(gameId) === "wallchess") {{
+          const moveKind = String(fields[2] || "").trim().toLowerCase();
+          if (moveKind === "pawn") {{
+            return [
+              refs.protocolVersion,
+              typeCode,
+              sessionId,
+              seq,
+              "p",
+              boardGameProtocolEncodeInt(fields[3]),
+              boardGameProtocolEncodeInt(fields[4]),
+              boardGameProtocolEncodeInt(fields[5]),
+              boardGameProtocolEncodeInt(fields[6]),
+            ].join("|");
+          }}
+          if (moveKind === "wall") {{
+            const orientation = String(fields[3] || "").trim().toLowerCase() === "v" ? "v" : "h";
+            return [
+              refs.protocolVersion,
+              typeCode,
+              sessionId,
+              seq,
+              "w",
+              orientation,
+              boardGameProtocolEncodeInt(fields[4]),
+              boardGameProtocolEncodeInt(fields[5]),
+            ].join("|");
+          }}
+          return "";
+        }}
         const fromCell = boardGameProtocolEncodeCell(gameId, fields[2], fields[3]);
         const toCell = boardGameProtocolEncodeCell(gameId, fields[4], fields[5]);
         if (!sessionId || !fromCell || !toCell) return "";
@@ -493,6 +580,43 @@
       if (type === "move") {{
         const sessionId = boardGameProtocolSanitizeField(parts[2]);
         const seq = boardGameProtocolDecodeInt(parts[3]);
+        if (boardGameNormalizeId(gameId) === "wallchess") {{
+          const moveKind = String(parts[4] || "").trim().toLowerCase();
+          if (moveKind === "p") {{
+            return {{
+              raw,
+              type,
+              parts: [
+                refs.protocolVersion,
+                "move",
+                sessionId,
+                String(seq),
+                "pawn",
+                String(boardGameProtocolDecodeInt(parts[5])),
+                String(boardGameProtocolDecodeInt(parts[6])),
+                String(boardGameProtocolDecodeInt(parts[7])),
+                String(boardGameProtocolDecodeInt(parts[8])),
+              ],
+            }};
+          }}
+          if (moveKind === "w") {{
+            return {{
+              raw,
+              type,
+              parts: [
+                refs.protocolVersion,
+                "move",
+                sessionId,
+                String(seq),
+                "wall",
+                String(parts[5] || "").trim().toLowerCase() === "v" ? "v" : "h",
+                String(boardGameProtocolDecodeInt(parts[6])),
+                String(boardGameProtocolDecodeInt(parts[7])),
+              ],
+            }};
+          }}
+          return null;
+        }}
         const fromCell = boardGameProtocolDecodeCell(parts[4]);
         const toCell = boardGameProtocolDecodeCell(parts[5]);
         if (!sessionId || seq <= 0 || !Array.isArray(fromCell) || !Array.isArray(toCell)) return null;
@@ -761,6 +885,12 @@
         chessState = createNewChessState();
         chessSelectedCell = null;
         refreshChessGame();
+        return;
+      }}
+      if (id === "wallchess") {{
+        wallChessState = createNewWallChessState();
+        wallChessSelectedCell = [Number(wallChessState.white.row), Number(wallChessState.white.col)];
+        refreshWallChessGame();
         return;
       }}
       checkersState = createNewCheckersState();
