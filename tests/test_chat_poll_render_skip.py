@@ -78,3 +78,14 @@ def test_dashboard_js_skips_redundant_chat_workspace_poll_renders() -> None:
     assert "const stableNetworkSubviewName = (typeof normalizeNetworkSubview === \"function\")" in js
     assert "window.setTimeout(() => {" in js
     assert "hash = hashMixStr(hash, normalizeNodeId(selectedNodeId || \"\"));" in js
+
+
+def test_dashboard_js_limits_history_only_roster_seeding_to_direct_chat() -> None:
+    js = build_dashboard_js(
+        refresh_ms=3000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'if (activeChatChannel === "direct" && historyCapsById instanceof Map) {' in js
+    assert 'if (activeChatChannel === "direct" && historyCapsById && typeof historyCapsById.keys === "function") {' in js

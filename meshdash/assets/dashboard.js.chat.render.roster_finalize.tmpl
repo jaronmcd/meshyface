@@ -38,7 +38,7 @@
       for (const node of nodes) {{
         touchNodeById(node && node.id);
       }}
-      if (historyCapsById && typeof historyCapsById.keys === "function") {{
+      if (activeChatChannel === "direct" && historyCapsById && typeof historyCapsById.keys === "function") {{
         for (const nodeId of historyCapsById.keys()) {{
           touchNodeById(nodeId);
         }}

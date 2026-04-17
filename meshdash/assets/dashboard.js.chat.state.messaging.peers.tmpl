@@ -753,7 +753,7 @@
           }});
         }}
       }}
-      if (historyCapsById instanceof Map) {{
+      if (activeChatChannel === "direct" && historyCapsById instanceof Map) {{
         for (const nodeId of historyCapsById.keys()) {{
           touchNodeById(nodeId, {{
             p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
