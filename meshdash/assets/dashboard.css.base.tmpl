@@ -261,8 +261,9 @@
     }}
     .summary-ticker-density-toggle {{
       position: absolute;
-      top: 7px;
-      right: 8px;
+      top: 0;
+      right: 0;
+      bottom: 0;
       z-index: 3;
       appearance: none;
       -webkit-appearance: none;
@@ -274,12 +275,11 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      min-width: 28px;
-      max-width: 28px;
-      height: 28px;
-      min-height: 28px;
-      max-height: 28px;
+      width: var(--topbar-corner-reserve, 36px);
+      min-width: var(--topbar-corner-reserve, 36px);
+      max-width: var(--topbar-corner-reserve, 36px);
+      min-height: 0;
+      max-height: none;
       padding: 0;
       font: inherit;
       cursor: pointer;
@@ -311,8 +311,8 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      min-height: 100%;
+      width: 28px;
+      height: 28px;
       color: color-mix(in srgb, var(--ink) 76%, var(--accent) 24%);
       font-size: 15px;
       font-weight: 700;
