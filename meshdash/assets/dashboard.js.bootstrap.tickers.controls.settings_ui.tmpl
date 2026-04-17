@@ -1,6 +1,7 @@
     function updateSummaryTickerExpandControl() {{
       const btn = document.getElementById("summary-ticker-density-toggle");
       const textEl = document.getElementById("summary-ticker-density-toggle-text");
+      const iconEl = document.getElementById("summary-ticker-density-toggle-icon");
       if (!(btn instanceof HTMLButtonElement)) return;
       const expanded = tickerDensity === "expanded";
       const actionLabel = expanded ? "Collapse summary tickers" : "Expand summary tickers";
@@ -9,6 +10,9 @@
       btn.title = actionLabel;
       if (textEl instanceof HTMLElement) {{
         textEl.textContent = expanded ? "Hide" : "Show";
+      }}
+      if (iconEl instanceof HTMLElement) {{
+        iconEl.textContent = expanded ? "−" : "+";
       }}
     }}
 

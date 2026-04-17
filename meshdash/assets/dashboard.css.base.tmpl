@@ -4,7 +4,7 @@
       --topbar-sticky-offset: 72px;
       --workspace-viewport-offset: 84px;
       --topbar-right-inset: max(8px, env(safe-area-inset-right));
-      --topbar-corner-reserve: 0px;
+      --topbar-corner-reserve: 36px;
       --floating-stage-bg: color-mix(in srgb, var(--accent) 64%, var(--accent-2) 36%);
     }}
     html, body {{
@@ -260,18 +260,27 @@
       background: var(--floating-stage-bg);
     }}
     .summary-ticker-density-toggle {{
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-rows: auto auto;
-      column-gap: 5px;
-      row-gap: 1px;
-      align-items: end;
-      order: 999;
-      justify-self: stretch;
-      width: 64px;
-      min-width: 64px;
-      max-width: 64px;
-      min-height: 0;
-      padding: 3px 5px;
+      position: absolute;
+      top: 7px;
+      right: 8px;
+      z-index: 3;
+      appearance: none;
+      -webkit-appearance: none;
+      border: 1px solid color-mix(in srgb, var(--line) 76%, var(--accent) 24%);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 92%, var(--accent) 8%);
+      box-shadow: none;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      height: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0;
       font: inherit;
       cursor: pointer;
       transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
@@ -279,42 +288,42 @@
     .summary-ticker-density-toggle:hover,
     .summary-ticker-density-toggle:focus-visible {{
       border-color: color-mix(in srgb, var(--accent) 56%, var(--line) 44%);
-      background: color-mix(in srgb, var(--panel) 92%, var(--accent) 8%);
+      background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
       box-shadow: none;
       outline: none;
     }}
     .summary-ticker-density-toggle[aria-pressed="true"] {{
-      background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+      background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
       border-color: color-mix(in srgb, var(--accent) 42%, var(--line) 58%);
     }}
     .summary-ticker-density-toggle-label {{
-      grid-column: 1;
-      grid-row: 1;
-      align-self: center;
-      color: color-mix(in srgb, var(--muted) 84%, var(--accent-2) 16%);
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }}
     .summary-ticker-density-toggle-icon {{
-      grid-column: 2;
-      grid-row: 1 / span 2;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      align-self: stretch;
-      min-width: 16px;
+      width: 100%;
+      min-height: 100%;
       color: color-mix(in srgb, var(--ink) 76%, var(--accent) 24%);
-      font-size: 10px;
+      font-size: 15px;
+      font-weight: 700;
       line-height: 1;
     }}
     .summary-ticker-density-toggle-text {{
-      grid-column: 1;
-      grid-row: 2;
-      color: color-mix(in srgb, var(--ink) 90%, white 10%);
-      white-space: nowrap;
-      font-size: 12px;
+      display: none;
     }}
     .topbar .sub .summary-ticker-row {{
-      width: calc(100% + var(--topbar-corner-reserve, 0px));
-      margin-right: calc(var(--topbar-corner-reserve, 0px) * -1);
+      position: relative;
+      padding-right: calc(var(--topbar-corner-reserve, 36px) + 4px);
     }}
     .topbar-update-ticker.is-fading {{
       opacity: 0;
