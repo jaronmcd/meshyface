@@ -241,7 +241,7 @@
         select.value = normalized;
       }}
       updateWeeklySummaryNodeSeriesControls(normalized);
-      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
       if (cached && cached.data) {{
         renderWeeklySummary(cached.data);
       }}
@@ -252,10 +252,27 @@
       }}
     }}
 
+    function applyWeeklySummaryWindow(hours, persist = true) {{
+      weeklySummaryWindowHours = normalizeSummaryWindowHours(hours);
+      const select = document.getElementById("weekly-summary-window");
+      if (select instanceof HTMLSelectElement && select.value !== String(weeklySummaryWindowHours)) {{
+        select.value = String(weeklySummaryWindowHours);
+      }}
+      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      if (cached && cached.data) {{
+        renderWeeklySummary(cached.data);
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(weeklySummaryWindowStorageKey, String(weeklySummaryWindowHours));
+      }} catch (_err) {{
+      }}
+    }}
+
     function applyWeeklySummaryNodeSeries(nextSeries, persist = true) {{
       weeklySummaryNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
       updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
-      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
       if (cached && cached.data) {{
         renderWeeklySummary(cached.data);
       }}
@@ -335,6 +352,7 @@
       const chartWrap = document.getElementById("network-overview-chart-wrap");
       const timeline = document.getElementById("network-overview-timeline");
       const overview = document.getElementById("network-overview-overview");
+      const envWindowWrap = document.getElementById("env-window-wrap");
       if (sensorControlsHost instanceof HTMLElement) {{
         sensorControlsHost.hidden = !showSensors;
       }}
@@ -350,8 +368,45 @@
       if (overview instanceof HTMLElement) {{
         overview.hidden = showSensors;
       }}
+      if (envWindowWrap instanceof HTMLElement) {{
+        envWindowWrap.hidden = (
+          showSensors
+          && activeLayoutView === "network"
+          && activeNetworkSubview === "overview"
+        );
+      }}
       if (typeof syncEnvironmentMetricsDock === "function") {{
         syncEnvironmentMetricsDock(activeLayoutView, activeNetworkSubview);
+      }}
+    }}
+
+    function applyNetworkOverviewWindow(hours, persist = true) {{
+      networkOverviewWindowHours = normalizeSummaryWindowHours(hours);
+      const select = document.getElementById("network-overview-window");
+      if (select instanceof HTMLSelectElement && select.value !== String(networkOverviewWindowHours)) {{
+        select.value = String(networkOverviewWindowHours);
+      }}
+      if (networkOverviewMetric === "sensors") {{
+        if (typeof envMetricsViewState !== "undefined") {{
+          envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(networkOverviewWindowHours);
+        }}
+        const envSelect = document.getElementById("env-window-select");
+        if (envSelect instanceof HTMLSelectElement) {{
+          envSelect.value = String(normalizeEnvHistoryHours(networkOverviewWindowHours));
+        }}
+        if (typeof renderEnvironmentMetricsView === "function") {{
+          void renderEnvironmentMetricsView(false);
+        }}
+      }} else {{
+        const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+        if (cached && cached.data) {{
+          renderNetworkOverviewSummary(cached.data);
+        }}
+      }}
+      if (!persist) return;
+      try {{
+        window.localStorage.setItem(networkOverviewWindowStorageKey, String(networkOverviewWindowHours));
+      }} catch (_err) {{
       }}
     }}
 
@@ -367,11 +422,18 @@
       updateNetworkOverviewPacketSeriesControls(normalized);
       updateNetworkOverviewSensorMode(normalized);
       if (normalized === "sensors") {{
+        if (typeof envMetricsViewState !== "undefined") {{
+          envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(networkOverviewWindowHours);
+        }}
+        const envSelect = document.getElementById("env-window-select");
+        if (envSelect instanceof HTMLSelectElement) {{
+          envSelect.value = String(normalizeEnvHistoryHours(networkOverviewWindowHours));
+        }}
         if (typeof renderEnvironmentMetricsView === "function") {{
           void renderEnvironmentMetricsView(false);
         }}
       }} else {{
-        const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+        const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
         if (cached && cached.data) {{
           renderNetworkOverviewSummary(cached.data);
         }}
@@ -386,7 +448,7 @@
     function applyNetworkOverviewLinkMode(mode, persist = true) {{
       networkOverviewLinkMode = normalizeNetworkOverviewLinkMode(mode);
       updateNetworkOverviewLinkModeControl(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -400,7 +462,7 @@
     function applyNetworkOverviewNodeSeries(nextSeries, persist = true) {{
       networkOverviewNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
       updateNetworkOverviewNodeSeriesControls(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -417,7 +479,7 @@
     function applyNetworkOverviewPacketSeries(nextSeries, persist = true) {{
       networkOverviewPacketSeriesEnabled = normalizeNetworkOverviewPacketSeries(nextSeries);
       updateNetworkOverviewPacketSeriesControls(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(weeklySummaryHours));
+      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -881,14 +943,20 @@
           renderSignalChart(cached.data.points);
         }}
       }}
-      const cachedWeekly = summaryMetricsCache.get(String(weeklySummaryHours));
-      if (cachedWeekly && cachedWeekly.data && Array.isArray(cachedWeekly.data.points)) {{
+      const cachedHistoryWeekly = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      if (cachedHistoryWeekly && cachedHistoryWeekly.data && Array.isArray(cachedHistoryWeekly.data.points)) {{
         if (activeMapDataMode === "activity") {{
-          renderWeeklySummary(cachedWeekly.data);
+          renderWeeklySummary(cachedHistoryWeekly.data);
         }}
-        if (activeLayoutView === "network") {{
-          renderNetworkOverviewSummary(cachedWeekly.data);
-        }}
+      }}
+      const cachedNetworkWeekly = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      if (
+        activeLayoutView === "network"
+        && cachedNetworkWeekly
+        && cachedNetworkWeekly.data
+        && Array.isArray(cachedNetworkWeekly.data.points)
+      ) {{
+        renderNetworkOverviewSummary(cachedNetworkWeekly.data);
       }}
 
       if (!persist) return;

@@ -303,8 +303,11 @@
           }}
         }}
 
+        const activeSummaryWindowHours = activeLayoutView === "network"
+          ? networkOverviewWindowHours
+          : weeklySummaryWindowHours;
         const weeklySummaryPromise = (activeLayoutView === "history" || activeLayoutView === "network")
-          ? fetchSummaryMetrics(weeklySummaryHours).catch((summaryErr) => ({{
+          ? fetchSummaryMetrics(activeSummaryWindowHours).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
                 : String(summaryErr || "unknown error"),

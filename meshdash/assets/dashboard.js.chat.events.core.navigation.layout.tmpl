@@ -772,6 +772,7 @@
       const homeHost = document.getElementById("environment-metrics-home");
       const overviewHost = document.getElementById("network-overview-sensor-host");
       const overviewControlsHost = document.getElementById("network-overview-sensor-controls-host");
+      const envWindowWrap = document.getElementById("env-window-wrap");
       if (!(explorer instanceof HTMLElement)) return;
       if (!(controls instanceof HTMLElement)) return;
       if (!(homeHost instanceof HTMLElement)) return;
@@ -787,6 +788,9 @@
         && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
       );
       const targetHost = dockInOverview ? overviewHost : homeHost;
+      if (envWindowWrap instanceof HTMLElement) {{
+        envWindowWrap.hidden = dockInOverview;
+      }}
       if (explorer.parentElement !== targetHost) {{
         targetHost.appendChild(explorer);
       }}

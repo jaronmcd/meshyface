@@ -189,7 +189,7 @@
     async function refreshHistoryPanels(force = false) {{
       if (activeLayoutView !== "history") return;
       setMapDataMode("activity");
-      const weeklyKey = String(weeklySummaryHours);
+      const weeklyKey = String(weeklySummaryWindowHours);
       if (force) {{
         summaryMetricsCache.delete(weeklyKey);
       }}
@@ -201,7 +201,7 @@
       }}
 
       try {{
-        const weekly = await fetchSummaryMetrics(weeklySummaryHours);
+        const weekly = await fetchSummaryMetrics(weeklySummaryWindowHours);
         if (activeLayoutView !== "history") return;
         renderWeeklySummary(weekly);
       }} catch (reason) {{
@@ -222,7 +222,7 @@
         }}
         return;
       }}
-      const weeklyKey = String(weeklySummaryHours);
+      const weeklyKey = String(networkOverviewWindowHours);
       if (force) {{
         summaryMetricsCache.delete(weeklyKey);
       }}
@@ -234,7 +234,7 @@
       }}
 
       try {{
-        const weekly = await fetchSummaryMetrics(weeklySummaryHours);
+        const weekly = await fetchSummaryMetrics(networkOverviewWindowHours);
         if (activeLayoutView !== "network") return;
         renderNetworkOverviewSummary(weekly);
       }} catch (reason) {{

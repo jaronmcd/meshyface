@@ -122,7 +122,16 @@
 
     function syncEnvironmentWindowPicker() {{
       const select = document.getElementById("env-window-select");
-      const nextHours = normalizeEnvHistoryHours(envMetricsViewState.selectedWindowHours || (select && select.value));
+      const dockedOverviewSensors = (
+        activeLayoutView === "network"
+        && activeNetworkSubview === "overview"
+        && typeof normalizeWeeklySummaryMetric === "function"
+        && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
+      );
+      const requestedHours = dockedOverviewSensors
+        ? networkOverviewWindowHours
+        : (envMetricsViewState.selectedWindowHours || (select && select.value));
+      const nextHours = normalizeEnvHistoryHours(requestedHours);
       envMetricsViewState.selectedWindowHours = nextHours;
       if (select instanceof HTMLSelectElement && String(select.value) !== String(nextHours)) {{
         select.value = String(nextHours);
@@ -1326,6 +1335,15 @@
         windowSelect.dataset.bound = "1";
         windowSelect.addEventListener("change", () => {{
           envMetricsViewState.selectedWindowHours = normalizeEnvHistoryHours(windowSelect.value);
+          if (
+            activeLayoutView === "network"
+            && activeNetworkSubview === "overview"
+            && typeof normalizeWeeklySummaryMetric === "function"
+            && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
+          ) {{
+            applyNetworkOverviewWindow(envMetricsViewState.selectedWindowHours, true);
+            return;
+          }}
           void renderEnvironmentMetricsView(false);
         }});
       }}

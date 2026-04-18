@@ -315,12 +315,12 @@
                 ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
                 : ` Showing ${{selectedNodeSeriesLabels[0] || "Links"}} line.`)
               : ""));
-        caption.textContent = `${{captionPrefix}} ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
+        caption.textContent = `${{captionPrefix}} ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryWindowHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
       }}
 
       const items = [
         ["Metric", metricMeta.label],
-        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : weeklySummaryHours}}h`],
+        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : weeklySummaryWindowHours}}h`],
         ["Samples", String(chartRows.length)],
         ["Latest", formatMetricValue(lastValue, metricMeta.decimals)],
         ["Delta", formatMetricValue(delta, metricMeta.decimals)],
