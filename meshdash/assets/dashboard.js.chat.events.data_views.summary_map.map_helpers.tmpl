@@ -462,6 +462,95 @@
       return applyMapNodeActivityFlashStyle(baseStyle, flashStrength, kind);
     }}
 
+    function resolveMapLocalNodeEmoji(state = latestState) {{
+      return (
+        typeof settingsBadgeEmojiChoiceSet !== "undefined"
+        && settingsBadgeEmojiChoiceSet instanceof Set
+        && settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())
+      )
+        ? String(settingsBadgeEmoji || "").trim()
+        : "";
+    }}
+
+    function mapNodeUsesEmojiMarker(nodeId, markerKind = "actual", state = latestState) {{
+      if ((markerKind === "estimated" ? "estimated" : "actual") !== "actual") return false;
+      const safeState = (state && typeof state === "object") ? state : latestState;
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState || {{}}) || "");
+      return !!(
+        localNodeId
+        && normalizeNodeId(nodeId || "") === localNodeId
+        && resolveMapLocalNodeEmoji(safeState)
+      );
+    }}
+
+    function buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+      if (!mapNodeUsesEmojiMarker(nodeId, markerKind, state)) return null;
+      const emoji = resolveMapLocalNodeEmoji(state);
+      if (!emoji) return null;
+      const flashStrength = mapNodeActivityFlashStrength(nodeId);
+      const markerClasses = [
+        "map-node-emoji-marker",
+        isSelected ? "is-selected" : "",
+        flashStrength > 0.04 ? "is-active" : "",
+      ].filter(Boolean).join(" ");
+      const iconSize = isSelected ? 46 : 40;
+      const iconAnchor = Math.round(iconSize / 2);
+      const popupAnchorY = isSelected ? -22 : -19;
+      return L.divIcon({{
+        className: "map-node-emoji-icon",
+        html: `
+          <div
+            class="${{markerClasses}}"
+            style="--map-node-flash:${{Number(flashStrength.toFixed(3))}};"
+            title="${{escAttr(emoji)}}"
+          >
+            <span class="map-node-emoji-glyph" aria-hidden="true">${{escAttr(emoji)}}</span>
+          </div>
+        `,
+        iconSize: [iconSize, iconSize],
+        iconAnchor: [iconAnchor, iconAnchor],
+        popupAnchor: [0, popupAnchorY],
+      }});
+    }}
+
+    function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+      if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
+        return L.marker([lat, lon], {{
+          icon: buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state),
+          keyboard: false,
+          bubblingMouseEvents: false,
+          riseOnHover: true,
+          zIndexOffset: isSelected ? 200 : 120,
+        }});
+      }}
+      return L.circleMarker(
+        [lat, lon],
+        resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind, markerConfidence, state)
+      );
+    }}
+
+    function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+      if (!(marker && typeof marker === "object")) return;
+      if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
+        if (typeof marker.setIcon === "function") {{
+          marker.setIcon(buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state));
+        }}
+        if (typeof marker.setZIndexOffset === "function") {{
+          marker.setZIndexOffset(isSelected ? 200 : 120);
+        }}
+        return;
+      }}
+      if (typeof marker.setStyle === "function") {{
+        marker.setStyle(resolveMapNodeMarkerStyle(
+          nodeId,
+          isSelected,
+          markerKind,
+          markerConfidence,
+          state
+        ));
+      }}
+    }}
+
     function scheduleMapNodeActivityFlashUpdate() {{
       if (mapNodeActivityFlashRaf != null) return;
       mapNodeActivityFlashRaf = window.requestAnimationFrame(() => {{

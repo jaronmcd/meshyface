@@ -2785,6 +2785,45 @@
       background: #f2f6f3;
       color: #5e7266;
     }}
+    .map-node-emoji-icon {{
+      background: transparent;
+      border: 0;
+    }}
+    .map-node-emoji-marker {{
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 3px solid #86a9ff;
+      background: radial-gradient(circle at 50% 44%, #2a3a70 0%, #21315d 58%, #1a2749 100%);
+      box-shadow:
+        0 0 0 calc(1px + (3px * var(--map-node-flash, 0))) rgba(203, 137, 255, calc(0.22 + (0.24 * var(--map-node-flash, 0)))),
+        0 8px 18px rgba(10, 18, 36, 0.34);
+    }}
+    .map-node-emoji-marker.is-selected {{
+      width: 46px;
+      height: 46px;
+      border-width: 4px;
+      border-color: #9db5ff;
+      background: radial-gradient(circle at 50% 42%, #30427b 0%, #26376a 58%, #1e2b53 100%);
+      box-shadow:
+        0 0 0 calc(2px + (5px * var(--map-node-flash, 0))) rgba(217, 177, 255, calc(0.28 + (0.28 * var(--map-node-flash, 0)))),
+        0 10px 24px rgba(10, 18, 36, 0.42);
+    }}
+    .map-node-emoji-glyph {{
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+      transform: translateY(-1px);
+      user-select: none;
+      pointer-events: none;
+    }}
+    .map-node-emoji-marker.is-selected .map-node-emoji-glyph {{
+      font-size: 32px;
+      transform: translateY(-1px);
+    }}
     .leaflet-control-zoom {{
       border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
       border-radius: 8px !important;

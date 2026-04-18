@@ -195,9 +195,14 @@
             : "n/a";
           const selectedCaps = historyCapsById.get(selectionId) || null;
           const posBadge = resolveMapPositionBadge(selectedNode, selectedCaps, nowUnix);
-          const marker = L.circleMarker(
-            [selectedNode.lat, selectedNode.lon],
-            markerStyle(true)
+          const marker = createMapNodeMarker(
+            selectedNode.lat,
+            selectedNode.lon,
+            selectedNodeIdNormalized,
+            true,
+            "actual",
+            1,
+            latestState
           );
           marker.bindPopup(`
             <b>${{nodeLabel(selectedNode)}}</b><br/>
@@ -321,6 +326,12 @@
             markerHash,
             normalizeNodeId(resolveLocalNodeId(latestState || {}) || "") === normalizedId ? 1 : 0
           );
+          markerHash = hashMixStr(
+            markerHash,
+            normalizeNodeId(resolveLocalNodeId(latestState || {}) || "") === normalizedId
+              ? resolveMapLocalNodeEmoji(latestState)
+              : ""
+          );
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.anchorCount) || 0) : 0);
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.supportLinks) || 0) : 0);
           const existingMarker = nodeMarkers.get(normalizedId);
@@ -333,15 +344,16 @@
             nodeLayer.removeLayer(existingMarker);
             nodeMarkers.delete(normalizedId);
           }}
-          const marker = L.circleMarker(
-            [markerLat, markerLon],
-            resolveMapNodeMarkerStyle(
-              normalizedId,
-              isSelected,
-              isEstimated ? "estimated" : "actual",
-              Number(estimate && estimate.confidence),
-              latestState
-            )
+          const markerKind = isEstimated ? "estimated" : "actual";
+          const markerConfidence = isEstimated ? Number(estimate && estimate.confidence) : 1;
+          const marker = createMapNodeMarker(
+            markerLat,
+            markerLon,
+            normalizedId,
+            isSelected,
+            markerKind,
+            markerConfidence,
+            latestState
           );
           if (isEstimated) {{
             const confidenceValue = clampMapLinkValue(Number(estimate && estimate.confidence), 0, 1);
@@ -380,8 +392,8 @@
           marker.addTo(nodeLayer);
           nodeMarkers.set(normalizedId, marker);
           nodeMarkerMeta.set(normalizedId, markerHash);
-          nodeMarkerKinds.set(normalizedId, isEstimated ? "estimated" : "actual");
-          nodeMarkerConfidence.set(normalizedId, isEstimated ? Number(estimate && estimate.confidence) : 1);
+          nodeMarkerKinds.set(normalizedId, markerKind);
+          nodeMarkerConfidence.set(normalizedId, markerConfidence);
         }}
 
         for (const [nodeId, marker] of Array.from(nodeMarkers.entries())) {{

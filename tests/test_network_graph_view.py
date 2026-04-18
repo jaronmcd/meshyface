@@ -94,9 +94,13 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function buildNetworkGraphSceneMarkup(scene)' in js
     assert 'function animateNetworkGraphScene(svg, fromLayout, toLayout, options = {})' in js
     assert 'function resolveNetworkGraphNodeEmoji(item)' in js
+    assert 'function resolveMapLocalNodeEmoji(state = latestState)' in js
+    assert 'function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState)' in js
+    assert 'function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState)' in js
     assert 'settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())' in js
     assert '"has-emoji-glyph"' in js
     assert 'class="network-graph-node-emoji-fo"' in js
+    assert 'className: "map-node-emoji-icon"' in js
     assert 'function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets)' in js
     assert 'const networkGraphModeStorageKey = "meshDashboardNetworkGraphModeV1";' in js
     assert 'let networkGraphEdgeMode = "history";' in js
@@ -203,6 +207,8 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-node-emoji {" in css
     assert ".network-graph-node.is-local .network-graph-node-emoji {" in css
     assert ".network-graph-node.is-local.has-emoji-glyph .network-graph-node-core {" in css
+    assert ".map-node-emoji-marker {" in css
+    assert ".map-node-emoji-glyph {" in css
     assert ".network-graph-node.is-broadcast-only .network-graph-node-core {" in css
     assert "padding: 0;" in graph_panel_css
     assert "pointer-events: auto;" in graph_label_css

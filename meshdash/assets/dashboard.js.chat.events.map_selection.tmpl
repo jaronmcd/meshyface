@@ -663,12 +663,14 @@
         const isSelected = !!selectedNodeId && nodeId === selectedNodeId;
         const markerKind = nodeMarkerKinds.get(nodeId) || "actual";
         const markerConfidence = Number(nodeMarkerConfidence.get(nodeId));
-        marker.setStyle(resolveMapNodeMarkerStyle(
+        refreshMapNodeMarkerPresentation(
+          marker,
           nodeId,
           isSelected,
           markerKind,
-          Number.isFinite(markerConfidence) ? markerConfidence : 0.45
-        ));
+          Number.isFinite(markerConfidence) ? markerConfidence : 0.45,
+          latestState
+        );
       }}
     }}
 
