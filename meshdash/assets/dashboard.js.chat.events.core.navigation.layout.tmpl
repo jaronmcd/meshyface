@@ -694,10 +694,11 @@
 
     function normalizeNetworkSubview(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
-      if (clean === "details") return "sensors";
+      if (clean === "details") return "overview";
       if (clean === "links") return "graph";
       if (clean === "diag") return networkDiagnosticsEnabled ? "diagnostics" : "map";
-      if (clean === "overview" || clean === "graph" || clean === "sensors") return clean;
+      if (clean === "sensors") return "overview";
+      if (clean === "overview" || clean === "graph") return clean;
       if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";
       return "map";
     }}
@@ -769,13 +770,11 @@
       const explorer = document.querySelector(".env-metrics-explorer");
       const controls = document.querySelector(".env-metrics-explorer .env-metrics-controls");
       const homeHost = document.getElementById("environment-metrics-home");
-      const networkHost = document.getElementById("network-sensors-host");
       const overviewHost = document.getElementById("network-overview-sensor-host");
       const overviewControlsHost = document.getElementById("network-overview-sensor-controls-host");
       if (!(explorer instanceof HTMLElement)) return;
       if (!(controls instanceof HTMLElement)) return;
       if (!(homeHost instanceof HTMLElement)) return;
-      if (!(networkHost instanceof HTMLElement)) return;
       if (!(overviewHost instanceof HTMLElement)) return;
       if (!(overviewControlsHost instanceof HTMLElement)) return;
 
@@ -787,8 +786,7 @@
         && typeof normalizeWeeklySummaryMetric === "function"
         && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
       );
-      const dockInNetwork = normalizedView === "network" && normalizedSubview === "sensors" && !dockInOverview;
-      const targetHost = dockInOverview ? overviewHost : (dockInNetwork ? networkHost : homeHost);
+      const targetHost = dockInOverview ? overviewHost : homeHost;
       if (explorer.parentElement !== targetHost) {{
         targetHost.appendChild(explorer);
       }}
@@ -1160,11 +1158,6 @@
       if (normalizedView === "network" && next === "graph") {{
         if (typeof renderNetworkGraphView === "function") {{
           renderNetworkGraphView(latestState);
-        }}
-      }}
-      if (normalizedView === "network" && next === "sensors") {{
-        if (typeof renderEnvironmentMetricsView === "function") {{
-          void renderEnvironmentMetricsView(false);
         }}
       }}
       if (normalizedView === "network" && next === "diagnostics") {{
