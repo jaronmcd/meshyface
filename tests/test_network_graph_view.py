@@ -91,6 +91,7 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function scheduleNetworkGraphEmptyRetry()' in js
     assert 'function animateNetworkGraphViewBox(svg, rawViewBox, options = {})' in js
     assert 'function syncNetworkGraphTextZoom(svg, rawViewBox)' in js
+    assert 'svg.dataset.labelDensity = labelDensity;' in js
     assert 'function buildNetworkGraphSceneMarkup(scene)' in js
     assert 'class="network-graph-region' in js
     assert 'function animateNetworkGraphScene(svg, fromLayout, toLayout, options = {})' in js
@@ -102,6 +103,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())' in js
     assert '"has-emoji-glyph"' in js
     assert 'class="network-graph-node-emoji-fo"' in js
+    assert 'label-priority-${labelPriority}' in js
+    assert 'network-graph-node-label is-priority-${labelPriority}' in js
     assert 'className: "map-node-emoji-icon"' in js
     assert 'function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets)' in js
     assert 'const networkGraphModeStorageKey = "meshDashboardNetworkGraphModeV1";' in js
@@ -179,7 +182,7 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'layoutMode === "cluster"' in js
     assert 'layoutMode === "community"' in js
     assert 'const localId = normalizeNodeId(resolveLocalNodeId(latestState || {}) || "");' in js
-    assert 'item.nodeId === localId ? "is-local" : ""' in js
+    assert 'const isLocalNode = item.nodeId === localId;' in js
     assert 'class="network-graph-node-emoji"' in js
     assert '<span class="network-graph-swatch is-local"></span>Your node / local radio' in js
     assert 'is-broadcast-only' in js

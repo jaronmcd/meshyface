@@ -1667,14 +1667,27 @@
         const displayName = networkGraphNodeDisplayName(item.nodeId, nodeMap);
         const label = truncateNetworkGraphLabel(displayName, item.layer === 0 ? 28 : 16);
         const nodeEmoji = resolveNetworkGraphNodeEmoji(item);
+        const isLocalNode = item.nodeId === localId;
+        const isRootNode = item.nodeId === rootId;
+        const isSelectedNode = item.nodeId === selectedId;
+        const labelPriority = isRootNode || isLocalNode || isSelectedNode
+          ? "persistent"
+          : item.broadcastOnly || item.detached
+          ? "low"
+          : Number(item.layer) <= 1 || Number(item.degree) >= 6
+          ? "high"
+          : Number(item.layer) <= 2 || Number(item.degree) >= 3
+          ? "medium"
+          : "low";
         const classes = [
           "network-graph-node",
-          item.nodeId === localId ? "is-local" : "",
+          isLocalNode ? "is-local" : "",
           nodeEmoji ? "has-emoji-glyph" : "",
-          item.nodeId === rootId ? "is-root" : "",
-          item.nodeId === selectedId ? "is-selected" : "",
+          isRootNode ? "is-root" : "",
+          isSelectedNode ? "is-selected" : "",
           item.detached ? "is-detached" : "",
           item.broadcastOnly ? "is-broadcast-only" : "",
+          `label-priority-${{labelPriority}}`,
         ].filter(Boolean).join(" ");
         const emojiBoxSize = Math.max(24, Math.round(Number(item.radius) * 2.5));
         const emojiBoxOffset = -(emojiBoxSize / 2);
@@ -1694,7 +1707,7 @@
             }}
             ${{
               item.showLabel
-                ? `<text class="network-graph-node-label${{(item.detached || item.broadcastOnly) ? " is-secondary" : ""}}${{item.broadcastOnly ? " is-broadcast-only" : ""}}" x="0" y="${{(Number(item.radius) + 14).toFixed(1)}}" text-anchor="middle">${{escAttr(label)}}</text>`
+                ? `<text class="network-graph-node-label is-priority-${{labelPriority}}${{(item.detached || item.broadcastOnly) ? " is-secondary" : ""}}${{item.broadcastOnly ? " is-broadcast-only" : ""}}" x="0" y="${{(Number(item.radius) + 14).toFixed(1)}}" text-anchor="middle">${{escAttr(label)}}</text>`
                 : ""
             }}
             <title>${{escAttr(buildNetworkGraphNodeTitle(item))}}</title>
@@ -2139,6 +2152,11 @@
       if (!(svg instanceof SVGElement)) return;
       const viewBox = cloneNetworkGraphViewBox(rawViewBox);
       const zoomRatio = networkGraphViewportBase.width / Math.max(1, Number(viewBox.width) || networkGraphViewportBase.width);
+      const labelDensity = zoomRatio >= 2.6
+        ? "full"
+        : zoomRatio >= 1.55
+        ? "medium"
+        : "overview";
       const compensation = Math.max(0.52, Math.min(1, 1 / Math.sqrt(Math.max(1, zoomRatio))));
       const labelSizePx = 10 * compensation;
       const secondaryLabelSizePx = 9 * compensation;
@@ -2154,6 +2172,7 @@
       svg.style.setProperty("--network-graph-emoji-font-size", `${{emojiSizePx.toFixed(2)}}px`);
       svg.style.setProperty("--network-graph-local-emoji-font-size", `${{localEmojiSizePx.toFixed(2)}}px`);
       svg.style.setProperty("--network-graph-label-stroke-width", `${{labelStrokePx.toFixed(2)}}px`);
+      svg.dataset.labelDensity = labelDensity;
     }}
 
     function applyNetworkGraphViewBox(svg, rawViewBox, options = {{}}) {{
