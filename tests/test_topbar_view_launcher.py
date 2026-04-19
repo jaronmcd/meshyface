@@ -188,3 +188,18 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'return target === document.body || target === document.documentElement;' in js
     assert "let topbarCornerReservePx = 0;" in js
     assert 'window.syncLayoutViewLauncherButtonState = syncLayoutViewLauncherButtonState;' in js
+
+
+def test_apps_launcher_submenu_uses_in_menu_flyout_alignment() -> None:
+    css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    overlay_section = css.split('.topbar-view-submenu[data-side="overlay"] {', 1)[1].split("}", 1)[0]
+    assert "top: calc(100% + 6px);" in overlay_section
+    assert "left: 0;" in overlay_section
+    assert 'submenu.dataset.side = canOpenRight ? "" : "overlay";' in js
+    assert 'positionFloatingPanelNearAnchor(submenu, trigger' not in js

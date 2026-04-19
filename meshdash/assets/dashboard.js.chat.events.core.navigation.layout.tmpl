@@ -4231,15 +4231,19 @@
       syncAppsTabBar(activeLayoutView);
 
       submenu.hidden = false;
-      submenu.dataset.side = "floating";
+      submenu.style.visibility = "hidden";
       trigger.setAttribute("aria-expanded", "true");
-      positionFloatingPanelNearAnchor(submenu, trigger, {{
-        alignX: "after",
-        preferY: "below",
-        gap: 10,
-        margin: 8,
-        zIndex: 1360,
-      }});
+      const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
+      const menuRect = menu.getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+      const submenuWidth = Math.max(0, Math.ceil(submenuRect.width));
+      const gap = 10;
+      const margin = 8;
+      const canOpenRight = viewportWidth <= 0
+        ? true
+        : ((menuRect.right + gap + submenuWidth + margin) <= viewportWidth);
+      submenu.dataset.side = canOpenRight ? "" : "overlay";
+      submenu.style.visibility = "";
     }}
 
     function toggleLayoutViewSubmenu(name = "") {{
