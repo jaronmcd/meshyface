@@ -732,6 +732,13 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert ".chat-feed-item.self-authored.has-node-emoji::after {" in css
     assert "left: var(--chat-feed-node-emoji-tail-inset);" in css
     assert '[data-theme="dark"] .card.chat .chat-feed-item.has-node-emoji::after {' in css
+    assert ".chat-hop-watermark-inline {" in css
+    assert "font-size: 10px;" in css
+    assert "font-weight: 700;" in css
+    assert "font-variant-numeric: tabular-nums;" in css
+    assert "opacity: 0.58;" in css
+    assert '[data-theme="dark"] .card.chat .chat-hop-watermark-inline {' in css
+    assert "opacity: 0.52;" in css
     assert "border: 1px solid var(--chat-feed-node-outline);" in dark_item_section
     assert "border-radius: 16px 16px 16px 6px;" in dark_item_section
     assert "width: 100%;" in monitor_item_section
@@ -743,6 +750,11 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert "const nodeVisualEmoji = (typeof nodeVisualEmojiForNode === \"function\")" in js
     assert 'const nodeEmojiClass = nodeVisualEmoji ? " has-node-emoji" : "";' in js
     assert 'data-node-emoji="${escAttr(nodeVisualEmoji)}"' in js
+    assert 'const hopWatermarkInline = hasHop' in js
+    assert 'if (hopWatermarkInline) reactionRowParts.push(hopWatermarkInline);' in js
+    assert 'const routingMetadataLabel = hasRoutingMetadata' in js
+    assert 'messageTooltipParts.push(`Routing: ${routingMetadataLabel}`);' in js
+    assert 'class="chat-hop-watermark-inline"' in js
     assert "<span class=\"chat-feed-time\"" not in js
 
 

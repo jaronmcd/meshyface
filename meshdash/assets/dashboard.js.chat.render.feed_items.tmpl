@@ -257,11 +257,15 @@
         const hopLabel = hasHop
           ? `${{hopNum}} hop${{hopNum === 1 ? "" : "s"}}`
           : "";
+        const hasRoutingMetadata = Number.isFinite(hopStart) || Number.isFinite(hopLimit);
         const hopTitle = (
           Number.isFinite(hopStart) && Number.isFinite(hopLimit)
             ? `hopStart=${{Math.trunc(hopStart)}}, hopLimit=${{Math.trunc(hopLimit)}}`
             : "Hop count"
         );
+        const routingMetadataLabel = hasRoutingMetadata
+          ? `hopStart=${{Number.isFinite(hopStart) ? Math.trunc(hopStart) : "n/a"}}, hopLimit=${{Number.isFinite(hopLimit) ? Math.trunc(hopLimit) : "n/a"}}`
+          : "";
         const canReply = Number.isInteger(messageId) && messageId > 0;
         const replyToId = replyIdOf(msg);
         let replyTooltipSummary = "";
@@ -383,6 +387,9 @@
         const deliveryChip = (isLocalEcho && deliveryLabel)
           ? `<span class="chat-delivery-pill state-${{escAttr(deliveryState)}}" title="${{escAttr(deliveryTitle)}}">${{escAttr(deliveryLabel)}}</span>`
           : "";
+        const hopWatermarkInline = hasHop
+          ? `<span class="chat-hop-watermark-inline" title="${{escAttr(hopLabel)}}">${{escAttr(`${{hopNum}}h`)}}</span>`
+          : "";
         const portnumText = String(msg.portnum ?? packetSummary.portnum ?? "").trim() || "n/a";
         const retryReplyId = Number.isInteger(replyToId) && replyToId > 0 ? replyToId : "";
         const replyButton = canReply
@@ -399,6 +406,7 @@
         const reactionRowParts = [];
         if (reactionSummary) reactionRowParts.push(reactionSummary);
         if (replyButton) reactionRowParts.push(replyButton);
+        if (hopWatermarkInline) reactionRowParts.push(hopWatermarkInline);
         if (retryButton) reactionRowParts.push(retryButton);
         const tailButtons = [];
         if (whoisButton) tailButtons.push(whoisButton);
@@ -446,6 +454,8 @@
         }}
         if (hasHop) {{
           messageTooltipParts.push(`Hops: ${{hopTitle === "Hop count" ? hopLabel : `${{hopLabel}} (${{hopTitle}})`}}`);
+        }} else if (routingMetadataLabel) {{
+          messageTooltipParts.push(`Routing: ${{routingMetadataLabel}}`);
         }}
         if (deliveryLabel) {{
           messageTooltipParts.push(`Delivery: ${{deliveryTitle || deliveryLabel}}`);
