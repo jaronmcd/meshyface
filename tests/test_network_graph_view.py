@@ -206,12 +206,13 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const parsedWeight = useSessionWeight ? parsedSession : parsedLifetime;' in js
     assert 'empty.textContent = edgeMode === "live"' in js
     assert '<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip"' in js
-    assert 'summary.innerHTML = `<label class="network-graph-layout-control network-graph-chip" for="network-graph-layout-select">' in js
+    assert 'summary.innerHTML = `<label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select">' in js
     assert '<button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip"' in js
     assert 'bindNetworkGraphLayoutSelector();' in js
     assert 'syncNetworkGraphLayoutSelector();' in js
-    assert 'label class="network-graph-layout-control network-graph-chip" for="network-graph-layout-select"' in js
-    assert '<select id="network-graph-layout-select" class="network-graph-layout-select" aria-label="Network links layout">' in js
+    assert 'label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"' in js
+    assert '<span class="network-graph-chip-label history-metric-label">View</span>' in js
+    assert '<select id="network-graph-layout-select" class="network-graph-layout-select history-metric-select" aria-label="Network links layout">' in js
     assert '>Community</option>' in js
     assert 'bindNetworkGraphSummaryControls();' in js
     assert 'const resetBtn = document.getElementById("network-graph-reset-view-btn");' in js
@@ -285,6 +286,8 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-action-chip {" in css
     assert ".network-graph-layout-control {" in css
     assert ".network-graph-layout-select {" in css
+    assert "[data-theme=\"dark\"] .network-graph-layout-control {" in css
+    assert "[data-theme=\"dark\"] .network-graph-layout-select {" in css
     assert "--network-graph-label-font-size: 10px;" in css
     assert ".network-graph-region {" in css
     assert ".network-graph-region-label {" in css
