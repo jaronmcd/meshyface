@@ -392,6 +392,36 @@
       return true;
     }}
 
+    function clearNodeTagAndEmojiForNode(nodeId, options = null) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) {{
+        return {{
+          tagCleared: false,
+          emojiCleared: false,
+          changed: false,
+        }};
+      }}
+      const tagCleared = nodeTagByNodeId.delete(cleanNodeId);
+      const emojiCleared = nodeEmojiByNodeId.delete(cleanNodeId);
+      const changed = !!(tagCleared || emojiCleared);
+      if (!changed) {{
+        return {{
+          tagCleared: false,
+          emojiCleared: false,
+          changed: false,
+        }};
+      }}
+      syncFavoriteNodeIdsFromTags();
+      if (!(options && options.persist === false)) {{
+        persistFavoriteNodes();
+      }}
+      return {{
+        tagCleared: !!tagCleared,
+        emojiCleared: !!emojiCleared,
+        changed: true,
+      }};
+    }}
+
     function saveNodeEmojiOverride(nodeId, rawEmoji, options = null) {{
       const cleanNodeId = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(cleanNodeId)) return "";

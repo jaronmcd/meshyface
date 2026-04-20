@@ -11,6 +11,7 @@ from .runtime_types import (
     TrackerParsedPacket,
 )
 from .tracker_neighbor_info import extract_neighbor_info_edges as _extract_neighbor_info_edges_helper
+from .helpers_packet_meta import extract_reaction_emoji as _extract_reaction_emoji
 
 
 def _normalize_packet_node_id(value: object) -> object:
@@ -59,6 +60,12 @@ def parse_tracker_packet(
     reply_id = extract_reply_id_fn(decoded)
     emoji_codepoint = extract_emoji_codepoint_fn(decoded)
     emoji_glyph = emoji_from_codepoint_fn(emoji_codepoint)
+    if not emoji_glyph and reply_id is not None and reply_id > 0:
+        fallback_emoji, fallback_codepoint = _extract_reaction_emoji(decoded)
+        if fallback_emoji:
+            emoji_glyph = fallback_emoji
+            if emoji_codepoint is None and fallback_codepoint is not None and fallback_codepoint > 0:
+                emoji_codepoint = fallback_codepoint
     is_reaction = bool(reply_id is not None and reply_id > 0 and emoji_glyph)
     neighbor_info_edges = _extract_neighbor_info_edges_helper(
         decoded,

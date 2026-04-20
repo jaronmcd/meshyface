@@ -4,6 +4,7 @@ from meshdash.state_service import (
     _slim_nodes_for_chat,
     _slim_recent_packets,
 )
+from meshdash.state_summary import apply_node_historical_names
 
 
 def test_slim_recent_packets_drops_raw_packet_blob_but_keeps_ui_fields() -> None:
@@ -62,6 +63,8 @@ def test_slim_history_caps_keeps_only_relevant_nodes_and_fields() -> None:
             "last_hops": 2,
             "battery_level": 90,
             "battery_updated_unix": 9,
+            "last_short_name": "ALFA",
+            "last_long_name": "Alpha Prime",
         },
         "!node-b": {
             "last_seen_unix": 20,
@@ -80,6 +83,8 @@ def test_slim_history_caps_keeps_only_relevant_nodes_and_fields() -> None:
 
     assert set(slimmed) == {"!node-a"}
     assert slimmed["!node-a"]["battery_level"] == 90
+    assert slimmed["!node-a"]["last_short_name"] == "ALFA"
+    assert slimmed["!node-a"]["last_long_name"] == "Alpha Prime"
     assert "battery_updated_unix" not in slimmed["!node-a"]
 
 
@@ -93,6 +98,8 @@ def test_slim_history_caps_chat_profile_drops_duplicate_text_times() -> None:
             "last_position_time": "2026-04-15 00:00:08Z",
             "last_hops": 2,
             "battery_level": 90,
+            "last_short_name": "ALFA",
+            "last_long_name": "Alpha Prime",
         },
     }
 
@@ -109,8 +116,44 @@ def test_slim_history_caps_chat_profile_drops_duplicate_text_times() -> None:
     assert set(slimmed) == {"!node-a"}
     assert slimmed["!node-a"]["last_seen_unix"] == 10
     assert slimmed["!node-a"]["last_position_unix"] == 8
+    assert slimmed["!node-a"]["last_short_name"] == "ALFA"
+    assert slimmed["!node-a"]["last_long_name"] == "Alpha Prime"
     assert "last_seen" not in slimmed["!node-a"]
     assert "last_position_time" not in slimmed["!node-a"]
+
+
+def test_apply_node_historical_names_prefers_custom_history_over_generic_live_name() -> None:
+    rows = [
+        {
+            "id": "!a038f788",
+            "short_name": "f788",
+            "long_name": "Meshtastic f788",
+        },
+        {
+            "id": "!12345678",
+            "short_name": "KEEP",
+            "long_name": "Current Custom Name",
+        },
+    ]
+
+    apply_node_historical_names(
+        rows,
+        {
+            "!a038f788": {
+                "last_short_name": "NAH",
+                "last_long_name": "NOT A HACKER",
+            },
+            "!12345678": {
+                "last_short_name": "OLD",
+                "last_long_name": "Older Custom Name",
+            },
+        },
+    )
+
+    assert rows[0]["short_name"] == "NAH"
+    assert rows[0]["long_name"] == "NOT A HACKER"
+    assert rows[1]["short_name"] == "KEEP"
+    assert rows[1]["long_name"] == "Current Custom Name"
 
 
 def test_slim_recent_packets_caps_lite_buffer_length() -> None:

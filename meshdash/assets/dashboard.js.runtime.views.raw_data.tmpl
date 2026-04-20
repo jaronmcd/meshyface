@@ -18,7 +18,6 @@
       metrics: [],
       nodes: [],
       selectedMetric: "",
-      selectedNodeId: "",
       selectedWindowHours: 72,
       source: "",
       scannedPackets: 0,
@@ -166,29 +165,6 @@
       return nextKey;
     }}
 
-    function syncEnvironmentNodePicker(nodes) {{
-      const select = document.getElementById("env-node-select");
-      if (!(select instanceof HTMLSelectElement)) return "";
-      const safeNodes = Array.isArray(nodes) ? nodes : [];
-      const optionsHtml = [
-        '<option value="">All nodes</option>',
-        ...safeNodes.map((meta) => (
-          `<option value="${{escAttr(meta.id)}}">${{escAttr(formatEnvironmentNodeTooltipLabel(meta.id, meta.label || meta.id))}} (${{Math.max(0, Math.trunc(Number(meta.count) || 0))}})</option>`
-        )),
-      ].join("");
-      if (select.innerHTML !== optionsHtml) {{
-        select.innerHTML = optionsHtml;
-      }}
-      const requested = normalizeNodeId(envMetricsViewState.selectedNodeId || select.value);
-      const hasRequested = safeNodes.some((meta) => normalizeNodeId(meta.id) === requested);
-      const nextNodeId = hasRequested ? requested : "";
-      if (select.value !== nextNodeId) {{
-        select.value = nextNodeId;
-      }}
-      envMetricsViewState.selectedNodeId = nextNodeId;
-      return nextNodeId;
-    }}
-
     function deriveEnvironmentNodeMetaFromPoints(points) {{
       const safePoints = Array.isArray(points) ? points : [];
       const perNode = new Map();
@@ -259,6 +235,29 @@
       return safeNodes.find((node) => normalizeNodeId(node.id) === cleanNodeId) || null;
     }}
 
+    function currentEnvironmentMetricsScopedNodeId() {{
+      const cleanSelectedNodeId = normalizeNodeId(selectedNodeId || "");
+      if (typeof isSelectableNodeId === "function") {{
+        return isSelectableNodeId(cleanSelectedNodeId) ? cleanSelectedNodeId : "";
+      }}
+      return cleanSelectedNodeId;
+    }}
+
+    function resolveEnvironmentScopedNodeMeta(nodes, nodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId) return null;
+      const existing = resolveEnvironmentNodeMeta(nodes, cleanNodeId);
+      if (existing) return existing;
+      return {{
+        id: cleanNodeId,
+        label: resolveEnvironmentNodeDisplayName(cleanNodeId, cleanNodeId),
+        count: 0,
+        metrics: 0,
+        last_unix: 0,
+        last_seen: "n/a",
+      }};
+    }}
+
     function resolveEnvironmentNodeDisplayName(nodeId, fallbackLabel = "") {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       const safeFallback = String(fallbackLabel || "").trim();
@@ -309,8 +308,15 @@
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!cleanNodeId) return;
       if (typeof selectNode === "function") {{
-        selectNode(cleanNodeId, false, false);
+        selectNode(cleanNodeId, false, true);
       }}
+    }}
+
+    function resolveEnvironmentMetricsChartNodeIdFromTarget(target) {{
+      if (!(target instanceof Element)) return "";
+      const hit = target.closest("[data-node-id]");
+      if (!(hit instanceof Element)) return "";
+      return normalizeNodeId(hit.getAttribute("data-node-id") || "");
     }}
 
     function buildEnvironmentMetricsSelectionScopeKey(metricMeta, nodeMeta) {{
@@ -663,11 +669,11 @@
     function currentEnvironmentMetricSelectionMeta() {{
       const points = Array.isArray(envMetricsViewState.points) ? envMetricsViewState.points : [];
       const metrics = Array.isArray(envMetricsViewState.metrics) ? envMetricsViewState.metrics : [];
-      const nodes = Array.isArray(envMetricsViewState.nodes) ? envMetricsViewState.nodes : [];
+      const nodes = resolveEnvironmentNodeOptions(envMetricsViewState.nodes, points);
       const selectedMetric = normalizeEnvMetricKey(envMetricsViewState.selectedMetric || "");
-      const selectedNodeId = normalizeNodeId(envMetricsViewState.selectedNodeId || "");
+      const selectedNodeId = currentEnvironmentMetricsScopedNodeId();
       const metricMeta = resolveEnvironmentMetricMeta(metrics, selectedMetric);
-      const nodeMeta = resolveEnvironmentNodeMeta(nodes, selectedNodeId);
+      const nodeMeta = resolveEnvironmentScopedNodeMeta(nodes, selectedNodeId);
       const filteredPoints = filterEnvironmentMetricPoints(points, selectedMetric, selectedNodeId);
       return {{ filteredPoints, metricMeta, nodeMeta }};
     }}
@@ -737,6 +743,7 @@
           startClientX: ev.clientX,
           startZoomStart: envMetricsChartState.zoomStart,
           startZoomEnd: envMetricsChartState.zoomEnd,
+          hitNodeId: resolveEnvironmentMetricsChartNodeIdFromTarget(ev.target),
           moved: false,
         }};
         svg.classList.add("chart-dragging");
@@ -775,6 +782,9 @@
         svg.classList.remove("chart-dragging");
         if (dragged) {{
           envMetricsChartState.suppressClickUntilMs = Date.now() + 180;
+        }} else if (ev && drag.hitNodeId) {{
+          envMetricsChartState.suppressClickUntilMs = Date.now() + 180;
+          focusEnvironmentNodeFromChart(drag.hitNodeId);
         }}
         if (ev) {{
           try {{
@@ -1138,12 +1148,14 @@
         const rawStrokeOpacity = dockedInNetwork ? 0.26 : 0.24;
         const trendStrokeWidth = dockedInNetwork ? 2.65 : 2.35;
         const trendStrokeOpacity = dockedInNetwork ? 1 : 0.98;
+        const seriesPaths = [];
         if (dockedInNetwork && trendPath) {{
-          linePaths.push(`<path d="${{trendPath}}" fill="none" stroke="${{color}}" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.14"></path>`);
+          seriesPaths.push(`<path d="${{trendPath}}" fill="none" stroke="${{color}}" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.14" pointer-events="none"></path>`);
         }}
-        linePaths.push(`<path d="${{rawPath}}" fill="none" stroke="${{color}}" stroke-width="${{rawStrokeWidth.toFixed(2)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{rawStrokeOpacity.toFixed(2)}}"></path>`);
-        linePaths.push(`<path d="${{trendPath}}" fill="none" stroke="${{color}}" stroke-width="${{trendStrokeWidth.toFixed(2)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{trendStrokeOpacity.toFixed(2)}}" data-node-id="${{escAttr(seriesNodeId)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to focus node`)}}</title></path>`);
-        linePaths.push(`<path d="${{hitPath}}" fill="none" stroke="transparent" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-node-id="${{escAttr(seriesNodeId)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to focus node`)}}</title></path>`);
+        seriesPaths.push(`<path d="${{rawPath}}" fill="none" stroke="${{color}}" stroke-width="${{rawStrokeWidth.toFixed(2)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{rawStrokeOpacity.toFixed(2)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to select or deselect node`)}}</title></path>`);
+        seriesPaths.push(`<path d="${{trendPath}}" fill="none" stroke="${{color}}" stroke-width="${{trendStrokeWidth.toFixed(2)}}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{trendStrokeOpacity.toFixed(2)}}" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to select or deselect node`)}}</title></path>`);
+        seriesPaths.push(`<path d="${{hitPath}}" fill="none" stroke="transparent" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" style="cursor:pointer;"><title>${{escAttr(`${{seriesTitle}} - click to select or deselect node`)}}</title></path>`);
+        linePaths.push(`<g data-node-id="${{escAttr(seriesNodeId)}}">${{seriesPaths.join("")}}</g>`);
       }});
 
       const zoomed = zoomPointCount > 1 && (
@@ -1200,9 +1212,9 @@
       const nodes = resolveEnvironmentNodeOptions(envMetricsViewState.nodes, points);
       const windowHours = syncEnvironmentWindowPicker();
       const selectedMetric = syncEnvironmentMetricPicker(metrics);
-      const selectedNodeId = syncEnvironmentNodePicker(nodes);
+      const selectedNodeId = currentEnvironmentMetricsScopedNodeId();
       const metricMeta = resolveEnvironmentMetricMeta(metrics, selectedMetric);
-      const nodeMeta = resolveEnvironmentNodeMeta(nodes, selectedNodeId);
+      const nodeMeta = resolveEnvironmentScopedNodeMeta(nodes, selectedNodeId);
       const filteredPoints = filterEnvironmentMetricPoints(points, selectedMetric, selectedNodeId);
       const selectionScopeKey = buildEnvironmentMetricsSelectionScopeKey(metricMeta, nodeMeta);
       const hiddenNodeIds = syncEnvironmentLegendScope(selectionScopeKey);
@@ -1246,14 +1258,6 @@
         const firstMetric = envMetricsViewState.metrics[0];
         envMetricsViewState.selectedMetric = firstMetric ? normalizeEnvMetricKey(firstMetric.key) : "";
       }}
-      const cleanSelectedNode = normalizeNodeId(envMetricsViewState.selectedNodeId || "");
-      const selectableNodes = resolveEnvironmentNodeOptions(
-        envMetricsViewState.nodes,
-        [],
-      );
-      if (cleanSelectedNode && !selectableNodes.some((node) => normalizeNodeId(node.id) === cleanSelectedNode)) {{
-        envMetricsViewState.selectedNodeId = "";
-      }}
     }}
 
     function applyEnvironmentMetricsSeriesPayload(payload) {{
@@ -1270,7 +1274,7 @@
       const cacheKey = String(cleanHours);
       const nowMs = Date.now();
       const cached = envMetricsCatalogCache.get(cacheKey);
-      const ttlMs = Math.max(refreshMs * 4, 15000);
+      const ttlMs = Math.max(refreshMs * 2, 8000);
       if (!forceRefresh && cached && cached.data && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
         return cached.data;
       }}
@@ -1300,7 +1304,7 @@
       const cacheKey = [String(cleanHours), cleanMetric, cleanNodeId].join("|");
       const nowMs = Date.now();
       const cached = envMetricsSeriesCache.get(cacheKey);
-      const ttlMs = Math.max(refreshMs * 4, 15000);
+      const ttlMs = Math.max(refreshMs * 2, 6000);
       if (!forceRefresh && cached && cached.data && (nowMs - (cached.fetchedAt || 0)) < ttlMs) {{
         return cached.data;
       }}
@@ -1356,29 +1360,6 @@
           void renderEnvironmentMetricsView(false);
         }});
       }}
-
-      const nodeSelect = document.getElementById("env-node-select");
-      if (nodeSelect instanceof HTMLSelectElement && nodeSelect.dataset.bound !== "1") {{
-        nodeSelect.dataset.bound = "1";
-        nodeSelect.addEventListener("change", () => {{
-          envMetricsViewState.selectedNodeId = normalizeNodeId(nodeSelect.value || "");
-          void renderEnvironmentMetricsView(false);
-        }});
-      }}
-
-      const refreshBtn = document.getElementById("env-metrics-refresh-btn");
-      if (refreshBtn instanceof HTMLButtonElement && refreshBtn.dataset.bound !== "1") {{
-        refreshBtn.dataset.bound = "1";
-        refreshBtn.addEventListener("click", () => {{
-          if (typeof requestImmediatePoll === "function") {{
-            try {{
-              requestImmediatePoll(0);
-            }} catch (_err) {{
-            }}
-          }}
-          void renderEnvironmentMetricsView(true);
-        }});
-      }}
     }}
 
     async function renderEnvironmentMetricsView(forceRefresh = false) {{
@@ -1389,7 +1370,7 @@
         const catalogPayload = await fetchEnvironmentMetricsCatalog(windowHours, forceRefresh);
         applyEnvironmentMetricsCatalogPayload(catalogPayload);
         const selectedMetric = syncEnvironmentMetricPicker(envMetricsViewState.metrics);
-        const selectedNodeId = syncEnvironmentNodePicker(envMetricsViewState.nodes);
+        const selectedNodeId = currentEnvironmentMetricsScopedNodeId();
         if (!selectedMetric) {{
           envMetricsViewState.points = [];
           envMetricsViewState.source = "";

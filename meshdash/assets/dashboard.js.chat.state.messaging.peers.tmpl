@@ -1863,6 +1863,7 @@
       const detailsSplitter = document.getElementById("chat-node-details-splitter");
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
+      const resetBtn = document.getElementById("chat-node-details-reset-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const locationTabBtn = document.getElementById("chat-node-details-tab-location");
       const chatTabBtn = document.getElementById("chat-node-details-tab-chat");
@@ -1933,6 +1934,11 @@
           muteBtn.setAttribute("aria-pressed", "false");
           setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), "Mute");
         }}
+        if (resetBtn instanceof HTMLButtonElement) {{
+          resetBtn.hidden = true;
+          resetBtn.disabled = true;
+          resetBtn.dataset.nodeId = "";
+        }}
         if (iconBtn instanceof HTMLButtonElement) {{
           iconBtn.hidden = true;
           iconBtn.disabled = true;
@@ -1990,6 +1996,7 @@
         ? nodeEmojiOverrideForNode(selectedId)
         : "";
       const hasNodeEmojiOverride = !!nodeEmojiOverride;
+      const hasResettableVisualState = hasTag || hasNodeEmojiOverride;
       const effectiveEmoji = localBadgeEmoji || (
         typeof nodeVisualEmojiForNode === "function"
           ? nodeVisualEmojiForNode(selectedId, tagEntry)
@@ -2007,6 +2014,43 @@
           : "Add or edit node tag";
         tagTabBtn.title = tagTitle;
         tagTabBtn.setAttribute("aria-label", tagTitle);
+      }}
+      if (resetBtn instanceof HTMLButtonElement) {{
+        resetBtn.hidden = !hasResettableVisualState;
+        resetBtn.disabled = !hasResettableVisualState;
+        resetBtn.dataset.nodeId = hasResettableVisualState ? selectedId : "";
+        const resetTitle = hasResettableVisualState
+          ? "Clear saved tag and custom icon"
+          : "No saved tag or custom icon to clear";
+        resetBtn.title = resetTitle;
+        resetBtn.setAttribute("aria-label", resetTitle);
+        if (resetBtn.dataset.bound !== "1") {{
+          resetBtn.dataset.bound = "1";
+          resetBtn.addEventListener("click", () => {{
+            const nodeId = normalizeNodeId(resetBtn.dataset.nodeId || "");
+            if (!nodeId) return;
+            if (typeof clearNodeTagAndEmojiForNode === "function") {{
+              clearNodeTagAndEmojiForNode(nodeId, {{ persist: true }});
+            }} else {{
+              if (typeof clearNodeTagForNode === "function") {{
+                clearNodeTagForNode(nodeId, {{ persist: false }});
+              }}
+              if (typeof saveNodeEmojiOverride === "function") {{
+                saveNodeEmojiOverride(nodeId, "", {{ persist: false }});
+              }}
+              if (typeof persistFavoriteNodes === "function") {{
+                persistFavoriteNodes();
+              }}
+            }}
+            refreshFavoriteToggleButtons();
+            if (latestState) {{
+              renderFavorites(latestState);
+            }} else {{
+              renderStarredNodeSelect({{}});
+            }}
+            syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
+          }});
+        }}
       }}
       if (iconBtn instanceof HTMLButtonElement && iconChip instanceof HTMLElement && iconInput instanceof HTMLInputElement) {{
         iconBtn.hidden = false;

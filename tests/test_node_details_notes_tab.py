@@ -125,13 +125,14 @@ def test_render_html_places_tag_title_pin_and_mute_actions_in_drawer_header() ->
 
     head_index = html.index('class="chat-node-details-head"')
     tag_index = html.index('id="chat-node-details-tab-tag"')
+    reset_index = html.index('id="chat-node-details-reset-btn"')
     title_index = html.index('id="chat-node-details-title"')
     pin_index = html.index('id="chat-node-details-pin-btn"')
     mute_index = html.index('id="chat-node-details-mute-btn"')
     tabs_index = html.index('class="chat-node-details-tabs"')
 
     assert 'id="chat-node-details-dm-btn"' not in html
-    assert head_index < tag_index < title_index < pin_index < mute_index < tabs_index
+    assert head_index < tag_index < reset_index < title_index < pin_index < mute_index < tabs_index
 
 
 def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
@@ -162,6 +163,7 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'const notesPanel = document.getElementById("chat-node-details-panel-notes");' in js
     assert 'const notesHost = document.getElementById("chat-node-details-notes-host");' in js
     assert 'const pinBtn = document.getElementById("chat-node-details-pin-btn");' in js
+    assert 'const resetBtn = document.getElementById("chat-node-details-reset-btn");' in js
     assert 'const renderNotesInDrawer = (' in js
     assert 'const renderLocationInDrawer = (' in js
     assert 'const renderChatInDrawer = (' in js
@@ -201,6 +203,7 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'function nodeEmojiOverrideForNode(nodeId) {' in js
     assert 'function nodeVisualEmojiForNode(nodeId, tagEntry = null) {' in js
     assert 'function saveNodeEmojiOverride(nodeId, rawEmoji, options = null) {' in js
+    assert 'function clearNodeTagAndEmojiForNode(nodeId, options = null) {' in js
     assert 'emoji: normalizeNodeTagEmoji(preset.emoji, ""),' in js
     assert 'id="favorite-menu-tag-emoji-input"' in js
     assert 'id="favorite-menu-node-emoji-input"' in js
@@ -208,6 +211,7 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'id="chat-node-details-icon-btn"' in js
     assert 'id="chat-node-details-icon-chip"' in js
     assert 'id="chat-node-details-head-icon-input"' in js
+    assert 'id="chat-node-details-reset-btn"' in js
     assert 'nodeTagChipEmojiHtml(tagEntry)' in js
     assert 'iconChip.innerHTML = nodeTagChipEmojiHtml(tagEntry, selectedId);' in js
     assert 'let chatEmojiTagTargetInput = null;' in js
@@ -219,6 +223,9 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'if (target.closest("#chat-node-details-head-icon-input")) return;' in js
     assert 'openChatEmojiPanel("tag", null, emojiInput);' in js
     assert 'openChatEmojiPanel("tag", null, iconBtn, false, iconInput);' in js
+    assert 'const hasResettableVisualState = hasTag || hasNodeEmojiOverride;' in js
+    assert 'resetBtn.hidden = !hasResettableVisualState;' in js
+    assert 'clearNodeTagAndEmojiForNode(nodeId, { persist: true });' in js
     assert 'target.closest("#settings-node-tag-emoji-input")' in js
     assert 'openChatEmojiPanel("tag", null, emojiInput);' in js
 

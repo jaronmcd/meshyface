@@ -1,14 +1,19 @@
+    function chatResolvedNodeLabel(nodeIdRaw, nodesById, explicitName = "") {{
+      const senderId = normalizeNodeId(nodeIdRaw || "");
+      if (senderId === "^all") return "All";
+      if (senderId === "local") return "Local";
+      const node = nodesById instanceof Map ? nodesById.get(senderId) : null;
+      const preferred = node ? String(preferredNodeName(node) || "").trim() : "";
+      const explicit = String(explicitName || "").trim();
+      const cached = senderId ? String(nodeNameCache.get(senderId) || "").trim() : "";
+      return preferred || explicit || cached || senderId || "Unknown node";
+    }}
+
     function chatSenderLabelFromMessage(msg, nodesById) {{
       if (!msg || typeof msg !== "object") return "Unknown node";
       const senderId = normalizeNodeId(msg.from || "");
-      if (senderId === "^all") return "All";
-      if (senderId === "local") return "Local";
       const explicitName = String(msg.from_name ?? msg.fromName ?? "").trim();
-      if (explicitName) return explicitName;
-      const node = nodesById.get(senderId);
-      const preferred = preferredNodeName(node);
-      if (preferred) return preferred;
-      return senderId || "Unknown node";
+      return chatResolvedNodeLabel(senderId, nodesById, explicitName);
     }}
 
     function collectChatMessageEntries(state) {{
@@ -48,6 +53,17 @@
         nodes.map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
       );
       const messageSenderById = new Map();
+      const messageInfoById = new Map();
+      for (const msg of recentChat) {{
+        if (!msg || typeof msg !== "object") continue;
+        if (isFileTransferProtocolMessage(msg)) continue;
+        const msgId = messageIdOfChatPacket(msg);
+        if (!Number.isInteger(msgId) || msgId <= 0) continue;
+        messageInfoById.set(String(msgId), {{
+          senderLabel: chatSenderLabelFromMessage(msg, nodesById),
+          previewText: String(msg.text ?? msg.decoded_text ?? msg.payload_text ?? "").trim(),
+        }});
+      }}
       for (const msg of recentChat) {{
         if (!msg || typeof msg !== "object") continue;
         if (!messageMatchesActiveMeshChannel(msg)) continue;
@@ -86,6 +102,15 @@
         const replyTargetSenderId = replyId != null
           ? normalizeNodeId(messageSenderById.get(String(replyId)) || "")
           : "";
+        const reactionTargetInfo = replyId != null
+          ? (messageInfoById.get(String(replyId)) || null)
+          : null;
+        const reactionTargetLabel = reactionTargetInfo && typeof reactionTargetInfo === "object"
+          ? String(reactionTargetInfo.senderLabel || "").trim()
+          : "";
+        const reactionTargetText = reactionTargetInfo && typeof reactionTargetInfo === "object"
+          ? String(reactionTargetInfo.previewText || "").trim()
+          : "";
         const senderIsSelf = hasLocalNodeId && fromId === localNodeId;
         const directToSelf = hasLocalNodeId && channel === "direct" && toId === localNodeId;
         const referencesSelfMessage = hasLocalNodeId && !!replyId && replyTargetSenderId === localNodeId;
@@ -107,7 +132,14 @@
           targetChatChannel: channel,
           peerNodeId,
           sender: chatSenderLabelFromMessage(msg, nodesById),
-          preview: chatChangePreviewFromMessage(msg, isReaction),
+          preview: chatChangePreviewFromMessage(
+            {{
+              ...msg,
+              reaction_target_label: reactionTargetLabel,
+              reaction_target_text: reactionTargetText,
+            }},
+            isReaction
+          ),
           kind,
           countsUnread: !senderIsSelf,
           selfRelevant: systemRelevant,

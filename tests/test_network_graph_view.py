@@ -29,9 +29,9 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-map-panel-diagnostics"' in html
     assert 'hidden aria-hidden="true"' in html
     assert 'id="network-graph-svg"' in html
-    assert 'id="network-graph-back-btn"' in html
-    assert 'id="network-graph-home-btn"' in html
-    assert 'id="network-graph-reset-view-btn"' in html
+    assert 'id="network-graph-back-btn"' not in html
+    assert 'id="network-graph-home-btn"' not in html
+    assert 'id="network-graph-reset-view-btn"' not in html
     assert 'id="network-graph-summary"' in html
     assert 'id="network-graph-legend"' in html
     assert 'id="network-diagnostics-window"' in html
@@ -122,6 +122,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const networkGraphLayoutStorageKey = "meshDashboardNetworkGraphLayoutV1";' in js
     assert 'let networkGraphEdgeMode = "history";' in js
     assert 'let networkGraphLayoutMode = "radial";' in js
+    assert 'const networkGraphOverlayFitZoomOutScale = 1.03;' in js
+    assert 'const networkGraphOverlaySafeInsetTop = 10;' in js
     assert 'function normalizeNetworkGraphEdgeMode(raw)' in js
     assert 'function normalizeNetworkGraphLayoutMode(raw)' in js
     assert 'clean === "community"' in js
@@ -129,6 +131,15 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function loadPreferredNetworkGraphLayoutMode()' in js
     assert 'function persistPreferredNetworkGraphEdgeMode(modeName)' in js
     assert 'function persistPreferredNetworkGraphLayoutMode(modeName)' in js
+    assert 'const graphSvg = document.getElementById("network-graph-svg");' in js
+    assert 'graphSvg instanceof Element' in js
+    assert 'graphToolbar.classList.toggle("is-overlay-docked", useOverlayGraphSummary);' in js
+    assert 'graphStage.classList.toggle("is-overlay-docked", useOverlayGraphSummary);' in js
+    assert 'topSafeInset: resolveNetworkGraphTopSafeInset(svg),' in js
+    assert 'networkGraphViewState.resetBounds = {' in js
+    assert 'networkGraphViewState.resetCenter = rootPosition' in js
+    assert 'networkGraphEdgeMode = loadPreferredNetworkGraphEdgeMode();' in js
+    assert 'persistPreferredNetworkGraphEdgeMode(networkGraphEdgeMode);' not in js
     assert 'const networkGraphZoomBounds = Object.freeze({ minScale: 0.42, maxScale: 5.5 });' in js
     assert 'function networkGraphNodeHasLinkPeers(nodeId, adjacency, nodeMap = null)' in js
     assert 'function networkGraphAverageParentOrder(nodeId, parentHintsByNodeId, layerOrderIndexByNodeId)' in js
@@ -138,7 +149,20 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const includeAllLiveNodes = !(options && options.includeAllLiveNodes === false);' in js
     assert 'const pinnedNodeIds = Array.isArray(options && options.pinnedNodeIds)' in js
     assert 'function filterNetworkGraphRawEdgesByMode(rawEdges, mode = networkGraphEdgeMode)' in js
+    assert 'function collectNetworkGraphAncestorScores(nodeId, targetLayer, layerByNodeId, parentHintsByNodeId, memo = new Map())' in js
+    assert 'function resolveNetworkGraphBestClusterCandidate(candidateScores, degreeMeta, fallbackId = "")' in js
+    assert 'function chunkNetworkGraphNodeIds(nodeIds, chunkSize = 1)' in js
+    assert 'function compareNetworkGraphDisconnectedCandidates(candidateA, candidateB, degreeMeta, nodeMap)' in js
+    assert 'function limitNetworkGraphDisconnectedNodeIds(' in js
     assert 'function doesNetworkGraphViewBoxContainBounds(viewBox, bounds, paddingRatio = 0.04)' in js
+    assert 'const excludeDisconnected = !!(options && options.excludeDisconnected);' in js
+    assert 'if (excludeDisconnected && item.disconnected) continue;' in js
+    assert 'if (excludeDisconnected && includedCount <= 0) {' in js
+    assert 'function resolveNetworkGraphResetViewBox(svg, options = {}) {' in js
+    assert 'function resolveNetworkGraphStage(svg = null) {' in js
+    assert 'function isNetworkGraphOverlayDocked(svg = null) {' in js
+    assert 'function resolveNetworkGraphFitZoomOutScale(svg = null) {' in js
+    assert 'function resolveNetworkGraphTopSafeInset(svg = null) {' in js
     assert 'function bindNetworkGraphSummaryControls()' in js
     assert 'function syncNetworkGraphLayoutSelector()' in js
     assert 'function bindNetworkGraphLayoutSelector()' in js
@@ -151,10 +175,26 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'selectNode(row.dataset.nodeId || "", true, !graphOpen);' in js
     assert 'selectNode(nodeId, true, !graphOpen && unreadDirectCount <= 0);' in js
     assert 'function recenterNetworkGraphView(svg, options = {})' in js
+    assert 'return fitNetworkGraphViewBoxToBounds(bounds, svg);' in js
     assert 'const localNodeHasLinkPeers = localNodeAvailable' in js
     assert 'if (localNodeAvailable && (localNodeHasLinkPeers || bestDegree <= 0)) {' in js
     assert 'const parentHintsByNodeId = new Map();' in js
     assert 'const layerOrderIndexByNodeId = new Map([[rootId, 0]]);' in js
+    assert 'const rootClusterIdSet = new Set(rootClusterIds);' in js
+    assert 'const clusterIdByNodeId = new Map([[rootId, rootId]]);' in js
+    assert 'const clusterLabelNodeIds = new Set();' in js
+    assert 'const preferredVisibleCount = Math.max(0, (totalDisconnectedCount * 2) - safeConnectedCount);' in js
+    assert 'const visibleCount = Math.max(preservedNodeIds.size, preferredVisibleCount);' in js
+    assert 'const disconnectedVisibility = limitNetworkGraphDisconnectedNodeIds(' in js
+    assert 'const visibleBroadcastOnlyDisconnected = Array.isArray(disconnectedVisibility.broadcastOnlyNodeIds)' in js
+    assert 'const disconnectedRingCount = (visibleBroadcastOnlyDisconnected.length ? 1 : 0) + (visibleDisconnected.length ? 1 : 0);' in js
+    assert 'const subclusterMembersById = new Map([[clusterId, [clusterId]]]);' in js
+    assert 'const branchDescriptors = Array.from(subclusterMembersById.entries())' in js
+    assert 'const cellDescriptors = [];' in js
+    assert 'const branchWeightTotal = branchDescriptors.reduce((sum, branchDescriptor) => sum + branchDescriptor.weight, 0) || 1;' in js
+    assert 'const cellWeightTotal = cellDescriptors.reduce((sum, cellDescriptor) => sum + cellDescriptor.weight, 0) || 1;' in js
+    assert 'clusterLabelNodeIds.add(branchDescriptor.subclusterId);' in js
+    assert 'for (const nodeId of clusterLabelNodeIds) {' in js
     assert 'Object.entries((historyCapsRaw && typeof historyCapsRaw === "object") ? historyCapsRaw : {})' in js
     assert 'buildNetworkGraphPlaceholderNode(clean, historyCapsById.get(clean) || null)' in js
     assert 'const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, edgeMode);' in js
@@ -166,29 +206,36 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const parsedWeight = useSessionWeight ? parsedSession : parsedLifetime;' in js
     assert 'empty.textContent = edgeMode === "live"' in js
     assert '<button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip"' in js
+    assert 'summary.innerHTML = `<label class="network-graph-layout-control network-graph-chip" for="network-graph-layout-select">' in js
+    assert '<button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip"' in js
     assert 'bindNetworkGraphLayoutSelector();' in js
     assert 'syncNetworkGraphLayoutSelector();' in js
     assert 'label class="network-graph-layout-control network-graph-chip" for="network-graph-layout-select"' in js
     assert '<select id="network-graph-layout-select" class="network-graph-layout-select" aria-label="Network links layout">' in js
     assert '>Community</option>' in js
     assert 'bindNetworkGraphSummaryControls();' in js
+    assert 'const resetBtn = document.getElementById("network-graph-reset-view-btn");' in js
+    assert 'resetNetworkGraphView(svg);' in js
     assert 'Avg packet hops: ${edge.avgHops == null ? "n/a" : edge.avgHops}' in js
     assert '${item.layer} hop${item.layer === 1 ? "" : "s"} away' in js
     assert 'last packet hops away:' in js
     assert 'label: `${layer} hop${layer === 1 ? "" : "s"}`,' in js
     assert 'Switch Links view between stored history topology and the current session topology' in js
-    assert '<span class="network-graph-chip-label">1 Hop</span>' in js
+    assert '<span class="network-graph-chip-label">1 Hop</span>' not in js
+    assert 'Click to refocus, scroll to zoom, and use Reset view from the header controls.' in js
     assert 'Numbered hop rings show shortest graph distance from the current root, not literal packet-route hops.' in js
+    assert 'first-hop neighborhoods split into branch sub-clusters from the current root' in js
     assert 'const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph";' in js
     assert 'const weeklySummaryPromise = (activeLayoutView === "history" || activeLayoutView === "network")' in js
     assert 'if (weeklySummaryPromise) {' in js
     assert 'const networkGraphActive = next === "network" && activeNetworkSubview === "graph";' in js
     assert 'const rootChanged = networkGraphViewState.lastRootId !== rootId;' in js
+    assert 'hiddenBroadcastOnlyCount: Math.max(0, Number(disconnectedVisibility.hiddenBroadcastOnlyCount) || 0),' in js
+    assert 'hiddenDisconnectedCount: Math.max(0, Number(disconnectedVisibility.hiddenDetachedCount) || 0),' in js
     assert '&& !doesNetworkGraphViewBoxContainBounds(networkGraphViewState.viewBox, networkGraphViewState.bounds, 0.05)' in js
     assert 'const shouldRefitForModeChange = !!(' in js
     assert 'animateNetworkGraphViewBox(svg, fittedViewBox);' in js
     assert '} else if (rootChanged) {' in js
-    assert 'Broadcast only' in js
     assert 'layoutMode === "tree"' in js
     assert 'layoutMode === "cluster"' in js
     assert 'layoutMode === "community"' in js
@@ -233,7 +280,9 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-stage {" in css
     assert "touch-action: none;" in css
     assert ".network-graph-stage.is-panning {" in css
-    assert ".network-graph-mode-chip {" in css
+    assert ".network-graph-stage.is-overlay-docked #network-graph-svg {" in css
+    assert ".network-graph-mode-chip," in css
+    assert ".network-graph-action-chip {" in css
     assert ".network-graph-layout-control {" in css
     assert ".network-graph-layout-select {" in css
     assert "--network-graph-label-font-size: 10px;" in css
@@ -257,4 +306,5 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert "padding: 0;" in graph_panel_css
     assert "pointer-events: auto;" in graph_label_css
     assert "position: absolute;" in graph_toolbar_css
+    assert ".network-graph-toolbar.is-overlay-docked {" in css
     assert "display: none;" in graph_legend_css

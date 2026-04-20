@@ -4,7 +4,7 @@ from .helpers import format_epoch as _format_epoch, to_int as _to_int
 
 
 SavedCountsRow = tuple[object, object, object, object]
-CapabilityRow = tuple[object, object, object, object, object, object, object]
+CapabilityRow = tuple[object, object, object, object, object, object, object, object, object, object]
 
 
 def decode_node_saved_counts_rows(rows: Iterable[SavedCountsRow]) -> dict[str, dict[str, object]]:
@@ -31,6 +31,9 @@ def decode_node_capabilities_rows(rows: Iterable[CapabilityRow]) -> dict[str, di
         last_hops,
         battery_level,
         battery_updated_unix,
+        last_short_name,
+        last_long_name,
+        names_updated_unix,
     ) in rows:
         clean_node_id = str(node_id or "").strip()
         if not clean_node_id:
@@ -45,5 +48,8 @@ def decode_node_capabilities_rows(rows: Iterable[CapabilityRow]) -> dict[str, di
             "battery_level": _to_int(battery_level),
             "battery_updated_unix": _to_int(battery_updated_unix),
             "battery_updated_time": _format_epoch(battery_updated_unix),
+            "last_short_name": str(last_short_name or "").strip() or None,
+            "last_long_name": str(last_long_name or "").strip() or None,
+            "names_updated_unix": _to_int(names_updated_unix),
         }
     return out

@@ -1001,6 +1001,20 @@
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
       highlightNodeSelection(previousSelectedId, normalized);
+      if (
+        typeof renderEnvironmentMetricsView === "function"
+        && (
+          activeLayoutView === "environment"
+          || (
+            activeLayoutView === "network"
+            && activeNetworkSubview === "overview"
+            && typeof normalizeWeeklySummaryMetric === "function"
+            && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
+          )
+        )
+      ) {{
+        void renderEnvironmentMetricsView(false);
+      }}
       markNodeSelectionPerf(perfToken, "selection.dispatch", dispatchStartedAtMs, {{
         previousSelectedId,
       }});
@@ -1083,6 +1097,20 @@
       persistSelection();
       renderSelectionStatus();
       renderSavedNodeSearchDropdown(latestState);
+      if (
+        typeof renderEnvironmentMetricsView === "function"
+        && (
+          activeLayoutView === "environment"
+          || (
+            activeLayoutView === "network"
+            && activeNetworkSubview === "overview"
+            && typeof normalizeWeeklySummaryMetric === "function"
+            && normalizeWeeklySummaryMetric(networkOverviewMetric) === "sensors"
+          )
+        )
+      ) {{
+        void renderEnvironmentMetricsView(false);
+      }}
       if (isChatWorkspaceLayoutView(activeLayoutView)) {{
         applyChatChannel(activeChatChannel, false);
         if (typeof syncChatNodeDetailsDrawer === "function") {{

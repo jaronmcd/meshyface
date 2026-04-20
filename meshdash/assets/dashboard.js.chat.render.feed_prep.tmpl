@@ -1,6 +1,13 @@
       const rawMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
       const rawPackets = Array.isArray(traffic.recent_packets) ? traffic.recent_packets : [];
       const localInfoMessages = Array.isArray(chatLocalInfoRows) ? chatLocalInfoRows : [];
+      const rawMessagesLength = rawMessages.length;
+      const rawMessagesTailKey = rawMessagesLength > 0
+        ? String(chatMessageKey(rawMessages[rawMessagesLength - 1]) || "")
+        : "";
+      const rawPacketsLength = rawPackets.length;
+      const activeChatChannelKey = String(activeChatChannel || "all").trim() || "all";
+      const chatMainDirectModeActive = !!chatMainDirectModeEnabled;
       const computeMessageEndpoints = (msg) => {{
         const fromId = resolveMessageNodeId(
           (msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)) || ""
@@ -47,6 +54,11 @@
         && chatDerivedCache.historyCapsRef === historyCapsObj
         && chatDerivedCache.localNodeId === localNodeId
         && chatDerivedCache.meshChannelIndex === normalizeMeshChannelIndex(activeMeshChannelIndex)
+        && chatDerivedCache.activeChatChannel === activeChatChannelKey
+        && chatDerivedCache.chatMainDirectModeEnabled === chatMainDirectModeActive
+        && chatDerivedCache.rawMessagesLength === rawMessagesLength
+        && chatDerivedCache.rawMessagesTailKey === rawMessagesTailKey
+        && chatDerivedCache.rawPacketsLength === rawPacketsLength
         && chatDerivedCache.nodePacketTrendEnabled === nodeNavigatorPacketTrendEnabled()) {{
         derived = chatDerivedCache;
       }}
@@ -365,11 +377,16 @@
         derived = {{
           rawMessagesRef: rawMessages,
           rawPacketsRef: rawPackets,
+          rawMessagesLength,
+          rawMessagesTailKey,
+          rawPacketsLength,
           localInfoVersion: chatLocalInfoVersion,
           nodesRef: nodes,
           historyCapsRef: historyCapsObj,
           localNodeId,
           meshChannelIndex: normalizeMeshChannelIndex(activeMeshChannelIndex),
+          activeChatChannel: activeChatChannelKey,
+          chatMainDirectModeEnabled: chatMainDirectModeActive,
           reactionBuckets: reactionBucketsLocal,
           baseMessages: baseMessagesLocal,
           messageIndex: messageIndexLocal,

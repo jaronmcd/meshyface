@@ -225,7 +225,10 @@
         }}
         const rawState = await resp.json();
         latestRawState = rawState;
-        updateNodeNameCache((rawState && rawState.nodes) || []);
+        updateNodeNameCache(
+          (rawState && rawState.nodes) || [],
+          (rawState && rawState.history_caps) || null
+        );
         const state = applyNodeVisibilityFiltersToState(rawState);
         latestState = state;
         syncSelectedNodeWithVisibilityFilters();

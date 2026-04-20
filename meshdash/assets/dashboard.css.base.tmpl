@@ -4582,7 +4582,7 @@
       right: 10px;
       z-index: 450;
       align-items: flex-start;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 12px;
       pointer-events: none;
     }}
@@ -4590,7 +4590,8 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      flex-wrap: wrap;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
       max-width: 100%;
       padding: 4px;
       border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
@@ -4632,12 +4633,44 @@
       outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
       outline-offset: 1px;
     }}
+    .network-overview-primary-controls {{
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex: 0 1 auto;
+      flex-wrap: nowrap;
+      min-width: 0;
+      max-width: 100%;
+      width: auto;
+      margin-left: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      pointer-events: auto;
+    }}
+    .network-overview-primary-controls::-webkit-scrollbar {{
+      display: none;
+    }}
+    .network-overview-primary-controls[hidden] {{
+      display: none !important;
+    }}
+    .network-overview-primary-controls .history-metric-wrap {{
+      flex: 0 0 auto;
+      gap: 6px;
+      padding: 4px 8px 4px 9px;
+    }}
+    .network-overview-primary-controls .history-metric-select {{
+      min-width: 112px;
+    }}
     .network-map-controls-host {{
       display: flex;
       flex: 1 1 auto;
       min-width: 0;
       justify-content: flex-end;
       pointer-events: auto;
+    }}
+    .network-map-controls-host.is-graph-dock {{
+      justify-content: flex-start;
     }}
     .network-map-controls-host.is-hidden {{
       display: none;
@@ -4783,17 +4816,6 @@
       min-height: 28px;
       box-shadow: none;
       outline: none;
-    }}
-    .network-overview-sensor-controls-host .env-metrics-refresh-btn {{
-      border-color: #bfd4c3;
-      background: #ffffff;
-      color: #274935;
-      box-shadow: none;
-      min-height: 30px;
-      padding: 4px 12px;
-    }}
-    .network-overview-sensor-controls-host .env-metrics-refresh-btn:hover {{
-      background: #eef8f1;
     }}
     .network-overview-sensor-host #env-metrics-chart-wrap {{
       border-color: #d7e5d2;
@@ -4944,17 +4966,6 @@
       -moz-appearance: none;
       box-shadow: none;
       outline: none;
-    }}
-    .network-sensors-panel .env-metrics-refresh-btn {{
-      border-color: #bfd4c3;
-      background: #ffffff;
-      color: #274935;
-      box-shadow: none;
-      min-height: 30px;
-      padding: 4px 12px;
-    }}
-    .network-sensors-panel .env-metrics-refresh-btn:hover {{
-      background: #eef8f1;
     }}
     .network-sensors-panel #env-metrics-chart-wrap {{
       border-color: #d7e5d2;
@@ -5270,6 +5281,9 @@
       flex-wrap: wrap;
       pointer-events: none;
     }}
+    .network-graph-toolbar.is-overlay-docked {{
+      display: none;
+    }}
     .network-graph-toolbar-actions {{
       display: inline-flex;
       align-items: center;
@@ -5355,6 +5369,13 @@
       min-width: min(100%, 320px);
       pointer-events: auto;
     }}
+    .network-graph-summary.is-overlay-docked {{
+      justify-content: flex-start;
+      flex: 0 1 auto;
+      min-width: 0;
+      margin-left: 0;
+      transform: none;
+    }}
     .network-graph-chip {{
       display: inline-flex;
       align-items: center;
@@ -5369,12 +5390,14 @@
       white-space: nowrap;
       box-shadow: none;
     }}
-    .network-graph-mode-chip {{
+    .network-graph-mode-chip,
+    .network-graph-action-chip {{
       appearance: none;
       cursor: pointer;
       pointer-events: auto;
     }}
-    .network-graph-mode-chip:hover {{
+    .network-graph-mode-chip:hover,
+    .network-graph-action-chip:hover {{
       background: rgba(236, 246, 239, 0.96);
     }}
     .network-graph-chip-label {{
@@ -5418,6 +5441,11 @@
       --network-graph-emoji-font-size: 18px;
       --network-graph-local-emoji-font-size: 20px;
       --network-graph-label-stroke-width: 3px;
+    }}
+    .network-graph-stage.is-overlay-docked #network-graph-svg {{
+      height: 100%;
+      margin-top: 0;
+      --network-graph-toolbar-safe-strip: 0px;
     }}
     .network-graph-stage.is-panning .network-graph-node {{
       cursor: grabbing;

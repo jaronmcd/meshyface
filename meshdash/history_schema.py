@@ -60,7 +60,35 @@ def _ensure_summary_metrics_compat_columns(conn: SqlConnection) -> None:
         )
 
 
+def _ensure_node_capabilities_compat_columns(conn: SqlConnection) -> None:
+    columns = _table_column_names(conn, "node_capabilities")
+    if "last_short_name" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE node_capabilities
+            ADD COLUMN last_short_name TEXT
+            """
+        )
+        columns.add("last_short_name")
+    if "last_long_name" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE node_capabilities
+            ADD COLUMN last_long_name TEXT
+            """
+        )
+        columns.add("last_long_name")
+    if "names_updated_unix" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE node_capabilities
+            ADD COLUMN names_updated_unix INTEGER
+            """
+        )
+
+
 def initialize_history_schema(conn: SqlConnection) -> None:
     for statement in SCHEMA_STATEMENTS:
         conn.execute(statement)
     _ensure_summary_metrics_compat_columns(conn)
+    _ensure_node_capabilities_compat_columns(conn)

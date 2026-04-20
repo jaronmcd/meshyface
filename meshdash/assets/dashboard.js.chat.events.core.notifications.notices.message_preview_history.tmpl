@@ -66,6 +66,14 @@
     function chatChangePreviewFromMessage(msg, isReaction) {{
       const textPayload = compactChatChangePreview(msg && (msg.text ?? msg.decoded_text ?? msg.payload_text), 78);
       const kind = normalizeChatMessageKind(msg, isReaction);
+      const reactionTarget = compactChatChangePreview(
+        msg && (msg.reaction_target_label ?? msg.reactionTargetLabel),
+        48
+      );
+      const reactionTargetText = compactChatChangePreview(
+        msg && (msg.reaction_target_text ?? msg.reactionTargetText),
+        54
+      );
       if (kind === "status") {{
         return textPayload || "status update";
       }}
@@ -73,7 +81,15 @@
         return textPayload || "(no text)";
       }}
       const emoji = reactionEmojiPreviewFromMessage(msg);
+      if (emoji && reactionTarget && reactionTargetText) {{
+        return `reacted ${{emoji}} to a message from ${{reactionTarget}}: "${{reactionTargetText}}"`;
+      }}
+      if (emoji && reactionTarget) return `reacted ${{emoji}} to a message from ${{reactionTarget}}`;
       if (emoji) return `reacted ${{emoji}}`;
+      if (reactionTarget && reactionTargetText) {{
+        return `reaction to a message from ${{reactionTarget}}: "${{reactionTargetText}}"`;
+      }}
+      if (reactionTarget) return `reaction to a message from ${{reactionTarget}}`;
       const replyId = Number(msg && (msg.reply_id ?? msg.replyId));
       if (Number.isInteger(replyId) && replyId > 0) {{
         return `reaction on #${{replyId}}`;
@@ -111,6 +127,15 @@
       );
       const unixRaw = Number(source.unix);
       const unix = Number.isFinite(unixRaw) && unixRaw > 0 ? Math.trunc(unixRaw) : null;
+      const nowUnix = Math.floor(Date.now() / 1000);
+      if (
+        unix != null
+        && Number.isFinite(chatChangeNoticeMaxAgeSeconds)
+        && chatChangeNoticeMaxAgeSeconds > 0
+        && unix < (nowUnix - chatChangeNoticeMaxAgeSeconds)
+      ) {{
+        return null;
+      }}
       return {{
         key,
         focusKey,

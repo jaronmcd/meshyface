@@ -371,6 +371,14 @@
                 title="Add or edit node tag"
                 aria-label="Add or edit node tag"
               ><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>
+              <button
+                id="chat-node-details-reset-btn"
+                class="chat-node-details-action-btn chat-node-details-reset-btn"
+                type="button"
+                title="Clear saved tag and custom icon"
+                aria-label="Clear saved tag and custom icon"
+                hidden
+              >Reset</button>
               <div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>
               <div class="chat-node-details-head-actions">
                 <button
@@ -2582,6 +2590,29 @@
                   {network_diagnostics_tab_hidden_attrs}
                 >Diagnostics</button>
               </div>
+              <div id="network-overview-primary-controls" class="history-metric-controls network-overview-primary-controls" hidden>
+                <div class="history-metric-wrap">
+                  <label for="network-overview-metric" class="history-metric-label">Metric</label>
+                  <select id="network-overview-metric" class="history-metric-select" aria-label="Network overview metric">
+                    <option value="nodes">Nodes</option>
+                    <option value="packets">Packets</option>
+                    <option value="links">Links</option>
+                    <option value="sensors">Sensors</option>
+                  </select>
+                </div>
+                <div class="history-metric-wrap">
+                  <label for="network-overview-window" class="history-metric-label">Window</label>
+                  <select id="network-overview-window" class="history-metric-select" aria-label="Network overview window">
+                    <option value="6">6h</option>
+                    <option value="12">12h</option>
+                    <option value="24">24h</option>
+                    <option value="72">72h</option>
+                    <option value="168" selected>7d</option>
+                    <option value="336">14d</option>
+                    <option value="720">30d</option>
+                  </select>
+                </div>
+              </div>
               <div id="network-map-controls-host" class="network-map-controls-host" aria-hidden="true"></div>
             </div>
             <div
@@ -2603,29 +2634,6 @@
                 <section class="network-graph-card">
                   <div class="network-graph-stage">
                     <div class="network-graph-toolbar">
-                      <div class="network-graph-toolbar-actions">
-                        <button
-                          id="network-graph-back-btn"
-                          class="map-reset-view-btn"
-                          type="button"
-                          title="Go back to the previous links focus"
-                          aria-controls="network-graph-svg"
-                        >Back</button>
-                        <button
-                          id="network-graph-home-btn"
-                          class="map-reset-view-btn"
-                          type="button"
-                          title="Center links view on the local node"
-                          aria-controls="network-graph-svg"
-                        >Home</button>
-                        <button
-                          id="network-graph-reset-view-btn"
-                          class="map-reset-view-btn"
-                          type="button"
-                          title="Reset links view"
-                          aria-controls="network-graph-svg"
-                        >Reset view</button>
-                      </div>
                       <div id="network-graph-summary" class="network-graph-summary" aria-live="polite"></div>
                     </div>
                     <svg
@@ -2655,27 +2663,6 @@
               <div class="network-overview-panel">
                 <section class="network-overview-card">
                   <div class="history-metric-controls network-overview-controls">
-                    <div class="history-metric-wrap">
-                      <label for="network-overview-metric" class="history-metric-label">Metric</label>
-                      <select id="network-overview-metric" class="history-metric-select" aria-label="Network overview metric">
-                        <option value="nodes">Nodes</option>
-                        <option value="packets">Packets</option>
-                        <option value="links">Links</option>
-                        <option value="sensors">Sensors</option>
-                      </select>
-                    </div>
-                    <div class="history-metric-wrap">
-                      <label for="network-overview-window" class="history-metric-label">Window</label>
-                      <select id="network-overview-window" class="history-metric-select" aria-label="Network overview window">
-                        <option value="6">6h</option>
-                        <option value="12">12h</option>
-                        <option value="24">24h</option>
-                        <option value="72">72h</option>
-                        <option value="168" selected>7d</option>
-                        <option value="336">14d</option>
-                        <option value="720">30d</option>
-                      </select>
-                    </div>
                     <div id="network-overview-sensor-controls-host" class="network-overview-sensor-controls-host" hidden></div>
                     <div id="network-overview-link-mode-wrap" class="history-metric-wrap" hidden>
                       <label for="network-overview-link-mode" class="history-metric-label">Links</label>
@@ -3362,13 +3349,6 @@
                   <option value="">No environment metrics</option>
                 </select>
               </div>
-              <div class="history-metric-wrap env-metrics-control-group">
-                <label for="env-node-select">Node</label>
-                <select id="env-node-select" class="env-metric-select" aria-label="Sensor node selector">
-                  <option value="">All nodes</option>
-                </select>
-              </div>
-              <button id="env-metrics-refresh-btn" class="env-metrics-refresh-btn" type="button">Refresh</button>
             </div>
             <div class="env-metrics-grid">
               <div id="env-metrics-chart-wrap">

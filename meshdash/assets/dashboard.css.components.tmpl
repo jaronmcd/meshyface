@@ -882,20 +882,6 @@
     .env-metric-select:disabled {{
       opacity: 0.72;
     }}
-    .env-metrics-refresh-btn {{
-      border: 1px solid #b8cfbe;
-      border-radius: 999px;
-      background: #f8fcf8;
-      color: #244636;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1px;
-      padding: 4px 10px;
-      cursor: pointer;
-    }}
-    .env-metrics-refresh-btn:hover {{
-      background: #eaf4eb;
-    }}
     .env-metrics-grid {{
       display: flex;
       flex: 1 1 auto;
@@ -1028,14 +1014,6 @@
       border-color: #436453;
       background: #1c2d23;
       color: #d8ece0;
-    }}
-    [data-theme="dark"] .env-metrics-refresh-btn {{
-      border-color: #446655;
-      background: #1b2b22;
-      color: #d8ece0;
-    }}
-    [data-theme="dark"] .env-metrics-refresh-btn:hover {{
-      background: #22372b;
     }}
     [data-theme="dark"] #env-metrics-chart-wrap {{
       border-color: #355244;
@@ -4030,6 +4008,16 @@
       background: rgba(64, 111, 170, 0.26);
       color: #d9edff;
     }}
+    [data-theme="dark"] .chat-node-details-reset-btn {{
+      border-color: rgba(174, 114, 76, 0.72);
+      background: rgba(84, 52, 33, 0.28);
+      color: #ffd8bf;
+    }}
+    [data-theme="dark"] .chat-node-details-reset-btn:hover {{
+      border-color: rgba(214, 150, 109, 0.84);
+      background: rgba(112, 69, 41, 0.34);
+      color: #ffe7d8;
+    }}
     [data-theme="dark"] .chat-member-item.muted-node {{
       background:
         linear-gradient(
@@ -5225,6 +5213,18 @@
     [data-theme="dark"] .network-overview-panel .history-metric-toggle {{
       accent-color: var(--ui-accent);
     }}
+    [data-theme="dark"] .network-overview-primary-controls .history-metric-wrap {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 82%, var(--workspace-shell-bg-alt) 18%);
+    }}
+    [data-theme="dark"] .network-overview-primary-controls .history-metric-label {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .network-overview-primary-controls .history-metric-select {{
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--workspace-shell-active-bg) 12%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
     [data-theme="dark"] .network-overview-panel #network-overview-chart-wrap {{
       border-color: var(--workspace-shell-border);
       background:
@@ -5296,17 +5296,6 @@
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--workspace-shell-active-bg) 12%);
       border-color: var(--workspace-shell-border-muted);
       color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .network-sensors-panel .env-metrics-refresh-btn,
-    [data-theme="dark"] .network-overview-sensor-controls-host .env-metrics-refresh-btn {{
-      border-color: var(--workspace-shell-border-muted);
-      background: color-mix(in srgb, var(--workspace-shell-active-bg) 82%, var(--workspace-shell-bg-alt) 18%);
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .network-sensors-panel .env-metrics-refresh-btn:hover,
-    [data-theme="dark"] .network-overview-sensor-controls-host .env-metrics-refresh-btn:hover {{
-      background: var(--workspace-shell-hover-bg);
     }}
     [data-theme="dark"] .network-sensors-panel #env-metrics-chart-wrap,
     [data-theme="dark"] .network-overview-sensor-host #env-metrics-chart-wrap {{
@@ -7230,6 +7219,9 @@
         width: fit-content;
         max-width: 100%;
       }}
+      .network-overview-primary-controls {{
+        justify-content: flex-start;
+      }}
       .network-map-controls-host {{
         justify-content: flex-start;
       }}
@@ -7412,7 +7404,8 @@
         gap: 6px;
       }}
       .network-map-subview-tabs,
-      .map-controls-dock {{
+      .map-controls-dock,
+      .network-overview-primary-controls {{
         width: 100%;
         max-width: 100%;
         overflow-x: auto;
@@ -7426,7 +7419,8 @@
       .map-reset-view-btn,
       .map-basemap-status,
       .map-heatmap-wrap,
-      .map-heatmap-mode-wrap {{
+      .map-heatmap-mode-wrap,
+      .network-overview-primary-controls .history-metric-wrap {{
         flex: 0 0 auto;
       }}
       .games-shell {{

@@ -553,6 +553,61 @@ def test_chat_reaction_anchor_reuses_same_button_for_more_and_less_states() -> N
     assert "[data-theme=\"dark\"] .card.chat .chat-reaction-summary.is-empty.is-reaction-preview," in css
 
 
+def test_chat_feed_cache_tracks_chat_tail_for_reaction_rebuilds() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "const rawMessagesLength = rawMessages.length;" in js
+    assert "const rawMessagesTailKey = rawMessagesLength > 0" in js
+    assert 'String(chatMessageKey(rawMessages[rawMessagesLength - 1]) || "")' in js
+    assert "const rawPacketsLength = rawPackets.length;" in js
+    assert 'const activeChatChannelKey = String(activeChatChannel || "all").trim() || "all";' in js
+    assert "const chatMainDirectModeActive = !!chatMainDirectModeEnabled;" in js
+    assert "chatDerivedCache.activeChatChannel === activeChatChannelKey" in js
+    assert "chatDerivedCache.chatMainDirectModeEnabled === chatMainDirectModeActive" in js
+    assert "chatDerivedCache.rawMessagesLength === rawMessagesLength" in js
+    assert "chatDerivedCache.rawMessagesTailKey === rawMessagesTailKey" in js
+    assert "chatDerivedCache.rawPacketsLength === rawPacketsLength" in js
+    assert "rawMessagesTailKey," in js
+    assert "activeChatChannel: activeChatChannelKey," in js
+    assert "chatMainDirectModeEnabled: chatMainDirectModeActive," in js
+
+
+def test_chat_reaction_notices_prefer_full_names_and_target_context() -> None:
+    unread_src = Path("meshdash/assets/dashboard.js.chat.events.core.notifications.unread.tmpl").read_text()
+    preview_src = Path("meshdash/assets/dashboard.js.chat.events.core.notifications.notices.message_preview_history.tmpl").read_text()
+    persist_src = Path("meshdash/assets/dashboard.js.chat.events.core.notifications.notices.persist_track.tmpl").read_text()
+
+    assert "function chatResolvedNodeLabel(nodeIdRaw, nodesById, explicitName = \"\") {{" in unread_src
+    assert "const preferred = node ? String(preferredNodeName(node) || \"\").trim() : \"\";" in unread_src
+    assert "return preferred || explicit || cached || senderId || \"Unknown node\";" in unread_src
+    assert "const messageInfoById = new Map();" in unread_src
+    assert "senderLabel: chatSenderLabelFromMessage(msg, nodesById)," in unread_src
+    assert "const reactionTargetLabel = reactionTargetInfo && typeof reactionTargetInfo === \"object\"" in unread_src
+    assert "reaction_target_label: reactionTargetLabel," in unread_src
+    assert "const reactionTarget = compactChatChangePreview(" in preview_src
+    assert "msg && (msg.reaction_target_label ?? msg.reactionTargetLabel)," in preview_src
+    assert "if (emoji && reactionTarget) return `reacted ${{emoji}} to ${{reactionTarget}}`;" in preview_src
+    assert "if (reactionTarget) return `reaction to ${{reactionTarget}}`;" in preview_src
+    assert "version: 3," in persist_src
+    assert "Number(payload.version) === 3" in persist_src
+
+
+def test_node_name_cache_rejects_generic_downgrades_and_accepts_history_caps() -> None:
+    src = Path("meshdash/assets/dashboard.js.chat.events.core.identity.favorites_selection.topbar_map_title.tmpl").read_text()
+
+    assert "function isGenericNodeCacheLabel(nameRaw, nodeIdRaw) {{" in src
+    assert "function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw) {{" in src
+    assert "!isGenericNodeCacheLabel(current, nodeId)" in src
+    assert "&& isGenericNodeCacheLabel(candidate, nodeId)" in src
+    assert "function updateNodeNameCache(nodes, historyCaps = null) {{" in src
+    assert "for (const [rawNodeId, caps] of Object.entries(historyCapsObj)) {{" in src
+    assert "for (const name of [caps.last_long_name, caps.last_short_name]) {{" in src
+
+
 def test_chat_node_list_can_collapse_into_compact_rail() -> None:
     html = build_html_shell(
         app_title="Meshyface",

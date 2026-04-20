@@ -41,6 +41,7 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert "<h2>Files</h2>" not in html
     assert 'id="network-map-chrome" class="network-map-chrome"' in html
     assert 'class="network-map-subview-tabs"' in html
+    assert 'id="network-overview-primary-controls"' in html
     assert 'id="apps-tabs-bar"' not in html
 
     assert ".workspace-chrome-bar {" in css
@@ -204,6 +205,7 @@ def test_mobile_network_and_games_shells_expand_to_single_phone_column() -> None
     assert "height: 100%;" in mobile_section
     assert ".layout.view-network .map," in mobile_section
     assert ".network-map-subview-tabs," in mobile_section
+    assert ".network-overview-primary-controls {" in mobile_section
     assert "overflow-x: auto;" in mobile_section
     assert "flex-wrap: nowrap;" in mobile_section
     assert ".games-main {" in mobile_section
@@ -217,6 +219,7 @@ def test_network_subviews_follow_workspace_theme_tokens() -> None:
 
     overview_panel_section = css.split("[data-theme=\"dark\"] .network-overview-panel {", 1)[1].split("}", 1)[0]
     overview_control_section = css.split("[data-theme=\"dark\"] .network-overview-panel .history-metric-wrap {", 1)[1].split("}", 1)[0]
+    overview_primary_control_section = css.split("[data-theme=\"dark\"] .network-overview-primary-controls .history-metric-wrap {", 1)[1].split("}", 1)[0]
     overview_chart_section = css.split("[data-theme=\"dark\"] .network-overview-panel #network-overview-chart-wrap {", 1)[1].split("}", 1)[0]
     overview_stat_section = css.split("[data-theme=\"dark\"] .network-overview-panel .overview-item {", 1)[1].split("}", 1)[0]
     sensors_panel_section = css.split("[data-theme=\"dark\"] .network-sensors-panel .env-metrics-explorer {", 1)[1].split("}", 1)[0]
@@ -235,6 +238,8 @@ def test_network_subviews_follow_workspace_theme_tokens() -> None:
     assert "var(--workspace-shell-active-bg)" in overview_panel_section
     assert "var(--workspace-shell-border-muted)" in overview_control_section
     assert "var(--workspace-shell-active-bg)" in overview_control_section
+    assert "var(--workspace-shell-border-muted)" in overview_primary_control_section
+    assert "var(--workspace-shell-active-bg)" in overview_primary_control_section
     assert "var(--workspace-shell-border)" in overview_chart_section
     assert "var(--workspace-shell-bg-alt)" in overview_chart_section
     assert "var(--workspace-shell-active-bg)" in overview_stat_section
@@ -252,6 +257,20 @@ def test_network_subviews_follow_workspace_theme_tokens() -> None:
     assert "var(--workspace-shell-border)" in graph_stage_section
     assert "var(--ui-accent)" in graph_edge_section
     assert "var(--workspace-shell-border-strong)" in graph_root_section
+
+
+def test_network_overview_primary_controls_only_show_on_overview_subview() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'function syncNetworkOverviewPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview) {' in js
+    assert 'const controls = document.getElementById("network-overview-primary-controls");' in js
+    assert 'const showControls = normalizedView === "network" && normalizedSubview === "overview";' in js
+    assert "syncNetworkOverviewPrimaryControls(activeLayoutView, next);" in js
+    assert "syncNetworkOverviewPrimaryControls(next, activeNetworkSubview);" in js
 
 
 def test_network_sensors_docked_explorer_reuses_overview_light_shell() -> None:

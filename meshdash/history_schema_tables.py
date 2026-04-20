@@ -79,7 +79,10 @@ TABLE_SCHEMA_STATEMENTS = [
       last_position_unix INTEGER,
       last_hops INTEGER,
       battery_level INTEGER,
-      battery_updated_unix INTEGER
+      battery_updated_unix INTEGER,
+      last_short_name TEXT,
+      last_long_name TEXT,
+      names_updated_unix INTEGER
     )
     """,
     """

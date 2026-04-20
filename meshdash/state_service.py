@@ -45,6 +45,7 @@ from .state_tracker import (
     load_tracker_snapshot_safe as _load_tracker_snapshot_safe_helper,
 )
 from .state_summary import (
+    apply_node_historical_names as _apply_node_historical_names_helper,
     apply_node_saved_counts as _apply_node_saved_counts_helper,
     build_summary_payload as _build_summary_payload_helper,
     collect_local_state_safe as _collect_local_state_safe_helper,
@@ -303,6 +304,8 @@ def _slim_history_caps(
             "last_position_unix",
             "last_hops",
             "battery_level",
+            "last_short_name",
+            "last_long_name",
         ):
             value = caps.get(key)
             if value is not None:
@@ -681,6 +684,11 @@ def build_dashboard_state_typed(
     except Exception as exc:
         if node_saved_counts_error is None:
             node_saved_counts_error = str(exc)
+    try:
+        _apply_node_historical_names_helper(nodes.rows, node_capabilities)
+    except Exception as exc:
+        if node_capabilities_error is None:
+            node_capabilities_error = str(exc)
 
     if include_debug:
         my_info, my_info_error = _to_jsonable_safe(

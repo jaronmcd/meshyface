@@ -12,7 +12,7 @@
         }};
       }};
       const payload = {{
-        version: 2,
+        version: 3,
         channels: {{
           all: encodeChannel("all"),
           direct: encodeChannel("direct"),
@@ -35,7 +35,7 @@
       const channels = (
         payload
         && typeof payload === "object"
-        && Number(payload.version) === 2
+        && Number(payload.version) === 3
         && payload.channels
         && typeof payload.channels === "object"
       )

@@ -1,10 +1,12 @@
 import time
+from collections.abc import Mapping
 from typing import Callable, Optional
 
 from .revision import RevisionInfo
 from .tracker_snapshot_contracts import TrackerSnapshot
 
 from .helpers import disk_space_info
+from .helpers_node_names import prefer_stable_node_name as _prefer_stable_node_name_helper
 
 
 def apply_node_saved_counts(
@@ -16,6 +18,33 @@ def apply_node_saved_counts(
         row["saved_packets"] = int(stats.get("saved_packets") or 0)
         row["saved_points"] = int(stats.get("saved_points") or 0)
         row["saved_last_seen"] = stats.get("saved_last_seen")
+
+
+def apply_node_historical_names(
+    rows: list[dict[str, object]],
+    history_caps: Mapping[str, Mapping[str, object]],
+) -> None:
+    for row in rows:
+        node_id = str(row.get("id") or "").strip()
+        if not node_id:
+            continue
+        caps = history_caps.get(node_id)
+        if not isinstance(caps, Mapping):
+            continue
+        next_long_name = _prefer_stable_node_name_helper(
+            row.get("long_name"),
+            caps.get("last_long_name"),
+            node_id,
+        )
+        next_short_name = _prefer_stable_node_name_helper(
+            row.get("short_name"),
+            caps.get("last_short_name"),
+            node_id,
+        )
+        if next_long_name:
+            row["long_name"] = next_long_name
+        if next_short_name:
+            row["short_name"] = next_short_name
 
 
 def collect_local_state_safe(

@@ -16,16 +16,21 @@ def upsert_node_capability(
     has_position: bool,
     last_hops: Optional[int],
     battery_level: Optional[int],
+    last_short_name: object = None,
+    last_long_name: object = None,
 ) -> None:
-    clean_hops, clean_battery = _normalize_node_capability_inputs(
+    clean_hops, clean_battery, clean_short_name, clean_long_name = _normalize_node_capability_inputs(
         last_hops=last_hops,
         battery_level=battery_level,
+        last_short_name=last_short_name,
+        last_long_name=last_long_name,
     )
 
     row = conn.execute(
         """
         SELECT last_seen_unix, has_position, last_position_unix,
-               last_hops, battery_level, battery_updated_unix
+               last_hops, battery_level, battery_updated_unix,
+               last_short_name, last_long_name, names_updated_unix
         FROM node_capabilities
         WHERE node_id = ?
         """,
@@ -37,8 +42,9 @@ def upsert_node_capability(
             """
             INSERT INTO node_capabilities(
               node_id, last_seen_unix, has_position, last_position_unix,
-              last_hops, battery_level, battery_updated_unix
-            ) VALUES(?, ?, ?, ?, ?, ?, ?)
+              last_hops, battery_level, battery_updated_unix,
+              last_short_name, last_long_name, names_updated_unix
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _build_node_capability_insert_values(
                 node_id=node_id,
@@ -46,6 +52,8 @@ def upsert_node_capability(
                 has_position=has_position,
                 clean_hops=clean_hops,
                 clean_battery=clean_battery,
+                clean_short_name=clean_short_name,
+                clean_long_name=clean_long_name,
             ),
         )
         return
@@ -56,6 +64,8 @@ def upsert_node_capability(
         has_position=has_position,
         clean_hops=clean_hops,
         clean_battery=clean_battery,
+        clean_short_name=clean_short_name,
+        clean_long_name=clean_long_name,
     )
 
     conn.execute(
@@ -66,7 +76,10 @@ def upsert_node_capability(
             last_position_unix = ?,
             last_hops = ?,
             battery_level = ?,
-            battery_updated_unix = ?
+            battery_updated_unix = ?,
+            last_short_name = ?,
+            last_long_name = ?,
+            names_updated_unix = ?
         WHERE node_id = ?
         """,
         (
@@ -76,6 +89,9 @@ def upsert_node_capability(
             merged["last_hops"],
             merged["battery_level"],
             merged["battery_updated_unix"],
+            merged["last_short_name"],
+            merged["last_long_name"],
+            merged["names_updated_unix"],
             node_id,
         ),
     )

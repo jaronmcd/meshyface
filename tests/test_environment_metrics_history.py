@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from meshdash.history_schema import initialize_history_schema
 from meshdash.history_store_packets import load_environment_metrics_history
 from meshdash.html_js import build_dashboard_js
+from meshdash.html_sections import build_html_shell
 
 
 def test_environment_history_applies_metric_filter_before_rollup_limit() -> None:
@@ -110,5 +111,37 @@ def test_dashboard_js_fetches_filtered_sensor_series_from_server() -> None:
     assert 'params.set("metric", cleanMetric);' in js
     assert 'params.set("node_id", cleanNodeId);' in js
     assert 'metricSelect.addEventListener("change", () => {' in js
-    assert 'nodeSelect.addEventListener("change", () => {' in js
+    assert 'const nodeSelect = document.getElementById("env-node-select");' not in js
+    assert 'nodeSelect.addEventListener("change", () => {' not in js
+    assert 'function currentEnvironmentMetricsScopedNodeId() {' in js
+    assert 'const selectedNodeId = currentEnvironmentMetricsScopedNodeId();' in js
+    assert 'function resolveEnvironmentScopedNodeMeta(nodes, nodeId) {' in js
+    assert 'selectNode(cleanNodeId, false, true);' in js
+    assert 'function resolveEnvironmentMetricsChartNodeIdFromTarget(target) {' in js
+    assert 'hitNodeId: resolveEnvironmentMetricsChartNodeIdFromTarget(ev.target),' in js
+    assert 'focusEnvironmentNodeFromChart(drag.hitNodeId);' in js
+    assert '<g data-node-id="${escAttr(seriesNodeId)}">${seriesPaths.join("")}</g>' in js
+    assert "click to select or deselect node" in js
+    assert "const envMetricsChartMaxSeries = 8;" in js
+    assert 'function localNodeIdForEnvironmentMetrics() {' in js
+    assert 'function selectEnvironmentSeriesForAllNodes(seriesList, maxSeries = envMetricsChartMaxSeries) {' in js
+    assert 'if (!nodeMeta && seriesList.length > envMetricsChartMaxSeries) {' in js
     assert "void renderEnvironmentMetricsView(false);" in js
+
+
+def test_dashboard_html_uses_shared_node_selection_for_environment_metrics() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+
+    assert 'id="env-node-select"' not in html
+    assert '<label for="env-node-select">Node</label>' not in html

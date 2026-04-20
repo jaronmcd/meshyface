@@ -32,6 +32,7 @@ from .history_positions import (
 )
 from .history_rollups import bucket_minute as _bucket_minute
 from .history_rollups import clean_node_id as _clean_node_id
+from .helpers_node_names import extract_user_names_from_packet as _extract_user_names_from_packet
 from .sql_contracts import SqlConnection
 
 def _is_hex_text(value: str) -> bool:
@@ -277,6 +278,10 @@ def save_packet_event_and_rollups(
     hops = normalized["hops"]
     position_data = normalized["position_data"]
     battery_level = normalized["battery_level"]
+    short_name = ""
+    long_name = ""
+    if isinstance(packet, dict):
+        short_name, long_name = _extract_user_names_from_packet(summary, packet)
 
     conn.execute(
         """
@@ -313,6 +318,8 @@ def save_packet_event_and_rollups(
             has_position=_extract_position_fields(position_data) is not None,
             last_hops=hops,
             battery_level=battery_level,
+            last_short_name=short_name,
+            last_long_name=long_name,
         )
     if from_id and to_id and from_id != to_id:
         _upsert_link_metric(

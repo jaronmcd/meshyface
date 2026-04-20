@@ -3,6 +3,9 @@ from typing import Callable, Optional
 
 from .helpers import safe_json_loads as _safe_json_loads
 from .helpers import to_int as _to_int
+from .helpers_node_names import extract_user_names_from_packet as _extract_user_names_from_packet
+from .helpers_node_names import normalize_node_id_text as _normalize_node_id_text
+from .history_capability_writes import upsert_node_capability as _upsert_node_capability_helper
 from .history_writes import (
     save_environment_metric_rollups as _save_environment_metric_rollups_helper,
 )
@@ -15,89 +18,149 @@ def backfill_node_capabilities(
     to_int_fn: Callable[[object], Optional[int]],
 ) -> None:
     existing = conn.execute("SELECT COUNT(*) FROM node_capabilities").fetchone()
-    if existing and int(existing[0] or 0) > 0:
-        return
+    table_has_rows = bool(existing and int(existing[0] or 0) > 0)
 
     merged: dict[str, dict[str, object]] = {}
 
-    metric_rows = conn.execute(
-        """
-        SELECT node_id, MAX(last_seen_unix)
-        FROM node_metrics_1m
-        GROUP BY node_id
-        """
-    ).fetchall()
-    for node_id, last_seen_unix in metric_rows:
-        clean_node_id = str(node_id or "").strip()
-        seen = to_int_fn(last_seen_unix)
-        if not clean_node_id or seen is None:
-            continue
-        merged.setdefault(clean_node_id, {})
-        merged[clean_node_id]["last_seen_unix"] = seen
-
-    position_rows = conn.execute(
-        """
-        SELECT node_id, MAX(created_unix)
-        FROM node_positions
-        GROUP BY node_id
-        """
-    ).fetchall()
-    for node_id, last_position_unix in position_rows:
-        clean_node_id = str(node_id or "").strip()
-        pos_unix = to_int_fn(last_position_unix)
-        if not clean_node_id or pos_unix is None:
-            continue
-        node = merged.setdefault(clean_node_id, {})
-        node["has_position"] = True
-        node["last_position_unix"] = pos_unix
-        node["last_seen_unix"] = max(to_int_fn(node.get("last_seen_unix")) or pos_unix, pos_unix)
-
-    hop_rows = conn.execute(
-        """
-        SELECT events.from_id, events.hops, events.created_unix
-        FROM packet_events AS events
-        JOIN (
-          SELECT from_id, MAX(id) AS max_id
-          FROM packet_events
-          WHERE from_id IS NOT NULL AND hops IS NOT NULL
-          GROUP BY from_id
-        ) AS latest
-          ON latest.from_id = events.from_id AND latest.max_id = events.id
-        """
-    ).fetchall()
-    for node_id, last_hops, hop_seen_unix in hop_rows:
-        clean_node_id = str(node_id or "").strip()
-        hops = to_int_fn(last_hops)
-        seen = to_int_fn(hop_seen_unix)
-        if not clean_node_id:
-            continue
-        node = merged.setdefault(clean_node_id, {})
-        if hops is not None and hops >= 0:
-            node["last_hops"] = hops
-        if seen is not None:
-            node["last_seen_unix"] = max(to_int_fn(node.get("last_seen_unix")) or seen, seen)
-
-    for node_id, values in merged.items():
-        seen = to_int_fn(values.get("last_seen_unix"))
-        if seen is None or seen <= 0:
-            continue
-        has_position = 1 if values.get("has_position") else 0
-        conn.execute(
+    if not table_has_rows:
+        metric_rows = conn.execute(
             """
-            INSERT OR REPLACE INTO node_capabilities(
-              node_id, last_seen_unix, has_position, last_position_unix,
-              last_hops, battery_level, battery_updated_unix
-            ) VALUES(?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                node_id,
-                seen,
-                has_position,
-                to_int_fn(values.get("last_position_unix")),
-                to_int_fn(values.get("last_hops")),
-                None,
-                None,
-            ),
+            SELECT node_id, MAX(last_seen_unix)
+            FROM node_metrics_1m
+            GROUP BY node_id
+            """
+        ).fetchall()
+        for node_id, last_seen_unix in metric_rows:
+            clean_node_id = str(node_id or "").strip()
+            seen = to_int_fn(last_seen_unix)
+            if not clean_node_id or seen is None:
+                continue
+            merged.setdefault(clean_node_id, {})
+            merged[clean_node_id]["last_seen_unix"] = seen
+
+        position_rows = conn.execute(
+            """
+            SELECT node_id, MAX(created_unix)
+            FROM node_positions
+            GROUP BY node_id
+            """
+        ).fetchall()
+        for node_id, last_position_unix in position_rows:
+            clean_node_id = str(node_id or "").strip()
+            pos_unix = to_int_fn(last_position_unix)
+            if not clean_node_id or pos_unix is None:
+                continue
+            node = merged.setdefault(clean_node_id, {})
+            node["has_position"] = True
+            node["last_position_unix"] = pos_unix
+            node["last_seen_unix"] = max(to_int_fn(node.get("last_seen_unix")) or pos_unix, pos_unix)
+
+        hop_rows = conn.execute(
+            """
+            SELECT events.from_id, events.hops, events.created_unix
+            FROM packet_events AS events
+            JOIN (
+              SELECT from_id, MAX(id) AS max_id
+              FROM packet_events
+              WHERE from_id IS NOT NULL AND hops IS NOT NULL
+              GROUP BY from_id
+            ) AS latest
+              ON latest.from_id = events.from_id AND latest.max_id = events.id
+            """
+        ).fetchall()
+        for node_id, last_hops, hop_seen_unix in hop_rows:
+            clean_node_id = str(node_id or "").strip()
+            hops = to_int_fn(last_hops)
+            seen = to_int_fn(hop_seen_unix)
+            if not clean_node_id:
+                continue
+            node = merged.setdefault(clean_node_id, {})
+            if hops is not None and hops >= 0:
+                node["last_hops"] = hops
+            if seen is not None:
+                node["last_seen_unix"] = max(to_int_fn(node.get("last_seen_unix")) or seen, seen)
+
+        for node_id, values in merged.items():
+            seen = to_int_fn(values.get("last_seen_unix"))
+            if seen is None or seen <= 0:
+                continue
+            has_position = 1 if values.get("has_position") else 0
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO node_capabilities(
+                  node_id, last_seen_unix, has_position, last_position_unix,
+                  last_hops, battery_level, battery_updated_unix,
+                  last_short_name, last_long_name, names_updated_unix
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    node_id,
+                    seen,
+                    has_position,
+                    to_int_fn(values.get("last_position_unix")),
+                    to_int_fn(values.get("last_hops")),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+            )
+
+    latest_names_by_node: dict[str, dict[str, object]] = {}
+    name_rows = conn.execute(
+        """
+        SELECT created_unix, summary_json, packet_json
+        FROM packets
+        WHERE summary_json LIKE '%"portnum":"NODEINFO_APP"%'
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    for created_unix, summary_json, packet_json in name_rows:
+        summary = _safe_json_loads(summary_json, {})
+        packet = _safe_json_loads(packet_json, {})
+        if not isinstance(summary, dict) or not isinstance(packet, dict):
+            continue
+        short_name, long_name = _extract_user_names_from_packet(summary, packet)
+        if not short_name and not long_name:
+            continue
+        node_id = _normalize_node_id_text(
+            summary.get("from")
+            or packet.get("fromId")
+            or packet.get("from_id")
+            or packet.get("from")
+        )
+        if not node_id:
+            decoded = packet.get("decoded")
+            if isinstance(decoded, dict):
+                user = decoded.get("user")
+                if isinstance(user, dict):
+                    node_id = _normalize_node_id_text(user.get("id") or user.get("node_id"))
+        if not node_id:
+            continue
+        event_unix = to_int_fn(created_unix) or 0
+        previous = latest_names_by_node.get(node_id)
+        if previous and int(previous.get("event_unix") or 0) > event_unix:
+            continue
+        latest_names_by_node[node_id] = {
+            "event_unix": event_unix,
+            "last_short_name": short_name,
+            "last_long_name": long_name,
+        }
+
+    for node_id, values in latest_names_by_node.items():
+        event_unix = to_int_fn(values.get("event_unix")) or 0
+        if event_unix <= 0:
+            continue
+        _upsert_node_capability_helper(
+            conn,
+            node_id=node_id,
+            event_unix=event_unix,
+            has_position=False,
+            last_hops=None,
+            battery_level=None,
+            last_short_name=values.get("last_short_name"),
+            last_long_name=values.get("last_long_name"),
         )
 
 
