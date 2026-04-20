@@ -2558,14 +2558,11 @@
     }}
 
     function bindNetworkGraphSummaryControls() {{
-      const modeChip = document.getElementById("network-graph-mode-chip");
-      if (modeChip instanceof HTMLButtonElement && modeChip.dataset.bound !== "1") {{
-        modeChip.dataset.bound = "1";
-        modeChip.addEventListener("click", () => {{
-          const nextMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode) === "live"
-            ? "history"
-            : "live";
-          setNetworkGraphEdgeMode(nextMode, {{ persist: true, rerender: true }});
+      const modeSelect = document.getElementById("network-graph-mode-select");
+      if (modeSelect instanceof HTMLSelectElement && modeSelect.dataset.bound !== "1") {{
+        modeSelect.dataset.bound = "1";
+        modeSelect.addEventListener("change", () => {{
+          setNetworkGraphEdgeMode(modeSelect.value || "history", {{ persist: true, rerender: true }});
         }});
       }}
 
@@ -2589,6 +2586,15 @@
       }}
     }}
 
+    function syncNetworkGraphModeSelector() {{
+      const next = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode);
+      const select = document.getElementById("network-graph-mode-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+      if (select.value !== next) {{
+        select.value = next;
+      }}
+    }}
+
     function bindNetworkGraphLayoutSelector() {{
       const select = document.getElementById("network-graph-layout-select");
       if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") return;
@@ -2602,6 +2608,7 @@
       const next = normalizeNetworkGraphEdgeMode(modeName);
       const changed = next !== normalizeNetworkGraphEdgeMode(networkGraphEdgeMode);
       networkGraphEdgeMode = next;
+      syncNetworkGraphModeSelector();
       if (!(options && options.persist === false)) {{
         persistPreferredNetworkGraphEdgeMode(next);
       }}
@@ -4417,10 +4424,11 @@
       clearNetworkGraphEmptyRetry();
       empty.hidden = true;
       const selectedId = normalizeNodeId(selectedNodeId || "");
-      summary.innerHTML = `<label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"><span class="network-graph-chip-label history-metric-label">View</span><select id="network-graph-layout-select" class="network-graph-layout-select history-metric-select" aria-label="Network links layout"><option value="radial"${{layoutMode === "radial" ? " selected" : ""}}>Radial</option><option value="tree"${{layoutMode === "tree" ? " selected" : ""}}>Tree</option><option value="cluster"${{layoutMode === "cluster" ? " selected" : ""}}>Cluster</option><option value="community"${{layoutMode === "community" ? " selected" : ""}}>Community</option></select></label><button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip" type="button" title="Reset links view" aria-controls="network-graph-svg"><span class="network-graph-chip-label">View</span><strong>Reset</strong></button><button id="network-graph-mode-chip" class="network-graph-chip network-graph-mode-chip" type="button" aria-pressed="${{edgeMode === "live" ? "true" : "false"}}" title="Switch Links view between stored history topology and the current session topology"><span class="network-graph-chip-label">Mode</span><strong>${{modeLabel}}</strong></button>`;
+      summary.innerHTML = `<div class="network-graph-summary-main"><label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"><span class="network-graph-chip-label history-metric-label">View</span><select id="network-graph-layout-select" class="network-graph-layout-select history-metric-select" aria-label="Network links layout"><option value="radial"${{layoutMode === "radial" ? " selected" : ""}}>Radial</option><option value="tree"${{layoutMode === "tree" ? " selected" : ""}}>Tree</option><option value="cluster"${{layoutMode === "cluster" ? " selected" : ""}}>Cluster</option><option value="community"${{layoutMode === "community" ? " selected" : ""}}>Community</option></select></label><button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip" type="button" title="Reset links view" aria-controls="network-graph-svg"><span class="network-graph-chip-label">View</span><strong>Reset</strong></button></div><div class="network-graph-summary-side"><label class="network-graph-mode-control history-metric-wrap history-select-chip-hide-label" for="network-graph-mode-select" title="Switch Links view between stored history topology and the current session topology"><span class="network-graph-chip-label history-metric-label">Mode</span><select id="network-graph-mode-select" class="network-graph-mode-select history-metric-select" aria-label="Network links source"><option value="history"${{edgeMode === "history" ? " selected" : ""}}>History</option><option value="live"${{edgeMode === "live" ? " selected" : ""}}>Live</option></select></label></div>`;
       bindNetworkGraphLayoutSelector();
       syncNetworkGraphLayoutSelector();
       bindNetworkGraphSummaryControls();
+      syncNetworkGraphModeSelector();
       const fullBounds = computeNetworkGraphBounds(layout, {{
         topSafeInset: resolveNetworkGraphTopSafeInset(svg),
       }});

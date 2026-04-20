@@ -5317,6 +5317,17 @@
       z-index: 6;
       flex: 0 0 auto;
     }}
+    .network-graph-mode-control {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      min-height: 0;
+      padding: 4px 8px;
+      pointer-events: auto;
+      position: relative;
+      z-index: 6;
+      flex: 0 0 auto;
+    }}
     .network-graph-layout-label {{
       color: #5a7363;
       font-size: 10px;
@@ -5332,13 +5343,30 @@
       position: relative;
       z-index: 7;
     }}
+    .network-graph-mode-select {{
+      min-width: 92px;
+      cursor: pointer;
+      pointer-events: auto;
+      position: relative;
+      z-index: 7;
+    }}
     .network-graph-layout-select:hover {{
+      border-color: #bfd4c3;
+    }}
+    .network-graph-mode-select:hover {{
       border-color: #bfd4c3;
     }}
     .network-graph-layout-select:focus {{
       border-color: #bfd4c3;
     }}
+    .network-graph-mode-select:focus {{
+      border-color: #bfd4c3;
+    }}
     .network-graph-layout-select option {{
+      color: #274935;
+      background: #ffffff;
+    }}
+    .network-graph-mode-select option {{
       color: #274935;
       background: #ffffff;
     }}
@@ -5354,9 +5382,26 @@
       min-width: min(100%, 320px);
       pointer-events: auto;
     }}
+    .network-graph-summary-main,
+    .network-graph-summary-side {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }}
+    .network-graph-summary-main {{
+      flex: 0 1 auto;
+    }}
+    .network-graph-summary-side {{
+      flex: 0 0 auto;
+      margin-left: auto;
+      justify-content: flex-end;
+    }}
     .network-graph-summary.is-overlay-docked {{
       justify-content: flex-start;
-      flex: 0 1 auto;
+      flex: 1 1 auto;
+      width: 100%;
       min-width: 0;
       margin-left: 0;
       transform: none;
@@ -5477,6 +5522,11 @@
         justify-content: flex-start;
         margin-left: 0;
         min-width: 0;
+      }}
+      .network-graph-summary-side {{
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-start;
       }}
     }}
     .network-graph-swatch {{
