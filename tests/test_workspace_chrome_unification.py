@@ -319,6 +319,35 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     assert "margin-left: auto;" in window_wrap_section
 
 
+def test_select_only_history_chips_hide_redundant_labels() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert 'class="history-metric-wrap history-select-chip-hide-label"' in html
+    assert 'class="history-metric-wrap history-window-wrap history-select-chip-hide-label"' in html
+    assert 'class="history-metric-wrap history-window-wrap network-diagnostics-window-wrap history-select-chip-hide-label"' in html
+    assert 'class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label"' in html
+    assert 'class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label"' in html
+    assert ".history-select-chip-hide-label > .history-metric-label," in css
+    assert ".history-select-chip-hide-label > label {" in css
+    assert "display: none;" in css.split(".history-select-chip-hide-label > .history-metric-label,", 1)[1].split("}", 1)[0]
+    compact_chip_section = css.split(".history-select-chip-hide-label {", 1)[1].split("}", 1)[0]
+    assert "gap: 0;" in compact_chip_section
+    assert "padding-left: 8px;" in compact_chip_section
+    assert "padding-right: 8px;" in compact_chip_section
+
+
 def test_network_sensors_docked_explorer_reuses_overview_light_shell() -> None:
     css = build_dashboard_css(theme_css="")
 

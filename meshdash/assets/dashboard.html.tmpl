@@ -2591,7 +2591,7 @@
                 >Diagnostics</button>
               </div>
               <div id="network-overview-primary-controls" class="history-metric-controls network-overview-primary-controls" hidden>
-                <div class="history-metric-wrap">
+                <div class="history-metric-wrap history-select-chip-hide-label">
                   <label for="network-overview-metric" class="history-metric-label">Metric</label>
                   <select id="network-overview-metric" class="history-metric-select" aria-label="Network overview metric">
                     <option value="nodes">Nodes</option>
@@ -2600,7 +2600,7 @@
                     <option value="sensors">Sensors</option>
                   </select>
                 </div>
-                <div class="history-metric-wrap history-window-wrap">
+                <div class="history-metric-wrap history-window-wrap history-select-chip-hide-label">
                   <label for="network-overview-window" class="history-metric-label">Window</label>
                   <select id="network-overview-window" class="history-metric-select" aria-label="Network overview window">
                     <option value="6">6h</option>
@@ -2839,7 +2839,7 @@
                         type="button"
                         title="Refresh malformed text diagnostics"
                       >Refresh</button>
-                      <label class="history-metric-wrap history-window-wrap network-diagnostics-window-wrap" for="network-diagnostics-window">
+                      <label class="history-metric-wrap history-window-wrap network-diagnostics-window-wrap history-select-chip-hide-label" for="network-diagnostics-window">
                         <span class="history-metric-label">Window</span>
                         <select id="network-diagnostics-window" class="history-metric-select" aria-label="Malformed text diagnostics window">
                           <option value="24">24h</option>
@@ -3131,7 +3131,7 @@
               <div class="history-activity-weekly-panel">
                 <div id="weekly-summary-caption" class="history-caption">Minute-level trend by saved snapshots.</div>
                 <div class="history-metric-controls">
-                  <div class="history-metric-wrap">
+                  <div class="history-metric-wrap history-select-chip-hide-label">
                     <label for="weekly-summary-metric" class="history-metric-label">Metric</label>
                     <select id="weekly-summary-metric" class="history-metric-select" aria-label="Weekly summary metric">
                       <option value="packets">Packets</option>
@@ -3178,7 +3178,7 @@
                       <span>Position</span>
                     </label>
                   </div>
-                  <div class="history-metric-wrap history-window-wrap">
+                  <div class="history-metric-wrap history-window-wrap history-select-chip-hide-label">
                     <label for="weekly-summary-window" class="history-metric-label">Window</label>
                     <select id="weekly-summary-window" class="history-metric-select" aria-label="Weekly summary window">
                       <option value="6">6h</option>
@@ -3331,13 +3331,13 @@
         <div id="environment-metrics-home" class="environment-metrics-home">
           <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
             <div class="env-metrics-controls">
-              <div class="history-metric-wrap env-metrics-control-group">
+              <div class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label">
                 <label for="env-metric-select">Metric</label>
                 <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
                   <option value="">No environment metrics</option>
                 </select>
               </div>
-              <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group">
+              <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label">
                 <label for="env-window-select">Window</label>
                 <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
                   <option value="6">6h</option>
