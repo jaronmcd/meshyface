@@ -4039,12 +4039,12 @@
           || compareNetworkGraphNodeIds(a.clusterId, b.clusterId, degreeMeta, nodeMap)
         ));
         const clusterRadius = Math.max(
-          388,
+          432,
           Math.min(
-            584,
-            340
-              + (clusterDescriptors.length * 4.6)
-              + (clusterDescriptors[0] ? Math.min(126, (clusterDescriptors[0].memberCount * 0.88) + (clusterDescriptors[0].branchCount * 18)) : 0)
+            676,
+            372
+              + (clusterDescriptors.length * 6.4)
+              + (clusterDescriptors[0] ? Math.min(148, (clusterDescriptors[0].memberCount * 1.02) + (clusterDescriptors[0].branchCount * 22)) : 0)
           )
         );
         const totalClusterWeight = clusterDescriptors.reduce((sum, descriptor) => sum + descriptor.weight, 0) || 1;
@@ -4053,7 +4053,7 @@
         let angleCursor = clusterAngularStart;
         clusterDescriptors.forEach((descriptor, clusterIndex) => {{
           const clusterArc = Math.max(
-            (Math.PI * 2) / Math.max(10, clusterDescriptors.length * 1.35),
+            (Math.PI * 2) / Math.max(8, clusterDescriptors.length * 1.05),
             clusterAngularSpan * (descriptor.weight / totalClusterWeight)
           );
           const clusterAngle = angleCursor + (clusterArc / 2);
@@ -4076,12 +4076,12 @@
           const branchDescriptors = Array.isArray(descriptor.branchDescriptors) ? descriptor.branchDescriptors : [];
           const branchWeightTotal = branchDescriptors.reduce((sum, branchDescriptor) => sum + branchDescriptor.weight, 0) || 1;
           const branchOrbitRadius = Math.max(
-            108,
-            Math.min(248, 90 + (branchDescriptors.length * 14) + Math.min(52, descriptor.memberCount * 0.2))
+            128,
+            Math.min(276, 104 + (branchDescriptors.length * 16) + Math.min(68, descriptor.memberCount * 0.28))
           );
           const branchAngularSpan = Math.min(
-            Math.PI * 1.58,
-            Math.max(Math.PI * 0.82, (branchDescriptors.length * 0.42) + Math.min(Math.PI * 0.42, descriptor.memberCount * 0.022))
+            Math.PI * 1.02,
+            Math.max(Math.PI * 0.56, (branchDescriptors.length * 0.26) + Math.min(Math.PI * 0.18, descriptor.memberCount * 0.012) + (Math.PI * 0.26))
           );
           let branchWeightCursor = 0;
           branchDescriptors.forEach((branchDescriptor, branchIndex) => {{
@@ -4105,12 +4105,12 @@
             const cellDescriptors = Array.isArray(branchDescriptor.cellDescriptors) ? branchDescriptor.cellDescriptors : [];
             const cellWeightTotal = cellDescriptors.reduce((sum, cellDescriptor) => sum + cellDescriptor.weight, 0) || 1;
             const cellOrbitRadius = Math.max(
-              52,
-              Math.min(144, 40 + (cellDescriptors.length * 16) + Math.min(26, branchDescriptor.memberCount * 0.16))
+              64,
+              Math.min(168, 48 + (cellDescriptors.length * 18) + Math.min(32, branchDescriptor.memberCount * 0.18))
             );
             const cellAngularSpan = Math.min(
-              Math.PI * 1.46,
-              Math.max(Math.PI * 0.72, (cellDescriptors.length * 0.48) + Math.min(Math.PI * 0.26, branchDescriptor.memberCount * 0.016))
+              Math.PI * 0.92,
+              Math.max(Math.PI * 0.46, (cellDescriptors.length * 0.26) + Math.min(Math.PI * 0.12, branchDescriptor.memberCount * 0.01) + (Math.PI * 0.22))
             );
             let cellWeightCursor = 0;
             cellDescriptors.forEach((cellDescriptor) => {{
@@ -4127,19 +4127,19 @@
               const cellNormalX = Math.cos(cellAngle);
               const cellNormalY = Math.sin(cellAngle);
               const memberArcSpan = Math.min(
-                Math.PI * 0.88,
-                Math.max(Math.PI * 0.18, cellMembers.length * 0.22)
+                Math.PI * 0.72,
+                Math.max(Math.PI * 0.16, cellMembers.length * 0.18)
               );
               const memberRadius = Math.max(
-                16,
-                Math.min(48, 12 + (cellMembers.length * 4.2))
+                18,
+                Math.min(54, 14 + (cellMembers.length * 4.4))
               );
               cellMembers.forEach((nodeId, memberIndex) => {{
                 const memberCount = Math.max(1, cellMembers.length);
                 const memberAngle = memberCount <= 1
                   ? cellAngle
                   : (cellAngle - (memberArcSpan / 2) + ((memberArcSpan * memberIndex) / Math.max(1, memberCount - 1)));
-                const shellDrift = (Math.max(branchDescriptor.baseLayer, Number(cellDescriptor.layer) || branchDescriptor.baseLayer) - branchDescriptor.baseLayer) * 8;
+                const shellDrift = (Math.max(branchDescriptor.baseLayer, Number(cellDescriptor.layer) || branchDescriptor.baseLayer) - branchDescriptor.baseLayer) * 10;
                 positions.set(nodeId, {{
                   ...(positions.get(nodeId) || {{}}),
                   x: cellAnchorX + (cellNormalX * shellDrift) + (Math.cos(memberAngle) * memberRadius) + (cellTangentX * ((memberIndex - ((memberCount - 1) / 2)) * 2.4)),
@@ -4154,7 +4154,7 @@
         }});
         disconnectedGroups.forEach((group, groupIndex) => {{
           const ids = Array.isArray(group.nodeIds) ? group.nodeIds : [];
-          const detachedArcRadius = Math.min(642, clusterRadius + 252 + (groupIndex * 40));
+          const detachedArcRadius = Math.min(688, clusterRadius + 264 + (groupIndex * 44));
           const laneCenterAngle = group.broadcastOnly ? (Math.PI * 0.08) : (Math.PI * 1.08);
           const laneArcSpan = Math.min(Math.PI * 0.42, Math.max(Math.PI * 0.18, ids.length * 0.022));
           ids.forEach((nodeId, index) => {{
