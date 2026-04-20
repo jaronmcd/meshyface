@@ -4060,8 +4060,15 @@
           const anchorY = 310 + (Math.sin(clusterAngle) * clusterRadius);
           const normalX = Math.cos(clusterAngle);
           const normalY = Math.sin(clusterAngle);
-          const clusterNodeX = anchorX - (normalX * 18);
-          const clusterNodeY = anchorY - (normalY * 18);
+          const branchDescriptors = Array.isArray(descriptor.branchDescriptors) ? descriptor.branchDescriptors : [];
+          const branchWeightTotal = branchDescriptors.reduce((sum, branchDescriptor) => sum + branchDescriptor.weight, 0) || 1;
+          const branchOrbitRadius = 132;
+          const clusterNodeInset = Math.max(86, Math.min(126, branchOrbitRadius * 0.86));
+          const clusterNodeX = anchorX - (normalX * clusterNodeInset);
+          const clusterNodeY = anchorY - (normalY * clusterNodeInset);
+          const branchOriginInset = Math.max(18, Math.min(28, branchOrbitRadius * 0.16));
+          const branchOriginX = anchorX - (normalX * branchOriginInset);
+          const branchOriginY = anchorY - (normalY * branchOriginInset);
           positions.set(descriptor.clusterId, {{
             ...(positions.get(descriptor.clusterId) || {{}}),
             x: clusterNodeX,
@@ -4071,9 +4078,6 @@
             broadcastOnly: !!((positions.get(descriptor.clusterId) || {{}}).broadcastOnly),
           }});
           clusterLabelNodeIds.add(descriptor.clusterId);
-          const branchDescriptors = Array.isArray(descriptor.branchDescriptors) ? descriptor.branchDescriptors : [];
-          const branchWeightTotal = branchDescriptors.reduce((sum, branchDescriptor) => sum + branchDescriptor.weight, 0) || 1;
-          const branchOrbitRadius = 132;
           const branchAngularSpan = Math.min(
             Math.PI * 1.02,
             Math.max(Math.PI * 0.56, (branchDescriptors.length * 0.26) + Math.min(Math.PI * 0.18, descriptor.memberCount * 0.012) + (Math.PI * 0.26))
@@ -4086,8 +4090,8 @@
               : ((branchWeightCursor + (branchDescriptor.weight / 2)) / branchWeightTotal);
             branchWeightCursor += branchDescriptor.weight;
             const branchAngle = clusterAngle - (branchAngularSpan / 2) + (branchAngularSpan * branchCenterRatio);
-            const branchAnchorX = clusterNodeX + (Math.cos(branchAngle) * branchOrbitRadius);
-            const branchAnchorY = clusterNodeY + (Math.sin(branchAngle) * branchOrbitRadius);
+            const branchAnchorX = branchOriginX + (Math.cos(branchAngle) * branchOrbitRadius);
+            const branchAnchorY = branchOriginY + (Math.sin(branchAngle) * branchOrbitRadius);
             positions.set(branchDescriptor.subclusterId, {{
               ...(positions.get(branchDescriptor.subclusterId) || {{}}),
               x: branchAnchorX,
