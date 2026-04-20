@@ -150,6 +150,14 @@ def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
     assert "padding: 1px;" in frame_section
 
 
+def test_network_overview_hides_bottom_summary_grid_to_prioritize_plot_height() -> None:
+    css = build_dashboard_css(theme_css="")
+    overview_section = css.split(".layout.view-network #network-overview-overview {", 1)[1].split("}", 1)[0]
+
+    assert "display: none;" in overview_section
+    assert ".layout.view-network .network-overview-card .overview-grid {" not in css
+
+
 def test_network_map_controls_follow_theme_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
