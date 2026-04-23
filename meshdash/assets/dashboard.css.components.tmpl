@@ -3468,27 +3468,30 @@
     [data-theme="dark"] .topbar .summary-ticker-item .metric-ticker-chart path {{
       stroke: var(--ticker-card-accent);
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status {{
-      border-color: var(--ui-border);
-      background: color-mix(in srgb, var(--ui-panel-alt) 88%, black 12%);
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status {{
       color: var(--ui-text-soft);
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-online {{
-      border-color: color-mix(in srgb, var(--ui-accent) 56%, var(--ui-border) 44%);
-      background: color-mix(in srgb, var(--ui-panel-alt) 72%, var(--workspace-shell-active-bg) 28%);
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-online {{
       color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-warn,
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-stale,
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-unknown {{
-      border-color: rgba(209, 162, 79, 0.84);
-      background: rgba(161, 98, 7, 0.26);
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-warn,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-stale,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-unknown {{
       color: #f4deb2;
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item .target-radio-status.status-lost {{
-      border-color: rgba(207, 111, 111, 0.9);
-      background: rgba(153, 27, 27, 0.3);
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-lost {{
       color: #f3c8c8;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-online::before {{
+      background: #79e6ac;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-warn::before,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-stale::before,
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-unknown::before {{
+      background: #f2ce7a;
+    }}
+    [data-theme="dark"] .topbar .summary-ticker-item .target-node-status.status-lost::before {{
+      background: #ff9e9e;
     }}
     [data-theme="dark"] .teams-rail {{
       border-color: transparent !important;

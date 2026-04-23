@@ -135,11 +135,19 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     )
 
     assert re.search(
-        r"\.topbar \.sub \.summary-ticker-row \{\s*display: grid;\s*grid-auto-flow: column;\s*grid-auto-columns: minmax\(112px, 1fr\);\s*gap: 4px;",
+        r"\.topbar \.sub \.summary-ticker-row \{\s*display: grid;\s*grid-auto-flow: column;\s*grid-auto-columns: minmax\(124px, 1fr\);\s*gap: 5px;",
         html,
     )
     assert re.search(
         r"\.topbar\.ticker-expanded \.sub \.summary-ticker-row \{\s*grid-auto-flow: row;\s*grid-auto-columns: auto;\s*grid-template-columns: repeat\(auto-fit, minmax\(208px, 1fr\)\);",
+        html,
+    )
+    assert re.search(
+        r"\.topbar \.summary-ticker-item \{\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ink\);\s*display: grid;\s*grid-template-columns: minmax\(54px, auto\) minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
+        html,
+    )
+    assert re.search(
+        r"\.topbar \.summary-ticker-item \.metric-ticker-chart \{\s*width: 72px;\s*height: 16px;",
         html,
     )
 
@@ -191,13 +199,20 @@ def test_dashboard_js_renders_local_identity_in_target_ticker() -> None:
         node_history_max_points=240,
     )
 
-    assert 'targetLabel.textContent = hasLocalIdentity ? "Node" : "Target";' in js
+    assert 'targetLabel.textContent = hasLocalIdentity ? "Active" : "Target";' in js
     assert 'targetMetric.classList.add("target-node-value", "node-ticker-value");' in js
     assert 'nameRow.className = "target-node-name";' in js
     assert 'badgeMark.className = "target-node-mark";' in js
     assert 'nameText.className = "target-node-name-text";' in js
-    assert 'idRow.className = "target-node-id";' in js
+    assert 'statusText.className = "target-node-status status-unknown";' in js
+    assert 'statusText.id = "m-target-status-inline";' in js
+    assert 'idText.className = "target-node-id";' in js
+    assert "nameRow.appendChild(statusText);" in js
+    assert "nameRow.appendChild(idText);" in js
+    assert 'targetMetric.dataset.baseTitle = metricBaseTitle;' in js
+    assert 'targetCard.dataset.baseTitle = cardBaseTitle;' in js
     assert 'targetMetric.textContent = targetDisplay;' in js
+    assert 'targetLabel.textContent = el instanceof HTMLElement ? inlineText : "Target";' in js
 
 
 def test_render_html_styles_local_identity_target_ticker() -> None:
@@ -218,7 +233,9 @@ def test_render_html_styles_local_identity_target_ticker() -> None:
     assert ".target-node-name {" in html
     assert ".target-node-mark {" in html
     assert ".target-node-name-text {" in html
+    assert ".target-node-status {" in html
     assert ".target-node-id {" in html
+    assert 'id="m-target-radio-status"' not in html
 
 
 def test_target_ticker_id_uses_muted_light_mode_text() -> None:
@@ -230,3 +247,50 @@ def test_target_ticker_id_uses_muted_light_mode_text() -> None:
 
     assert "color-mix(in srgb, var(--muted) 84%, var(--ink) 16%)" in target_id_section
     assert "rgba(230, 248, 237, 0.84)" not in target_id_section
+
+
+def test_target_ticker_id_is_inline_in_compact_mode_and_stacked_when_expanded() -> None:
+    css = build_dashboard_css(theme_css="")
+    target_item_section = css.split(
+        ".topbar .summary-ticker-item-target {",
+        1,
+    )[1].split("}", 1)[0]
+    compact_section = css.split(
+        ".topbar .summary-ticker-item-target .value.target-node-value {",
+        2,
+    )[2].split("}", 1)[0]
+    expanded_section = css.split(
+        ".topbar.ticker-expanded .summary-ticker-item-target .value.target-node-value {",
+        2,
+    )[2].split("}", 1)[0]
+
+    assert "grid-template-rows: auto;" in target_item_section
+    assert "white-space: nowrap;" in compact_section
+    assert "flex-direction: row;" in compact_section
+    assert "align-items: center;" in compact_section
+    assert "flex-direction: column;" in expanded_section
+    assert "align-items: flex-start;" in expanded_section
+
+
+def test_target_ticker_status_is_inline_and_pill_is_gone() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "target-radio-status" not in html
+    assert "m-target-radio-status" not in js
+    assert 'const el = document.getElementById("m-target-status-inline");' in js

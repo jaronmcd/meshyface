@@ -140,6 +140,7 @@
         const detail = errorSummary || "waiting for radio link";
         return {{
           key: "warn",
+          inlineText: "Connecting",
           text: `Connecting · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
           title: `Connecting to radio. ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
         }};
@@ -149,6 +150,7 @@
         const detail = errorSummary || "local radio id unavailable";
         return {{
           key: "lost",
+          inlineText: "Lost",
           text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
           title: `Local radio unavailable. ${{detail}}${{ipDetailSuffix}}`,
         }};
@@ -182,6 +184,7 @@
         const detail = errorSummary || "state polling failed";
         return {{
           key: "lost",
+          inlineText: "Lost",
           text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
           title: `Dashboard polling is stale (${{
             Number.isFinite(pollSuccessAge) ? `${{pollSuccessAge}}s since last success` : "no successful poll yet"
@@ -192,6 +195,7 @@
         const detail = errorSummary || trackerError;
         return {{
           key: "lost",
+          inlineText: "Lost",
           text: `Lost · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
           title: `Meshtastic interface reported radio disconnect. ${{detail || "radio link lost"}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
         }};
@@ -213,25 +217,47 @@
         : "last seen n/a";
       return {{
         key,
+        inlineText: label,
         text,
         title: `${{localId}} | ${{label}} | ${{activityText}} | ${{trafficText}} | ${{lastSeenTitle}}${{errorSummary ? ` | ${{errorSummary}}` : ""}}${{ipDetailSuffix}}`,
       }};
     }}
 
     function renderTargetRadioStatus(state = latestState) {{
-      const el = document.getElementById("m-target-radio-status");
-      if (!(el instanceof HTMLElement)) return;
+      const el = document.getElementById("m-target-status-inline");
+      const targetLabel = document.querySelector("#summary-ticker-target [data-ticker-label]");
+      const targetMetric = document.getElementById("m-target");
+      const targetCard = document.getElementById("summary-ticker-target");
       const status = buildTargetRadioStatus(state);
       const cleanKey = String(status && status.key ? status.key : "unknown").toLowerCase();
       const allowed = new Set(["online", "warn", "stale", "lost", "unknown"]);
       const key = allowed.has(cleanKey) ? cleanKey : "unknown";
-      let toneKey = "warn";
-      if (key === "online") toneKey = "online";
-      else if (key === "lost") toneKey = "lost";
-      el.classList.remove("status-online", "status-warn", "status-stale", "status-lost", "status-unknown");
-      el.classList.add(`status-${{toneKey}}`);
-      el.textContent = status && status.text ? String(status.text) : "n/a";
-      el.title = status && status.title ? String(status.title) : "Radio status unavailable";
+      const inlineText = status && status.inlineText
+        ? String(status.inlineText)
+        : (status && status.text ? String(status.text) : "Unknown");
+      const detailTitle = status && status.title ? String(status.title) : "Radio status unavailable";
+      const joinTitleParts = (...parts) => parts
+        .map((part) => String(part == null ? "" : part).trim())
+        .filter(Boolean)
+        .join(" • ");
+      if (el instanceof HTMLElement) {{
+        el.classList.remove("status-online", "status-warn", "status-stale", "status-lost", "status-unknown");
+        el.classList.add(`status-${{key}}`);
+        el.textContent = inlineText;
+        el.title = detailTitle;
+        el.setAttribute("aria-label", `Radio status ${{inlineText}}`);
+      }}
+      if (targetLabel instanceof HTMLElement) {{
+        targetLabel.textContent = el instanceof HTMLElement ? inlineText : "Target";
+      }}
+      if (targetMetric instanceof HTMLElement) {{
+        const baseTitle = String(targetMetric.dataset.baseTitle || targetMetric.title || "").trim();
+        targetMetric.title = joinTitleParts(baseTitle, detailTitle);
+      }}
+      if (targetCard instanceof HTMLElement) {{
+        const baseTitle = String(targetCard.dataset.baseTitle || targetCard.title || "").trim();
+        targetCard.title = joinTitleParts(baseTitle, detailTitle);
+      }}
     }}
 
     function computeNodeFreshnessUnix(node, caps = null, chatTouch = null) {{

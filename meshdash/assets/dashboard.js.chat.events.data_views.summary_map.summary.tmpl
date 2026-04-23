@@ -1431,7 +1431,7 @@
       const targetDisplay = compactTargetMetric(targetValue);
       const targetLabel = document.querySelector("#summary-ticker-target [data-ticker-label]");
       if (targetLabel instanceof HTMLElement) {{
-        targetLabel.textContent = hasLocalIdentity ? "Node" : "Target";
+        targetLabel.textContent = hasLocalIdentity ? "Active" : "Target";
       }}
       const targetMetric = document.getElementById("m-target");
       const targetCard = document.getElementById("summary-ticker-target");
@@ -1473,11 +1473,17 @@
           const nameText = document.createElement("span");
           nameText.className = "target-node-name-text";
           nameText.textContent = localName || "Local node";
-          const idRow = document.createElement("div");
-          idRow.className = "target-node-id";
-          idRow.textContent = isCanonicalNodeId(localId) ? localId : "ID unavailable";
           nameRow.appendChild(nameText);
-          targetMetric.append(nameRow, idRow);
+          const statusText = document.createElement("span");
+          statusText.className = "target-node-status status-unknown";
+          statusText.id = "m-target-status-inline";
+          statusText.textContent = "Unknown";
+          nameRow.appendChild(statusText);
+          const idText = document.createElement("span");
+          idText.className = "target-node-id";
+          idText.textContent = isCanonicalNodeId(localId) ? localId : "ID unavailable";
+          nameRow.appendChild(idText);
+          targetMetric.appendChild(nameRow);
           const titleParts = [localName || "Local node"];
           if (isCanonicalNodeId(localId)) {{
             titleParts.push(localId);
@@ -1485,15 +1491,23 @@
           if (fullTarget) {{
             titleParts.push(`Target ${{fullTarget}}`);
           }}
-          targetMetric.title = titleParts.join(" • ");
+          const metricBaseTitle = titleParts.join(" • ");
+          targetMetric.dataset.baseTitle = metricBaseTitle;
+          targetMetric.title = metricBaseTitle;
           if (targetCard instanceof HTMLElement) {{
-            targetCard.title = `${{titleParts.join(" • ")}} • Click to select in node list`;
+            const cardBaseTitle = `${{metricBaseTitle}} • Click to select in node list`;
+            targetCard.dataset.baseTitle = cardBaseTitle;
+            targetCard.title = cardBaseTitle;
           }}
         }} else {{
           targetMetric.textContent = targetDisplay;
-          targetMetric.title = fullTarget || "n/a";
+          const metricBaseTitle = fullTarget || "n/a";
+          targetMetric.dataset.baseTitle = metricBaseTitle;
+          targetMetric.title = metricBaseTitle;
           if (targetCard instanceof HTMLElement) {{
-            targetCard.title = fullTarget || "n/a";
+            const cardBaseTitle = fullTarget || "n/a";
+            targetCard.dataset.baseTitle = cardBaseTitle;
+            targetCard.title = cardBaseTitle;
           }}
         }}
       }}
