@@ -3562,7 +3562,7 @@
     }}
     .bbs-config-strip {{
       display: grid;
-      grid-template-columns: minmax(360px, 1.2fr) minmax(280px, 0.8fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 8px;
       min-width: 0;
       min-height: 0;
@@ -3587,6 +3587,8 @@
     }}
     .bbs-panel.bbs-directory-panel {{
       min-height: 0;
+      height: 100%;
+      overflow: hidden;
     }}
     .bbs-directory-panel .bbs-actions {{
       align-items: center;
@@ -3594,10 +3596,10 @@
     .bbs-directory-panel .bbs-panel-title {{
       margin-right: auto;
     }}
-    .bbs-config-strip .bbs-board-list {{
-      min-height: 76px;
-      max-height: 112px;
-      flex: 0 1 auto;
+    .layout.view-bbs .bbs-directory-panel .bbs-board-list {{
+      min-height: 0;
+      max-height: none;
+      flex: 1 1 auto;
     }}
     .bbs-panel {{
       border: 1px solid color-mix(in srgb, var(--surface-tint-border-strong, #b8cab9) 68%, var(--ui-accent, #2f855a) 32%);
@@ -3835,6 +3837,7 @@
     }}
     .layout.view-bbs .bbs-main {{
       display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(320px, 28vw, 520px);
       grid-template-rows: auto auto minmax(0, 1fr) auto auto;
       align-content: stretch;
       align-items: stretch;
@@ -3854,9 +3857,17 @@
       display: none;
     }}
     .layout.view-bbs .bbs-config-strip {{
+      grid-column: 1 / -1;
       grid-row: 1;
     }}
+    .layout.view-bbs .bbs-directory-panel {{
+      grid-column: 2;
+      grid-row: 2 / 4;
+      align-self: stretch;
+      justify-self: stretch;
+    }}
     .layout.view-bbs .bbs-terminal-head {{
+      grid-column: 1;
       grid-row: 2;
       border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
       border-radius: 10px;
@@ -3865,6 +3876,7 @@
       box-shadow: none;
     }}
     .layout.view-bbs .bbs-terminal-log {{
+      grid-column: 1;
       grid-row: 3;
       align-self: stretch;
       justify-self: stretch;
@@ -3880,6 +3892,7 @@
       box-shadow: none;
     }}
     .layout.view-bbs .bbs-compose-row {{
+      grid-column: 1 / -1;
       grid-row: 4;
       align-self: end;
       border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
@@ -3888,6 +3901,7 @@
       padding: 6px 8px;
     }}
     .layout.view-bbs .bbs-post-status {{
+      grid-column: 1 / -1;
       grid-row: 5;
       margin: 0;
     }}
@@ -3997,8 +4011,37 @@
       .bbs-shell {{
         grid-template-columns: minmax(0, 1fr);
       }}
+      .layout.view-bbs .bbs-main {{
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+      }}
       .bbs-config-strip {{
         grid-template-columns: minmax(0, 1fr);
+      }}
+      .layout.view-bbs .bbs-config-strip {{
+        grid-column: 1;
+        grid-row: 1;
+      }}
+      .layout.view-bbs .bbs-terminal-head {{
+        grid-column: 1;
+        grid-row: 2;
+      }}
+      .layout.view-bbs .bbs-directory-panel {{
+        grid-column: 1;
+        grid-row: 3;
+        max-height: 220px;
+      }}
+      .layout.view-bbs .bbs-terminal-log {{
+        grid-column: 1;
+        grid-row: 4;
+      }}
+      .layout.view-bbs .bbs-compose-row {{
+        grid-column: 1;
+        grid-row: 5;
+      }}
+      .layout.view-bbs .bbs-post-status {{
+        grid-column: 1;
+        grid-row: 6;
       }}
       .bbs-board-list {{
         max-height: 200px;
