@@ -504,11 +504,23 @@ def test_dashboard_js_includes_bbs_settings_sync_flow() -> None:
     assert "async function postBbsHostCommand(action, options = null) {" in js
     assert "function bbsReplaceBoardPosts(boardKey, posts = []) {" in js
     assert "function bbsLatestPostCursorForBoard(boardKey) {" in js
+    assert "let bbsForgottenBoardKeys = new Set();" in js
     assert "replica_version: 2," in js
     assert "const canRestoreBoardReplica = storedReplicaVersion >= 2;" in js
+    assert "forgotten_board_keys: payload.forgotten_board_keys," in js
+    assert "function bbsForgetDirectoryKey(boardKey) {" in js
+    assert "function bbsAllowDirectoryKeysForHost(hostId) {" in js
+    assert "bbsForgottenBoardKeys = new Set(" in js
     assert "payload.posts_by_key = postsByKey;" in js
     assert "if (Array.isArray(cachedPosts) && cachedPosts.length > 0) return true;" in js
     assert "function bbsResolvePendingLoadFromContent(hostId, boardKey, state = latestState) {" in js
+    assert "function bbsIsOfflineLocalBoard(hostId, state = latestState) {" in js
+    assert 'if (bbsIsOfflineLocalBoard(hostId) && row.force !== true) return "";' in js
+    assert 'if (bbsForgottenBoardKeys.has(key) && row.force !== true) return "";' in js
+    assert "bbsForgetDirectoryKey(key);" in js
+    assert "if (bbsAllowDirectoryKeysForHost(cleanNodeId)) {" in js
+    assert "const shouldShowRuntimeHost = !!(hostKey && bbsHostState.enabled);" in js
+    assert "bbsRemoveDirectoryRowByKey(hostKey, { persist: false });" in js
     assert "const bbsSnapshotTransferKeysImported = new Set();" in js
     assert 'source.kind !== "easyface-bbs-snapshot-v1"' in js
     assert "function syncBbsSnapshotTransfers(state = latestState) {" in js

@@ -505,6 +505,46 @@
       return `${{cleanHostId}}|${{cleanBoardId}}`;
     }}
 
+    function normalizeBbsBoardKey(value) {{
+      return String(value || "").trim().toLowerCase().slice(0, 96);
+    }}
+
+    function bbsForgetDirectoryKey(boardKey) {{
+      const clean = normalizeBbsBoardKey(boardKey);
+      if (!clean) return false;
+      bbsForgottenBoardKeys.add(clean);
+      if (bbsForgottenBoardKeys.size > bbsBoardDirectoryMaxRows * 4) {{
+        const staleCount = bbsForgottenBoardKeys.size - (bbsBoardDirectoryMaxRows * 3);
+        let removed = 0;
+        for (const key of bbsForgottenBoardKeys) {{
+          bbsForgottenBoardKeys.delete(key);
+          removed += 1;
+          if (removed >= staleCount) break;
+        }}
+      }}
+      return true;
+    }}
+
+    function bbsAllowDirectoryKey(boardKey) {{
+      const clean = normalizeBbsBoardKey(boardKey);
+      if (!clean) return false;
+      return bbsForgottenBoardKeys.delete(clean);
+    }}
+
+    function bbsAllowDirectoryKeysForHost(hostId) {{
+      const cleanHostId = normalizeNodeId(hostId || "");
+      if (!isCanonicalNodeId(cleanHostId)) return false;
+      let changed = false;
+      const prefix = `${{cleanHostId}}|`;
+      for (const key of Array.from(bbsForgottenBoardKeys)) {{
+        if (String(key || "").startsWith(prefix)) {{
+          bbsForgottenBoardKeys.delete(key);
+          changed = true;
+        }}
+      }}
+      return changed;
+    }}
+
     function createBbsHostState(overrides = {{}}) {{
       const title = sanitizeBbsWireField(overrides.title, bbsMaxTitleChars) || "Packet Exchange";
       const boardId = normalizeBbsBoardId(overrides.board_id, title);
@@ -552,6 +592,10 @@
         title: settings.title,
         motd: settings.motd,
       }};
+      payload.forgotten_board_keys = Array.from(bbsForgottenBoardKeys)
+        .map((key) => normalizeBbsBoardKey(key))
+        .filter(Boolean)
+        .slice(-bbsBoardDirectoryMaxRows * 4);
       const boardRows = (Array.isArray(bbsDiscoveredBoards) ? bbsDiscoveredBoards : [])
         .filter((row) => row && typeof row === "object")
         .slice(0, bbsBoardDirectoryMaxRows)
@@ -603,6 +647,7 @@
             board_id: payload.board_id,
             title: payload.title,
             motd: payload.motd,
+            forgotten_board_keys: payload.forgotten_board_keys,
           }}));
         }} catch (_fallbackErr) {{
         }}
@@ -701,6 +746,9 @@
       if (previousKey && nextKey && previousKey !== nextKey) {{
         bbsRemoveDirectoryRowByKey(previousKey);
       }}
+      if (nextKey) {{
+        bbsAllowDirectoryKey(nextKey);
+      }}
       bbsHostState.host_id = localId;
       const hostKey = bbsUpsertDirectoryRow({{
         board_id: bbsHostState.board_id,
@@ -712,6 +760,7 @@
           0,
           Math.trunc(Number(bbsHostState.started_unix) || Math.floor(Date.now() / 1000))
         ),
+        force: true,
       }});
       if (!bbsActiveBoardKey || (previousKey && bbsActiveBoardKey === previousKey)) {{
         bbsActiveBoardKey = hostKey || nextKey || bbsActiveBoardKey;
@@ -764,7 +813,9 @@
         const unixValue = Math.max(0, Math.trunc(Number(row && row.unix) || 0));
         return unixValue > maxUnix ? unixValue : maxUnix;
       }}, 0);
-      if (hostKey) {{
+      const shouldShowRuntimeHost = !!(hostKey && bbsHostState.enabled);
+      if (shouldShowRuntimeHost) {{
+        bbsAllowDirectoryKey(hostKey);
         bbsUpsertDirectoryRow({{
           board_id: bbsHostState.board_id,
           host_id: bbsHostState.host_id,
@@ -776,13 +827,19 @@
             Math.trunc(Number(bbsHostState.started_unix) || 0),
             latestPostUnix
           ),
+          force: true,
         }});
         bbsReplaceBoardPosts(hostKey, payloadPosts);
         if (!bbsActiveBoardKey || (previousKey && bbsActiveBoardKey === previousKey)) {{
           bbsActiveBoardKey = hostKey;
         }}
-      }} else if (previousKey) {{
-        bbsRemoveDirectoryRowByKey(previousKey);
+      }} else {{
+        if (previousKey) {{
+          bbsRemoveDirectoryRowByKey(previousKey, {{ persist: false }});
+        }}
+        if (hostKey && hostKey !== previousKey) {{
+          bbsRemoveDirectoryRowByKey(hostKey, {{ persist: false }});
+        }}
       }}
       bbsPersistState();
       if (activeLayoutView !== "bbs") return;
@@ -1044,6 +1101,15 @@
       bbsActiveBoardKey = activeKeyRaw.slice(0, 96);
       bbsDiscoveredBoards = [];
       bbsBoardPostsByKey.clear();
+      const storedForgottenKeys = Array.isArray(source.forgotten_board_keys)
+        ? source.forgotten_board_keys
+        : (Array.isArray(source.forgottenBoardKeys) ? source.forgottenBoardKeys : []);
+      bbsForgottenBoardKeys = new Set(
+        storedForgottenKeys
+          .map((key) => normalizeBbsBoardKey(key))
+          .filter(Boolean)
+          .slice(-bbsBoardDirectoryMaxRows * 4)
+      );
       const storedReplicaVersion = Math.trunc(Number(source.replica_version) || Number(source.replicaVersion) || 0);
       const canRestoreBoardReplica = storedReplicaVersion >= 2;
       const storedBoards = canRestoreBoardReplica && Array.isArray(source.boards) ? source.boards : [];
@@ -1121,6 +1187,16 @@
       return reversiNodeLabel(clean, state);
     }}
 
+    function bbsIsOfflineLocalBoard(hostId, state = latestState) {{
+      const localId = bbsHostNodeId(state);
+      const cleanHostId = normalizeNodeId(hostId || "");
+      return !!(
+        isCanonicalNodeId(localId)
+        && cleanHostId === localId
+        && !(bbsHostState && bbsHostState.enabled)
+      );
+    }}
+
     function bbsResolvePendingLoadFromContent(hostId, boardKey, state = latestState) {{
       const cleanHostId = normalizeNodeId(hostId || "");
       const cleanKey = String(boardKey || "").trim().toLowerCase();
@@ -1150,6 +1226,8 @@
       const hostId = normalizeNodeId(row.host_id || row.hostId || "");
       const key = bbsBoardKey(boardId, hostId);
       if (!key) return "";
+      if (bbsIsOfflineLocalBoard(hostId) && row.force !== true) return "";
+      if (bbsForgottenBoardKeys.has(key) && row.force !== true) return "";
       const titleCandidate = sanitizeBbsWireField(row.title, bbsMaxTitleChars);
       const motdCandidate = sanitizeBbsWireField(row.motd, bbsMaxMotdChars);
       const nowUnix = Math.floor(Date.now() / 1000);
@@ -1678,6 +1756,7 @@
       const title = sanitizeBbsWireField(activeRow && activeRow.title, bbsMaxTitleChars)
         || sanitizeBbsWireField(activeRow && activeRow.board_id, 24)
         || "space";
+      bbsForgetDirectoryKey(key);
       const removed = bbsRemoveDirectoryRowByKey(key);
       if (!removed) {{
         setBbsPostStatus("Selected space was already gone.", false);
@@ -1738,6 +1817,9 @@
         return true;
       }}
 
+      if (bbsAllowDirectoryKeysForHost(cleanNodeId)) {{
+        bbsPersistState();
+      }}
       const cachedRow = bbsDirectoryRowForHost(cleanNodeId);
       if (cachedRow && preserveCurrent !== false) {{
         bbsActiveBoardKey = String(cachedRow.key || "").trim().toLowerCase();
