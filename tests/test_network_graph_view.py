@@ -253,21 +253,26 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'isTaggedNode ? "is-tagged" : ""' in js
     assert 'nodeEl.classList.toggle("is-tagged", isTaggedNode);' in js
     assert 'nodeEl.setAttribute("style", tagStyleVars);' in js
+    assert 'selectedTagRouteKey: "",' in js
     assert 'function resolveNetworkGraphShortestPathEdgeKeys(edges, fromNodeId, toNodeId) {' in js
     assert 'function resolveNetworkGraphTaggedItems(items) {' in js
+    assert 'function buildNetworkGraphTagRouteKey(presetId, sourceId, targetId) {' in js
     assert 'function resolveNetworkGraphTaggedRouteSegments(edges, items, rootId, routeAnchorId = "") {' in js
     assert 'const routeStartId = (' in js
     assert 'sourceId: routeStartId,' in js
+    assert 'routeKey,' in js
     assert 'hopCount,' in js
     assert 'const hopLabel = hopCount === 1 ? "1 graph hop" : `${hopCount} graph hops`;' in js
     assert '].join("\\n");' in js
     assert '].join("\\\\n");' not in js
     assert 'function resolveNetworkGraphTagRouteLegendItems(edges, items, rootId, routeAnchorId = "") {' in js
     assert 'function buildNetworkGraphTagRouteOverlayMarkup(scene) {' in js
+    assert 'function syncNetworkGraphSelectedTagRoute(svg) {' in js
     assert 'function renderNetworkGraphTagRouteLegend(scene) {' in js
     assert 'function bindNetworkGraphTagRouteLegendControls(legend, scene) {' in js
     assert 'const stackOffset = Math.max(-11, Math.min(11, (stackIndex - ((stackCount - 1) / 2)) * 2.8));' in js
     assert 'class="network-graph-tag-route"' in js
+    assert 'data-network-graph-tag-route-key="${escAttr(segment.routeKey)}"' in js
     assert 'data-network-graph-tag-preset-id="${escAttr(segment.presetId)}"' in js
     assert 'data-network-graph-tag-edge-key="${escAttr(segment.edgeKey)}"' in js
     assert 'data-network-graph-tag-filter-id="${escAttr(item.presetId)}"' in js
@@ -276,6 +281,9 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'localId,' in js
     assert '<g class="network-graph-tag-routes">' in js
     assert 'syncNetworkGraphTagRouteLayer(svg, safeScene);' in js
+    assert 'function resolveNetworkGraphTagRouteKeyFromTarget(target) {' in js
+    assert 'networkGraphViewState.selectedTagRouteKey = networkGraphViewState.selectedTagRouteKey === routeKey' in js
+    assert 'syncNetworkGraphSelectedTagRoute(svg);' in js
     assert 'renderNetworkGraphTagRouteLegend(scene);' in js
     assert 'const edgeRenderItems = edges.map((edge, index) => ({' in js
     assert 'return pathDelta || (itemA.index - itemB.index);' in js
@@ -346,7 +354,12 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-tag-route {" in css
     assert "stroke: var(--network-graph-tag-route-color, var(--node-tag-color, #2aa85a));" in css
     assert "pointer-events: stroke;" in css
-    assert "cursor: help;" in css
+    assert "cursor: pointer;" in css
+    assert ".network-graph-tag-route.is-muted-by-selection {" in css
+    assert ".network-graph-tag-route.is-selected {" in css
+    assert "opacity: 0.08;" in css
+    assert "stroke-width: 6.4 !important;" in css
+    assert "drop-shadow(0 0 9px var(--network-graph-tag-route-color, #2aa85a));" in css
     assert ".network-graph-tag-filter-input {" in css
     assert ".network-graph-tag-filter.is-empty {" in css
     assert "appearance: none;" in css

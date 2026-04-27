@@ -2103,6 +2103,7 @@
       cachedCombinedEdges: null,
       cachedLayout: null,
       hiddenTagRoutePresetIds: loadPreferredNetworkGraphHiddenTagRoutePresetIds(),
+      selectedTagRouteKey: "",
       pendingEntryViewportSync: false,
       pendingModeViewportSync: false,
       forceCenteredFitOnce: false,
@@ -2395,6 +2396,14 @@
         ));
     }}
 
+    function buildNetworkGraphTagRouteKey(presetId, sourceId, targetId) {{
+      const cleanPresetId = normalizeNetworkGraphTagRoutePresetId(presetId);
+      const cleanSourceId = normalizeNodeId(sourceId || "");
+      const cleanTargetId = normalizeNodeId(targetId || "");
+      if (!cleanPresetId || !isSelectableNodeId(cleanSourceId) || !isSelectableNodeId(cleanTargetId)) return "";
+      return `${{cleanPresetId}}|${{cleanSourceId}}|${{cleanTargetId}}`;
+    }}
+
     function resolveNetworkGraphTaggedRouteSegments(edges, items, rootId, routeAnchorId = "") {{
       const cleanRootId = normalizeNodeId(rootId || "");
       if (!isSelectableNodeId(cleanRootId)) return [];
@@ -2412,6 +2421,8 @@
         if (routeStartId === taggedItem.nodeId) continue;
         const pathSegments = resolveNetworkGraphShortestPathSegments(edges, routeStartId, taggedItem.nodeId);
         const hopCount = pathSegments.length;
+        const routeKey = buildNetworkGraphTagRouteKey(taggedItem.presetId, routeStartId, taggedItem.nodeId);
+        if (!routeKey) continue;
         for (const segment of pathSegments) {{
           if (!segment || !segment.edgeKey) continue;
           if (!segmentsByEdgeKey.has(segment.edgeKey)) {{
@@ -2421,6 +2432,7 @@
             ...segment,
             sourceId: routeStartId,
             targetId: taggedItem.nodeId,
+            routeKey,
             hopCount,
             presetId: taggedItem.presetId,
             color: taggedItem.color,
@@ -2558,6 +2570,7 @@
         return `
           <line
             class="network-graph-tag-route"
+            data-network-graph-tag-route-key="${{escAttr(segment.routeKey)}}"
             data-network-graph-tag-preset-id="${{escAttr(segment.presetId)}}"
             data-network-graph-tag-target-id="${{escAttr(segment.targetId)}}"
             data-network-graph-tag-edge-key="${{escAttr(segment.edgeKey)}}"
@@ -2573,11 +2586,45 @@
       }}).join("");
     }}
 
+    function syncNetworkGraphSelectedTagRoute(svg) {{
+      if (!(svg instanceof SVGElement)) return;
+      const routeEls = svg.querySelectorAll("[data-network-graph-tag-route-key]");
+      let selectedKey = String(networkGraphViewState.selectedTagRouteKey || "");
+      let hasSelectedRoute = false;
+      routeEls.forEach((routeEl) => {{
+        if (!(routeEl instanceof SVGElement)) return;
+        if (selectedKey && routeEl.getAttribute("data-network-graph-tag-route-key") === selectedKey) {{
+          hasSelectedRoute = true;
+        }}
+      }});
+      if (selectedKey && !hasSelectedRoute) {{
+        selectedKey = "";
+        networkGraphViewState.selectedTagRouteKey = "";
+      }}
+      const selectedEls = [];
+      routeEls.forEach((routeEl) => {{
+        if (!(routeEl instanceof SVGElement)) return;
+        const isSelected = !!selectedKey && routeEl.getAttribute("data-network-graph-tag-route-key") === selectedKey;
+        routeEl.classList.toggle("is-selected", isSelected);
+        routeEl.classList.toggle("is-muted-by-selection", !!selectedKey && !isSelected);
+        if (isSelected) {{
+          selectedEls.push(routeEl);
+        }}
+      }});
+      selectedEls.forEach((routeEl) => {{
+        if (routeEl.parentElement instanceof SVGElement) {{
+          routeEl.parentElement.appendChild(routeEl);
+        }}
+      }});
+      svg.classList.toggle("has-selected-tag-route", !!selectedKey);
+    }}
+
     function syncNetworkGraphTagRouteLayer(svg, scene) {{
       if (!(svg instanceof SVGElement)) return;
       const tagRouteLayer = svg.querySelector(".network-graph-tag-routes");
       if (tagRouteLayer instanceof SVGElement) {{
         tagRouteLayer.innerHTML = buildNetworkGraphTagRouteOverlayMarkup(scene);
+        syncNetworkGraphSelectedTagRoute(svg);
       }}
     }}
 
@@ -3103,6 +3150,7 @@
       );
       if (!shouldAnimate) {{
         svg.innerHTML = buildNetworkGraphSceneMarkup(toLayout);
+        syncNetworkGraphSelectedTagRoute(svg);
         syncNetworkGraphTextZoom(svg, networkGraphViewState.viewBox);
         if (onComplete) onComplete();
         return;
@@ -3137,6 +3185,7 @@
           positions,
           items: animatedItems,
         }});
+        syncNetworkGraphSelectedTagRoute(svg);
         syncNetworkGraphTextZoom(svg, networkGraphViewState.viewBox);
         if (progress >= 1) {{
           networkGraphViewState.sceneAnimationFrame = null;
@@ -3845,6 +3894,13 @@
       return normalizeNodeId(nodeGroup.getAttribute("data-network-graph-node-id") || "");
     }}
 
+    function resolveNetworkGraphTagRouteKeyFromTarget(target) {{
+      if (!(target instanceof Element)) return "";
+      const routeEl = target.closest("[data-network-graph-tag-route-key]");
+      if (!(routeEl instanceof Element)) return "";
+      return String(routeEl.getAttribute("data-network-graph-tag-route-key") || "");
+    }}
+
     function bindNetworkGraphInteractions(svg) {{
       if (!(svg instanceof SVGElement) || svg.dataset.bound === "1") return;
       svg.dataset.bound = "1";
@@ -3918,6 +3974,18 @@
       svg.addEventListener("pointercancel", finishPan);
       svg.addEventListener("lostpointercapture", () => {{
         stopNetworkGraphPan(svg);
+      }});
+
+      svg.addEventListener("click", (event) => {{
+        if (networkGraphViewState.suppressClick) return;
+        const routeKey = resolveNetworkGraphTagRouteKeyFromTarget(event.target);
+        if (!routeKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        networkGraphViewState.selectedTagRouteKey = networkGraphViewState.selectedTagRouteKey === routeKey
+          ? ""
+          : routeKey;
+        syncNetworkGraphSelectedTagRoute(svg);
       }});
 
       svg.addEventListener("wheel", (event) => {{
@@ -5628,6 +5696,7 @@
         cancelNetworkGraphSceneAnimation();
         svg.innerHTML = buildNetworkGraphSceneMarkup(scene);
       }}
+      syncNetworkGraphSelectedTagRoute(svg);
       syncNetworkGraphTextZoom(svg, networkGraphViewState.viewBox);
       networkGraphViewState.lastSceneStructureSignature = sceneStructureSignature;
       if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{

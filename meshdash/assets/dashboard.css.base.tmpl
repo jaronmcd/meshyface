@@ -6068,7 +6068,17 @@
       stroke-linecap: round;
       opacity: 0.94;
       pointer-events: stroke;
-      cursor: help;
+      cursor: pointer;
+    }}
+    .network-graph-tag-route.is-muted-by-selection {{
+      opacity: 0.08;
+    }}
+    .network-graph-tag-route.is-selected {{
+      opacity: 1;
+      stroke-width: 6.4 !important;
+      filter:
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.92))
+        drop-shadow(0 0 9px var(--network-graph-tag-route-color, #2aa85a));
     }}
     .network-graph-node {{
       cursor: pointer;
