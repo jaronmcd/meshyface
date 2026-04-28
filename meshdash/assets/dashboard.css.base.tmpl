@@ -5844,6 +5844,129 @@
     .network-graph-legend[hidden] {{
       display: none !important;
     }}
+    .map-link-legend {{
+      z-index: 470;
+      max-height: min(34%, 236px);
+    }}
+    #network-map-panel-map #map .leaflet-bottom.leaflet-left {{
+      bottom: var(--map-link-legend-space, 0px);
+      transition: bottom 140ms ease;
+    }}
+    .map-link-legend-title {{
+      color: #4a6958;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.18px;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }}
+    .map-link-legend-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }}
+    .map-link-legend-item {{
+      display: grid;
+      grid-template-columns: 18px 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      color: #173126;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+    }}
+    .map-link-legend-item.is-info {{
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      padding-left: 26px;
+    }}
+    .map-link-legend-item.is-toggle {{
+      cursor: pointer;
+    }}
+    .map-link-legend-input {{
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      border: 2px solid var(--map-link-legend-color, #2aa85a);
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--map-link-legend-color, #2aa85a) 10%, transparent);
+      accent-color: var(--map-link-legend-color, #2aa85a);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+      cursor: pointer;
+    }}
+    .map-link-legend-input:checked {{
+      background:
+        linear-gradient(45deg, transparent 0 40%, rgba(255, 255, 255, 0.92) 40% 58%, transparent 58%) 3px 7px / 6px 6px no-repeat,
+        linear-gradient(135deg, transparent 0 42%, rgba(255, 255, 255, 0.92) 42% 58%, transparent 58%) 7px 3px / 7px 10px no-repeat,
+        var(--map-link-legend-color, #2aa85a);
+      border-color: var(--map-link-legend-color, #2aa85a);
+    }}
+    .map-link-legend-input:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--map-link-legend-color, #2aa85a) 72%, white 28%);
+      outline-offset: 2px;
+    }}
+    .map-link-legend-swatch {{
+      display: inline-block;
+      width: 18px;
+      height: 14px;
+      position: relative;
+    }}
+    .map-link-legend-swatch::before {{
+      content: "";
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      top: 50%;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--map-link-legend-color, #2aa85a);
+      transform: translateY(-50%);
+    }}
+    .map-link-legend-swatch.is-history-link::before {{
+      height: 0;
+      border-top: 2px dashed var(--map-link-legend-color, #3384a6);
+      background: transparent;
+    }}
+    .map-link-legend-swatch.is-live-link::before {{
+      height: 0;
+      border-top: 3px dotted var(--map-link-legend-color, #7cc7ff);
+      background: transparent;
+    }}
+    .map-link-legend-swatch.is-node-actual::before,
+    .map-link-legend-swatch.is-node-linked::before {{
+      left: 4px;
+      right: auto;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--map-link-legend-color, #35b96f);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--map-link-legend-color, #35b96f) 22%, transparent);
+    }}
+    .map-link-legend-swatch.is-node-linked::before {{
+      border: 2px dashed color-mix(in srgb, var(--map-link-legend-color, #68bde8) 82%, white 18%);
+      background: color-mix(in srgb, var(--map-link-legend-color, #68bde8) 42%, transparent);
+      box-sizing: border-box;
+    }}
+    .map-link-legend-name {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .map-link-legend-count {{
+      min-width: 18px;
+      padding: 1px 5px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--map-link-legend-color, #2aa85a) 18%, transparent);
+      color: color-mix(in srgb, #173126 72%, var(--map-link-legend-color, #2aa85a) 28%);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.3;
+      text-align: center;
+    }}
     .network-graph-legend-item {{
       display: inline-flex;
       align-items: center;

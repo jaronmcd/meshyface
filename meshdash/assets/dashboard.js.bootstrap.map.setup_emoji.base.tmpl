@@ -145,6 +145,7 @@
     const edgeLayer = L.layerGroup().addTo(map);
     const trailLayer = L.layerGroup().addTo(map);
     const linkEstimateLayer = L.layerGroup().addTo(map);
+    let mapLinkLegendOffsetRaf = null;
     const signalHeatmapPaneName = "signalHeatmapPane";
     const signalHeatmapGradient = {{
       0.02: "#1f4f79",

@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.history_readers import decode_connections_rows
+from meshdash.html_css import build_dashboard_css
 from meshdash.html_js import build_dashboard_js
 from meshdash.html_sections import build_html_shell
 from meshdash.tracker_edges import record_direct_edge_observation
@@ -25,15 +26,15 @@ def test_dashboard_html_adds_map_link_layer_toggle() -> None:
         refresh_ms=1000,
     )
 
-    assert 'id="map-lines-wrap"' in html
-    assert 'id="map-lines-toggle"' in html
-    assert 'id="map-link-mode-wrap"' in html
-    assert 'id="map-link-mode"' in html
-    assert ">Packet Lines</span>" in html
-    assert "Choose whether the link layer shows history links, live links, or both" in html
+    assert 'id="map-lines-wrap"' not in html
+    assert 'id="map-lines-toggle"' not in html
+    assert 'id="map-link-mode-wrap"' not in html
+    assert 'id="map-link-mode"' not in html
+    assert 'id="map-link-legend"' in html
+    assert 'aria-label="Map links legend"' in html
+    assert ">Packet Lines</span>" not in html
+    assert "Choose whether the link layer shows history links, live links, or both" not in html
     assert 'class="map-control-group map-heatmap-controls"' in html
-    assert html.index('id="map-link-mode-wrap"') < html.index('id="map-heatmap-mode-wrap"')
-    assert ">Links</span>" in html
 
 
 def test_dashboard_js_supports_map_link_layer_overlay() -> None:
@@ -71,6 +72,20 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function updateMapLiveActivityControl()" in js
     assert "function loadMapLiveActivityPreference()" in js
     assert "function bindMapLiveActivityControl()" in js
+    assert "let mapLinkLegendOffsetRaf = null;" in js
+    assert "function mapLinkLayerModeParts(modeName = mapLinkLayerMode)" in js
+    assert "function mapLinkLayerModeFromParts(showHistory, showLive)" in js
+    assert "function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null)" in js
+    assert "function bindMapLinkLegendControls(legend)" in js
+    assert 'data-map-link-legend-toggle="packet"' in js
+    assert 'data-map-link-legend-toggle="history"' in js
+    assert 'data-map-link-legend-toggle="live"' in js
+    assert 'renderMapLinkLegend(nodes, edges, estimatedPositions, linkOverlay);' in js
+    assert 'mapElement.style.setProperty("--map-link-legend-space"' in js
+    assert 'activeNetworkSubview === "map"' in js
+    assert "lastMapSignature = \"\";" in js
+    assert "Linked nodes" in js
+    assert "Actual GPS nodes" in js
     assert 'mapLiveActivityEnabled = true;' in js
     assert 'wrap.hidden = true;' in js
     assert 'toggle.checked = true;' in js
@@ -85,6 +100,16 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "estimateLine && estimateLine.avgRssi ??" not in js
     assert "No earlier links focus yet" in js
     assert "Links view is already centered on the local node" in js
+
+
+def test_dashboard_css_positions_map_link_legend_below_zoom() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert ".map-link-legend {" in css
+    assert "#network-map-panel-map #map .leaflet-bottom.leaflet-left {" in css
+    assert "bottom: var(--map-link-legend-space, 0px);" in css
+    assert ".map-link-legend-input {" in css
+    assert ".map-link-legend-swatch.is-node-linked::before {" in css
 
 
 def test_dashboard_js_keeps_leaflet_tile_layers_removable_on_theme_swap() -> None:

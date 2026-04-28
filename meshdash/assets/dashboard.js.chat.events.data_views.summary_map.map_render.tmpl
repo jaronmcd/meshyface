@@ -90,6 +90,161 @@
       return 1 - ((ageSec - onlineWindowSec) / span);
     }}
 
+    function syncMapLinkLegendOffset() {{
+      if (!(mapElement instanceof HTMLElement)) return;
+      const legend = document.getElementById("map-link-legend");
+      const offsetPx = (
+        legend instanceof HTMLElement
+        && !legend.hidden
+        && activeLayoutView === "network"
+        && activeNetworkSubview === "map"
+      )
+        ? Math.ceil(legend.getBoundingClientRect().height + 18)
+        : 0;
+      mapElement.style.setProperty("--map-link-legend-space", `${{Math.max(0, offsetPx)}}px`);
+    }}
+
+    function scheduleMapLinkLegendOffsetSync() {{
+      if (mapLinkLegendOffsetRaf !== null) {{
+        window.cancelAnimationFrame(mapLinkLegendOffsetRaf);
+      }}
+      mapLinkLegendOffsetRaf = window.requestAnimationFrame(() => {{
+        mapLinkLegendOffsetRaf = null;
+        syncMapLinkLegendOffset();
+      }});
+    }}
+
+    function mapLinkLayerModeParts(modeName = mapLinkLayerMode) {{
+      const mode = normalizeMapLinkLayerMode(modeName);
+      return {{
+        history: mode === "history" || mode === "both",
+        live: mode === "live" || mode === "both",
+      }};
+    }}
+
+    function mapLinkLayerModeFromParts(showHistory, showLive) {{
+      if (showHistory && showLive) return "both";
+      if (showHistory) return "history";
+      if (showLive) return "live";
+      return "none";
+    }}
+
+    function refreshNetworkMapAfterLegendControlChange() {{
+      updateMapPacketLinesControl();
+      updateMapLinkLayerControl();
+      lastMapSignature = "";
+      lastMapGraphSignature = "";
+      lastMapRenderMode = "";
+      if (latestState && activeLayoutView === "network" && activeNetworkSubview === "map") {{
+        renderMap(
+          latestState.nodes || [],
+          (latestState.traffic || {{}}).edges || [],
+          null
+        );
+      }}
+    }}
+
+    function countMapPacketLineCandidates(nodes, edges) {{
+      const byId = Object.create(null);
+      for (const node of (nodes || [])) {{
+        byId[normalizeNodeId(node && node.id)] = node;
+      }}
+      let count = 0;
+      for (const edge of (edges || [])) {{
+        const src = byId[normalizeNodeId(edge && edge.from)];
+        const dst = byId[normalizeNodeId(edge && edge.to)];
+        if (!src || !dst) continue;
+        if (!isValidMapCoord(Number(src.lat), Number(src.lon))) continue;
+        if (!isValidMapCoord(Number(dst.lat), Number(dst.lon))) continue;
+        count += 1;
+      }}
+      return count;
+    }}
+
+    function bindMapLinkLegendControls(legend) {{
+      if (!(legend instanceof HTMLElement)) return;
+      const packetToggle = legend.querySelector('[data-map-link-legend-toggle="packet"]');
+      if (packetToggle instanceof HTMLInputElement && packetToggle.dataset.boundMapLinkLegend !== "1") {{
+        packetToggle.dataset.boundMapLinkLegend = "1";
+        packetToggle.addEventListener("change", () => {{
+          mapPacketLinesEnabled = !!packetToggle.checked;
+          persistMapPacketLinesPreference();
+          refreshNetworkMapAfterLegendControlChange();
+        }});
+      }}
+      for (const toggleName of ["history", "live"]) {{
+        const toggle = legend.querySelector(`[data-map-link-legend-toggle="${{toggleName}}"]`);
+        if (!(toggle instanceof HTMLInputElement) || toggle.dataset.boundMapLinkLegend === "1") continue;
+        toggle.dataset.boundMapLinkLegend = "1";
+        toggle.addEventListener("change", () => {{
+          const historyToggle = legend.querySelector('[data-map-link-legend-toggle="history"]');
+          const liveToggle = legend.querySelector('[data-map-link-legend-toggle="live"]');
+          mapLinkLayerMode = mapLinkLayerModeFromParts(
+            historyToggle instanceof HTMLInputElement && historyToggle.checked,
+            liveToggle instanceof HTMLInputElement && liveToggle.checked
+          );
+          persistMapLinkLayerModePreference();
+          refreshNetworkMapAfterLegendControlChange();
+        }});
+      }}
+    }}
+
+    function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null) {{
+      const legend = document.getElementById("map-link-legend");
+      if (!(legend instanceof HTMLElement)) return;
+      if (activeLayoutView !== "network" || activeNetworkSubview !== "map") {{
+        legend.innerHTML = "";
+        legend.hidden = true;
+        scheduleMapLinkLegendOffsetSync();
+        return;
+      }}
+      const actualCount = (nodes || []).reduce((count, node) => (
+        count + (isValidMapCoord(Number(node && node.lat), Number(node && node.lon)) ? 1 : 0)
+      ), 0);
+      const linkedCount = estimatedPositions instanceof Map ? estimatedPositions.size : 0;
+      const packetCount = countMapPacketLineCandidates(nodes, rawEdges);
+      const lines = (linkOverlay && Array.isArray(linkOverlay.lines)) ? linkOverlay.lines : [];
+      const historyCount = lines.filter((line) => String(line && line.mode || "") === "history").length;
+      const liveCount = lines.filter((line) => String(line && line.mode || "") === "live").length;
+      const modeParts = mapLinkLayerModeParts(mapLinkLayerMode);
+      legend.hidden = false;
+      legend.innerHTML = `
+        <div class="map-link-legend-title">Map links</div>
+        <div class="map-link-legend-list">
+          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#35b96f;" title="Nodes with direct GPS or fixed position data">
+            <span class="map-link-legend-swatch is-node-actual" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Actual GPS nodes</span>
+            <span class="map-link-legend-count">${{actualCount}}</span>
+          </div>
+          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#68bde8;" title="Nodes placed from link signal and hop evidence">
+            <span class="map-link-legend-swatch is-node-linked" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Linked nodes</span>
+            <span class="map-link-legend-count">${{linkedCount}}</span>
+          </div>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show packet lines between positioned nodes">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show packet lines" />
+            <span class="map-link-legend-swatch is-packet-line" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Packet lines</span>
+            <span class="map-link-legend-count">${{packetCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#3384a6;" title="Show history links and signal-placed nodes">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="history"${{modeParts.history ? " checked" : ""}} aria-label="Show history links" />
+            <span class="map-link-legend-swatch is-history-link" aria-hidden="true"></span>
+            <span class="map-link-legend-name">History links</span>
+            <span class="map-link-legend-count">${{historyCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#7cc7ff;" title="Show live links and signal-placed nodes">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="live"${{modeParts.live ? " checked" : ""}} aria-label="Show live links" />
+            <span class="map-link-legend-swatch is-live-link" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Live links</span>
+            <span class="map-link-legend-count">${{liveCount}}</span>
+          </label>
+        </div>
+      `;
+      bindMapLinkLegendControls(legend);
+      scheduleMapLinkLegendOffsetSync();
+    }}
+
     function renderMap(nodes, edges, nodeHistory = null) {{
       ensureMapSizeSync();
       const hideHeatmap = activeLayoutView === "saved";
@@ -116,6 +271,7 @@
         edgeLayer.clearLayers();
         trailLayer.clearLayers();
         linkEstimateLayer.clearLayers();
+        renderMapLinkLegend();
         nodeMarkers.clear();
         nodeMarkerMeta.clear();
         nodeMarkerKinds.clear();
@@ -646,6 +802,7 @@
             linkEstimateLineMeta.delete(lineKey);
           }}
         }}
+        renderMapLinkLegend(nodes, edges, estimatedPositions, linkOverlay);
       }}
 
       if (networkSelectionMode) {{

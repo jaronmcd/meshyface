@@ -2609,19 +2609,6 @@ Ready.
               aria-label="Toggle map basemap offline mode"
               aria-pressed="false"
             >Basemap: checking...</button>
-            <label id="map-lines-wrap" class="map-heatmap-wrap" title="Show packet lines between nodes">
-              <input id="map-lines-toggle" type="checkbox" checked />
-              <span>Packet Lines</span>
-            </label>
-            <label id="map-link-mode-wrap" class="map-heatmap-mode-wrap" title="Choose whether the link layer shows history links, live links, or both">
-              <span>Links</span>
-              <select id="map-link-mode" class="map-heatmap-mode">
-                <option value="none">None</option>
-                <option value="both">Both</option>
-                <option value="history">History</option>
-                <option value="live">Live only</option>
-              </select>
-            </label>
             <div class="map-control-group map-heatmap-controls">
               <label id="map-heatmap-mode-wrap" class="map-heatmap-mode-wrap" title="Choose heatmap recency behavior">
                 <span>Signal Heatmap</span>
@@ -2869,6 +2856,12 @@ Ready.
               data-network-subview-panel="map"
             >
               <div id="map"></div>
+              <div
+                id="map-link-legend"
+                class="network-graph-legend map-link-legend"
+                aria-label="Map links legend"
+                hidden
+              ></div>
             </div>
             <div
               id="network-map-panel-graph"
