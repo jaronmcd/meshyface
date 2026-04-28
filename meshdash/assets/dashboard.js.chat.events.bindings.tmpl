@@ -175,7 +175,7 @@
       const handleActivate = () => {{
         const nodeId = normalizeNodeId(card.dataset.nodeId || "");
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, true);
+        selectNode(nodeId, true, false);
       }};
       card.addEventListener("click", (ev) => {{
         const target = ev.target;

@@ -210,7 +210,9 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "const tickerNodeId = hasSelectedTickerNode ? selectedTickerId : localId;" in js
     assert "const tickerShowsSelf = !hasSelectedTickerNode || tickerIsLocal;" in js
     assert 'selfLabel.textContent = tickerShowsSelf ? "Self" : "Node";' in js
+    assert "if (isSelectableNodeId(tickerNodeId) && !tickerShowsSelf)" in js
     assert 'selfCard.setAttribute("aria-label", `Select node ${tickerNodeName || tickerNodeId}`);' in js
+    assert "const cardBaseTitle = tickerShowsSelf" in js
     assert "nearestOfflineCityHintFromCoords(" in js
     assert 'source: "linked",' in js
     assert 'selfMetric.classList.add("self-node-value", "node-ticker-value");' in js
@@ -262,6 +264,21 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".value.self-node-value.has-self-node-city" in html
     assert ".radio-ticker-status {" in html
     assert ".radio-ticker-detail {" in html
+
+
+def test_node_ticker_activation_does_not_toggle_selection() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    section = js.split("function bindLocalNodeSummaryCard()", 1)[1].split(
+        "function bindChatReactionControls()",
+        1,
+    )[0]
+
+    assert "selectNode(nodeId, true, false);" in section
+    assert "selectNode(nodeId, true, true);" not in section
 
 
 def test_self_ticker_id_uses_muted_light_mode_text() -> None:

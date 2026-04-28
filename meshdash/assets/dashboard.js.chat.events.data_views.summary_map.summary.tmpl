@@ -1625,7 +1625,7 @@
         if (selfLabel instanceof HTMLElement) {{
           selfLabel.textContent = tickerShowsSelf ? "Self" : "Node";
         }}
-        if (isSelectableNodeId(tickerNodeId)) {{
+        if (isSelectableNodeId(tickerNodeId) && !tickerShowsSelf) {{
           selfCard.dataset.nodeId = tickerNodeId;
           selfCard.tabIndex = 0;
           selfCard.setAttribute("role", "button");
@@ -1686,7 +1686,9 @@
           selfMetric.dataset.baseTitle = metricBaseTitle;
           selfMetric.title = metricBaseTitle;
           if (selfCard instanceof HTMLElement) {{
-            const cardBaseTitle = `${{metricBaseTitle}} • Click to select in node list`;
+            const cardBaseTitle = tickerShowsSelf
+              ? metricBaseTitle
+              : `${{metricBaseTitle}} • Click to select in node list`;
             selfCard.dataset.baseTitle = cardBaseTitle;
             selfCard.title = cardBaseTitle;
           }}
