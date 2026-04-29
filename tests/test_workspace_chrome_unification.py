@@ -756,7 +756,7 @@ def test_node_navigator_status_marker_geometry_supports_dot_and_emoji_variants(e
     assert "display: inline-flex;" in status_section
     assert "justify-content: center;" in status_section
     assert "font-size: 11px;" in dot_section
-    assert "font-size: 7px;" in new_section
+    assert "font-size: 11px;" in new_section
     assert "font-weight: 900;" in new_section
     assert "border: 1.5px solid currentColor;" in new_section
     assert "border-radius: 3px;" in new_section
@@ -765,11 +765,11 @@ def test_node_navigator_status_marker_geometry_supports_dot_and_emoji_variants(e
     assert "text-shadow:" in new_section
     assert "color: #ffffff;" in new_text_section
     assert "font-family: \"IBM Plex Mono\", \"Roboto Mono\", monospace;" in new_text_section
-    assert "font-size: 7px;" in new_text_section
+    assert "font-size: 11px;" in new_text_section
     assert "font-weight: 900;" in new_text_section
-    assert "letter-spacing: -0.55px;" in new_text_section
+    assert "letter-spacing: 0;" in new_text_section
     assert "0 0 2px rgba(0, 0, 0, 0.95)," in new_text_section
-    assert "transform: translateY(0.1px) scaleX(0.78);" in new_text_section
+    assert "transform: translateY(-0.1px);" in new_text_section
     assert "font-size: 13px;" in emoji_section
     assert "isolation: isolate;" in emoji_section
     assert "position: absolute;" in ring_section
