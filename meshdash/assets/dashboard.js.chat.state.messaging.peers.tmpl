@@ -1145,7 +1145,7 @@
         const tagClass = tagActive ? " tagged-node" : "";
         const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
-          ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{typeof nodeTagIconSvgHtml === "function" ? nodeTagIconSvgHtml(tagEntry, "chat-member-tag-chip-icon") : ""}}<span class="chat-member-tag-chip-label">${{escAttr(tagLabel)}}</span></span>`
+          ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
           : "";
         const malformedTextChipHtml = malformedTextCount > 0
           ? `<span class="chat-member-alert-chip" title="${{escAttr(`Malformed text payloads detected: ${{malformedTextCount}} recent packet${{malformedTextCount === 1 ? "" : "s"}} on TEXT_MESSAGE_APP. Last seen ${{malformedTextLatestText}}${{malformedTextPayloadPreview ? `. Payload: ${{malformedTextPayloadPreview}}` : ""}`)}}">bad text</span>`
@@ -1163,9 +1163,8 @@
           ? autoNodeTagEntryForNode(nodeId)
           : null;
         const rawMemberDisplayName = String((item && item.name) || nodeId || "Unknown node").trim() || "Unknown node";
-        const tagHasBuiltInIcon = !!(tagEntry && typeof nodeTagIconPathForEntry === "function" && nodeTagIconPathForEntry(tagEntry));
         const statusHasBuiltInIcon = !!(autoNewStatusEntry && typeof nodeTagIconPathForEntry === "function" && nodeTagIconPathForEntry(autoNewStatusEntry));
-        const memberDisplayName = (hasNodeVisualEmoji && showStatusDots && !tagHasBuiltInIcon && !statusHasBuiltInIcon && typeof stripNodeVisualEmojiFromLabel === "function")
+        const memberDisplayName = (hasNodeVisualEmoji && showStatusDots && !statusHasBuiltInIcon && typeof stripNodeVisualEmojiFromLabel === "function")
           ? stripNodeVisualEmojiFromLabel(rawMemberDisplayName, cleanNodeVisualEmoji)
           : rawMemberDisplayName;
         const statusGlyphLabel = autoNewStatusEntry

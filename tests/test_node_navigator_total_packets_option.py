@@ -199,11 +199,10 @@ def test_dashboard_js_supports_status_dot_toggle_in_node_navigator() -> None:
     assert 'const hasNodeVisualEmoji = !!cleanNodeVisualEmoji;' in js
     assert 'const autoNewStatusEntry = (typeof autoNodeTagEntryForNode === "function")' in js
     assert "function stripNodeVisualEmojiFromLabel(value, emoji) {" in js
-    assert "const tagHasBuiltInIcon = !!(tagEntry && typeof nodeTagIconPathForEntry === \"function\" && nodeTagIconPathForEntry(tagEntry));" in js
     assert "const statusHasBuiltInIcon = !!(autoNewStatusEntry && typeof nodeTagIconPathForEntry === \"function\" && nodeTagIconPathForEntry(autoNewStatusEntry));" in js
-    assert "hasNodeVisualEmoji && showStatusDots && !tagHasBuiltInIcon && !statusHasBuiltInIcon && typeof stripNodeVisualEmojiFromLabel === \"function\"" in js
+    assert "hasNodeVisualEmoji && showStatusDots && !statusHasBuiltInIcon && typeof stripNodeVisualEmojiFromLabel === \"function\"" in js
     assert "stripNodeVisualEmojiFromLabel(rawMemberDisplayName, cleanNodeVisualEmoji)" in js
-    assert 'nodeTagIconSvgHtml(tagEntry, "chat-member-tag-chip-icon")' in js
+    assert 'nodeTagIconSvgHtml(tagEntry, "chat-member-tag-chip-icon")' not in js
     assert 'nodeTagIconSvgHtml(autoNewStatusEntry, "chat-member-status-new-icon")' in js
     assert 'const statusMarkerHtml = autoNewStatusEntry' in js
     assert '<span class="chat-member-status chat-member-status-new status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}>' in js
