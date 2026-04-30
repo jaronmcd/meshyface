@@ -5,7 +5,29 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.html_js import build_dashboard_js
-from meshdash.state_service import _count_online_nodes
+from meshdash.revision import RevisionInfo
+from meshdash.state_node_contracts import CollectedNodes
+from meshdash.state_service import (
+    _count_online_nodes,
+    _online_node_count_from_local_stats,
+    build_dashboard_state_typed,
+)
+from meshdash.tracker_snapshot_contracts import empty_tracker_snapshot
+
+
+class _Tracker:
+    def snapshot(self, by_id: dict[str, dict[str, object]]) -> object:
+        return empty_tracker_snapshot()
+
+    def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
+        return {}
+
+    def load_node_capabilities(self) -> dict[str, dict[str, object]]:
+        return {}
+
+
+class _Object:
+    pass
 
 
 def test_count_online_nodes_uses_meshtastic_two_hour_window() -> None:
@@ -18,6 +40,89 @@ def test_count_online_nodes_uses_meshtastic_two_hour_window() -> None:
     ]
 
     assert _count_online_nodes(rows, now_unix=now_unix) == 2
+
+
+def test_local_stats_online_node_count_accepts_meshtastic_shapes() -> None:
+    assert (
+        _online_node_count_from_local_stats(
+            {"local_stats": {"num_online_nodes": 41}}
+        )
+        == 41
+    )
+    assert (
+        _online_node_count_from_local_stats(
+            {"local_node_info": {"localStats": {"numOnlineNodes": 123}}}
+        )
+        == 123
+    )
+
+
+def test_dashboard_state_prefers_meshtastic_localstats_online_count() -> None:
+    rows = [
+        {"id": "!online-a", "last_heard_unix": 1_800_000_000},
+        {"id": "!online-b", "last_heard_unix": 1_800_000_000},
+    ]
+
+    payload = build_dashboard_state_typed(
+        iface=_Object(),
+        tracker=_Tracker(),
+        target="test",
+        started_at=1_800_000_000,
+        storage_probe_path=None,
+        revision_info=RevisionInfo(
+            version="0.0.0",
+            commit="test",
+            label="test",
+            title="test",
+        ),
+        collect_nodes_fn=lambda iface: CollectedNodes(
+            rows=rows,
+            full=[],
+            by_id={row["id"]: row for row in rows},
+            with_position_count=0,
+        ),
+        collect_local_state_safe_fn=lambda iface, *, collect_local_state_fn: (
+            {"local_stats": {"num_online_nodes": 99}},
+            None,
+        ),
+        get_radio_connection_status_fn=lambda iface: None,
+    )
+
+    assert payload.summary["online_node_count"] == 99
+    assert payload.summary["online_node_count_source"] == "local_stats"
+    assert payload.summary["online_node_window_seconds"] == 2 * 60 * 60
+
+
+def test_lite_dashboard_state_uses_iface_localstats_online_count() -> None:
+    iface = _Object()
+    iface.localNode = _Object()
+    iface.localNode.localStats = {"numOnlineNodes": 88}
+
+    payload = build_dashboard_state_typed(
+        iface=iface,
+        tracker=_Tracker(),
+        target="test",
+        started_at=1_800_000_000,
+        storage_probe_path=None,
+        revision_info=RevisionInfo(
+            version="0.0.0",
+            commit="test",
+            label="test",
+            title="test",
+        ),
+        collect_nodes_fn=lambda iface: CollectedNodes(
+            rows=[{"id": "!online-a", "last_heard_unix": 1_800_000_000}],
+            full=[],
+            by_id={},
+            with_position_count=0,
+        ),
+        get_radio_connection_status_fn=lambda iface: None,
+        include_debug=False,
+        include_nodes_full=False,
+    )
+
+    assert payload.summary["online_node_count"] == 88
+    assert payload.summary["online_node_count_source"] == "local_stats"
 
 
 def test_dashboard_js_roster_health_uses_summary_online_count() -> None:

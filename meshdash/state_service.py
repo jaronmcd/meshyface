@@ -72,6 +72,20 @@ _MODEM_PRESET_NORMALIZED_KEYS: dict[str, str] = {
 _ONLINE_NODE_WINDOW_SECONDS = 2 * 60 * 60
 
 
+def _mapping_or_attr_get(obj: object, key: str) -> object | None:
+    if isinstance(obj, Mapping):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
+
+def _first_positive_int(*values: object) -> Optional[int]:
+    for value in values:
+        int_value = _to_int(value)
+        if int_value is not None and int_value > 0:
+            return int(int_value)
+    return None
+
+
 def _to_jsonable_safe(
     value: object,
     *,
@@ -190,6 +204,102 @@ def _count_online_nodes(
         if age_seconds <= max(30, int(freshness_window_seconds)):
             count += 1
     return count
+
+
+def _online_node_count_from_stats(stats: object) -> Optional[int]:
+    if stats is None:
+        return None
+    for key in (
+        "num_online_nodes",
+        "numOnlineNodes",
+        "online_node_count",
+        "onlineNodeCount",
+    ):
+        count = _to_int(_mapping_or_attr_get(stats, key))
+        if count is not None:
+            return max(0, int(count))
+    return None
+
+
+def _online_node_count_from_local_stats(local_state: object) -> Optional[int]:
+    if not isinstance(local_state, Mapping):
+        return None
+
+    candidates: list[object] = [
+        local_state.get("local_stats"),
+        local_state.get("localStats"),
+    ]
+    local_node_info = local_state.get("local_node_info")
+    if local_node_info is None:
+        local_node_info = local_state.get("localNodeInfo")
+    if isinstance(local_node_info, Mapping):
+        candidates.extend(
+            (
+                local_node_info.get("localStats"),
+                local_node_info.get("local_stats"),
+            )
+        )
+
+    for stats in candidates:
+        count = _online_node_count_from_stats(stats)
+        if count is not None:
+            return count
+    return None
+
+
+def _local_node_info_from_iface(iface: object) -> object | None:
+    local = _mapping_or_attr_get(iface, "localNode")
+    my_info = _mapping_or_attr_get(iface, "myInfo")
+    local_node_num = _first_positive_int(
+        _mapping_or_attr_get(local, "nodeNum"),
+        _mapping_or_attr_get(my_info, "my_node_num"),
+        _mapping_or_attr_get(my_info, "myNodeNum"),
+    )
+    if local_node_num is None:
+        return None
+
+    nodes_by_num = _mapping_or_attr_get(iface, "nodesByNum")
+    if isinstance(nodes_by_num, Mapping):
+        direct = nodes_by_num.get(local_node_num)
+        if direct is None:
+            direct = nodes_by_num.get(str(local_node_num))
+        if direct is not None:
+            return direct
+
+    nodes = _mapping_or_attr_get(iface, "nodes")
+    if isinstance(nodes, Mapping):
+        local_id = f"!{local_node_num:08x}"
+        direct = nodes.get(local_id)
+        if direct is not None:
+            return direct
+        for value in nodes.values():
+            if not isinstance(value, Mapping):
+                continue
+            user = value.get("user")
+            if not isinstance(user, Mapping):
+                continue
+            if str(user.get("id") or "") == local_id:
+                return value
+    return None
+
+
+def _online_node_count_from_iface_local_stats(iface: object) -> Optional[int]:
+    local = _mapping_or_attr_get(iface, "localNode")
+    my_info = _mapping_or_attr_get(iface, "myInfo")
+    local_node_info = _local_node_info_from_iface(iface)
+    candidates: list[object] = [
+        _mapping_or_attr_get(local, "localStats"),
+        _mapping_or_attr_get(local, "local_stats"),
+        _mapping_or_attr_get(my_info, "localStats"),
+        _mapping_or_attr_get(my_info, "local_stats"),
+        _mapping_or_attr_get(local_node_info, "localStats"),
+        _mapping_or_attr_get(local_node_info, "local_stats"),
+    ]
+    for stats in candidates:
+        count = _online_node_count_from_stats(stats)
+        if count is not None:
+            return count
+    return None
 
 
 def _merge_recent_chat_entries(
@@ -774,13 +884,19 @@ def build_dashboard_state_typed(
     if summary_saved_node_count is None:
         summary_saved_node_count = len(node_saved_counts)
     summary["saved_node_count"] = max(0, int(summary_saved_node_count))
-    summary_online_node_count = _to_int(summary.get("online_node_count"))
+    summary_online_node_count = _online_node_count_from_local_stats(local_state)
+    summary_online_node_count_source = "local_stats"
     if summary_online_node_count is None:
+        summary_online_node_count = _online_node_count_from_iface_local_stats(iface)
+    if summary_online_node_count is None:
+        summary_online_node_count_source = "last_heard_2h"
         summary_online_node_count = _count_online_nodes(
             nodes.rows,
             now_unix=int(time.time()),
         )
     summary["online_node_count"] = max(0, int(summary_online_node_count))
+    summary["online_node_count_source"] = summary_online_node_count_source
+    summary["online_node_window_seconds"] = _ONLINE_NODE_WINDOW_SECONDS
     if isinstance(radio_connection_status, Mapping) and radio_connection_status:
         summary["radio_connection"] = dict(radio_connection_status)
 
