@@ -17,30 +17,13 @@
     const settingsDatabaseInfoValueIds = [
       "settings-database-info-path",
       "settings-database-info-total-size",
-      "settings-database-info-size",
-      "settings-database-info-wal-size",
       "settings-database-info-total-rows",
       "settings-database-info-packets",
       "settings-database-info-packet-events",
       "settings-database-info-chat",
-      "settings-database-info-connections",
-      "settings-database-info-node-capabilities",
-      "settings-database-info-node-saved-counts",
-      "settings-database-info-node-positions",
-      "settings-database-info-node-metrics",
-      "settings-database-info-link-metrics",
-      "settings-database-info-summary-metrics",
-      "settings-database-info-environment-metrics",
-      "settings-database-info-malformed-text",
-      "settings-database-info-settings",
       "settings-database-info-oldest-packet",
       "settings-database-info-newest-packet",
       "settings-database-info-retention",
-      "settings-database-info-event-retention",
-      "settings-database-info-rollup-retention",
-      "settings-database-info-pages",
-      "settings-database-info-freelist",
-      "settings-database-info-generated",
     ];
 
     function settingsDeviceInfoObject(value) {{
@@ -421,25 +404,6 @@
       return range[keyName];
     }}
 
-    function settingsDatabaseInfoPages(stats) {{
-      const pageCount = Number(settingsDeviceInfoFirst([stats], ["page_count", "pageCount"]));
-      const pageSize = Number(settingsDeviceInfoFirst([stats], ["page_size", "pageSize"]));
-      if (!Number.isFinite(pageCount) || pageCount < 0) return "";
-      if (!Number.isFinite(pageSize) || pageSize <= 0) {{
-        return `${{Math.trunc(pageCount).toLocaleString()}} pages`;
-      }}
-      return `${{Math.trunc(pageCount).toLocaleString()}} x ${{formatSettingsDatabaseBytes(pageSize)}}`;
-    }}
-
-    function settingsDatabaseInfoFreelist(stats) {{
-      const freelistCount = Number(settingsDeviceInfoFirst([stats], ["freelist_count", "freelistCount"]));
-      const pageSize = Number(settingsDeviceInfoFirst([stats], ["page_size", "pageSize"]));
-      if (!Number.isFinite(freelistCount) || freelistCount < 0) return "";
-      const countText = `${{Math.trunc(freelistCount).toLocaleString()}} pages`;
-      if (!Number.isFinite(pageSize) || pageSize <= 0) return countText;
-      return `${{countText}} | ${{formatSettingsDatabaseBytes(freelistCount * pageSize)}}`;
-    }}
-
     function renderSettingsDatabaseInfo(payload = settingsDatabaseInfoCache.payload) {{
       const grid = document.getElementById("settings-database-info-grid");
       if (!(grid instanceof HTMLElement)) return;
@@ -463,28 +427,12 @@
       setSettingsDatabaseInfoValue("settings-database-info-total-size", formatSettingsDatabaseBytes(
         settingsDeviceInfoFirst([stats], ["total_size_bytes", "totalSizeBytes"])
       ));
-      setSettingsDatabaseInfoValue("settings-database-info-size", formatSettingsDatabaseBytes(
-        settingsDeviceInfoFirst([stats], ["size_bytes", "sizeBytes"])
-      ));
-      setSettingsDatabaseInfoValue("settings-database-info-wal-size", formatSettingsDatabaseBytes(
-        settingsDeviceInfoFirst([stats], ["wal_size_bytes", "walSizeBytes"])
-      ));
       setSettingsDatabaseInfoValue("settings-database-info-total-rows", formatSettingsDatabaseNumber(
         settingsDeviceInfoFirst([stats], ["total_rows", "totalRows"])
       ));
       setSettingsDatabaseInfoValue("settings-database-info-packets", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "packets")));
       setSettingsDatabaseInfoValue("settings-database-info-packet-events", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "packet_events")));
       setSettingsDatabaseInfoValue("settings-database-info-chat", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "chat")));
-      setSettingsDatabaseInfoValue("settings-database-info-connections", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "connections")));
-      setSettingsDatabaseInfoValue("settings-database-info-node-capabilities", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "node_capabilities")));
-      setSettingsDatabaseInfoValue("settings-database-info-node-saved-counts", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "node_saved_counts")));
-      setSettingsDatabaseInfoValue("settings-database-info-node-positions", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "node_positions")));
-      setSettingsDatabaseInfoValue("settings-database-info-node-metrics", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "node_metrics_1m")));
-      setSettingsDatabaseInfoValue("settings-database-info-link-metrics", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "link_metrics_1m")));
-      setSettingsDatabaseInfoValue("settings-database-info-summary-metrics", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "summary_metrics_1m")));
-      setSettingsDatabaseInfoValue("settings-database-info-environment-metrics", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "environment_metrics_1m")));
-      setSettingsDatabaseInfoValue("settings-database-info-malformed-text", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "malformed_text_payloads")));
-      setSettingsDatabaseInfoValue("settings-database-info-settings", formatSettingsDatabaseNumber(settingsDatabaseInfoTableCount(stats, "dashboard_settings")));
       setSettingsDatabaseInfoValue("settings-database-info-oldest-packet", formatSettingsDatabaseEpoch(
         settingsDatabaseInfoRangeValue(stats, "packets", "first_unix")
       ));
@@ -494,19 +442,6 @@
       setSettingsDatabaseInfoValue("settings-database-info-retention", formatSettingsDatabaseDuration(
         settingsDeviceInfoFirst([policy], ["retention_seconds", "retentionSeconds"]),
         settingsDeviceInfoFirst([policy], ["max_rows", "maxRows"])
-      ));
-      setSettingsDatabaseInfoValue("settings-database-info-event-retention", formatSettingsDatabaseDuration(
-        settingsDeviceInfoFirst([policy], ["event_retention_seconds", "eventRetentionSeconds"]),
-        settingsDeviceInfoFirst([policy], ["event_max_rows", "eventMaxRows"])
-      ));
-      setSettingsDatabaseInfoValue("settings-database-info-rollup-retention", formatSettingsDatabaseDuration(
-        settingsDeviceInfoFirst([policy], ["rollup_retention_seconds", "rollupRetentionSeconds"]),
-        null
-      ));
-      setSettingsDatabaseInfoValue("settings-database-info-pages", settingsDatabaseInfoPages(stats));
-      setSettingsDatabaseInfoValue("settings-database-info-freelist", settingsDatabaseInfoFreelist(stats));
-      setSettingsDatabaseInfoValue("settings-database-info-generated", formatSettingsDatabaseEpoch(
-        settingsDeviceInfoFirst([stats], ["generated_unix", "generatedUnix"])
       ));
 
       const totalRows = formatSettingsDatabaseNumber(settingsDeviceInfoFirst([stats], ["total_rows", "totalRows"]));
