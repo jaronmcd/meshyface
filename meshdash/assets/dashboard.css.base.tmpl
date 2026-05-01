@@ -5211,6 +5211,12 @@
       padding-bottom: 14px;
       padding-left: 18px;
     }}
+    #network-map-panel-routes > .network-overview-panel {{
+      padding-top: 56px;
+      padding-right: 18px;
+      padding-bottom: 14px;
+      padding-left: 18px;
+    }}
     #network-map-panel-sensors > .network-overview-panel {{
       padding-top: 56px;
       padding-right: 18px;
@@ -6528,6 +6534,327 @@
       background: rgba(249, 253, 249, 0.94);
       box-shadow: 0 14px 34px rgba(22, 40, 30, 0.08);
       backdrop-filter: blur(8px);
+    }}
+    .network-routes-card {{
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      padding: 14px;
+      border: 1px solid rgba(188, 214, 195, 0.9);
+      border-radius: 8px;
+      background: rgba(249, 253, 249, 0.94);
+      box-shadow: 0 14px 34px rgba(22, 40, 30, 0.08);
+      backdrop-filter: blur(8px);
+    }}
+    .network-routes-toolbar {{
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }}
+    .network-routes-mode-group {{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid color-mix(in srgb, var(--line) 84%, var(--accent) 16%);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel) 82%, var(--bg) 18%);
+    }}
+    .network-routes-mode-btn {{
+      min-height: 26px;
+      padding: 4px 11px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: color-mix(in srgb, var(--muted) 72%, var(--ink) 28%);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+    }}
+    .network-routes-mode-btn.is-active {{
+      background: color-mix(in srgb, var(--accent) 28%, var(--panel) 72%);
+      color: color-mix(in srgb, var(--ink) 82%, var(--accent-2) 18%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent);
+    }}
+    .network-routes-mode-btn:focus-visible,
+    .network-routes-swap-btn:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 2px;
+    }}
+    .network-routes-toolbar .history-metric-wrap {{
+      width: auto;
+      min-width: 126px;
+    }}
+    .network-routes-toolbar .history-metric-select {{
+      min-width: 94px;
+    }}
+    .network-routes-refresh-btn {{
+      flex: 0 0 auto;
+    }}
+    .network-routes-status {{
+      min-height: 16px;
+      color: color-mix(in srgb, var(--muted) 72%, var(--ink) 28%);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+    }}
+    .network-routes-picker {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: end;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .network-routes-node-control {{
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+      color: color-mix(in srgb, var(--muted) 72%, var(--ink) 28%);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12px;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }}
+    .network-routes-node-select {{
+      width: 100%;
+      min-width: 0;
+      min-height: 34px;
+      padding: 6px 9px;
+      border: 1px solid color-mix(in srgb, var(--line) 76%, var(--accent) 24%);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 86%, var(--bg) 14%);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.25;
+    }}
+    .network-routes-swap-btn {{
+      min-width: 62px;
+      min-height: 34px;
+      padding: 6px 12px;
+      border: 1px solid color-mix(in srgb, var(--line) 78%, var(--accent) 22%);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent) 28%);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+    }}
+    .network-routes-summary {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 28px;
+      color: color-mix(in srgb, var(--muted) 70%, var(--ink) 30%);
+      font-size: 12px;
+      line-height: 1.35;
+    }}
+    .network-routes-summary strong {{
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+    }}
+    .network-routes-result {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }}
+    .network-route-result-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: color-mix(in srgb, var(--muted) 74%, var(--ink) 26%);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.25;
+    }}
+    .network-route-hop-list {{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }}
+    .network-route-hop {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 7px;
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid rgba(188, 214, 195, 0.82);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(91, 181, 127, 0.12), rgba(255, 255, 255, 0) 40%),
+        rgba(255, 255, 255, 0.72);
+    }}
+    .network-route-hop.is-local {{
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 42%),
+        rgba(255, 255, 255, 0.72);
+    }}
+    .network-route-hop:hover {{
+      border-color: color-mix(in srgb, var(--line) 45%, var(--accent) 55%);
+      background:
+        linear-gradient(90deg, rgba(91, 181, 127, 0.18), rgba(255, 255, 255, 0) 46%),
+        rgba(255, 255, 255, 0.84);
+    }}
+    .network-route-hop-node {{
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }}
+    .network-route-hop-node:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }}
+    .network-route-hop-index {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 26%, white 74%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent) 28%);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+    }}
+    .network-route-hop-main {{
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }}
+    .network-route-hop-main strong {{
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .network-route-hop-main > span {{
+      overflow: hidden;
+      color: color-mix(in srgb, var(--muted) 76%, var(--ink) 24%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .network-route-self-label {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 14px;
+      margin-left: 5px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent-2) 18%, white 82%);
+      color: color-mix(in srgb, var(--ink) 78%, var(--accent-2) 22%);
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1.2;
+      vertical-align: 1px;
+    }}
+    .network-route-edge {{
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px 8px;
+      min-width: 0;
+      padding-left: 40px;
+    }}
+    .network-route-edge-label {{
+      color: color-mix(in srgb, var(--muted) 72%, var(--ink) 28%);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }}
+    .network-route-edge-meta {{
+      overflow: hidden;
+      color: color-mix(in srgb, var(--muted) 76%, var(--ink) 24%);
+      font-size: 10px;
+      line-height: 1.2;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .network-route-edge-bar {{
+      grid-column: 1 / -1;
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 4px;
+      min-height: 4px;
+      border-radius: 999px;
+      background: rgba(166, 190, 173, 0.28);
+      overflow: hidden;
+    }}
+    .network-route-edge-bar > span {{
+      display: block;
+      height: 100%;
+      width: var(--route-edge-strength, 0%);
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    }}
+    .network-routes-empty {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      border: 1px dashed rgba(129, 168, 145, 0.72);
+      border-radius: 8px;
+      color: color-mix(in srgb, var(--muted) 78%, var(--ink) 22%);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.4;
+      text-align: center;
+    }}
+    @media (max-width: 760px) {{
+      .network-routes-picker {{
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }}
+      .network-routes-swap-btn {{
+        width: 100%;
+      }}
+      .network-routes-summary,
+      .network-route-result-head {{
+        align-items: flex-start;
+        flex-direction: column;
+      }}
+      .network-route-edge {{
+        padding-left: 0;
+      }}
     }}
     .network-top-nodes-toolbar {{
       display: flex;

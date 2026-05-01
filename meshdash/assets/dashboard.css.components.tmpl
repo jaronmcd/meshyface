@@ -5384,6 +5384,33 @@
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%);
       box-shadow: var(--workspace-shell-shadow);
     }}
+    [data-theme="dark"] .network-routes-card {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .network-routes-mode-group {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 82%, var(--workspace-shell-bg-alt) 18%);
+    }}
+    [data-theme="dark"] .network-routes-mode-btn {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .network-routes-mode-btn.is-active {{
+      background: color-mix(in srgb, var(--ui-accent) 28%, var(--workspace-shell-bg-alt) 72%);
+      color: var(--workspace-shell-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 42%, transparent);
+    }}
+    [data-theme="dark"] .network-routes-node-select {{
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--workspace-shell-active-bg) 12%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .network-routes-swap-btn {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 82%, var(--workspace-shell-bg-alt) 18%);
+      color: var(--workspace-shell-text);
+    }}
     [data-theme="dark"] .network-top-nodes-status,
     [data-theme="dark"] .network-top-nodes-summary,
     [data-theme="dark"] .network-top-nodes-group-source,
@@ -5391,13 +5418,22 @@
     [data-theme="dark"] .network-top-node-id,
     [data-theme="dark"] .network-top-node-city,
     [data-theme="dark"] .network-top-node-meta,
-    [data-theme="dark"] .network-top-node-unit {{
+    [data-theme="dark"] .network-top-node-unit,
+    [data-theme="dark"] .network-routes-status,
+    [data-theme="dark"] .network-routes-summary,
+    [data-theme="dark"] .network-routes-node-control,
+    [data-theme="dark"] .network-route-result-head,
+    [data-theme="dark"] .network-route-hop-main > span,
+    [data-theme="dark"] .network-route-edge-label,
+    [data-theme="dark"] .network-route-edge-meta {{
       color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .network-top-nodes-summary strong,
     [data-theme="dark"] .network-top-nodes-group-title strong,
     [data-theme="dark"] .network-top-node-name,
-    [data-theme="dark"] .network-top-node-value strong {{
+    [data-theme="dark"] .network-top-node-value strong,
+    [data-theme="dark"] .network-routes-summary strong,
+    [data-theme="dark"] .network-route-hop-main strong {{
       color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .network-top-nodes-group {{
@@ -5409,21 +5445,54 @@
         linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 42%),
         color-mix(in srgb, var(--workspace-shell-bg) 86%, var(--workspace-shell-bg-alt) 14%);
     }}
+    [data-theme="dark"] .network-route-hop {{
+      border-color: var(--workspace-shell-border-muted);
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 42%),
+        color-mix(in srgb, var(--workspace-shell-bg) 86%, var(--workspace-shell-bg-alt) 14%);
+    }}
     [data-theme="dark"] .network-top-node-row:hover {{
       border-color: color-mix(in srgb, var(--ui-accent) 48%, var(--workspace-shell-border) 52%);
       background:
         linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 24%, transparent), transparent 46%),
         color-mix(in srgb, var(--workspace-shell-active-bg) 74%, var(--workspace-shell-bg-alt) 26%);
     }}
+    [data-theme="dark"] .network-route-hop:hover {{
+      border-color: color-mix(in srgb, var(--ui-accent) 48%, var(--workspace-shell-border) 52%);
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 24%, transparent), transparent 46%),
+        color-mix(in srgb, var(--workspace-shell-active-bg) 74%, var(--workspace-shell-bg-alt) 26%);
+    }}
+    [data-theme="dark"] .network-route-hop.is-local {{
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 20%, transparent), transparent 42%),
+        color-mix(in srgb, var(--workspace-shell-bg) 86%, var(--workspace-shell-bg-alt) 14%);
+    }}
     [data-theme="dark"] .network-top-node-rank {{
+      background: color-mix(in srgb, var(--ui-accent) 28%, var(--workspace-shell-bg-alt) 72%);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .network-route-hop-index {{
+      background: color-mix(in srgb, var(--ui-accent) 28%, var(--workspace-shell-bg-alt) 72%);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .network-route-self-label {{
       background: color-mix(in srgb, var(--ui-accent) 28%, var(--workspace-shell-bg-alt) 72%);
       color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .network-top-node-bar {{
       background: color-mix(in srgb, var(--workspace-shell-border-muted) 70%, transparent);
     }}
+    [data-theme="dark"] .network-route-edge-bar {{
+      background: color-mix(in srgb, var(--workspace-shell-border-muted) 70%, transparent);
+    }}
     [data-theme="dark"] .network-top-nodes-empty {{
       border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .network-routes-empty {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 92%, black 8%);
       color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .network-sensors-panel .env-metrics-explorer,

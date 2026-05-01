@@ -2935,6 +2935,14 @@ Ready.
                   type="button"
                   role="tab"
                   aria-selected="false"
+                  aria-controls="network-map-panel-routes"
+                  data-network-subview="routes"
+                >Routes</button>
+                <button
+                  class="network-map-subview-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
                   aria-controls="network-map-panel-top10"
                   data-network-subview="top10"
                 >Top 10</button>
@@ -3155,6 +3163,63 @@ Ready.
                       hidden
                     ></div>
                   </div>
+                </section>
+              </div>
+            </div>
+            <div
+              id="network-map-panel-routes"
+              class="network-map-subview-panel"
+              role="tabpanel"
+              data-network-subview-panel="routes"
+              hidden
+            >
+              <div class="network-overview-panel network-routes-panel">
+                <section class="network-routes-card">
+                  <div class="network-routes-toolbar">
+                    <div class="network-routes-mode-group" role="group" aria-label="Route mode">
+                      <button
+                        class="network-routes-mode-btn is-active"
+                        type="button"
+                        aria-pressed="true"
+                        data-network-route-mode="inferred"
+                      >Inferred</button>
+                      <button
+                        class="network-routes-mode-btn"
+                        type="button"
+                        aria-pressed="false"
+                        data-network-route-mode="live"
+                      >Live trace</button>
+                    </div>
+                    <label class="history-metric-wrap history-select-chip-hide-label" for="network-routes-window">
+                      <span class="history-metric-label">Links</span>
+                      <select id="network-routes-window" class="history-metric-select" aria-label="Route link window"></select>
+                    </label>
+                    <button
+                      id="network-routes-refresh-btn"
+                      class="map-reset-view-btn network-routes-refresh-btn"
+                      type="button"
+                      title="Refresh route links"
+                    >Refresh</button>
+                    <span id="network-routes-status" class="network-routes-status" aria-live="polite"></span>
+                  </div>
+                  <div class="network-routes-picker">
+                    <label class="network-routes-node-control" for="network-routes-from">
+                      <span>From</span>
+                      <select id="network-routes-from" class="network-routes-node-select" aria-label="Route source node"></select>
+                    </label>
+                    <button
+                      id="network-routes-swap-btn"
+                      class="network-routes-swap-btn"
+                      type="button"
+                      title="Swap route endpoints"
+                    >Swap</button>
+                    <label class="network-routes-node-control" for="network-routes-to">
+                      <span>To</span>
+                      <select id="network-routes-to" class="network-routes-node-select" aria-label="Route target node"></select>
+                    </label>
+                  </div>
+                  <div id="network-routes-summary" class="network-routes-summary"></div>
+                  <div id="network-routes-result" class="network-routes-result"></div>
                 </section>
               </div>
             </div>

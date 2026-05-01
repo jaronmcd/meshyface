@@ -194,6 +194,10 @@
     let networkTopNodesCategory = "all";
     let networkTopNodesHydrateInFlight = null;
     let networkTopNodesCache = new Map();
+    let networkRoutesMode = "inferred";
+    let networkRoutesFromNodeId = "";
+    let networkRoutesToNodeId = "";
+    let networkRoutesWindow = "7d";
     let nodeCityHintCache = new Map();
     let nodeCityHintPending = new Map();
     let nodePacketSeriesEnabled = {{ ...nodePacketSeriesDefaults }};

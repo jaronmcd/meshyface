@@ -697,6 +697,10 @@
     const networkGraphLayoutStorageKey = "meshDashboardNetworkGraphLayoutV1";
     const networkGraphTagRouteVisibilityStorageKey = "meshDashboardNetworkGraphTagRouteVisibilityV1";
     const networkGraphSelfPathVisibilityStorageKey = "meshDashboardNetworkGraphSelfPathVisibilityV1";
+    const networkRoutesModeStorageKey = "meshDashboardNetworkRoutesModeV1";
+    const networkRoutesFromStorageKey = "meshDashboardNetworkRoutesFromV1";
+    const networkRoutesToStorageKey = "meshDashboardNetworkRoutesToV1";
+    const networkRoutesWindowStorageKey = "meshDashboardNetworkRoutesWindowV1";
     const networkGraphHistoryEdgeCache = new Map();
     const networkGraphHistoryCapsCache = new Map();
     const networkGraphHistoryEdgeRequests = new Map();
@@ -711,6 +715,10 @@
       {{ id: "30d", label: "30d" }},
       {{ id: "max", label: "Max" }},
     ]);
+    const networkRoutesModeDefs = Object.freeze([
+      {{ id: "inferred", label: "Inferred" }},
+      {{ id: "live", label: "Live trace" }},
+    ]);
     let networkGraphEdgeMode = "7d";
     let networkGraphLayoutMode = "radial";
 
@@ -718,10 +726,11 @@
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "details") return "overview";
       if (clean === "links") return "graph";
+      if (clean === "route" || clean === "routes") return "routes";
       if (clean === "top" || clean === "top10" || clean === "top_10") return "top10";
       if (clean === "diag") return networkDiagnosticsEnabled ? "diagnostics" : "map";
       if (clean === "sensors") return "overview";
-      if (clean === "overview" || clean === "graph" || clean === "top10") return clean;
+      if (clean === "overview" || clean === "graph" || clean === "routes" || clean === "top10") return clean;
       if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";
       return "map";
     }}
@@ -754,6 +763,12 @@
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "tree" || clean === "cluster" || clean === "community") return clean;
       return "radial";
+    }}
+
+    function normalizeNetworkRoutesMode(raw) {{
+      const clean = String(raw || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+      const resolved = clean === "trace" || clean === "live_trace" ? "live" : clean;
+      return networkRoutesModeDefs.some((entry) => entry.id === resolved) ? resolved : "inferred";
     }}
 
     function normalizeNetworkGraphTagRoutePresetId(raw) {{
@@ -815,6 +830,60 @@
       const next = normalizeNetworkGraphLayoutMode(modeName);
       try {{
         window.localStorage.setItem(networkGraphLayoutStorageKey, next);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadPreferredNetworkRoutesMode() {{
+      try {{
+        const raw = window.localStorage.getItem(networkRoutesModeStorageKey) || "inferred";
+        return normalizeNetworkRoutesMode(raw);
+      }} catch (_err) {{
+        return "inferred";
+      }}
+    }}
+
+    function persistPreferredNetworkRoutesMode(modeName) {{
+      const next = normalizeNetworkRoutesMode(modeName);
+      try {{
+        window.localStorage.setItem(networkRoutesModeStorageKey, next);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadPreferredNetworkRoutesNodeId(storageKey) {{
+      try {{
+        return normalizeNodeId(window.localStorage.getItem(storageKey) || "");
+      }} catch (_err) {{
+        return "";
+      }}
+    }}
+
+    function persistPreferredNetworkRoutesNodeId(storageKey, nodeId) {{
+      try {{
+        const clean = normalizeNodeId(nodeId || "");
+        if (clean) {{
+          window.localStorage.setItem(storageKey, clean);
+        }} else {{
+          window.localStorage.removeItem(storageKey);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadPreferredNetworkRoutesWindow() {{
+      try {{
+        const raw = window.localStorage.getItem(networkRoutesWindowStorageKey) || "7d";
+        return normalizeNetworkGraphEdgeMode(raw);
+      }} catch (_err) {{
+        return "7d";
+      }}
+    }}
+
+    function persistPreferredNetworkRoutesWindow(modeName) {{
+      const next = normalizeNetworkGraphEdgeMode(modeName);
+      try {{
+        window.localStorage.setItem(networkRoutesWindowStorageKey, next);
       }} catch (_err) {{
       }}
     }}
@@ -1708,6 +1777,402 @@
         }});
     }}
 
+    function ensureNetworkRoutesWindowOptions() {{
+      const select = document.getElementById("network-routes-window");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const optionsSignature = networkGraphEdgeModeDefs.map((entry) => entry.id).join("|");
+      if (select.dataset.optionsSignature !== optionsSignature) {{
+        select.innerHTML = networkGraphEdgeModeDefs
+          .map((entry) => `<option value="${{escAttr(entry.id)}}">${{escAttr(entry.label)}}</option>`)
+          .join("");
+        select.dataset.optionsSignature = optionsSignature;
+      }}
+      const clean = normalizeNetworkGraphEdgeMode(networkRoutesWindow);
+      if (select.value !== clean) {{
+        select.value = clean;
+      }}
+    }}
+
+    function syncNetworkRoutesModeControls() {{
+      const mode = normalizeNetworkRoutesMode(networkRoutesMode);
+      for (const btn of document.querySelectorAll("[data-network-route-mode]")) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const buttonMode = normalizeNetworkRoutesMode(btn.dataset.networkRouteMode || "");
+        const isActive = buttonMode === mode;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+      }}
+    }}
+
+    function bindNetworkRoutesControls() {{
+      ensureNetworkRoutesWindowOptions();
+      for (const btn of document.querySelectorAll("[data-network-route-mode]")) {{
+        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {{
+          networkRoutesMode = normalizeNetworkRoutesMode(btn.dataset.networkRouteMode || "inferred");
+          persistPreferredNetworkRoutesMode(networkRoutesMode);
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const windowSelect = document.getElementById("network-routes-window");
+      if (windowSelect instanceof HTMLSelectElement && windowSelect.dataset.bound !== "1") {{
+        windowSelect.dataset.bound = "1";
+        windowSelect.addEventListener("change", () => {{
+          networkRoutesWindow = normalizeNetworkGraphEdgeMode(windowSelect.value);
+          persistPreferredNetworkRoutesWindow(networkRoutesWindow);
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const fromSelect = document.getElementById("network-routes-from");
+      if (fromSelect instanceof HTMLSelectElement && fromSelect.dataset.bound !== "1") {{
+        fromSelect.dataset.bound = "1";
+        fromSelect.addEventListener("change", () => {{
+          networkRoutesFromNodeId = normalizeNodeId(fromSelect.value || "");
+          persistPreferredNetworkRoutesNodeId(networkRoutesFromStorageKey, networkRoutesFromNodeId);
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const toSelect = document.getElementById("network-routes-to");
+      if (toSelect instanceof HTMLSelectElement && toSelect.dataset.bound !== "1") {{
+        toSelect.dataset.bound = "1";
+        toSelect.addEventListener("change", () => {{
+          networkRoutesToNodeId = normalizeNodeId(toSelect.value || "");
+          persistPreferredNetworkRoutesNodeId(networkRoutesToStorageKey, networkRoutesToNodeId);
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const swapBtn = document.getElementById("network-routes-swap-btn");
+      if (swapBtn instanceof HTMLButtonElement && swapBtn.dataset.bound !== "1") {{
+        swapBtn.dataset.bound = "1";
+        swapBtn.addEventListener("click", () => {{
+          const previousFrom = networkRoutesFromNodeId;
+          networkRoutesFromNodeId = networkRoutesToNodeId;
+          networkRoutesToNodeId = previousFrom;
+          persistPreferredNetworkRoutesNodeId(networkRoutesFromStorageKey, networkRoutesFromNodeId);
+          persistPreferredNetworkRoutesNodeId(networkRoutesToStorageKey, networkRoutesToNodeId);
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const refreshBtn = document.getElementById("network-routes-refresh-btn");
+      if (refreshBtn instanceof HTMLButtonElement && refreshBtn.dataset.bound !== "1") {{
+        refreshBtn.dataset.bound = "1";
+        refreshBtn.addEventListener("click", () => {{
+          const edgeMode = normalizeNetworkGraphEdgeMode(networkRoutesWindow);
+          if (networkGraphEdgeModeUsesHistoryFetch(edgeMode)) {{
+            networkGraphHistoryEdgeCache.delete(edgeMode);
+            networkGraphHistoryCapsCache.delete(edgeMode);
+            invalidateNetworkGraphRenderCache();
+            ensureNetworkGraphHistoryEdges(edgeMode);
+          }}
+          renderNetworkRoutes(latestState);
+        }});
+      }}
+      const result = document.getElementById("network-routes-result");
+      if (result instanceof HTMLElement && result.dataset.bound !== "1") {{
+        result.dataset.bound = "1";
+        result.addEventListener("click", (event) => {{
+          const target = event.target instanceof Element ? event.target : null;
+          const row = target ? target.closest("[data-route-node-id]") : null;
+          if (!(row instanceof HTMLElement)) return;
+          const nodeId = normalizeNodeId(row.dataset.routeNodeId || "");
+          if (!isSelectableNodeId(nodeId)) return;
+          selectNode(nodeId, true, true);
+        }});
+      }}
+    }}
+
+    function buildNetworkRoutesData(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const historyCapsRaw = (safeState.history_caps && typeof safeState.history_caps === "object")
+        ? safeState.history_caps
+        : {{}};
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
+      const edgeMode = normalizeNetworkGraphEdgeMode(networkRoutesWindow);
+      const historyCaps = networkGraphHistoryCapsForMode(historyCapsRaw, edgeMode);
+      const rawEdges = networkGraphRawEdgesForMode(
+        Array.isArray(traffic.edges) ? traffic.edges : [],
+        edgeMode
+      );
+      const historyLoading = !!(
+        networkGraphEdgeModeUsesHistoryFetch(edgeMode)
+        && networkGraphHistoryEdgeRequests.has(edgeMode)
+        && !networkGraphHistoryEdgeCache.has(edgeMode)
+      );
+      const filteredRawEdges = filterNetworkGraphRawEdgesByMode(rawEdges, edgeMode);
+      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const nodeMap = buildNetworkGraphNodeMap(nodes, historyCaps, filteredRawEdges, {{
+        includeAllLiveNodes: true,
+        pinnedNodeIds: [
+          localNodeId,
+          selectedNodeId,
+          networkRoutesFromNodeId,
+          networkRoutesToNodeId,
+        ],
+      }});
+      const combinedEdges = combineNetworkGraphEdges(filteredRawEdges, nodeMap, {{ mode: edgeMode }});
+      const adjacency = buildNetworkGraphAdjacency(nodeMap, combinedEdges);
+      return {{
+        safeState,
+        nodes,
+        historyCaps,
+        rawEdges,
+        filteredRawEdges,
+        nodeMap,
+        combinedEdges,
+        adjacency,
+        edgeMode,
+        localNodeId,
+        historyLoading,
+      }};
+    }}
+
+    function networkRoutesSortedNodeIds(nodeMap) {{
+      const ids = Array.from(nodeMap instanceof Map ? nodeMap.keys() : [])
+        .map((nodeId) => normalizeNodeId(nodeId || ""))
+        .filter((nodeId) => isSelectableNodeId(nodeId));
+      ids.sort((a, b) => {{
+        const nameA = networkGraphNodeDisplayName(a, nodeMap).toLowerCase();
+        const nameB = networkGraphNodeDisplayName(b, nodeMap).toLowerCase();
+        return nameA.localeCompare(nameB) || a.localeCompare(b);
+      }});
+      return ids;
+    }}
+
+    function resolveNetworkRoutesSelections(data, nodeIds) {{
+      const safeIds = Array.isArray(nodeIds) ? nodeIds : [];
+      if (!safeIds.length) return {{ fromId: "", toId: "" }};
+      const nodeMap = data && data.nodeMap instanceof Map ? data.nodeMap : new Map();
+      const localNodeId = normalizeNodeId(data && data.localNodeId || "");
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      let fromId = normalizeNodeId(networkRoutesFromNodeId || "");
+      if (!fromId || !nodeMap.has(fromId)) {{
+        fromId = (localNodeId && nodeMap.has(localNodeId)) ? localNodeId : safeIds[0];
+      }}
+      let toId = normalizeNodeId(networkRoutesToNodeId || "");
+      if (!toId || !nodeMap.has(toId) || (safeIds.length > 1 && toId === fromId)) {{
+        if (selectedId && selectedId !== fromId && nodeMap.has(selectedId)) {{
+          toId = selectedId;
+        }} else {{
+          toId = safeIds.find((nodeId) => nodeId !== fromId) || fromId;
+        }}
+      }}
+      return {{ fromId, toId }};
+    }}
+
+    function networkRoutesOptionLabel(nodeId, nodeMap, localNodeId = "") {{
+      const clean = normalizeNodeId(nodeId || "");
+      const name = networkGraphNodeDisplayName(clean, nodeMap);
+      const selfSuffix = clean && clean === normalizeNodeId(localNodeId || "") ? " (self)" : "";
+      return `${{name}}${{selfSuffix}} ${{clean}}`;
+    }}
+
+    function renderNetworkRoutesNodeOptions(select, nodeIds, selectedId, nodeMap, localNodeId = "") {{
+      if (!(select instanceof HTMLSelectElement)) return;
+      const safeIds = Array.isArray(nodeIds) ? nodeIds : [];
+      const signature = safeIds
+        .map((nodeId) => `${{nodeId}}:${{networkGraphNodeDisplayName(nodeId, nodeMap)}}`)
+        .join("|");
+      if (select.dataset.optionsSignature !== signature) {{
+        select.innerHTML = safeIds
+          .map((nodeId) => `<option value="${{escAttr(nodeId)}}">${{escAttr(networkRoutesOptionLabel(nodeId, nodeMap, localNodeId))}}</option>`)
+          .join("");
+        select.dataset.optionsSignature = signature;
+      }}
+      if (select.value !== selectedId) {{
+        select.value = selectedId;
+      }}
+    }}
+
+    function networkRoutesEdgeCost(edge) {{
+      const weight = Math.max(1, Number(edge && edge.weight) || 0);
+      const avgHops = Number(edge && edge.avgHops);
+      const hopPenalty = Number.isFinite(avgHops) && avgHops > 0 ? Math.min(3, avgHops * 0.08) : 0;
+      const unseenPenalty = Number(edge && edge.lastSeenUnix) > 0 ? 0 : 0.25;
+      return 1 + (1 / Math.log2(weight + 2)) + hopPenalty + unseenPenalty;
+    }}
+
+    function networkRoutesFindInferredPath(fromNodeId, toNodeId, adjacency) {{
+      const source = normalizeNodeId(fromNodeId || "");
+      const target = normalizeNodeId(toNodeId || "");
+      if (!source || !target || !(adjacency instanceof Map) || !adjacency.has(source) || !adjacency.has(target)) {{
+        return {{ path: [], edges: [], cost: Infinity }};
+      }}
+      if (source === target) {{
+        return {{ path: [source], edges: [], cost: 0 }};
+      }}
+      const distances = new Map([[source, 0]]);
+      const previous = new Map();
+      const remaining = new Set(adjacency.keys());
+      while (remaining.size > 0) {{
+        let currentId = "";
+        let currentDistance = Infinity;
+        for (const nodeId of remaining) {{
+          const distance = distances.has(nodeId) ? distances.get(nodeId) : Infinity;
+          if (distance < currentDistance) {{
+            currentDistance = distance;
+            currentId = nodeId;
+          }}
+        }}
+        if (!currentId || currentDistance === Infinity) break;
+        remaining.delete(currentId);
+        if (currentId === target) break;
+        const peers = adjacency.get(currentId);
+        if (!(peers instanceof Map)) continue;
+        for (const [peerId, edge] of peers.entries()) {{
+          if (!remaining.has(peerId)) continue;
+          const candidate = currentDistance + networkRoutesEdgeCost(edge);
+          const existing = distances.has(peerId) ? distances.get(peerId) : Infinity;
+          if (candidate < existing) {{
+            distances.set(peerId, candidate);
+            previous.set(peerId, {{ nodeId: currentId, edge }});
+          }}
+        }}
+      }}
+      if (!previous.has(target)) {{
+        return {{ path: [], edges: [], cost: Infinity }};
+      }}
+      const path = [target];
+      const edges = [];
+      let cursor = target;
+      while (cursor !== source) {{
+        const step = previous.get(cursor);
+        if (!step || !step.nodeId) {{
+          return {{ path: [], edges: [], cost: Infinity }};
+        }}
+        edges.unshift(step.edge);
+        cursor = step.nodeId;
+        path.unshift(cursor);
+      }}
+      return {{ path, edges, cost: distances.get(target) || 0 }};
+    }}
+
+    function networkRoutesEdgeMetaText(edge) {{
+      const pieces = [];
+      const weight = Math.max(0, Math.round(Number(edge && edge.weight) || 0));
+      if (weight > 0) {{
+        pieces.push(`${{networkTopNodesNumberText(weight)}} packet${{weight === 1 ? "" : "s"}}`);
+      }}
+      const avgHops = Number(edge && edge.avgHops);
+      if (Number.isFinite(avgHops) && avgHops > 0) {{
+        pieces.push(`${{avgHops.toFixed(avgHops >= 10 ? 0 : 1)}} avg hops`);
+      }}
+      const avgSnr = Number(edge && edge.avgSnr);
+      if (Number.isFinite(avgSnr)) {{
+        pieces.push(`${{avgSnr.toFixed(1)}} dB SNR`);
+      }}
+      const lastSeen = String(edge && edge.lastSeenLabel || "").trim();
+      if (lastSeen) {{
+        pieces.push(`last ${{lastSeen}}`);
+      }}
+      return pieces.join(" - ");
+    }}
+
+    function networkRoutesConfidenceText(route) {{
+      const edges = Array.isArray(route && route.edges) ? route.edges : [];
+      if (!edges.length) return "Direct";
+      const weakest = edges.reduce((min, edge) => Math.min(min, Math.max(0, Number(edge && edge.weight) || 0)), Infinity);
+      if (weakest >= 100) return "Strong";
+      if (weakest >= 10) return "Moderate";
+      return "Sparse";
+    }}
+
+    function networkRoutesPathHtml(route, nodeMap, localNodeId = "") {{
+      const path = Array.isArray(route && route.path) ? route.path : [];
+      const edges = Array.isArray(route && route.edges) ? route.edges : [];
+      const maxWeight = edges.reduce((max, edge) => Math.max(max, Number(edge && edge.weight) || 0), 0);
+      return `<ol class="network-route-hop-list">${{path.map((nodeId, index) => {{
+        const clean = normalizeNodeId(nodeId || "");
+        const edge = index < edges.length ? edges[index] : null;
+        const isLocal = clean && clean === normalizeNodeId(localNodeId || "");
+        const name = networkGraphNodeDisplayName(clean, nodeMap);
+        const edgeWeight = Math.max(0, Number(edge && edge.weight) || 0);
+        const edgePct = maxWeight > 0 ? Math.max(4, Math.min(100, (edgeWeight / maxWeight) * 100)) : 0;
+        const edgeMeta = edge ? networkRoutesEdgeMetaText(edge) : "";
+        return `<li class="network-route-hop${{isLocal ? " is-local" : ""}}" data-route-node-id="${{escAttr(clean)}}">
+          <button class="network-route-hop-node" type="button" data-route-node-id="${{escAttr(clean)}}" title="${{escAttr(`${{name}} (${{clean}})`)}}">
+            <span class="network-route-hop-index">${{escAttr(String(index + 1))}}</span>
+            <span class="network-route-hop-main">
+              <strong>${{escAttr(name)}}${{isLocal ? ` <span class="network-route-self-label">self</span>` : ""}}</strong>
+              <span>${{escAttr(clean)}}</span>
+            </span>
+          </button>
+          ${{edge ? `<div class="network-route-edge">
+            <span class="network-route-edge-label">Link ${{escAttr(String(index + 1))}}</span>
+            <span class="network-route-edge-meta">${{escAttr(edgeMeta || "observed link")}}</span>
+            <span class="network-route-edge-bar" aria-hidden="true"><span style="--route-edge-strength:${{edgePct.toFixed(1)}}%;"></span></span>
+          </div>` : ""}}
+        </li>`;
+      }}).join("")}}</ol>`;
+    }}
+
+    function renderNetworkRoutes(state = latestState, options = {{}}) {{
+      bindNetworkRoutesControls();
+      networkRoutesMode = normalizeNetworkRoutesMode(networkRoutesMode);
+      networkRoutesWindow = normalizeNetworkGraphEdgeMode(networkRoutesWindow);
+      ensureNetworkRoutesWindowOptions();
+      syncNetworkRoutesModeControls();
+
+      const summary = document.getElementById("network-routes-summary");
+      const result = document.getElementById("network-routes-result");
+      const status = document.getElementById("network-routes-status");
+      const fromSelect = document.getElementById("network-routes-from");
+      const toSelect = document.getElementById("network-routes-to");
+      if (!(summary instanceof HTMLElement) || !(result instanceof HTMLElement)) return;
+
+      const data = buildNetworkRoutesData(state);
+      const nodeIds = networkRoutesSortedNodeIds(data.nodeMap);
+      const selections = resolveNetworkRoutesSelections(data, nodeIds);
+      networkRoutesFromNodeId = selections.fromId;
+      networkRoutesToNodeId = selections.toId;
+      renderNetworkRoutesNodeOptions(fromSelect, nodeIds, networkRoutesFromNodeId, data.nodeMap, data.localNodeId);
+      renderNetworkRoutesNodeOptions(toSelect, nodeIds, networkRoutesToNodeId, data.nodeMap, data.localNodeId);
+
+      if (status instanceof HTMLElement) {{
+        status.textContent = data.historyLoading
+          ? `Loading ${{networkGraphEdgeModeLabel(data.edgeMode)}} links...`
+          : "";
+      }}
+
+      if (!nodeIds.length) {{
+        summary.innerHTML = `<span><strong>Routes</strong> - no selectable nodes yet</span><span>0 nodes</span>`;
+        result.innerHTML = `<div class="network-routes-empty">No route endpoints are available yet.</div>`;
+        return;
+      }}
+
+      const mode = normalizeNetworkRoutesMode(networkRoutesMode);
+      const fromName = networkGraphNodeDisplayName(networkRoutesFromNodeId, data.nodeMap);
+      const toName = networkGraphNodeDisplayName(networkRoutesToNodeId, data.nodeMap);
+      if (mode === "live") {{
+        summary.innerHTML = `<span><strong>Live trace</strong> - ${{escAttr(fromName)}} to ${{escAttr(toName)}}</span><span>not wired</span>`;
+        result.innerHTML = `<div class="network-routes-empty">Live trace is not wired yet. Use Inferred to estimate a route from observed links.</div>`;
+        return;
+      }}
+
+      if (!isSelectableNodeId(networkRoutesFromNodeId) || !isSelectableNodeId(networkRoutesToNodeId)) {{
+        summary.innerHTML = `<span><strong>Inferred route</strong> - choose two nodes</span><span>${{escAttr(networkGraphEdgeModeLabel(data.edgeMode))}}</span>`;
+        result.innerHTML = `<div class="network-routes-empty">Choose a source and target node.</div>`;
+        return;
+      }}
+
+      const route = networkRoutesFindInferredPath(networkRoutesFromNodeId, networkRoutesToNodeId, data.adjacency);
+      if (!route.path.length) {{
+        summary.innerHTML = `<span><strong>Inferred route</strong> - no path found</span><span>${{escAttr(networkGraphEdgeModeLabel(data.edgeMode))}} links</span>`;
+        result.innerHTML = `<div class="network-routes-empty">No observed link path connects ${{escAttr(fromName)}} and ${{escAttr(toName)}} in the selected link window.</div>`;
+        return;
+      }}
+
+      const hopCount = Math.max(0, route.path.length - 1);
+      const totalWeight = route.edges.reduce((sum, edge) => sum + Math.max(0, Number(edge && edge.weight) || 0), 0);
+      const confidence = networkRoutesConfidenceText(route);
+      summary.innerHTML = `<span><strong>Inferred route</strong> - ${{escAttr(fromName)}} to ${{escAttr(toName)}}</span><span>${{escAttr(String(hopCount))}} hop${{hopCount === 1 ? "" : "s"}} - ${{escAttr(confidence)}} - ${{escAttr(networkGraphEdgeModeLabel(data.edgeMode))}}</span>`;
+      result.innerHTML = `<div class="network-route-result-head">
+        <span>${{escAttr(String(route.path.length))}} nodes</span>
+        <span>${{escAttr(networkTopNodesNumberText(totalWeight))}} observed packets</span>
+      </div>${{networkRoutesPathHtml(route, data.nodeMap, data.localNodeId)}}`;
+    }}
+
     function formatMalformedDiagnosticsTimestamp(unixValue) {{
       const parsed = Number(unixValue);
       if (!Number.isFinite(parsed) || parsed <= 0) return "n/a";
@@ -2068,6 +2533,9 @@
         if (typeof renderNetworkGraphView === "function") {{
           renderNetworkGraphView(latestState);
         }}
+      }}
+      if (normalizedView === "network" && next === "routes") {{
+        renderNetworkRoutes(latestState);
       }}
       if (normalizedView === "network" && next === "top10") {{
         renderNetworkTopNodes(latestState);
@@ -4573,6 +5041,14 @@
           ) {{
             renderNetworkGraphView(latestState);
           }}
+          if (
+            activeLayoutView === "network"
+            && activeNetworkSubview === "routes"
+            && normalizeNetworkGraphEdgeMode(networkRoutesWindow) === mode
+            && typeof renderNetworkRoutes === "function"
+          ) {{
+            renderNetworkRoutes(latestState);
+          }}
         }})
         .catch((_err) => {{
           networkGraphHistoryEdgeCache.set(mode, []);
@@ -4585,6 +5061,14 @@
             && typeof renderNetworkGraphView === "function"
           ) {{
             renderNetworkGraphView(latestState);
+          }}
+          if (
+            activeLayoutView === "network"
+            && activeNetworkSubview === "routes"
+            && normalizeNetworkGraphEdgeMode(networkRoutesWindow) === mode
+            && typeof renderNetworkRoutes === "function"
+          ) {{
+            renderNetworkRoutes(latestState);
           }}
         }})
         .finally(() => {{
@@ -7010,6 +7494,7 @@
       syncEnvironmentMetricsDock(next, activeNetworkSubview);
       if (latestState) {{
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph";
+        const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = next === "network" && activeNetworkSubview === "top10";
         let cachedNodeHistory = null;
         const viewHistoryNodeId = next === "saved"
@@ -7038,6 +7523,9 @@
           renderNodes(latestState.nodes || []);
           if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(latestState);
+          }}
+          if (networkRoutesActive) {{
+            renderNetworkRoutes(latestState);
           }}
           if (networkTopNodesActive) {{
             renderNetworkTopNodes(latestState);
@@ -7233,6 +7721,10 @@
       networkGraphEdgeMode = loadPreferredNetworkGraphEdgeMode();
       networkGraphLayoutMode = loadPreferredNetworkGraphLayoutMode();
       networkTopNodesCategory = loadPreferredNetworkTopNodesCategory();
+      networkRoutesMode = loadPreferredNetworkRoutesMode();
+      networkRoutesWindow = loadPreferredNetworkRoutesWindow();
+      networkRoutesFromNodeId = loadPreferredNetworkRoutesNodeId(networkRoutesFromStorageKey);
+      networkRoutesToNodeId = loadPreferredNetworkRoutesNodeId(networkRoutesToStorageKey);
       activeNetworkSubview = loadPreferredNetworkSubview();
       setActiveNetworkSubview(activeNetworkSubview, {{ persist: false }});
       const preferred = normalizeLayoutView(rawPreferred);

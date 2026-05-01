@@ -24,6 +24,12 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
 
     assert 'data-network-subview="graph"' in html
     assert 'id="network-map-panel-graph"' in html
+    assert 'data-network-subview="routes"' in html
+    assert 'id="network-map-panel-routes"' in html
+    assert 'id="network-routes-from"' in html
+    assert 'id="network-routes-to"' in html
+    assert 'data-network-route-mode="inferred"' in html
+    assert 'data-network-route-mode="live"' in html
     assert 'data-network-subview="diagnostics"' in html
     assert 'hidden disabled aria-hidden="true"' in html
     assert 'id="network-map-panel-diagnostics"' in html
@@ -69,7 +75,12 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const networkDiagnosticsEnabled = !!Number(0);' in js
     assert 'if (clean === "diag") return networkDiagnosticsEnabled ? "diagnostics" : "map";' in js
     assert 'if (clean === "diagnostics") return networkDiagnosticsEnabled ? "diagnostics" : "map";' in js
+    assert 'if (clean === "route" || clean === "routes") return "routes";' in js
     assert 'function renderNetworkGraphView(state = latestState)' in js
+    assert 'function normalizeNetworkRoutesMode(raw)' in js
+    assert 'function renderNetworkRoutes(state = latestState, options = {})' in js
+    assert 'function networkRoutesFindInferredPath(fromNodeId, toNodeId, adjacency)' in js
+    assert 'Live trace is not wired yet.' in js
     assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
     assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
     assert 'name: "maltext"' in js
@@ -122,6 +133,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function buildNetworkGraphNodeSignalMeta(nodeMap, recentPackets)' in js
     assert 'const networkGraphModeStorageKey = "meshDashboardNetworkGraphModeV1";' in js
     assert 'const networkGraphLayoutStorageKey = "meshDashboardNetworkGraphLayoutV1";' in js
+    assert 'const networkRoutesModeStorageKey = "meshDashboardNetworkRoutesModeV1";' in js
+    assert 'const networkRoutesWindowStorageKey = "meshDashboardNetworkRoutesWindowV1";' in js
     assert 'const networkGraphTagRouteVisibilityStorageKey = "meshDashboardNetworkGraphTagRouteVisibilityV1";' in js
     assert 'const networkGraphSelfPathVisibilityStorageKey = "meshDashboardNetworkGraphSelfPathVisibilityV1";' in js
     assert 'const networkGraphHistoryEdgeCache = new Map();' in js
@@ -151,6 +164,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'networkGraphViewState.resetBounds = {' in js
     assert 'networkGraphViewState.resetCenter = rootPosition' in js
     assert 'networkGraphEdgeMode = loadPreferredNetworkGraphEdgeMode();' in js
+    assert 'networkRoutesMode = loadPreferredNetworkRoutesMode();' in js
+    assert 'networkRoutesWindow = loadPreferredNetworkRoutesWindow();' in js
     assert 'persistPreferredNetworkGraphEdgeMode(networkGraphEdgeMode);' not in js
     assert 'const networkGraphZoomBounds = Object.freeze({ minScale: 0.42, maxScale: 5.5 });' in js
     assert 'function networkGraphNodeHasLinkPeers(nodeId, adjacency, nodeMap = null)' in js
@@ -251,9 +266,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'Choose the link history window for the Links view' in js
     assert '<span class="network-graph-chip-label">1 Hop</span>' not in js
     assert 'const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph";' in js
+    assert 'const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";' in js
     assert 'const weeklySummaryPromise = (activeLayoutView === "history" || activeLayoutView === "network")' in js
     assert 'if (weeklySummaryPromise) {' in js
     assert 'const networkGraphActive = next === "network" && activeNetworkSubview === "graph";' in js
+    assert 'const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";' in js
     assert 'const rootChanged = networkGraphViewState.lastRootId !== rootId;' in js
     assert 'hiddenBroadcastOnlyCount: Math.max(0, Number(disconnectedVisibility.hiddenBroadcastOnlyCount) || 0),' in js
     assert 'hiddenDisconnectedCount: Math.max(0, Number(disconnectedVisibility.hiddenDetachedCount) || 0),' in js
@@ -375,6 +392,16 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-mode-control {" in css
     assert ".network-graph-layout-select {" in css
     assert ".network-graph-mode-select {" in css
+    assert ".network-routes-card {" in css
+    assert ".network-routes-mode-btn {" in css
+    assert ".network-route-hop-list {" in css
+    assert ".network-route-edge-bar {" in css
+    route_css = css[css.index(".network-routes-card {"):css.index(".network-top-nodes-toolbar {")]
+    assert "rgba(249, 253, 249, 0.94)" in route_css
+    assert "rgba(255, 255, 255, 0.72)" in route_css
+    assert '[data-theme="dark"] .network-routes-card {' in css
+    assert '[data-theme="dark"] .network-route-hop {' in css
+    assert '[data-theme="dark"] .network-route-hop-index {' in css
     assert "[data-theme=\"dark\"] .network-graph-layout-control," in css
     assert "[data-theme=\"dark\"] .network-graph-mode-control {" in css
     assert "[data-theme=\"dark\"] .network-graph-layout-select," in css
