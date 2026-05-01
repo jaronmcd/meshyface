@@ -19,8 +19,7 @@
       Object.freeze({{ label: "/scrambled <text>", command: "/scrambled", needsArg: true }}),
       Object.freeze({{ label: "/upsidedown <text>", command: "/upsidedown", needsArg: true }}),
       Object.freeze({{ label: "/disemvowel <text>", command: "/disemvowel", needsArg: true }}),
-      Object.freeze({{ label: "/special <text>", command: "/special", needsArg: true }}),
-      Object.freeze({{ label: "/glyph <text> (alias)", command: "/glyph", needsArg: true }}),
+      Object.freeze({{ label: "/glyph <text>", command: "/glyph", needsArg: true }}),
     ]);
     const chatLeetSpeakMap = Object.freeze({{
       a: "4",
@@ -411,7 +410,7 @@
           source: lowered,
         }};
       }}
-      const transformMatch = text.match(/^\/(1337|backwards|scrambled|upsidedown|disemvowel|special|glyph)(?:\s+([\s\S]+))?$/i);
+      const transformMatch = text.match(/^\/(1337|backwards|scrambled|upsidedown|disemvowel|glyph)(?:\s+([\s\S]+))?$/i);
       if (!transformMatch) return null;
       const transformId = String(transformMatch[1] || "").toLowerCase();
       const payload = String(transformMatch[2] == null ? "" : transformMatch[2]);
@@ -426,7 +425,7 @@
         transformedText = toUpsideDown(payload);
       }} else if (transformId === "disemvowel") {{
         transformedText = toDisemvowel(payload);
-      }} else if (transformId === "special" || transformId === "glyph") {{
+      }} else if (transformId === "glyph") {{
         transformedText = toSpecialChars(payload);
       }}
       return {{

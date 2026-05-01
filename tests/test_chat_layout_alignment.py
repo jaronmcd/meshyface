@@ -803,8 +803,8 @@ def test_chat_macro_menu_removes_novelty_face_shortcuts_only() -> None:
     assert '"/scrambled <text>"' in js
     assert '"/upsidedown <text>"' in js
     assert '"/disemvowel <text>"' in js
-    assert '"/special <text>"' in js
-    assert '"/glyph <text> (alias)"' in js
+    assert '"/special <text>"' not in js
+    assert '"/glyph <text>"' in js
 
 
 def test_launcher_menu_omits_header_block() -> None:
