@@ -1401,8 +1401,8 @@
 
     function networkTopNodesCityText(location) {{
       const key = networkTopNodesCityCacheKey(location);
-      if (!key || !(networkTopNodesCityCache instanceof Map)) return "";
-      return String(networkTopNodesCityCache.get(key) || "").trim();
+      if (!key || !(nodeCityHintCache instanceof Map)) return "";
+      return String(nodeCityHintCache.get(key) || "").trim();
     }}
 
     function applyNetworkTopNodeCitySpan(span, text) {{
@@ -1420,27 +1420,27 @@
         if (!(span instanceof HTMLElement)) continue;
         const key = String(span.dataset.topNodeCityKey || "").trim();
         if (!key) continue;
-        if (networkTopNodesCityCache instanceof Map && networkTopNodesCityCache.has(key)) {{
-          applyNetworkTopNodeCitySpan(span, networkTopNodesCityCache.get(key));
+        if (nodeCityHintCache instanceof Map && nodeCityHintCache.has(key)) {{
+          applyNetworkTopNodeCitySpan(span, nodeCityHintCache.get(key));
           continue;
         }}
         const lat = Number(span.dataset.topNodeCityLat);
         const lon = Number(span.dataset.topNodeCityLon);
         if (!networkTopNodesLocationIsValid(lat, lon) || typeof nearestOfflineCityHintFromCoords !== "function") {{
-          if (networkTopNodesCityCache instanceof Map) networkTopNodesCityCache.set(key, "");
+          if (nodeCityHintCache instanceof Map) nodeCityHintCache.set(key, "");
           applyNetworkTopNodeCitySpan(span, "");
           continue;
         }}
         nearestOfflineCityHintFromCoords(lat, lon)
           .then((city) => {{
             const text = String(city || "").trim();
-            if (networkTopNodesCityCache instanceof Map) networkTopNodesCityCache.set(key, text);
+            if (nodeCityHintCache instanceof Map) nodeCityHintCache.set(key, text);
             if (span.isConnected && String(span.dataset.topNodeCityKey || "").trim() === key) {{
               applyNetworkTopNodeCitySpan(span, text);
             }}
           }})
           .catch(() => {{
-            if (networkTopNodesCityCache instanceof Map) networkTopNodesCityCache.set(key, "");
+            if (nodeCityHintCache instanceof Map) nodeCityHintCache.set(key, "");
             if (span.isConnected && String(span.dataset.topNodeCityKey || "").trim() === key) {{
               applyNetworkTopNodeCitySpan(span, "");
             }}

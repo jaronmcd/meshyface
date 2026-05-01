@@ -35,6 +35,15 @@
       return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
     }}
 
+    function normalizeChatNodeNavigatorShowCityPref(value) {{
+      if (typeof parseBoolToken === "function") {{
+        return parseBoolToken(value, true);
+      }}
+      if (value == null) return true;
+      const clean = String(value).trim().toLowerCase();
+      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+    }}
+
     function normalizeChatNodeNavigatorShowStatusDotsPref(value) {{
       if (typeof parseBoolToken === "function") {{
         return parseBoolToken(value, true);
@@ -74,12 +83,106 @@
       return true;
     }}
 
+    function chatNodeNavigatorLocationIsValid(lat, lon) {{
+      if (typeof isValidLatLonRange === "function" && !isValidLatLonRange(lat, lon)) return false;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+      if (Math.abs(lat) < 1e-9 && Math.abs(lon) < 1e-9) return false;
+      return true;
+    }}
+
+    function chatNodeNavigatorNodeLocation(nodeId, nodesById = null, item = null) {{
+      const clean = normalizeNodeId(nodeId || "");
+      const node = nodesById instanceof Map ? (nodesById.get(clean) || null) : null;
+      const sources = [item, node].filter((source) => source && typeof source === "object");
+      for (const source of sources) {{
+        const lat = Number(source.lat ?? source.latitude ?? (source.position && (source.position.lat ?? source.position.latitude)));
+        const lon = Number(source.lon ?? source.lng ?? source.longitude ?? (source.position && (source.position.lon ?? source.position.lng ?? source.position.longitude)));
+        if (chatNodeNavigatorLocationIsValid(lat, lon)) {{
+          return {{ lat: Number(lat), lon: Number(lon) }};
+        }}
+      }}
+      return null;
+    }}
+
+    function chatNodeNavigatorCityCacheKey(location) {{
+      if (!location || typeof location !== "object") return "";
+      const lat = Number(location.lat);
+      const lon = Number(location.lon);
+      if (!chatNodeNavigatorLocationIsValid(lat, lon)) return "";
+      return `${{lat.toFixed(4)}},${{lon.toFixed(4)}}`;
+    }}
+
+    function chatNodeNavigatorCityText(location) {{
+      const key = chatNodeNavigatorCityCacheKey(location);
+      if (!key || !(nodeCityHintCache instanceof Map)) return "";
+      return String(nodeCityHintCache.get(key) || "").trim();
+    }}
+
+    function applyChatNodeNavigatorCitySpan(span, text) {{
+      if (!(span instanceof HTMLElement)) return;
+      const clean = String(text || "").trim();
+      span.textContent = clean;
+      span.hidden = !clean;
+    }}
+
+    function resolveChatNodeNavigatorCityHint(lat, lon, key) {{
+      const cleanKey = String(key || "").trim();
+      if (!cleanKey || !chatNodeNavigatorLocationIsValid(lat, lon)) return Promise.resolve("");
+      if (nodeCityHintCache instanceof Map && nodeCityHintCache.has(cleanKey)) {{
+        return Promise.resolve(String(nodeCityHintCache.get(cleanKey) || "").trim());
+      }}
+      if (nodeCityHintPending instanceof Map && nodeCityHintPending.has(cleanKey)) {{
+        return nodeCityHintPending.get(cleanKey);
+      }}
+      if (typeof nearestOfflineCityHintFromCoords !== "function") return Promise.resolve("");
+      const promise = nearestOfflineCityHintFromCoords(lat, lon)
+        .then((city) => {{
+          const text = String(city || "").trim();
+          if (nodeCityHintCache instanceof Map) nodeCityHintCache.set(cleanKey, text);
+          return text;
+        }})
+        .catch(() => {{
+          if (nodeCityHintCache instanceof Map) nodeCityHintCache.set(cleanKey, "");
+          return "";
+        }})
+        .finally(() => {{
+          if (nodeCityHintPending instanceof Map) nodeCityHintPending.delete(cleanKey);
+        }});
+      if (nodeCityHintPending instanceof Map) nodeCityHintPending.set(cleanKey, promise);
+      return promise;
+    }}
+
+    function hydrateChatNodeNavigatorCities(root) {{
+      if (!(root instanceof HTMLElement)) return;
+      const spans = Array.from(root.querySelectorAll("[data-chat-member-city-key]"));
+      if (!spans.length) return;
+      for (const span of spans) {{
+        if (!(span instanceof HTMLElement)) continue;
+        const key = String(span.dataset.chatMemberCityKey || "").trim();
+        if (!key) continue;
+        if (nodeCityHintCache instanceof Map && nodeCityHintCache.has(key)) {{
+          applyChatNodeNavigatorCitySpan(span, nodeCityHintCache.get(key));
+          continue;
+        }}
+        const lat = Number(span.dataset.chatMemberCityLat);
+        const lon = Number(span.dataset.chatMemberCityLon);
+        resolveChatNodeNavigatorCityHint(lat, lon, key)
+          .then((text) => {{
+            if (span.isConnected && String(span.dataset.chatMemberCityKey || "").trim() === key) {{
+              applyChatNodeNavigatorCitySpan(span, text);
+            }}
+          }});
+      }}
+    }}
+
     function persistChatNodeNavigatorPreferences() {{
       try {{
         const payload = {{
           sortKey: normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey),
           sortDir: normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir),
           pinDirectHistory: normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory),
+          showCity: normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity),
           showIdle: normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle),
           showStatusDots: normalizeChatNodeNavigatorShowStatusDotsPref(chatNodeNavigatorShowStatusDots),
           showPacketDirection: normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection),
@@ -104,6 +207,9 @@
       const nextPinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
         prefs.pinDirectHistory != null ? prefs.pinDirectHistory : chatNodeNavigatorPinDirectHistory
       );
+      const nextShowCity = normalizeChatNodeNavigatorShowCityPref(
+        prefs.showCity != null ? prefs.showCity : chatNodeNavigatorShowCity
+      );
       const nextShowIdle = normalizeChatNodeNavigatorShowIdlePref(
         prefs.showIdle != null ? prefs.showIdle : chatNodeNavigatorShowIdle
       );
@@ -121,6 +227,7 @@
         nextSortKey !== chatNodeNavigatorSortKey
         || nextSortDir !== chatNodeNavigatorSortDir
         || nextPinDirectHistory !== chatNodeNavigatorPinDirectHistory
+        || nextShowCity !== chatNodeNavigatorShowCity
         || nextShowIdle !== chatNodeNavigatorShowIdle
         || nextShowStatusDots !== chatNodeNavigatorShowStatusDots
         || nextShowPacketDirection !== chatNodeNavigatorShowPacketDirection
@@ -134,6 +241,7 @@
       chatNodeNavigatorSortKey = nextSortKey;
       chatNodeNavigatorSortDir = nextSortDir;
       chatNodeNavigatorPinDirectHistory = nextPinDirectHistory;
+      chatNodeNavigatorShowCity = nextShowCity;
       chatNodeNavigatorShowIdle = nextShowIdle;
       chatNodeNavigatorShowStatusDots = nextShowStatusDots;
       chatNodeNavigatorShowPacketDirection = nextShowPacketDirection;
@@ -1005,6 +1113,9 @@
         const showIdle = (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
           ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
           : !!chatNodeNavigatorShowIdle;
+        const showCity = (typeof normalizeChatNodeNavigatorShowCityPref === "function")
+          ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
+          : !!chatNodeNavigatorShowCity;
         const showPacketTrend = nodeNavigatorPacketTrendEnabled();
         const showPacketDirection = (typeof normalizeChatNodeNavigatorShowPacketDirectionPref === "function")
           ? normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection)
@@ -1131,6 +1242,13 @@
           </span>`;
         }}
         const memberMetaRowParts = [];
+        const memberLocation = chatNodeNavigatorNodeLocation(nodeId, nodesById, item);
+        const memberCityKey = chatNodeNavigatorCityCacheKey(memberLocation);
+        const memberCityText = chatNodeNavigatorCityText(memberLocation);
+        const memberCityHtml = memberCityKey
+          ? `<span class="chat-member-city" data-chat-member-city-key="${{escAttr(memberCityKey)}}" data-chat-member-city-lat="${{escAttr(memberLocation.lat.toFixed(6))}}" data-chat-member-city-lon="${{escAttr(memberLocation.lon.toFixed(6))}}"${{memberCityText ? "" : " hidden"}}>${{escAttr(memberCityText)}}</span>`
+          : "";
+        if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);
         if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);
         if (packetDirectionHtml) memberMetaRowParts.push(packetDirectionHtml);
         const memberMetaRowHtml = memberMetaRowParts.length > 0
@@ -1567,6 +1685,9 @@
         roomList.innerHTML = nextMarkup;
         roomList.__meshLastInnerHtml_chat_room_list = nextMarkup;
       }}
+      hydrateChatNodeNavigatorCities(unreadList);
+      hydrateChatNodeNavigatorCities(pinnedList);
+      hydrateChatNodeNavigatorCities(roomList);
       bindChatNodeNavigatorListInteractions(roomList);
       bindChatNodeNavigatorListInteractions(unreadList);
       bindChatNodeNavigatorListInteractions(pinnedList);
@@ -1659,6 +1780,9 @@
         const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
           chatNodeNavigatorPinDirectHistory
         );
+        const showCity = normalizeChatNodeNavigatorShowCityPref(
+          chatNodeNavigatorShowCity
+        );
         const showIdle = normalizeChatNodeNavigatorShowIdlePref(
           chatNodeNavigatorShowIdle
         );
@@ -1680,6 +1804,10 @@
           + `<label class="chat-node-navigator-field-option">
             <input type="checkbox" data-nav-toggle-id="direct-history"${{pinDirectHistory ? " checked" : ""}} />
             <span>DM history first</span>
+          </label>`
+          + `<label class="chat-node-navigator-field-option">
+            <input type="checkbox" data-nav-toggle-id="city"${{showCity ? " checked" : ""}} />
+            <span>City</span>
           </label>`
           + `<label class="chat-node-navigator-field-option">
             <input type="checkbox" data-nav-toggle-id="idle"${{showIdle ? " checked" : ""}} />
@@ -1707,6 +1835,9 @@
             const toggleId = String(input.dataset.navToggleId || "").trim().toLowerCase();
             if (toggleId === "direct-history") {{
               input.checked = pinDirectHistory;
+            }}
+            if (toggleId === "city") {{
+              input.checked = showCity;
             }}
             if (toggleId === "idle") {{
               input.checked = showIdle;
@@ -1774,6 +1905,15 @@
           if (toggleId === "direct-history") {{
             applyChatNodeNavigatorPreferences({{
               pinDirectHistory: !!target.checked,
+            }}, {{
+              persist: true,
+              rerender: true,
+            }});
+            return;
+          }}
+          if (toggleId === "city") {{
+            applyChatNodeNavigatorPreferences({{
+              showCity: !!target.checked,
             }}, {{
               persist: true,
               rerender: true,

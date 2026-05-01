@@ -198,7 +198,7 @@ def test_dashboard_js_wires_network_top_nodes_fetch_and_render() -> None:
 
     assert 'const networkTopNodesCategoryStorageKey = "meshDashboardNetworkTopNodesCategoryV1";' in js
     assert 'let networkTopNodesCategory = "all";' in js
-    assert 'let networkTopNodesCityCache = new Map();' in js
+    assert 'let nodeCityHintCache = new Map();' in js
     assert '{ id: "all", label: "All Categories", unit: "" }' in js
     assert 'function normalizeNetworkTopNodesCategory(raw) {' in js
     assert 'function networkTopNodesExcludedLocalIds(state = latestState) {' in js

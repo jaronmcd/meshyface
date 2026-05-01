@@ -87,6 +87,48 @@ def test_render_html_adds_unread_and_manual_pin_node_shells() -> None:
     assert 'id="chat-room-pinned-count"' in html
 
 
+def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "let nodeCityHintCache = new Map();" in js
+    assert "let nodeCityHintPending = new Map();" in js
+    assert "let chatNodeNavigatorShowCity = true;" in js
+    assert "function normalizeChatNodeNavigatorShowCityPref(value) {" in js
+    assert "showCity: normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)," in js
+    assert "chatNodeNavigatorShowCity = nextShowCity;" in js
+    assert "function chatNodeNavigatorNodeLocation(nodeId, nodesById = null, item = null) {" in js
+    assert "function hydrateChatNodeNavigatorCities(root) {" in js
+    assert 'class="chat-member-city"' in js
+    assert "if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);" in js
+    assert js.index("if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);") < js.index(
+        "if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);"
+    )
+    assert '<input type="checkbox" data-nav-toggle-id="city"' in js
+    assert "<span>City</span>" in js
+    assert 'if (toggleId === "city") {' in js
+    assert "showCity: !!target.checked," in js
+    assert "hydrateChatNodeNavigatorCities(roomList);" in js
+    assert ".chat-member-city {" in html
+    assert ".chat-member-city[hidden]" in html
+    assert "[data-theme=\"dark\"] .chat-member-city" in html
+
+
 def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
