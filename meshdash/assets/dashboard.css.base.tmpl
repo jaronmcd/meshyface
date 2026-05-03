@@ -427,12 +427,15 @@
       padding: 4px 7px;
       min-width: 0;
       color: var(--ink);
+      position: relative;
       display: grid;
-      grid-template-columns: minmax(54px, auto) minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       grid-template-rows: auto;
       column-gap: 7px;
       row-gap: 0;
       align-items: center;
+      overflow: hidden;
+      isolation: isolate;
       box-shadow: none;
     }}
     .topbar .summary-ticker-item[hidden] {{
@@ -1048,14 +1051,14 @@
     }}
     .topbar .summary-ticker-item-self > .value,
     .topbar .summary-ticker-item-radio > .value {{
-      grid-column: 2 / span 2;
+      grid-column: 1 / span 2;
       grid-row: 1;
       font-size: 14px;
       line-height: 1.05;
     }}
     .topbar .summary-ticker-item-self .value.self-node-value,
     .topbar .summary-ticker-item-radio .value.radio-ticker-value {{
-      grid-column: 2 / span 2;
+      grid-column: 1 / span 2;
       grid-row: 1;
       white-space: nowrap;
       overflow: hidden;
@@ -1069,7 +1072,7 @@
     }}
     .topbar .summary-ticker-item-radio > .value,
     .topbar .summary-ticker-item-radio .value.radio-ticker-value {{
-      grid-column: 2;
+      grid-column: 1;
       display: block;
       justify-self: stretch;
       text-align: right;
@@ -1223,6 +1226,28 @@
       text-overflow: ellipsis;
       max-width: 84px;
     }}
+    .topbar:not(.ticker-expanded) .summary-ticker-item > .label {{
+      position: absolute;
+      left: 32%;
+      right: 7px;
+      bottom: 2px;
+      z-index: 0;
+      max-width: none;
+      color: color-mix(in srgb, var(--muted) 7%, transparent);
+      font-size: clamp(6px, 0.42vw, 7px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0.72px;
+      text-align: right;
+      pointer-events: none;
+      user-select: none;
+    }}
+    .topbar:not(.ticker-expanded) .summary-ticker-item > .value,
+    .topbar:not(.ticker-expanded) .summary-ticker-item > .metric-ticker,
+    .topbar:not(.ticker-expanded) .summary-ticker-item > .radio-ticker-status-line {{
+      position: relative;
+      z-index: 1;
+    }}
     .topbar .summary-ticker-item-radio .radio-ticker-status-line {{
       grid-column: 1;
       grid-row: 2;
@@ -1267,7 +1292,7 @@
       background: #ff9e9e;
     }}
     .topbar .summary-ticker-item .value {{
-      grid-column: 2;
+      grid-column: 1;
       grid-row: 1;
       margin-top: 0;
       font-size: 15px;
@@ -1279,7 +1304,7 @@
       min-width: 0;
     }}
     .topbar .summary-ticker-item .value.node-ticker-value {{
-      grid-column: 1 / span 3;
+      grid-column: 1 / -1;
       grid-row: 2;
       white-space: normal;
       overflow: visible;
@@ -1323,7 +1348,7 @@
       row-gap: 2px;
     }}
     .topbar .summary-ticker-item#summary-ticker-node.has-extra-rows .metric-ticker {{
-      grid-column: 1 / span 3;
+      grid-column: 1 / -1;
       grid-row: 2;
       justify-self: stretch;
     }}
@@ -1331,7 +1356,7 @@
       width: 100%;
     }}
     .topbar .summary-ticker-item .value.node-ticker-value.is-compact {{
-      grid-column: 2;
+      grid-column: 1;
       grid-row: 1;
       margin-top: 0;
       font-size: 15px;
@@ -1348,7 +1373,7 @@
     }}
     .topbar .summary-ticker-item-self .value.self-node-value,
     .topbar .summary-ticker-item-radio .value.radio-ticker-value {{
-      grid-column: 2 / span 2;
+      grid-column: 1 / span 2;
       grid-row: 1;
       white-space: nowrap;
       overflow: hidden;
@@ -1361,7 +1386,7 @@
       min-width: 0;
     }}
     .topbar .summary-ticker-item-radio .value.radio-ticker-value {{
-      grid-column: 2;
+      grid-column: 1;
       display: block;
       justify-self: stretch;
       text-align: right;
@@ -1450,7 +1475,7 @@
       text-overflow: ellipsis;
     }}
     .topbar .summary-ticker-item .metric-ticker {{
-      grid-column: 3;
+      grid-column: 2;
       grid-row: 1;
       margin-top: 0;
       min-height: 0;

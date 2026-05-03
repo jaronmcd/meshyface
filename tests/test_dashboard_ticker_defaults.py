@@ -253,9 +253,15 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     assert ".topbar.ticker-expanded.ticker-wrap-balanced .summary-ticker-item {" in html
     assert "flex-basis: min(330px, 100%);" in html
     assert re.search(
-        r"\.topbar \.summary-ticker-item \{\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ink\);\s*display: grid;\s*grid-template-columns: minmax\(54px, auto\) minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
+        r"\.topbar \.summary-ticker-item \{\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ink\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
         html,
     )
+    assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .label {" in html
+    assert "bottom: 2px;" in html
+    assert "color: color-mix(in srgb, var(--muted) 7%, transparent);" in html
+    assert "font-size: clamp(6px, 0.42vw, 7px);" in html
+    assert "text-align: right;" in html
+    assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .value," in html
     assert re.search(
         r"\.topbar \.summary-ticker-item \.metric-ticker-chart \{\s*width: 72px;\s*height: 16px;",
         html,
