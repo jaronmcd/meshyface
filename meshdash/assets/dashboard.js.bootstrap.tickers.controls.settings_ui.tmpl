@@ -18,6 +18,7 @@
 
     function bindSummaryTickerExpandControl() {{
       const btn = document.getElementById("summary-ticker-density-toggle");
+      bindCompactTickerDetailTrayControls();
       if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;
       btn.dataset.bound = "1";
       updateSummaryTickerExpandControl();

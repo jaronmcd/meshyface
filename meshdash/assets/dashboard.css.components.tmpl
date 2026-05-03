@@ -7863,6 +7863,34 @@
       .topbar .summary-ticker-item {{
         scroll-snap-align: start;
       }}
+      .summary-ticker-detail-tray {{
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }}
+      .summary-ticker-detail-copy {{
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        row-gap: 4px;
+      }}
+      .summary-ticker-detail-label,
+      .summary-ticker-detail-value,
+      .summary-ticker-detail-meta {{
+        grid-column: 1;
+      }}
+      .summary-ticker-detail-value {{
+        grid-row: 2;
+        font-size: 18px;
+      }}
+      .summary-ticker-detail-meta {{
+        grid-row: 3;
+      }}
+      .summary-ticker-detail-chart-wrap {{
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent 24%);
+        padding-left: 0;
+        padding-top: 6px;
+      }}
       .topbar.ticker-expanded .summary-ticker-item {{
         flex-basis: min(150px, 100%);
       }}

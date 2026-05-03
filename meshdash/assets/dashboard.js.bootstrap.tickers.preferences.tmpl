@@ -3,6 +3,244 @@
       return clean === "expanded" ? "expanded" : "compact";
     }}
 
+    let activeCompactTickerDetailId = "";
+
+    function compactTickerDetailTray() {{
+      return document.getElementById("summary-ticker-detail-tray");
+    }}
+
+    function compactTickerDetailModeActive() {{
+      return topbarElement instanceof HTMLElement
+        && !topbarElement.classList.contains("ticker-expanded");
+    }}
+
+    function compactTickerDetailItemIsExpandable(item) {{
+      if (!(item instanceof HTMLElement)) return false;
+      if (item.hidden) return false;
+      if (item.classList.contains("summary-ticker-item-control")) return false;
+      const id = normalizeTickerId(item.dataset.tickerId || "");
+      return !!id && id !== "self";
+    }}
+
+    function compactTickerDetailTextFromElement(element) {{
+      if (!(element instanceof HTMLElement)) return "";
+      return String(element.innerText || element.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }}
+
+    function closeCompactTickerDetail() {{
+      activeCompactTickerDetailId = "";
+      const tray = compactTickerDetailTray();
+      if (tray instanceof HTMLElement) {{
+        tray.hidden = true;
+        tray.dataset.tickerId = "";
+      }}
+      if (topbarElement instanceof HTMLElement) {{
+        topbarElement.classList.remove("has-compact-ticker-detail");
+      }}
+      syncCompactTickerDetailAffordances();
+      requestTopbarLayoutMetricsSync();
+    }}
+
+    function compactTickerDetailSourceTitle(item, valueEl) {{
+      const candidates = [
+        valueEl instanceof HTMLElement ? valueEl.title : "",
+        item instanceof HTMLElement ? item.title : "",
+        item instanceof HTMLElement ? item.getAttribute("aria-label") : "",
+      ];
+      for (const candidate of candidates) {{
+        const text = String(candidate || "").replace(/\s+/g, " ").trim();
+        if (text) return text;
+      }}
+      return "";
+    }}
+
+    function compactTickerDetailMetaParts(item, valueEl, metricEl) {{
+      const parts = [];
+      const deltaEl = metricEl instanceof HTMLElement
+        ? metricEl.querySelector(".metric-ticker-delta")
+        : null;
+      const rateEl = metricEl instanceof HTMLElement
+        ? metricEl.querySelector(".metric-ticker-rate")
+        : null;
+      const deltaText = compactTickerDetailTextFromElement(deltaEl);
+      const rateText = compactTickerDetailTextFromElement(rateEl);
+      if (deltaText && deltaText !== "n/a") parts.push(deltaText);
+      if (rateText && rateText !== "n/a") parts.push(rateText);
+
+      const title = compactTickerDetailSourceTitle(item, valueEl);
+      const titleParts = title
+        .split("|")
+        .map((part) => part.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      for (const part of titleParts) {{
+        if (parts.includes(part)) continue;
+        parts.push(part);
+        if (parts.length >= 8) break;
+      }}
+      return parts;
+    }}
+
+    function renderCompactTickerDetailChart(metricEl) {{
+      const wrap = document.getElementById("summary-ticker-detail-chart-wrap");
+      const chart = document.getElementById("summary-ticker-detail-chart");
+      if (!(wrap instanceof HTMLElement) || !(chart instanceof SVGElement)) return;
+      chart.replaceChildren();
+      wrap.className = "summary-ticker-detail-chart-wrap";
+      if (!(metricEl instanceof HTMLElement) || metricEl.hidden) {{
+        wrap.hidden = true;
+        return;
+      }}
+      const sourceChart = metricEl.querySelector("svg.metric-ticker-chart");
+      if (!(sourceChart instanceof SVGElement) || sourceChart.childNodes.length === 0) {{
+        wrap.hidden = true;
+        return;
+      }}
+      chart.setAttribute("viewBox", sourceChart.getAttribute("viewBox") || "0 0 72 16");
+      for (const child of Array.from(sourceChart.childNodes)) {{
+        chart.appendChild(child.cloneNode(true));
+      }}
+      for (const cls of Array.from(metricEl.classList)) {{
+        if (cls.startsWith("trend-") || cls.startsWith("metric-state-")) {{
+          wrap.classList.add(cls);
+        }}
+      }}
+      wrap.hidden = false;
+    }}
+
+    function renderCompactTickerDetail(id) {{
+      const cleanId = normalizeTickerId(id);
+      const tray = compactTickerDetailTray();
+      const row = document.querySelector(".summary-ticker-row");
+      if (!cleanId || cleanId === "self" || !(tray instanceof HTMLElement) || !(row instanceof HTMLElement)) {{
+        closeCompactTickerDetail();
+        return;
+      }}
+      if (!compactTickerDetailModeActive()) {{
+        closeCompactTickerDetail();
+        return;
+      }}
+      const item = row.querySelector(`.summary-ticker-item[data-ticker-id="${{cleanId}}"]`);
+      if (!compactTickerDetailItemIsExpandable(item)) {{
+        closeCompactTickerDetail();
+        return;
+      }}
+
+      const labelEl = tray.querySelector("#summary-ticker-detail-label");
+      const valueOut = tray.querySelector("#summary-ticker-detail-value");
+      const metaOut = tray.querySelector("#summary-ticker-detail-meta");
+      const itemLabel = item.querySelector("[data-ticker-label]");
+      const itemValue = item.querySelector(".value");
+      const itemMetric = item.querySelector(".metric-ticker");
+      const labelText = compactTickerDetailTextFromElement(itemLabel) || tickerLabelText(cleanId) || cleanId;
+      const valueText = compactTickerDetailTextFromElement(itemValue) || "n/a";
+      if (labelEl instanceof HTMLElement) {{
+        labelEl.textContent = labelText;
+      }}
+      if (valueOut instanceof HTMLElement) {{
+        valueOut.textContent = valueText;
+      }}
+      if (metaOut instanceof HTMLElement) {{
+        metaOut.replaceChildren();
+        const parts = compactTickerDetailMetaParts(item, itemValue, itemMetric);
+        for (const part of parts) {{
+          const chip = document.createElement("span");
+          chip.className = "summary-ticker-detail-chip";
+          chip.textContent = part;
+          metaOut.appendChild(chip);
+        }}
+        metaOut.hidden = parts.length === 0;
+      }}
+      renderCompactTickerDetailChart(itemMetric);
+      activeCompactTickerDetailId = cleanId;
+      tray.dataset.tickerId = cleanId;
+      tray.hidden = false;
+      if (topbarElement instanceof HTMLElement) {{
+        topbarElement.classList.add("has-compact-ticker-detail");
+      }}
+      syncCompactTickerDetailAffordances();
+      requestTopbarLayoutMetricsSync();
+    }}
+
+    function refreshCompactTickerDetailTray() {{
+      if (!activeCompactTickerDetailId) {{
+        syncCompactTickerDetailAffordances();
+        return;
+      }}
+      renderCompactTickerDetail(activeCompactTickerDetailId);
+    }}
+
+    function toggleCompactTickerDetail(id) {{
+      const cleanId = normalizeTickerId(id);
+      if (!cleanId || cleanId === "self") return;
+      if (!compactTickerDetailModeActive()) return;
+      if (activeCompactTickerDetailId === cleanId) {{
+        closeCompactTickerDetail();
+        return;
+      }}
+      renderCompactTickerDetail(cleanId);
+    }}
+
+    function syncCompactTickerDetailAffordances() {{
+      const row = document.querySelector(".summary-ticker-row");
+      if (!(row instanceof HTMLElement)) return;
+      const compact = compactTickerDetailModeActive();
+      for (const item of Array.from(row.querySelectorAll(".summary-ticker-item[data-ticker-id]"))) {{
+        if (!(item instanceof HTMLElement)) continue;
+        const id = normalizeTickerId(item.dataset.tickerId || "");
+        const expandable = compact && compactTickerDetailItemIsExpandable(item);
+        item.classList.toggle("is-compact-detail-open", expandable && id === activeCompactTickerDetailId);
+        if (!expandable) {{
+          if (id !== "self") {{
+            item.removeAttribute("role");
+            item.removeAttribute("tabindex");
+            item.removeAttribute("aria-expanded");
+            item.removeAttribute("aria-label");
+          }}
+          continue;
+        }}
+        item.setAttribute("role", "button");
+        item.tabIndex = 0;
+        item.setAttribute("aria-expanded", id === activeCompactTickerDetailId ? "true" : "false");
+        const labelText = tickerLabelText(id) || id;
+        item.setAttribute("aria-label", `${{id === activeCompactTickerDetailId ? "Collapse" : "Show"}} ${{labelText}} ticker detail`);
+      }}
+    }}
+
+    function bindCompactTickerDetailTrayControls() {{
+      const row = document.querySelector(".summary-ticker-row");
+      if (row instanceof HTMLElement && row.dataset.compactTickerDetailBound !== "1") {{
+        row.dataset.compactTickerDetailBound = "1";
+        row.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          if (target.closest("button, a, input, select, textarea")) return;
+          const item = target.closest(".summary-ticker-item[data-ticker-id]");
+          if (!compactTickerDetailItemIsExpandable(item)) return;
+          if (!compactTickerDetailModeActive()) return;
+          toggleCompactTickerDetail(item.dataset.tickerId || "");
+        }});
+        row.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Enter" && ev.key !== " ") return;
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const item = target.closest(".summary-ticker-item[data-ticker-id]");
+          if (!compactTickerDetailItemIsExpandable(item)) return;
+          if (!compactTickerDetailModeActive()) return;
+          ev.preventDefault();
+          toggleCompactTickerDetail(item.dataset.tickerId || "");
+        }});
+      }}
+
+      const closeBtn = document.getElementById("summary-ticker-detail-close");
+      if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.compactTickerDetailBound !== "1") {{
+        closeBtn.dataset.compactTickerDetailBound = "1";
+        closeBtn.addEventListener("click", () => closeCompactTickerDetail());
+      }}
+      syncCompactTickerDetailAffordances();
+    }}
+
     function normalizeWeeklySummaryMetric(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "sensors" || clean === "sensor" || clean === "telemetry_history") return "sensors";
@@ -528,6 +766,11 @@
       if (topbarElement instanceof HTMLElement) {{
         topbarElement.classList.toggle("ticker-expanded", normalized === "expanded");
       }}
+      if (normalized === "expanded") {{
+        closeCompactTickerDetail();
+      }} else {{
+        syncCompactTickerDetailAffordances();
+      }}
       updateSummaryTickerExpandControl();
       requestTopbarLayoutMetricsSync();
       window.setTimeout(() => {{
@@ -886,6 +1129,11 @@
       }}
       if (topbarElement instanceof HTMLElement) {{
         topbarElement.classList.toggle("ticker-wrap-balanced", visibleTickerCount > 8);
+      }}
+      if (activeCompactTickerDetailId && !tickerEnabled(activeCompactTickerDetailId)) {{
+        closeCompactTickerDetail();
+      }} else {{
+        refreshCompactTickerDetailTray();
       }}
       requestTopbarLayoutMetricsSync();
       syncTopbarUpdateTickerVisibilityPreference();

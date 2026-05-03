@@ -2139,6 +2139,7 @@
         }}
         err.textContent = parts.length > 0 ? `  ${{parts.join(" | ")}}` : "";
       }}
+      refreshCompactTickerDetailTray();
 
       const revision = s.revision || {{}};
       const settingsAboutVersion = document.getElementById("settings-about-version");
