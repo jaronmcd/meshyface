@@ -150,7 +150,7 @@ def test_dashboard_exposes_mesh_links_ticker() -> None:
     assert 'id="ticker-chart-links"' in html
 
 
-def test_compact_tickers_expand_selected_card_in_place() -> None:
+def test_compact_tickers_expand_selected_card_below_fixed_row() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -171,12 +171,23 @@ def test_compact_tickers_expand_selected_card_in_place() -> None:
     css = build_dashboard_css(theme_css="")
 
     assert 'id="summary-ticker-detail-tray"' not in html
+    assert 'id="summary-ticker-expanded-slot"' in html
     assert 'function bindCompactTickerDetailTrayControls() {' in js
     assert 'function toggleCompactTickerDetail(id) {' in js
+    assert 'function compactTickerExpandedSlot() {' in js
+    assert 'function renderCompactTickerExpandedSlot(sourceItem, cleanId) {' in js
+    assert 'function stripClonedTickerIds(root) {' in js
     assert 'return !!id && id !== "self";' in js
     assert 'topbarElement.classList.add("has-compact-ticker-detail");' in js
-    assert 'item.classList.toggle("is-compact-detail-open", expandable && id === activeCompactTickerDetailId);' in js
-    assert "const compactTickerCount = activeTickerConsumesRow ? visibleTickerCount - 1 : visibleTickerCount;" in js
+    assert 'item.classList.remove("is-compact-detail-open");' in js
+    assert 'item.classList.toggle("is-compact-detail-source", expandable && id === activeCompactTickerDetailId);' in js
+    assert 'clone.classList.add("is-compact-detail-open", "summary-ticker-expanded-card");' in js
+    assert "stripClonedTickerIds(clone);" in js
+    assert "slot.replaceChildren(clone);" in js
+    assert "slot.hidden = false;" in js
+    assert "clearCompactTickerExpandedSlot();" in js
+    assert "const compactTickerCount = activeTickerConsumesRow ? visibleTickerCount - 1 : visibleTickerCount;" not in js
+    assert 'row.style.setProperty("--summary-visible-ticker-count", String(Math.max(1, visibleTickerCount)));' in js
     assert "syncCompactTickerColumnCount(row);" in js
     assert "renderSummary(latestState);" in js
     assert "const compactDetailTickerView = tickerItem instanceof HTMLElement" in js
@@ -185,15 +196,20 @@ def test_compact_tickers_expand_selected_card_in_place() -> None:
     assert 'row.addEventListener("keydown", (ev) => {' in js
     assert 'refreshCompactTickerDetailTray();' in js
     assert ".summary-ticker-detail-tray {" not in css
+    assert ".summary-ticker-expanded-slot {" in css
+    assert ".summary-ticker-expanded-slot[hidden] {" in css
+    assert ".summary-ticker-expanded-slot .summary-ticker-expanded-card {" in css
     assert ".topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item.is-compact-detail-open {" in css
-    assert "grid-column: 1 / -1;" in css
-    assert "grid-row: 2;" in css
+    assert ".summary-ticker-item.is-compact-detail-source {" not in css
     compact_detail_base = re.search(
         r"\.topbar\.has-compact-ticker-detail:not\(\.ticker-expanded\) \.summary-ticker-item\.is-compact-detail-open \{\s*(.*?)\s*\}",
         css,
         re.S,
     )
     assert compact_detail_base is not None
+    assert "grid-column:" not in compact_detail_base.group(1)
+    assert "grid-row:" not in compact_detail_base.group(1)
+    assert "grid-template-rows: auto auto auto;" in compact_detail_base.group(1)
     assert "background:" not in compact_detail_base.group(1)
     assert "border-color:" not in compact_detail_base.group(1)
     assert "box-shadow:" not in compact_detail_base.group(1)

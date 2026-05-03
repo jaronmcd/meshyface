@@ -421,6 +421,14 @@
       overscroll-behavior-x: contain;
       scrollbar-width: thin;
     }}
+    .summary-ticker-expanded-slot {{
+      width: 100%;
+      min-width: 0;
+      display: block;
+    }}
+    .summary-ticker-expanded-slot[hidden] {{
+      display: none !important;
+    }}
     .topbar .summary-ticker-item {{
       border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent) 18%);
       background: var(--panel);
@@ -452,13 +460,13 @@
       background: color-mix(in srgb, var(--panel) 93%, var(--line) 7%);
       outline: none;
     }}
-    .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-density-toggle,
-    .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item:not(.is-compact-detail-open) {{
-      grid-row: 1;
+    .summary-ticker-expanded-slot .summary-ticker-expanded-card {{
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      cursor: pointer;
     }}
     .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item.is-compact-detail-open {{
-      grid-column: 1 / -1;
-      grid-row: 2;
       min-width: 0;
       border-radius: 10px;
       padding: 8px 10px;

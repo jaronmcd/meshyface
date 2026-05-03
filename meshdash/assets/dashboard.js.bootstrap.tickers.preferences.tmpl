@@ -22,13 +22,47 @@
       if (!(row instanceof HTMLElement)) return;
       const visibleTickerCount = Array.from(row.querySelectorAll(".summary-ticker-item[data-ticker-id]"))
         .filter((item) => item instanceof HTMLElement && !item.hidden).length;
-      const activeItem = activeCompactTickerDetailId
-        ? row.querySelector(`.summary-ticker-item[data-ticker-id="${{activeCompactTickerDetailId}}"]`)
-        : null;
-      const activeTickerConsumesRow = compactTickerDetailModeActive()
-        && compactTickerDetailItemIsExpandable(activeItem);
-      const compactTickerCount = activeTickerConsumesRow ? visibleTickerCount - 1 : visibleTickerCount;
-      row.style.setProperty("--summary-visible-ticker-count", String(Math.max(1, compactTickerCount)));
+      row.style.setProperty("--summary-visible-ticker-count", String(Math.max(1, visibleTickerCount)));
+    }}
+
+    function compactTickerExpandedSlot() {{
+      const slot = document.getElementById("summary-ticker-expanded-slot");
+      return slot instanceof HTMLElement ? slot : null;
+    }}
+
+    function clearCompactTickerExpandedSlot() {{
+      const slot = compactTickerExpandedSlot();
+      if (!(slot instanceof HTMLElement)) return;
+      slot.hidden = true;
+      slot.dataset.tickerId = "";
+      slot.replaceChildren();
+    }}
+
+    function stripClonedTickerIds(root) {{
+      if (!(root instanceof HTMLElement)) return;
+      root.removeAttribute("id");
+      for (const element of Array.from(root.querySelectorAll("[id]"))) {{
+        element.removeAttribute("id");
+      }}
+    }}
+
+    function renderCompactTickerExpandedSlot(sourceItem, cleanId) {{
+      const slot = compactTickerExpandedSlot();
+      if (!(slot instanceof HTMLElement) || !compactTickerDetailItemIsExpandable(sourceItem)) return;
+      const clone = sourceItem.cloneNode(true);
+      if (!(clone instanceof HTMLElement)) return;
+      stripClonedTickerIds(clone);
+      clone.classList.remove("is-compact-detail-source");
+      clone.classList.add("is-compact-detail-open", "summary-ticker-expanded-card");
+      clone.dataset.tickerId = cleanId;
+      clone.setAttribute("aria-hidden", "true");
+      clone.removeAttribute("role");
+      clone.removeAttribute("tabindex");
+      clone.removeAttribute("aria-expanded");
+      clone.removeAttribute("aria-label");
+      slot.replaceChildren(clone);
+      slot.dataset.tickerId = cleanId;
+      slot.hidden = false;
     }}
 
     function closeCompactTickerDetail({{ rerenderSummary = false }} = {{}}) {{
@@ -36,6 +70,7 @@
       if (topbarElement instanceof HTMLElement) {{
         topbarElement.classList.remove("has-compact-ticker-detail");
       }}
+      clearCompactTickerExpandedSlot();
       syncCompactTickerDetailAffordances();
       requestTopbarLayoutMetricsSync();
       if (rerenderSummary && latestState) {{
@@ -64,11 +99,13 @@
         topbarElement.classList.add("has-compact-ticker-detail");
       }}
       syncCompactTickerDetailAffordances();
+      renderCompactTickerExpandedSlot(item, cleanId);
       requestTopbarLayoutMetricsSync();
     }}
 
     function refreshCompactTickerDetailTray() {{
       if (!activeCompactTickerDetailId) {{
+        clearCompactTickerExpandedSlot();
         syncCompactTickerDetailAffordances();
         return;
       }}
@@ -84,6 +121,7 @@
         topbarElement.classList.add("has-compact-ticker-detail");
       }}
       syncCompactTickerDetailAffordances();
+      renderCompactTickerExpandedSlot(item, activeCompactTickerDetailId);
       requestTopbarLayoutMetricsSync();
     }}
 
@@ -109,7 +147,8 @@
         if (!(item instanceof HTMLElement)) continue;
         const id = normalizeTickerId(item.dataset.tickerId || "");
         const expandable = compact && compactTickerDetailItemIsExpandable(item);
-        item.classList.toggle("is-compact-detail-open", expandable && id === activeCompactTickerDetailId);
+        item.classList.remove("is-compact-detail-open");
+        item.classList.toggle("is-compact-detail-source", expandable && id === activeCompactTickerDetailId);
         if (!expandable) {{
           if (id !== "self") {{
             item.removeAttribute("role");
@@ -150,6 +189,24 @@
           if (!compactTickerDetailModeActive()) return;
           ev.preventDefault();
           toggleCompactTickerDetail(item.dataset.tickerId || "");
+        }});
+      }}
+
+      const slot = compactTickerExpandedSlot();
+      if (slot instanceof HTMLElement && slot.dataset.compactTickerDetailBound !== "1") {{
+        slot.dataset.compactTickerDetailBound = "1";
+        slot.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          if (target.closest("button, a, input, select, textarea")) return;
+          if (!activeCompactTickerDetailId || !compactTickerDetailModeActive()) return;
+          closeCompactTickerDetail({{ rerenderSummary: true }});
+        }});
+        slot.addEventListener("keydown", (ev) => {{
+          if (ev.key !== "Enter" && ev.key !== " ") return;
+          if (!activeCompactTickerDetailId || !compactTickerDetailModeActive()) return;
+          ev.preventDefault();
+          closeCompactTickerDetail({{ rerenderSummary: true }});
         }});
       }}
 
