@@ -941,46 +941,6 @@
         networkNodeInfoCollapsedNodeId = "";
       }}
       if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{
-        if (syncSelectionToNetworkGraph) {{
-          focusNetworkGraphNodeFromSelection(normalized, {{
-            pushHistory: true,
-            rerender: false,
-          }});
-          if (
-            !(networkGraphViewState && networkGraphViewState.pendingFocusTransition)
-            && typeof renderNetworkGraphView === "function"
-          ) {{
-            renderNetworkGraphView(latestState);
-          }}
-          if (
-            shouldFocus
-            && typeof setChatNodeDetailsDrawerExpanded === "function"
-            && (
-              typeof isChatNodeDetailsDrawerExpanded !== "function"
-              || !isChatNodeDetailsDrawerExpanded()
-            )
-          ) {{
-            setChatNodeDetailsDrawerExpanded(true, {{
-              fetchHistory: true,
-              rerender: false,
-            }});
-          }}
-          return;
-        }}
-        if (
-          shouldFocus
-          && typeof setChatNodeDetailsDrawerExpanded === "function"
-          && (
-            typeof isChatNodeDetailsDrawerExpanded !== "function"
-            || !isChatNodeDetailsDrawerExpanded()
-          )
-        ) {{
-          setChatNodeDetailsDrawerExpanded(true, {{
-            fetchHistory: true,
-            rerender: false,
-          }});
-          return;
-        }}
         clearNodeSelection();
         return;
       }}
@@ -1143,8 +1103,21 @@
       updateMapSelection(false);
       map.closePopup();
       setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      applyChatChannel(activeChatChannel, false);
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
+      }}
+      const shouldRenderSelectionMap = (
+        typeof isMapVisibleLayoutView === "function"
+          ? isMapVisibleLayoutView(activeLayoutView)
+          : (activeLayoutView === "saved" || activeLayoutView === "network")
+      );
       if (latestState) {{
-        renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
+        if (shouldRenderSelectionMap) {{
+          renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
+        }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
         renderSavedNodeDetails(latestState, null);
       }} else {{
@@ -1156,12 +1129,6 @@
         && typeof renderNetworkGraphView === "function"
       ) {{
         renderNetworkGraphView(latestState);
-      }}
-      applyChatChannel(activeChatChannel, false);
-      if (typeof syncChatNodeDetailsDrawer === "function") {{
-        syncChatNodeDetailsDrawer(latestState, {{
-          fetchHistory: false,
-        }});
       }}
       if (activeLayoutView === "games") {{
         renderGamesView(latestState);
@@ -1179,8 +1146,7 @@
         if (!(target instanceof Element)) return;
         const row = target.closest("tr.node-selectable");
         if (!(row instanceof HTMLElement)) return;
-        const graphOpen = activeLayoutView === "network" && activeNetworkSubview === "graph";
-        selectNode(row.dataset.nodeId || "", true, !graphOpen);
+        selectNode(row.dataset.nodeId || "", true, true);
       }});
     }}
 
@@ -1322,7 +1288,7 @@
             toColIndex
           );
           if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
+          selectNode(nodeId, true, true);
         }});
       }};
       bindTable("encription-packets-table", 1, 2);
@@ -1349,6 +1315,6 @@
           2
         );
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
+        selectNode(nodeId, true, true);
       }});
     }}

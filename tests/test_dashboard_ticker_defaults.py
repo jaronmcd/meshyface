@@ -329,7 +329,7 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".radio-ticker-detail {" in html
 
 
-def test_node_ticker_activation_does_not_toggle_selection() -> None:
+def test_node_ticker_activation_toggles_selection() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -340,8 +340,7 @@ def test_node_ticker_activation_does_not_toggle_selection() -> None:
         1,
     )[0]
 
-    assert "selectNode(nodeId, true, false);" in section
-    assert "selectNode(nodeId, true, true);" not in section
+    assert "selectNode(nodeId, true, true);" in section
 
 
 def test_self_ticker_id_uses_muted_light_mode_text() -> None:

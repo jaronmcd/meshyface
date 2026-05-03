@@ -265,6 +265,24 @@ def test_dashboard_js_avoids_rebuilding_saved_node_details_on_unchanged_polls() 
     assert 'if ((detailsMarkupChanged || notesMarkupChanged) && previousNodeId === nodeId) {' in js
 
 
+def test_dashboard_js_clears_node_details_drawer_when_hidden() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    hidden_start = js.index("if (!visibleExpanded) {")
+    hidden_end = js.index("return;", hidden_start)
+    hidden_block = js[hidden_start:hidden_end]
+
+    assert 'setDrawerElementTextIfChanged(titleEl, "Node Details");' in hidden_block
+    assert 'setDrawerElementTextIfChanged(tagTabLabel, "+tag");' in hidden_block
+    assert 'setDrawerElementHtmlIfChanged(detailsHost, "", "details");' in hidden_block
+    assert 'setDrawerElementHtmlIfChanged(historyHost, "", "history");' in hidden_block
+    assert 'setDrawerElementHtmlIfChanged(tagHost, "", "tag");' in hidden_block
+
+
 def test_dashboard_js_renders_top_peer_as_clickable_node_link() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

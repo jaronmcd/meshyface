@@ -142,7 +142,7 @@
           ev.stopPropagation();
           const nodeId = normalizeNodeId(btn.dataset.nodeId || "");
           if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
+          selectNode(nodeId, true, true);
         }});
       }}
     }}
@@ -745,7 +745,7 @@
           if (target instanceof Element && target.closest(".favorite-toggle-btn")) {{
             return;
           }}
-          selectNode(item.dataset.nodeId || "", true, false);
+          selectNode(item.dataset.nodeId || "", true, true);
         }});
       }}
       refreshFavoriteToggleButtons();

@@ -175,7 +175,7 @@
       const handleActivate = () => {{
         const nodeId = normalizeNodeId(card.dataset.nodeId || "");
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
+        selectNode(nodeId, true, true);
       }};
       card.addEventListener("click", (ev) => {{
         const target = ev.target;
@@ -339,7 +339,7 @@
             return;
           }}
           if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
+          selectNode(nodeId, true, true);
           setFavoriteMenuOpen(false);
         }});
       }}
@@ -520,7 +520,7 @@
           if (!(item instanceof HTMLButtonElement)) return;
           const nodeId = normalizeNodeId(item.dataset.nodeId || "");
           if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
+          selectNode(nodeId, true, true);
           closeFavoriteMenuNodeSearchDropdown();
           setFavoriteMenuOpen(false);
         }});
@@ -617,7 +617,7 @@
           if (!(item instanceof HTMLButtonElement)) return;
           const nodeId = normalizeNodeId(item.dataset.nodeId || "");
           if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
+          selectNode(nodeId, true, true);
           closeSavedNodeSearchDropdown();
         }});
       }}

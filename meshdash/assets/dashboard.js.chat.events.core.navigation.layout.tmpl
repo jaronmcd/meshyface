@@ -5261,6 +5261,13 @@
         }}
         if (isSelectableNodeId(nodeId)) {{
           suppressNextNetworkGraphClick();
+          if (
+            typeof selectNode === "function"
+            && normalizeNodeId(selectedNodeId || "") === nodeId
+          ) {{
+            selectNode(nodeId, true, true);
+            return;
+          }}
           focusNetworkGraphNode(nodeId, {{ pushHistory: true, focusSelection: true }});
         }}
       }};

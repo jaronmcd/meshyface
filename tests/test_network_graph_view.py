@@ -214,9 +214,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function setNetworkGraphRootNode(nodeId, options = {})' in js
     assert 'function navigateNetworkGraphBack()' in js
     assert 'function focusNetworkGraphNodeFromSelection(nodeId, options = {})' in js
-    assert 'const graphOpen = activeLayoutView === "network" && activeNetworkSubview === "graph";' in js
-    assert 'selectNode(row.dataset.nodeId || "", true, !graphOpen);' in js
-    assert 'selectNode(nodeId, true, !graphOpen && unreadDirectCount <= 0);' in js
+    assert 'selectNode(row.dataset.nodeId || "", true, true);' in js
+    assert 'selectNode(nodeId, true, true);' in js
     assert 'function recenterNetworkGraphView(svg, options = {})' in js
     assert 'return fitNetworkGraphViewBoxToBounds(bounds, svg);' in js
     assert 'const localNodeHasLinkPeers = localNodeAvailable' in js

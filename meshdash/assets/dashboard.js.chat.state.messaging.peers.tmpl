@@ -830,12 +830,11 @@
         if (!(member instanceof HTMLElement) || !targetList.contains(member)) return;
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));
-        const graphOpen = activeLayoutView === "network" && activeNetworkSubview === "graph";
         if (!isSelectableNodeId(nodeId)) {{
-          selectNode(nodeId, true, !graphOpen);
+          selectNode(nodeId, true, true);
           return;
         }}
-        selectNode(nodeId, true, !graphOpen && unreadDirectCount <= 0);
+        selectNode(nodeId, true, true);
         if (unreadDirectCount > 0 && typeof setChatNodeDetailsDrawerTab === "function") {{
           setChatNodeDetailsDrawerTab("messages", {{
             fetchHistory: false,
@@ -2134,6 +2133,16 @@
         closeBtn.disabled = !visibleExpanded;
       }}
       if (!visibleExpanded) {{
+        if (titleEl instanceof HTMLElement) {{
+          setDrawerElementTextIfChanged(titleEl, "Node Details");
+        }}
+        if (tagTabLabel instanceof HTMLElement) {{
+          setDrawerElementTextIfChanged(tagTabLabel, "+tag");
+        }}
+        if (iconChip instanceof HTMLElement) {{
+          iconChip.className = "chat-node-details-icon-chip is-empty";
+          setDrawerElementHtmlIfChanged(iconChip, "+", "icon");
+        }}
         if (pinBtn instanceof HTMLButtonElement) {{
           pinBtn.hidden = true;
           pinBtn.disabled = true;
@@ -2160,11 +2169,16 @@
           iconBtn.disabled = true;
           iconBtn.dataset.nodeId = "";
         }}
+        const detailsHost = document.getElementById("chat-node-details-content-host");
+        const historyHost = document.getElementById("chat-node-details-history-host");
+        setDrawerElementHtmlIfChanged(detailsHost, "", "details");
+        setDrawerElementHtmlIfChanged(historyHost, "", "history");
         setDrawerElementHtmlIfChanged(locationHost, "", "location");
         setDrawerElementHtmlIfChanged(chatHost, "", "chat");
         setDrawerElementHtmlIfChanged(linksHost, "", "links");
         setDrawerElementHtmlIfChanged(notesHost, "", "notes");
         setDrawerElementHtmlIfChanged(messagesHost, "", "messages");
+        setDrawerElementHtmlIfChanged(tagHost, "", "tag");
         syncSavedNodeDetailsDock(true);
         syncNodeHistoryDock();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{

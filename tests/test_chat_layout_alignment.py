@@ -463,8 +463,7 @@ def test_chat_unread_node_click_routes_into_messages_tab(assert_tokens_present) 
 
     assert_tokens_present(peers_src, [
         'const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));',
-        'const graphOpen = activeLayoutView === "network" && activeNetworkSubview === "graph";',
-        'selectNode(nodeId, true, !graphOpen && unreadDirectCount <= 0);',
+        'selectNode(nodeId, true, true);',
         'if (unreadDirectCount > 0 && typeof setChatNodeDetailsDrawerTab === "function") {',
         'setChatNodeDetailsDrawerTab("messages", {',
         'fetchHistory: false,',
@@ -484,15 +483,47 @@ def test_chat_click_selection_keeps_same_node_selected(assert_tokens_present) ->
     assert "chatFeedRepeatToggleMessageKey = messageSelectionKey;" in bindings_src
     assert_tokens_present(peers_src, [
         'if (!isSelectableNodeId(nodeId)) {{',
-        'selectNode(nodeId, true, !graphOpen);',
+        'selectNode(nodeId, true, true);',
         'return;',
-        'selectNode(nodeId, true, !graphOpen && unreadDirectCount <= 0);',
+        'selectNode(nodeId, true, true);',
         'if (unreadDirectCount > 0 && typeof setChatNodeDetailsDrawerTab === "function") {{',
         'setChatNodeDetailsDrawerTab("messages", {{',
         'fetchHistory: false,',
     ])
     assert 'if (!chatFeedSelectionSyncInProgress && typeof clearChatFeedRepeatToggleState === "function") {' in selection_src
     assert 'if (typeof clearChatFeedRepeatToggleState === "function") {' in selection_src
+
+
+def test_selected_node_clicks_toggle_off_across_views() -> None:
+    selection_src = Path("meshdash/assets/dashboard.js.chat.events.map_selection.tmpl").read_text()
+    graph_src = Path("meshdash/assets/dashboard.js.chat.events.core.navigation.layout.tmpl").read_text()
+
+    select_start = selection_src.index("function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{")
+    select_end = selection_src.index("selectedNodeId = normalized;", select_start)
+    selected_toggle_block = selection_src[select_start:select_end]
+
+    assert "if (toggleIfSelected && selectedNodeId && normalized === selectedNodeId) {{" in selected_toggle_block
+    assert "clearNodeSelection();" in selected_toggle_block
+    assert "setChatNodeDetailsDrawerExpanded(true" not in selected_toggle_block
+    assert "focusNetworkGraphNodeFromSelection(normalized" not in selected_toggle_block
+    assert 'selectNode(row.dataset.nodeId || "", true, true);' in selection_src
+    graph_click_start = graph_src.index("const finishPan = (event) => {{")
+    graph_click_end = graph_src.index('svg.addEventListener("pointerup", finishPan);', graph_click_start)
+    graph_click_block = graph_src[graph_click_start:graph_click_end]
+    assert "normalizeNodeId(selectedNodeId || \"\") === nodeId" in graph_click_block
+    assert "selectNode(nodeId, true, true);" in graph_click_block
+
+
+def test_clear_node_selection_hides_drawer_before_optional_map_redraw() -> None:
+    selection_src = Path("meshdash/assets/dashboard.js.chat.events.map_selection.tmpl").read_text()
+    clear_start = selection_src.index("function clearNodeSelection() {{")
+    clear_end = selection_src.index("function bindNodeRowClicks()", clear_start)
+    clear_block = selection_src[clear_start:clear_end]
+
+    assert "const shouldRenderSelectionMap = (" in clear_block
+    assert "isMapVisibleLayoutView(activeLayoutView)" in clear_block
+    assert "if (shouldRenderSelectionMap) {{" in clear_block
+    assert clear_block.index("syncChatNodeDetailsDrawer(latestState") < clear_block.index("renderMap(")
 
 
 def test_chat_node_list_uses_same_tint_seed_family_as_feed() -> None:

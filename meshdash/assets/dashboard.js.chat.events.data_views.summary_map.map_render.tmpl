@@ -370,7 +370,7 @@
             trailLatest: trailLast,
           }});
           marker.on("click", () => {{
-            selectNode(normalizeNodeId(selectedNode.id || ""), true, false);
+            selectNode(normalizeNodeId(selectedNode.id || ""), true, true);
           }});
           marker.addTo(nodeLayer);
           nodeMarkers.set(normalizeNodeId(selectedNode.id || ""), marker);
@@ -540,7 +540,7 @@
             }});
           }}
           marker.on("click", () => {{
-            selectNode(normalizedId, true, false);
+            selectNode(normalizedId, true, true);
           }});
           marker.addTo(nodeLayer);
           nodeMarkers.set(normalizedId, marker);
