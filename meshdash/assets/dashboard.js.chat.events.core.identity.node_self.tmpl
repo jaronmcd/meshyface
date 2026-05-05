@@ -55,27 +55,6 @@
       0, 0x2474, 0x2475, 0x2476, 0x2477, 0x2478, 0x2479,
       0x247A, 0x247B, 0x247C,
     ]);
-    const chatUnicodeUpsideDownPairs = Object.freeze([
-      [0x61, 0x0250], [0x62, 0x0071], [0x63, 0x0254], [0x64, 0x0070],
-      [0x65, 0x01DD], [0x66, 0x025F], [0x67, 0x0183], [0x68, 0x0265],
-      [0x69, 0x1D09], [0x6A, 0x027E], [0x6B, 0x029E], [0x6C, 0x006C],
-      [0x6D, 0x026F], [0x6E, 0x0075], [0x6F, 0x006F], [0x70, 0x0064],
-      [0x71, 0x0062], [0x72, 0x0279], [0x73, 0x0073], [0x74, 0x0287],
-      [0x75, 0x006E], [0x76, 0x028C], [0x77, 0x028D], [0x78, 0x0078],
-      [0x79, 0x028E], [0x7A, 0x007A], [0x41, 0x2200], [0x42, 0x10412],
-      [0x43, 0x0186], [0x44, 0x15E1], [0x45, 0x018E], [0x46, 0x2132],
-      [0x47, 0x2141], [0x48, 0x0048], [0x49, 0x0049], [0x4A, 0x017F],
-      [0x4B, 0x22CA], [0x4C, 0x2142], [0x4D, 0x0057], [0x4E, 0x004E],
-      [0x4F, 0x004F], [0x50, 0x0500], [0x51, 0x038C], [0x52, 0x1D1A],
-      [0x53, 0x0053], [0x54, 0x22A5], [0x55, 0x2229], [0x56, 0x039B],
-      [0x57, 0x004D], [0x58, 0x0058], [0x59, 0x2144], [0x5A, 0x005A],
-      [0x31, 0x0196], [0x32, 0x1105], [0x33, 0x0190], [0x34, 0x3123],
-      [0x35, 0x03DB], [0x36, 0x0039], [0x37, 0x3125], [0x38, 0x0038],
-      [0x39, 0x0036], [0x2E, 0x02D9], [0x2C, 0x0027], [0x27, 0x002C],
-      [0x22, 0x201E], [0x21, 0x00A1], [0x3F, 0x00BF], [0x28, 0x0029],
-      [0x29, 0x0028], [0x5B, 0x005D], [0x5D, 0x005B], [0x7B, 0x007D],
-      [0x7D, 0x007B], [0x3C, 0x003E], [0x3E, 0x003C],
-    ]);
 
     function chatUnicodeMapFromStart(alphabet, startCodepoint) {{
       const map = {{}};
@@ -100,19 +79,6 @@
       return map;
     }}
 
-    function chatUnicodeMapFromCodepointPairs(pairs) {{
-      const map = {{}};
-      const list = Array.isArray(pairs) ? pairs : [];
-      for (const pair of list) {{
-        if (!Array.isArray(pair) || pair.length < 2) continue;
-        const from = Number(pair[0]);
-        const to = Number(pair[1]);
-        if (!Number.isInteger(from) || from <= 0 || !Number.isInteger(to) || to <= 0) continue;
-        map[String.fromCodePoint(from)] = String.fromCodePoint(to);
-      }}
-      return map;
-    }}
-
     function chatUnicodeMergeMaps(...maps) {{
       const out = {{}};
       for (const rawMap of maps) {{
@@ -133,7 +99,6 @@
       chatUnicodeMapFromCodepoints(chatUnicodeAsciiUpper, chatUnicodeSuperscriptCodepoints),
       chatUnicodeMapFromCodepoints(chatUnicodeAsciiDigits, chatUnicodeSuperscriptDigitCodepoints),
     );
-    const chatUnicodeUpsideDownMap = chatUnicodeMapFromCodepointPairs(chatUnicodeUpsideDownPairs);
 
     const chatUnicodeStyles = Object.freeze([
       {{
@@ -273,9 +238,38 @@
       {{
         id: "upside-down",
         label: "Upside Down",
-        group: "compact",
-        map: chatUnicodeUpsideDownMap,
-        reverse: true,
+        group: "modifiers",
+        transformText: toUpsideDown,
+      }},
+      {{
+        id: "leet",
+        label: "1337",
+        group: "modifiers",
+        transformText: toLeetSpeak,
+      }},
+      {{
+        id: "backwards",
+        label: "Backwards",
+        group: "modifiers",
+        transformText: toBackwards,
+      }},
+      {{
+        id: "scrambled",
+        label: "Scrambled",
+        group: "modifiers",
+        transformText: toScrambled,
+      }},
+      {{
+        id: "disemvowel",
+        label: "Disemvowel",
+        group: "modifiers",
+        transformText: toDisemvowel,
+      }},
+      {{
+        id: "glyph",
+        label: "Glyph",
+        group: "modifiers",
+        transformText: toSpecialChars,
       }},
       {{
         id: "fullwidth",
@@ -364,6 +358,7 @@
       {{ id: "math", label: "Math" }},
       {{ id: "fancy", label: "Fancy" }},
       {{ id: "compact", label: "Compact" }},
+      {{ id: "modifiers", label: "Modifiers" }},
       {{ id: "boxed", label: "Boxed" }},
       {{ id: "marks", label: "Marks" }},
     ]);
@@ -385,6 +380,9 @@
       const style = chatUnicodeStyleById(styleId);
       const text = String(rawText == null ? "" : rawText);
       if (!style) return text;
+      if (typeof style.transformText === "function") {{
+        return String(style.transformText(text));
+      }}
       const map = style.map && typeof style.map === "object" ? style.map : {{}};
       let chars = Array.from(text);
       if (style.reverse) {{

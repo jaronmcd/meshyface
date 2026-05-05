@@ -405,6 +405,11 @@ def test_chat_unicode_generator_wires_composer_styles() -> None:
     assert 'id: "small-caps"' in js
     assert 'id: "superscript"' in js
     assert 'id: "upside-down"' in js
+    assert 'id: "leet"' in js
+    assert 'id: "backwards"' in js
+    assert 'id: "scrambled"' in js
+    assert 'id: "disemvowel"' in js
+    assert 'id: "glyph"' in js
     assert 'id: "parenthesized"' in js
     assert 'id: "squared"' in js
     assert 'id: "negative-circled"' in js
@@ -414,8 +419,15 @@ def test_chat_unicode_generator_wires_composer_styles() -> None:
     assert 'id: "underline"' in js
     assert 'id: "overline"' in js
     assert 'id: "compact", label: "Compact"' in js
+    assert 'id: "modifiers", label: "Modifiers"' in js
     assert 'id: "boxed", label: "Boxed"' in js
     assert 'id: "marks", label: "Marks"' in js
+    assert "transformText: toLeetSpeak" in js
+    assert "transformText: toBackwards" in js
+    assert "transformText: toScrambled" in js
+    assert "transformText: toUpsideDown" in js
+    assert "transformText: toDisemvowel" in js
+    assert "transformText: toSpecialChars" in js
     assert "0x1D51E" in js
     assert "0x1D586" in js
     assert "0x1D7F6" in js
@@ -934,14 +946,15 @@ def test_chat_macro_menu_removes_novelty_face_shortcuts_only() -> None:
     assert '"/1337 <text>"' not in js
     assert '"/glyph <text>"' not in js
     assert '"//search <text>"' in js
-    assert '"//1337 <text>"' in js
-    assert '"//backwards <text>"' in js
-    assert '"//scrambled <text>"' in js
-    assert '"//upsidedown <text>"' in js
-    assert '"//disemvowel <text>"' in js
+    assert '"//1337 <text>"' not in js
+    assert '"//backwards <text>"' not in js
+    assert '"//scrambled <text>"' not in js
+    assert '"//upsidedown <text>"' not in js
+    assert '"//disemvowel <text>"' not in js
     assert '"/special <text>"' not in js
     assert '"//special <text>"' not in js
-    assert '"//glyph <text>"' in js
+    assert '"//glyph <text>"' not in js
+    assert "text.match(/^\\/\\/(1337|backwards|scrambled|upsidedown|disemvowel|glyph)" in js
     assert 'trimmed.startsWith("//")' in js
     assert 'trimmed.startsWith("/")' not in js
     assert "Chat search mode: type text after //search" in js
