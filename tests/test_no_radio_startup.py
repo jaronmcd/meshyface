@@ -52,6 +52,7 @@ def _dashboard_args(tmp_path):
         theme_settings_file=str(tmp_path / "theme.json"),
         file_transfer_enable=False,
         file_transfer_max_bytes=65536,
+        zork_enable=False,
     )
 
 
@@ -129,8 +130,24 @@ def test_runtime_serves_offline_page_before_first_radio_open(tmp_path) -> None:
     assert "open" not in events[: events.index("serve") + 1]
 
 
-def test_offline_runtime_keeps_standalone_zork_enabled(tmp_path) -> None:
+def test_offline_runtime_keeps_standalone_zork_disabled_by_default(tmp_path) -> None:
     args = _dashboard_args(tmp_path)
+    context = _build_offline_runtime_context(
+        args,
+        startup_error=RuntimeError("radio absent"),
+        connecting=True,
+        mesh_target_label_fn=lambda _args: "/dev/mesh_py_missing_radio (serial)",
+        revision_info_fn=_RevisionInfo,
+        utc_now_fn=lambda: "2026-04-23T00:00:00Z",
+    )
+
+    play_fn = getattr(context.state_fn, "play_standalone_zork_fn", None)
+    assert play_fn is None
+
+
+def test_offline_runtime_enables_standalone_zork_when_requested(tmp_path) -> None:
+    args = _dashboard_args(tmp_path)
+    args.zork_enable = True
     context = _build_offline_runtime_context(
         args,
         startup_error=RuntimeError("radio absent"),

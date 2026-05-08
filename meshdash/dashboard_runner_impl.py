@@ -287,7 +287,8 @@ def _build_offline_runtime_context(
         started_at=started_at,
         utc_now_fn=utc_now_fn,
     )
-    _attach_standalone_zork_service(state_fn)
+    if bool(getattr(args, "zork_enable", False)):
+        _attach_standalone_zork_service(state_fn)
     return DashboardRuntimeContext(
         target=target,
         iface=_NoopCloseResource(),

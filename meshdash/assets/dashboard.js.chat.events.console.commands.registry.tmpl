@@ -527,36 +527,38 @@
         supportsVerbosity: false,
         run: runConsoleTracerouteCommand,
       }});
-      registerConsoleCommand({{
-        name: "zork",
-        usage: "zork",
-        description: "Start a standalone local Zork session in Console.",
-        run: async (ctx) => {{
-          if (consoleInteractiveSession) {{
-            return "[zork] already running. Press Ctrl+C to stop.";
-          }}
-          clearConsoleOutput({{ renderNow: false }});
-          const payload = await postStandaloneZorkCommand("zork");
-          consoleInteractiveSession = {{
-            name: "zork",
-            mode: "standalone",
-            sessionId: String(payload && payload.session_id ? payload.session_id : "").trim(),
-          }};
-          syncConsoleCommandInputState();
-          const lines = [];
-          const replyTextRaw = String(
-            payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
-              ? (payload.reply_text ?? "")
-              : ""
-          );
-          const replyText = normalizeStandaloneZorkReplyText(replyTextRaw);
-          if (replyText.trim()) {{
-            lines.push(replyText);
-          }}
-          if (payload && payload.active_session === false) {{
-            stopConsoleInteractiveSession("game ended", false);
-          }}
-          return lines;
-        }},
-      }});
+      if (zorkFeatureEnabled) {{
+        registerConsoleCommand({{
+          name: "zork",
+          usage: "zork",
+          description: "Start a standalone local Zork session in Console.",
+          run: async (ctx) => {{
+            if (consoleInteractiveSession) {{
+              return "[zork] already running. Press Ctrl+C to stop.";
+            }}
+            clearConsoleOutput({{ renderNow: false }});
+            const payload = await postStandaloneZorkCommand("zork");
+            consoleInteractiveSession = {{
+              name: "zork",
+              mode: "standalone",
+              sessionId: String(payload && payload.session_id ? payload.session_id : "").trim(),
+            }};
+            syncConsoleCommandInputState();
+            const lines = [];
+            const replyTextRaw = String(
+              payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
+                ? (payload.reply_text ?? "")
+                : ""
+            );
+            const replyText = normalizeStandaloneZorkReplyText(replyTextRaw);
+            if (replyText.trim()) {{
+              lines.push(replyText);
+            }}
+            if (payload && payload.active_session === false) {{
+              stopConsoleInteractiveSession("game ended", false);
+            }}
+            return lines;
+          }},
+        }});
+      }}
     }}

@@ -26,6 +26,7 @@ def render_html(
     dark_theme_vars: dict | None = None,
     bbs_enabled: bool = False,
     file_transfer_enabled: bool = False,
+    zork_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
 ) -> str:
     render_context = _build_html_render_context_helper(
@@ -45,6 +46,7 @@ def render_html(
         debug_mode=debug_mode,
         bbs_enabled=bbs_enabled,
         file_transfer_enabled=file_transfer_enabled,
+        zork_enabled=zork_enabled,
         file_transfer_max_bytes=file_transfer_max_bytes,
     )
     bbs_app_tab_hidden_attrs = ""
@@ -77,6 +79,7 @@ def render_html(
         bbs_section_hidden_attrs=bbs_section_hidden_attrs,
         file_transfer_files_tab_hidden_attrs=file_transfer_files_tab_hidden_attrs,
         file_transfer_section_hidden_attrs=file_transfer_section_hidden_attrs,
+        zork_enabled=zork_enabled,
         network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
         network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
     )

@@ -33,6 +33,7 @@ from meshdash.config import (
     DEFAULT_PACKET_LIMIT,
     DEFAULT_REFRESH_MS,
     DEFAULT_RESET_TICKER_SCALE_ON_RESTART,
+    DEFAULT_ZORK_ENABLED,
     MAX_FILE_TRANSFER_MAX_BYTES,
     MIN_FILE_TRANSFER_MAX_BYTES,
     SENSITIVE_FIELD_NAMES,
@@ -360,6 +361,7 @@ def _build_render_html_fn_with_theme(
     settings = theme_preset_settings or _build_theme_preset_settings(args)
     bbs_enabled = bool(getattr(args, "bbs_enable", False))
     file_transfer_enabled = bool(getattr(args, "file_transfer_enable", False))
+    zork_enabled = bool(getattr(args, "zork_enable", False))
     file_transfer_max_bytes = _normalize_file_transfer_max_bytes(
         getattr(args, "file_transfer_max_bytes", DEFAULT_FILE_TRANSFER_MAX_BYTES)
     )
@@ -372,6 +374,7 @@ def _build_render_html_fn_with_theme(
             dark_theme_vars=selected.get("dark"),
             bbs_enabled=bbs_enabled,
             file_transfer_enabled=file_transfer_enabled,
+            zork_enabled=zork_enabled,
             file_transfer_max_bytes=file_transfer_max_bytes,
         )
 
@@ -564,8 +567,10 @@ def main() -> None:
         default_bbs_enable=DEFAULT_BBS_ENABLED,
         env_bbs_enable=os.environ.get("MESH_DASH_BBS_ENABLE"),
         default_file_transfer_enable=DEFAULT_FILE_TRANSFER_ENABLED,
+        default_zork_enable=DEFAULT_ZORK_ENABLED,
         default_file_transfer_max_bytes=DEFAULT_FILE_TRANSFER_MAX_BYTES,
         env_file_transfer_enable=os.environ.get("MESH_DASH_FILE_TRANSFER_ENABLE"),
+        env_zork_enable=os.environ.get("MESH_DASH_ZORK_ENABLE"),
         env_file_transfer_max_bytes=os.environ.get("MESH_DASH_FILE_TRANSFER_MAX_BYTES"),
         env_accept_file_transfer_traffic_disclaimer=os.environ.get(
             "MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER"

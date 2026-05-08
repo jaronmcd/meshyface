@@ -289,6 +289,21 @@
                   </button>
                   <button
                     class="topbar-view-submenu-item"
+                    data-view="bots"
+                    data-app-view="bots"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="false"
+                    title="Bots workspace"
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BT</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label">Bots</span>
+                      <span class="topbar-view-submenu-item-meta">Automation and commands</span>
+                    </span>
+                  </button>
+                  <button
+                    class="topbar-view-submenu-item"
                     data-view="bbs"
                     data-app-view="bbs"
                     type="button"
@@ -2528,6 +2543,57 @@ Ready.
             </div>
             <div id="bbs-post-status" class="bbs-post-status" aria-live="polite"></div>
           </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="card bots" aria-label="Bots">
+      <div class="body">
+        <div class="bots-grid">
+          <div class="bots-sidebar-stack">
+            <div class="bots-panel bots-commands-panel">
+              <h3>Bot Catalog</h3>
+              <div class="bots-setting-note">Available bot apps are shown here. Backend replies only run when their startup toggle is enabled.</div>
+              <div class="bots-command-list" role="listbox" aria-label="Bot catalog">
+                <button class="bots-command-item is-active {bots_zork_state_class}" type="button" role="option" aria-selected="true">
+                  <span class="bots-command-item-order">01</span>
+                  <span class="bots-command-copy">
+                    <span class="bots-command-heading">
+                      <span class="bots-command-usage">zork</span>
+                      <span class="bots-command-kind">game</span>
+                    </span>
+                    <span class="bots-command-description">Playable direct-message text adventure bot.</span>
+                  </span>
+                  <span class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
+                </button>
+              </div>
+            </div>
+            <div class="bots-panel bots-assistant-panel">
+              <h3>Expansion</h3>
+              <div class="bots-setting-note">New internal or plugin bot apps can join this catalog without becoming top-level app tabs.</div>
+            </div>
+          </div>
+          <div id="bots-main-splitter" class="bots-main-splitter" title="Drag to resize bot list and bot details"></div>
+          <div class="bots-panel bots-history-panel">
+            <div class="bots-history-head">
+              <div class="bots-review-head-copy">
+                <h3>Zork</h3>
+                <div class="bots-setting-note">Command: <code>zork</code></div>
+              </div>
+            </div>
+            <div class="bots-command-config">
+              <div class="bots-command-config-head">
+                <div class="bots-command-config-title-row">
+                  <span class="bots-command-config-usage">zork</span>
+                  <span class="bots-command-kind">game</span>
+                  <span class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
+                </div>
+                <div class="bots-command-config-name">Playable Zork Bot</div>
+                <div class="bots-command-config-description">{bots_zork_hint}</div>
+              </div>
+              <div class="bots-setting-note">Only direct messages addressed to this local node are answered. Broadcast Zork traffic is ignored by the live bot.</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

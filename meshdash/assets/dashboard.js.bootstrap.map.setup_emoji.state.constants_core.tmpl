@@ -176,7 +176,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "games", "bbs", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "bots", "games", "bbs", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([
@@ -252,6 +252,7 @@
     ];
     const knownChatNotificationScopes = new Set(["all", "self"]);
     const knownWhoisCommandPrefixes = new Set(["whois", "!whois", "#whois"]);
+    const zorkFeatureEnabled = !!Number({zork_enabled});
     const knownBotSingleWordCommands = new Set([
       "cmd", "!cmd", "#cmd",
       "help", "!help", "#help",
@@ -270,7 +271,7 @@
     const botCommandAliasByName = new Map([
       ["test", "ping"],
     ]);
-    const defaultBotTrafficSnifferCommandHeads = [
+    let defaultBotTrafficSnifferCommandHeads = [
       "cmd",
       "help",
       "whoami",
@@ -283,6 +284,12 @@
       "lheard",
       "zork",
     ];
+    if (!zorkFeatureEnabled) {{
+      knownBotSingleWordCommands.delete("zork");
+      knownBotSingleWordCommands.delete("!zork");
+      knownBotSingleWordCommands.delete("#zork");
+      defaultBotTrafficSnifferCommandHeads = defaultBotTrafficSnifferCommandHeads.filter((head) => head !== "zork");
+    }}
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const bbsFeatureEnabled = !!Number({bbs_enabled});
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));

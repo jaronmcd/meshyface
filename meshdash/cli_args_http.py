@@ -13,6 +13,7 @@ def add_http_runtime_args(
     default_api_token: str | None = None,
     default_bbs_enable: bool = False,
     default_file_transfer_enable: bool = False,
+    default_zork_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     default_accept_file_transfer_traffic_disclaimer: bool = False,
 ) -> None:
@@ -95,6 +96,15 @@ def add_http_runtime_args(
         help=(
             "Enable Meshyface peer-to-peer file transfer UI and send workflow "
             f"(default: {default_file_transfer_enable})"
+        ),
+    )
+    parser.add_argument(
+        "--zork-enable",
+        action=argparse.BooleanOptionalAction,
+        default=default_zork_enable,
+        help=(
+            "Enable the playable Zork bot and standalone console endpoint "
+            f"(default: {default_zork_enable})"
         ),
     )
     parser.add_argument(

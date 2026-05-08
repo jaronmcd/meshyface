@@ -146,6 +146,13 @@ def build_dashboard_runtime_context(
 
     tracker = dashboard_tracker_cls(packet_limit=args.packet_limit, history_store=history_store)
     send_lock = lock_factory()
+    if bool(getattr(args, "zork_enable", False)):
+        enable_zork_bot = getattr(tracker, "enable_zork_bot", None)
+        if callable(enable_zork_bot):
+            try:
+                enable_zork_bot(send_lock=send_lock)
+            except Exception:
+                pass
     subscribe_fn(tracker.on_receive, "meshtastic.receive")
     on_connection_established = getattr(tracker, "on_connection_established", None)
     if callable(on_connection_established):
@@ -351,10 +358,12 @@ def build_dashboard_runtime_context(
                 except Exception:
                     pass
 
-    try:
-        standalone_zork = _build_standalone_zork_service()
-    except Exception:
-        standalone_zork = None
+    standalone_zork = None
+    if bool(getattr(args, "zork_enable", False)):
+        try:
+            standalone_zork = _build_standalone_zork_service()
+        except Exception:
+            standalone_zork = None
 
     if standalone_zork is not None:
         try:

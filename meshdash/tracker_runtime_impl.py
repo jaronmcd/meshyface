@@ -69,17 +69,37 @@ class DashboardTracker:
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
+        self._zork_bot_service = None
 
     def _bump_state_revision_unlocked(self) -> None:
         self.state_revision = int(getattr(self, "state_revision", 0) or 0) + 1
 
+    def enable_zork_bot(self, *, send_lock: object | None = None) -> bool:
+        try:
+            from .services_zork_bot import build_zork_bot_service
+        except Exception:
+            return False
+        self._zork_bot_service = build_zork_bot_service(send_lock=send_lock)
+        return True
+
     def on_receive(self, packet: dict[str, object], interface: object) -> None:
+        zork_bot_service = None
         with self._lock:
             if not self._accept_packets:
                 return
             self.live_packet_count += 1
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._bump_state_revision_unlocked()
+            zork_bot_service = self._zork_bot_service
+        if zork_bot_service is not None:
+            try:
+                zork_bot_service.handle_packet(
+                    packet,
+                    interface,
+                    record_local_chat_fn=self.record_local_chat,
+                )
+            except Exception:
+                pass
 
     def stop_receiving(self) -> None:
         with self._lock:

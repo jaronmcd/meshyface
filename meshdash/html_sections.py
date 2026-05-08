@@ -29,6 +29,7 @@ def build_html_shell(
     bbs_section_hidden_attrs: str = "",
     file_transfer_files_tab_hidden_attrs: str = "",
     file_transfer_section_hidden_attrs: str = "",
+    zork_enabled: bool = False,
     network_diagnostics_tab_hidden_attrs: str = ' hidden disabled aria-hidden="true"',
     network_diagnostics_panel_hidden_attrs: str = ' hidden aria-hidden="true"',
     chat_max_bytes: int = _DEFAULT_CHAT_MAX_BYTES,
@@ -55,6 +56,13 @@ def build_html_shell(
         bbs_section_hidden_attrs=bbs_section_hidden_attrs,
         file_transfer_files_tab_hidden_attrs=file_transfer_files_tab_hidden_attrs,
         file_transfer_section_hidden_attrs=file_transfer_section_hidden_attrs,
+        bots_zork_state_label="Enabled" if zork_enabled else "Disabled",
+        bots_zork_state_class="is-enabled" if zork_enabled else "is-disabled",
+        bots_zork_hint=(
+            "Direct-message this node with zork to start a session. The Console zork command is also available."
+            if zork_enabled
+            else "Start the dashboard with --zork-enable or MESH_DASH_ZORK_ENABLE=1 to turn on live replies."
+        ),
         network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
         network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
     )

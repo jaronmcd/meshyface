@@ -624,6 +624,9 @@
       if (clean === "games") {{
         return clean;
       }}
+      if (clean === "bots") {{
+        return clean;
+      }}
       if (clean === "bbs" && bbsFeatureEnabled) {{
         return clean;
       }}
@@ -635,7 +638,7 @@
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
+      return clean === "games" || clean === "bots" || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -679,6 +682,7 @@
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
+        || resolved === "bots"
         || (resolved === "bbs" && bbsFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
@@ -7217,6 +7221,7 @@
     function appsLayoutViewLabel(viewName = "") {{
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
+      if (normalized === "bots") return "Bots";
       if (normalized === "bbs") return "BBS";
       return "Games";
     }}
@@ -7234,15 +7239,15 @@
 
     function appsLauncherMenuMetaText() {{
       if (bbsFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Boards, profiles, and files";
+        return "Bots, boards, and files";
       }}
       if (bbsFeatureEnabled) {{
-        return "Boards and profiles";
+        return "Bots and boards";
       }}
       if (fileTransferFeatureEnabled) {{
-        return "Boards and files";
+        return "Bots and files";
       }}
-      return "Boards and matches";
+      return "Bots and games";
     }}
 
     function closeLayoutViewSubmenus() {{

@@ -19,3 +19,4 @@ class DashboardArgs(Protocol):
     reset_ticker_scale_on_restart: bool
     http_host: str
     http_port: int
+    zork_enable: bool

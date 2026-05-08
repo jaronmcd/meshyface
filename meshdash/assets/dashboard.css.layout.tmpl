@@ -257,6 +257,14 @@
       min-width: 24px;
       text-align: right;
     }}
+    .bots-command-state.is-enabled {{
+      color: #1f6e42;
+      font-weight: 700;
+    }}
+    .bots-command-state.is-disabled {{
+      color: #8f4234;
+      font-weight: 700;
+    }}
     .bots-history-panel {{
       min-height: 0;
       overflow: visible;
@@ -3597,24 +3605,41 @@
       grid-column: 1;
       grid-row: 1;
       display: flex;
+      flex-direction: column;
       min-height: 0;
+      height: 100%;
       max-height: 100%;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      overflow: hidden;
     }}
     .layout.view-bots .bots .body {{
       display: flex;
       flex-direction: column;
+      flex: 1 1 auto;
       min-height: 0;
       overflow: hidden;
+      background: transparent;
+      padding: 0;
     }}
     .layout.view-bots .chat,
+    .layout.view-bots .files,
+    .layout.view-bots .bbs,
     .layout.view-bots .settings,
+    .layout.view-bots .games,
     .layout.view-bots .nodes,
     .layout.view-bots .map,
     .layout.view-bots .map-data,
     .layout.view-bots .favorites,
+    .layout.view-bots .history-chat,
+    .layout.view-bots .channels-view,
     .layout.view-bots .packets,
+    .layout.view-bots .encription,
     .layout.view-bots .raw,
     .layout.view-bots .console,
+    .layout.view-bots .remote,
+    .layout.view-bots .summary,
     .layout.view-bots .splitter,
     .layout.view-bots .hsplitter[data-target="top"],
     .layout.view-bots .hsplitter[data-target="mid"],

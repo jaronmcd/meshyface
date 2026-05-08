@@ -274,6 +274,11 @@
         }});
       }}
       rows.push({{
+        id: "bots",
+        label: "Bots",
+        description: "Managed bot command and reply traffic",
+      }});
+      rows.push({{
         id: "games",
         label: "Games",
         description: "Reversi, Checkers, and Chess link traffic",
@@ -285,6 +290,7 @@
       const token = String(rawAppId == null ? "" : rawAppId).trim().toLowerCase();
       if (token === "bbs" && bbsFeatureEnabled) return "bbs";
       if (token === "files" && fileTransferFeatureEnabled) return "files";
+      if (token === "bots") return "bots";
       if (token === "games") return "games";
       return "";
     }}
@@ -298,6 +304,7 @@
     function meshChannelDefaultAppSendPrefs() {{
       const sendIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
       const defaults = {{
+        bots: {{ mode: "global", channel_index: sendIndex }},
         games: {{ mode: "global", channel_index: sendIndex }},
       }};
       if (bbsFeatureEnabled) {{

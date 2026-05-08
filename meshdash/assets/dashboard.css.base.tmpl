@@ -2061,6 +2061,7 @@
       grid-row: 2;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main,
+    .workspace-shell[data-layout-view="bots"] .workspace-main,
     .workspace-shell[data-layout-view="files"] .workspace-main,
     .workspace-shell[data-layout-view="bbs"] .workspace-main {{
       gap: 8px;
@@ -2069,6 +2070,7 @@
       align-items: stretch;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
+    .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
     .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
     .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs {{
       grid-column: 1;
@@ -2081,11 +2083,13 @@
     }}
     @media (max-width: 1180px) {{
       .workspace-shell[data-layout-view="games"] .workspace-main,
+      .workspace-shell[data-layout-view="bots"] .workspace-main,
       .workspace-shell[data-layout-view="files"] .workspace-main,
       .workspace-shell[data-layout-view="bbs"] .workspace-main {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
+      .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
       .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
       .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs {{
         grid-column: 1;
