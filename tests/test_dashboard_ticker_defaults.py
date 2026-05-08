@@ -592,7 +592,8 @@ def test_radio_rx_tx_aligns_with_compact_link_value_and_status_is_prominent() ->
     )[1].split("}", 1)[0]
 
     assert "grid-column: 2;" in radio_expanded_section
-    assert "grid-row: 1;" in radio_expanded_section
+    assert "grid-row: 2;" in radio_expanded_section
+    assert "justify-self: end;" in radio_expanded_section
     assert "font-size: 18px;" in radio_expanded_section
     assert "line-height: 1.1;" in radio_expanded_section
     assert "text-align: right;" in radio_expanded_section
