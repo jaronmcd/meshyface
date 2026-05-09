@@ -72,6 +72,7 @@ def build_send_chat_loader_with_dependencies(
             send_reaction_packet_fn=dependencies.send_reaction_packet_fn,
             local_node_id_fn=dependencies.local_node_id_fn,
             record_local_chat_fn=dependencies.record_local_chat_fn,
+            get_delivery_state_fn=dependencies.get_delivery_state_fn,
             chat_max_bytes=dependencies.chat_max_bytes,
             normalize_single_emoji_fn=dependencies.normalize_single_emoji_fn,
             to_int_fn=dependencies.to_int_fn,

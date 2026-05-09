@@ -182,6 +182,12 @@ class SendChatMessageFn(Protocol):
         normalize_single_emoji_fn: NormalizeSingleEmojiFn,
         to_int_fn: ToIntFn,
         now_text_fn: UtcNowFn,
+        get_delivery_state_fn: Optional[Callable[[object], object]] = None,
+        outgoing_retry_wait_seconds: float = ...,
+        outgoing_retry_poll_seconds: float = ...,
+        outgoing_retry_limit: int = ...,
+        outgoing_retry_async: bool = ...,
+        sleep_fn: Callable[[float], None] = ...,
     ) -> dict[str, object]:
         ...
 

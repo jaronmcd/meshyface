@@ -22,6 +22,7 @@ _LIVE_REPLY_ACK_WAIT_SECONDS = 25.0
 _LIVE_REPLY_ACK_POLL_SECONDS = 0.5
 _LIVE_REPLY_RETRY_LIMIT = 1
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
+_PUBLIC_START_TRIGGER = "zork"
 
 
 def _normalize_node_id(value: object) -> str:
@@ -84,6 +85,10 @@ def _sent_packet_id(sent_packet: object) -> Optional[int]:
     else:
         parsed = _to_int(getattr(sent_packet, "id", None))
     return parsed if parsed is not None and parsed > 0 else None
+
+
+def _is_public_start_trigger(*, text: str, to_id: str) -> bool:
+    return str(to_id or "").strip().lower() == "^all" and text.strip().lower() == _PUBLIC_START_TRIGGER
 
 
 def _utf8_len(text: str) -> int:
@@ -203,11 +208,12 @@ class ZorkBotService:
             return False
 
         now_unix = int(self._now_unix_fn())
+        game_to_id = local_node_id if _is_public_start_trigger(text=text, to_id=to_id) else to_id
         with self._lock:
             result = self._game.try_handle_message(
                 text=text,
                 from_id=from_id,
-                to_id=to_id,
+                to_id=game_to_id,
                 local_node_id=local_node_id,
                 now_unix=now_unix,
                 enabled=True,

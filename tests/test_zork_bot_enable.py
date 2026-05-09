@@ -76,7 +76,7 @@ def test_dashboard_tracker_answers_direct_zork_when_enabled() -> None:
     assert replies[0].get("ack_requested") is True
 
 
-def test_dashboard_tracker_ignores_broadcast_zork_when_enabled() -> None:
+def test_dashboard_tracker_answers_public_zork_trigger_with_direct_session() -> None:
     tracker = DashboardTracker(packet_limit=25)
     iface = _FakeInterface()
     assert tracker.enable_zork_bot(
@@ -86,6 +86,27 @@ def test_dashboard_tracker_ignores_broadcast_zork_when_enabled() -> None:
     ) is True
 
     tracker.on_receive(_direct_text_packet("zork", to=0xFFFFFFFF), iface)
+
+    assert iface.sent
+    combined_text = " ".join(str(row["text"]) for row in iface.sent)
+    assert "zork: session started" in combined_text
+    assert iface.sent[0]["kwargs"]["destinationId"] == "!01020304"
+    assert iface.sent[0]["kwargs"]["wantAck"] is True
+    assert iface.sent[0]["kwargs"]["channelIndex"] == 2
+    assert iface.sent[0]["kwargs"]["replyId"] == 111
+
+
+def test_dashboard_tracker_ignores_non_exact_public_zork_trigger() -> None:
+    tracker = DashboardTracker(packet_limit=25)
+    iface = _FakeInterface()
+    assert tracker.enable_zork_bot(
+        reply_segment_delay_seconds=0,
+        reply_retry_limit=0,
+        reply_async=False,
+    ) is True
+
+    tracker.on_receive(_direct_text_packet("zork please", to=0xFFFFFFFF), iface)
+    tracker.on_receive(_direct_text_packet("zrok", to=0xFFFFFFFF, packet_id=112), iface)
 
     assert iface.sent == []
 

@@ -28,12 +28,16 @@ def build_send_chat_runtime_dependencies_from_legacy_args(
     to_int_fn: ToIntFn,
     utc_now_fn: UtcNowFn,
 ) -> SendChatRuntimeDependencies:
+    get_delivery_state_fn = getattr(tracker, "get_delivery_state", None)
     return SendChatRuntimeDependencies(
         iface=iface,
         send_lock=send_lock,
         send_reaction_packet_fn=send_reaction_packet_fn,
         local_node_id_fn=lambda: get_local_node_id_fn(iface),
         record_local_chat_fn=tracker.record_local_chat,
+        get_delivery_state_fn=(
+            get_delivery_state_fn if callable(get_delivery_state_fn) else None
+        ),
         chat_max_bytes=chat_max_bytes,
         normalize_single_emoji_fn=normalize_single_emoji_fn,
         to_int_fn=to_int_fn,

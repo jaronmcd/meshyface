@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 
 from .send_chat_contracts import SendLock, SendTextInterface
 from .runtime_types import (
@@ -18,6 +19,7 @@ class SendChatRuntimeDependencies:
     send_reaction_packet_fn: SendReactionPacketFn
     local_node_id_fn: LocalNodeIdFn
     record_local_chat_fn: RecordLocalChatFn
+    get_delivery_state_fn: Callable[[object], object] | None
     chat_max_bytes: int
     normalize_single_emoji_fn: NormalizeSingleEmojiFn
     to_int_fn: ToIntFn
