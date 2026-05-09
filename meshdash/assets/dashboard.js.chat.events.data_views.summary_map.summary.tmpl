@@ -1980,6 +1980,9 @@
           linksMetricTicker.hidden = true;
         }}
       }}
+      if (typeof renderBotTickerSummary === "function") {{
+        renderBotTickerSummary(state);
+      }}
       const chatChannelsTickerEl = document.getElementById("m-chat-channels");
       if (chatChannelsTickerEl instanceof HTMLElement) {{
         const rows = [
@@ -2109,6 +2112,9 @@
         if (wifiMetricTicker instanceof HTMLElement) {{
           wifiMetricTicker.hidden = true;
         }}
+      }}
+      if (typeof syncTickerRuntimeAvailability === "function") {{
+        syncTickerRuntimeAvailability(state);
       }}
       renderTopbarUpdateTicker(state);
       const radioReportedTime = resolveRadioReportedTime(state);

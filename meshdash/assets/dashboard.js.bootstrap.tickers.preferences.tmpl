@@ -10,11 +10,18 @@
         && !topbarElement.classList.contains("ticker-expanded");
     }}
 
+    function tickerNavigationTarget(tickerId) {{
+      const id = normalizeTickerId(tickerId);
+      if (id === "bots") return "bots";
+      return "";
+    }}
+
     function compactTickerDetailItemIsExpandable(item) {{
       if (!(item instanceof HTMLElement)) return false;
       if (item.hidden) return false;
       if (item.classList.contains("summary-ticker-item-control")) return false;
       const id = normalizeTickerId(item.dataset.tickerId || "");
+      if (tickerNavigationTarget(id)) return false;
       return !!id && id !== "self";
     }}
 
@@ -146,6 +153,15 @@
       for (const item of Array.from(row.querySelectorAll(".summary-ticker-item[data-ticker-id]"))) {{
         if (!(item instanceof HTMLElement)) continue;
         const id = normalizeTickerId(item.dataset.tickerId || "");
+        const navigationTarget = tickerNavigationTarget(id);
+        if (navigationTarget && !item.hidden) {{
+          item.classList.remove("is-compact-detail-open", "is-compact-detail-source");
+          item.setAttribute("role", "button");
+          item.tabIndex = 0;
+          item.removeAttribute("aria-expanded");
+          item.setAttribute("aria-label", `Open ${{tickerLabelText(id) || id}} view`);
+          continue;
+        }}
         const expandable = compact && compactTickerDetailItemIsExpandable(item);
         item.classList.remove("is-compact-detail-open");
         item.classList.toggle("is-compact-detail-source", expandable && id === activeCompactTickerDetailId);
@@ -176,6 +192,15 @@
           if (!(target instanceof Element)) return;
           if (target.closest("button, a, input, select, textarea")) return;
           const item = target.closest(".summary-ticker-item[data-ticker-id]");
+          if (item instanceof HTMLElement) {{
+            const navigationTarget = tickerNavigationTarget(item.dataset.tickerId || "");
+            if (navigationTarget && !item.hidden) {{
+              ev.preventDefault();
+              closeCompactTickerDetail();
+              applyLayoutView(navigationTarget, true);
+              return;
+            }}
+          }}
           if (!compactTickerDetailItemIsExpandable(item)) return;
           if (!compactTickerDetailModeActive()) return;
           toggleCompactTickerDetail(item.dataset.tickerId || "");
@@ -185,6 +210,15 @@
           const target = ev.target;
           if (!(target instanceof Element)) return;
           const item = target.closest(".summary-ticker-item[data-ticker-id]");
+          if (item instanceof HTMLElement) {{
+            const navigationTarget = tickerNavigationTarget(item.dataset.tickerId || "");
+            if (navigationTarget && !item.hidden) {{
+              ev.preventDefault();
+              closeCompactTickerDetail();
+              applyLayoutView(navigationTarget, true);
+              return;
+            }}
+          }}
           if (!compactTickerDetailItemIsExpandable(item)) return;
           if (!compactTickerDetailModeActive()) return;
           ev.preventDefault();
@@ -921,6 +955,17 @@
       return !!prefs.enabled[id];
     }}
 
+    function tickerAvailable(tickerId, state = latestState) {{
+      const id = normalizeTickerId(tickerId);
+      if (!id) return false;
+      if (id === "bots") {{
+        return typeof botTickerAvailableForState === "function"
+          ? botTickerAvailableForState(state)
+          : false;
+      }}
+      return true;
+    }}
+
     function tickerTrendEnabled(tickerId) {{
       const id = normalizeTickerId(tickerId);
       if (!id || !tickerMetricIds.has(id)) return false;
@@ -1001,7 +1046,7 @@
       return String(controlId || "").trim().startsWith("settings-ticker-");
     }}
 
-    function applyTickerPreferencesToTopbar() {{
+    function applyTickerPreferencesToTopbar(state = latestState) {{
       const row = document.querySelector(".summary-ticker-row");
       if (!(row instanceof HTMLElement)) return;
       const prefs = currentTickerPreferences();
@@ -1026,7 +1071,7 @@
         const item = row.querySelector(`.summary-ticker-item[data-ticker-id="${{id}}"]`);
         if (!(item instanceof HTMLElement)) continue;
         item.style.order = String(orderIndex);
-        const isEnabled = tickerEnabled(id);
+        const isEnabled = tickerEnabled(id) && tickerAvailable(id, state);
         item.hidden = !isEnabled;
         if (isEnabled) {{
           visibleTickerCount += 1;
@@ -1045,7 +1090,33 @@
       if (topbarElement instanceof HTMLElement) {{
         topbarElement.classList.toggle("ticker-wrap-balanced", visibleTickerCount > 8);
       }}
-      if (activeCompactTickerDetailId && !tickerEnabled(activeCompactTickerDetailId)) {{
+      if (activeCompactTickerDetailId && (!tickerEnabled(activeCompactTickerDetailId) || !tickerAvailable(activeCompactTickerDetailId, state))) {{
+        closeCompactTickerDetail();
+      }} else {{
+        refreshCompactTickerDetailTray();
+      }}
+      requestTopbarLayoutMetricsSync();
+      syncTopbarUpdateTickerVisibilityPreference();
+    }}
+
+    function syncTickerRuntimeAvailability(state = latestState) {{
+      const row = document.querySelector(".summary-ticker-row");
+      if (!(row instanceof HTMLElement)) return;
+      let visibleTickerCount = 0;
+      for (const item of Array.from(row.querySelectorAll(".summary-ticker-item[data-ticker-id]"))) {{
+        if (!(item instanceof HTMLElement)) continue;
+        const id = normalizeTickerId(item.dataset.tickerId || "");
+        const isEnabled = tickerEnabled(id) && tickerAvailable(id, state);
+        item.hidden = !isEnabled;
+        if (isEnabled) {{
+          visibleTickerCount += 1;
+        }}
+      }}
+      syncCompactTickerColumnCount(row);
+      if (topbarElement instanceof HTMLElement) {{
+        topbarElement.classList.toggle("ticker-wrap-balanced", visibleTickerCount > 8);
+      }}
+      if (activeCompactTickerDetailId && (!tickerEnabled(activeCompactTickerDetailId) || !tickerAvailable(activeCompactTickerDetailId, state))) {{
         closeCompactTickerDetail();
       }} else {{
         refreshCompactTickerDetailTray();

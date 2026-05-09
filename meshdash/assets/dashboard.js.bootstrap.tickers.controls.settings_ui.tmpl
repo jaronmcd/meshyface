@@ -45,13 +45,14 @@
         seen.add(id);
         resolvedOrder.push(id);
       }}
+      const availableOrder = resolvedOrder.filter((id) => tickerAvailable(id, latestState));
 
-      if (!normalizeTickerId(activeTickerSettingsId) || !resolvedOrder.includes(activeTickerSettingsId)) {{
-        activeTickerSettingsId = resolvedOrder.length ? resolvedOrder[0] : "";
+      if (!normalizeTickerId(activeTickerSettingsId) || !availableOrder.includes(activeTickerSettingsId)) {{
+        activeTickerSettingsId = availableOrder.length ? availableOrder[0] : "";
       }}
 
       listEl.innerHTML = "";
-      resolvedOrder.forEach((id, index) => {{
+      availableOrder.forEach((id, index) => {{
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "settings-ticker-item";
@@ -106,12 +107,12 @@
 
       const moveUpBtn = document.getElementById("settings-ticker-move-up");
       const moveDownBtn = document.getElementById("settings-ticker-move-down");
-      const selectedIndex = resolvedOrder.indexOf(selectedId);
+      const selectedIndex = availableOrder.indexOf(selectedId);
       if (moveUpBtn instanceof HTMLButtonElement) {{
         moveUpBtn.disabled = selectedIndex <= 0;
       }}
       if (moveDownBtn instanceof HTMLButtonElement) {{
-        moveDownBtn.disabled = selectedIndex < 0 || selectedIndex >= (resolvedOrder.length - 1);
+        moveDownBtn.disabled = selectedIndex < 0 || selectedIndex >= (availableOrder.length - 1);
       }}
 
       const labelInput = document.getElementById("settings-ticker-label");

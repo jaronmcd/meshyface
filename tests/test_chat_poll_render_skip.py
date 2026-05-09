@@ -49,7 +49,7 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
         "selection-perf",
         (
             'const selectedId = normalizeNodeId(selectedNodeId || "");',
-            'if (selectedId && nodeMap.has(selectedId)) return selectedId;',
+            'if (selectedId && selectedId !== fromId && nodeMap.has(selectedId)) {',
             "const nodeSelectionUiState = {",
             "const nodeSelectionPerfState = {",
             "nodeSelectionPerfStore();",

@@ -17,17 +17,53 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     )
 
     assert re.search(
-        r'const tickerDefaultOrder = \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"battery",',
+        r'const tickerDefaultOrder = \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"bots",\s*"battery",',
         js,
     )
     assert re.search(
-        r'for \(const id of \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*\]\)',
+        r'for \(const id of \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"bots",\s*\]\)',
         js,
     )
     assert 'if (key === "target") return "self";' in js
     assert 'if (seen.has("self") && !seen.has("radio")) {' in js
     assert 'enabled: { ...tickerDefaultEnabled },' in js
     assert "prefs.enabled[id] = !!defaults.enabled[id];" in js
+
+
+def test_dashboard_exposes_bot_ticker_gated_by_runtime() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'id="summary-ticker-bots"' in html
+    assert 'data-ticker-id="bots"' in html
+    assert '<div class="label" data-ticker-label>Bots</div>' in html
+    assert 'id="m-bots-ticker"' in html
+    assert '{ id: "bots", defaultLabel: "Bots", metric: false }' in js
+    assert 'function botTickerAvailableForState(state = latestState) {' in js
+    assert 'return !!(runtime && runtime.available && runtime.enabled);' in js
+    assert 'function buildBotTickerSummary(state = latestState) {' in js
+    assert 'function renderBotTickerSummary(state = latestState) {' in js
+    assert 'const isEnabled = tickerEnabled(id) && tickerAvailable(id, state);' in js
+    assert 'renderBotTickerSummary(state);' in js
+    assert 'function syncTickerRuntimeAvailability(state = latestState) {' in js
+    assert 'syncTickerRuntimeAvailability(state);' in js
+    assert 'if (id === "bots") return "bots";' in js
+    assert 'applyLayoutView(navigationTarget, true);' in js
 
 
 def test_dashboard_js_defaults_live_update_ticker_to_disabled() -> None:

@@ -392,6 +392,112 @@
       }};
     }}
 
+    function botTickerAvailableForState(state = latestState) {{
+      const runtime = zorkBotRuntimeFromState(state);
+      return !!(runtime && runtime.available && runtime.enabled);
+    }}
+
+    function buildBotTickerSummary(state = latestState) {{
+      const runtime = zorkBotRuntimeFromState(state);
+      const activity = buildZorkBotActivity(state);
+      const sessions = Array.isArray(runtime.sessions) ? runtime.sessions : [];
+      const activeSessionCount = Math.max(
+        0,
+        Math.trunc(Number(runtime.activeSessionCount) || sessions.length || 0)
+      );
+      const requestCount = Math.max(0, Math.trunc(Number(activity.requestCount) || 0));
+      const replyCount = Math.max(0, Math.trunc(Number(activity.replyCount) || 0));
+      const pendingCount = (Array.isArray(activity.activities) ? activity.activities : [])
+        .filter((entry) => entry && entry.status !== "responded")
+        .length;
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const latestActivity = (Array.isArray(activity.activities) ? activity.activities : [])[0] || null;
+      const lastUnix = Math.max(
+        Number(latestActivity && latestActivity.sortUnix) || 0,
+        ...sessions.map((session) => zorkBotSessionUnix(session, "updated_unix"))
+      );
+      const lastAge = lastUnix > 0
+        ? (typeof formatIdleAge === "function" ? formatIdleAge(lastUnix, nowUnix) : formatLocalChatTime(lastUnix, "n/a", nowUnix))
+        : "none";
+      const sessionLabels = sessions.slice(0, 2).map((session) => {{
+        const peerId = normalizeNodeId(session && (session.peer_id || session.peerId || "")) || "";
+        const peerLabel = zorkBotNodeLabel(peerId, state);
+        const roomName = String((session && (session.room_name || session.roomName || session.room)) || "").trim();
+        return roomName ? `${{peerLabel}} · ${{roomName}}` : peerLabel;
+      }}).filter(Boolean);
+      const sessionMoreCount = Math.max(0, sessions.length - sessionLabels.length);
+      const sessionValue = activeSessionCount > 0
+        ? `${{activeSessionCount}} active`
+        : "0 active";
+      const activityValue = `${{requestCount}} / ${{replyCount}}`;
+      const rows = [
+        {{ key: "Zork", value: "On" }},
+        {{ key: "Sess", value: sessionValue }},
+      ];
+      if (sessionLabels.length > 0) {{
+        rows.push({{
+          key: "Now",
+          value: `${{sessionLabels.join(", ")}}${{sessionMoreCount > 0 ? ` +${{sessionMoreCount}}` : ""}}`,
+        }});
+      }}
+      rows.push({{ key: "Req/Rep", value: activityValue }});
+      if (pendingCount > 0) {{
+        rows.push({{ key: "Wait", value: String(pendingCount) }});
+      }}
+      rows.push({{ key: "Last", value: lastAge }});
+      const rowsHtml = rows
+        .map((row) => `<div class="node-ticker-row bot-ticker-row"><span class="node-ticker-key">${{escAttr(row.key)}}:</span><span class="node-ticker-val">${{escAttr(row.value)}}</span></div>`)
+        .join("");
+      const titleParts = [
+        "Zork bot enabled",
+        `${{activeSessionCount}} active session${{activeSessionCount === 1 ? "" : "s"}}`,
+        `${{requestCount}} request${{requestCount === 1 ? "" : "s"}}`,
+        `${{replyCount}} repl${{replyCount === 1 ? "y" : "ies"}}`,
+        pendingCount > 0 ? `${{pendingCount}} pending` : "0 pending",
+        `last ${{lastAge}}`,
+        "Click to open Bots",
+      ];
+      return {{
+        available: !!runtime.available,
+        enabled: !!runtime.enabled,
+        activeSessionCount,
+        requestCount,
+        replyCount,
+        pendingCount,
+        text: activeSessionCount > 0
+          ? `${{activeSessionCount}} session${{activeSessionCount === 1 ? "" : "s"}}`
+          : `${{replyCount}} repl${{replyCount === 1 ? "y" : "ies"}}`,
+        rows_html: rowsHtml,
+        title: titleParts.join(" | "),
+      }};
+    }}
+
+    function renderBotTickerSummary(state = latestState) {{
+      const tickerEl = document.getElementById("m-bots-ticker");
+      const tickerItem = document.getElementById("summary-ticker-bots");
+      if (!(tickerEl instanceof HTMLElement)) return;
+      const summary = buildBotTickerSummary(state);
+      const canShow = !!summary.available && !!summary.enabled;
+      if (tickerItem instanceof HTMLElement) {{
+        tickerItem.classList.toggle("has-active-bot-sessions", summary.activeSessionCount > 0);
+        tickerItem.classList.toggle("has-pending-bot-activity", summary.pendingCount > 0);
+      }}
+      if (!canShow) {{
+        updateSummaryMiniPanel("m-bots-ticker", tickerEl, {{
+          mode: "text",
+          text: "n/a",
+          title: "Bot runtime disabled",
+        }});
+        return;
+      }}
+      updateSummaryMiniPanel("m-bots-ticker", tickerEl, {{
+        mode: summary.rows_html ? "html" : "text",
+        html: summary.rows_html,
+        text: summary.text,
+        title: summary.title,
+      }});
+    }}
+
     function renderZorkBotActivity(state, runtime) {{
       const stats = document.getElementById("bots-zork-activity-stats");
       const list = document.getElementById("bots-zork-activity-list");
