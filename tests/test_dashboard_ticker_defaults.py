@@ -58,6 +58,14 @@ def test_dashboard_exposes_bot_ticker_gated_by_runtime() -> None:
     assert 'return !!(runtime && runtime.available && runtime.enabled);' in js
     assert 'function buildBotTickerSummary(state = latestState) {' in js
     assert 'function renderBotTickerSummary(state = latestState) {' in js
+    assert 'const zorkBotActivityResetStorageKey = "meshDashboardZorkActivityResetCutoffUnixV1";' in js
+    assert 'function zorkBotActivityResetCutoffUnix() {' in js
+    assert 'function setZorkBotActivityResetCutoffUnix(value) {' in js
+    assert 'function resetZorkBotActivityFromUi() {' in js
+    assert 'if (resetCutoffUnix > 0 && timeUnix > 0 && timeUnix <= resetCutoffUnix) return;' in js
+    assert 'Activity stats reset at' in js
+    assert 'id="bots-zork-reset-activity-btn"' in html
+    assert 'No Zork activity since the reset.' in js
     assert 'function isZorkBotPublicStartText(text) {' in js
     assert 'return String(text || "").trim().toLowerCase() === "zork";' in js
     assert 'const isPublicStart = toAll && isZorkBotPublicStartText(text);' in js

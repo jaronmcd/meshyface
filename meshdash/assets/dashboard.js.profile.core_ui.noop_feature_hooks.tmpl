@@ -188,6 +188,7 @@
     }}
 
     const zorkBotEndpoint = "/api/bots/zork";
+    const zorkBotActivityResetStorageKey = "meshDashboardZorkActivityResetCutoffUnixV1";
     const zorkBotCommandHeads = new Set([
       "zork", "look", "l", "inventory", "inv", "i", "n", "s", "e", "w", "u", "d",
       "north", "south", "east", "west", "up", "down", "open", "close", "take",
@@ -195,6 +196,29 @@
       "push", "pull", "turn", "attack", "kill", "score", "help", "restart",
     ]);
     let zorkBotToggleInFlight = false;
+
+    function zorkBotActivityResetCutoffUnix() {{
+      try {{
+        const raw = window.localStorage.getItem(zorkBotActivityResetStorageKey);
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+      }} catch (_err) {{
+        return 0;
+      }}
+    }}
+
+    function setZorkBotActivityResetCutoffUnix(value) {{
+      const clean = Math.max(0, Math.floor(Number(value) || 0));
+      try {{
+        if (clean > 0) {{
+          window.localStorage.setItem(zorkBotActivityResetStorageKey, String(clean));
+        }} else {{
+          window.localStorage.removeItem(zorkBotActivityResetStorageKey);
+        }}
+      }} catch (_err) {{
+      }}
+      return clean;
+    }}
 
     function zorkBotRuntimeFromState(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
@@ -295,6 +319,7 @@
       const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
       const rows = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
       const localId = normalizeNodeId(resolveLocalNodeId(safeState) || safeState.local_node_id || "");
+      const resetCutoffUnix = zorkBotActivityResetCutoffUnix();
       const requests = [];
       const requestByMessageId = new Map();
       const repliesByRequestId = new Map();
@@ -319,6 +344,8 @@
         const to = normalizeNodeId(zorkBotChatField(row, ["to", "to_id", "toId", "destination", "dest", "dest_id", "destId"], "^all"));
         const messageId = zorkBotMessageId(row, ["message_id", "messageId", "packet_id", "packetId", "id"]);
         const replyId = zorkBotMessageId(row, ["reply_id", "replyId"]);
+        const timeUnix = latestUnixTimestamp(row.rx_time, row.captured_at, row.time);
+        if (resetCutoffUnix > 0 && timeUnix > 0 && timeUnix <= resetCutoffUnix) return;
         const fromLocal = !!localId && from === localId;
         const toLocal = !!localId && to === localId;
         const toAll = to === "^all";
@@ -333,7 +360,7 @@
           to,
           messageId,
           replyId,
-          timeUnix: latestUnixTimestamp(row.rx_time, row.captured_at, row.time),
+          timeUnix,
         }};
         if (isCommand && (!fromLocal || toLocal)) {{
           requests.push(item);
@@ -395,6 +422,7 @@
         activities: activities.slice(0, 24),
         requestCount: requests.length,
         replyCount,
+        resetCutoffUnix,
       }};
     }}
 
@@ -520,9 +548,14 @@
         `<span>Sessions ${{runtime.activeSessionCount}}</span>`,
         `<span>Last ${{escAttr(lastTime)}}</span>`,
       ].join("");
+      if (activity.resetCutoffUnix > 0) {{
+        stats.innerHTML += `<span>Since reset ${{escAttr(formatLocalChatTime(activity.resetCutoffUnix, "recent", nowUnix))}}</span>`;
+      }}
 
       if (activity.activities.length <= 0) {{
-        list.innerHTML = '<div class="bots-history-empty">No Zork activity in the current chat window yet.</div>';
+        list.innerHTML = activity.resetCutoffUnix > 0
+          ? '<div class="bots-history-empty">No Zork activity since the reset.</div>'
+          : '<div class="bots-history-empty">No Zork activity in the current chat window yet.</div>';
         return;
       }}
 
@@ -689,6 +722,13 @@
       }}
     }}
 
+    function resetZorkBotActivityFromUi() {{
+      const cutoffUnix = setZorkBotActivityResetCutoffUnix(Math.floor(Date.now() / 1000));
+      setZorkBotToggleStatus(`Activity stats reset at ${{formatLocalChatTime(cutoffUnix, "now", cutoffUnix)}}`);
+      renderBotsView(latestState);
+      renderBotTickerSummary(latestState);
+    }}
+
     function bindZorkBotControls() {{
       const enableBtn = document.getElementById("bots-zork-enable-btn");
       if (enableBtn instanceof HTMLButtonElement && enableBtn.dataset.bound !== "1") {{
@@ -709,6 +749,13 @@
         clearBtn.dataset.bound = "1";
         clearBtn.addEventListener("click", () => {{
           void manageZorkBotFromUi("clear_sessions");
+        }});
+      }}
+      const resetActivityBtn = document.getElementById("bots-zork-reset-activity-btn");
+      if (resetActivityBtn instanceof HTMLButtonElement && resetActivityBtn.dataset.bound !== "1") {{
+        resetActivityBtn.dataset.bound = "1";
+        resetActivityBtn.addEventListener("click", () => {{
+          resetZorkBotActivityFromUi();
         }});
       }}
       const sessionList = document.getElementById("bots-zork-session-list");
