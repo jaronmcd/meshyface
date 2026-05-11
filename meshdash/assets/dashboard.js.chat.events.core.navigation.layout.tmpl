@@ -990,6 +990,9 @@
         "aria-hidden",
         showOverlayHost ? "false" : "true"
       );
+      if (typeof updateMapFullscreenControl === "function") {{
+        updateMapFullscreenControl(normalizedView, normalizedSubview);
+      }}
     }}
 
     function syncNetworkOverviewPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{

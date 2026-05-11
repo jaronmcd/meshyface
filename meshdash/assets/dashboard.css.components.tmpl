@@ -5373,6 +5373,17 @@
     [data-theme="dark"] .map-reset-view-btn:hover {{
       background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-accent) 28%);
     }}
+    [data-theme="dark"] .map-fullscreen-toggle-btn {{
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-accent) 16%);
+      border-color: var(--workspace-shell-border);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .map-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-accent) 28%);
+    }}
+    [data-theme="dark"] .map-fullscreen-toggle-btn:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
+    }}
     [data-theme="dark"] .map-basemap-status {{
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--ui-bg-elev) 28%);
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 78%, var(--ui-border) 22%);
@@ -8224,6 +8235,7 @@
       .network-map-subview-tab,
       .map-control-group,
       .map-reset-view-btn,
+      .map-fullscreen-toggle-btn,
       .map-basemap-status,
       .map-heatmap-wrap,
       .map-heatmap-mode-wrap,

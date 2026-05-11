@@ -1231,6 +1231,114 @@
       return {{ estimates, lines }};
     }}
 
+    function getNetworkMapFullscreenTarget() {{
+      const root = document.getElementById("network-map-subviews");
+      if (root instanceof HTMLElement) return root;
+      return mapFrameElement instanceof HTMLElement ? mapFrameElement : null;
+    }}
+
+    function getActiveFullscreenElement() {{
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }}
+
+    function isNetworkMapFullscreenActive(target = getNetworkMapFullscreenTarget()) {{
+      const fullscreenElement = getActiveFullscreenElement();
+      return !!(target instanceof HTMLElement && fullscreenElement === target);
+    }}
+
+    function networkMapFullscreenSupported(target = getNetworkMapFullscreenTarget()) {{
+      if (!(target instanceof HTMLElement)) return false;
+      const canRequest = (
+        typeof target.requestFullscreen === "function"
+        || typeof target.webkitRequestFullscreen === "function"
+      );
+      const documentAllowsFullscreen = (
+        document.fullscreenEnabled !== false
+        && document.webkitFullscreenEnabled !== false
+      );
+      return canRequest && documentAllowsFullscreen;
+    }}
+
+    function updateMapFullscreenControl(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
+      const btn = document.getElementById("map-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const target = getNetworkMapFullscreenTarget();
+      const supported = networkMapFullscreenSupported(target);
+      const active = isNetworkMapFullscreenActive(target);
+      const normalizedView = (typeof normalizeLayoutView === "function")
+        ? normalizeLayoutView(viewName)
+        : String(viewName || "").trim().toLowerCase();
+      const normalizedSubview = (typeof normalizeNetworkSubview === "function")
+        ? normalizeNetworkSubview(subviewName)
+        : String(subviewName || "map").trim().toLowerCase();
+      const showControl = supported && (active || (normalizedView === "network" && normalizedSubview === "map"));
+      btn.hidden = !showControl;
+      btn.disabled = !supported;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      const label = active ? "Exit full screen map" : "Enter full screen map";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      if (target instanceof HTMLElement) {{
+        target.classList.toggle("is-fullscreen", active);
+      }}
+    }}
+
+    function requestNetworkMapFullscreenResize() {{
+      if (typeof requestMapResizeStabilized === "function") {{
+        requestMapResizeStabilized();
+      }} else if (typeof requestMapResize === "function") {{
+        requestMapResize();
+      }}
+    }}
+
+    async function toggleNetworkMapFullscreen() {{
+      const target = getNetworkMapFullscreenTarget();
+      if (!(target instanceof HTMLElement) || !networkMapFullscreenSupported(target)) return;
+      try {{
+        if (isNetworkMapFullscreenActive(target)) {{
+          if (typeof document.exitFullscreen === "function") {{
+            await document.exitFullscreen();
+          }} else if (typeof document.webkitExitFullscreen === "function") {{
+            await document.webkitExitFullscreen();
+          }}
+        }} else if (typeof target.requestFullscreen === "function") {{
+          await target.requestFullscreen();
+        }} else if (typeof target.webkitRequestFullscreen === "function") {{
+          await target.webkitRequestFullscreen();
+        }}
+      }} catch (reason) {{
+        console.warn("Unable to toggle map fullscreen", reason);
+      }} finally {{
+        updateMapFullscreenControl();
+        requestNetworkMapFullscreenResize();
+      }}
+    }}
+
+    function bindMapFullscreenControl() {{
+      const btn = document.getElementById("map-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      if (btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          void toggleNetworkMapFullscreen();
+        }});
+      }}
+      if (document.documentElement && document.documentElement.dataset.mapFullscreenBound !== "1") {{
+        document.documentElement.dataset.mapFullscreenBound = "1";
+        document.addEventListener("fullscreenchange", () => {{
+          updateMapFullscreenControl();
+          requestNetworkMapFullscreenResize();
+        }});
+        document.addEventListener("webkitfullscreenchange", () => {{
+          updateMapFullscreenControl();
+          requestNetworkMapFullscreenResize();
+        }});
+      }}
+      updateMapFullscreenControl();
+    }}
+
     function bindMapResetControl() {{
       const btn = document.getElementById("map-reset-view-btn");
       if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;

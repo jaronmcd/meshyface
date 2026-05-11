@@ -3209,6 +3209,49 @@
     .map-reset-view-btn:hover {{
       background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
     }}
+    .map-fullscreen-toggle-btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, var(--ink) 80%, var(--accent-2) 20%);
+      cursor: pointer;
+    }}
+    .map-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+    }}
+    .map-fullscreen-toggle-btn:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 1px;
+    }}
+    .map-fullscreen-toggle-btn[hidden] {{
+      display: none !important;
+    }}
+    .map-fullscreen-toggle-icon {{
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }}
+    .map-fullscreen-toggle-icon-exit {{
+      display: none;
+    }}
+    .map-fullscreen-toggle-btn.is-active .map-fullscreen-toggle-icon-enter {{
+      display: none;
+    }}
+    .map-fullscreen-toggle-btn.is-active .map-fullscreen-toggle-icon-exit {{
+      display: block;
+    }}
     .map-basemap-status {{
       display: inline-flex;
       align-items: center;
@@ -5282,6 +5325,21 @@
       min-height: 0;
       border-radius: inherit;
       overflow: hidden;
+    }}
+    .network-map-subviews:fullscreen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      background: var(--workspace-shell-bg, #08110d);
+    }}
+    .network-map-subviews:-webkit-full-screen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      background: var(--workspace-shell-bg, #08110d);
+    }}
+    .network-map-subviews.is-fullscreen {{
+      border-radius: 0;
     }}
     .network-map-chrome {{
       display: none;

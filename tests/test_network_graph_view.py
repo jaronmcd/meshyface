@@ -37,6 +37,9 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'hidden disabled aria-hidden="true"' in html
     assert 'id="network-map-panel-diagnostics"' in html
     assert 'hidden aria-hidden="true"' in html
+    assert 'id="map-fullscreen-toggle-btn"' in html
+    assert 'aria-label="Enter full screen map"' in html
+    assert html.index('id="map-heatmap-mode"') < html.index('id="map-fullscreen-toggle-btn"')
     assert 'id="network-graph-svg"' in html
     assert 'id="network-graph-back-btn"' not in html
     assert 'id="network-graph-home-btn"' not in html
@@ -98,6 +101,12 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
     assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
     assert 'name: "maltext"' in js
+    assert 'function getNetworkMapFullscreenTarget()' in js
+    assert 'function updateMapFullscreenControl(viewName = activeLayoutView, subviewName = activeNetworkSubview)' in js
+    assert 'function toggleNetworkMapFullscreen()' in js
+    assert 'function bindMapFullscreenControl()' in js
+    assert 'runBootStep("bindMapFullscreenControl", () => bindMapFullscreenControl());' in js
+    assert 'requestMapResizeStabilized();' in js
     assert 'activeNetworkSubview === "graph"' in js
     assert 'activeLayoutView !== "network"\n          || activeNetworkSubview === "map"' in js
     assert 'let networkGraphRootNodeId = "";' in js
@@ -410,6 +419,9 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-action-chip {" in css
     assert ".network-graph-layout-control {" in css
     assert ".network-graph-mode-control {" in css
+    assert ".map-fullscreen-toggle-btn {" in css
+    assert ".network-map-subviews:fullscreen {" in css
+    assert '[data-theme="dark"] .map-fullscreen-toggle-btn {' in css
     assert ".network-graph-layout-select {" in css
     assert ".network-graph-mode-select {" in css
     assert ".network-routes-card {" in css
