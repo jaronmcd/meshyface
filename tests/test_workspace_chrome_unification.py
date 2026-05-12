@@ -431,11 +431,31 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
         '<div class="env-metrics-grid">',
         1,
     )[0]
+    routes_toolbar_section = html.split('<div class="network-routes-toolbar">', 1)[1].split(
+        '<div class="network-routes-picker">',
+        1,
+    )[0]
     diagnostics_actions_section = html.split('<div class="network-diagnostics-toolbar-actions">', 1)[1].split(
         '</div>',
         1,
     )[0]
     window_wrap_section = css.split(".history-window-wrap {", 1)[1].split("}", 1)[0]
+    overview_flex_section = css.split(
+        "pointer-events: auto;\n    }\n    .network-overview-primary-controls,",
+        1,
+    )[1].split("}", 1)[0]
+    routes_window_section = css.split(
+        ".network-routes-primary-controls .network-routes-toolbar .history-window-wrap {",
+        1,
+    )[1].split("}", 1)[0]
+    sensors_controls_section = css.split(
+        ".network-sensors-primary-controls .env-metrics-controls {",
+        1,
+    )[1].split("}", 1)[0]
+    sensors_window_section = css.split(
+        ".network-sensors-primary-controls .history-window-wrap {",
+        1,
+    )[1].split("}", 1)[0]
 
     assert overview_controls_section.index('for="network-overview-metric"') < overview_controls_section.index(
         'for="network-overview-window"'
@@ -444,10 +464,18 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
         'for="weekly-summary-window"'
     )
     assert env_controls_section.index('for="env-metric-select"') < env_controls_section.index('for="env-window-select"')
+    assert 'class="history-metric-wrap history-window-wrap history-select-chip-hide-label" for="network-routes-window"' in routes_toolbar_section
     assert diagnostics_actions_section.index('network-diagnostics-refresh-btn') < diagnostics_actions_section.index(
         'for="network-diagnostics-window"'
     )
     assert "margin-left: auto;" in window_wrap_section
+    assert "flex: 1 1 auto;" in overview_flex_section
+    assert "order: 20;" in routes_window_section
+    assert "margin-left: auto;" in routes_window_section
+    assert "width: 100%;" in sensors_controls_section
+    assert "flex-wrap: nowrap;" in sensors_controls_section
+    assert "order: 20;" in sensors_window_section
+    assert "margin-left: auto;" in sensors_window_section
     assert 'id="network-overview-node-lines-wrap"' in overview_controls_section
     assert 'id="network-overview-packet-lines-wrap"' in overview_controls_section
     assert '<option value="links">Links</option>' not in overview_controls_section
