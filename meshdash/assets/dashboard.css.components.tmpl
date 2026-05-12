@@ -5523,6 +5523,41 @@
       background: transparent;
       box-shadow: none;
     }}
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label,
+    [data-theme="dark"] .layout.view-network .map-heatmap-mode-wrap {{
+      border-color: var(--workspace-shell-border);
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-panel)),
+          color-mix(in srgb, var(--workspace-shell-bg) 92%, black)
+        );
+      color: var(--workspace-shell-text);
+      box-shadow: none;
+    }}
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label:hover,
+    [data-theme="dark"] .layout.view-network .map-heatmap-mode-wrap:hover,
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label:focus-within,
+    [data-theme="dark"] .layout.view-network .map-heatmap-mode-wrap:focus-within {{
+      border-color: var(--workspace-shell-border-strong);
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-hover-bg) 86%, var(--ui-panel-alt)),
+          color-mix(in srgb, var(--workspace-shell-bg) 92%, var(--workspace-shell-hover-bg))
+        );
+    }}
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label::after,
+    [data-theme="dark"] .layout.view-network .map-heatmap-mode-wrap::after {{
+      border-top-color: color-mix(in srgb, var(--workspace-shell-text) 92%, white 8%);
+    }}
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .history-metric-select,
+    [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .env-metric-select,
+    [data-theme="dark"] .layout.view-network .map-heatmap-mode {{
+      background: transparent;
+      border-color: transparent;
+      color: inherit;
+    }}
     [data-theme="dark"] .network-overview-primary-controls .history-metric-label,
     [data-theme="dark"] .network-sensors-primary-controls label {{
       color: var(--workspace-shell-text-soft);

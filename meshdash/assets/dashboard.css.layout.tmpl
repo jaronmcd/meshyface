@@ -852,6 +852,51 @@
       max-width: 100%;
       box-shadow: none;
     }}
+    .layout.view-network .history-select-chip-hide-label,
+    .layout.view-network .map-heatmap-mode-wrap {{
+      position: relative;
+      min-height: 27px;
+      height: 27px;
+      border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent));
+      border-radius: 999px;
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--panel) 94%, var(--accent) 6%),
+          color-mix(in srgb, var(--panel) 84%, var(--accent) 16%)
+        );
+      color: color-mix(in srgb, var(--ink) 86%, var(--accent-2));
+      padding: 0 23px 0 7px;
+      box-shadow: none;
+    }}
+    .layout.view-network .history-select-chip-hide-label::after,
+    .layout.view-network .map-heatmap-mode-wrap::after {{
+      content: "";
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      width: 0;
+      height: 0;
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 5px solid color-mix(in srgb, var(--accent-2) 64%, var(--ink));
+      pointer-events: none;
+      transform: translateY(-35%);
+    }}
+    .layout.view-network .history-select-chip-hide-label .history-metric-select,
+    .layout.view-network .history-select-chip-hide-label .env-metric-select,
+    .layout.view-network .map-heatmap-mode {{
+      -webkit-appearance: none;
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      min-height: 25px;
+      height: 25px;
+      padding: 0;
+      box-shadow: none;
+      cursor: pointer;
+    }}
     .history-metric-toggle {{
       width: 14px;
       height: 14px;

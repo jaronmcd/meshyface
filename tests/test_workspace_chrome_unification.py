@@ -555,6 +555,41 @@ def test_select_only_history_chips_hide_redundant_labels() -> None:
     assert "box-shadow: none;" in compact_chip_section
 
 
+def test_network_dropdown_chips_match_sidebar_launcher_style() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    network_chip_section = css.split(".layout.view-network .history-select-chip-hide-label,", 1)[1].split(
+        "}", 1
+    )[0]
+    network_chip_caret_section = css.split(".layout.view-network .history-select-chip-hide-label::after,", 1)[
+        1
+    ].split("}", 1)[0]
+    network_select_section = css.split(
+        ".layout.view-network .history-select-chip-hide-label .history-metric-select,", 1
+    )[1].split("}", 1)[0]
+    dark_network_chip_section = css.split('[data-theme="dark"] .layout.view-network .history-select-chip-hide-label,', 1)[
+        1
+    ].split("}", 1)[0]
+    dark_network_select_section = css.split(
+        '[data-theme="dark"] .layout.view-network .history-select-chip-hide-label .history-metric-select,', 1
+    )[1].split("}", 1)[0]
+
+    assert ".layout.view-network .map-heatmap-mode-wrap {" in css
+    assert "height: 27px;" in network_chip_section
+    assert "border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent));" in network_chip_section
+    assert "linear-gradient(" in network_chip_section
+    assert "padding: 0 23px 0 7px;" in network_chip_section
+    assert "border-top: 5px solid color-mix(in srgb, var(--accent-2) 64%, var(--ink));" in network_chip_caret_section
+    assert "-webkit-appearance: none;" in network_select_section
+    assert "appearance: none;" in network_select_section
+    assert "background: transparent;" in network_select_section
+    assert "height: 25px;" in network_select_section
+    assert "border-color: var(--workspace-shell-border);" in dark_network_chip_section
+    assert "var(--workspace-shell-bg-alt)" in dark_network_chip_section
+    assert "background: transparent;" in dark_network_select_section
+    assert "color: inherit;" in dark_network_select_section
+
+
 def test_network_overview_group_chips_hide_titles_in_top_strip() -> None:
     html = build_html_shell(
         app_title="Meshyface",
