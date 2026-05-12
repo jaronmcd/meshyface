@@ -97,7 +97,13 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function renderNetworkRoutes(state = latestState, options = {})' in js
     assert 'function networkRoutesFindInferredPath(fromNodeId, toNodeId, adjacency)' in js
     assert 'function buildNetworkRoutesScopedLinks(route, data)' in js
+    assert 'function networkRoutesScopeNodeEmoji(nodeId, node = null)' in js
     assert 'function networkRoutesScopeHtml(route, data, fromNodeId, toNodeId)' in js
+    assert 'const nodeEmoji = networkRoutesScopeNodeEmoji(clean, node);' in js
+    assert 'nodeEmoji ? "has-emoji-glyph" : ""' in js
+    assert 'class="network-route-scope-node-emoji-fo"' in js
+    assert 'class="network-route-scope-node-emoji"' in js
+    assert '${isRoute && !nodeEmoji ? `<text class="network-route-scope-node-index"' in js
     assert 'function bindNetworkRoutesScopeInteractions(root = document)' in js
     assert 'function syncNetworkRoutesFromSelectedNode()' in js
     assert 'const selectedId = normalizeNodeId(selectedNodeId || "");' in js
@@ -498,6 +504,9 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-route-scope-svg.is-panning {" in css
     assert ".network-route-scope-edge.is-route {" in css
     assert ".network-route-scope-node-hit {" in css
+    assert ".network-route-scope-node.has-emoji-glyph .network-route-scope-node-core {" in css
+    assert ".network-route-scope-node-emoji-fo {" in css
+    assert ".network-route-scope-node-emoji {" in css
     assert ".network-route-hop-list {" in css
     assert ".network-route-edge-bar {" in css
     route_css_start = css.index(".network-routes-card {")
@@ -510,6 +519,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert '[data-theme="dark"] .network-route-scope {' in css
     assert '[data-theme="dark"] .network-route-scope-reset-btn {' in css
     assert '[data-theme="dark"] .network-route-scope-edge.is-route {' in css
+    assert '[data-theme="dark"] .network-route-scope-node.has-emoji-glyph .network-route-scope-node-core {' in css
     assert '[data-theme="dark"] .network-route-hop {' in css
     assert '[data-theme="dark"] .network-route-hop-index {' in css
     assert "[data-theme=\"dark\"] .network-graph-layout-control," in css

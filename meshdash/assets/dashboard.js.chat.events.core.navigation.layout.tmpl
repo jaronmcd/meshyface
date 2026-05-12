@@ -2390,6 +2390,12 @@
       return `${{clean.x.toFixed(1)}} ${{clean.y.toFixed(1)}} ${{clean.width.toFixed(1)}} ${{clean.height.toFixed(1)}}`;
     }}
 
+    function networkRoutesScopeNodeEmoji(nodeId, node = null) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId || typeof nodeVisualEmojiForNode !== "function") return "";
+      return String(nodeVisualEmojiForNode(cleanNodeId, null, node) || "").trim();
+    }}
+
     function setNetworkRoutesScopeViewBox(svg, rawViewBox) {{
       if (!(svg instanceof SVGSVGElement)) return;
       const defaultViewBox = networkRoutesScopeViewBoxFrom(svg.getAttribute("data-route-scope-default-viewbox"));
@@ -2557,6 +2563,8 @@
         const isLocal = clean && clean === localNodeId;
         const index = scoped.pathIndex.has(clean) ? scoped.pathIndex.get(clean) : -1;
         const name = networkGraphNodeDisplayName(clean, nodeMap);
+        const node = nodeMap.get(clean) || null;
+        const nodeEmoji = networkRoutesScopeNodeEmoji(clean, node);
         const labelMax = denseRoute && !isFrom && !isTo ? 9 : (isRoute ? 14 : 11);
         const label = truncateNetworkGraphLabel(name, labelMax);
         const idLabel = clean.length > 8 ? clean.slice(-8) : clean;
@@ -2564,11 +2572,14 @@
         const classes = [
           "network-route-scope-node",
           isRoute ? "is-route" : "is-context",
+          nodeEmoji ? "has-emoji-glyph" : "",
           isFrom ? "is-from" : "",
           isTo ? "is-to" : "",
           isLocal ? "is-local" : "",
         ].filter(Boolean).join(" ");
         const title = `${{name}} (${{clean}})`;
+        const emojiBoxSize = Math.max(22, Math.round(radius * 2.15));
+        const emojiBoxOffset = -(emojiBoxSize / 2);
         return `<g class="${{escAttr(classes)}}"
           data-route-node-id="${{escAttr(clean)}}"
           tabindex="0"
@@ -2579,7 +2590,10 @@
           <title>${{escAttr(title)}}</title>
           <circle class="network-route-scope-node-hit" r="${{escAttr(String(radius + 10))}}"></circle>
           <circle class="network-route-scope-node-core" r="${{escAttr(String(radius))}}"></circle>
-          ${{isRoute ? `<text class="network-route-scope-node-index" y="4">${{escAttr(String(index + 1))}}</text>` : ""}}
+          ${{nodeEmoji ? `<foreignObject class="network-route-scope-node-emoji-fo" x="${{emojiBoxOffset.toFixed(1)}}" y="${{emojiBoxOffset.toFixed(1)}}" width="${{emojiBoxSize.toFixed(1)}}" height="${{emojiBoxSize.toFixed(1)}}" aria-hidden="true">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="network-route-scope-node-emoji">${{escAttr(nodeEmoji)}}</div>
+          </foreignObject>` : ""}}
+          ${{isRoute && !nodeEmoji ? `<text class="network-route-scope-node-index" y="4">${{escAttr(String(index + 1))}}</text>` : ""}}
           <text class="network-route-scope-node-label" y="${{escAttr(String(radius + 14))}}">${{escAttr(label)}}</text>
           <text class="network-route-scope-node-id" y="${{escAttr(String(radius + 26))}}">${{escAttr(idLabel)}}</text>
         </g>`;

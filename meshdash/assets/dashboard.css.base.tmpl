@@ -6987,6 +6987,39 @@
       stroke-width: 2;
       vector-effect: non-scaling-stroke;
     }}
+    .network-route-scope-node.has-emoji-glyph .network-route-scope-node-core {{
+      fill: #21315d;
+      stroke: #86a9ff;
+      stroke-width: 2.2;
+    }}
+    .network-route-scope-node.has-emoji-glyph.is-from .network-route-scope-node-core,
+    .network-route-scope-node.has-emoji-glyph.is-to .network-route-scope-node-core {{
+      fill: #26376a;
+      stroke: #9db5ff;
+      stroke-width: 2.5;
+    }}
+    .network-route-scope-node-emoji-fo {{
+      overflow: visible;
+      pointer-events: none;
+    }}
+    .network-route-scope-node-emoji {{
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+      font-size: 18px;
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+      transform: translateY(-1px);
+      filter: drop-shadow(0 1px 2px rgba(7, 18, 31, 0.65));
+    }}
+    .network-route-scope-node.has-emoji-glyph.is-from .network-route-scope-node-emoji,
+    .network-route-scope-node.has-emoji-glyph.is-to .network-route-scope-node-emoji {{
+      font-size: 22px;
+    }}
     .network-route-scope-node.is-context .network-route-scope-node-core {{
       fill: rgba(255, 255, 255, 0.78);
       stroke: rgba(131, 163, 141, 0.76);
@@ -6997,6 +7030,11 @@
       fill: color-mix(in srgb, var(--accent) 34%, white 66%);
       stroke: color-mix(in srgb, var(--accent) 70%, var(--accent-2) 30%);
       stroke-width: 2.4;
+    }}
+    .network-route-scope-node.has-emoji-glyph.is-context .network-route-scope-node-core {{
+      fill: #21315d;
+      stroke: #86a9ff;
+      stroke-width: 2;
     }}
     .network-route-scope-node:hover .network-route-scope-node-core,
     .network-route-scope-node:focus-visible .network-route-scope-node-core {{

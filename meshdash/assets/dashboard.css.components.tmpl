@@ -5660,6 +5660,10 @@
       fill: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--workspace-shell-bg-alt) 22%);
       stroke: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
     }}
+    [data-theme="dark"] .network-route-scope-node.has-emoji-glyph .network-route-scope-node-core {{
+      fill: #21315d;
+      stroke: #86a9ff;
+    }}
     [data-theme="dark"] .network-route-scope-node.is-context .network-route-scope-node-core {{
       fill: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, black 16%);
       stroke: var(--workspace-shell-border-muted);
@@ -5668,6 +5672,12 @@
     [data-theme="dark"] .network-route-scope-node.is-to .network-route-scope-node-core {{
       fill: color-mix(in srgb, var(--ui-accent) 26%, var(--workspace-shell-bg-alt) 74%);
       stroke: color-mix(in srgb, var(--ui-accent) 68%, var(--workspace-shell-active-text) 32%);
+    }}
+    [data-theme="dark"] .network-route-scope-node.has-emoji-glyph.is-context .network-route-scope-node-core,
+    [data-theme="dark"] .network-route-scope-node.has-emoji-glyph.is-from .network-route-scope-node-core,
+    [data-theme="dark"] .network-route-scope-node.has-emoji-glyph.is-to .network-route-scope-node-core {{
+      fill: #26376a;
+      stroke: #9db5ff;
     }}
     [data-theme="dark"] .network-route-scope-node:hover .network-route-scope-node-core,
     [data-theme="dark"] .network-route-scope-node:focus-visible .network-route-scope-node-core {{
