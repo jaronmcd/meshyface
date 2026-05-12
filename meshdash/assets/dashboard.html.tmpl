@@ -3356,20 +3356,10 @@ Ready.
               <div class="network-overview-panel network-routes-panel">
                 <section class="network-routes-card">
                   <div class="network-routes-toolbar">
-                    <div class="network-routes-mode-group" role="group" aria-label="Route mode">
-                      <button
-                        class="network-routes-mode-btn is-active"
-                        type="button"
-                        aria-pressed="true"
-                        data-network-route-mode="inferred"
-                      >Inferred</button>
-                      <button
-                        class="network-routes-mode-btn"
-                        type="button"
-                        aria-pressed="false"
-                        data-network-route-mode="live"
-                      >Live trace</button>
-                    </div>
+                    <label class="history-metric-wrap history-select-chip-hide-label" for="network-routes-mode-select">
+                      <span class="history-metric-label">Route mode</span>
+                      <select id="network-routes-mode-select" class="history-metric-select network-routes-mode-select" aria-label="Route mode"></select>
+                    </label>
                     <label class="history-metric-wrap history-window-wrap history-select-chip-hide-label" for="network-routes-window">
                       <span class="history-metric-label">Links</span>
                       <select id="network-routes-window" class="history-metric-select" aria-label="Route link window"></select>

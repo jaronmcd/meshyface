@@ -1881,22 +1881,28 @@
 
     function syncNetworkRoutesModeControls() {{
       const mode = normalizeNetworkRoutesMode(networkRoutesMode);
-      for (const btn of document.querySelectorAll("[data-network-route-mode]")) {{
-        if (!(btn instanceof HTMLButtonElement)) continue;
-        const buttonMode = normalizeNetworkRoutesMode(btn.dataset.networkRouteMode || "");
-        const isActive = buttonMode === mode;
-        btn.classList.toggle("is-active", isActive);
-        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+      const select = document.getElementById("network-routes-mode-select");
+      if (!(select instanceof HTMLSelectElement)) return;
+      const optionsSignature = networkRoutesModeDefs.map((entry) => entry.id).join("|");
+      if (select.dataset.optionsSignature !== optionsSignature) {{
+        select.innerHTML = networkRoutesModeDefs
+          .map((entry) => `<option value="${{escAttr(entry.id)}}">${{escAttr(entry.label)}}</option>`)
+          .join("");
+        select.dataset.optionsSignature = optionsSignature;
+      }}
+      if (select.value !== mode) {{
+        select.value = mode;
       }}
     }}
 
     function bindNetworkRoutesControls() {{
       ensureNetworkRoutesWindowOptions();
-      for (const btn of document.querySelectorAll("[data-network-route-mode]")) {{
-        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", () => {{
-          networkRoutesMode = normalizeNetworkRoutesMode(btn.dataset.networkRouteMode || "inferred");
+      syncNetworkRoutesModeControls();
+      const modeSelect = document.getElementById("network-routes-mode-select");
+      if (modeSelect instanceof HTMLSelectElement && modeSelect.dataset.bound !== "1") {{
+        modeSelect.dataset.bound = "1";
+        modeSelect.addEventListener("change", () => {{
+          networkRoutesMode = normalizeNetworkRoutesMode(modeSelect.value || "inferred");
           persistPreferredNetworkRoutesMode(networkRoutesMode);
           renderNetworkRoutes(latestState);
         }});

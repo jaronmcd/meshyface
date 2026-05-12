@@ -35,8 +35,8 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-routes-from"' in html
     assert 'id="network-routes-to"' in html
     assert 'id="network-routes-refresh-btn"' not in html
-    assert 'data-network-route-mode="inferred"' in html
-    assert 'data-network-route-mode="live"' in html
+    assert 'id="network-routes-mode-select"' in html
+    assert 'data-network-route-mode=' not in html
     assert 'data-network-subview="diagnostics"' in html
     assert 'hidden disabled aria-hidden="true"' in html
     assert 'id="network-map-panel-diagnostics"' in html
@@ -91,6 +91,9 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert '|| clean === "top10" || clean === "sensors") return clean;' in js
     assert 'function renderNetworkGraphView(state = latestState)' in js
     assert 'function normalizeNetworkRoutesMode(raw)' in js
+    assert 'const select = document.getElementById("network-routes-mode-select");' in js
+    assert 'networkRoutesModeDefs\n          .map((entry) => `<option value="${escAttr(entry.id)}">${escAttr(entry.label)}</option>`)' in js
+    assert 'networkRoutesMode = normalizeNetworkRoutesMode(modeSelect.value || "inferred");' in js
     assert 'function renderNetworkRoutes(state = latestState, options = {})' in js
     assert 'function networkRoutesFindInferredPath(fromNodeId, toNodeId, adjacency)' in js
     assert 'function buildNetworkRoutesScopedLinks(route, data)' in js
@@ -469,7 +472,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-layout-select {" in css
     assert ".network-graph-mode-select {" in css
     assert ".network-routes-card {" in css
-    assert ".network-routes-mode-btn {" in css
+    assert ".network-routes-mode-btn {" not in css
     assert ".network-route-scope {" in css
     assert ".network-route-scope-reset-btn {" in css
     assert ".network-route-scope-svg.is-panning {" in css
