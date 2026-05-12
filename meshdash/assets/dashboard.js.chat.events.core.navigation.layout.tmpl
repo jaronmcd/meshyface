@@ -1940,20 +1940,6 @@
           renderNetworkRoutes(latestState);
         }});
       }}
-      const refreshBtn = document.getElementById("network-routes-refresh-btn");
-      if (refreshBtn instanceof HTMLButtonElement && refreshBtn.dataset.bound !== "1") {{
-        refreshBtn.dataset.bound = "1";
-        refreshBtn.addEventListener("click", () => {{
-          const edgeMode = normalizeNetworkGraphEdgeMode(networkRoutesWindow);
-          if (networkGraphEdgeModeUsesHistoryFetch(edgeMode)) {{
-            networkGraphHistoryEdgeCache.delete(edgeMode);
-            networkGraphHistoryCapsCache.delete(edgeMode);
-            invalidateNetworkGraphRenderCache();
-            ensureNetworkGraphHistoryEdges(edgeMode);
-          }}
-          renderNetworkRoutes(latestState);
-        }});
-      }}
       const result = document.getElementById("network-routes-result");
       if (result instanceof HTMLElement && result.dataset.bound !== "1") {{
         result.dataset.bound = "1";
@@ -7103,7 +7089,7 @@
       const edgeModeOptionsHtml = networkGraphEdgeModeDefs
         .map((entry) => `<option value="${{entry.id}}"${{edgeMode === entry.id ? " selected" : ""}}>${{entry.label}}</option>`)
         .join("");
-      const summaryHtml = `<div class="network-graph-summary-main"><label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"><span class="network-graph-chip-label history-metric-label">View</span><select id="network-graph-layout-select" class="network-graph-layout-select history-metric-select" aria-label="Network links layout"><option value="radial"${{layoutMode === "radial" ? " selected" : ""}}>Radial</option><option value="tree"${{layoutMode === "tree" ? " selected" : ""}}>Tree</option><option value="cluster"${{layoutMode === "cluster" ? " selected" : ""}}>Cluster</option><option value="community"${{layoutMode === "community" ? " selected" : ""}}>Community</option></select></label><button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip" type="button" title="Reset links view" aria-controls="network-graph-svg"><span class="network-graph-chip-label">View</span><strong>Reset</strong></button></div><div class="network-graph-summary-side"><label class="network-graph-mode-control history-metric-wrap history-select-chip-hide-label" for="network-graph-mode-select" title="Choose the link history window for the Links view"><span class="network-graph-chip-label history-metric-label">Links</span><select id="network-graph-mode-select" class="network-graph-mode-select history-metric-select" aria-label="Network links source">${{edgeModeOptionsHtml}}</select></label></div>`;
+      const summaryHtml = `<div class="network-graph-summary-main"><label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"><span class="network-graph-chip-label history-metric-label">View</span><select id="network-graph-layout-select" class="network-graph-layout-select history-metric-select" aria-label="Network links layout"><option value="radial"${{layoutMode === "radial" ? " selected" : ""}}>Radial</option><option value="tree"${{layoutMode === "tree" ? " selected" : ""}}>Tree</option><option value="cluster"${{layoutMode === "cluster" ? " selected" : ""}}>Cluster</option><option value="community"${{layoutMode === "community" ? " selected" : ""}}>Community</option></select></label><button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip" type="button" title="Reset links view" aria-controls="network-graph-svg">Reset view</button></div><div class="network-graph-summary-side"><label class="network-graph-mode-control history-metric-wrap history-select-chip-hide-label" for="network-graph-mode-select" title="Choose the link history window for the Links view"><span class="network-graph-chip-label history-metric-label">Links</span><select id="network-graph-mode-select" class="network-graph-mode-select history-metric-select" aria-label="Network links source">${{edgeModeOptionsHtml}}</select></label></div>`;
       if (summary.__meshNetworkGraphSummaryHtml !== summaryHtml) {{
         summary.innerHTML = summaryHtml;
         summary.__meshNetworkGraphSummaryHtml = summaryHtml;

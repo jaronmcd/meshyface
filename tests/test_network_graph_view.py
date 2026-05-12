@@ -34,6 +34,7 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="network-sensors-primary-controls"' in html
     assert 'id="network-routes-from"' in html
     assert 'id="network-routes-to"' in html
+    assert 'id="network-routes-refresh-btn"' not in html
     assert 'data-network-route-mode="inferred"' in html
     assert 'data-network-route-mode="live"' in html
     assert 'data-network-subview="diagnostics"' in html
@@ -286,6 +287,7 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'if (summary.__meshNetworkGraphSummaryHtml !== summaryHtml) {' in js
     assert "summary.__meshNetworkGraphSummaryHtml = summaryHtml;" in js
     assert '<button id="network-graph-reset-view-btn" class="network-graph-chip network-graph-action-chip"' in js
+    assert 'aria-controls="network-graph-svg">Reset view</button>' in js
     assert 'bindNetworkGraphLayoutSelector();' in js
     assert 'syncNetworkGraphLayoutSelector();' in js
     assert 'label class="network-graph-layout-control history-metric-wrap history-select-chip-hide-label" for="network-graph-layout-select"' in js
@@ -439,7 +441,6 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-fullscreen-toggle-btn {" in css
     assert ".network-routes-primary-controls," in css
     assert ".network-routes-primary-controls .network-routes-toolbar {" in css
-    assert ".network-routes-primary-controls .network-routes-refresh-btn {" in css
     assert ".network-routes-primary-controls .network-routes-toolbar .history-window-wrap {" in css
     assert ".network-graph-summary.is-overlay-docked .network-graph-action-chip {" in css
     assert ".network-top-nodes-primary-controls," in css

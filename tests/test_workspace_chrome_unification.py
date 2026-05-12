@@ -448,10 +448,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
         ".network-routes-primary-controls .network-routes-toolbar .history-window-wrap {",
         1,
     )[1].split("}", 1)[0]
-    routes_refresh_section = css.split(
-        ".network-routes-primary-controls .network-routes-refresh-btn {",
-        1,
-    )[1].split("}", 1)[0]
     graph_reset_section = css.split(
         ".network-graph-summary.is-overlay-docked .network-graph-action-chip {",
         1,
@@ -486,10 +482,8 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     )
     assert "margin-left: auto;" in window_wrap_section
     assert "flex: 1 1 auto;" in overview_flex_section
-    assert "order: 19;" in routes_refresh_section
-    assert "margin-left: auto;" in routes_refresh_section
     assert "order: 20;" in routes_window_section
-    assert "margin-left: 0;" in routes_window_section
+    assert "margin-left: auto;" in routes_window_section
     assert "margin-left: auto;" in graph_reset_section
     assert "margin-left: 0;" in graph_window_section
     assert "width: 100%;" in sensors_controls_section
