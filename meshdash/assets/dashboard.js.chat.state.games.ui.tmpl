@@ -11,6 +11,108 @@
       return "reversi";
     }}
 
+    function getGamesFullscreenTarget() {{
+      const shell = document.getElementById("games-shell-root");
+      if (shell instanceof HTMLElement) return shell;
+      const fallback = document.querySelector(".games-shell");
+      return fallback instanceof HTMLElement ? fallback : null;
+    }}
+
+    function getGamesActiveFullscreenElement() {{
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }}
+
+    function isGamesFullscreenActive(target = getGamesFullscreenTarget()) {{
+      const fullscreenElement = getGamesActiveFullscreenElement();
+      return !!(target instanceof HTMLElement && fullscreenElement === target);
+    }}
+
+    function gamesFullscreenSupported(target = getGamesFullscreenTarget()) {{
+      if (!(target instanceof HTMLElement)) return false;
+      const canRequest = (
+        typeof target.requestFullscreen === "function"
+        || typeof target.webkitRequestFullscreen === "function"
+      );
+      const documentAllowsFullscreen = (
+        document.fullscreenEnabled !== false
+        && document.webkitFullscreenEnabled !== false
+      );
+      return canRequest && documentAllowsFullscreen;
+    }}
+
+    function updateGamesFullscreenControl(viewName = activeLayoutView) {{
+      const btn = document.getElementById("games-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const target = getGamesFullscreenTarget();
+      const supported = gamesFullscreenSupported(target);
+      const active = isGamesFullscreenActive(target);
+      const normalizedView = (typeof normalizeLayoutView === "function")
+        ? normalizeLayoutView(viewName)
+        : String(viewName || "").trim().toLowerCase();
+      const showControl = supported && (active || normalizedView === "games");
+      btn.hidden = !showControl;
+      btn.disabled = !supported;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      const label = active ? "Exit full screen games view" : "Enter full screen games view";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      if (target instanceof HTMLElement) {{
+        target.classList.toggle("is-fullscreen", active);
+      }}
+    }}
+
+    function requestGamesFullscreenResize() {{
+      queueActiveGamesBoardAutosize();
+    }}
+
+    async function toggleGamesFullscreen() {{
+      const target = getGamesFullscreenTarget();
+      if (!(target instanceof HTMLElement) || !gamesFullscreenSupported(target)) return;
+      try {{
+        if (isGamesFullscreenActive(target)) {{
+          if (typeof document.exitFullscreen === "function") {{
+            await document.exitFullscreen();
+          }} else if (typeof document.webkitExitFullscreen === "function") {{
+            await document.webkitExitFullscreen();
+          }}
+        }} else if (typeof target.requestFullscreen === "function") {{
+          await target.requestFullscreen();
+        }} else if (typeof target.webkitRequestFullscreen === "function") {{
+          await target.webkitRequestFullscreen();
+        }}
+      }} catch (reason) {{
+        console.warn("Unable to toggle games fullscreen", reason);
+      }} finally {{
+        updateGamesFullscreenControl();
+        requestGamesFullscreenResize();
+      }}
+    }}
+
+    function bindGamesFullscreenControl() {{
+      const btn = document.getElementById("games-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      if (btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (event) => {{
+          event.preventDefault();
+          void toggleGamesFullscreen();
+        }});
+      }}
+      if (document.documentElement && document.documentElement.dataset.gamesFullscreenBound !== "1") {{
+        document.documentElement.dataset.gamesFullscreenBound = "1";
+        document.addEventListener("fullscreenchange", () => {{
+          updateGamesFullscreenControl();
+          requestGamesFullscreenResize();
+        }});
+        document.addEventListener("webkitfullscreenchange", () => {{
+          updateGamesFullscreenControl();
+          requestGamesFullscreenResize();
+        }});
+      }}
+      updateGamesFullscreenControl();
+    }}
+
     function syncGamesActivePanels() {{
       activeGameId = normalizeActiveGameId(activeGameId);
       const gamesLibrarySelect = document.getElementById("games-library-select");
@@ -429,6 +531,7 @@
       syncBoardGameNetworkState("chess", _state);
       syncBoardGameNetworkState("wallchess", _state);
       syncGamesActivePanels();
+      updateGamesFullscreenControl(activeLayoutView);
       ensureActiveGamesBoardResizeTracking();
       renderGamesQuickChatHeader(_state);
       if (activeGameId === "reversi") {{
@@ -462,6 +565,7 @@
     }}
 
     function bindGamesControls() {{
+      bindGamesFullscreenControl();
       const gamesLibrarySelect = document.getElementById("games-library-select");
       if (gamesLibrarySelect instanceof HTMLSelectElement && gamesLibrarySelect.dataset.bound !== "1") {{
         gamesLibrarySelect.dataset.bound = "1";

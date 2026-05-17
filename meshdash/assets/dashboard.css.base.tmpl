@@ -3521,6 +3521,11 @@
       margin-left: auto;
       pointer-events: auto;
     }}
+    .games-fullscreen-toggle-btn {{
+      flex: 0 0 auto;
+      align-self: flex-end;
+      pointer-events: auto;
+    }}
     .map-basemap-status {{
       display: inline-flex;
       align-items: center;
@@ -9467,6 +9472,25 @@
       min-height: 0;
       height: 100%;
       flex: 1 1 auto;
+    }}
+    .games-shell:fullscreen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      background: var(--workspace-shell-bg, #08110d);
+      padding: 8px;
+      box-sizing: border-box;
+    }}
+    .games-shell:-webkit-full-screen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      background: var(--workspace-shell-bg, #08110d);
+      padding: 8px;
+      box-sizing: border-box;
+    }}
+    .games-shell.is-fullscreen {{
+      border-radius: 0;
     }}
     .games-shell-splitter {{
       position: relative;

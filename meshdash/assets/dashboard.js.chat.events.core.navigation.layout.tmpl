@@ -8744,6 +8744,9 @@
       syncNetworkRoutesPrimaryControls(next, activeNetworkSubview);
       syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);
       syncEnvironmentMetricsDock(next, activeNetworkSubview);
+      if (typeof updateGamesFullscreenControl === "function") {{
+        updateGamesFullscreenControl(next);
+      }}
       if (latestState) {{
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
