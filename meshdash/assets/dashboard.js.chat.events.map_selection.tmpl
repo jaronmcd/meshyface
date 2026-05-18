@@ -1255,10 +1255,16 @@
       document.body.dataset.nodeDirectionalKeysBound = "1";
       document.addEventListener("keydown", (ev) => {{
         if (ev.defaultPrevented) return;
-        if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
-        if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
         const target = ev.target;
         if (isNodeDirectionalKeyTargetEditable(target)) return;
+        if (ev.key === "Escape") {{
+          if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+          if (!isSelectableNodeId(selectedNodeId || "")) return;
+          clearNodeSelection();
+          return;
+        }}
+        if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+        if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
         const handled = moveSelectedNodeByDirection(ev.key === "ArrowUp" ? -1 : 1);
         if (!handled) return;
         ev.preventDefault();
