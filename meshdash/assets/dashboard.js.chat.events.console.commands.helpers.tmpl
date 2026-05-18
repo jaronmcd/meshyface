@@ -96,8 +96,38 @@
     const consoleNodeTargetAutocompleteCommands = new Set([
       "lookup",
       "node",
+      "ping",
+      "--ping",
+      "request-position",
+      "--request-position",
+      "where",
+      "request-telemetry",
+      "--request-telemetry",
+      "telemetry",
       "traceroute",
       "--traceroute",
+      "send-alert",
+      "--send-alert",
+      "sendtext",
+      "--sendtext",
+      "request-config",
+      "--request-config",
+      "request-channels",
+      "--request-channels",
+      "device-metadata",
+      "--device-metadata",
+      "reset-nodedb",
+      "--reset-nodedb",
+      "factory-reset",
+      "--factory-reset",
+      "factory-reset-device",
+      "--factory-reset-device",
+      "reboot",
+      "--reboot",
+      "shutdown",
+      "--shutdown",
+      "set-time",
+      "--set-time",
     ]);
 
     function normalizeConsoleAutocompleteCandidate(candidate) {{
@@ -128,6 +158,21 @@
         .replace(/"/g, '\\"')}}"`;
     }}
 
+    function resolveConsoleSelectedNodeAutocompleteCandidate(state = latestState) {{
+      const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (!isCanonicalNodeId(selectedId)) return null;
+      const rows = collectConsoleNodeRows(state);
+      if (!rows.some((row) => normalizeNodeId(row && row.id) === selectedId)) {{
+        return null;
+      }}
+      const insertText = escapeConsoleCompletionToken(selectedId);
+      if (!insertText) return null;
+      return {{
+        insertText,
+        displayText: selectedId,
+      }};
+    }}
+
     function resolveConsoleCommandCompletionCandidates(rawPrefix, options = null) {{
       ensureConsoleCommandsRegistered();
       const opts = (options && typeof options === "object") ? options : {{}};
@@ -153,9 +198,16 @@
         }});
     }}
 
-    function resolveConsoleNodeCompletionCandidates(rawPrefix, state = latestState) {{
+    function resolveConsoleNodeCompletionCandidates(rawPrefix, state = latestState, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const preferSelected = opts.preferSelected !== false;
       const prefix = String(rawPrefix == null ? "" : rawPrefix).trim();
-      if (!prefix) return [];
+      const selectedCandidate = preferSelected
+        ? resolveConsoleSelectedNodeAutocompleteCandidate(state)
+        : null;
+      if (!prefix) {{
+        return selectedCandidate ? [selectedCandidate] : [];
+      }}
       const clean = prefix.toLowerCase();
       const rows = collectConsoleNodeRows(state);
       const seen = new Set();
@@ -221,6 +273,16 @@
           }}
         }}
       }}
+      if (selectedCandidate && out.length > 1) {{
+        const selectedInsertText = String(selectedCandidate.insertText || "").toLowerCase();
+        const selectedIdx = out.findIndex((candidate) => (
+          String(candidate && candidate.insertText || "").toLowerCase() === selectedInsertText
+        ));
+        if (selectedIdx > 0) {{
+          const [selectedFirst] = out.splice(selectedIdx, 1);
+          out.unshift(selectedFirst);
+        }}
+      }}
       return out;
     }}
 
@@ -238,7 +300,7 @@
         }});
       }}
       if (tokenIndex === 1 && consoleNodeTargetAutocompleteCommands.has(commandName)) {{
-        return resolveConsoleNodeCompletionCandidates(rawToken, state);
+        return resolveConsoleNodeCompletionCandidates(rawToken, state, {{ preferSelected: true }});
       }}
       return [];
     }}
@@ -963,6 +1025,802 @@
         example: "ping !abcd1234",
         allowHopLimit: true,
       }});
+    }}
+
+    async function runConsoleSendNodeInfoCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "nodeinfo";
+
+      const channelIndexParsed = parseConsoleNetworkIntOption(
+        options,
+        ["ch-index", "ch_index", "channel-index", "channel_index"],
+        "ch-index",
+        0,
+        commandLabel,
+      );
+      if (!channelIndexParsed.ok) return channelIndexParsed.error;
+      const hopLimitParsed = parseConsoleNetworkIntOption(
+        options,
+        ["hop-limit", "hop_limit"],
+        "hop-limit",
+        1,
+        commandLabel,
+      );
+      if (!hopLimitParsed.ok) return hopLimitParsed.error;
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      if (args.length || explicitDest) {{
+        return `[${{commandLabel}}] this command broadcasts local node info and does not take a target.`;
+      }}
+
+      const body = {{
+        command: "send-node-info",
+      }};
+      if (channelIndexParsed.value != null) {{
+        body.channel_index = channelIndexParsed.value;
+      }}
+      if (hopLimitParsed.value != null) {{
+        body.hop_limit = hopLimitParsed.value;
+      }}
+
+      try {{
+        const payload = await postNetworkToolCommand(body);
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        return lines.length ? lines : [`[${{commandLabel}}] broadcast sent`];
+      }} catch (err) {{
+        const payload = (err && typeof err === "object") ? err.payload : null;
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        if (lines.length) {{
+          return lines;
+        }}
+        throw err;
+      }}
+    }}
+
+    function extractConsoleNetworkToolLines(payload) {{
+      return Array.isArray(payload && payload.console_lines)
+        ? payload.console_lines
+            .map((line) => String(line == null ? "" : line).trimEnd())
+            .filter((line) => !!line)
+        : [];
+    }}
+
+    async function runConsoleNetworkToolCommandWithPayload(body, fallbackLine) {{
+      try {{
+        const payload = await postNetworkToolCommand(body);
+        const lines = extractConsoleNetworkToolLines(payload);
+        return lines.length ? lines : [String(fallbackLine == null ? "" : fallbackLine)];
+      }} catch (err) {{
+        const payload = (err && typeof err === "object") ? err.payload : null;
+        const lines = extractConsoleNetworkToolLines(payload);
+        if (lines.length) {{
+          return lines;
+        }}
+        throw err;
+      }}
+    }}
+
+    function parseConsoleUnsignedInt(rawValue, label, commandLabel, minValue = 0) {{
+      const clean = String(rawValue == null ? "" : rawValue).trim();
+      if (!clean) return {{ ok: true, value: null }};
+      const numeric = Number(clean);
+      if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {{
+        return {{ ok: false, error: `[${{commandLabel}}] invalid ${{label}}: ${{clean}}` }};
+      }}
+      if (numeric < minValue) {{
+        return {{ ok: false, error: `[${{commandLabel}}] ${{label}} must be >= ${{minValue}}` }};
+      }}
+      return {{ ok: true, value: Math.trunc(numeric) }};
+    }}
+
+    async function runConsoleSendAlertCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "alert";
+      const channelIndexParsed = parseConsoleNetworkIntOption(
+        options,
+        ["ch-index", "ch_index", "channel-index", "channel_index"],
+        "ch-index",
+        0,
+        commandLabel,
+      );
+      if (!channelIndexParsed.ok) return channelIndexParsed.error;
+      const hopLimitParsed = parseConsoleNetworkIntOption(
+        options,
+        ["hop-limit", "hop_limit"],
+        "hop-limit",
+        1,
+        commandLabel,
+      );
+      if (!hopLimitParsed.ok) return hopLimitParsed.error;
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitText = String(options.text ?? options.message ?? options.msg ?? "").trim();
+
+      let rawTarget = "";
+      let alertText = explicitText;
+      if (explicitDest) {{
+        rawTarget = explicitDest;
+        if (!alertText && args.length) {{
+          alertText = args.join(" ").trim();
+        }}
+      }} else {{
+        rawTarget = String(args[0] || "").trim();
+        if (!rawTarget) {{
+          return `[${{commandLabel}}] missing target. Example: send-alert !abcd1234 \"Heads up\"`;
+        }}
+        if (!alertText) {{
+          alertText = args.slice(1).join(" ").trim();
+        }}
+      }}
+
+      if (!alertText) {{
+        return `[${{commandLabel}}] missing alert text.`;
+      }}
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "send-alert",
+        destination,
+        text: alertText,
+      }};
+      if (channelIndexParsed.value != null) {{
+        body.channel_index = channelIndexParsed.value;
+      }}
+      if (hopLimitParsed.value != null) {{
+        body.hop_limit = hopLimitParsed.value;
+      }}
+
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | alert sent`,
+      );
+    }}
+
+    async function runConsoleSendTextCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "sendtext";
+      const channelIndexParsed = parseConsoleNetworkIntOption(
+        options,
+        ["ch-index", "ch_index", "channel-index", "channel_index"],
+        "ch-index",
+        0,
+        commandLabel,
+      );
+      if (!channelIndexParsed.ok) return channelIndexParsed.error;
+      const hopLimitParsed = parseConsoleNetworkIntOption(
+        options,
+        ["hop-limit", "hop_limit"],
+        "hop-limit",
+        1,
+        commandLabel,
+      );
+      if (!hopLimitParsed.ok) return hopLimitParsed.error;
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitText = String(options.text ?? options.message ?? options.msg ?? "").trim();
+      let rawTarget = "";
+      let messageText = explicitText;
+      if (explicitDest) {{
+        rawTarget = explicitDest;
+        if (!messageText && args.length) {{
+          messageText = args.join(" ").trim();
+        }}
+      }} else {{
+        rawTarget = String(args[0] || "").trim();
+        if (!rawTarget) {{
+          return `[${{commandLabel}}] missing target. Example: sendtext !abcd1234 \"hello\"`;
+        }}
+        if (!messageText) {{
+          messageText = args.slice(1).join(" ").trim();
+        }}
+      }}
+      if (!messageText) {{
+        return `[${{commandLabel}}] missing message text.`;
+      }}
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "sendtext",
+        destination,
+        text: messageText,
+      }};
+      if (channelIndexParsed.value != null) {{
+        body.channel_index = channelIndexParsed.value;
+      }}
+      if (hopLimitParsed.value != null) {{
+        body.hop_limit = hopLimitParsed.value;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | message sent`,
+      );
+    }}
+
+    const consoleRequestConfigTypeAliases = {{
+      device: "device_config",
+      device_config: "device_config",
+      position: "position_config",
+      position_config: "position_config",
+      power: "power_config",
+      power_config: "power_config",
+      network: "network_config",
+      network_config: "network_config",
+      display: "display_config",
+      display_config: "display_config",
+      lora: "lora_config",
+      lora_config: "lora_config",
+      bluetooth: "bluetooth_config",
+      bluetooth_config: "bluetooth_config",
+      security: "security_config",
+      security_config: "security_config",
+      sessionkey: "sessionkey_config",
+      session_key: "sessionkey_config",
+      sessionkey_config: "sessionkey_config",
+      deviceui: "deviceui_config",
+      device_ui: "deviceui_config",
+      deviceui_config: "deviceui_config",
+      ui: "deviceui_config",
+    }};
+
+    function normalizeConsoleRequestConfigType(rawType) {{
+      const clean = String(rawType == null ? "" : rawType).trim().toLowerCase().replace(/-/g, "_");
+      if (!clean) return "device_config";
+      return consoleRequestConfigTypeAliases[clean] || "";
+    }}
+
+    async function runConsoleRequestConfigCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "request-config";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitTypeRaw = String(options.config_type ?? options["config-type"] ?? options.config ?? "").trim();
+
+      let rawTarget = "";
+      let rawType = explicitTypeRaw;
+      if (explicitDest) {{
+        rawTarget = explicitDest;
+        if (!rawType && args.length) {{
+          rawType = String(args[0] || "").trim();
+        }}
+      }} else {{
+        rawTarget = String(args[0] || "").trim();
+        if (!rawTarget) {{
+          return `[${{commandLabel}}] missing target. Example: request-config !abcd1234`;
+        }}
+        if (!rawType && args.length > 1) {{
+          rawType = String(args[1] || "").trim();
+        }}
+      }}
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const configType = normalizeConsoleRequestConfigType(rawType);
+      if (!configType) {{
+        return `[${{commandLabel}}] invalid config type: ${{rawType}}`;
+      }}
+
+      const body = {{
+        command: "request-config",
+        destination,
+        config_type: configType,
+      }};
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | requested ${{configType}}`,
+      );
+    }}
+
+    async function runConsoleRequestChannelsCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "request-channels";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitStart = options.starting_index ?? options.start_index ?? options.start;
+
+      let rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: request-channels !abcd1234`;
+      }}
+      let startRaw = explicitStart;
+      if (startRaw == null && args.length > (explicitDest ? 0 : 1)) {{
+        startRaw = args[explicitDest ? 0 : 1];
+      }}
+      const startParsed = parseConsoleUnsignedInt(startRaw, "start", commandLabel, 0);
+      if (!startParsed.ok) return startParsed.error;
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "request-channels",
+        destination,
+      }};
+      if (startParsed.value != null) {{
+        body.starting_index = startParsed.value;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | request completed`,
+      );
+    }}
+
+    function parseConsoleConfirmFlag(options, commandLabel) {{
+      const raw = options.confirm;
+      if (raw === true) return {{ ok: true, confirmed: true }};
+      if (raw === false) return {{ ok: true, confirmed: false }};
+      if (raw == null) return {{ ok: true, confirmed: false }};
+      const clean = String(raw).trim().toLowerCase();
+      if (["1", "true", "yes", "y", "on"].includes(clean)) {{
+        return {{ ok: true, confirmed: true }};
+      }}
+      if (["0", "false", "no", "n", "off"].includes(clean)) {{
+        return {{ ok: true, confirmed: false }};
+      }}
+      return {{
+        ok: false,
+        confirmed: false,
+        error: `[${{commandLabel}}] invalid confirm value: ${{String(raw)}}`,
+      }};
+    }}
+
+    function ensureDangerousCommandConfirmed(options, commandLabel) {{
+      const parsed = parseConsoleConfirmFlag(options, commandLabel);
+      if (!parsed.ok) {{
+        return {{ ok: false, error: parsed.error }};
+      }}
+      if (parsed.confirmed) {{
+        return {{ ok: true, confirmed: true }};
+      }}
+      return {{
+        ok: false,
+        error: `[${{commandLabel}}] blocked. Re-run with --confirm to execute.`,
+      }};
+    }}
+
+    async function runConsoleDeviceMetadataCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "device-metadata";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: device-metadata !abcd1234`;
+      }}
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        {{
+          command: "device-metadata",
+          destination,
+        }},
+        `[${{commandLabel}}] ${{destination}} | request sent`,
+      );
+    }}
+
+    async function runConsoleResetNodeDbCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "reset-nodedb";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: reset-nodedb !abcd1234 --confirm`;
+      }}
+      const confirmed = ensureDangerousCommandConfirmed(options, commandLabel);
+      if (!confirmed.ok) return confirmed.error;
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        {{
+          command: "reset-nodedb",
+          destination,
+          confirm: true,
+        }},
+        `[${{commandLabel}}] ${{destination}} | request sent`,
+      );
+    }}
+
+    async function runConsoleFactoryResetCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "factory-reset";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: factory-reset !abcd1234 --confirm`;
+      }}
+      const confirmed = ensureDangerousCommandConfirmed(options, commandLabel);
+      if (!confirmed.ok) return confirmed.error;
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        {{
+          command: "factory-reset",
+          destination,
+          confirm: true,
+        }},
+        `[${{commandLabel}}] ${{destination}} | request sent`,
+      );
+    }}
+
+    async function runConsoleFactoryResetDeviceCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "factory-reset-device";
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: factory-reset-device !abcd1234 --confirm`;
+      }}
+      const confirmed = ensureDangerousCommandConfirmed(options, commandLabel);
+      if (!confirmed.ok) return confirmed.error;
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+      return runConsoleNetworkToolCommandWithPayload(
+        {{
+          command: "factory-reset-device",
+          destination,
+          confirm: true,
+        }},
+        `[${{commandLabel}}] ${{destination}} | request sent`,
+      );
+    }}
+
+    async function runConsoleRebootCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "reboot";
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitDelayRaw = options.delay_seconds
+        ?? options.delay
+        ?? options["delay-seconds"]
+        ?? options.secs
+        ?? options.seconds;
+      let rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: reboot !abcd1234`;
+      }}
+
+      let delayRaw = explicitDelayRaw;
+      if (delayRaw == null && args.length > (explicitDest ? 0 : 1)) {{
+        delayRaw = args[explicitDest ? 0 : 1];
+      }}
+      const delayParsed = parseConsoleUnsignedInt(delayRaw, "delay", commandLabel, 0);
+      if (!delayParsed.ok) return delayParsed.error;
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "reboot",
+        destination,
+      }};
+      if (delayParsed.value != null) {{
+        body.delay_seconds = delayParsed.value;
+      }}
+
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | request completed`,
+      );
+    }}
+
+    async function runConsoleShutdownCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "shutdown";
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitDelayRaw = options.delay_seconds
+        ?? options.delay
+        ?? options["delay-seconds"]
+        ?? options.secs
+        ?? options.seconds;
+      let rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: shutdown !abcd1234`;
+      }}
+
+      let delayRaw = explicitDelayRaw;
+      if (delayRaw == null && args.length > (explicitDest ? 0 : 1)) {{
+        delayRaw = args[explicitDest ? 0 : 1];
+      }}
+      const delayParsed = parseConsoleUnsignedInt(delayRaw, "delay", commandLabel, 0);
+      if (!delayParsed.ok) return delayParsed.error;
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "shutdown",
+        destination,
+      }};
+      if (delayParsed.value != null) {{
+        body.delay_seconds = delayParsed.value;
+      }}
+
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | request completed`,
+      );
+    }}
+
+    async function runConsoleSetTimeCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "set-time";
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitTimeRaw = options.time_sec
+        ?? options.time
+        ?? options["time-sec"]
+        ?? options["unix-time"]
+        ?? options.unix_time
+        ?? options.unix
+        ?? options.timestamp;
+      let rawTarget = explicitDest || String(args[0] || "").trim();
+      if (!rawTarget) {{
+        return `[${{commandLabel}}] missing target. Example: set-time !abcd1234`;
+      }}
+
+      let timeRaw = explicitTimeRaw;
+      if (timeRaw == null && args.length > (explicitDest ? 0 : 1)) {{
+        timeRaw = args[explicitDest ? 0 : 1];
+      }}
+      const timeParsed = parseConsoleUnsignedInt(timeRaw, "time", commandLabel, 1);
+      if (!timeParsed.ok) return timeParsed.error;
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const body = {{
+        command: "set-time",
+        destination,
+      }};
+      if (timeParsed.value != null) {{
+        body.time_sec = timeParsed.value;
+      }}
+
+      return runConsoleNetworkToolCommandWithPayload(
+        body,
+        `[${{commandLabel}}] ${{destination}} | request completed`,
+      );
+    }}
+
+    const consoleTelemetryTypeAliases = {{
+      device: "device_metrics",
+      device_metrics: "device_metrics",
+      environment: "environment_metrics",
+      environment_metrics: "environment_metrics",
+      air_quality: "air_quality_metrics",
+      airquality: "air_quality_metrics",
+      air_quality_metrics: "air_quality_metrics",
+      power: "power_metrics",
+      power_metrics: "power_metrics",
+      localstats: "local_stats",
+      local_stats: "local_stats",
+    }};
+
+    function normalizeConsoleTelemetryType(rawType) {{
+      const clean = String(rawType == null ? "" : rawType).trim().toLowerCase();
+      if (!clean) return "device_metrics";
+      return consoleTelemetryTypeAliases[clean] || "";
+    }}
+
+    async function runConsoleRequestTelemetryCommand(ctx) {{
+      const options = (ctx && ctx.options && typeof ctx.options === "object")
+        ? ctx.options
+        : {{}};
+      const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+      const commandLabel = "telemetry";
+
+      const channelIndexParsed = parseConsoleNetworkIntOption(
+        options,
+        ["ch-index", "ch_index", "channel-index", "channel_index"],
+        "ch-index",
+        0,
+        commandLabel,
+      );
+      if (!channelIndexParsed.ok) return channelIndexParsed.error;
+      const hopLimitParsed = parseConsoleNetworkIntOption(
+        options,
+        ["hop-limit", "hop_limit"],
+        "hop-limit",
+        1,
+        commandLabel,
+      );
+      if (!hopLimitParsed.ok) return hopLimitParsed.error;
+      const timeoutParsed = parseConsoleNetworkIntOption(
+        options,
+        ["timeout", "timeout_ms"],
+        "timeout",
+        1,
+        commandLabel,
+      );
+      if (!timeoutParsed.ok) return timeoutParsed.error;
+
+      const explicitDest = String(options.dest ?? options.destination ?? "").trim();
+      const explicitTypeRaw = String(options.type ?? options.telemetry_type ?? options["telemetry-type"] ?? "").trim();
+
+      let rawTarget = "";
+      let rawType = explicitTypeRaw;
+      if (explicitDest) {{
+        rawTarget = explicitDest;
+        if (args.length > 1) {{
+          return `[${{commandLabel}}] too many positional arguments. Use one optional telemetry type.`;
+        }}
+        if (!rawType && args.length === 1) {{
+          rawType = String(args[0] || "").trim();
+        }}
+      }} else {{
+        rawTarget = String(args[0] || "").trim();
+        if (!rawTarget) {{
+          return `[${{commandLabel}}] missing target. Example: request-telemetry !abcd1234`;
+        }}
+        if (!rawType && args.length > 1) {{
+          rawType = String(args[1] || "").trim();
+        }}
+        if (args.length > 2) {{
+          return `[${{commandLabel}}] too many positional arguments.`;
+        }}
+      }}
+
+      const resolved = resolveConsoleNetworkCommandDestination(rawTarget, ctx && ctx.state, commandLabel);
+      if (!resolved.ok) {{
+        return Array.isArray(resolved.lines) ? resolved.lines : `[${{commandLabel}}] invalid target: ${{rawTarget}}`;
+      }}
+      const destination = String(resolved.destination || "").trim();
+      if (!isCanonicalNodeId(destination)) {{
+        return `[${{commandLabel}}] invalid destination: ${{destination || rawTarget}}`;
+      }}
+
+      const telemetryType = normalizeConsoleTelemetryType(rawType);
+      if (!telemetryType) {{
+        return `[${{commandLabel}}] invalid telemetry type: ${{rawType}} (use device|environment|air_quality|power|localstats)`;
+      }}
+
+      const body = {{
+        command: "request-telemetry",
+        destination,
+        telemetry_type: telemetryType,
+      }};
+      if (channelIndexParsed.value != null) {{
+        body.channel_index = channelIndexParsed.value;
+      }}
+      if (hopLimitParsed.value != null) {{
+        body.hop_limit = hopLimitParsed.value;
+      }}
+      if (timeoutParsed.value != null) {{
+        body.timeout_ms = timeoutParsed.value;
+      }}
+
+      try {{
+        const payload = await postNetworkToolCommand(body);
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        return lines.length ? lines : [`[${{commandLabel}}] ${{destination}} | request completed`];
+      }} catch (err) {{
+        const payload = (err && typeof err === "object") ? err.payload : null;
+        const lines = Array.isArray(payload && payload.console_lines)
+          ? payload.console_lines
+              .map((line) => String(line == null ? "" : line).trimEnd())
+              .filter((line) => !!line)
+          : [];
+        if (lines.length) {{
+          return lines;
+        }}
+        throw err;
+      }}
     }}
 
     async function runConsoleRequestPositionCommand(ctx) {{

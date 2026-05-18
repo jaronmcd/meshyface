@@ -528,6 +528,48 @@
         run: runConsolePingCommand,
       }});
       registerConsoleCommand({{
+        name: "send-node-info",
+        usage: "send-node-info [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Broadcast this radio's node info on the mesh.",
+        supportsVerbosity: false,
+        run: runConsoleSendNodeInfoCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--send-node-info",
+        usage: "--send-node-info [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Meshtastic-style alias for send-node-info.",
+        supportsVerbosity: false,
+        run: runConsoleSendNodeInfoCommand,
+      }});
+      registerConsoleCommand({{
+        name: "send-alert",
+        usage: "send-alert <id|name|num> <text> [--dest=<id>] [--text=<text>] [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Send an alert message to one node.",
+        supportsVerbosity: false,
+        run: runConsoleSendAlertCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--send-alert",
+        usage: "--send-alert <id|name|num> <text> [--dest=<id>] [--text=<text>] [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Meshtastic-style alias for send-alert.",
+        supportsVerbosity: false,
+        run: runConsoleSendAlertCommand,
+      }});
+      registerConsoleCommand({{
+        name: "sendtext",
+        usage: "sendtext <id|name|num> <text> [--dest=<id>] [--text=<text>] [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Official Meshtastic command to send a text message to one node.",
+        supportsVerbosity: false,
+        run: runConsoleSendTextCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--sendtext",
+        usage: "--sendtext <id|name|num> <text> [--dest=<id>] [--text=<text>] [--ch-index=<n>] [--hop-limit=<n>]",
+        description: "Meshtastic CLI-style form for sendtext.",
+        supportsVerbosity: false,
+        run: runConsoleSendTextCommand,
+      }});
+      registerConsoleCommand({{
         name: "request-position",
         usage: "request-position <id|name|num> [--dest=<id>] [--ch-index=<n>] [timeout=<ms>]",
         description: "Ask one node to reply with its position.",
@@ -547,6 +589,153 @@
         description: "Alias for request-position.",
         supportsVerbosity: false,
         run: runConsoleRequestPositionCommand,
+      }});
+      registerConsoleCommand({{
+        name: "request-telemetry",
+        usage: "request-telemetry <id|name|num> [type=device|environment|air_quality|power|localstats] [--dest=<id>] [--type=<type>] [--ch-index=<n>] [--hop-limit=<n>] [timeout=<ms>]",
+        description: "Ask one node to reply with telemetry metrics.",
+        supportsVerbosity: false,
+        run: runConsoleRequestTelemetryCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--request-telemetry",
+        usage: "--request-telemetry <id|name|num> [type=device|environment|air_quality|power|localstats] [--dest=<id>] [--type=<type>] [--ch-index=<n>] [--hop-limit=<n>] [timeout=<ms>]",
+        description: "Meshtastic-style alias for request-telemetry.",
+        supportsVerbosity: false,
+        run: runConsoleRequestTelemetryCommand,
+      }});
+      registerConsoleCommand({{
+        name: "telemetry",
+        usage: "telemetry <id|name|num> [type=device|environment|air_quality|power|localstats] [--dest=<id>] [--type=<type>] [--ch-index=<n>] [--hop-limit=<n>] [timeout=<ms>]",
+        description: "Alias for request-telemetry.",
+        supportsVerbosity: false,
+        run: runConsoleRequestTelemetryCommand,
+      }});
+      registerConsoleCommand({{
+        name: "request-config",
+        usage: "request-config <id|name|num> [config=device|position|power|network|display|lora|bluetooth|security|sessionkey|deviceui] [--dest=<id>] [--config=<type>]",
+        description: "Request a local config block from a node.",
+        supportsVerbosity: false,
+        run: runConsoleRequestConfigCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--request-config",
+        usage: "--request-config <id|name|num> [config=device|position|power|network|display|lora|bluetooth|security|sessionkey|deviceui] [--dest=<id>] [--config=<type>]",
+        description: "Meshtastic-style alias for request-config.",
+        supportsVerbosity: false,
+        run: runConsoleRequestConfigCommand,
+      }});
+      registerConsoleCommand({{
+        name: "request-channels",
+        usage: "request-channels <id|name|num> [start=<index>] [--dest=<id>] [--start-index=<n>]",
+        description: "Request channel records from a node.",
+        supportsVerbosity: false,
+        run: runConsoleRequestChannelsCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--request-channels",
+        usage: "--request-channels <id|name|num> [start=<index>] [--dest=<id>] [--start-index=<n>]",
+        description: "Meshtastic-style alias for request-channels.",
+        supportsVerbosity: false,
+        run: runConsoleRequestChannelsCommand,
+      }});
+      registerConsoleCommand({{
+        name: "device-metadata",
+        usage: "device-metadata <id|name|num> [--dest=<id>]",
+        description: "Official Meshtastic command to request device metadata.",
+        supportsVerbosity: false,
+        run: runConsoleDeviceMetadataCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--device-metadata",
+        usage: "--device-metadata <id|name|num> [--dest=<id>]",
+        description: "Meshtastic CLI-style form for device-metadata.",
+        supportsVerbosity: false,
+        run: runConsoleDeviceMetadataCommand,
+      }});
+      registerConsoleCommand({{
+        name: "reset-nodedb",
+        usage: "reset-nodedb <id|name|num> [--dest=<id>] --confirm",
+        description: "Dangerous: clear a node's NodeDB (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleResetNodeDbCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--reset-nodedb",
+        usage: "--reset-nodedb <id|name|num> [--dest=<id>] --confirm",
+        description: "Meshtastic CLI-style form for reset-nodedb (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleResetNodeDbCommand,
+      }});
+      registerConsoleCommand({{
+        name: "factory-reset",
+        usage: "factory-reset <id|name|num> [--dest=<id>] --confirm",
+        description: "Dangerous: reset node config to defaults (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleFactoryResetCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--factory-reset",
+        usage: "--factory-reset <id|name|num> [--dest=<id>] --confirm",
+        description: "Meshtastic CLI-style form for factory-reset (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleFactoryResetCommand,
+      }});
+      registerConsoleCommand({{
+        name: "factory-reset-device",
+        usage: "factory-reset-device <id|name|num> [--dest=<id>] --confirm",
+        description: "Dangerous: full device factory reset (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleFactoryResetDeviceCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--factory-reset-device",
+        usage: "--factory-reset-device <id|name|num> [--dest=<id>] --confirm",
+        description: "Meshtastic CLI-style form for factory-reset-device (requires --confirm).",
+        supportsVerbosity: false,
+        run: runConsoleFactoryResetDeviceCommand,
+      }});
+      registerConsoleCommand({{
+        name: "reboot",
+        usage: "reboot <id|name|num> [delay=<seconds>] [--dest=<id>]",
+        description: "Ask one node to reboot.",
+        supportsVerbosity: false,
+        run: runConsoleRebootCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--reboot",
+        usage: "--reboot <id|name|num> [delay=<seconds>] [--dest=<id>]",
+        description: "Meshtastic-style alias for reboot.",
+        supportsVerbosity: false,
+        run: runConsoleRebootCommand,
+      }});
+      registerConsoleCommand({{
+        name: "shutdown",
+        usage: "shutdown <id|name|num> [delay=<seconds>] [--dest=<id>]",
+        description: "Ask one node to shutdown.",
+        supportsVerbosity: false,
+        run: runConsoleShutdownCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--shutdown",
+        usage: "--shutdown <id|name|num> [delay=<seconds>] [--dest=<id>]",
+        description: "Meshtastic-style alias for shutdown.",
+        supportsVerbosity: false,
+        run: runConsoleShutdownCommand,
+      }});
+      registerConsoleCommand({{
+        name: "set-time",
+        usage: "set-time <id|name|num> [time=<epoch_seconds>] [--dest=<id>]",
+        description: "Set a node clock to now or a provided unix timestamp.",
+        supportsVerbosity: false,
+        run: runConsoleSetTimeCommand,
+      }});
+      registerConsoleCommand({{
+        name: "--set-time",
+        usage: "--set-time <id|name|num> [time=<epoch_seconds>] [--dest=<id>]",
+        description: "Meshtastic-style alias for set-time.",
+        supportsVerbosity: false,
+        run: runConsoleSetTimeCommand,
       }});
       registerConsoleCommand({{
         name: "traceroute",

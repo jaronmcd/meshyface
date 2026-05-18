@@ -4,6 +4,25 @@ from .chat_scope import chat_scope_for_destination
 from .runtime_types import FormatEpochFn, ToIntFn, UtcNowFn
 
 
+def _extract_alert_text_from_decoded_payload(decoded: object) -> str:
+    if not isinstance(decoded, dict):
+        return ""
+    portnum = str(decoded.get("portnum") or "").strip().upper()
+    if not portnum or not portnum.endswith("ALERT_APP"):
+        return ""
+    payload = decoded.get("payload")
+    if isinstance(payload, str):
+        return payload.strip()
+    if isinstance(payload, memoryview):
+        payload = payload.tobytes()
+    if isinstance(payload, (bytes, bytearray)):
+        try:
+            return bytes(payload).decode("utf-8").strip()
+        except Exception:
+            return ""
+    return ""
+
+
 def build_packet_summary(
     *,
     packet: dict[str, object],
@@ -72,6 +91,10 @@ def build_chat_entry_from_packet(
     format_epoch_fn: FormatEpochFn,
 ) -> Optional[dict[str, object]]:
     decoded_text = decoded.get("text") if isinstance(decoded, dict) else None
+    if not (isinstance(decoded_text, str) and decoded_text.strip()):
+        alert_text = _extract_alert_text_from_decoded_payload(decoded)
+        if alert_text:
+            decoded_text = alert_text
     has_text = isinstance(decoded_text, str) and decoded_text.strip()
     if not (has_text or is_reaction):
         return None

@@ -831,8 +831,13 @@
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
-        if (unreadDirectCount > 0 && typeof setChatNodeDetailsDrawerTab === "function") {{
+        selectNode(nodeId, true, true);
+        const selectedAfterClick = normalizeNodeId(selectedNodeId || "");
+        if (
+          unreadDirectCount > 0
+          && selectedAfterClick === nodeId
+          && typeof setChatNodeDetailsDrawerTab === "function"
+        ) {{
           setChatNodeDetailsDrawerTab("messages", {{
             fetchHistory: false,
           }});

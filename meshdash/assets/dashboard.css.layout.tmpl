@@ -6344,6 +6344,17 @@
       background: rgba(var(--peer-dm-channel-rgb), 0.2);
       color: #1f4231;
     }}
+    .peer-dm-popout-msg.is-alert {{
+      border-color: rgba(191, 66, 70, 0.54);
+      background: rgba(191, 66, 70, 0.14);
+      box-shadow: inset 2px 0 0 rgba(191, 66, 70, 0.72);
+      color: #6d1f25;
+    }}
+    .peer-dm-popout-msg.is-own.is-alert {{
+      border-color: rgba(191, 66, 70, 0.7);
+      background: rgba(191, 66, 70, 0.18);
+      color: #621b22;
+    }}
     .peer-dm-popout-msg-meta {{
       font-size: 9px;
       color: #5c7868;
@@ -6352,6 +6363,25 @@
       align-items: center;
       gap: 5px;
       white-space: nowrap;
+    }}
+    .peer-dm-popout-msg.is-alert .peer-dm-popout-msg-meta {{
+      color: #8a3a40;
+    }}
+    .peer-dm-popout-alert-chip {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 13px;
+      height: 13px;
+      border-radius: 999px;
+      margin-right: 4px;
+      border: 1px solid rgba(191, 66, 70, 0.74);
+      background: rgba(191, 66, 70, 0.16);
+      color: #8f262c;
+      font-size: 9px;
+      line-height: 1;
+      font-weight: 800;
+      vertical-align: middle;
     }}
     .peer-dm-popout-msg-text {{
       font-size: 11px;
@@ -6919,6 +6949,34 @@
           rgba(var(--chat-feed-channel-rgb), 0) 100%
         );
     }}
+    .chat-feed-item.kind-alert {{
+      border-left: 2px solid rgba(191, 66, 70, 0.9);
+      background:
+        linear-gradient(90deg, rgba(191, 66, 70, 0.16), rgba(191, 66, 70, 0.08) 34%, rgba(191, 66, 70, 0.02) 62%, rgba(191, 66, 70, 0) 100%),
+        var(--chat-feed-node-gradient),
+        var(--chat-feed-node-bg);
+      box-shadow: inset 0 0 0 1px rgba(191, 66, 70, 0.22);
+    }}
+    .chat-feed-item.channel-tinted.kind-alert {{
+      background:
+        linear-gradient(90deg, rgba(191, 66, 70, 0.14), rgba(191, 66, 70, 0.07) 34%, rgba(191, 66, 70, 0.02) 62%, rgba(191, 66, 70, 0) 100%),
+        linear-gradient(
+          90deg,
+          rgba(var(--chat-feed-channel-rgb), 0.12),
+          rgba(var(--chat-feed-channel-rgb), 0.06) 30%,
+          rgba(var(--chat-feed-channel-rgb), 0.02) 56%,
+          rgba(var(--chat-feed-channel-rgb), 0) 100%
+        ),
+        var(--chat-feed-node-gradient),
+        var(--chat-feed-node-bg);
+      box-shadow: inset 0 0 0 1px rgba(191, 66, 70, 0.26);
+    }}
+    .chat-feed-item.kind-alert .chat-feed-author .chat-name {{
+      color: #7f2328;
+    }}
+    .chat-feed-item.kind-alert .chat-feed-colon {{
+      color: #934249;
+    }}
     .chat-feed-item.change-focus {{
       outline: 1px solid #d1a74a;
       outline-offset: -1px;
@@ -7024,6 +7082,11 @@
       color: #b2bac6;
       margin-right: 6px;
       font-weight: 600;
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-monitor-alert-tag {{
+      color: #e07882;
+      margin-right: 6px;
+      font-weight: 700;
     }}
     .chat-feed.chat-feed-view-monitor .short-name {{
       display: inline-block;
@@ -7159,6 +7222,19 @@
       border: 1px solid #c7d8e6;
       background: #ebf2f8;
       color: #315674;
+      border-radius: 999px;
+      padding: 1px 6px;
+      font-size: 9px;
+      line-height: 1.3;
+      letter-spacing: 0.25px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }}
+    .chat-feed-alert-pill {{
+      border: 1px solid #d78084;
+      background: #ffe8e9;
+      color: #8f262c;
       border-radius: 999px;
       padding: 1px 6px;
       font-size: 9px;

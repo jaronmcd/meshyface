@@ -325,11 +325,13 @@
 
     function resolveConsoleAutocompleteGhostRemainder(rawToken, candidate) {{
       const token = String(rawToken == null ? "" : rawToken);
-      if (!token) return "";
       const normalizedCandidate = (typeof normalizeConsoleAutocompleteCandidate === "function")
         ? normalizeConsoleAutocompleteCandidate(candidate)
         : null;
       if (!normalizedCandidate) return "";
+      if (!token) {{
+        return String(normalizedCandidate.displayText || normalizedCandidate.insertText || "");
+      }}
       const tokenLower = token.toLowerCase();
       const variants = [
         String(normalizedCandidate.displayText || ""),
@@ -356,7 +358,6 @@
       const context = resolveConsoleAutocompleteContext(inputEl);
       if (!context) return "";
       const rawToken = String(context.rawToken || "");
-      if (!rawToken) return "";
 
       const candidates = resolveConsoleAutocompleteCandidates(context, state)
         .map((candidate) => (

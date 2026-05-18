@@ -417,7 +417,14 @@
         const hopWatermarkInline = (hasHop || hasHopWatermarkTime)
           ? `<span class="chat-hop-watermark-inline" title="${{escAttr(hopWatermarkTitle)}}">${{escAttr(hopWatermarkText)}}</span>`
           : "";
-        const portnumText = String(msg.portnum ?? packetSummary.portnum ?? "").trim() || "n/a";
+        const portnumRaw = String(msg.portnum ?? packetSummary.portnum ?? "").trim();
+        const portnumText = portnumRaw || "n/a";
+        const portnumKey = portnumRaw.toUpperCase();
+        const isAlertMessage = portnumKey === "ALERT_APP";
+        const alertClass = isAlertMessage ? " kind-alert" : "";
+        const alertBadge = isAlertMessage
+          ? '<span class="chat-feed-alert-pill" title="Alert packet">! Alert</span>'
+          : "";
         const retryReplyId = Number.isInteger(replyToId) && replyToId > 0 ? replyToId : "";
         const replyButton = canReply
           ? `<button type="button" class="chat-reply-btn" data-message-id="${{escAttr(messageId)}}" title="Reply to this message" aria-label="Reply to this message"><span class="chat-reply-btn-icon" aria-hidden="true">↩</span><span class="chat-reply-btn-text">Reply</span></button>`
@@ -530,12 +537,16 @@
         const monitorPrefix = `<span class="chat-monitor-prefix">[${{escAttr(timeText)}}]</span>`;
         const monitorViewClass = monitorMode ? " chat-view-monitor" : "";
         if (monitorMode) {{
+          const monitorAlertTag = isAlertMessage
+            ? '<span class="chat-monitor-alert-tag" title="Alert packet">[!]</span>'
+            : "";
           const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
-          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}`;
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{statusClass}}${{alertClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}`;
           return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
             <span class="chat-entry-msg">
               ${{monitorPrefix}}
               ${{monitorNetworkTag}}
+              ${{monitorAlertTag}}
               <span class="short-name status-${{fromStatusKey}}" style="background:${{escAttr(monitorBadgeColor)}}" title="${{escAttr(fromMeta.title)}}">${{monitorShortTagHtml}}</span>
               ${{monitorReplyInline}}
               <span class="chat-entry-copy chat-monitor-text">${{textHtmlMonitor || "&nbsp;"}}</span>
@@ -543,8 +554,8 @@
           </div>`;
         }}
         const summaryBody = isStatusMessage
-          ? `${{replyInline}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline${{textEmojiOnlyClass}}">${{textHtml || "&nbsp;"}}</span>`
-          : `${{replyInline}}${{statusBadge}}
+          ? `${{replyInline}}${{alertBadge}}${{statusBadge}}<span class="chat-feed-text chat-feed-text-inline${{textEmojiOnlyClass}}">${{textHtml || "&nbsp;"}}</span>`
+          : `${{replyInline}}${{alertBadge}}${{statusBadge}}
               <span class="chat-endpoint chat-feed-author" title="${{escAttr(fromMeta.title)}}">
                 <span class="chat-name">${{escAttr(fromMeta.label)}}</span>
               </span>
@@ -556,7 +567,7 @@
           ? `<span class="chat-feed-side">${{sideParts.join("")}}</span>`
           : "";
         const extraRows = monitorMode ? "" : reactionRow;
-        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{tagClass}}${{nodeEmojiClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{nodeEmojiClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
           <div class="chat-feed-line">
             <div class="chat-feed-summary">
               ${{changeBadge}}

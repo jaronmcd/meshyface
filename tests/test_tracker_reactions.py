@@ -116,3 +116,35 @@ def test_parse_tracker_packet_keeps_short_ascii_reply_text_as_plain_message() ->
     assert parsed["emoji_glyph"] is None
     assert parsed["emoji_codepoint"] is None
     assert parsed["is_reaction"] is False
+
+
+def test_build_chat_entry_from_alert_payload_bytes() -> None:
+    packet = {
+        "id": 558,
+        "from": 101,
+        "to": 202,
+        "rxTime": 1237,
+        "decoded": {
+            "portnum": "ALERT_APP",
+            "payload": b"test alert",
+        },
+    }
+    parsed = _parse_packet(packet)
+    chat_entry = build_chat_entry_from_packet(
+        packet=packet,
+        decoded=packet["decoded"],
+        from_id=parsed["from_id"],
+        to_id=parsed["to_id"],
+        packet_id=parsed["packet_id"],
+        hops=parsed["hops"],
+        reply_id=parsed["reply_id"],
+        emoji_glyph=parsed["emoji_glyph"],
+        emoji_codepoint=parsed["emoji_codepoint"],
+        is_reaction=parsed["is_reaction"],
+        utc_now_fn=lambda: "2026-05-17T20:40:00Z",
+        format_epoch_fn=lambda value: str(value),
+    )
+
+    assert chat_entry is not None
+    assert chat_entry["text"] == "test alert"
+    assert chat_entry["portnum"] == "ALERT_APP"

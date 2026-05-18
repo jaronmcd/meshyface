@@ -561,10 +561,16 @@
                 return ` • ${{deliveryState}}`;
               }})();
               const messageKey = String(chatMessageKey(msg) || "").trim();
+              const portnumKey = String(msg && msg.portnum || "").trim().toUpperCase();
+              const isAlertMessage = portnumKey === "ALERT_APP";
+              const alertClass = isAlertMessage ? " is-alert" : "";
+              const alertChip = isAlertMessage
+                ? '<span class="peer-dm-popout-alert-chip" title="Alert packet">!</span>'
+                : "";
               const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
                 || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
-              return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}" data-message-key="${{escAttr(messageKey)}}">
-                <div class="peer-dm-popout-msg-meta"><span>${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
+              return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}${{alertClass}}" data-message-key="${{escAttr(messageKey)}}">
+                <div class="peer-dm-popout-msg-meta"><span>${{alertChip}}${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
                 <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
               </div>`;
             }}).join("")

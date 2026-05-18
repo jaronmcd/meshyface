@@ -907,8 +907,9 @@
       isolation: isolate;
       overflow: hidden;
       --self-node-watermark-size: 82px;
-      --self-node-watermark-local-x: 116px;
-      --self-node-watermark-selected-x: calc(100% - 70px);
+      --self-node-watermark-edge-inset: 4px;
+      --self-node-watermark-local-x: calc((var(--self-node-watermark-size) / 2) + var(--self-node-watermark-edge-inset));
+      --self-node-watermark-selected-x: calc(100% - ((var(--self-node-watermark-size) / 2) + var(--self-node-watermark-edge-inset)));
       --self-node-single-watermark-size: var(--self-node-watermark-size);
       --self-node-watermark-single-x: var(--self-node-watermark-local-x);
     }}
