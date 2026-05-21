@@ -123,6 +123,7 @@ unavailable.
 - `meshdash/history*.py`, `meshdash/history/` - SQLite schema, reads, writes,
   analytics, rollups, pruning
 - `scripts/deploy_meshyface.sh` - remote deploy/bootstrap helper
+- `scripts/deploy_hotspot.sh` - remote Wi-Fi hotspot + captive landing helper
 - `requirements.txt` - runtime Python dependencies
 - `requirements-dev.txt` - runtime plus test dependencies
 - `PUBLICATION_CHECKLIST.md` - required checks before making the repo public
@@ -375,6 +376,58 @@ If the Pi has a radio attached over USB serial instead of TCP, use the stable
   --serial-path /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 \
   --clean-app-dir
 ```
+
+### Raspberry Pi hotspot + captive landing page
+
+If you want the Pi itself to broadcast Wi-Fi and send hotspot clients to
+Meshyface as the landing page, use the bundled hotspot deploy helper:
+
+```bash
+./scripts/deploy_hotspot.sh \
+  --target pi@raspberrypi.local \
+  --ssid Meshyface \
+  --password 'change-me-please'
+```
+
+Default behavior:
+
+- configures a NetworkManager AP profile (`MeshyfaceAP`) on `wlan0`
+- enables `ipv4.method=shared` with AP CIDR `10.42.0.1/24`
+- writes `/etc/NetworkManager/dnsmasq-shared.d/90-meshyface-captive.conf` so
+  hotspot DNS names resolve to `10.42.0.1`
+- installs/configures Nginx landing rules for common captive probe paths
+  (`/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`, `/connecttest.txt`)
+- redirects HTTP requests to `http://10.42.0.1:8877/`
+
+Useful variants:
+
+```bash
+# Custom subnet/landing IP/port
+./scripts/deploy_hotspot.sh \
+  --target pi@raspberrypi.local \
+  --ap-cidr 10.77.0.1/24 \
+  --landing-ip 10.77.0.1 \
+  --dash-port 8877
+
+# Remove hotspot + captive config managed by the script
+./scripts/deploy_hotspot.sh \
+  --target pi@raspberrypi.local \
+  --uninstall
+```
+
+Environment overrides are also supported:
+
+- `MESH_DASH_HOTSPOT_TARGET`
+- `MESH_DASH_HOTSPOT_IFACE`
+- `MESH_DASH_HOTSPOT_CONNECTION`
+- `MESH_DASH_HOTSPOT_SSID`
+- `MESH_DASH_HOTSPOT_PASSWORD`
+- `MESH_DASH_HOTSPOT_AP_CIDR`
+- `MESH_DASH_HOTSPOT_LANDING_IP`
+- `MESH_DASH_HOTSPOT_DASH_PORT`
+- `MESH_DASH_HOTSPOT_BAND`
+- `MESH_DASH_HOTSPOT_CHANNEL`
+- `MESH_DASH_HOTSPOT_DNS_CATCHALL`
 
 ### Proxmox with USB serial radio
 
