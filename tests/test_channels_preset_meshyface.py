@@ -7,7 +7,7 @@ from meshdash.html_js import build_dashboard_js
 from meshdash.html_sections import build_html_shell
 
 
-def test_channels_settings_expose_meshyface_beta_quick_join() -> None:
+def test_channels_settings_do_not_expose_meshyface_quick_join_preset() -> None:
     html = build_html_shell(
         app_title="Meshyface",
         app_heading="Meshyface",
@@ -21,31 +21,21 @@ def test_channels_settings_expose_meshyface_beta_quick_join() -> None:
         refresh_ms=1000,
     )
 
-    assert 'id="settings-channels-join-meshyface-btn"' in html
-    assert "Join Meshyface" in html
-    assert "This does not change LoRa region, modem preset, or frequency slot." in html
-    assert "Channel numbers are local to each radio." in html
+    assert 'id="settings-channels-join-meshyface-btn"' not in html
+    assert "Join Meshyface" not in html
+    assert "does not ship a bundled shared channel key" in html
 
 
-def test_meshyface_beta_quick_join_uses_safe_channel_upsert_flow() -> None:
+def test_channel_settings_js_keeps_url_import_and_no_bundled_meshyface_psk() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
+    legacy_psk = "base64:" + "u2yfVqp2J8P+Uer6z9OnNGwORpCCSNF4GKbzYgya9jM="
 
-    assert 'const meshyfaceBetaChannelPreset = Object.freeze({' in js
-    assert 'name: "Meshyface"' in js
-    assert 'psk: "base64:u2yfVqp2J8P+Uer6z9OnNGwORpCCSNF4GKbzYgya9jM="' in js
-    assert 'async function handleJoinMeshyfaceBetaChannel() {' in js
-    assert 'document.getElementById("settings-channels-join-meshyface-btn")' in js
-    assert 'setMeshChannelAppSendMode("games", "fixed", true);' in js
-    assert 'setMeshChannelAppSendIndex("games", idx, true);' in js
-
-    join_section = js.split("async function handleJoinMeshyfaceBetaChannel() {", 1)[1]
-    join_section = join_section.split("function looksLikeMeshtasticChannelUrl", 1)[0]
-    assert "const targetSlot = existing;" in join_section
-    assert 'action: "upsert"' in join_section
-    assert 'role: "SECONDARY"' in join_section
-    assert 'action: "import_url"' not in join_section
-    assert 'await ensureChannelsViewLocalStateHydrated(false);' in join_section
+    assert 'const meshyfaceBetaChannelPreset = Object.freeze({' not in js
+    assert "handleJoinMeshyfaceBetaChannel" not in js
+    assert 'document.getElementById("settings-channels-join-meshyface-btn")' not in js
+    assert legacy_psk not in js
+    assert 'action: "import_url"' in js

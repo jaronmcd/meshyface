@@ -43,7 +43,7 @@ the corresponding endpoint returns `503`.
 ```mermaid
 flowchart LR
   Browser["Browser<br/>single-page UI"]
-  CDN["Browser-side external assets<br/>Leaflet + leaflet-heat from unpkg"]
+  CDN["Vendored browser assets<br/>Leaflet + leaflet.heat"]
   Tiles["Basemap provider<br/>OpenStreetMap tile service"]
   Server["ThreadingHTTPServer<br/>HTML shell + JSON API"]
   Assets["Python template assembly<br/>meshdash/html* + meshdash/assets/*"]
@@ -85,11 +85,12 @@ Key runtime notes:
   concurrent reads and writes.
 - The browser polls `/api/state`, fetches history/detail endpoints on demand,
   and POSTs write actions for chat, settings, tools, games, and optional BBS.
-- When online map tiles fail, the UI can fall back to the bundled offline atlas
-  reference layers. The atlas includes a coarse global basemap plus higher
-  detail around North America. The current build still expects Leaflet JS/CSS
-  to be reachable from `unpkg.com` unless you vendor or proxy those assets
-  yourself.
+- The browser loads Leaflet `1.9.4` and leaflet.heat `0.2.0` from vendored
+  assets served by the dashboard under `/assets/vendor/`.
+- Online basemap mode may request OpenStreetMap tiles from the configured OSM
+  tile endpoint.
+- Offline atlas mode uses bundled Natural Earth/GeoNames-derived reference
+  layers when online tiles are unavailable or when users force offline mode.
 
 ## Requirements
 
@@ -104,13 +105,11 @@ Key runtime notes:
   - install runtime packages with `python -m pip install -r requirements.txt`
   - install test packages with `python -m pip install -r requirements-dev.txt`
 - Browser access to:
-  - `https://unpkg.com/leaflet@1.9.4/...`
-  - `https://unpkg.com/leaflet.heat@0.2.0/...`
   - `https://tile.openstreetmap.org/...` if you want online basemaps
 
-For a fully air-gapped deployment, plan to vendor/proxy the Leaflet assets and
-accept that the map will use the bundled offline atlas when tile servers are
-unavailable.
+For a fully air-gapped deployment, the vendored Leaflet assets still load
+locally, and the map uses the bundled offline atlas when online tile servers
+are unavailable.
 
 ## Repository Layout
 

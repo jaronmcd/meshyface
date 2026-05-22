@@ -113,6 +113,9 @@
         if (active) {{
           ensureMapOfflineGridPane();
           void ensureOfflineAtlasLayers();
+          setMapOfflineAtlasAttributionVisible(true);
+        }} else {{
+          setMapOfflineAtlasAttributionVisible(false);
         }}
         if (active) {{
           setMapBasemapStatus("offline", reason);
@@ -128,9 +131,11 @@
       if (active) {{
         ensureMapOfflineGridPane();
         void ensureOfflineAtlasLayers();
+        setMapOfflineAtlasAttributionVisible(true);
         setMapBasemapStatus("offline", reason);
       }} else {{
         removeOfflineAtlasLayersFromMap();
+        setMapOfflineAtlasAttributionVisible(false);
         if (mapTileLoadSuccesses > 0) {{
           setMapBasemapStatus("online", reason);
         }}

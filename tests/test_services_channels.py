@@ -129,7 +129,7 @@ def test_upsert_channel_uses_settings_transaction_and_verifies_radio_refresh(mon
         role="SECONDARY",
         settings={
             "name": "Meshyface",
-            "psk": "base64:u2yfVqp2J8P+Uer6z9OnNGwORpCCSNF4GKbzYgya9jM=",
+            "psk": "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "uplink_enabled": False,
             "downlink_enabled": False,
         },

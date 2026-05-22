@@ -30,7 +30,7 @@ Options:
   --iface <name>               Wi-Fi interface (default: wlan0).
   --connection-name <name>     NetworkManager AP profile name (default: MeshyfaceAP).
   --ssid <name>                Hotspot SSID (default: Meshyface).
-  --password <passphrase>      WPA2 passphrase (default: meshyface203).
+  --password <passphrase>      WPA2 passphrase (required unless --uninstall).
   --ap-cidr <cidr>             AP interface CIDR (default: 10.42.0.1/24).
   --landing-ip <ip>            IP used in landing redirect (default: AP IP from --ap-cidr).
   --dash-port <port>           Meshyface HTTP port (default: 8877).
@@ -72,7 +72,7 @@ TARGET="${MESH_DASH_HOTSPOT_TARGET:-}"
 WLAN_IFACE="${MESH_DASH_HOTSPOT_IFACE:-wlan0}"
 CONNECTION_NAME="${MESH_DASH_HOTSPOT_CONNECTION:-MeshyfaceAP}"
 SSID="${MESH_DASH_HOTSPOT_SSID:-Meshyface}"
-PASSWORD="${MESH_DASH_HOTSPOT_PASSWORD:-meshyface203}"
+PASSWORD="${MESH_DASH_HOTSPOT_PASSWORD:-}"
 AP_CIDR="${MESH_DASH_HOTSPOT_AP_CIDR:-10.42.0.1/24}"
 LANDING_IP="${MESH_DASH_HOTSPOT_LANDING_IP:-}"
 DASH_PORT="${MESH_DASH_HOTSPOT_DASH_PORT:-8877}"
@@ -241,6 +241,10 @@ if [[ "${DNS_CATCHALL}" != "0" && "${DNS_CATCHALL}" != "1" ]]; then
 fi
 
 if [[ "${UNINSTALL}" -eq 0 ]]; then
+  if [[ -z "${PASSWORD}" ]]; then
+    echo "Set MESH_DASH_HOTSPOT_PASSWORD or pass --password before deploying." >&2
+    exit 2
+  fi
   if [[ "${#PASSWORD}" -lt 8 ]]; then
     echo "hotspot password must be at least 8 characters for WPA-PSK" >&2
     exit 2

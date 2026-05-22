@@ -130,6 +130,7 @@
           map.addLayer(layer);
         }}
       }}
+      setMapOfflineAtlasAttributionVisible(true);
       syncOfflineCityVisibility();
     }}
 
@@ -148,6 +149,7 @@
           map.removeLayer(layer);
         }}
       }}
+      setMapOfflineAtlasAttributionVisible(false);
       mapOfflineCityMarkers = [];
     }}
 
@@ -183,4 +185,3 @@
       }}
       return true;
     }}
-
