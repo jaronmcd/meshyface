@@ -313,6 +313,23 @@
       return nodeTagEmojiForEntry(nodeTagEntryForNode(nodeId));
     }}
 
+    function nodeHistoryCapsEmojiForNode(nodeId, state = latestState) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return "";
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const historyCapsRaw = (safeState.history_caps && typeof safeState.history_caps === "object")
+        ? safeState.history_caps
+        : null;
+      if (!historyCapsRaw) return "";
+      const caps = historyCapsRaw[cleanNodeId];
+      if (!(caps && typeof caps === "object")) return "";
+      for (const candidate of [caps.last_long_name, caps.last_short_name]) {{
+        const emoji = normalizeNodeTagEmoji(candidate, "");
+        if (emoji) return emoji;
+      }}
+      return "";
+    }}
+
     function nodeIntrinsicEmojiForNode(nodeId, node = null) {{
       const cleanNodeId = normalizeNodeId(nodeId);
       const localNodeId = normalizeNodeId(
@@ -333,6 +350,8 @@
         const emoji = normalizeNodeTagEmoji(candidate, "");
         if (emoji) return emoji;
       }}
+      const historyCapsEmoji = nodeHistoryCapsEmojiForNode(cleanNodeId, latestState);
+      if (historyCapsEmoji) return historyCapsEmoji;
       return "";
     }}
 

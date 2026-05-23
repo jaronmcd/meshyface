@@ -55,6 +55,18 @@
       if (!isSelectableNodeId(nodeId) || !candidate) return false;
       const current = String(nodeNameCache.get(nodeId) || "").trim();
       if (current && current === candidate) return false;
+      if (current) {{
+        const currentEmoji = (typeof normalizeNodeTagEmoji === "function")
+          ? normalizeNodeTagEmoji(current, "")
+          : "";
+        const candidateEmoji = (typeof normalizeNodeTagEmoji === "function")
+          ? normalizeNodeTagEmoji(candidate, "")
+          : "";
+        // Keep the richer label if it already carries an emoji and the replacement does not.
+        if (currentEmoji && !candidateEmoji) {{
+          return false;
+        }}
+      }}
       if (
         current
         && !isGenericNodeCacheLabel(current, nodeId)
