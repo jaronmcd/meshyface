@@ -2277,12 +2277,6 @@
         nodeState.summaryMessage = summaryLine;
         nodeState.summaryError = false;
         nodeState.summaryUpdatedMs = Date.now();
-        if (tool.id === "traceroute" && typeof openNetworkRoutesLiveTrace === "function") {{
-          openNetworkRoutesLiveTrace(nodeId, {{
-            tracePayload: payload,
-            autoRun: false,
-          }});
-        }}
         if (typeof appendConsoleLine === "function" && lines.length) {{
           const baseKey = `telemetry_tool|${{Date.now()}}|${{tool.id}}|${{nodeId}}`;
           lines.forEach((line, idx) => appendConsoleLine(`${{baseKey}}|${{idx}}`, line));

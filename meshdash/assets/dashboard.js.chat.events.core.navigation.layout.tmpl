@@ -709,6 +709,9 @@
     const networkRoutesToStorageKey = "meshDashboardNetworkRoutesToV1";
     const networkRoutesWindowStorageKey = "meshDashboardNetworkRoutesWindowV1";
     const networkRoutesScopeViewBoxDefault = Object.freeze({{ x: 0, y: 0, width: 920, height: 270 }});
+    const networkRoutesLiveTraceTimeoutMs = 30000;
+    const networkRoutesLiveTraceRetryDelayMs = 700;
+    const networkRoutesLiveTraceMaxAttempts = 2;
     const networkRoutesScopeViewState = {{
       signature: "",
       viewBox: null,
@@ -2530,6 +2533,32 @@
       );
     }}
 
+    function networkRoutesLiveTraceIsTimeoutError(err) {{
+      if (!err) return false;
+      const payload = (err && typeof err === "object" && err.payload && typeof err.payload === "object")
+        ? err.payload
+        : null;
+      const messageParts = [];
+      const errMessage = (err && typeof err === "object" && "message" in err) ? err.message : "";
+      if (errMessage != null) messageParts.push(String(errMessage));
+      if (payload && payload.error != null) messageParts.push(String(payload.error));
+      const consoleLines = payload && Array.isArray(payload.console_lines) ? payload.console_lines : [];
+      if (consoleLines.length) {{
+        messageParts.push(consoleLines.join(" | "));
+      }}
+      const text = messageParts.join(" ").toLowerCase();
+      return text.includes("timed out waiting for traceroute response")
+        || text.includes("timed out waiting for response");
+    }}
+
+    function networkRoutesLiveTraceDelay(delayMs) {{
+      const waitMs = Math.max(0, Number(delayMs) || 0);
+      if (waitMs <= 0) return Promise.resolve();
+      return new Promise((resolve) => {{
+        window.setTimeout(resolve, waitMs);
+      }});
+    }}
+
     function networkRoutesLiveTraceResultHtml(liveState, baseData, fromId, toId) {{
       const safeState = normalizedNetworkRoutesLiveTraceState(liveState);
       const sourceId = normalizeNodeId(fromId || safeState.sourceId || "");
@@ -2648,10 +2677,32 @@
       renderNetworkRoutes(latestState);
 
       try {{
-        const payload = await postNetworkToolCommand({{
-          command: "traceroute",
-          destination: targetId,
-        }});
+        let payload = null;
+        let lastError = null;
+        const attempts = Math.max(1, Number(networkRoutesLiveTraceMaxAttempts) || 1);
+        for (let attempt = 1; attempt <= attempts; attempt += 1) {{
+          try {{
+            payload = await postNetworkToolCommand({{
+              command: "traceroute",
+              destination: targetId,
+              timeout_ms: networkRoutesLiveTraceTimeoutMs,
+            }});
+            lastError = null;
+            break;
+          }} catch (err) {{
+            lastError = err;
+            if (requestNonce !== networkRoutesLiveTraceRequestNonce) throw err;
+            const shouldRetry = (
+              attempt < attempts
+              && networkRoutesLiveTraceIsTimeoutError(err)
+            );
+            if (!shouldRetry) throw err;
+            await networkRoutesLiveTraceDelay(networkRoutesLiveTraceRetryDelayMs);
+          }}
+        }}
+        if (!payload) {{
+          throw (lastError || new Error("traceroute failed"));
+        }}
         if (requestNonce !== networkRoutesLiveTraceRequestNonce) return payload;
         setNetworkRoutesLiveTraceState({{
           running: false,
@@ -2740,6 +2791,10 @@
       const pathIndex = new Map(path.map((nodeId, index) => [nodeId, index]));
       const routeEdgeKeys = new Set();
       const routeEdges = [];
+      const maxSideLinks = Math.max(10, Math.min(22, path.length * 4));
+      const maxSideLinksPerRouteNode = 4;
+      const maxClusterLinks = 14;
+      const maxClusterNewNodes = 10;
       for (let index = 0; index < Math.max(0, path.length - 1); index += 1) {{
         const a = path[index];
         const b = path[index + 1];
@@ -2783,21 +2838,120 @@
         const rightWeight = Math.max(0, Number(right && right.edge && right.edge.weight) || 0);
         return (rightWeight - leftWeight) || String(left && left.key || "").localeCompare(String(right && right.key || ""));
       }});
-      const contextEdges = contextCandidates.slice(0, 12);
+
+      const sideLinkCountByRouteNode = new Map();
+      const contextEdges = [];
+      for (const item of contextCandidates) {{
+        if (contextEdges.length >= maxSideLinks) break;
+        const routeAnchor = pathIndex.has(item.a) ? item.a : (pathIndex.has(item.b) ? item.b : "");
+        if (routeAnchor) {{
+          const count = Number(sideLinkCountByRouteNode.get(routeAnchor) || 0);
+          if (count >= maxSideLinksPerRouteNode) continue;
+          sideLinkCountByRouteNode.set(routeAnchor, count + 1);
+        }}
+        contextEdges.push(item);
+      }}
+
       const nodeIds = new Set(path);
+      const ringOneContextIds = new Set();
       for (const item of contextEdges) {{
         const a = normalizeNodeId(item && item.a || "");
         const b = normalizeNodeId(item && item.b || "");
         if (isSelectableNodeId(a) && nodeMap.has(a)) nodeIds.add(a);
         if (isSelectableNodeId(b) && nodeMap.has(b)) nodeIds.add(b);
+        if (isSelectableNodeId(a) && !pathIndex.has(a)) ringOneContextIds.add(a);
+        if (isSelectableNodeId(b) && !pathIndex.has(b)) ringOneContextIds.add(b);
       }}
+
+      const scopedEdgeKeys = new Set(routeEdges.map((item) => String(item && item.key || "")));
+      for (const item of contextEdges) {{
+        const key = String(item && item.key || "").trim();
+        if (key) scopedEdgeKeys.add(key);
+      }}
+
+      const clusterCandidates = [];
+      for (const contextNodeId of ringOneContextIds) {{
+        const peers = adjacency.get(contextNodeId);
+        if (!(peers instanceof Map)) continue;
+        for (const [peerIdRaw, edge] of peers.entries()) {{
+          const peerId = normalizeNodeId(peerIdRaw || "");
+          if (!isSelectableNodeId(peerId) || !nodeMap.has(peerId) || peerId === contextNodeId) continue;
+          const key = networkGraphEdgeKeyBetween(contextNodeId, peerId);
+          if (!key || scopedEdgeKeys.has(key)) continue;
+          const peerOnRoute = pathIndex.has(peerId);
+          const peerInRingOne = ringOneContextIds.has(peerId);
+          const clusterPriority = peerInRingOne ? 0 : (peerOnRoute ? 1 : 2);
+          clusterCandidates.push({{
+            key,
+            a: contextNodeId,
+            b: peerId,
+            edge,
+            kind: peerOnRoute ? "alternate" : "cluster",
+            clusterPriority,
+          }});
+        }}
+      }}
+
+      clusterCandidates.sort((left, right) => {{
+        const leftPriority = Number(left && left.clusterPriority);
+        const rightPriority = Number(right && right.clusterPriority);
+        if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+        const leftWeight = Math.max(0, Number(left && left.edge && left.edge.weight) || 0);
+        const rightWeight = Math.max(0, Number(right && right.edge && right.edge.weight) || 0);
+        return (rightWeight - leftWeight) || String(left && left.key || "").localeCompare(String(right && right.key || ""));
+      }});
+
+      const clusterEdges = [];
+      let clusterNewNodeCount = 0;
+      for (const item of clusterCandidates) {{
+        if (clusterEdges.length >= maxClusterLinks) break;
+        const a = normalizeNodeId(item && item.a || "");
+        const b = normalizeNodeId(item && item.b || "");
+        const aKnown = nodeIds.has(a);
+        const bKnown = nodeIds.has(b);
+        if (!aKnown && !bKnown) continue;
+        const newNodes = (aKnown ? 0 : 1) + (bKnown ? 0 : 1);
+        if (newNodes > 0 && clusterNewNodeCount >= maxClusterNewNodes) continue;
+        if (newNodes > 0) clusterNewNodeCount += newNodes;
+        nodeIds.add(a);
+        nodeIds.add(b);
+        scopedEdgeKeys.add(item.key);
+        clusterEdges.push(item);
+      }}
+
+      const scopedEdges = routeEdges.concat(contextEdges, clusterEdges);
+      const routeDistanceByNodeId = new Map();
+      const queue = [];
+      for (const nodeId of path) {{
+        routeDistanceByNodeId.set(nodeId, 0);
+        queue.push(nodeId);
+      }}
+      for (let cursor = 0; cursor < queue.length; cursor += 1) {{
+        const nodeId = normalizeNodeId(queue[cursor] || "");
+        const depth = Number(routeDistanceByNodeId.get(nodeId));
+        const peers = adjacency.get(nodeId);
+        if (!(peers instanceof Map)) continue;
+        for (const [peerIdRaw] of peers.entries()) {{
+          const peerId = normalizeNodeId(peerIdRaw || "");
+          if (!nodeIds.has(peerId)) continue;
+          const nextDepth = depth + 1;
+          const previous = routeDistanceByNodeId.get(peerId);
+          if (previous == null || nextDepth < previous) {{
+            routeDistanceByNodeId.set(peerId, nextDepth);
+            queue.push(peerId);
+          }}
+        }}
+      }}
+
       return {{
         path,
         pathIndex,
         routeEdgeKeys,
         routeEdges,
         contextEdges,
-        edges: routeEdges.concat(contextEdges),
+        clusterEdges,
+        edges: scopedEdges,
+        routeDistanceByNodeId,
         nodeIds: Array.from(nodeIds),
       }};
     }}
@@ -2820,8 +2974,10 @@
         positions.set(nodeId, {{ x, y: routeY }});
       }}
 
+      const sideAndClusterEdges = (Array.isArray(scoped && scoped.edges) ? scoped.edges : [])
+        .filter((item) => String(item && item.kind || "") !== "route");
       const contextAnchorByNodeId = new Map();
-      for (const item of (Array.isArray(scoped && scoped.contextEdges) ? scoped.contextEdges : [])) {{
+      for (const item of sideAndClusterEdges) {{
         const a = normalizeNodeId(item && item.a || "");
         const b = normalizeNodeId(item && item.b || "");
         const aOnRoute = pathIndex.has(a);
@@ -2830,25 +2986,55 @@
         if (bOnRoute && !aOnRoute && !contextAnchorByNodeId.has(a)) contextAnchorByNodeId.set(a, b);
       }}
 
+      let anchored = true;
+      while (anchored) {{
+        anchored = false;
+        for (const item of sideAndClusterEdges) {{
+          const a = normalizeNodeId(item && item.a || "");
+          const b = normalizeNodeId(item && item.b || "");
+          const aOnRoute = pathIndex.has(a);
+          const bOnRoute = pathIndex.has(b);
+          const aAnchor = aOnRoute ? a : contextAnchorByNodeId.get(a);
+          const bAnchor = bOnRoute ? b : contextAnchorByNodeId.get(b);
+          if (aAnchor && !bOnRoute && !contextAnchorByNodeId.has(b)) {{
+            contextAnchorByNodeId.set(b, aAnchor);
+            anchored = true;
+          }}
+          if (bAnchor && !aOnRoute && !contextAnchorByNodeId.has(a)) {{
+            contextAnchorByNodeId.set(a, bAnchor);
+            anchored = true;
+          }}
+        }}
+      }}
+
+      const routeDistanceByNodeId = scoped && scoped.routeDistanceByNodeId instanceof Map
+        ? scoped.routeDistanceByNodeId
+        : new Map();
+
       const orderByAnchor = new Map();
       const contextIds = Array.from(contextAnchorByNodeId.keys()).sort((a, b) => {{
         const anchorA = contextAnchorByNodeId.get(a);
         const anchorB = contextAnchorByNodeId.get(b);
         const indexA = pathIndex.has(anchorA) ? pathIndex.get(anchorA) : 0;
         const indexB = pathIndex.has(anchorB) ? pathIndex.get(anchorB) : 0;
-        return (indexA - indexB) || a.localeCompare(b);
+        const depthA = Number(routeDistanceByNodeId.get(a) || 1);
+        const depthB = Number(routeDistanceByNodeId.get(b) || 1);
+        return (indexA - indexB) || (depthA - depthB) || a.localeCompare(b);
       }});
       for (const nodeId of contextIds) {{
         const anchorId = contextAnchorByNodeId.get(nodeId);
         const anchor = positions.get(anchorId) || {{ x: width / 2, y: routeY }};
+        const depth = Math.max(1, Number(routeDistanceByNodeId.get(nodeId) || 1));
         const order = orderByAnchor.get(anchorId) || 0;
         orderByAnchor.set(anchorId, order + 1);
-        const above = order % 2 === 0;
+        const above = (order + depth) % 2 === 0;
         const lane = Math.floor(order / 2);
         const direction = lane % 2 === 0 ? 1 : -1;
-        const offset = direction * (34 + (Math.floor(lane / 2) * 28));
+        const offset = direction * (34 + (Math.floor(lane / 2) * 24) + ((depth - 1) * 12));
         const x = Math.max(42, Math.min(width - 42, anchor.x + offset));
-        const y = above ? 62 : (height - 42);
+        const y = above
+          ? Math.max(24, 62 - ((depth - 1) * 30))
+          : Math.min(height - 24, (height - 42) + ((depth - 1) * 30));
         positions.set(nodeId, {{ x, y }});
       }}
       return {{ width, height, positions }};
@@ -3104,12 +3290,13 @@
         </g>`;
       }}).join("");
       const contextCount = scoped.contextEdges.length;
+      const clusterCount = Array.isArray(scoped && scoped.clusterEdges) ? scoped.clusterEdges.length : 0;
       const routeEdgeCount = scoped.routeEdges.length;
       const nodeCount = scoped.nodeIds.length;
       return `<section class="network-route-scope" data-route-scope-signature="${{escAttr(scopeSignature)}}" aria-label="Route scoped links">
         <div class="network-route-scope-head">
           <span>Route scope</span>
-          <span>${{escAttr(String(nodeCount))}} nodes &middot; ${{escAttr(String(routeEdgeCount))}} route links &middot; ${{escAttr(String(contextCount))}} side links</span>
+          <span>${{escAttr(String(nodeCount))}} nodes &middot; ${{escAttr(String(routeEdgeCount))}} route links &middot; ${{escAttr(String(contextCount))}} side links &middot; ${{escAttr(String(clusterCount))}} cluster links</span>
           <button class="network-route-scope-reset-btn" type="button" data-route-scope-reset="1" title="Reset route scope view">Reset</button>
         </div>
         <svg class="network-route-scope-svg"

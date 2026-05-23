@@ -117,7 +117,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'data-route-edge-a="${escAttr(sourceId)}"' in js
     assert 'data-route-scope-reset="1"' in js
     assert 'zoomNetworkRoutesScopeView(svg, event);' in js
-    assert 'contextCandidates.slice(0, 12)' in js
+    assert 'const maxSideLinks = Math.max(10, Math.min(22, path.length * 4));' in js
+    assert 'const maxClusterLinks = 14;' in js
     assert 'Live trace is not wired yet.' in js
     assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
     assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
