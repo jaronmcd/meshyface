@@ -960,6 +960,60 @@
         : [];
     }}
 
+    function syncNetworkRoutesLiveTraceFromPayload(rawTargetNodeId, payload, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const safePayload = (payload && typeof payload === "object") ? payload : {{}};
+      const targetId = normalizeNodeId(
+        rawTargetNodeId
+        || safePayload.destination
+        || safePayload.dest
+        || ""
+      );
+      if (!isSelectableNodeId(targetId)) return false;
+
+      const safeState = (latestState && typeof latestState === "object") ? latestState : {{}};
+      const preferredSourceId = normalizeNodeId(opts.sourceId || "");
+      const resolvedSourceId = normalizeNodeId(resolveNetworkRoutesSourceNodeId(safeState) || "");
+      const localSourceId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const sourceId = isSelectableNodeId(preferredSourceId)
+        ? preferredSourceId
+        : (isSelectableNodeId(resolvedSourceId)
+          ? resolvedSourceId
+          : localSourceId);
+
+      const hasOk = Object.prototype.hasOwnProperty.call(opts, "ok");
+      const ok = hasOk ? (opts.ok === true) : (safePayload.ok === true);
+      const lines = networkRoutesExtractConsoleLines(safePayload);
+      const errorText = ok
+        ? ""
+        : String(
+            opts.error
+            || safePayload.error
+            || "Traceroute request failed"
+          ).trim();
+      setNetworkRoutesLiveTraceState({{
+        running: false,
+        ok: ok ? true : false,
+        updatedMs: Date.now(),
+        sourceId,
+        targetId,
+        error: errorText,
+        lines,
+        result: (safePayload.result && typeof safePayload.result === "object")
+          ? safePayload.result
+          : null,
+      }});
+
+      if (
+        opts.renderIfVisible !== false
+        && normalizeLayoutView(activeLayoutView) === "network"
+        && normalizeNetworkSubview(activeNetworkSubview) === "routes"
+      ) {{
+        renderNetworkRoutes(latestState);
+      }}
+      return true;
+    }}
+
     function loadPreferredNetworkGraphHiddenTagRoutePresetIds() {{
       try {{
         const raw = window.localStorage.getItem(networkGraphTagRouteVisibilityStorageKey) || "[]";
@@ -2704,17 +2758,18 @@
           throw (lastError || new Error("traceroute failed"));
         }}
         if (requestNonce !== networkRoutesLiveTraceRequestNonce) return payload;
-        setNetworkRoutesLiveTraceState({{
-          running: false,
-          ok: true,
-          updatedMs: Date.now(),
+        syncNetworkRoutesLiveTraceFromPayload(targetId, payload, {{
           sourceId,
-          targetId,
-          error: "",
-          lines: networkRoutesExtractConsoleLines(payload),
-          result: (payload && payload.result && typeof payload.result === "object") ? payload.result : null,
+          ok: true,
+          renderIfVisible: true,
         }});
-        renderNetworkRoutes(latestState);
+        if (typeof syncChatNodeTelemetryTracerouteFromPayload === "function") {{
+          syncChatNodeTelemetryTracerouteFromPayload(targetId, payload, {{
+            ok: true,
+            updateSummary: true,
+            renderPanel: true,
+          }});
+        }}
         if (typeof requestImmediatePoll === "function") {{
           requestImmediatePoll(120);
         }}
@@ -2725,17 +2780,28 @@
         const message = err instanceof Error
           ? String(err.message || "traceroute failed")
           : String(err || "traceroute failed");
-        setNetworkRoutesLiveTraceState({{
-          running: false,
-          ok: false,
-          updatedMs: Date.now(),
+        const tracePayload = (payload && typeof payload === "object")
+          ? payload
+          : {{
+              ok: false,
+              destination: targetId,
+              error: message,
+              console_lines: [],
+            }};
+        syncNetworkRoutesLiveTraceFromPayload(targetId, tracePayload, {{
           sourceId,
-          targetId,
+          ok: false,
           error: message,
-          lines: networkRoutesExtractConsoleLines(payload),
-          result: null,
+          renderIfVisible: true,
         }});
-        renderNetworkRoutes(latestState);
+        if (typeof syncChatNodeTelemetryTracerouteFromPayload === "function") {{
+          syncChatNodeTelemetryTracerouteFromPayload(targetId, tracePayload, {{
+            ok: false,
+            error: message,
+            updateSummary: true,
+            renderPanel: true,
+          }});
+        }}
         return null;
       }}
     }}

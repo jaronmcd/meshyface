@@ -2139,6 +2139,47 @@
       return `Last run: ${{stamp}}`;
     }}
 
+    function syncChatNodeTelemetryTracerouteFromPayload(rawNodeId, payload, options = null) {{
+      const nodeId = normalizeNodeId(rawNodeId || "");
+      if (!isSelectableNodeId(nodeId)) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const safePayload = (payload && typeof payload === "object") ? payload : {{}};
+      const lines = chatNodeTelemetryExtractConsoleLines(safePayload);
+      const hasOk = Object.prototype.hasOwnProperty.call(opts, "ok");
+      const ok = hasOk ? (opts.ok === true) : (safePayload.ok === true);
+      const fallbackError = String(opts.error || safePayload.error || "request failed").trim();
+      const summaryLine = lines[0]
+        || (ok
+          ? `[traceroute] ${{nodeId}} | request completed`
+          : `[traceroute] ${{nodeId}} | ${{fallbackError || "request failed"}}`);
+
+      const nodeState = chatNodeTelemetryStateForNode(nodeId, true);
+      if (!nodeState) return false;
+      nodeState.tools.set("traceroute", {{
+        running: false,
+        ok: ok ? true : false,
+        updatedMs: Date.now(),
+        statusText: summaryLine,
+        lines,
+      }});
+      if (opts.updateSummary !== false) {{
+        nodeState.summaryMessage = summaryLine;
+        nodeState.summaryError = !ok;
+        nodeState.summaryUpdatedMs = Date.now();
+      }}
+
+      const shouldRender = (
+        opts.renderPanel !== false
+        && isChatNodeDetailsDrawerExpanded()
+        && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "telemetry"
+        && chatNodeDetailsDrawerTargetNodeId(selectedNodeId) === nodeId
+      );
+      if (shouldRender) {{
+        renderChatNodeTelemetryPanel(nodeId, latestState);
+      }}
+      return true;
+    }}
+
     function renderChatNodeTelemetryPanel(rawNodeId = selectedNodeId, state = latestState) {{
       const host = document.getElementById("chat-node-details-telemetry-host");
       if (!(host instanceof HTMLElement)) return;
@@ -2281,6 +2322,12 @@
           const baseKey = `telemetry_tool|${{Date.now()}}|${{tool.id}}|${{nodeId}}`;
           lines.forEach((line, idx) => appendConsoleLine(`${{baseKey}}|${{idx}}`, line));
         }}
+        if (tool.id === "traceroute" && typeof syncNetworkRoutesLiveTraceFromPayload === "function") {{
+          syncNetworkRoutesLiveTraceFromPayload(nodeId, payload, {{
+            ok: true,
+            renderIfVisible: true,
+          }});
+        }}
       }} catch (err) {{
         const payload = (err && typeof err === "object") ? err.payload : null;
         const lines = chatNodeTelemetryExtractConsoleLines(payload);
@@ -2301,6 +2348,21 @@
         if (typeof appendConsoleLine === "function" && lines.length) {{
           const baseKey = `telemetry_tool|${{Date.now()}}|${{tool.id}}|${{nodeId}}|error`;
           lines.forEach((line, idx) => appendConsoleLine(`${{baseKey}}|${{idx}}`, line));
+        }}
+        if (tool.id === "traceroute" && typeof syncNetworkRoutesLiveTraceFromPayload === "function") {{
+          const tracePayload = (payload && typeof payload === "object")
+            ? payload
+            : {{
+                ok: false,
+                destination: nodeId,
+                error: fallbackMessage,
+                console_lines: lines,
+              }};
+          syncNetworkRoutesLiveTraceFromPayload(nodeId, tracePayload, {{
+            ok: false,
+            error: fallbackMessage,
+            renderIfVisible: true,
+          }});
         }}
       }} finally {{
         if (
