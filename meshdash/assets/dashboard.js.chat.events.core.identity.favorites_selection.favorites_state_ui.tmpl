@@ -775,6 +775,101 @@
       }}
     }}
 
+    function loadMeshtasticFavoritePinnedSyncIds() {{
+      meshtasticFavoriteSyncedPinnedNodeIds.clear();
+      try {{
+        const raw = window.localStorage.getItem(meshtasticFavoritePinnedSyncStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        for (const entry of parsed) {{
+          const nodeId = normalizeNodeId(entry);
+          if (isSelectableNodeId(nodeId)) {{
+            meshtasticFavoriteSyncedPinnedNodeIds.add(nodeId);
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistMeshtasticFavoritePinnedSyncIds() {{
+      try {{
+        const ids = Array.from(meshtasticFavoriteSyncedPinnedNodeIds).slice(0, 2000);
+        window.localStorage.setItem(
+          meshtasticFavoritePinnedSyncStorageKey,
+          JSON.stringify(ids)
+        );
+      }} catch (_err) {{
+      }}
+    }}
+
+    function meshtasticNodeFavoriteFlag(value) {{
+      if (typeof parseBoolToken === "function") {{
+        return parseBoolToken(value, false);
+      }}
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+      const clean = String(value == null ? "" : value).trim().toLowerCase();
+      return clean === "1" || clean === "true" || clean === "yes" || clean === "on";
+    }}
+
+    function meshtasticFavoriteNodeIdsFromState(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const ids = new Set();
+      for (const node of nodes) {{
+        if (!(node && typeof node === "object")) continue;
+        const nodeId = normalizeNodeId(node.id || node.node_id || node.nodeId || "");
+        if (!isSelectableNodeId(nodeId)) continue;
+        const favoriteValue = (
+          Object.prototype.hasOwnProperty.call(node, "is_favorite")
+            ? node.is_favorite
+            : (Object.prototype.hasOwnProperty.call(node, "isFavorite")
+              ? node.isFavorite
+              : null)
+        );
+        if (meshtasticNodeFavoriteFlag(favoriteValue)) {{
+          ids.add(nodeId);
+        }}
+      }}
+      return ids;
+    }}
+
+    function syncPinnedNodesWithMeshtasticFavorites(state = latestState) {{
+      const nextFavoriteIds = meshtasticFavoriteNodeIdsFromState(state);
+      let pinnedChanged = false;
+      let syncStateChanged = false;
+
+      for (const nodeId of Array.from(meshtasticFavoriteSyncedPinnedNodeIds)) {{
+        if (nextFavoriteIds.has(nodeId)) continue;
+        meshtasticFavoriteSyncedPinnedNodeIds.delete(nodeId);
+        syncStateChanged = true;
+        if (pinnedNodeIds.has(nodeId)) {{
+          pinnedNodeIds.delete(nodeId);
+          pinnedChanged = true;
+        }}
+      }}
+
+      for (const nodeId of nextFavoriteIds) {{
+        if (!meshtasticFavoriteSyncedPinnedNodeIds.has(nodeId)) {{
+          meshtasticFavoriteSyncedPinnedNodeIds.add(nodeId);
+          syncStateChanged = true;
+        }}
+        if (!pinnedNodeIds.has(nodeId)) {{
+          pinnedNodeIds.add(nodeId);
+          pinnedChanged = true;
+        }}
+      }}
+
+      if (syncStateChanged) {{
+        persistMeshtasticFavoritePinnedSyncIds();
+      }}
+      if (pinnedChanged) {{
+        persistPinnedNodes();
+      }}
+      return pinnedChanged;
+    }}
+
     function normalizeNodeVisibilityListIds(rawValue) {{
       const entries = Array.isArray(rawValue)
         ? rawValue

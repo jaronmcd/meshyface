@@ -461,6 +461,7 @@ def _slim_nodes_for_chat(nodes: list[dict[str, object]]) -> list[dict[str, objec
         "hardware_model",
         "hops_away",
         "id",
+        "is_favorite",
         "first_seen_unix",
         "last_heard_unix",
         "lat",

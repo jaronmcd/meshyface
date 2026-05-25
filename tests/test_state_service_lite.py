@@ -213,6 +213,26 @@ def test_slim_nodes_for_chat_drops_unused_heavy_fields() -> None:
     ]
 
 
+def test_slim_nodes_for_chat_keeps_meshtastic_favorite_flag() -> None:
+    slimmed = _slim_nodes_for_chat(
+        [
+            {
+                "id": "!node-a",
+                "short_name": "A",
+                "is_favorite": True,
+            }
+        ]
+    )
+
+    assert slimmed == [
+        {
+            "id": "!node-a",
+            "short_name": "A",
+            "is_favorite": True,
+        }
+    ]
+
+
 def test_slim_edges_for_network_drops_duplicate_strings_and_counts() -> None:
     slimmed = _slim_edges_for_network(
         [

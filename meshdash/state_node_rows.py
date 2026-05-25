@@ -19,6 +19,24 @@ def _as_dict(value: object) -> dict[str, object]:
     return converted if isinstance(converted, dict) else {}
 
 
+def _optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            return bool(int(value))
+        except Exception:
+            return None
+    if value is None:
+        return None
+    clean = str(value).strip().lower()
+    if clean in {"1", "true", "yes", "y", "on"}:
+        return True
+    if clean in {"0", "false", "no", "n", "off"}:
+        return False
+    return None
+
+
 def collect_nodes(iface: object) -> dict[str, object]:
     return collect_nodes_typed(iface).as_dict()
 
@@ -63,6 +81,11 @@ def collect_nodes_typed(iface: object) -> CollectedNodes:
             "snr": info.get("snr"),
             "rssi": info.get("rssi"),
             "hops_away": info.get("hopsAway"),
+            "is_favorite": _optional_bool(
+                info.get("isFavorite")
+                if info.get("isFavorite") is not None
+                else info.get("is_favorite")
+            ),
             "battery_level": metrics.get("batteryLevel"),
             "voltage": metrics.get("voltage"),
             "channel_utilization": metrics.get("channelUtilization"),
@@ -153,6 +176,11 @@ def collect_nodes_rows_typed(iface: object) -> CollectedNodes:
             "snr": to_jsonable(info.get("snr")),
             "rssi": to_jsonable(info.get("rssi")),
             "hops_away": to_jsonable(info.get("hopsAway")),
+            "is_favorite": _optional_bool(
+                to_jsonable(info.get("isFavorite"))
+                if info.get("isFavorite") is not None
+                else to_jsonable(info.get("is_favorite"))
+            ),
             "battery_level": metrics.get("batteryLevel"),
             "voltage": metrics.get("voltage"),
             "channel_utilization": metrics.get("channelUtilization"),
