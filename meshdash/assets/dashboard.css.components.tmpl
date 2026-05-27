@@ -5923,6 +5923,40 @@
       background: color-mix(in srgb, var(--ui-accent) 24%, transparent);
       color: var(--workspace-shell-text);
     }}
+    [data-theme="dark"] .network-route-compact.is-return {{
+      border-color: color-mix(in srgb, #e39b54 70%, var(--workspace-shell-border-muted) 30%);
+      background:
+        linear-gradient(90deg, color-mix(in srgb, #e39b54 16%, transparent), transparent 58%),
+        color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--workspace-shell-active-bg) 12%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-compact-head,
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill-meta {{
+      color: color-mix(in srgb, #e8b780 72%, var(--workspace-shell-text-soft) 28%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill-sep,
+    [data-theme="dark"] .network-route-pill-sep.is-return {{
+      color: color-mix(in srgb, #e39b54 76%, var(--workspace-shell-text-soft) 24%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill {{
+      border-color: color-mix(in srgb, #d88f49 74%, var(--workspace-shell-border-muted) 26%);
+      background: color-mix(in srgb, #e39b54 16%, var(--workspace-shell-active-bg) 84%);
+      color: color-mix(in srgb, #f7d4aa 66%, var(--workspace-shell-text) 34%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill:hover {{
+      border-color: color-mix(in srgb, #ebb273 76%, var(--workspace-shell-border-muted) 24%);
+      background: color-mix(in srgb, #e39b54 24%, var(--workspace-shell-active-bg) 76%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill:focus-visible {{
+      outline-color: color-mix(in srgb, #ebb273 76%, var(--workspace-shell-active-bg) 24%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill.is-local {{
+      border-color: color-mix(in srgb, #ebb273 72%, var(--workspace-shell-border-muted) 28%);
+      background: color-mix(in srgb, #e39b54 30%, var(--workspace-shell-active-bg) 70%);
+    }}
+    [data-theme="dark"] .network-route-compact.is-return .network-route-pill-index {{
+      background: color-mix(in srgb, #e39b54 42%, transparent);
+      color: color-mix(in srgb, #fff1de 76%, var(--workspace-shell-text) 24%);
+    }}
     [data-theme="dark"] .network-sensors-panel .env-metrics-explorer {{
       border-color: var(--workspace-shell-border);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%);

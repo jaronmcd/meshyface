@@ -2457,6 +2457,10 @@
       if (!path.length) return "";
       const opts = (options && typeof options === "object") ? options : {{}};
       const label = String(opts.label || "Path").trim() || "Path";
+      const kind = String(opts.kind || "").trim().toLowerCase();
+      const kindClass = kind === "return"
+        ? " is-return"
+        : (kind === "route" ? " is-route" : "");
       const hopCount = Math.max(0, path.length - 1);
       const hopLabel = hopCount === 1 ? "1 hop" : `${{hopCount}} hops`;
       const snrParts = [];
@@ -2467,6 +2471,7 @@
         }}
       }}
       const snrText = snrParts.length ? `SNR ${{snrParts.join(" · ")}}` : "";
+      const sepHtml = `<span class="network-route-pill-sep${{kindClass}}" aria-hidden="true">→</span>`;
       const nodeHtml = path.map((nodeId, index) => {{
         const clean = normalizeNodeId(nodeId || "");
         const isLocal = clean && clean === normalizeNodeId(localNodeId || "");
@@ -2476,8 +2481,8 @@
           <span class="network-route-pill-index">${{escAttr(String(index + 1))}}</span>
           <span class="network-route-pill-name">${{escAttr(displayName)}}</span>
         </button>`;
-      }}).join('<span class="network-route-pill-sep" aria-hidden="true">→</span>');
-      return `<section class="network-route-compact">
+      }}).join(sepHtml);
+      return `<section class="network-route-compact${{kindClass}}">
         <div class="network-route-compact-head">
           <span>${{escAttr(label)}}</span>
           <span>${{escAttr(hopLabel)}}</span>
@@ -2762,14 +2767,20 @@
         towardsRoute,
         renderData.nodeMap,
         renderData.localNodeId,
-        {{ label: "Towards destination" }}
+        {{
+          label: "Towards destination",
+          kind: "route",
+        }}
       );
       const backPathHtml = backRoute.path.length > 1
         ? networkRoutesCompactPathHtml(
             backRoute,
             renderData.nodeMap,
             renderData.localNodeId,
-            {{ label: "Return path" }}
+            {{
+              label: "Return path",
+              kind: "return",
+            }}
           )
         : "";
       const consoleLines = Array.isArray(safeState.lines) ? safeState.lines.slice(0, 2) : [];
