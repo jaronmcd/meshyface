@@ -163,6 +163,67 @@
       return count;
     }}
 
+    function supportsLinkEstimateHeatmap() {{
+      return !!(window.L && typeof L.heatLayer === "function");
+    }}
+
+    function ensureLinkEstimateHeatmapLayer() {{
+      if (!supportsLinkEstimateHeatmap()) return null;
+      if (linkEstimateHeatmapLayer) return linkEstimateHeatmapLayer;
+      let pane = map.getPane(linkEstimateHeatmapPaneName);
+      if (!pane) {{
+        pane = map.createPane(linkEstimateHeatmapPaneName);
+      }}
+      if (pane) {{
+        pane.style.zIndex = "432";
+        pane.style.pointerEvents = "none";
+      }}
+      linkEstimateHeatmapLayer = L.heatLayer(
+        [],
+        Object.assign(
+          {{
+            pane: linkEstimateHeatmapPaneName,
+            radius: 30,
+            blur: 24,
+            minOpacity: 0.22,
+          }},
+          linkEstimateHeatmapLayerOptions || {{}}
+        )
+      );
+      return linkEstimateHeatmapLayer;
+    }}
+
+    function clearLinkEstimateHeatmapLayer() {{
+      if (!linkEstimateHeatmapLayer) return;
+      linkEstimateHeatmapLayer.setLatLngs([]);
+      if (map.hasLayer(linkEstimateHeatmapLayer)) {{
+        map.removeLayer(linkEstimateHeatmapLayer);
+      }}
+    }}
+
+    function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false) {{
+      const layer = ensureLinkEstimateHeatmapLayer();
+      if (!layer) return;
+      const heatPoints = (
+        linkDensity
+        && Array.isArray(linkDensity.heatPoints)
+      )
+        ? linkDensity.heatPoints
+        : [];
+      const shouldShow = !!show && heatPoints.length > 0;
+      layer.setLatLngs(heatPoints);
+      if (shouldShow) {{
+        if (!map.hasLayer(layer)) {{
+          layer.addTo(map);
+        }}
+        if (typeof forceHeatLayerPointerPassthrough === "function") {{
+          forceHeatLayerPointerPassthrough(layer);
+        }}
+      }} else if (map.hasLayer(layer)) {{
+        map.removeLayer(layer);
+      }}
+    }}
+
     function bindMapLinkLegendControls(legend) {{
       if (!(legend instanceof HTMLElement)) return;
       const packetToggle = legend.querySelector('[data-map-link-legend-toggle="packet"]');
@@ -206,8 +267,37 @@
       const linkedCount = estimatedPositions instanceof Map ? estimatedPositions.size : 0;
       const packetCount = countMapPacketLineCandidates(nodes, rawEdges);
       const lines = (linkOverlay && Array.isArray(linkOverlay.lines)) ? linkOverlay.lines : [];
-      const historyCount = lines.filter((line) => String(line && line.mode || "") === "history").length;
-      const liveCount = lines.filter((line) => String(line && line.mode || "") === "live").length;
+      const linkDensity = (linkOverlay && linkOverlay.linkDensity && typeof linkOverlay.linkDensity === "object")
+        ? linkOverlay.linkDensity
+        : null;
+      const hideLinkedDots = !!(linkDensity && linkDensity.hideEstimatedMarkers);
+      const heatPointCount = linkDensity && Array.isArray(linkDensity.heatPoints)
+        ? linkDensity.heatPoints.length
+        : 0;
+      const cloudCount = linkDensity && Number.isFinite(Number(linkDensity.cloudCount))
+        ? Math.max(0, Math.trunc(Number(linkDensity.cloudCount)))
+        : 0;
+      const cloudLinkCount = linkDensity && Number.isFinite(Number(linkDensity.cloudLinkCount))
+        ? Math.max(0, Math.trunc(Number(linkDensity.cloudLinkCount)))
+        : 0;
+      const linkHeatCountLabel = heatPointCount > 0
+        ? `${{cloudCount}} cloud${{cloudCount === 1 ? "" : "s"}} · ${{cloudLinkCount}} link${{cloudLinkCount === 1 ? "" : "s"}}`
+        : "0";
+      const linkedNodesLegendTitle = hideLinkedDots
+        ? "Nodes placed from link signal and hop evidence (dots hidden while cluster-link view is active)"
+        : "Nodes placed from link signal and hop evidence";
+      const linkedNodesLegendName = hideLinkedDots
+        ? "Linked nodes (hidden)"
+        : "Linked nodes";
+      const cloudLinks = (linkDensity && Array.isArray(linkDensity.cloudLinks))
+        ? linkDensity.cloudLinks
+        : [];
+      const historyCount = cloudLinks.length > 0
+        ? cloudLinks.filter((line) => String(line && line.mode || "") === "history").length
+        : lines.filter((line) => String(line && line.mode || "") === "history").length;
+      const liveCount = cloudLinks.length > 0
+        ? cloudLinks.filter((line) => String(line && line.mode || "") === "live").length
+        : lines.filter((line) => String(line && line.mode || "") === "live").length;
       const modeParts = mapLinkLayerModeParts(mapLinkLayerMode);
       legend.hidden = false;
       legend.innerHTML = `
@@ -218,10 +308,15 @@
             <span class="map-link-legend-name">Actual GPS nodes</span>
             <span class="map-link-legend-count">${{actualCount}}</span>
           </div>
-          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#68bde8;" title="Nodes placed from link signal and hop evidence">
+          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#68bde8;" title="${{linkedNodesLegendTitle}}">
             <span class="map-link-legend-swatch is-node-linked" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Linked nodes</span>
+            <span class="map-link-legend-name">${{linkedNodesLegendName}}</span>
             <span class="map-link-legend-count">${{linkedCount}}</span>
+          </div>
+          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#4f9bff;" title="Unknown-position nodes are grouped into blue hotspot clouds. Lines are drawn from each cloud into known-position nodes connected to that cloud.">
+            <span class="map-link-legend-swatch is-link-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Link region heat</span>
+            <span class="map-link-legend-count">${{linkHeatCountLabel}}</span>
           </div>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show packet lines between positioned nodes">
             <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show packet lines" />
@@ -274,6 +369,7 @@
         edgeLayer.clearLayers();
         trailLayer.clearLayers();
         linkEstimateLayer.clearLayers();
+        clearLinkEstimateHeatmapLayer();
         renderMapLinkLegend();
         nodeMarkers.clear();
         nodeMarkerMeta.clear();
@@ -431,15 +527,44 @@
         for (const node of (nodes || [])) {{
           byId[normalizeNodeId(node && node.id)] = node;
         }}
-        const linkOverlay = (
+        const rawLinkOverlay = (
           activeLayoutView === "network"
           && effectiveMapLinkMode !== "none"
         )
           ? buildMapLinkLayerOverlay(nodes, mapRenderEdges, {{ mode: effectiveMapLinkMode }})
           : {{ estimates: new Map(), lines: [] }};
+        const densitySourceOverlay = (
+          activeLayoutView === "network"
+          && effectiveMapLinkMode !== "none"
+        )
+          ? buildMapLinkLayerOverlay(nodes, mapRenderEdges, {{ mode: "both" }})
+          : {{ estimates: new Map(), lines: [] }};
+        const linkDensity = (
+          activeLayoutView === "network"
+          && effectiveMapLinkMode !== "none"
+          && typeof buildMapLinkEstimateDensityOverlay === "function"
+        )
+          ? buildMapLinkEstimateDensityOverlay(densitySourceOverlay, {{
+              byId,
+              localNodeId: normalizeNodeId(resolveLocalNodeId(latestState || {}) || ""),
+            }})
+          : null;
+        const linkOverlay = Object.assign({{}}, rawLinkOverlay, {{
+          linkDensity,
+        }});
+        const hideEstimatedLinkDots = !!(
+          linkDensity
+          && linkDensity.hideEstimatedMarkers
+        );
         estimatedPositions = linkOverlay.estimates instanceof Map
           ? linkOverlay.estimates
           : new Map();
+        if (
+          hideEstimatedLinkDots
+          && densitySourceOverlay.estimates instanceof Map
+        ) {{
+          estimatedPositions = densitySourceOverlay.estimates;
+        }}
         const historyCapsById = new Map(
           Object.entries((latestState && latestState.history_caps && typeof latestState.history_caps === "object") ? latestState.history_caps : {{}})
             .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
@@ -457,6 +582,9 @@
           const markerLat = hasActualPosition ? rawLat : Number(estimate && estimate.lat);
           const markerLon = hasActualPosition ? rawLon : Number(estimate && estimate.lon);
           const isEstimated = !hasActualPosition && !!estimate;
+          if (hideEstimatedLinkDots && isEstimated) {{
+            continue;
+          }}
           if (!isValidMapCoord(markerLat, markerLon)) continue;
           const isSelected = !!selectedNodeId && normalizedId === selectedNodeId;
           const nodeCaps = historyCapsById.get(normalizedId) || null;
@@ -702,8 +830,33 @@
         }}
 
         if (activeLayoutView === "network" && effectiveMapLinkMode !== "none") {{
+          const linkDensity = (
+            linkOverlay
+            && linkOverlay.linkDensity
+            && typeof linkOverlay.linkDensity === "object"
+          )
+            ? linkOverlay.linkDensity
+            : null;
+          const useCloudConsolidation = !!(linkDensity && linkDensity.enabled);
+          const modeParts = mapLinkLayerModeParts(effectiveMapLinkMode);
           const seenEstimateKeys = new Set();
-          for (const estimateLine of (Array.isArray(linkOverlay.lines) ? linkOverlay.lines : [])) {{
+          const estimateLinesToRender = useCloudConsolidation
+            ? (
+              Array.isArray(linkDensity.cloudLinks)
+                ? linkDensity.cloudLinks.filter((line) => {{
+                    const mode = String(line && line.mode || "history").trim().toLowerCase();
+                    if (mode === "live") return !!modeParts.live;
+                    return !!modeParts.history;
+                  }})
+                : []
+            )
+            : (
+              Array.isArray(linkOverlay.lines)
+                ? linkOverlay.lines.slice()
+                : []
+            );
+          for (const estimateLine of estimateLinesToRender) {{
+            const isCloudLink = !!(estimateLine && estimateLine.cloudLink);
             const lineKey = String(estimateLine && estimateLine.key || "");
             if (!lineKey) continue;
             seenEstimateKeys.add(lineKey);
@@ -745,6 +898,18 @@
               lineHash,
               String(estimateLine ? (estimateLine.avgRssi ?? "") : "")
             );
+            lineHash = hashMixInt(
+              lineHash,
+              isCloudLink
+                ? Math.trunc(Number(estimateLine && estimateLine.sampleCount) || 0)
+                : 0
+            );
+            lineHash = hashMixInt(
+              lineHash,
+              isCloudLink
+                ? Math.trunc(Number(estimateLine && estimateLine.clusterNodeCount) || 0)
+                : 0
+            );
 
             const existingLine = linkEstimateLines.get(lineKey);
             const prevLineHash = linkEstimateLineMeta.get(lineKey);
@@ -762,38 +927,81 @@
                 [Number(estimateLine.toLat), Number(estimateLine.toLon)],
               ],
               {{
-                color: lineMode === "live"
-                  ? (estimatedEndpoints >= 2 ? "#9cd8ff" : "#7cc7ff")
-                  : (estimatedEndpoints >= 2 ? "#2f6f8c" : "#3384a6"),
-                dashArray: lineMode === "live"
-                  ? (estimatedEndpoints >= 2 ? "2 5" : "5 5")
-                  : (estimatedEndpoints >= 2 ? "4 7" : "8 6"),
-                opacity: lineMode === "live"
-                  ? (0.22 + (qualityScore * 0.28))
-                  : (0.18 + (qualityScore * 0.26)),
-                weight: lineMode === "live"
-                  ? (2.2 + (qualityScore * 2.4))
-                  : (1.2 + (qualityScore * 1.4)),
+                color: isCloudLink
+                  ? (lineMode === "live" ? "#8fd3ff" : "#4f9bff")
+                  : (
+                    lineMode === "live"
+                      ? (estimatedEndpoints >= 2 ? "#9cd8ff" : "#7cc7ff")
+                      : (estimatedEndpoints >= 2 ? "#2f6f8c" : "#3384a6")
+                  ),
+                dashArray: isCloudLink
+                  ? (lineMode === "live" ? null : "6 7")
+                  : (
+                    lineMode === "live"
+                      ? (estimatedEndpoints >= 2 ? "2 5" : "5 5")
+                      : (estimatedEndpoints >= 2 ? "4 7" : "8 6")
+                  ),
+                opacity: isCloudLink
+                  ? (0.34 + (qualityScore * 0.4))
+                  : (
+                    lineMode === "live"
+                      ? (0.22 + (qualityScore * 0.28))
+                      : (0.18 + (qualityScore * 0.26))
+                  ),
+                weight: isCloudLink
+                  ? (2.2 + (qualityScore * 2.6) + Math.min(1.8, (Number(estimateLine && estimateLine.sampleCount) || 0) * 0.12))
+                  : (
+                    lineMode === "live"
+                      ? (2.2 + (qualityScore * 2.4))
+                      : (1.2 + (qualityScore * 1.4))
+                  ),
+                lineCap: "round",
+                lineJoin: "round",
                 bubblingMouseEvents: false,
               }}
             );
-            line.bindTooltip(`
-              <b>Link layer (${{lineMode === "live" ? "live" : "history"}})</b><br/>
-              ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
-              Quality: ${{Math.round(qualityScore * 100)}}%<br/>
-              Target span: ${{estimateLine.desiredDistanceKm}} km
-            `, {{ sticky: true, opacity: 0.9 }});
-            line.bindPopup(`
-              <b>Link layer (${{lineMode === "live" ? "live" : "history"}})</b><br/>
-              Nodes: ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
-              Estimated endpoints: ${{estimatedEndpoints}}<br/>
-              Quality: ${{Math.round(qualityScore * 100)}}%<br/>
-              Target span: ${{estimateLine.desiredDistanceKm}} km<br/>
-              Avg hops: ${{estimateLine.avgHops == null ? "n/a" : estimateLine.avgHops}}<br/>
-              Avg SNR: ${{estimateLine.avgSnr == null ? "n/a" : estimateLine.avgSnr}}<br/>
-              Avg RSSI: ${{estimateLine.avgRssi == null ? "n/a" : estimateLine.avgRssi}}<br/>
-              Age: ${{ageLabel}}
-            `);
+            if (isCloudLink) {{
+              const cloudId = String(estimateLine && estimateLine.cloudId || "n/a");
+              const cloudNodeCount = Math.max(0, Math.trunc(Number(estimateLine && estimateLine.clusterNodeCount) || 0));
+              const sampleCount = Math.max(0, Math.trunc(Number(estimateLine && estimateLine.sampleCount) || 0));
+              line.bindTooltip(`
+                <b>Cloud link (${{lineMode === "live" ? "live" : "history"}})</b><br/>
+                Cloud: ${{cloudId}} (${{cloudNodeCount}} unknown node${{cloudNodeCount === 1 ? "" : "s"}})<br/>
+                Known node: ${{estimateLine.toId}}<br/>
+                Samples: ${{sampleCount}}<br/>
+                Quality: ${{Math.round(qualityScore * 100)}}%
+              `, {{ sticky: true, opacity: 0.9 }});
+              line.bindPopup(`
+                <b>Cloud link (${{lineMode === "live" ? "live" : "history"}})</b><br/>
+                Cloud: ${{cloudId}} (${{cloudNodeCount}} unknown node${{cloudNodeCount === 1 ? "" : "s"}})<br/>
+                Known node: ${{estimateLine.toId}}<br/>
+                Samples: ${{sampleCount}}<br/>
+                Quality: ${{Math.round(qualityScore * 100)}}%<br/>
+                Cloud->node span: ${{estimateLine.desiredDistanceKm}} km<br/>
+                Avg hops: ${{estimateLine.avgHops == null ? "n/a" : estimateLine.avgHops}}<br/>
+                Avg SNR: ${{estimateLine.avgSnr == null ? "n/a" : estimateLine.avgSnr}}<br/>
+                Avg RSSI: ${{estimateLine.avgRssi == null ? "n/a" : estimateLine.avgRssi}}<br/>
+                Age: ${{ageLabel}}
+              `);
+            }} else {{
+              line.bindTooltip(`
+                <b>Link layer (${{lineMode === "live" ? "live" : "history"}})</b><br/>
+                ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
+                Quality: ${{Math.round(qualityScore * 100)}}%<br/>
+                Target span: ${{estimateLine.desiredDistanceKm}} km
+              `, {{ sticky: true, opacity: 0.9 }});
+              line.bindPopup(`
+                <b>Link layer (${{lineMode === "live" ? "live" : "history"}})</b><br/>
+                Nodes: ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
+                Estimated endpoints: ${{estimatedEndpoints}}<br/>
+                Quality: ${{Math.round(qualityScore * 100)}}%<br/>
+                Target span: ${{estimateLine.desiredDistanceKm}} km<br/>
+                Avg hops: ${{estimateLine.avgHops == null ? "n/a" : estimateLine.avgHops}}<br/>
+                Avg SNR: ${{estimateLine.avgSnr == null ? "n/a" : estimateLine.avgSnr}}<br/>
+                Avg RSSI: ${{estimateLine.avgRssi == null ? "n/a" : estimateLine.avgRssi}}<br/>
+                Age: ${{ageLabel}}
+              `);
+            }}
             line.addTo(linkEstimateLayer);
             linkEstimateLines.set(lineKey, line);
             linkEstimateLineMeta.set(lineKey, lineHash);
@@ -805,12 +1013,14 @@
             linkEstimateLines.delete(lineKey);
             linkEstimateLineMeta.delete(lineKey);
           }}
+          syncLinkEstimateHeatmapLayer(linkDensity, true);
         }} else {{
           for (const [lineKey, line] of Array.from(linkEstimateLines.entries())) {{
             linkEstimateLayer.removeLayer(line);
             linkEstimateLines.delete(lineKey);
             linkEstimateLineMeta.delete(lineKey);
           }}
+          clearLinkEstimateHeatmapLayer();
         }}
         renderMapLinkLegend(nodes, mapRenderEdges, estimatedPositions, linkOverlay);
       }}

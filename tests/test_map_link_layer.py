@@ -97,9 +97,23 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'toggle.disabled = true;' in js
     assert "function estimatedMarkerStyle(isSelected, confidence = 0.5, isLocal = false)" in js
     assert "function buildMapLinkLayerOverlay(nodes, rawEdges, options = null)" in js
+    assert "function buildMapLinkEstimateDensityOverlay(linkOverlay, options = null)" in js
+    assert "hideEstimatedMarkers: false," in js
+    assert "hideEstimatedMarkers: clouds.length > 0," in js
+    assert "cloudLinks" in js
+    assert "cloudLink: true," in js
     assert "nodeMarkerKinds" in js
     assert "nodeMarkerConfidence" in js
     assert "linkEstimateLayer" in js
+    assert "let linkEstimateHeatmapLayer = null;" in js
+    assert 'const linkEstimateHeatmapPaneName = "linkEstimateHeatmapPane";' in js
+    assert "function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false)" in js
+    assert "clearLinkEstimateHeatmapLayer();" in js
+    assert "syncLinkEstimateHeatmapLayer(linkDensity, true);" in js
+    assert "const hideEstimatedLinkDots = !!(" in js
+    assert "if (hideEstimatedLinkDots && isEstimated) {" in js
+    assert "Linked nodes (hidden)" in js
+    assert "Link region heat" in js
     assert "estimateLine && estimateLine.avgHops ??" not in js
     assert "estimateLine && estimateLine.avgSnr ??" not in js
     assert "estimateLine && estimateLine.avgRssi ??" not in js
@@ -152,6 +166,7 @@ def test_dashboard_css_positions_map_link_legend_below_zoom() -> None:
     assert "bottom: var(--map-link-legend-space, 0px);" in css
     assert ".map-link-legend-input {" in css
     assert ".map-link-legend-swatch.is-node-linked::before {" in css
+    assert ".map-link-legend-swatch.is-link-heat::before {" in css
 
 
 def test_dashboard_js_keeps_leaflet_tile_layers_removable_on_theme_swap() -> None:

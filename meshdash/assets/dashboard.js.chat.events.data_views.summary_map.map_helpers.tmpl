@@ -1035,6 +1035,369 @@
       return Math.round(900 + ((1 - quality) * 17000) + hopPenaltyMeters);
     }}
 
+    function mapLinkWeightedPercentile(entries, quantile = 0.5) {{
+      const q = clampMapLinkValue(Number(quantile), 0, 1);
+      const prepared = [];
+      let totalWeight = 0;
+      for (const entry of (entries || [])) {{
+        const value = Number(entry && entry.value);
+        if (!Number.isFinite(value) || value < 0) continue;
+        const weight = clampMapLinkValue(Number(entry && entry.weight), 0.0001, 10000);
+        prepared.push({{ value, weight }});
+        totalWeight += weight;
+      }}
+      if (!prepared.length || !(totalWeight > 0)) return 0;
+      prepared.sort((a, b) => a.value - b.value);
+      const target = totalWeight * q;
+      let accum = 0;
+      for (const entry of prepared) {{
+        accum += entry.weight;
+        if (accum >= target) {{
+          return entry.value;
+        }}
+      }}
+      return prepared[prepared.length - 1].value;
+    }}
+
+    function buildMapLinkEstimateDensityOverlay(linkOverlay, options = null) {{
+      const overlay = (linkOverlay && typeof linkOverlay === "object") ? linkOverlay : {{}};
+      const lines = Array.isArray(overlay.lines) ? overlay.lines : [];
+      const estimates = overlay.estimates instanceof Map ? overlay.estimates : new Map();
+      const fallback = {{
+        enabled: false,
+        hideEstimatedMarkers: false,
+        heatPoints: [],
+        clouds: [],
+        cloudLinks: [],
+        cloudCount: 0,
+        cloudLinkCount: 0,
+        historyCloudLinkCount: 0,
+        liveCloudLinkCount: 0,
+        outlierLineKeys: new Set(),
+        summaryLine: null,
+        coreLineCount: 0,
+        outlierLineCount: 0,
+        totalLineCount: lines.length,
+        corePointCount: 0,
+        outlierPointCount: 0,
+      }};
+      if (!lines.length || !estimates.size) {{
+        return fallback;
+      }}
+
+      const estimatePoints = [];
+      let refLatWeight = 0;
+      let refLonWeight = 0;
+      let refWeightTotal = 0;
+      for (const [rawNodeId, estimate] of estimates.entries()) {{
+        const nodeId = normalizeNodeId(rawNodeId);
+        const lat = Number(estimate && estimate.lat);
+        const lon = Number(estimate && estimate.lon);
+        if (!isSelectableNodeId(nodeId) || !isValidMapCoord(lat, lon)) continue;
+        const confidence = clampMapLinkValue(Number(estimate && estimate.confidence), 0.08, 1);
+        const supportLinks = Math.max(0, Math.trunc(Number(estimate && estimate.supportLinks) || 0));
+        const sampleWeight = clampMapLinkValue(confidence * (1 + (Math.min(8, supportLinks) * 0.12)), 0.08, 2.4);
+        estimatePoints.push({{
+          nodeId,
+          lat,
+          lon,
+          confidence,
+          supportLinks,
+          weight: sampleWeight,
+          x: 0,
+          y: 0,
+        }});
+        refLatWeight += lat * sampleWeight;
+        refLonWeight += lon * sampleWeight;
+        refWeightTotal += sampleWeight;
+      }}
+      if (estimatePoints.length <= 0 || !(refWeightTotal > 0)) {{
+        return fallback;
+      }}
+
+      const refLat = refLatWeight / refWeightTotal;
+      const refLon = refLonWeight / refWeightTotal;
+      for (const point of estimatePoints) {{
+        const projected = projectMapLinkPoint(point.lat, point.lon, refLat, refLon);
+        point.x = Number(projected.x) || 0;
+        point.y = Number(projected.y) || 0;
+      }}
+
+      const parent = estimatePoints.map((_entry, index) => index);
+      const rank = estimatePoints.map(() => 0);
+      function findRoot(idx) {{
+        let i = idx;
+        while (parent[i] !== i) {{
+          parent[i] = parent[parent[i]];
+          i = parent[i];
+        }}
+        return i;
+      }}
+      function unionRoots(a, b) {{
+        const ra = findRoot(a);
+        const rb = findRoot(b);
+        if (ra === rb) return;
+        const rankA = rank[ra];
+        const rankB = rank[rb];
+        if (rankA < rankB) {{
+          parent[ra] = rb;
+        }} else if (rankA > rankB) {{
+          parent[rb] = ra;
+        }} else {{
+          parent[rb] = ra;
+          rank[ra] += 1;
+        }}
+      }}
+
+      const clusterJoinMeters = 5200;
+      const clusterJoinMetersSq = clusterJoinMeters * clusterJoinMeters;
+      for (let i = 0; i < estimatePoints.length; i += 1) {{
+        for (let j = i + 1; j < estimatePoints.length; j += 1) {{
+          const dx = estimatePoints[i].x - estimatePoints[j].x;
+          const dy = estimatePoints[i].y - estimatePoints[j].y;
+          const distSq = (dx * dx) + (dy * dy);
+          if (distSq <= clusterJoinMetersSq) {{
+            unionRoots(i, j);
+          }}
+        }}
+      }}
+
+      const membersByRoot = new Map();
+      for (let i = 0; i < estimatePoints.length; i += 1) {{
+        const root = findRoot(i);
+        if (!membersByRoot.has(root)) {{
+          membersByRoot.set(root, []);
+        }}
+        membersByRoot.get(root).push(estimatePoints[i]);
+      }}
+      if (!membersByRoot.size) {{
+        return fallback;
+      }}
+
+      const clouds = [];
+      const cloudById = new Map();
+      const cloudIdByNodeId = new Map();
+      let cloudSeq = 0;
+      for (const members of membersByRoot.values()) {{
+        if (!Array.isArray(members) || members.length <= 0) continue;
+        cloudSeq += 1;
+        const cloudId = `c${{cloudSeq}}`;
+        let sumX = 0;
+        let sumY = 0;
+        let totalWeight = 0;
+        let confidenceTotal = 0;
+        for (const member of members) {{
+          sumX += member.x * member.weight;
+          sumY += member.y * member.weight;
+          totalWeight += member.weight;
+          confidenceTotal += member.confidence;
+        }}
+        if (!(totalWeight > 0)) continue;
+        const centerX = sumX / totalWeight;
+        const centerY = sumY / totalWeight;
+        const centerLL = unprojectMapLinkPoint(centerX, centerY, refLat, refLon);
+        if (!isValidMapCoord(centerLL.lat, centerLL.lon)) continue;
+
+        const radiusEntries = [];
+        for (const member of members) {{
+          const dx = member.x - centerX;
+          const dy = member.y - centerY;
+          radiusEntries.push({{
+            value: Math.hypot(dx, dy),
+            weight: member.weight,
+          }});
+          cloudIdByNodeId.set(member.nodeId, cloudId);
+        }}
+        const cloudRadiusMeters = Math.max(380, mapLinkWeightedPercentile(radiusEntries, 0.78));
+        const cloud = {{
+          id: cloudId,
+          lat: centerLL.lat,
+          lon: centerLL.lon,
+          nodeCount: members.length,
+          avgConfidence: clampMapLinkValue(confidenceTotal / Math.max(1, members.length), 0, 1),
+          radiusMeters: cloudRadiusMeters,
+        }};
+        clouds.push(cloud);
+        cloudById.set(cloudId, cloud);
+      }}
+      if (!clouds.length) {{
+        return fallback;
+      }}
+
+      const heatPoints = [];
+      for (const point of estimatePoints) {{
+        const cloudId = cloudIdByNodeId.get(point.nodeId);
+        const cloud = cloudId ? cloudById.get(cloudId) : null;
+        if (!cloud) continue;
+        const distVec = projectMapLinkPoint(point.lat, point.lon, cloud.lat, cloud.lon);
+        const distMeters = Math.hypot(Number(distVec.x) || 0, Number(distVec.y) || 0);
+        const radiusCap = Math.max(450, Number(cloud.radiusMeters) * 1.9);
+        const falloff = 1 - clampMapLinkValue(distMeters / radiusCap, 0, 1);
+        const intensity = clampMapLinkValue(
+          point.weight * (0.42 + (falloff * 0.62)),
+          0.06,
+          1
+        );
+        heatPoints.push([point.lat, point.lon, intensity]);
+      }}
+      for (const cloud of clouds) {{
+        const cloudIntensity = clampMapLinkValue(
+          0.26 + Math.min(0.6, (cloud.nodeCount * 0.08)),
+          0.22,
+          0.92
+        );
+        heatPoints.push([cloud.lat, cloud.lon, cloudIntensity]);
+      }}
+
+      const cloudLinkAgg = new Map();
+      for (const line of lines) {{
+        const mode = String((line && line.mode) || "history").trim().toLowerCase() === "live"
+          ? "live"
+          : "history";
+        const fromId = normalizeNodeId(line && line.fromId);
+        const toId = normalizeNodeId(line && line.toId);
+        const fromCloudId = cloudIdByNodeId.get(fromId) || "";
+        const toCloudId = cloudIdByNodeId.get(toId) || "";
+        const fromEstimated = !!fromCloudId;
+        const toEstimated = !!toCloudId;
+        if (fromEstimated === toEstimated) {{
+          continue;
+        }}
+
+        const cloudId = fromEstimated ? fromCloudId : toCloudId;
+        const knownNodeId = fromEstimated ? toId : fromId;
+        const rawKnownLat = fromEstimated ? Number(line && line.toLat) : Number(line && line.fromLat);
+        const rawKnownLon = fromEstimated ? Number(line && line.toLon) : Number(line && line.fromLon);
+        const knownLat = isValidMapCoord(rawKnownLat, rawKnownLon)
+          ? rawKnownLat
+          : Number.NaN;
+        const knownLon = isValidMapCoord(rawKnownLat, rawKnownLon)
+          ? rawKnownLon
+          : Number.NaN;
+        if (!cloudId || !isSelectableNodeId(knownNodeId)) continue;
+        if (!isValidMapCoord(knownLat, knownLon)) continue;
+
+        const qualityScore = clampMapLinkValue(Number(line && line.qualityScore), 0.08, 0.98);
+        const sampleWeight = Math.max(
+          0.2,
+          (Number(line && line.weight) || 0) + ((Number(line && line.sessionWeight) || 0) * 0.45)
+        );
+        const key = `${{mode}}::${{cloudId}}::${{knownNodeId}}`;
+        let agg = cloudLinkAgg.get(key);
+        if (!agg) {{
+          agg = {{
+            mode,
+            cloudId,
+            knownNodeId,
+            latWeighted: 0,
+            lonWeighted: 0,
+            geoWeight: 0,
+            qualityWeighted: 0,
+            qualityWeight: 0,
+            sampleWeight: 0,
+            sampleCount: 0,
+            lastSeenUnix: 0,
+            hopsWeighted: 0,
+            hopsWeight: 0,
+            snrWeighted: 0,
+            snrWeight: 0,
+            rssiWeighted: 0,
+            rssiWeight: 0,
+          }};
+          cloudLinkAgg.set(key, agg);
+        }}
+        agg.latWeighted += knownLat * sampleWeight;
+        agg.lonWeighted += knownLon * sampleWeight;
+        agg.geoWeight += sampleWeight;
+        agg.qualityWeighted += qualityScore * sampleWeight;
+        agg.qualityWeight += sampleWeight;
+        agg.sampleWeight += sampleWeight;
+        agg.sampleCount += 1;
+        agg.lastSeenUnix = Math.max(agg.lastSeenUnix, Number(line && line.lastSeenUnix) || 0);
+
+        const avgHops = Number(line && line.avgHops);
+        if (Number.isFinite(avgHops)) {{
+          agg.hopsWeighted += avgHops * sampleWeight;
+          agg.hopsWeight += sampleWeight;
+        }}
+        const avgSnr = Number(line && line.avgSnr);
+        if (Number.isFinite(avgSnr)) {{
+          agg.snrWeighted += avgSnr * sampleWeight;
+          agg.snrWeight += sampleWeight;
+        }}
+        const avgRssi = Number(line && line.avgRssi);
+        if (Number.isFinite(avgRssi)) {{
+          agg.rssiWeighted += avgRssi * sampleWeight;
+          agg.rssiWeight += sampleWeight;
+        }}
+      }}
+
+      const cloudLinks = [];
+      for (const agg of cloudLinkAgg.values()) {{
+        const cloud = cloudById.get(agg.cloudId);
+        if (!cloud || !(agg.geoWeight > 0)) continue;
+        const toLat = agg.latWeighted / agg.geoWeight;
+        const toLon = agg.lonWeighted / agg.geoWeight;
+        if (!isValidMapCoord(toLat, toLon)) continue;
+        const vec = projectMapLinkPoint(toLat, toLon, cloud.lat, cloud.lon);
+        const distanceKm = Math.round((Math.hypot(Number(vec.x) || 0, Number(vec.y) || 0) / 1000) * 10) / 10;
+        cloudLinks.push({{
+          key: `cloud-link::${{agg.mode}}::${{agg.cloudId}}::${{agg.knownNodeId}}`,
+          mode: agg.mode,
+          fromId: `cloud-${{agg.cloudId}}`,
+          toId: agg.knownNodeId,
+          fromLat: cloud.lat,
+          fromLon: cloud.lon,
+          toLat,
+          toLon,
+          estimatedEndpoints: 1,
+          qualityScore: clampMapLinkValue(
+            agg.qualityWeight > 0 ? (agg.qualityWeighted / agg.qualityWeight) : 0.45,
+            0.08,
+            0.98
+          ),
+          desiredDistanceKm: distanceKm,
+          lastSeenUnix: agg.lastSeenUnix,
+          isReal: false,
+          weight: Math.max(1, Math.round(agg.sampleWeight)),
+          sessionWeight: 0,
+          avgHops: agg.hopsWeight > 0 ? Math.round((agg.hopsWeighted / agg.hopsWeight) * 100) / 100 : null,
+          avgSnr: agg.snrWeight > 0 ? Math.round((agg.snrWeighted / agg.snrWeight) * 100) / 100 : null,
+          avgRssi: agg.rssiWeight > 0 ? Math.round((agg.rssiWeighted / agg.rssiWeight) * 100) / 100 : null,
+          cloudLink: true,
+          cloudId: agg.cloudId,
+          clusterNodeCount: cloud.nodeCount,
+          sampleCount: agg.sampleCount,
+        }});
+      }}
+      cloudLinks.sort((a, b) => (
+        (Number(b.sampleCount) - Number(a.sampleCount))
+        || (Number(b.qualityScore) - Number(a.qualityScore))
+      ));
+
+      const historyCloudLinkCount = cloudLinks.filter((entry) => entry.mode === "history").length;
+      const liveCloudLinkCount = cloudLinks.filter((entry) => entry.mode === "live").length;
+      const result = {{
+        enabled: heatPoints.length > 0 && clouds.length > 0,
+        hideEstimatedMarkers: clouds.length > 0,
+        heatPoints,
+        clouds,
+        cloudLinks,
+        cloudCount: clouds.length,
+        cloudLinkCount: cloudLinks.length,
+        historyCloudLinkCount,
+        liveCloudLinkCount,
+        outlierLineKeys: new Set(),
+        summaryLine: null,
+        coreLineCount: cloudLinks.length,
+        outlierLineCount: 0,
+        totalLineCount: lines.length,
+        corePointCount: heatPoints.length,
+        outlierPointCount: 0,
+      }};
+      return result;
+    }}
+
     function buildMapLinkLayerOverlay(nodes, rawEdges, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
       const edgeMode = (typeof normalizeMapLinkLayerMode === "function")

@@ -159,6 +159,7 @@
     const linkEstimateLayer = L.layerGroup().addTo(map);
     let mapLinkLegendOffsetRaf = null;
     const signalHeatmapPaneName = "signalHeatmapPane";
+    const linkEstimateHeatmapPaneName = "linkEstimateHeatmapPane";
     const signalHeatmapGradient = {{
       0.02: "#1f4f79",
       0.24: "#2f855a",
@@ -166,9 +167,20 @@
       0.82: "#d1a02d",
       1.0: "#b22222",
     }};
+    const linkEstimateHeatmapGradient = {{
+      0.06: "#0b2f6f",
+      0.28: "#1d4ed8",
+      0.58: "#38bdf8",
+      0.84: "#bfdbfe",
+      1.0: "#e0f2fe",
+    }};
     const signalHeatmapLayerOptions = {{
       maxZoom: 14,
       gradient: signalHeatmapGradient,
+    }};
+    const linkEstimateHeatmapLayerOptions = {{
+      maxZoom: 14,
+      gradient: linkEstimateHeatmapGradient,
     }};
 
     // Leaflet.heat applies a single radius/blur per layer (not per point).

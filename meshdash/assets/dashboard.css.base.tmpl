@@ -6607,6 +6607,20 @@
       border-top: 3px dotted var(--map-link-legend-color, #7cc7ff);
       background: transparent;
     }}
+    .map-link-legend-swatch.is-link-heat::before {{
+      top: 1px;
+      left: 2px;
+      right: 2px;
+      height: 12px;
+      border-radius: 999px;
+      background: radial-gradient(
+        circle at 50% 50%,
+        color-mix(in srgb, var(--map-link-legend-color, #4f9bff) 90%, white 10%) 0%,
+        color-mix(in srgb, var(--map-link-legend-color, #4f9bff) 72%, transparent 28%) 58%,
+        transparent 100%
+      );
+      transform: none;
+    }}
     .map-link-legend-swatch.is-node-actual::before,
     .map-link-legend-swatch.is-node-linked::before {{
       left: 4px;
