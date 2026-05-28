@@ -61,15 +61,11 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function normalizeNodePacketSeries(raw) {" in js
     assert 'const mapPacketLinesStorageKey = "meshDashboardMapPacketLinesEnabledV1";' in js
     assert 'const mapLinkModeStorageKey = "meshDashboardMapLinkModeV1";' in js
-    assert 'const mapLinkLastActiveModeStorageKey = "meshDashboardMapLinkLastActiveModeV1";' in js
     assert 'const mapLiveActivityStorageKey = "meshDashboardMapLiveActivityEnabledV1";' in js
     assert "function updateMapPacketLinesControl()" in js
     assert "function bindMapPacketLinesControl()" in js
     assert "function updateMapLinkLayerControl()" in js
     assert "function normalizeMapLinkLayerMode(value) {" in js
-    assert "function normalizeMapLinkLayerLastActiveMode(value) {" in js
-    assert "function persistMapLinkLayerLastActiveModePreference(mode = mapLinkLayerMode) {" in js
-    assert "function resolveMapLinkLayerLastActiveModePreference() {" in js
     assert "function loadMapPacketLinesPreference()" in js
     assert "function loadMapLinkLayerModePreference()" in js
     assert "function bindMapLinkLayerControl()" in js
@@ -79,17 +75,11 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let mapLinkLegendOffsetRaf = null;" in js
     assert "function mapLinkLayerModeParts(modeName = mapLinkLayerMode)" in js
     assert 'estimated: mode !== "none",' in js
-    assert "function mapLinkLayerModeFromParts(showHistory, showLive)" in js
     assert "function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null)" in js
     assert "function bindMapLinkLegendControls(legend)" in js
     assert 'data-map-link-legend-toggle="packet"' in js
     assert 'data-map-link-legend-toggle="estimated"' in js
-    assert 'data-map-link-legend-toggle="history"' in js
-    assert 'data-map-link-legend-toggle="live"' in js
     assert "Estimated links" in js
-    assert 'data-map-link-legend-toggle="history"${historyChecked ? " checked" : ""}${estimatedEnabled ? "" : " disabled"}' in js
-    assert 'data-map-link-legend-toggle="live"${liveChecked ? " checked" : ""}${estimatedEnabled ? "" : " disabled"}' in js
-    assert "resolveMapLinkLayerLastActiveModePreference()" in js
     assert 'renderMapLinkLegend(nodes, mapRenderEdges, estimatedPositions, linkOverlay);' in js
     assert 'mapElement.style.setProperty("--map-link-legend-space"' in js
     assert "networkSubviewUsesMap(activeNetworkSubview)" in js
@@ -99,8 +89,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'const effectiveMapLinkMode = (typeof mapLinkLayerModeForCurrentView === "function")' in js
     assert '? (spreadEdgeMode === "live" ? "live" : "history")' not in js
     assert "lastMapSignature = \"\";" in js
-    assert "Linked nodes" in js
-    assert "Actual GPS nodes" in js
+    assert "Estimated nodes" in js
+    assert "Real nodes" in js
+    assert "Real links" in js
     assert 'mapLiveActivityEnabled = true;' in js
     assert 'wrap.hidden = true;' in js
     assert 'toggle.checked = true;' in js
@@ -127,8 +118,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "syncLinkEstimateHeatmapLayer(linkDensity, true);" in js
     assert "const hideEstimatedLinkDots = !!(" in js
     assert "if (hideEstimatedLinkDots && isEstimated) {" in js
-    assert "Linked nodes (hidden)" in js
-    assert "Link region heat" in js
+    assert 'Estimated nodes${hideLinkedDots ? " (hidden)" : ""}' in js
     assert "estimateLine && estimateLine.avgHops ??" not in js
     assert "estimateLine && estimateLine.avgSnr ??" not in js
     assert "estimateLine && estimateLine.avgRssi ??" not in js

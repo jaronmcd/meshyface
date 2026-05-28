@@ -125,13 +125,6 @@
       }};
     }}
 
-    function mapLinkLayerModeFromParts(showHistory, showLive) {{
-      if (showHistory && showLive) return "both";
-      if (showHistory) return "history";
-      if (showLive) return "live";
-      return "none";
-    }}
-
     function refreshNetworkMapAfterLegendControlChange() {{
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
@@ -240,62 +233,7 @@
       if (estimatedToggle instanceof HTMLInputElement && estimatedToggle.dataset.boundMapLinkLegend !== "1") {{
         estimatedToggle.dataset.boundMapLinkLegend = "1";
         estimatedToggle.addEventListener("change", () => {{
-          const historyToggle = legend.querySelector('[data-map-link-legend-toggle="history"]');
-          const liveToggle = legend.querySelector('[data-map-link-legend-toggle="live"]');
-          if (estimatedToggle.checked) {{
-            let nextMode = mapLinkLayerModeFromParts(
-              historyToggle instanceof HTMLInputElement && historyToggle.checked,
-              liveToggle instanceof HTMLInputElement && liveToggle.checked
-            );
-            if (nextMode === "none") {{
-              const restoredMode = (typeof resolveMapLinkLayerLastActiveModePreference === "function")
-                ? normalizeMapLinkLayerMode(resolveMapLinkLayerLastActiveModePreference())
-                : "both";
-              nextMode = restoredMode === "none" ? "both" : restoredMode;
-              const restoredParts = mapLinkLayerModeParts(nextMode);
-              if (historyToggle instanceof HTMLInputElement) {{
-                historyToggle.checked = !!restoredParts.history;
-              }}
-              if (liveToggle instanceof HTMLInputElement) {{
-                liveToggle.checked = !!restoredParts.live;
-              }}
-            }}
-            mapLinkLayerMode = nextMode;
-            if (typeof persistMapLinkLayerLastActiveModePreference === "function") {{
-              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
-            }}
-          }} else {{
-            if (
-              mapLinkLayerMode !== "none"
-              && typeof persistMapLinkLayerLastActiveModePreference === "function"
-            ) {{
-              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
-            }}
-            mapLinkLayerMode = "none";
-          }}
-          persistMapLinkLayerModePreference();
-          refreshNetworkMapAfterLegendControlChange();
-        }});
-      }}
-      for (const toggleName of ["history", "live"]) {{
-        const toggle = legend.querySelector(`[data-map-link-legend-toggle="${{toggleName}}"]`);
-        if (!(toggle instanceof HTMLInputElement) || toggle.dataset.boundMapLinkLegend === "1") continue;
-        toggle.dataset.boundMapLinkLegend = "1";
-        toggle.addEventListener("change", () => {{
-          const estimatedToggle = legend.querySelector('[data-map-link-legend-toggle="estimated"]');
-          const historyToggle = legend.querySelector('[data-map-link-legend-toggle="history"]');
-          const liveToggle = legend.querySelector('[data-map-link-legend-toggle="live"]');
-          if (estimatedToggle instanceof HTMLInputElement && !estimatedToggle.checked) {{
-            mapLinkLayerMode = "none";
-          }} else {{
-            mapLinkLayerMode = mapLinkLayerModeFromParts(
-              historyToggle instanceof HTMLInputElement && historyToggle.checked,
-              liveToggle instanceof HTMLInputElement && liveToggle.checked
-            );
-            if (mapLinkLayerMode !== "none" && typeof persistMapLinkLayerLastActiveModePreference === "function") {{
-              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
-            }}
-          }}
+          mapLinkLayerMode = estimatedToggle.checked ? "both" : "none";
           persistMapLinkLayerModePreference();
           refreshNetworkMapAfterLegendControlChange();
         }});
@@ -321,66 +259,33 @@
         ? linkOverlay.linkDensity
         : null;
       const hideLinkedDots = !!(linkDensity && linkDensity.hideEstimatedMarkers);
-      const heatPointCount = linkDensity && Array.isArray(linkDensity.heatPoints)
-        ? linkDensity.heatPoints.length
-        : 0;
-      const cloudCount = linkDensity && Number.isFinite(Number(linkDensity.cloudCount))
-        ? Math.max(0, Math.trunc(Number(linkDensity.cloudCount)))
-        : 0;
-      const cloudLinkCount = linkDensity && Number.isFinite(Number(linkDensity.cloudLinkCount))
-        ? Math.max(0, Math.trunc(Number(linkDensity.cloudLinkCount)))
-        : 0;
-      const linkHeatCountLabel = heatPointCount > 0
-        ? `${{cloudCount}} cloud${{cloudCount === 1 ? "" : "s"}} · ${{cloudLinkCount}} link${{cloudLinkCount === 1 ? "" : "s"}}`
-        : "0";
       const linkedNodesLegendTitle = hideLinkedDots
         ? "Nodes placed from link signal and hop evidence (dots hidden while cluster-link view is active)"
         : "Nodes placed from link signal and hop evidence";
-      const linkedNodesLegendName = hideLinkedDots
-        ? "Linked nodes (hidden)"
-        : "Linked nodes";
       const cloudLinks = (linkDensity && Array.isArray(linkDensity.cloudLinks))
         ? linkDensity.cloudLinks
         : [];
-      const historyCount = cloudLinks.length > 0
-        ? cloudLinks.filter((line) => String(line && line.mode || "") === "history").length
-        : lines.filter((line) => String(line && line.mode || "") === "history").length;
-      const liveCount = cloudLinks.length > 0
-        ? cloudLinks.filter((line) => String(line && line.mode || "") === "live").length
-        : lines.filter((line) => String(line && line.mode || "") === "live").length;
-      const estimatedCount = historyCount + liveCount;
+      const estimatedCount = cloudLinks.length > 0 ? cloudLinks.length : lines.length;
       const modeParts = mapLinkLayerModeParts(mapLinkLayerMode);
       const estimatedEnabled = !!modeParts.estimated;
-      let historyChecked = !!modeParts.history;
-      let liveChecked = !!modeParts.live;
-      if (!estimatedEnabled && typeof resolveMapLinkLayerLastActiveModePreference === "function") {{
-        const restoredParts = mapLinkLayerModeParts(resolveMapLinkLayerLastActiveModePreference());
-        historyChecked = !!restoredParts.history;
-        liveChecked = !!restoredParts.live;
-      }}
       legend.hidden = false;
       legend.innerHTML = `
         <div class="map-link-legend-title">Map links</div>
         <div class="map-link-legend-list">
           <div class="map-link-legend-item is-info" style="--map-link-legend-color:#35b96f;" title="Nodes with direct GPS or fixed position data">
             <span class="map-link-legend-swatch is-node-actual" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Actual GPS nodes</span>
+            <span class="map-link-legend-name">Real nodes</span>
             <span class="map-link-legend-count">${{actualCount}}</span>
           </div>
           <div class="map-link-legend-item is-info" style="--map-link-legend-color:#68bde8;" title="${{linkedNodesLegendTitle}}">
             <span class="map-link-legend-swatch is-node-linked" aria-hidden="true"></span>
-            <span class="map-link-legend-name">${{linkedNodesLegendName}}</span>
+            <span class="map-link-legend-name">Estimated nodes${{hideLinkedDots ? " (hidden)" : ""}}</span>
             <span class="map-link-legend-count">${{linkedCount}}</span>
           </div>
-          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#4f9bff;" title="Unknown-position nodes are grouped into blue hotspot clouds. Lines are drawn from each cloud into known-position nodes connected to that cloud.">
-            <span class="map-link-legend-swatch is-link-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Link region heat</span>
-            <span class="map-link-legend-count">${{linkHeatCountLabel}}</span>
-          </div>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show packet lines between positioned nodes">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show packet lines" />
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show real links" />
             <span class="map-link-legend-swatch is-packet-line" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Packet lines</span>
+            <span class="map-link-legend-name">Real links</span>
             <span class="map-link-legend-count">${{packetCount}}</span>
           </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#5fa4ff;" title="Show estimated links built from history and/or live evidence.">
@@ -388,18 +293,6 @@
             <span class="map-link-legend-swatch is-link-heat" aria-hidden="true"></span>
             <span class="map-link-legend-name">Estimated links</span>
             <span class="map-link-legend-count">${{estimatedCount}}</span>
-          </label>
-          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#3384a6;" title="Show history links and signal-placed nodes">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="history"${{historyChecked ? " checked" : ""}}${{estimatedEnabled ? "" : " disabled"}} aria-label="Show history links" />
-            <span class="map-link-legend-swatch is-history-link" aria-hidden="true"></span>
-            <span class="map-link-legend-name">History links</span>
-            <span class="map-link-legend-count">${{historyCount}}</span>
-          </label>
-          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#7cc7ff;" title="Show live links and signal-placed nodes">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="live"${{liveChecked ? " checked" : ""}}${{estimatedEnabled ? "" : " disabled"}} aria-label="Show live links" />
-            <span class="map-link-legend-swatch is-live-link" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Live links</span>
-            <span class="map-link-legend-count">${{liveCount}}</span>
           </label>
         </div>
       `;
