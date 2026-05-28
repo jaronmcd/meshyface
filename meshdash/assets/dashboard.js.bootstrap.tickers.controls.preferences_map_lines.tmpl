@@ -377,6 +377,12 @@
       return "none";
     }}
 
+    function normalizeMapLinkLayerLastActiveMode(value) {{
+      const clean = normalizeMapLinkLayerMode(value);
+      if (clean === "history" || clean === "live" || clean === "both") return clean;
+      return "both";
+    }}
+
     function mapLinkLayerModeForCurrentView(value = mapLinkLayerMode) {{
       const clean = normalizeMapLinkLayerMode(value);
       return clean;
@@ -387,6 +393,24 @@
         window.localStorage.setItem(mapLinkModeStorageKey, normalizeMapLinkLayerMode(mapLinkLayerMode));
       }} catch (_err) {{
       }}
+    }}
+
+    function persistMapLinkLayerLastActiveModePreference(mode = mapLinkLayerMode) {{
+      const cleanMode = normalizeMapLinkLayerLastActiveMode(mode);
+      try {{
+        window.localStorage.setItem(mapLinkLastActiveModeStorageKey, cleanMode);
+      }} catch (_err) {{
+      }}
+      return cleanMode;
+    }}
+
+    function resolveMapLinkLayerLastActiveModePreference() {{
+      let mode = "both";
+      try {{
+        mode = normalizeMapLinkLayerLastActiveMode(window.localStorage.getItem(mapLinkLastActiveModeStorageKey) || "both");
+      }} catch (_err) {{
+      }}
+      return mode;
     }}
 
     function persistMapLiveActivityPreference() {{
@@ -415,6 +439,9 @@
       try {{
         mapLinkLayerMode = normalizeMapLinkLayerMode(window.localStorage.getItem(mapLinkModeStorageKey) || "none");
       }} catch (_err) {{
+      }}
+      if (mapLinkLayerMode !== "none") {{
+        persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
       }}
       updateMapLinkLayerControl();
     }}
@@ -455,6 +482,9 @@
         modeSelect.value = mapLinkLayerModeForCurrentView(mapLinkLayerMode);
         modeSelect.addEventListener("change", () => {{
           mapLinkLayerMode = normalizeMapLinkLayerMode(modeSelect.value);
+          if (mapLinkLayerMode !== "none") {{
+            persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
+          }}
           persistMapLinkLayerModePreference();
           updateMapLinkLayerControl();
           lastMapSignature = "";

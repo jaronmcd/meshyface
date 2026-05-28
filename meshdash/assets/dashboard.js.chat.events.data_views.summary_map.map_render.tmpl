@@ -119,6 +119,7 @@
         ? mapLinkLayerModeForCurrentView(modeName)
         : normalizeMapLinkLayerMode(modeName);
       return {{
+        estimated: mode !== "none",
         history: mode === "history" || mode === "both",
         live: mode === "live" || mode === "both",
       }};
@@ -235,17 +236,66 @@
           refreshNetworkMapAfterLegendControlChange();
         }});
       }}
+      const estimatedToggle = legend.querySelector('[data-map-link-legend-toggle="estimated"]');
+      if (estimatedToggle instanceof HTMLInputElement && estimatedToggle.dataset.boundMapLinkLegend !== "1") {{
+        estimatedToggle.dataset.boundMapLinkLegend = "1";
+        estimatedToggle.addEventListener("change", () => {{
+          const historyToggle = legend.querySelector('[data-map-link-legend-toggle="history"]');
+          const liveToggle = legend.querySelector('[data-map-link-legend-toggle="live"]');
+          if (estimatedToggle.checked) {{
+            let nextMode = mapLinkLayerModeFromParts(
+              historyToggle instanceof HTMLInputElement && historyToggle.checked,
+              liveToggle instanceof HTMLInputElement && liveToggle.checked
+            );
+            if (nextMode === "none") {{
+              const restoredMode = (typeof resolveMapLinkLayerLastActiveModePreference === "function")
+                ? normalizeMapLinkLayerMode(resolveMapLinkLayerLastActiveModePreference())
+                : "both";
+              nextMode = restoredMode === "none" ? "both" : restoredMode;
+              const restoredParts = mapLinkLayerModeParts(nextMode);
+              if (historyToggle instanceof HTMLInputElement) {{
+                historyToggle.checked = !!restoredParts.history;
+              }}
+              if (liveToggle instanceof HTMLInputElement) {{
+                liveToggle.checked = !!restoredParts.live;
+              }}
+            }}
+            mapLinkLayerMode = nextMode;
+            if (typeof persistMapLinkLayerLastActiveModePreference === "function") {{
+              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
+            }}
+          }} else {{
+            if (
+              mapLinkLayerMode !== "none"
+              && typeof persistMapLinkLayerLastActiveModePreference === "function"
+            ) {{
+              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
+            }}
+            mapLinkLayerMode = "none";
+          }}
+          persistMapLinkLayerModePreference();
+          refreshNetworkMapAfterLegendControlChange();
+        }});
+      }}
       for (const toggleName of ["history", "live"]) {{
         const toggle = legend.querySelector(`[data-map-link-legend-toggle="${{toggleName}}"]`);
         if (!(toggle instanceof HTMLInputElement) || toggle.dataset.boundMapLinkLegend === "1") continue;
         toggle.dataset.boundMapLinkLegend = "1";
         toggle.addEventListener("change", () => {{
+          const estimatedToggle = legend.querySelector('[data-map-link-legend-toggle="estimated"]');
           const historyToggle = legend.querySelector('[data-map-link-legend-toggle="history"]');
           const liveToggle = legend.querySelector('[data-map-link-legend-toggle="live"]');
-          mapLinkLayerMode = mapLinkLayerModeFromParts(
-            historyToggle instanceof HTMLInputElement && historyToggle.checked,
-            liveToggle instanceof HTMLInputElement && liveToggle.checked
-          );
+          if (estimatedToggle instanceof HTMLInputElement && !estimatedToggle.checked) {{
+            mapLinkLayerMode = "none";
+          }} else {{
+            mapLinkLayerMode = mapLinkLayerModeFromParts(
+              historyToggle instanceof HTMLInputElement && historyToggle.checked,
+              liveToggle instanceof HTMLInputElement && liveToggle.checked
+            );
+            if (mapLinkLayerMode !== "none" && typeof persistMapLinkLayerLastActiveModePreference === "function") {{
+              persistMapLinkLayerLastActiveModePreference(mapLinkLayerMode);
+            }}
+          }}
           persistMapLinkLayerModePreference();
           refreshNetworkMapAfterLegendControlChange();
         }});
@@ -298,7 +348,16 @@
       const liveCount = cloudLinks.length > 0
         ? cloudLinks.filter((line) => String(line && line.mode || "") === "live").length
         : lines.filter((line) => String(line && line.mode || "") === "live").length;
+      const estimatedCount = historyCount + liveCount;
       const modeParts = mapLinkLayerModeParts(mapLinkLayerMode);
+      const estimatedEnabled = !!modeParts.estimated;
+      let historyChecked = !!modeParts.history;
+      let liveChecked = !!modeParts.live;
+      if (!estimatedEnabled && typeof resolveMapLinkLayerLastActiveModePreference === "function") {{
+        const restoredParts = mapLinkLayerModeParts(resolveMapLinkLayerLastActiveModePreference());
+        historyChecked = !!restoredParts.history;
+        liveChecked = !!restoredParts.live;
+      }}
       legend.hidden = false;
       legend.innerHTML = `
         <div class="map-link-legend-title">Map links</div>
@@ -324,14 +383,20 @@
             <span class="map-link-legend-name">Packet lines</span>
             <span class="map-link-legend-count">${{packetCount}}</span>
           </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#5fa4ff;" title="Show estimated links built from history and/or live evidence.">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated"${{estimatedEnabled ? " checked" : ""}} aria-label="Show estimated links" />
+            <span class="map-link-legend-swatch is-link-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Estimated links</span>
+            <span class="map-link-legend-count">${{estimatedCount}}</span>
+          </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#3384a6;" title="Show history links and signal-placed nodes">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="history"${{modeParts.history ? " checked" : ""}} aria-label="Show history links" />
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="history"${{historyChecked ? " checked" : ""}}${{estimatedEnabled ? "" : " disabled"}} aria-label="Show history links" />
             <span class="map-link-legend-swatch is-history-link" aria-hidden="true"></span>
             <span class="map-link-legend-name">History links</span>
             <span class="map-link-legend-count">${{historyCount}}</span>
           </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#7cc7ff;" title="Show live links and signal-placed nodes">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="live"${{modeParts.live ? " checked" : ""}} aria-label="Show live links" />
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="live"${{liveChecked ? " checked" : ""}}${{estimatedEnabled ? "" : " disabled"}} aria-label="Show live links" />
             <span class="map-link-legend-swatch is-live-link" aria-hidden="true"></span>
             <span class="map-link-legend-name">Live links</span>
             <span class="map-link-legend-count">${{liveCount}}</span>
