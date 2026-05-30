@@ -1,3 +1,52 @@
+    function collectNewNodeFirstSeenUnix(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const firstSeenByNodeId = new Map();
+      const rememberFirstSeen = (nodeIdRaw, firstSeenRaw) => {{
+        const nodeId = normalizeNodeId(nodeIdRaw);
+        if (!isSelectableNodeId(nodeId)) return;
+        const firstSeenUnix = Number(firstSeenRaw);
+        if (!Number.isFinite(firstSeenUnix) || firstSeenUnix <= 0) return;
+        const cleanFirstSeen = Math.trunc(firstSeenUnix);
+        const existing = Number(firstSeenByNodeId.get(nodeId));
+        if (!Number.isFinite(existing) || cleanFirstSeen < existing) {{
+          firstSeenByNodeId.set(nodeId, cleanFirstSeen);
+        }}
+      }};
+
+      const historyCapsRaw = (safeState.history_caps && typeof safeState.history_caps === "object")
+        ? safeState.history_caps
+        : {{}};
+      for (const rawNodeId of Object.keys(historyCapsRaw)) {{
+        const caps = historyCapsRaw[rawNodeId];
+        rememberFirstSeen(rawNodeId, caps && caps.first_seen_unix);
+      }}
+
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      for (const node of nodes) {{
+        rememberFirstSeen(node && node.id, node && node.first_seen_unix);
+      }}
+
+      return Array.from(firstSeenByNodeId.values())
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .sort((left, right) => Number(left) - Number(right));
+    }}
+
+    function countNewNodesFirstSeenInWindow(firstSeenUnixValues, bucketUnix, windowSeconds = 24 * 60 * 60) {{
+      const safeBucketUnix = Number(bucketUnix);
+      if (!Number.isFinite(safeBucketUnix) || safeBucketUnix <= 0) return null;
+      const safeWindowSeconds = Math.max(1, Math.trunc(Number(windowSeconds) || (24 * 60 * 60)));
+      const windowStartUnix = safeBucketUnix - safeWindowSeconds;
+      const values = Array.isArray(firstSeenUnixValues) ? firstSeenUnixValues : [];
+      let count = 0;
+      for (const firstSeenUnixRaw of values) {{
+        const firstSeenUnix = Number(firstSeenUnixRaw);
+        if (!Number.isFinite(firstSeenUnix) || firstSeenUnix <= 0) continue;
+        if (firstSeenUnix > safeBucketUnix) break;
+        if (firstSeenUnix >= windowStartUnix) count += 1;
+      }}
+      return count;
+    }}
+
     function buildWeeklySummaryChartRows(summaryHistory, metricKey, options = {{}}) {{
       const normalizedMetric = normalizeWeeklySummaryMetric(metricKey);
       const opts = (options && typeof options === "object") ? options : {{}};
@@ -32,21 +81,9 @@
       const continuitySeries = new Set(["real_edge_count"]);
       const continuityStateBySeries = new Map();
       const newNodesWindowSeconds = 24 * 60 * 60;
-      const newNodeEvents = [];
-      let rollingNewNodeCount = 0;
-      let prevSavedAdjusted = null;
-      const pruneNewNodeEvents = (bucketUnixValue) => {{
-        const bucketUnixNumber = Number(bucketUnixValue);
-        if (!Number.isFinite(bucketUnixNumber) || bucketUnixNumber <= 0) return;
-        const windowStartUnix = bucketUnixNumber - newNodesWindowSeconds;
-        while (newNodeEvents.length > 0 && Number(newNodeEvents[0].bucketUnix) < windowStartUnix) {{
-          const removed = newNodeEvents.shift();
-          const removedDelta = Number(removed && removed.delta);
-          if (Number.isFinite(removedDelta) && removedDelta > 0) {{
-            rollingNewNodeCount = Math.max(0, rollingNewNodeCount - removedDelta);
-          }}
-        }}
-      }};
+      const newNodeFirstSeenUnixValues = nodesMetric
+        ? collectNewNodeFirstSeenUnix(opts.state || latestState)
+        : [];
       const continuityAdjustedValue = (seriesKey, rawValue, resetBreak) => {{
         const numeric = Number(rawValue);
         if (!Number.isFinite(numeric)) return null;
@@ -142,22 +179,11 @@
         const savedValue = continuityAdjustedValue("saved_nodes", savedRawValue, resetBreak);
         const positionValue = continuityAdjustedValue("position_nodes", positionRawValue, resetBreak);
         const bucketUnixForNew = Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null;
-        if (Number.isFinite(savedValue)) {{
-          if (Number.isFinite(prevSavedAdjusted) && bucketUnixForNew !== null) {{
-            const savedDelta = Number(savedValue) - Number(prevSavedAdjusted);
-            if (Number.isFinite(savedDelta) && savedDelta > 0) {{
-              rollingNewNodeCount += savedDelta;
-              newNodeEvents.push({{ bucketUnix: bucketUnixForNew, delta: savedDelta }});
-            }}
-          }}
-          prevSavedAdjusted = Number(savedValue);
-        }}
-        if (bucketUnixForNew !== null) {{
-          pruneNewNodeEvents(bucketUnixForNew);
-        }}
-        const newNodesValue = Number.isFinite(rollingNewNodeCount)
-          ? Math.max(0, rollingNewNodeCount)
-          : null;
+        const newNodesValue = countNewNodesFirstSeenInWindow(
+          newNodeFirstSeenUnixValues,
+          bucketUnixForNew,
+          newNodesWindowSeconds
+        );
         const primaryValue = Number.isFinite(onlineValue) ? onlineValue : knownValue;
         if (!Number.isFinite(primaryValue)) continue;
         const seriesValues = {{}};

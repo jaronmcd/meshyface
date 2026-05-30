@@ -218,6 +218,12 @@ def test_dashboard_nodes_plots_expose_new_nodes_series_controls() -> None:
     assert 'new_nodes: "network-overview-node-line-new",' in js
     assert 'new_nodes: "New Nodes (24h)",' in js
     assert 'new_nodes: { tone: "aux3", dashed: false, width: 2.1 },' in js
+    assert "function collectNewNodeFirstSeenUnix(state = latestState) {" in js
+    assert "function countNewNodesFirstSeenInWindow(firstSeenUnixValues, bucketUnix, windowSeconds = 24 * 60 * 60) {" in js
+    assert "const newNodeFirstSeenUnixValues = nodesMetric" in js
+    assert "countNewNodesFirstSeenInWindow(" in js
+    assert "rollingNewNodeCount" not in js
+    assert "savedDelta" not in js
 
 
 def test_dashboard_exposes_mesh_links_ticker() -> None:
