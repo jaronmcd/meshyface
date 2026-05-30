@@ -1220,25 +1220,12 @@
           && isSelectableNodeId(liveTraceTargetId)
           && liveTraceTargetId === nodeId
         );
-        const liveTraceTimeoutMs = (
-          typeof networkRoutesLiveTraceTimeoutMs !== "undefined"
-          && Number.isFinite(Number(networkRoutesLiveTraceTimeoutMs))
-        )
-          ? Math.max(1000, Math.trunc(Number(networkRoutesLiveTraceTimeoutMs)))
-          : 30000;
-        const liveTraceUpdatedMs = Number(liveTraceState && liveTraceState.updatedMs);
-        const liveTraceElapsedMs = liveTraceRunningForNode
-          ? Math.max(
-              0,
-              Date.now() - (
-                Number.isFinite(liveTraceUpdatedMs)
-                  ? Math.trunc(liveTraceUpdatedMs)
-                  : Date.now()
-              )
-            )
-          : 0;
         const liveTraceProgressPct = liveTraceRunningForNode
-          ? Math.max(1, Math.min(99, Math.round((liveTraceElapsedMs / liveTraceTimeoutMs) * 100)))
+          ? (
+              typeof networkRoutesLiveTraceProgressPct === "function"
+                ? networkRoutesLiveTraceProgressPct(liveTraceState)
+                : 1
+            )
           : 0;
         const snapshot = resolveChatNodeFreshnessFn(nodeId);
         const node = nodesById.get(nodeId) || null;
@@ -2542,6 +2529,14 @@
         const liveTraceRunningForNode = !!(liveTraceState && liveTraceState.running
           && normalizeNodeId(liveTraceState.targetId || "") === nodeId);
         const running = !!toolState.running || liveTraceRunningForNode;
+        const liveTraceProgressPct = (tool.id === "traceroute" && running && liveTraceRunningForNode)
+          ? (
+              typeof networkRoutesLiveTraceProgressPct === "function"
+                ? networkRoutesLiveTraceProgressPct(liveTraceState)
+                : 1
+            )
+          : 0;
+        const showTraceProgress = tool.id === "traceroute" && running && liveTraceProgressPct > 0;
         const effectiveToolState = (!toolState.running && liveTraceRunningForNode)
           ? {{
               ...toolState,
@@ -2579,6 +2574,16 @@
               title="${{escAttr(shortcutTitle || shortcutLabel)}}"
             >${{escAttr(shortcutLabel)}}</button>`
           : "";
+        const runBtnClass = `chat-node-telemetry-tool-run-btn${{showTraceProgress ? " is-running-trace" : ""}}`;
+        const runBtnProgressStyle = showTraceProgress
+          ? ` style="--chat-node-telemetry-tool-progress:${{escAttr(String(liveTraceProgressPct))}}%;"`
+          : "";
+        const runBtnProgressAttrs = showTraceProgress
+          ? ` aria-busy="true" aria-label="${{escAttr(`Traceroute running ${{liveTraceProgressPct}}%`)}}" title="${{escAttr(`Traceroute in progress (${{liveTraceProgressPct}}%)`)}}"`
+          : "";
+        const runBtnContent = showTraceProgress
+          ? `<span class="chat-node-telemetry-tool-progress-fill" aria-hidden="true"></span><span class="chat-node-telemetry-tool-progress-text">Tracing ${{escAttr(String(liveTraceProgressPct))}}%</span>`
+          : escAttr(running ? "Running..." : "Run");
         return `<article class="chat-node-telemetry-tool-row${{rowClass}}">
           <div class="chat-node-telemetry-tool-main">
             <div class="chat-node-telemetry-tool-label">${{escAttr(tool.label)}}</div>
@@ -2587,11 +2592,12 @@
           <div class="chat-node-telemetry-tool-actions">
             ${{shortcutBtnHtml}}
             <button
-              class="chat-node-telemetry-tool-run-btn"
+              class="${{escAttr(runBtnClass)}}"
               type="button"
               data-drawer-telemetry-tool-id="${{escAttr(tool.id)}}"
               ${{running ? "disabled" : ""}}
-            >${{running ? "Running..." : "Run"}}</button>
+              ${{runBtnProgressAttrs}}${{runBtnProgressStyle}}
+            >${{runBtnContent}}</button>
           </div>
           <div class="chat-node-telemetry-tool-status">${{escAttr(status)}}</div>
           ${{detailHtml}}

@@ -7219,6 +7219,52 @@
       border-color: color-mix(in srgb, var(--line) 84%, var(--panel) 16%);
       color: color-mix(in srgb, var(--muted) 72%, var(--ink) 28%);
     }}
+    .network-routes-run-btn.is-running-trace {{
+      --network-routes-run-progress: 0%;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      min-width: 104px;
+      padding: 0 10px;
+    }}
+    .network-routes-run-btn.is-running-trace:disabled {{
+      opacity: 1;
+      background: rgba(217, 236, 252, 0.20);
+      border-color: rgba(69, 128, 188, 0.42);
+      color: #1f4c78;
+    }}
+    .network-routes-run-progress-fill {{
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: var(--network-routes-run-progress);
+      max-width: 100%;
+      border-radius: inherit;
+      background: linear-gradient(
+        90deg,
+        rgba(95, 163, 233, 0.60) 0%,
+        rgba(68, 145, 223, 0.82) 100%
+      );
+      transition: width 180ms linear;
+      pointer-events: none;
+      z-index: 0;
+    }}
+    .network-routes-run-progress-text {{
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      min-width: 78px;
+      font-size: 9px;
+      line-height: 1;
+      letter-spacing: 0.12px;
+      text-transform: uppercase;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+      pointer-events: none;
+    }}
     .network-routes-summary {{
       display: flex;
       align-items: center;

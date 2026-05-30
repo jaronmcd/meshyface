@@ -324,6 +324,15 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'activeLayoutView === "network"\n        && activeNetworkSubviewName === "routes"' in js
     assert 'syncNetworkRoutesFromSelectedNode(latestState, { preferSelectedTarget: true });\n        renderNetworkRoutes(latestState);' in js
     assert 'const liveTraceRunningForNode = !!(liveTraceState && liveTraceState.running' in js
+    assert 'function networkRoutesLiveTraceProgressPct(rawState = networkRoutesLiveTraceState, nowMs = Date.now())' in js
+    assert 'runBtn.classList.toggle("is-running-trace", !!liveState.running);' in js
+    assert 'runBtn.style.setProperty("--network-routes-run-progress", `${progressPct}%`);' in js
+    assert 'class="network-routes-run-progress-fill"' in js
+    assert 'class="network-routes-run-progress-text">Tracing ${escAttr(String(progressPct))}%' in js
+    assert 'const liveTraceProgressPct = liveTraceRunningForNode\n          ? (\n              typeof networkRoutesLiveTraceProgressPct === "function"' in js
+    assert 'const showTraceProgress = tool.id === "traceroute" && running && liveTraceProgressPct > 0;' in js
+    assert 'class="chat-node-telemetry-tool-progress-fill"' in js
+    assert 'class="chat-node-telemetry-tool-progress-text">Tracing ${escAttr(String(liveTraceProgressPct))}%' in js
     assert 'if (tool.id === "traceroute" && typeof setNetworkRoutesLiveTraceState === "function") {' in js
     assert 'telemetryNodeState.summaryMessage = `Running Traceroute for ${targetId}...`;' in js
     assert 'data-drawer-telemetry-shortcut-id="${escAttr(shortcutId)}"' in js
@@ -573,6 +582,15 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-layout-select {" in css
     assert ".network-graph-mode-select {" in css
     assert ".network-routes-card {" in css
+    assert ".network-routes-run-btn.is-running-trace {" in css
+    assert ".network-routes-run-progress-fill {" in css
+    assert ".network-routes-run-progress-text {" in css
+    assert "[data-theme=\"dark\"] .network-routes-run-btn.is-running-trace:disabled {" in css
+    assert "[data-theme=\"dark\"] .network-routes-run-progress-fill {" in css
+    assert ".chat-node-telemetry-tool-run-btn.is-running-trace {" in css
+    assert ".chat-node-telemetry-tool-progress-fill {" in css
+    assert ".chat-node-telemetry-tool-progress-text {" in css
+    assert "[data-theme=\"dark\"] .chat-node-telemetry-tool-run-btn.is-running-trace:disabled {" in css
     assert ".network-routes-mode-btn {" not in css
     assert ".network-route-scope {" in css
     assert ".network-route-scope-reset-btn {" in css

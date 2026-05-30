@@ -957,6 +957,20 @@
       }};
     }}
 
+    function networkRoutesLiveTraceProgressPct(rawState = networkRoutesLiveTraceState, nowMs = Date.now()) {{
+      const safe = normalizedNetworkRoutesLiveTraceState(rawState);
+      if (!safe.running) return 0;
+      const timeoutMs = (
+        Number.isFinite(Number(networkRoutesLiveTraceTimeoutMs))
+          ? Math.max(1000, Math.trunc(Number(networkRoutesLiveTraceTimeoutMs)))
+          : 30000
+      );
+      const startedMs = safe.updatedMs > 0 ? safe.updatedMs : Number(nowMs);
+      const currentMs = Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now();
+      const elapsedMs = Math.max(0, currentMs - startedMs);
+      return Math.max(1, Math.min(99, Math.round((elapsedMs / timeoutMs) * 100)));
+    }}
+
     function setNetworkRoutesLiveTraceState(patch = {{}}) {{
       const current = normalizedNetworkRoutesLiveTraceState(networkRoutesLiveTraceState);
       const safePatch = (patch && typeof patch === "object") ? patch : {{}};
@@ -3759,7 +3773,21 @@
       if (runBtn instanceof HTMLButtonElement) {{
         runBtn.hidden = false;
         runBtn.disabled = !endpointsReady || !!liveState.running;
-        runBtn.textContent = liveState.running ? "Running..." : "Run trace";
+        runBtn.classList.toggle("is-running-trace", !!liveState.running);
+        if (liveState.running) {{
+          const progressPct = networkRoutesLiveTraceProgressPct(liveState);
+          runBtn.style.setProperty("--network-routes-run-progress", `${{progressPct}}%`);
+          runBtn.setAttribute("aria-busy", "true");
+          runBtn.setAttribute("aria-label", `Traceroute running ${{progressPct}}%`);
+          runBtn.title = `Traceroute in progress (${{progressPct}}%)`;
+          runBtn.innerHTML = `<span class="network-routes-run-progress-fill" aria-hidden="true"></span><span class="network-routes-run-progress-text">Tracing ${{escAttr(String(progressPct))}}%</span>`;
+        }} else {{
+          runBtn.style.removeProperty("--network-routes-run-progress");
+          runBtn.removeAttribute("aria-busy");
+          runBtn.removeAttribute("aria-label");
+          runBtn.title = "Run live traceroute from self to selected destination";
+          runBtn.textContent = "Run trace";
+        }}
       }}
 
       if (status instanceof HTMLElement) {{
