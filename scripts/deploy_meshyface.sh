@@ -827,6 +827,18 @@ MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=${ACCEPT_FILE_TRANSFER_TRAFFIC
 MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}
 PYTHONUNBUFFERED=${PYTHON_UNBUFFERED}
 EOF"
+else
+  echo "[deploy] updating deploy payload hash in existing ${CONFIG_DIR}/dashboard.env"
+  ssh_cmd "${TARGET}" "\
+if [[ ! -f '${CONFIG_DIR}/dashboard.env' ]]; then \
+  echo 'dashboard.env not found at ${CONFIG_DIR}/dashboard.env; rerun with --bootstrap or provide --mesh-host/--serial-path' >&2; \
+  exit 1; \
+fi && \
+if grep -q '^MESH_DASH_DEPLOY_PAYLOAD_HASH=' '${CONFIG_DIR}/dashboard.env'; then \
+  sed -i \"s/^MESH_DASH_DEPLOY_PAYLOAD_HASH=.*/MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}/\" '${CONFIG_DIR}/dashboard.env'; \
+else \
+  printf '\nMESH_DASH_DEPLOY_PAYLOAD_HASH=%s\n' '${remote_payload_hash}' >> '${CONFIG_DIR}/dashboard.env'; \
+fi"
 fi
 
 if ! ssh_cmd "${TARGET}" "test -x '${REMOTE_PYTHON}'"; then
