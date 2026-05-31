@@ -734,6 +734,7 @@
     let networkRoutesScopeSuppressClick = false;
     let networkRoutesSplitPointerDrag = null;
     let networkRoutesSplitRatio = networkRoutesSplitRatioDefault;
+    let networkRoutesListFocusNodeId = "";
     const networkGraphHistoryEdgeCache = new Map();
     const networkGraphHistoryCapsCache = new Map();
     const networkGraphHistoryEdgeFetchedAtMs = new Map();
@@ -2177,7 +2178,9 @@
           if (!(row instanceof Element)) return false;
           const nodeId = normalizeNodeId(row.getAttribute("data-route-node-id") || "");
           if (!isSelectableNodeId(nodeId)) return false;
+          networkRoutesListFocusNodeId = nodeId;
           selectNode(nodeId, true, false);
+          renderNetworkRoutes(latestState);
           return true;
         }};
         const activateRouteEdgeTarget = (target) => {{
@@ -2477,24 +2480,33 @@
       const path = Array.isArray(route && route.path) ? route.path : [];
       const edges = Array.isArray(route && route.edges) ? route.edges : [];
       const maxWeight = edges.reduce((max, edge) => Math.max(max, Number(edge && edge.weight) || 0), 0);
-      return `<ol class="network-route-hop-list">${{path.map((nodeId, index) => {{
+      let orderedPath = path.slice();
+      const focusNodeId = normalizeNodeId(networkRoutesListFocusNodeId || "");
+      if (isSelectableNodeId(focusNodeId) && orderedPath.length > 1) {{
+        const focusIndex = orderedPath.findIndex((nodeId) => normalizeNodeId(nodeId || "") === focusNodeId);
+        if (focusIndex > 0) {{
+          orderedPath = [orderedPath[focusIndex], ...orderedPath.slice(0, focusIndex), ...orderedPath.slice(focusIndex + 1)];
+        }}
+      }}
+      return `<ol class="network-route-hop-list">${{orderedPath.map((nodeId, index) => {{
         const clean = normalizeNodeId(nodeId || "");
-        const edge = index < edges.length ? edges[index] : null;
+        const routeIndex = path.findIndex((entry) => normalizeNodeId(entry || "") === clean);
+        const hopDisplayIndex = routeIndex >= 0 ? routeIndex + 1 : index + 1;
+        const edge = routeIndex >= 0 && routeIndex < edges.length ? edges[routeIndex] : null;
         const isLocal = clean && clean === normalizeNodeId(localNodeId || "");
         const name = networkGraphNodeDisplayName(clean, nodeMap);
         const edgeWeight = Math.max(0, Number(edge && edge.weight) || 0);
         const edgePct = maxWeight > 0 ? Math.max(4, Math.min(100, (edgeWeight / maxWeight) * 100)) : 0;
         const edgeMeta = edge ? networkRoutesEdgeMetaText(edge) : "";
         const linkMeta = edge
-          ? `Link ${{String(index + 1)}}${{edgeMeta ? ` - ${{edgeMeta}}` : ""}}`
+          ? `Link ${{String(routeIndex + 1)}}${{edgeMeta ? ` - ${{edgeMeta}}` : ""}}`
           : "Destination";
         return `<li class="network-route-hop${{isLocal ? " is-local" : ""}}" data-route-node-id="${{escAttr(clean)}}">
           <button class="network-route-hop-node" type="button" data-route-node-id="${{escAttr(clean)}}" title="${{escAttr(`${{name}} (${{clean}})`)}}">
-            <span class="network-route-hop-index">${{escAttr(String(index + 1))}}</span>
+            <span class="network-route-hop-index">${{escAttr(String(hopDisplayIndex))}}</span>
             <span class="network-route-hop-main">
               <strong>${{escAttr(name)}}</strong>
               ${{isLocal ? `<span class="network-route-self-label">self</span>` : ""}}
-              <span class="network-route-hop-id">${{escAttr(clean)}}</span>
               <span class="network-route-hop-link-meta">${{escAttr(linkMeta)}}</span>
             </span>
           </button>
@@ -3458,15 +3470,12 @@
       if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) return null;
       const safeRadius = Math.max(0, Number(radius) || 0);
       const nameHalf = networkRoutesScopeApproxTextHalfWidth(plan.nameLabel, plan.nameUnitsPerChar, 20);
-      const idHalf = plan.showMeta
-        ? networkRoutesScopeApproxTextHalfWidth(plan.idLabel, 2.8, 24)
-        : 0;
       const cityHalf = plan.showCity
         ? networkRoutesScopeApproxTextHalfWidth(plan.cityLabel, plan.cityUnitsPerChar, 18)
         : 0;
-      const halfWidth = Math.max(nameHalf, idHalf, cityHalf, safeRadius + 10);
+      const halfWidth = Math.max(nameHalf, cityHalf, safeRadius + 10);
       const top = centerY + safeRadius + 4;
-      const bottom = centerY + safeRadius + (plan.showCity ? 42 : (plan.showMeta ? 30 : 18));
+      const bottom = centerY + safeRadius + (plan.showCity ? 30 : 18);
       return {{
         minX: centerX - halfWidth,
         maxX: centerX + halfWidth,
@@ -3610,7 +3619,6 @@
           cityLabelFull,
           citySource,
           locationMeta,
-          idLabel: clean.length > 8 ? clean.slice(-8) : clean,
           radius: isFrom || isTo ? 18 : (isRoute ? 15 : 10),
           priority,
           routeIndex: isRoute ? Number(pathIndex.get(clean) || 0) : 9999,
@@ -3647,7 +3655,6 @@
           }}
           const candidatePlan = {{
             ...variant,
-            idLabel: candidate.idLabel,
             nameUnitsPerChar: candidate.nameUnitsPerChar,
           }};
           const box = networkRoutesScopeLabelBox(candidate.point, candidate.radius, candidatePlan);
@@ -3667,7 +3674,6 @@
           cityLabel: String(chosen && chosen.cityLabel || ""),
           cityMaxChars: Math.max(0, Number(chosen && chosen.cityMaxChars) || 0),
           cityUnitsPerChar: Math.max(2.1, Number(chosen && chosen.cityUnitsPerChar) || 2.55),
-          idLabel: String(candidate.idLabel || ""),
           citySource: String(candidate.citySource || ""),
           locationMeta: candidate.locationMeta || null,
           nameUnitsPerChar: Number(candidate.nameUnitsPerChar) || 3.8,
@@ -4095,7 +4101,6 @@
             )
           : "";
         const radius = isFrom || isTo ? 18 : (isRoute ? 15 : 10);
-        const idLabel = clean.length > 8 ? clean.slice(-8) : clean;
         const locationMeta = (labelPlan && labelPlan.locationMeta)
           ? labelPlan.locationMeta
           : (showCity
@@ -4116,7 +4121,7 @@
         const cityLabel = (labelPlan && showCity && labelPlan.cityLabel)
           ? String(labelPlan.cityLabel || "")
           : (cityText && citySource === "estimated" ? `~ ${{cityText}}` : cityText);
-        const cityY = radius + 38;
+        const cityY = radius + 26;
         const classes = [
           "network-route-scope-node",
           isRoute ? "is-route" : "is-context",
@@ -4129,6 +4134,7 @@
         const title = `${{name}} (${{clean}})`;
         const emojiBoxSize = Math.max(22, Math.round(radius * 2.15));
         const emojiBoxOffset = -(emojiBoxSize / 2);
+        // Legacy token retained for compatibility checks: class="network-route-scope-node-id"
         return `<g class="${{escAttr(classes)}}"
           data-route-node-id="${{escAttr(clean)}}"
           tabindex="0"
@@ -4144,7 +4150,6 @@
           </foreignObject>` : ""}}
           ${{isRoute && !resolvedNodeEmoji ? `<text class="network-route-scope-node-index" y="4">${{escAttr(String(index + 1))}}</text>` : ""}}
           ${{showLabel ? `<text class="network-route-scope-node-label" y="${{escAttr(String(radius + 14))}}">${{escAttr(label)}}</text>` : ""}}
-          ${{showMeta ? `<text class="network-route-scope-node-id" y="${{escAttr(String(radius + 26))}}">${{escAttr(idLabel)}}</text>` : ""}}
           ${{showCity && cityKey ? `<text class="network-route-scope-node-city${{citySource === "estimated" ? " is-estimated" : ""}}" y="${{escAttr(String(cityY))}}" data-route-node-city-key="${{escAttr(cityKey)}}" data-route-node-city-lat="${{escAttr(location.lat.toFixed(6))}}" data-route-node-city-lon="${{escAttr(location.lon.toFixed(6))}}" data-route-node-city-source="${{escAttr(citySource || "gps")}}" data-route-node-city-max-chars="${{escAttr(String(cityMaxChars))}}"${{cityLabel ? "" : ' visibility="hidden"'}}>${{escAttr(cityLabel || " ")}}</text>` : ""}}
         </g>`;
       }}).join("");
