@@ -408,6 +408,30 @@
       return Math.max(0, Math.trunc(Number(unreadByPeer.get(peerId) || 0)));
     }}
 
+    const chatNodeNavigatorLinkQualityCacheByState = (typeof WeakMap === "function")
+      ? new WeakMap()
+      : null;
+
+    function chatNodeNavigatorLinkQualityParticipantSignature(participantNodeIds = []) {{
+      const source = Array.isArray(participantNodeIds) ? participantNodeIds : [];
+      const seen = new Set();
+      const ids = [];
+      for (const rawNodeId of source) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        if (!isSelectableNodeId(nodeId) || seen.has(nodeId)) continue;
+        seen.add(nodeId);
+        ids.push(nodeId);
+      }}
+      ids.sort();
+      return ids.join("|");
+    }}
+
+    function chatNodeNavigatorShouldComputeLinkQuality(metaFieldIds = null, sortKeyRaw = chatNodeNavigatorSortKey) {{
+      const fieldIds = Array.isArray(metaFieldIds) ? metaFieldIds : [];
+      const sortKey = normalizeChatNodeNavigatorSortKeyPref(sortKeyRaw);
+      return sortKey === "link_quality" || fieldIds.includes("link_quality");
+    }}
+
     function chatNodeNavigatorLinkQualityEdgeKey(rawA, rawB) {{
       const a = normalizeNodeId(rawA || "");
       const b = normalizeNodeId(rawB || "");
@@ -431,6 +455,52 @@
       return 1 + (1 / Math.log2(weight + 2)) + hopPenalty;
     }}
 
+    function chatNodeNavigatorMinHeapPush(heap, nodeId, distance) {{
+      const targetHeap = Array.isArray(heap) ? heap : [];
+      const entry = {{
+        nodeId: normalizeNodeId(nodeId || ""),
+        distance: Number(distance) || 0,
+      }};
+      targetHeap.push(entry);
+      let index = targetHeap.length - 1;
+      while (index > 0) {{
+        const parent = Math.floor((index - 1) / 2);
+        if (targetHeap[parent].distance <= targetHeap[index].distance) break;
+        const swap = targetHeap[parent];
+        targetHeap[parent] = targetHeap[index];
+        targetHeap[index] = swap;
+        index = parent;
+      }}
+      return targetHeap;
+    }}
+
+    function chatNodeNavigatorMinHeapPop(heap) {{
+      if (!Array.isArray(heap) || heap.length <= 0) return null;
+      const first = heap[0];
+      const last = heap.pop();
+      if (heap.length > 0 && last) {{
+        heap[0] = last;
+        let index = 0;
+        while (true) {{
+          const left = (index * 2) + 1;
+          const right = left + 1;
+          let smallest = index;
+          if (left < heap.length && heap[left].distance < heap[smallest].distance) {{
+            smallest = left;
+          }}
+          if (right < heap.length && heap[right].distance < heap[smallest].distance) {{
+            smallest = right;
+          }}
+          if (smallest === index) break;
+          const swap = heap[index];
+          heap[index] = heap[smallest];
+          heap[smallest] = swap;
+          index = smallest;
+        }}
+      }}
+      return first;
+    }}
+
     function chatNodeNavigatorFindWeightedPath(sourceNodeId, targetNodeId, adjacency, blockedEdgeKeys = null) {{
       const source = normalizeNodeId(sourceNodeId || "");
       const target = normalizeNodeId(targetNodeId || "");
@@ -449,31 +519,32 @@
       const blocked = blockedEdgeKeys instanceof Set ? blockedEdgeKeys : new Set();
       const distances = new Map([[source, 0]]);
       const previous = new Map();
-      const remaining = new Set(adjacency.keys());
-      while (remaining.size > 0) {{
-        let currentId = "";
-        let currentDistance = Infinity;
-        for (const nodeId of remaining) {{
-          const distance = distances.has(nodeId) ? distances.get(nodeId) : Infinity;
-          if (distance < currentDistance) {{
-            currentDistance = distance;
-            currentId = nodeId;
-          }}
-        }}
-        if (!currentId || currentDistance === Infinity) break;
-        remaining.delete(currentId);
+      const visited = new Set();
+      const queue = [];
+      chatNodeNavigatorMinHeapPush(queue, source, 0);
+      while (queue.length > 0) {{
+        const next = chatNodeNavigatorMinHeapPop(queue);
+        const currentId = normalizeNodeId(next && next.nodeId);
+        const currentDistance = Number(next && next.distance);
+        if (!isSelectableNodeId(currentId)) continue;
+        if (!Number.isFinite(currentDistance)) continue;
+        if (visited.has(currentId)) continue;
+        const bestKnownDistance = Number(distances.get(currentId));
+        if (!Number.isFinite(bestKnownDistance) || currentDistance > (bestKnownDistance + 1e-9)) continue;
+        visited.add(currentId);
         if (currentId === target) break;
         const peers = adjacency.get(currentId);
         if (!(peers instanceof Map)) continue;
         for (const [peerId, edge] of peers.entries()) {{
-          if (!remaining.has(peerId)) continue;
+          if (visited.has(peerId)) continue;
           const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(currentId, peerId);
           if (edgeKey && blocked.has(edgeKey)) continue;
           const candidate = currentDistance + chatNodeNavigatorLinkQualityEdgeCost(edge);
           const existing = distances.has(peerId) ? distances.get(peerId) : Infinity;
-          if (candidate < existing) {{
+          if (candidate + 1e-9 < existing) {{
             distances.set(peerId, candidate);
             previous.set(peerId, {{ nodeId: currentId, edge }});
+            chatNodeNavigatorMinHeapPush(queue, peerId, candidate);
           }}
         }}
       }}
@@ -501,11 +572,19 @@
       if (!isSelectableNodeId(source) || !isSelectableNodeId(target) || source === target) {{
         return {{ pathCount: source === target ? 4 : 0, hops: source === target ? 0 : null, reachable: source === target }};
       }}
+      const sourcePeers = adjacency instanceof Map ? adjacency.get(source) : null;
+      const targetPeers = adjacency instanceof Map ? adjacency.get(target) : null;
+      const sourceDegree = sourcePeers instanceof Map ? sourcePeers.size : 0;
+      const targetDegree = targetPeers instanceof Map ? targetPeers.size : 0;
+      if (sourceDegree <= 0 || targetDegree <= 0) {{
+        return {{ pathCount: 0, hops: null, reachable: false }};
+      }}
       const pathLimit = Math.max(1, Math.min(6, Math.trunc(Number(maxPaths) || 4)));
+      const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));
       const blockedEdgeKeys = new Set();
       let pathCount = 0;
       let shortestHops = null;
-      for (let index = 0; index < pathLimit; index += 1) {{
+      for (let index = 0; index < structuralPathLimit; index += 1) {{
         const inferred = chatNodeNavigatorFindWeightedPath(source, target, adjacency, blockedEdgeKeys);
         const path = Array.isArray(inferred && inferred.path) ? inferred.path : [];
         if (path.length <= 1) break;
@@ -617,6 +696,19 @@
       if (!isSelectableNodeId(localNodeId)) return out;
 
       const historyMode = chatNodeNavigatorNetworkHistoryModeForSearch();
+      const participantSignature = chatNodeNavigatorLinkQualityParticipantSignature(nodeIds);
+      const cacheSignature = `${{historyMode}}::${{localNodeId}}::${{participantSignature}}`;
+      if (chatNodeNavigatorLinkQualityCacheByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        const cached = chatNodeNavigatorLinkQualityCacheByState.get(safeState);
+        if (
+          cached
+          && typeof cached === "object"
+          && cached.signature === cacheSignature
+          && cached.value instanceof Map
+        ) {{
+          return cached.value;
+        }}
+      }}
       const traffic = (safeState.traffic && typeof safeState.traffic === "object")
         ? safeState.traffic
         : {{}};
@@ -687,6 +779,12 @@
         out.set(nodeId, chatNodeNavigatorInferLinkQuality(hopCount, pathStats.pathCount, {{
           reachable: !!(pathStats && pathStats.reachable),
         }}));
+      }}
+      if (chatNodeNavigatorLinkQualityCacheByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        chatNodeNavigatorLinkQualityCacheByState.set(safeState, {{
+          signature: cacheSignature,
+          value: out,
+        }});
       }}
       return out;
     }}
@@ -1752,9 +1850,11 @@
         if (noteText) {{
           tooltipLines.push(`Notes: ${{noteText}}`);
         }}
-        const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
-          fallbackToDefaults: false,
-        }});
+        const visibleMetaFieldIds = Array.isArray(ctx.visibleMetaFieldIds)
+          ? ctx.visibleMetaFieldIds
+          : normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
+              fallbackToDefaults: false,
+            }});
         const showLinkQuality = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("link_quality");
         const linkQuality = linkQualityByNode.get(nodeId) || null;
@@ -2207,6 +2307,13 @@
       const unreadDirectByPeer = normalizeChatNodeNavigatorUnreadDirectByPeer(opts.unreadDirectByPeer);
       const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);
       const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);
+      const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
+        fallbackToDefaults: false,
+      }});
+      const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(
+        visibleMetaFieldIds,
+        chatNodeNavigatorSortKey
+      );
       const rosterQuery = globalNodeSearchQuery();
       const rosterSource = Array.isArray(opts.rosterAll)
         ? opts.rosterAll.slice()
@@ -2224,11 +2331,15 @@
       const rosterNodeIds = rosterSource.map((item) => normalizeNodeId(item && item.id || ""));
       const linkQualityByNode = opts.linkQualityByNode instanceof Map
         ? opts.linkQualityByNode
-        : buildChatNodeNavigatorLinkQualityByNode(
-            safeState,
-            nodesById,
-            historyCapsById,
-            rosterNodeIds
+        : (
+            shouldComputeLinkQuality
+              ? buildChatNodeNavigatorLinkQualityByNode(
+                  safeState,
+                  nodesById,
+                  historyCapsById,
+                  rosterNodeIds
+                )
+              : new Map()
           );
       const rosterAll = typeof sortChatNodeNavigatorParticipants === "function"
         ? sortChatNodeNavigatorParticipants(
@@ -2279,6 +2390,7 @@
         unreadDirectByPeer,
         directHistoryPeerIds,
         linkQualityByNode,
+        visibleMetaFieldIds,
         resolveChatNodeFreshnessFn,
       }};
       if (unreadShell instanceof HTMLElement && unreadList instanceof HTMLElement) {{

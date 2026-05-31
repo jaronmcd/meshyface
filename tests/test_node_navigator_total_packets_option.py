@@ -35,6 +35,22 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     assert 'class="chat-member-link-quality' in js
 
 
+def test_dashboard_js_optimizes_link_quality_computation_path() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "const chatNodeNavigatorLinkQualityCacheByState = (typeof WeakMap === \"function\")" in js
+    assert "function chatNodeNavigatorShouldComputeLinkQuality(" in js
+    assert "sortKey === \"link_quality\" || fieldIds.includes(\"link_quality\")" in js
+    assert "function chatNodeNavigatorMinHeapPush(" in js
+    assert "function chatNodeNavigatorMinHeapPop(" in js
+    assert "const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));" in js
+    assert "const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(" in js
+
+
 def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
     css = build_dashboard_css(theme_css="")
 
