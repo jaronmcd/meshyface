@@ -19,6 +19,7 @@
       Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false }}),
       Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false }}),
       Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false }}),
       Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false }}),
       Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false }}),
       Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false }}),
@@ -37,6 +38,7 @@
       Object.freeze({{ id: "name", label: "Name" }}),
       Object.freeze({{ id: "snr", label: "SNR" }}),
       Object.freeze({{ id: "hops", label: "Hops" }}),
+      Object.freeze({{ id: "link_quality", label: "Link quality" }}),
       Object.freeze({{ id: "battery", label: "Battery" }}),
       Object.freeze({{ id: "favorite", label: "Tagged" }}),
       Object.freeze({{ id: "saved", label: "Total Packets" }}),
@@ -99,6 +101,42 @@
           : (caps && caps.last_hops)
       );
       const hopsNum = Number.isFinite(hopsRaw) ? Math.trunc(hopsRaw) : null;
+      const linkQuality = (opts.linkQuality && typeof opts.linkQuality === "object")
+        ? opts.linkQuality
+        : null;
+      const linkQualityBarsRaw = Number(linkQuality && linkQuality.bars);
+      const linkQualityBars = Number.isFinite(linkQualityBarsRaw)
+        ? Math.max(0, Math.min(4, Math.trunc(linkQualityBarsRaw)))
+        : null;
+      const linkQualityScoreRaw = Number(linkQuality && linkQuality.score);
+      const linkQualityScore = Number.isFinite(linkQualityScoreRaw)
+        ? Math.max(0, Math.min(100, Math.round(linkQualityScoreRaw)))
+        : null;
+      const linkQualityPathCountRaw = Number(linkQuality && linkQuality.pathCount);
+      const linkQualityPathCount = Number.isFinite(linkQualityPathCountRaw)
+        ? Math.max(0, Math.trunc(linkQualityPathCountRaw))
+        : null;
+      const linkQualityHopCountRaw = Number(linkQuality && linkQuality.hops);
+      const linkQualityHopCount = Number.isFinite(linkQualityHopCountRaw)
+        ? Math.max(0, Math.trunc(linkQualityHopCountRaw))
+        : null;
+      const linkQualityText = linkQualityBars == null ? "n/a" : `${{linkQualityBars}}/4`;
+      const linkQualityTitle = (() => {{
+        if (linkQuality && typeof linkQuality.title === "string" && linkQuality.title.trim()) {{
+          return linkQuality.title.trim();
+        }}
+        if (linkQualityBars == null || linkQualityScore == null) {{
+          return "Link quality unavailable";
+        }}
+        const parts = [`Estimated link quality ${{linkQualityBars}}/4 bars (${{linkQualityScore}}%)`];
+        if (linkQualityHopCount != null) {{
+          parts.push(`${{linkQualityHopCount}} hop${{linkQualityHopCount === 1 ? "" : "s"}}`);
+        }}
+        if (linkQualityPathCount != null) {{
+          parts.push(`${{linkQualityPathCount}} historical path${{linkQualityPathCount === 1 ? "" : "s"}}`);
+        }}
+        return parts.join(" · ");
+      }})();
       const batteryRaw = Number(node && node.battery_level);
       const batteryNum = Number.isFinite(batteryRaw) ? Math.max(0, Math.min(100, Math.round(batteryRaw))) : null;
       const savedPacketsRaw = Number(node && node.saved_packets);
@@ -142,6 +180,7 @@
         hardware: {{ sort: hardwareText, text: hardwareText, title: hardwareText }},
         snr: {{ sort: (snrNum == null ? "" : snrNum), text: (snrNum == null ? "n/a" : String(snrNum)), title: (snrNum == null ? "n/a" : `${{snrNum}} dB`) }},
         hops: {{ sort: (hopsNum == null ? "" : hopsNum), text: (hopsNum == null ? "n/a" : String(hopsNum)), title: (hopsNum == null ? "n/a" : String(hopsNum)) }},
+        link_quality: {{ sort: (linkQualityScore == null ? -1 : linkQualityScore), text: linkQualityText, title: linkQualityTitle }},
         battery: {{ sort: (batteryNum == null ? "" : batteryNum), text: (batteryNum == null ? "n/a" : String(batteryNum)), title: (batteryNum == null ? "n/a" : `${{batteryNum}}%`) }},
         saved: {{ sort: savedPackets, text: String(savedPackets), title: savedTitle }},
         pos: {{ sort: (hasPosition ? latRaw : ""), text: posText, title: posText }},

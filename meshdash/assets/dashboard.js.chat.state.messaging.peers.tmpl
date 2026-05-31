@@ -408,6 +408,289 @@
       return Math.max(0, Math.trunc(Number(unreadByPeer.get(peerId) || 0)));
     }}
 
+    function chatNodeNavigatorLinkQualityEdgeKey(rawA, rawB) {{
+      const a = normalizeNodeId(rawA || "");
+      const b = normalizeNodeId(rawB || "");
+      if (!isSelectableNodeId(a) || !isSelectableNodeId(b) || a === b) return "";
+      if (typeof networkGraphEdgeKeyBetween === "function") {{
+        return String(networkGraphEdgeKeyBetween(a, b) || "");
+      }}
+      return a < b ? `${{a}}::${{b}}` : `${{b}}::${{a}}`;
+    }}
+
+    function chatNodeNavigatorLinkQualityEdgeCost(edge) {{
+      if (typeof networkRoutesEdgeCost === "function") {{
+        return Number(networkRoutesEdgeCost(edge) || 1) || 1;
+      }}
+      const weightRaw = Number(edge && (edge.weight ?? edge.sessionWeight ?? edge.session_count ?? edge.count));
+      const weight = Number.isFinite(weightRaw) ? Math.max(1, weightRaw) : 1;
+      const avgHopsRaw = Number(edge && (edge.avgHops ?? edge.avg_hops));
+      const hopPenalty = Number.isFinite(avgHopsRaw) && avgHopsRaw > 0
+        ? Math.min(2.4, avgHopsRaw * 0.08)
+        : 0;
+      return 1 + (1 / Math.log2(weight + 2)) + hopPenalty;
+    }}
+
+    function chatNodeNavigatorFindWeightedPath(sourceNodeId, targetNodeId, adjacency, blockedEdgeKeys = null) {{
+      const source = normalizeNodeId(sourceNodeId || "");
+      const target = normalizeNodeId(targetNodeId || "");
+      if (
+        !isSelectableNodeId(source)
+        || !isSelectableNodeId(target)
+        || !(adjacency instanceof Map)
+        || !adjacency.has(source)
+        || !adjacency.has(target)
+      ) {{
+        return {{ path: [], edges: [], cost: Infinity }};
+      }}
+      if (source === target) {{
+        return {{ path: [source], edges: [], cost: 0 }};
+      }}
+      const blocked = blockedEdgeKeys instanceof Set ? blockedEdgeKeys : new Set();
+      const distances = new Map([[source, 0]]);
+      const previous = new Map();
+      const remaining = new Set(adjacency.keys());
+      while (remaining.size > 0) {{
+        let currentId = "";
+        let currentDistance = Infinity;
+        for (const nodeId of remaining) {{
+          const distance = distances.has(nodeId) ? distances.get(nodeId) : Infinity;
+          if (distance < currentDistance) {{
+            currentDistance = distance;
+            currentId = nodeId;
+          }}
+        }}
+        if (!currentId || currentDistance === Infinity) break;
+        remaining.delete(currentId);
+        if (currentId === target) break;
+        const peers = adjacency.get(currentId);
+        if (!(peers instanceof Map)) continue;
+        for (const [peerId, edge] of peers.entries()) {{
+          if (!remaining.has(peerId)) continue;
+          const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(currentId, peerId);
+          if (edgeKey && blocked.has(edgeKey)) continue;
+          const candidate = currentDistance + chatNodeNavigatorLinkQualityEdgeCost(edge);
+          const existing = distances.has(peerId) ? distances.get(peerId) : Infinity;
+          if (candidate < existing) {{
+            distances.set(peerId, candidate);
+            previous.set(peerId, {{ nodeId: currentId, edge }});
+          }}
+        }}
+      }}
+      if (!previous.has(target)) {{
+        return {{ path: [], edges: [], cost: Infinity }};
+      }}
+      const path = [target];
+      const edges = [];
+      let cursor = target;
+      while (cursor !== source) {{
+        const step = previous.get(cursor);
+        if (!step || !step.nodeId) {{
+          return {{ path: [], edges: [], cost: Infinity }};
+        }}
+        edges.unshift(step.edge);
+        cursor = step.nodeId;
+        path.unshift(cursor);
+      }}
+      return {{ path, edges, cost: Number(distances.get(target) || 0) }};
+    }}
+
+    function chatNodeNavigatorEstimatePathDiversity(sourceNodeId, targetNodeId, adjacency, maxPaths = 4) {{
+      const source = normalizeNodeId(sourceNodeId || "");
+      const target = normalizeNodeId(targetNodeId || "");
+      if (!isSelectableNodeId(source) || !isSelectableNodeId(target) || source === target) {{
+        return {{ pathCount: source === target ? 4 : 0, hops: source === target ? 0 : null, reachable: source === target }};
+      }}
+      const pathLimit = Math.max(1, Math.min(6, Math.trunc(Number(maxPaths) || 4)));
+      const blockedEdgeKeys = new Set();
+      let pathCount = 0;
+      let shortestHops = null;
+      for (let index = 0; index < pathLimit; index += 1) {{
+        const inferred = chatNodeNavigatorFindWeightedPath(source, target, adjacency, blockedEdgeKeys);
+        const path = Array.isArray(inferred && inferred.path) ? inferred.path : [];
+        if (path.length <= 1) break;
+        const hops = Math.max(0, path.length - 1);
+        if (shortestHops == null || hops < shortestHops) {{
+          shortestHops = hops;
+        }}
+        pathCount += 1;
+        const routeEdges = Array.isArray(inferred && inferred.edges) ? inferred.edges : [];
+        for (let edgeIndex = 0; edgeIndex < routeEdges.length; edgeIndex += 1) {{
+          const a = path[edgeIndex];
+          const b = path[edgeIndex + 1];
+          const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(a, b);
+          if (edgeKey) blockedEdgeKeys.add(edgeKey);
+        }}
+      }}
+      return {{
+        pathCount,
+        hops: shortestHops,
+        reachable: pathCount > 0,
+      }};
+    }}
+
+    function chatNodeNavigatorInferLinkQuality(hopsValue, pathCountValue, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const isSelf = !!opts.isSelf;
+      if (isSelf) {{
+        return {{
+          bars: 4,
+          score: 100,
+          level: "excellent",
+          hops: 0,
+          pathCount: 4,
+          title: "Self node: direct local link",
+          ariaLabel: "Link quality 4 of 4 bars",
+        }};
+      }}
+      const hopsRaw = Number(hopsValue);
+      const hops = Number.isFinite(hopsRaw) && hopsRaw >= 0
+        ? Math.max(0, Math.trunc(hopsRaw))
+        : null;
+      const pathCountRaw = Number(pathCountValue);
+      const pathCount = Number.isFinite(pathCountRaw) && pathCountRaw >= 0
+        ? Math.max(0, Math.trunc(pathCountRaw))
+        : 0;
+      const reachable = !!opts.reachable || hops != null || pathCount > 0;
+      if (!reachable) {{
+        return {{
+          bars: 0,
+          score: 0,
+          level: "none",
+          hops: null,
+          pathCount: 0,
+          title: "No inferred route history from self",
+          ariaLabel: "Link quality 0 of 4 bars",
+        }};
+      }}
+
+      const hopsScore = hops == null
+        ? 42
+        : Math.max(0, Math.min(100, Math.round(100 * (1 - Math.min(1, Math.max(0, hops - 1) / 6)))));
+      const pathScore = pathCount >= 4
+        ? 100
+        : (pathCount === 3 ? 84 : (pathCount === 2 ? 66 : (pathCount === 1 ? 38 : 0)));
+      let score = Math.round((hopsScore * 0.7) + (pathScore * 0.3));
+      if (hops != null && pathCount <= 0) {{
+        score = Math.min(score, 46);
+      }}
+      if (hops != null && hops <= 2 && pathCount >= 2) {{
+        score = Math.min(100, score + 8);
+      }}
+
+      const bars = score >= 86
+        ? 4
+        : (score >= 64 ? 3 : (score >= 42 ? 2 : (score >= 20 ? 1 : 0)));
+      const level = bars >= 4
+        ? "excellent"
+        : (bars === 3 ? "good" : (bars === 2 ? "fair" : (bars === 1 ? "weak" : "none")));
+      const parts = [`Estimated link quality ${{bars}}/4 bars (${{score}}%)`];
+      if (hops != null) {{
+        parts.push(`${{hops}} hop${{hops === 1 ? "" : "s"}}`);
+      }}
+      parts.push(`${{pathCount}} historical path${{pathCount === 1 ? "" : "s"}}`);
+      return {{
+        bars,
+        score,
+        level,
+        hops,
+        pathCount,
+        title: parts.join(" · "),
+        ariaLabel: `Link quality ${{bars}} of 4 bars`,
+      }};
+    }}
+
+    function buildChatNodeNavigatorLinkQualityByNode(
+      state = latestState,
+      nodesById = null,
+      historyCapsById = null,
+      participantNodeIds = []
+    ) {{
+      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
+      const sourceNodesById = nodesById instanceof Map ? nodesById : new Map();
+      const sourceHistoryCapsById = historyCapsById instanceof Map ? historyCapsById : new Map();
+      const nodeIds = Array.isArray(participantNodeIds) ? participantNodeIds : [];
+      const out = new Map();
+      const localNodeId = normalizeNodeId(
+        (typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : "")
+      );
+      if (!isSelectableNodeId(localNodeId)) return out;
+
+      const historyMode = chatNodeNavigatorNetworkHistoryModeForSearch();
+      const traffic = (safeState.traffic && typeof safeState.traffic === "object")
+        ? safeState.traffic
+        : {{}};
+      const baseEdges = Array.isArray(traffic.edges) ? traffic.edges : [];
+      const rawEdgesForMode = (typeof networkGraphRawEdgesForMode === "function")
+        ? networkGraphRawEdgesForMode(baseEdges, historyMode)
+        : baseEdges;
+      const filteredRawEdges = (typeof filterNetworkGraphRawEdgesByMode === "function")
+        ? filterNetworkGraphRawEdgesByMode(rawEdgesForMode, historyMode)
+        : rawEdgesForMode;
+
+      const baseHistoryCaps = (safeState.history_caps && typeof safeState.history_caps === "object")
+        ? safeState.history_caps
+        : {{}};
+      const historyCapsForMode = (typeof networkGraphHistoryCapsForMode === "function")
+        ? networkGraphHistoryCapsForMode(baseHistoryCaps, historyMode)
+        : baseHistoryCaps;
+      const historyCapsMergedById = new Map(sourceHistoryCapsById);
+      for (const [rawNodeId, rawCaps] of Object.entries(historyCapsForMode || {{}})) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        const caps = (rawCaps && typeof rawCaps === "object") ? rawCaps : null;
+        if (!isSelectableNodeId(nodeId) || !caps || historyCapsMergedById.has(nodeId)) continue;
+        historyCapsMergedById.set(nodeId, caps);
+      }}
+
+      const participantSet = new Set();
+      participantSet.add(localNodeId);
+      for (const rawNodeId of nodeIds) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        if (isSelectableNodeId(nodeId)) participantSet.add(nodeId);
+      }}
+
+      const liveNodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const nodeMap = (typeof buildNetworkGraphNodeMap === "function")
+        ? buildNetworkGraphNodeMap(liveNodes, historyCapsForMode, filteredRawEdges, {{
+            includeAllLiveNodes: true,
+            pinnedNodeIds: Array.from(participantSet),
+          }})
+        : new Map(sourceNodesById);
+      const combinedEdges = (typeof combineNetworkGraphEdges === "function")
+        ? combineNetworkGraphEdges(filteredRawEdges, nodeMap, {{ mode: historyMode }})
+        : [];
+      const adjacency = (typeof buildNetworkGraphAdjacency === "function")
+        ? buildNetworkGraphAdjacency(nodeMap, combinedEdges)
+        : new Map();
+
+      out.set(localNodeId, chatNodeNavigatorInferLinkQuality(0, 4, {{ isSelf: true }}));
+      for (const nodeId of participantSet) {{
+        if (!isSelectableNodeId(nodeId) || nodeId === localNodeId) continue;
+        const node = sourceNodesById.get(nodeId) || nodeMap.get(nodeId) || null;
+        const caps = historyCapsMergedById.get(nodeId) || null;
+        const hopCandidates = [];
+        const liveHopsRaw = Number(node && (node.hops_away ?? node.hopsAway));
+        if (Number.isFinite(liveHopsRaw) && liveHopsRaw >= 0) {{
+          hopCandidates.push(Math.max(0, Math.trunc(liveHopsRaw)));
+        }}
+        const capsHopsRaw = Number(caps && caps.last_hops);
+        if (Number.isFinite(capsHopsRaw) && capsHopsRaw >= 0) {{
+          hopCandidates.push(Math.max(0, Math.trunc(capsHopsRaw)));
+        }}
+        const pathStats = chatNodeNavigatorEstimatePathDiversity(localNodeId, nodeId, adjacency, 4);
+        const inferredHopCount = Number.isFinite(Number(pathStats && pathStats.hops))
+          ? Math.max(0, Math.trunc(Number(pathStats.hops)))
+          : null;
+        const hopCount = hopCandidates.length > 0
+          ? Math.min(...hopCandidates)
+          : inferredHopCount;
+        out.set(nodeId, chatNodeNavigatorInferLinkQuality(hopCount, pathStats.pathCount, {{
+          reachable: !!(pathStats && pathStats.reachable),
+        }}));
+      }}
+      return out;
+    }}
+
     function noteChatNodeNavigatorProgrammaticScrollReset(durationMs = 700) {{
       const duration = Number.isFinite(Number(durationMs))
         ? Math.max(120, Math.trunc(Number(durationMs)))
@@ -622,12 +905,14 @@
       nodesById,
       nowUnix = Math.floor(Date.now() / 1000),
       historyCapsById = null,
-      unreadDirectByPeer = null
+      unreadDirectByPeer = null,
+      linkQualityByNode = null
     ) {{
       const rows = Array.isArray(participantsList) ? participantsList : [];
       const sourceNodes = nodesById instanceof Map ? nodesById : new Map();
       const sourceHistoryCaps = historyCapsById instanceof Map ? historyCapsById : new Map();
       const sourceUnreadDirectByPeer = normalizeChatNodeNavigatorUnreadDirectByPeer(unreadDirectByPeer);
+      const sourceLinkQualityByNode = linkQualityByNode instanceof Map ? linkQualityByNode : new Map();
       const sortKey = normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey);
       const sortDir = normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir);
       const projectionById = new Map();
@@ -642,6 +927,7 @@
           {{
             nowUnix,
             historyCaps: sourceHistoryCaps.get(nodeId) || null,
+            linkQuality: sourceLinkQualityByNode.get(nodeId) || null,
           }}
         );
         projectionById.set(nodeId, projection);
@@ -1293,6 +1579,7 @@
         const malformedTextByNode = ctx.malformedTextByNode instanceof Map ? ctx.malformedTextByNode : new Map();
         const unreadDirectByPeer = ctx.unreadDirectByPeer instanceof Map ? ctx.unreadDirectByPeer : new Map();
         const directHistoryPeerIds = ctx.directHistoryPeerIds instanceof Set ? ctx.directHistoryPeerIds : new Set();
+        const linkQualityByNode = ctx.linkQualityByNode instanceof Map ? ctx.linkQualityByNode : new Map();
         const state = (ctx.state && typeof ctx.state === "object") ? ctx.state : latestState;
         const resolveChatNodeFreshnessFn = (typeof ctx.resolveChatNodeFreshnessFn === "function")
           ? ctx.resolveChatNodeFreshnessFn
@@ -1326,6 +1613,7 @@
           {{
             nowUnix,
             historyCaps: historyCapsById.get(nodeId) || null,
+            linkQuality: linkQualityByNode.get(nodeId) || null,
           }}
         );
         const caps = historyCapsById.get(nodeId) || null;
@@ -1467,6 +1755,40 @@
         const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
           fallbackToDefaults: false,
         }});
+        const showLinkQuality = Array.isArray(visibleMetaFieldIds)
+          && visibleMetaFieldIds.includes("link_quality");
+        const linkQuality = linkQualityByNode.get(nodeId) || null;
+        const linkQualityBarsRaw = Number(linkQuality && linkQuality.bars);
+        const linkQualityBars = Number.isFinite(linkQualityBarsRaw)
+          ? Math.max(0, Math.min(4, Math.trunc(linkQualityBarsRaw)))
+          : null;
+        const linkQualityLevel = String(linkQuality && linkQuality.level || "none").trim().toLowerCase() || "none";
+        const linkQualityScore = Number(linkQuality && linkQuality.score);
+        const linkQualityPathCount = Number(linkQuality && linkQuality.pathCount);
+        const linkQualityHops = Number(linkQuality && linkQuality.hops);
+        const linkQualityTitle = String(
+          (linkQuality && linkQuality.title)
+          || "Estimated link quality unavailable for this node"
+        ).trim() || "Estimated link quality unavailable for this node";
+        const linkQualityAria = String(
+          (linkQuality && linkQuality.ariaLabel)
+          || `Link quality ${{linkQualityBars == null ? 0 : linkQualityBars}} of 4 bars`
+        ).trim() || "Link quality 0 of 4 bars";
+        if (linkQualityBars != null) {{
+          const detailParts = [`Link quality: ${{linkQualityBars}}/4 bars`];
+          if (Number.isFinite(linkQualityScore)) {{
+            detailParts.push(`${{Math.max(0, Math.min(100, Math.round(linkQualityScore)))}}%`);
+          }}
+          if (Number.isFinite(linkQualityHops)) {{
+            const hopsRounded = Math.max(0, Math.trunc(linkQualityHops));
+            detailParts.push(`${{hopsRounded}} hop${{hopsRounded === 1 ? "" : "s"}}`);
+          }}
+          if (Number.isFinite(linkQualityPathCount)) {{
+            const pathsRounded = Math.max(0, Math.trunc(linkQualityPathCount));
+            detailParts.push(`${{pathsRounded}} historical path${{pathsRounded === 1 ? "" : "s"}}`);
+          }}
+          tooltipLines.splice(5, 0, detailParts.join(" · "));
+        }}
         const showTagBadge = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("favorite");
         const tagEntry = (typeof nodeTagEntryForNode === "function")
@@ -1491,6 +1813,17 @@
           : "";
         const hopsInlineHtml = hopsValue != null
           ? `<span class="chat-member-hops-inline" title="Last known hops away: ${{escAttr(hopsText)}}">Hops ${{escAttr(hopsText)}}</span>`
+          : "";
+        const linkQualityInlineHtml = (showLinkQuality && linkQualityBars != null)
+          ? `<span class="chat-member-link-quality is-${{escAttr(linkQualityLevel)}}" title="${{escAttr(linkQualityTitle)}}" aria-label="${{escAttr(linkQualityAria)}}">
+            <span class="chat-member-link-quality-label">Link</span>
+            <span class="chat-member-link-quality-bars" aria-hidden="true">
+              <span class="chat-member-link-quality-bar level-1${{linkQualityBars >= 1 ? " is-on" : ""}}"></span>
+              <span class="chat-member-link-quality-bar level-2${{linkQualityBars >= 2 ? " is-on" : ""}}"></span>
+              <span class="chat-member-link-quality-bar level-3${{linkQualityBars >= 3 ? " is-on" : ""}}"></span>
+              <span class="chat-member-link-quality-bar level-4${{linkQualityBars >= 4 ? " is-on" : ""}}"></span>
+            </span>
+          </span>`
           : "";
         let packetSparkWrapHtml = "";
         if (showPacketTrendRow) {{
@@ -1526,6 +1859,7 @@
         if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);
         if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);
         if (hopsInlineHtml) memberMetaRowParts.push(hopsInlineHtml);
+        if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);
         const memberMetaRowHtml = memberMetaRowParts.length > 0
           ? `<span class="chat-member-meta-row">${{memberMetaRowParts.join("")}}</span>`
           : "";
@@ -1535,7 +1869,7 @@
           const chips = [];
           for (const fieldIdRaw of visibleFieldIds) {{
             const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw);
-            if (!fieldId || fieldId === "favorite" || fieldId === "hops") continue;
+            if (!fieldId || fieldId === "favorite" || fieldId === "hops" || fieldId === "link_quality") continue;
             const def = nodeExplorerFieldDef(fieldId);
             const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
             if (!def || !field) continue;
@@ -1887,13 +2221,23 @@
               includeHistoricalOnDemand: true,
             }}
           );
+      const rosterNodeIds = rosterSource.map((item) => normalizeNodeId(item && item.id || ""));
+      const linkQualityByNode = opts.linkQualityByNode instanceof Map
+        ? opts.linkQualityByNode
+        : buildChatNodeNavigatorLinkQualityByNode(
+            safeState,
+            nodesById,
+            historyCapsById,
+            rosterNodeIds
+          );
       const rosterAll = typeof sortChatNodeNavigatorParticipants === "function"
         ? sortChatNodeNavigatorParticipants(
             rosterSource,
             nodesById,
             nowUnix,
             historyCapsById,
-            unreadDirectByPeer
+            unreadDirectByPeer,
+            linkQualityByNode
           )
         : rosterSource;
       const rosterFiltered = rosterAll.filter((item) => (
@@ -1934,6 +2278,7 @@
         malformedTextByNode,
         unreadDirectByPeer,
         directHistoryPeerIds,
+        linkQualityByNode,
         resolveChatNodeFreshnessFn,
       }};
       if (unreadShell instanceof HTMLElement && unreadList instanceof HTMLElement) {{
@@ -1996,6 +2341,7 @@
             malformedTextByNode,
             unreadDirectByPeer,
             directHistoryPeerIds,
+            linkQualityByNode,
             resolveChatNodeFreshnessFn,
           }})).join("")
         : ((pinnedSectionCount <= 0 && rosterQuery)
@@ -2039,6 +2385,7 @@
         historyCapsById,
         packetTickerByNode: packetMaps.packetTickerByNode,
         packetSparklineByNode: packetMaps.packetSparklineByNode,
+        linkQualityByNode,
         resolveChatNodeFreshnessFn,
       }};
     }}

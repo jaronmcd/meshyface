@@ -19,6 +19,30 @@ def test_dashboard_js_labels_saved_history_field_as_total_packets() -> None:
     assert 'id: "saved", label: "Total Packets"' in js
 
 
+def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'id: "link_quality", label: "Link", sortable: true, rosterMeta: true' in js
+    assert 'id: "link_quality", label: "Link quality"' in js
+    assert "function buildChatNodeNavigatorLinkQualityByNode(" in js
+    assert "function chatNodeNavigatorInferLinkQuality(" in js
+    assert 'showLinkQuality = Array.isArray(visibleMetaFieldIds)' in js
+    assert 'visibleMetaFieldIds.includes("link_quality")' in js
+    assert 'class="chat-member-link-quality' in js
+
+
+def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert ".chat-member-link-quality {" in css
+    assert ".chat-member-link-quality-bar.level-4" in css
+    assert "[data-theme=\"dark\"] .chat-member-link-quality-bar {" in css
+
+
 def test_dashboard_js_uses_persisted_node_packet_trends_for_roster_ticker() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

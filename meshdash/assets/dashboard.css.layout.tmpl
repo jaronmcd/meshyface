@@ -5688,6 +5688,67 @@
       white-space: nowrap;
       text-align: right;
     }}
+    .chat-member-link-quality {{
+      flex: 0 0 auto;
+      margin-left: auto;
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 5px;
+      min-width: 0;
+      white-space: nowrap;
+      user-select: none;
+    }}
+    .chat-member-link-quality-label {{
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #5f796b;
+      opacity: 0.72;
+      line-height: 1;
+      transform: translateY(-1px);
+    }}
+    .chat-member-link-quality-bars {{
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 12px;
+      width: 22px;
+    }}
+    .chat-member-link-quality-bar {{
+      width: 3px;
+      border-radius: 1px 1px 0 0;
+      background: rgba(122, 150, 136, 0.35);
+      transition: background-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+      opacity: 0.72;
+    }}
+    .chat-member-link-quality-bar.level-1 {{ height: 4px; }}
+    .chat-member-link-quality-bar.level-2 {{ height: 7px; }}
+    .chat-member-link-quality-bar.level-3 {{ height: 10px; }}
+    .chat-member-link-quality-bar.level-4 {{ height: 12px; }}
+    .chat-member-link-quality.is-none .chat-member-link-quality-bar.is-on {{
+      background: #7b8f85;
+      opacity: 0.7;
+    }}
+    .chat-member-link-quality.is-weak .chat-member-link-quality-bar.is-on {{
+      background: #d38a58;
+      box-shadow: 0 0 0 1px rgba(211, 138, 88, 0.14);
+      opacity: 0.94;
+    }}
+    .chat-member-link-quality.is-fair .chat-member-link-quality-bar.is-on {{
+      background: #d8c56a;
+      box-shadow: 0 0 0 1px rgba(176, 162, 76, 0.16);
+      opacity: 0.95;
+    }}
+    .chat-member-link-quality.is-good .chat-member-link-quality-bar.is-on {{
+      background: #7ccf87;
+      box-shadow: 0 0 0 1px rgba(98, 184, 111, 0.16);
+      opacity: 0.96;
+    }}
+    .chat-member-link-quality.is-excellent .chat-member-link-quality-bar.is-on {{
+      background: #3ce27b;
+      box-shadow: 0 0 0 1px rgba(52, 206, 105, 0.2);
+      opacity: 1;
+    }}
     .chat-member-meta-row {{
       display: flex;
       align-items: center;
