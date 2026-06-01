@@ -14,6 +14,7 @@ from .sql_contracts import SqlConnection
 
 _DEFAULT_LIMIT = 1200
 _MAX_LIMIT = 3000
+_MAX_LIMIT_MAX_WINDOW = 12000
 _MIN_REAL_LINK_COUNT = 2
 _WINDOW_SECONDS = {
     "6h": 6 * 60 * 60,
@@ -42,11 +43,12 @@ def _normalize_link_window(raw_window: object) -> str:
     return clean if clean in _WINDOW_SECONDS else "7d"
 
 
-def _clean_limit(raw_limit: object) -> int:
+def _clean_limit(raw_limit: object, *, window: str) -> int:
     parsed = _to_int(raw_limit)
     if parsed is None:
         parsed = _DEFAULT_LIMIT
-    return max(1, min(_MAX_LIMIT, int(parsed)))
+    max_limit = _MAX_LIMIT_MAX_WINDOW if window == "max" else _MAX_LIMIT
+    return max(1, min(max_limit, int(parsed)))
 
 
 def _fetch_link_metric_edge_rows(
@@ -160,7 +162,7 @@ def load_link_edges(
     limit: object = _DEFAULT_LIMIT,
 ) -> dict[str, object]:
     clean_window = _normalize_link_window(window)
-    clean_limit = _clean_limit(limit)
+    clean_limit = _clean_limit(limit, window=clean_window)
     window_seconds = int(_WINDOW_SECONDS[clean_window])
     cutoff_unix = 0
     if window_seconds > 0:

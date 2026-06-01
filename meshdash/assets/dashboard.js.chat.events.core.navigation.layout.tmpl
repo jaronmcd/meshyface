@@ -7894,7 +7894,7 @@
 
     function networkGraphHistoryEdgeLimit(modeName) {{
       const mode = normalizeNetworkGraphEdgeMode(modeName);
-      if (mode === "max") return 2500;
+      if (mode === "max") return 10000;
       if (mode === "30d" || mode === "14d") return 1800;
       return 1200;
     }}
@@ -8736,6 +8736,7 @@
 
     function buildNetworkGraphLayout(nodeMap, combinedEdges, state) {{
       const adjacency = buildNetworkGraphAdjacency(nodeMap, combinedEdges);
+      const edgeMode = normalizeNetworkGraphEdgeMode(networkGraphEdgeMode);
       const safeState = (state && typeof state === "object") ? state : {{}};
       const safeTraffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
       const recentPackets = Array.isArray(safeTraffic.recent_packets) ? safeTraffic.recent_packets : [];
@@ -8804,6 +8805,28 @@
         }}
       }}
 
+      if (edgeMode === "max") {{
+        for (const [nodeId, baseLayer] of layerByNodeId.entries()) {{
+          if (nodeId === rootId) continue;
+          const node = nodeMap.get(nodeId) || null;
+          const signalMeta = signalMetaByNodeId.get(nodeId) || null;
+          const hopCandidates = [];
+          const nodeHopsRaw = Number(node && (node.hops_away ?? node.hopsAway));
+          if (Number.isFinite(nodeHopsRaw) && nodeHopsRaw >= 0) {{
+            hopCandidates.push(Math.max(0, Math.trunc(nodeHopsRaw)));
+          }}
+          const signalHopsRaw = Number(signalMeta && signalMeta.hopsAway);
+          if (Number.isFinite(signalHopsRaw) && signalHopsRaw >= 0) {{
+            hopCandidates.push(Math.max(0, Math.trunc(signalHopsRaw)));
+          }}
+          if (!hopCandidates.length) continue;
+          const hintedLayer = Math.max(...hopCandidates);
+          if (Number.isFinite(hintedLayer) && hintedLayer > Number(baseLayer)) {{
+            layerByNodeId.set(nodeId, hintedLayer);
+          }}
+        }}
+      }}
+
       const layers = new Map();
       for (const [nodeId, layer] of layerByNodeId.entries()) {{
         if (!layers.has(layer)) {{
@@ -8851,6 +8874,7 @@
           disconnected.push(nodeId);
         }}
       }}
+      const includeAllDisconnectedNodes = edgeMode === "max";
       const disconnectedVisibility = limitNetworkGraphDisconnectedNodeIds(
         broadcastOnlyDisconnected,
         disconnected,
@@ -8864,6 +8888,14 @@
           rootId,
         }}
       );
+      if (includeAllDisconnectedNodes) {{
+        disconnectedVisibility.broadcastOnlyNodeIds = broadcastOnlyDisconnected;
+        disconnectedVisibility.detachedNodeIds = disconnected;
+        disconnectedVisibility.hiddenBroadcastOnlyCount = 0;
+        disconnectedVisibility.hiddenDetachedCount = 0;
+        disconnectedVisibility.visibleCount = broadcastOnlyDisconnected.length + disconnected.length;
+        disconnectedVisibility.totalCount = broadcastOnlyDisconnected.length + disconnected.length;
+      }}
       const visibleBroadcastOnlyDisconnected = Array.isArray(disconnectedVisibility.broadcastOnlyNodeIds)
         ? disconnectedVisibility.broadcastOnlyNodeIds
         : [];

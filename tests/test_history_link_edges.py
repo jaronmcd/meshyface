@@ -147,3 +147,17 @@ def test_link_edges_history_route_calls_state_loader_attribute() -> None:
 
     assert calls == [("30d", 42)]
     assert written == [(200, {"ok": True, "window": "30d", "limit": 42, "edges": []}, True)]
+
+
+def test_link_edges_limit_cap_is_higher_for_max_window() -> None:
+    conn = sqlite3.connect(":memory:")
+    initialize_history_schema(conn)
+    store = _make_store(conn)
+
+    max_payload = load_link_edges(store, window="max", limit=10000)
+    weekly_payload = load_link_edges(store, window="7d", limit=10000)
+
+    assert max_payload["window"] == "max"
+    assert max_payload["limit"] == 10000
+    assert weekly_payload["window"] == "7d"
+    assert weekly_payload["limit"] == 3000
