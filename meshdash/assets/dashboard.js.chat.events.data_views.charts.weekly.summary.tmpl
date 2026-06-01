@@ -80,6 +80,8 @@
       let packetPendingBreak = false;
       const continuitySeries = new Set(["real_edge_count"]);
       const continuityStateBySeries = new Map();
+      const restartGaugeSeries = new Set(["known_nodes", "saved_nodes", "position_nodes"]);
+      const restartGaugeStateBySeries = new Map();
       const newNodesWindowSeconds = 24 * 60 * 60;
       const newNodeFirstSeenUnixValues = nodesMetric
         ? collectNewNodeFirstSeenUnix(opts.state || latestState)
@@ -103,6 +105,32 @@
         const adjusted = numeric + Number(state.offset || 0);
         state.lastAdjusted = adjusted;
         return adjusted;
+      }};
+      const stabilizedRestartGaugeValue = (seriesKey, rawValue, resetBreak) => {{
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric)) return null;
+        if (!restartGaugeSeries.has(seriesKey)) return numeric;
+        let state = restartGaugeStateBySeries.get(seriesKey);
+        if (!(state && typeof state === "object")) {{
+          state = {{ floor: null, lastStable: null }};
+          restartGaugeStateBySeries.set(seriesKey, state);
+        }}
+        if (
+          resetBreak
+          && Number.isFinite(state.lastStable)
+          && (numeric + 1 < Number(state.lastStable))
+        ) {{
+          state.floor = Number(state.lastStable);
+        }}
+        const floor = Number(state.floor);
+        let stable = numeric;
+        if (Number.isFinite(floor) && numeric < floor) {{
+          stable = floor;
+        }} else if (Number.isFinite(floor) && numeric >= floor) {{
+          state.floor = null;
+        }}
+        state.lastStable = stable;
+        return stable;
       }};
 
       for (const point of points) {{
@@ -175,9 +203,12 @@
         const knownRawValue = Number(point.node_count);
         const savedRawValue = Number(point.saved_node_count);
         const positionRawValue = Number(point.nodes_with_position);
-        const knownValue = continuityAdjustedValue("known_nodes", knownRawValue, resetBreak);
-        const savedValue = continuityAdjustedValue("saved_nodes", savedRawValue, resetBreak);
-        const positionValue = continuityAdjustedValue("position_nodes", positionRawValue, resetBreak);
+        const knownObservedValue = Number.isFinite(knownRawValue) && Number.isFinite(savedRawValue)
+          ? Math.max(knownRawValue, savedRawValue)
+          : (Number.isFinite(knownRawValue) ? knownRawValue : savedRawValue);
+        const knownValue = stabilizedRestartGaugeValue("known_nodes", knownObservedValue, resetBreak);
+        const savedValue = stabilizedRestartGaugeValue("saved_nodes", savedRawValue, resetBreak);
+        const positionValue = stabilizedRestartGaugeValue("position_nodes", positionRawValue, resetBreak);
         const bucketUnixForNew = Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null;
         const newNodesValue = countNewNodesFirstSeenInWindow(
           newNodeFirstSeenUnixValues,
@@ -196,9 +227,9 @@
           value: primaryValue,
           series: seriesValues,
           newNodeCount: Number.isFinite(newNodesValue) ? newNodesValue : null,
-          knownNodeCount: Number.isFinite(knownRawValue) ? knownRawValue : null,
-          savedNodeCount: Number.isFinite(savedRawValue) ? savedRawValue : null,
-          positionNodeCount: Number.isFinite(positionRawValue) ? positionRawValue : null,
+          knownNodeCount: Number.isFinite(knownValue) ? knownValue : null,
+          savedNodeCount: Number.isFinite(savedValue) ? savedValue : null,
+          positionNodeCount: Number.isFinite(positionValue) ? positionValue : null,
           bucketText,
           bucketUnix: Number.isFinite(bucketUnix) && bucketUnix > 0 ? bucketUnix : null,
         }});

@@ -220,6 +220,11 @@ def test_dashboard_nodes_plots_expose_new_nodes_series_controls() -> None:
     assert 'new_nodes: { tone: "aux3", dashed: false, width: 2.1 },' in js
     assert "function collectNewNodeFirstSeenUnix(state = latestState) {" in js
     assert "function countNewNodesFirstSeenInWindow(firstSeenUnixValues, bucketUnix, windowSeconds = 24 * 60 * 60) {" in js
+    assert "const stabilizedRestartGaugeValue = (seriesKey, rawValue, resetBreak) => {" in js
+    assert 'const restartGaugeSeries = new Set(["known_nodes", "saved_nodes", "position_nodes"]);' in js
+    assert "const knownObservedValue = Number.isFinite(knownRawValue) && Number.isFinite(savedRawValue)" in js
+    assert "? Math.max(knownRawValue, savedRawValue)" in js
+    assert 'const knownValue = stabilizedRestartGaugeValue("known_nodes", knownObservedValue, resetBreak);' in js
     assert "const newNodeFirstSeenUnixValues = nodesMetric" in js
     assert "countNewNodesFirstSeenInWindow(" in js
     assert "rollingNewNodeCount" not in js
