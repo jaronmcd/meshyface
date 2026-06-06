@@ -505,11 +505,36 @@
       const renderOptions = options && typeof options === "object" ? options : {{}};
       const allowPollSkip = !!renderOptions.allowPollSkip;
       let renderChatPhase = "init";
+      const chatRenderPerfEnabled = !!chatPerfEnabled;
+      const chatRenderStartMs = chatRenderPerfEnabled ? chatPerfNowMs() : 0;
+      let chatRenderLastPhaseMs = chatRenderStartMs;
+      const chatRenderPhases = [];
       const markRenderChatPhase = (phase) => {{
         const clean = String(phase || "").trim();
         if (clean) {{
           renderChatPhase = clean;
+          if (chatRenderPerfEnabled && chatRenderStartMs > 0) {{
+            const nowMs = chatPerfNowMs();
+            chatRenderPhases.push({{
+              name: clean,
+              deltaMs: roundChatPerfMs(nowMs - chatRenderLastPhaseMs),
+              atMs: roundChatPerfMs(nowMs - chatRenderStartMs),
+            }});
+            chatRenderLastPhaseMs = nowMs;
+          }}
         }}
+      }};
+      const finishChatRenderStats = (status, extra = null) => {{
+        if (!chatRenderPerfEnabled || chatRenderStartMs <= 0) return;
+        const stats = {{
+          status: String(status || "complete"),
+          totalMs: roundChatPerfMs(chatPerfNowMs() - chatRenderStartMs),
+          phases: chatRenderPhases.slice(),
+        }};
+        if (extra && typeof extra === "object") {{
+          Object.assign(stats, extra);
+        }}
+        recordChatRenderStats(stats);
       }};
       const handleRenderChatFailure = (err) => {{
         const message = err instanceof Error ? (err.message || String(err)) : String(err || "unknown error");
@@ -552,11 +577,6 @@
       if (typeof document !== "undefined" && document && document.body instanceof HTMLElement) {{
         document.body.dataset.chatRenderEntered = "1";
       }}
-      const chatRenderStartMs = (
-        chatPerfEnabled
-        && typeof window.performance !== "undefined"
-        && typeof window.performance.now === "function"
-      ) ? window.performance.now() : 0;
       const traffic = state.traffic || {{}};
       const s = state.summary || {{}};
       const chatScroller = getChatScroller();
@@ -593,6 +613,12 @@
             fetchHistory: false,
           }});
         }}
+        finishChatRenderStats("poll-skip", {{
+          rawMessages: Array.isArray(traffic.recent_chat) ? traffic.recent_chat.length : 0,
+          rawPackets: Array.isArray(traffic.recent_packets) ? traffic.recent_packets.length : 0,
+          nodes: nodes.length,
+          allowPollSkip: true,
+        }});
         return;
       }}
       const localNodeId = resolveLocalNodeId(state);

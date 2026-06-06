@@ -143,7 +143,39 @@
       chatPerfEnabled = enabled;
     }}
 
-    function recordChatPerfSample(renderMs, feedCount, rosterCount) {{
+    function chatPerfNowMs() {{
+      return (typeof window !== "undefined" && window.performance && typeof window.performance.now === "function")
+        ? window.performance.now()
+        : Date.now();
+    }}
+
+    function roundChatPerfMs(value) {{
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? Math.round(Math.max(0, numberValue) * 100) / 100 : 0;
+    }}
+
+    function recordChatRenderStats(stats) {{
+      if (!chatPerfEnabled || typeof window === "undefined" || !stats || typeof stats !== "object") return;
+      const safeStats = {{
+        ...stats,
+        totalMs: roundChatPerfMs(stats.totalMs),
+        phases: Array.isArray(stats.phases)
+          ? stats.phases.map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+          : [],
+      }};
+      const existing = window.__meshChatRenderStats;
+      const store = existing && typeof existing === "object" ? existing : {{ runs: [] }};
+      const runs = Array.isArray(store.runs) ? store.runs : [];
+      runs.push(safeStats);
+      if (runs.length > 40) {{
+        runs.splice(0, runs.length - 40);
+      }}
+      store.runs = runs;
+      store.last = safeStats;
+      window.__meshChatRenderStats = store;
+    }}
+
+    function recordChatPerfSample(renderMs, feedCount, rosterCount, renderStats = null) {{
       if (!chatPerfEnabled) return;
       const ms = Math.max(0, Number(renderMs) || 0);
       chatPerfStats.samples += 1;
@@ -158,6 +190,15 @@
       chatPerfStats.lastFeedCount = Math.max(0, Math.trunc(Number(feedCount) || 0));
       chatPerfStats.lastRosterCount = Math.max(0, Math.trunc(Number(rosterCount) || 0));
       chatPerfStats.lastChannel = activeChatChannel;
+      if (renderStats && typeof renderStats === "object") {{
+        recordChatRenderStats({{
+          ...renderStats,
+          totalMs: ms,
+          feedCount: chatPerfStats.lastFeedCount,
+          rosterCount: chatPerfStats.lastRosterCount,
+          channel: activeChatChannel,
+        }});
+      }}
     }}
 
     function persistSignalHeatDevKnobs() {{
@@ -270,4 +311,20 @@
       // Some leaflet.heat builds render into overlayPane (ignoring custom panes),
       // which can block marker hover/click unless canvas hit-testing is disabled.
       canvas.style.pointerEvents = "none";
+    }}
+
+    function signalHeatmapMapHasDrawableSize() {{
+      if (!map || typeof map.getSize !== "function") return false;
+      const size = map.getSize();
+      const width = Number(size && size.x);
+      const height = Number(size && size.y);
+      if (!(width > 0) || !(height > 0)) return false;
+      if (typeof map.getContainer === "function") {{
+        const container = map.getContainer();
+        if (container instanceof HTMLElement && typeof container.getBoundingClientRect === "function") {{
+          const rect = container.getBoundingClientRect();
+          if (!(Number(rect.width) > 0) || !(Number(rect.height) > 0)) return false;
+        }}
+      }}
+      return true;
     }}

@@ -108,6 +108,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const signalHeatmapGradientLiveContrast = {" in js
     assert "function resolveSignalHeatGradient(mode = signalHeatmapMode) {" in js
     assert "Signal heatmap uses a warm colorblind-friendly palette; link-cloud heatmaps stay blue." in js
+    assert "function signalHeatmapMapHasDrawableSize()" in js
+    assert "const mapDrawable = signalHeatmapMapHasDrawableSize();" in js
+    assert "&& mapDrawable" in js
     assert "const gradient = resolveSignalHeatGradient(signalHeatmapMode);" in js
     assert 'let lastSignalHeatmapSignature = "";' in js
     assert "const heatSignature = `signal-heatmap:${(heatSignatureHash >>> 0).toString(16)}`;" in js

@@ -77,7 +77,9 @@
         return;
       }}
       const baseVisual = resolveSignalHeatVisualOptions(pointsCount);
+      const mapDrawable = signalHeatmapMapHasDrawableSize();
       const shouldShow = !(forceHide && !savedSingleNodeMode)
+        && mapDrawable
         && signalHeatmapEnabled
         && pointsCount > 0;
       const gradient = resolveSignalHeatGradient(signalHeatmapMode);
@@ -86,6 +88,7 @@
       heatSignatureHash = hashMixStr(heatSignatureHash, normalizeSignalHeatmapMode(signalHeatmapMode));
       heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapEnabled ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, forceHide ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, mapDrawable ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, savedSingleNodeMode ? 1 : 0);
       heatSignatureHash = hashMixStr(heatSignatureHash, savedSingleNodeMode ? normalizeNodeId(resolveSavedViewNodeId(latestState)) : "");
       heatSignatureHash = hashMixInt(heatSignatureHash, shouldShow ? 1 : 0);

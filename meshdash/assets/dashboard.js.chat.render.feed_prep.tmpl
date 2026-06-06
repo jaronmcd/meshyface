@@ -50,6 +50,7 @@
       }};
       markRenderChatPhase("derive-cache");
       let derived = null;
+      let derivedCacheHit = false;
       if (chatDerivedCache
         && chatDerivedCache.rawMessagesRef === rawMessages
         && chatDerivedCache.rawPacketsRef === rawPackets
@@ -67,6 +68,7 @@
         && chatDerivedCache.rawPacketsLength === rawPacketsLength
         && chatDerivedCache.nodePacketTrendEnabled === nodeNavigatorPacketTrendEnabled()) {{
         derived = chatDerivedCache;
+        derivedCacheHit = true;
       }}
       if (!derived) {{
         const reactionBucketsLocal = new Map();

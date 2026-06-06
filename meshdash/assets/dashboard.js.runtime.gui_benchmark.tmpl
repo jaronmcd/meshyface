@@ -115,16 +115,20 @@
       const longTasks = [];
       let running = true;
       let frameId = 0;
-      let lastFrameMs = meshGuiBenchmarkNowMs();
+      const startedAtMs = meshGuiBenchmarkNowMs();
+      let lastFrameMs = startedAtMs;
       let observer = null;
       if (typeof PerformanceObserver !== "undefined") {{
         try {{
           observer = new PerformanceObserver((list) => {{
             for (const entry of list.getEntries()) {{
               if (!entry) continue;
+              const entryStartMs = Number(entry.startTime);
+              const entryDurationMs = Math.max(0, Number(entry.duration) || 0);
+              if (Number.isFinite(entryStartMs) && entryStartMs + entryDurationMs < startedAtMs) continue;
               longTasks.push({{
-                durationMs: meshGuiBenchmarkRoundMs(entry.duration),
-                startTimeMs: meshGuiBenchmarkRoundMs(entry.startTime),
+                durationMs: meshGuiBenchmarkRoundMs(entryDurationMs),
+                startTimeMs: meshGuiBenchmarkRoundMs(entryStartMs),
               }});
             }}
           }});
@@ -142,12 +146,13 @@
         }}
       }};
       frameId = window.requestAnimationFrame(tick);
-      const startedAtMs = meshGuiBenchmarkNowMs();
       let detail = null;
       let error = "";
       try {{
         detail = await callback();
-        await meshGuiBenchmarkNextFrame();
+        if (!(detail && typeof detail === "object" && detail.skipBenchmarkFrameWait)) {{
+          await meshGuiBenchmarkNextFrame();
+        }}
       }} catch (err) {{
         error = err instanceof Error ? (err.message || String(err)) : String(err || "unknown error");
       }} finally {{
@@ -195,6 +200,12 @@
       const graphStats = graphStatsStore && graphStatsStore.last && typeof graphStatsStore.last === "object"
         ? graphStatsStore.last
         : null;
+      const chatStatsStore = (typeof window !== "undefined" && window.__meshChatRenderStats && typeof window.__meshChatRenderStats === "object")
+        ? window.__meshChatRenderStats
+        : null;
+      const chatStats = chatStatsStore && chatStatsStore.last && typeof chatStatsStore.last === "object"
+        ? chatStatsStore.last
+        : null;
       return {{
         activeLayoutView,
         activeNetworkSubview,
@@ -207,6 +218,21 @@
         recentChat: Array.isArray(rawTraffic.recent_chat) ? rawTraffic.recent_chat.length : 0,
         recentPackets: Array.isArray(rawTraffic.recent_packets) ? rawTraffic.recent_packets.length : 0,
         edges: Array.isArray(rawTraffic.edges) ? rawTraffic.edges.length : 0,
+        chatRender: chatStats ? {{
+          status: chatStats.status || "",
+          totalMs: meshGuiBenchmarkRoundMs(chatStats.totalMs),
+          channel: chatStats.channel || "",
+          feedCount: Math.max(0, Math.trunc(Number(chatStats.feedCount) || 0)),
+          rosterCount: Math.max(0, Math.trunc(Number(chatStats.rosterCount) || 0)),
+          rawMessages: Math.max(0, Math.trunc(Number(chatStats.rawMessages) || 0)),
+          visibleMessages: Math.max(0, Math.trunc(Number(chatStats.visibleMessages) || 0)),
+          participants: Math.max(0, Math.trunc(Number(chatStats.participants) || 0)),
+          feedMarkupChanged: !!chatStats.feedMarkupChanged,
+          derivedCacheHit: !!chatStats.derivedCacheHit,
+          phases: Array.isArray(chatStats.phases)
+            ? chatStats.phases.slice(-16).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+            : [],
+        }} : null,
         networkGraphRender: graphStats ? {{
           status: graphStats.status || "",
           action: graphStats.action || "",
@@ -222,6 +248,31 @@
             : [],
         }} : null,
       }};
+    }}
+
+    function meshGuiBenchmarkChatRenderRunCount() {{
+      const chatStatsStore = (typeof window !== "undefined" && window.__meshChatRenderStats && typeof window.__meshChatRenderStats === "object")
+        ? window.__meshChatRenderStats
+        : null;
+      return chatStatsStore && Array.isArray(chatStatsStore.runs) ? chatStatsStore.runs.length : 0;
+    }}
+
+    function meshGuiBenchmarkChatRenderRunsSince(startIndex) {{
+      const chatStatsStore = (typeof window !== "undefined" && window.__meshChatRenderStats && typeof window.__meshChatRenderStats === "object")
+        ? window.__meshChatRenderStats
+        : null;
+      const runs = chatStatsStore && Array.isArray(chatStatsStore.runs) ? chatStatsStore.runs : [];
+      const safeStart = Math.max(0, Math.trunc(Number(startIndex) || 0));
+      return runs.slice(safeStart).slice(-8).map((run) => {{
+        if (!run || typeof run !== "object") return run;
+        return {{
+          ...run,
+          totalMs: meshGuiBenchmarkRoundMs(run.totalMs),
+          phases: Array.isArray(run.phases)
+            ? run.phases.slice(-16).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+            : [],
+        }};
+      }});
     }}
 
     function meshGuiBenchmarkNetworkGraphRenderRunCount() {{
@@ -261,6 +312,19 @@
       if (view === "console") return "status";
       if (isChatWorkspaceLayoutView(view) || view === "bbs") return "chat";
       return "default";
+    }}
+
+    function meshGuiBenchmarkIsViewActive(viewName, subviewName = "") {{
+      const view = normalizeLayoutView(viewName || activeLayoutView);
+      const subview = view === "network" ? normalizeNetworkSubview(subviewName || activeNetworkSubview) : "";
+      return !!(
+        normalizeLayoutView(activeLayoutView) === view
+        && (
+          view !== "network"
+          || !subview
+          || normalizeNetworkSubview(activeNetworkSubview) === subview
+        )
+      );
     }}
 
     async function meshGuiBenchmarkFetchJson(label, path) {{
@@ -320,23 +384,28 @@
     async function meshGuiBenchmarkForcePoll(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
       const subview = view === "network" ? normalizeNetworkSubview(subviewName || activeNetworkSubview) : "";
-      if (view === "network" && subview) {{
+      const alreadyActive = meshGuiBenchmarkIsViewActive(view, subview);
+      if (!alreadyActive && view === "network" && subview) {{
         setActiveNetworkSubview(subview, {{ persist: false }});
       }}
-      applyLayoutView(view, false);
-      await meshGuiBenchmarkNextFrame();
+      if (!alreadyActive) {{
+        applyLayoutView(view, false);
+        await meshGuiBenchmarkNextFrame();
+      }}
       try {{
         stateEtag = "";
         forceStateReloadOnce = true;
       }} catch (_err) {{
       }}
       const beforeChatSamples = chatPerfStats.samples;
+      const beforeChatRuns = meshGuiBenchmarkChatRenderRunCount();
       const beforeGraphRuns = meshGuiBenchmarkNetworkGraphRenderRunCount();
       await poll();
       await meshGuiBenchmarkNextFrame();
       const chatPerfDelta = chatPerfStats.samples - beforeChatSamples;
       return {{
         state: meshGuiBenchmarkStateSnapshot(),
+        alreadyActive,
         chatPerf: {{
           samplesAdded: chatPerfDelta,
           lastMs: meshGuiBenchmarkRoundMs(chatPerfStats.lastMs),
@@ -346,6 +415,8 @@
           rosterCount: chatPerfStats.lastRosterCount,
           channel: chatPerfStats.lastChannel,
         }},
+        chatRenderRunsAdded: Math.max(0, meshGuiBenchmarkChatRenderRunCount() - beforeChatRuns),
+        chatRenderRuns: meshGuiBenchmarkChatRenderRunsSince(beforeChatRuns),
         networkGraphRenderRunsAdded: Math.max(0, meshGuiBenchmarkNetworkGraphRenderRunCount() - beforeGraphRuns),
         networkGraphRenderRuns: meshGuiBenchmarkNetworkGraphRenderRunsSince(beforeGraphRuns),
       }};
@@ -354,7 +425,20 @@
     async function meshGuiBenchmarkSwitchView(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
       const subview = view === "network" ? normalizeNetworkSubview(subviewName || activeNetworkSubview) : "";
+      const beforeChatRuns = meshGuiBenchmarkChatRenderRunCount();
       const beforeGraphRuns = meshGuiBenchmarkNetworkGraphRenderRunCount();
+      const alreadyActive = meshGuiBenchmarkIsViewActive(view, subview);
+      if (alreadyActive) {{
+        return {{
+          state: meshGuiBenchmarkStateSnapshot(),
+          alreadyActive: true,
+          skipBenchmarkFrameWait: true,
+          chatRenderRunsAdded: Math.max(0, meshGuiBenchmarkChatRenderRunCount() - beforeChatRuns),
+          chatRenderRuns: meshGuiBenchmarkChatRenderRunsSince(beforeChatRuns),
+          networkGraphRenderRunsAdded: Math.max(0, meshGuiBenchmarkNetworkGraphRenderRunCount() - beforeGraphRuns),
+          networkGraphRenderRuns: meshGuiBenchmarkNetworkGraphRenderRunsSince(beforeGraphRuns),
+        }};
+      }}
       if (view === "network" && subview) {{
         setActiveNetworkSubview(subview, {{ persist: false }});
       }}
@@ -366,6 +450,9 @@
       }}
       return {{
         state: meshGuiBenchmarkStateSnapshot(),
+        alreadyActive: false,
+        chatRenderRunsAdded: Math.max(0, meshGuiBenchmarkChatRenderRunCount() - beforeChatRuns),
+        chatRenderRuns: meshGuiBenchmarkChatRenderRunsSince(beforeChatRuns),
         networkGraphRenderRunsAdded: Math.max(0, meshGuiBenchmarkNetworkGraphRenderRunCount() - beforeGraphRuns),
         networkGraphRenderRuns: meshGuiBenchmarkNetworkGraphRenderRunsSince(beforeGraphRuns),
       }};
