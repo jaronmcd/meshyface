@@ -125,6 +125,8 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let linkEstimateHeatmapLayer = null;" in js
     assert 'const linkEstimateHeatmapPaneName = "linkEstimateHeatmapPane";' in js
     assert "function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false)" in js
+    assert 'typeof signalHeatmapMapHasDrawableSize === "function"' in js
+    assert "const shouldShow = !!show && mapDrawable && heatPoints.length > 0;" in js
     assert "clearLinkEstimateHeatmapLayer();" in js
     assert "syncLinkEstimateHeatmapLayer(linkDensity, true);" in js
     assert "const hideEstimatedLinkDots = !!(" in js

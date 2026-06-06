@@ -38,6 +38,25 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
         ),
     ),
     (
+        "poll-perf-instrumentation",
+        (
+            "function pollPerfEnabled() {",
+            "function startPollPerfRun() {",
+            "function markPollPerfPhase(run, phaseName, extra = null) {",
+            "function finishPollPerfRun(run, status, extra = null) {",
+            "window.__meshPollPerfStats = store;",
+            'markPollPerfPhase(pollPerfRun, "fetch"',
+            'markPollPerfPhase(pollPerfRun, "json");',
+            'markPollPerfPhase(pollPerfRun, "state-normalize"',
+            'markPollPerfPhase(pollPerfRun, "render-summary"',
+            'markPollPerfPhase(pollPerfRun, "render-map"',
+            'markPollPerfPhase(pollPerfRun, "render-network"',
+            'markPollPerfPhase(pollPerfRun, "summary-wait"',
+            'markPollPerfPhase(pollPerfRun, "render-chat-block"',
+            "finishPollPerfRun(pollPerfRun, pollPerfStatus, pollPerfExtra);",
+        ),
+    ),
+    (
         "drawer-refresh-gates",
         (
             'syncChatNodeDetailsDrawer(state, {',

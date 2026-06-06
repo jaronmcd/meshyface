@@ -42,6 +42,82 @@
       }}
     }}
 
+    function pollPerfEnabled() {{
+      return !!(
+        typeof window !== "undefined"
+        && window.__meshDashboardGuiBenchmarkActive
+      );
+    }}
+
+    function pollPerfNowMs() {{
+      return (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+        ? performance.now()
+        : Date.now();
+    }}
+
+    function roundPollPerfMs(value) {{
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? Math.round(Math.max(0, numberValue) * 100) / 100 : 0;
+    }}
+
+    function startPollPerfRun() {{
+      if (!pollPerfEnabled()) return null;
+      const startedAtMs = pollPerfNowMs();
+      return {{
+        startedAtMs,
+        lastPhaseMs: startedAtMs,
+        view: activeLayoutView,
+        subview: activeNetworkSubview,
+        phases: [],
+      }};
+    }}
+
+    function markPollPerfPhase(run, phaseName, extra = null) {{
+      if (!run || typeof run !== "object") return;
+      const clean = String(phaseName || "").trim();
+      if (!clean) return;
+      const nowMs = pollPerfNowMs();
+      const phase = {{
+        name: clean,
+        deltaMs: roundPollPerfMs(nowMs - (Number(run.lastPhaseMs) || Number(run.startedAtMs) || nowMs)),
+        atMs: roundPollPerfMs(nowMs - (Number(run.startedAtMs) || nowMs)),
+      }};
+      if (extra && typeof extra === "object") {{
+        Object.assign(phase, extra);
+      }}
+      run.phases.push(phase);
+      run.lastPhaseMs = nowMs;
+    }}
+
+    function finishPollPerfRun(run, status, extra = null) {{
+      if (!run || typeof run !== "object") return;
+      const nowMs = pollPerfNowMs();
+      const safeRun = {{
+        status: String(status || "complete"),
+        totalMs: roundPollPerfMs(nowMs - (Number(run.startedAtMs) || nowMs)),
+        profile: run.profile || "",
+        httpStatus: Math.max(0, Math.trunc(Number(run.httpStatus) || 0)),
+        view: run.view || "",
+        subview: run.subview || "",
+        phases: Array.isArray(run.phases)
+          ? run.phases.slice(-24).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+          : [],
+      }};
+      if (extra && typeof extra === "object") {{
+        Object.assign(safeRun, extra);
+      }}
+      const existing = window.__meshPollPerfStats;
+      const store = existing && typeof existing === "object" ? existing : {{ runs: [] }};
+      const runs = Array.isArray(store.runs) ? store.runs : [];
+      runs.push(safeRun);
+      if (runs.length > 40) {{
+        runs.splice(0, runs.length - 40);
+      }}
+      store.runs = runs;
+      store.last = safeRun;
+      window.__meshPollPerfStats = store;
+    }}
+
     function statePollProfile() {{
       const drawerLinksActive = (
         typeof isChatNodeDetailsDrawerExpanded === "function"
@@ -74,8 +150,19 @@
     }}
 
     async function poll() {{
+      const pollPerfRun = startPollPerfRun();
+      let pollPerfStatus = "error";
+      let pollPerfExtra = {{}};
       try {{
         const pollProfile = statePollProfile();
+        if (pollPerfRun) {{
+          pollPerfRun.profile = pollProfile;
+        }}
+        markPollPerfPhase(pollPerfRun, "profile", {{
+          profile: pollProfile,
+          view: activeLayoutView,
+          subview: activeNetworkSubview,
+        }});
         const stateUrlBase = pollProfile === "chat"
           ? "/api/state?lite=1&profile=chat"
           : (pollProfile === "network"
@@ -97,8 +184,18 @@
         if (stateEtag && stateUrl === stateUrlBase) {{
           headers["If-None-Match"] = stateEtag;
         }}
+        markPollPerfPhase(pollPerfRun, "request-start", {{
+          conditional: !!headers["If-None-Match"],
+          forceReload: stateUrl !== stateUrlBase,
+        }});
         const resp = await fetch(stateUrl, {{ cache: "no-store", headers }});
+        if (pollPerfRun) {{
+          pollPerfRun.httpStatus = resp.status;
+        }}
+        markPollPerfPhase(pollPerfRun, "fetch", {{ httpStatus: resp.status }});
         if (resp.status === 304) {{
+          pollPerfStatus = "not-modified";
+          pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
           if (!latestState || typeof latestState !== "object") {{
             // Rare startup edge: conditional/cached response before we have any local snapshot.
             // Force one cache-busted retry so sidebar panels can hydrate immediately.
@@ -108,6 +205,8 @@
             stateEtag = "";
             forceStateReloadOnce = true;
             requestImmediatePoll(20);
+            pollPerfStatus = "retry";
+            pollPerfExtra = {{ httpStatus: resp.status, reason: "missing-local-state", profile: pollProfile }};
             return;
           }}
           // Nothing changed; keep the existing state and skip expensive DOM work.
@@ -134,6 +233,9 @@
             : {{}};
           if (hidden304) {{
             scheduleFileTransferMaintenance(latestState);
+            markPollPerfPhase(pollPerfRun, "hidden-maintenance");
+            pollPerfStatus = "hidden-not-modified";
+            pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
             return;
           }}
           if (
@@ -147,9 +249,14 @@
           const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
           const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
           const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
+          markPollPerfPhase(pollPerfRun, "not-modified-context", {{
+            hidden: hidden304,
+            mapVisible: mapVisible304,
+          }});
           if (mapVisible304) {{
             renderMap(nodes304, traffic304.edges || [], cachedHistory304);
           }}
+          markPollPerfPhase(pollPerfRun, "not-modified-map");
           const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
           const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";
           const networkTopNodesActive304 = activeLayoutView === "network" && activeNetworkSubview === "top10";
@@ -165,6 +272,7 @@
               renderNetworkTopNodes(latestState);
             }}
           }}
+          markPollPerfPhase(pollPerfRun, "not-modified-network");
           if (trafficVisible304) {{
             renderTraffic(traffic304, nodes304, cachedHistory304);
           }}
@@ -217,6 +325,7 @@
             renderChat(latestState);
             chatRenderedThisPoll304 = true;
           }}
+          markPollPerfPhase(pollPerfRun, "not-modified-chat", {{ chatRendered: chatRenderedThisPoll304 }});
           if (
             !chatRenderedThisPoll304
             &&
@@ -242,6 +351,7 @@
           }}
           scheduleFileTransferMaintenance(latestState);
           tickFreshnessUI(latestState);
+          markPollPerfPhase(pollPerfRun, "not-modified-maintenance");
           return;
         }}
         if (!resp.ok) throw new Error(`API ${{resp.status}}`);
@@ -250,6 +360,7 @@
           stateEtag = String(newEtag);
         }}
         const rawState = await resp.json();
+        markPollPerfPhase(pollPerfRun, "json");
         latestRawState = rawState;
         updateNodeNameCache(
           (rawState && rawState.nodes) || [],
@@ -258,6 +369,10 @@
         const state = applyNodeVisibilityFiltersToState(rawState);
         latestState = state;
         latestStatePollProfile = pollProfile;
+        markPollPerfPhase(pollPerfRun, "state-normalize", {{
+          rawNodes: Array.isArray(rawState && rawState.nodes) ? rawState.nodes.length : 0,
+          nodes: Array.isArray(state && state.nodes) ? state.nodes.length : 0,
+        }});
         if (typeof refreshMapNodeFilterControl === "function") {{
           refreshMapNodeFilterControl(rawState);
         }}
@@ -284,6 +399,7 @@
         syncBbsNetworkState(state);
         syncAppsLauncherNotifications(state);
         renderSelfRadioPill(state);
+        markPollPerfPhase(pollPerfRun, "state-sync");
         const hiddenStatePoll = (typeof document !== "undefined") && !!document.hidden;
         if (hiddenStatePoll) {{
           // Keep background bookkeeping current without paying the full render cost
@@ -291,6 +407,9 @@
           chatChangeCatchupArmed = true;
           syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }});
           scheduleFileTransferMaintenance(state);
+          markPollPerfPhase(pollPerfRun, "hidden-maintenance");
+          pollPerfStatus = "hidden";
+          pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
           return;
         }}
         if (!summaryMetricsHydrated && !summaryMetricsHydrateInFlight) {{
@@ -306,6 +425,7 @@
         ) {{
           renderChatNodeNavigatorList(state);
         }}
+        markPollPerfPhase(pollPerfRun, "pre-render");
 
         const networkMapActive = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
         const mapVisible = activeLayoutView === "saved" || networkMapActive;
@@ -339,6 +459,7 @@
             await nextAnimationFrame();
           }}
         }}
+        markPollPerfPhase(pollPerfRun, "map-bootstrap");
 
         const activeSummaryWindowHours = activeLayoutView === "network"
           ? networkOverviewWindowHours
@@ -356,10 +477,14 @@
         // Summary metrics now live in the global header ticker row, so keep them
         // refreshed for every active view.
         renderSummary(state);
+        markPollPerfPhase(pollPerfRun, "render-summary", {{
+          weeklySummary: !!weeklySummaryPromise,
+        }});
 
         if (mapVisible) {{
           renderMap(state.nodes || [], (state.traffic || {{}}).edges || [], cachedHistory);
         }}
+        markPollPerfPhase(pollPerfRun, "render-map", {{ mapVisible }});
 
         if (activeLayoutView === "network") {{
           renderNodes(state.nodes || []);
@@ -373,11 +498,19 @@
             renderNetworkTopNodes(state);
           }}
         }}
+        markPollPerfPhase(pollPerfRun, "render-network", {{
+          networkGraphActive,
+          networkMapActive,
+        }});
 
         let weeklySummary = null;
         if (weeklySummaryPromise) {{
           weeklySummary = await weeklySummaryPromise;
         }}
+        markPollPerfPhase(pollPerfRun, "summary-wait", {{
+          weeklySummary: !!weeklySummaryPromise,
+          summaryError: !!(weeklySummary && weeklySummary.error),
+        }});
 
         if (trafficVisible) {{
           renderTraffic(state.traffic || {{}}, state.nodes || [], cachedHistory);
@@ -405,8 +538,16 @@
             renderNetworkOverviewSummaryLoading();
           }}
         }}
+        markPollPerfPhase(pollPerfRun, "render-view-data", {{
+          trafficVisible,
+          view: activeLayoutView,
+          subview: activeNetworkSubview,
+        }});
 
         const chatEntries = runPollStep("collectChatMessageEntries", () => collectChatMessageEntries(state), []);
+        markPollPerfPhase(pollPerfRun, "chat-entries", {{
+          entries: Array.isArray(chatEntries) ? chatEntries.length : 0,
+        }});
         const hasFreshDirectEntry = chatEntries.some((entry) => {{
           if (!entry || entry.channel !== "direct") return false;
           const key = String(entry.key || "").trim();
@@ -468,6 +609,10 @@
           runPollStep("renderChatChangeSummary.default", () => renderChatChangeSummary());
           runPollStep("bindChatChangeSummaryControls.default", () => bindChatChangeSummaryControls());
         }}
+        markPollPerfPhase(pollPerfRun, "render-chat-block", {{
+          chatRendered: chatRenderedThisPoll,
+          backgroundDirect: shouldBackgroundRenderDirectChat,
+        }});
         if (
           !chatRenderedThisPoll
           &&
@@ -507,6 +652,10 @@
         if (activeLayoutView === "console") {{
           renderConsole(state.traffic || {{}});
         }}
+        markPollPerfPhase(pollPerfRun, "render-secondary-views", {{
+          view: activeLayoutView,
+          settingsTab: activeLayoutView === "settings" ? activeSettingsTab : "",
+        }});
 
         if (historyRelevant) {{
           const cached = nodeHistoryCache.get(historyTargetId);
@@ -521,12 +670,22 @@
 
         scheduleFileTransferMaintenance(state);
         tickFreshnessUI(state);
+        markPollPerfPhase(pollPerfRun, "maintenance", {{
+          historyRelevant,
+          profile: pollProfile,
+        }});
+        pollPerfStatus = "ok";
+        pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
       }} catch (err) {{
         const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        pollPerfStatus = "error";
+        pollPerfExtra = {{ message: msg }};
         lastPollError = msg;
         lastPollErrorUnix = Math.floor(Date.now() / 1000);
         setText("updated-at", `error: ${{msg}}`);
         renderRadioStatus(latestState || {{}});
         appendConsoleLine(`error|${{Date.now()}}|${{msg}}`, `[poll error] ${{msg}}`);
+      }} finally {{
+        finishPollPerfRun(pollPerfRun, pollPerfStatus, pollPerfExtra);
       }}
     }}

@@ -6225,6 +6225,110 @@
       bindNetworkGraphTagRouteLegendControls(legend, safeScene);
     }}
 
+    function buildNetworkGraphEdgeTitle(edge, nodeMap = null) {{
+      const safeNodeMap = nodeMap instanceof Map ? nodeMap : new Map();
+      if (!edge || typeof edge !== "object") return "";
+      const fromLabel = networkGraphNodeDisplayName(edge.a, safeNodeMap);
+      const toLabel = networkGraphNodeDisplayName(edge.b, safeNodeMap);
+      const lastAgeLabel = Number.isFinite(edge.lastSeenUnix) && edge.lastSeenUnix > 0
+        ? (
+          typeof formatIdleAge === "function"
+            ? formatIdleAge(edge.lastSeenUnix, Math.floor(Date.now() / 1000))
+            : `${{Math.max(0, Math.floor((Date.now() / 1000) - edge.lastSeenUnix))}}s ago`
+        )
+        : (edge.lastSeenLabel || "n/a");
+      return [
+        `${{fromLabel}} <-> ${{toLabel}}`,
+        `Packets: ${{Math.round(edge.weight)}}`,
+        `Directions observed: ${{edge.directionCount}}`,
+        `Last seen: ${{lastAgeLabel}}`,
+        `Avg packet hops: ${{edge.avgHops == null ? "n/a" : edge.avgHops}}`,
+      ].join("\n");
+    }}
+
+    function buildNetworkGraphNodeTitle(item, nodeMap = null, rootId = "") {{
+      const safeNodeMap = nodeMap instanceof Map ? nodeMap : new Map();
+      if (!item || typeof item !== "object") return "";
+      const displayName = networkGraphNodeDisplayName(item.nodeId, safeNodeMap);
+      const statusLine = item.broadcastOnly
+        ? (
+          item.nodeId === rootId
+            ? "Heard recently via broadcast only"
+            : "No explicit node link, only recent broadcast evidence"
+        )
+        : item.detached
+        ? "No current path from the root"
+        : (item.layer === 0 ? "Root node" : `${{item.layer}} hop${{item.layer === 1 ? "" : "s"}} away`);
+      return [
+        displayName,
+        item.nodeId,
+        statusLine,
+        `Visible links: ${{item.degree}}`,
+        `Observed packets on links: ${{Math.round(item.weight)}}`,
+        item.signalMeta && item.broadcastOnly
+          ? (
+            Number(item.signalMeta.broadcastPacketCount || 0) > 0
+              ? `Recent broadcast packets: ${{item.signalMeta.broadcastPacketCount}}${{item.signalMeta.lastPortnum ? ` (${{item.signalMeta.lastPortnum}})` : ""}}`
+              : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, last packet hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
+          )
+          : "",
+        `Last heard: ${{(item.node && item.node.last_heard) || "n/a"}}`,
+      ].filter(Boolean).join("\n");
+    }}
+
+    function setNetworkGraphLazyTitle(target, titleText) {{
+      if (!(target instanceof SVGElement)) return;
+      const cleanText = String(titleText || "");
+      if (!cleanText) return;
+      let titleEl = null;
+      for (const child of Array.from(target.children || [])) {{
+        if (child instanceof SVGTitleElement) {{
+          titleEl = child;
+          break;
+        }}
+      }}
+      if (!(titleEl instanceof SVGTitleElement)) {{
+        titleEl = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        target.insertBefore(titleEl, target.firstChild);
+      }}
+      if (titleEl.textContent !== cleanText) {{
+        titleEl.textContent = cleanText;
+      }}
+    }}
+
+    function hydrateNetworkGraphLazyTitle(rawTarget) {{
+      if (!(rawTarget instanceof Element)) return;
+      const edgeEl = rawTarget.closest("[data-network-graph-edge-key]");
+      if (edgeEl instanceof SVGElement) {{
+        const edgeKey = String(edgeEl.getAttribute("data-network-graph-edge-key") || "");
+        const edges = Array.isArray(networkGraphViewState.cachedCombinedEdges)
+          ? networkGraphViewState.cachedCombinedEdges
+          : [];
+        const edge = edges.find((candidate) => buildNetworkGraphEdgeDomKey(candidate) === edgeKey);
+        if (edge) {{
+          setNetworkGraphLazyTitle(
+            edgeEl,
+            buildNetworkGraphEdgeTitle(edge, networkGraphViewState.cachedNodeMap)
+          );
+        }}
+        return;
+      }}
+      const nodeEl = rawTarget.closest("[data-network-graph-node-id]");
+      if (nodeEl instanceof SVGElement) {{
+        const nodeId = normalizeNodeId(nodeEl.getAttribute("data-network-graph-node-id") || "");
+        const layout = networkGraphViewState.cachedLayout;
+        const item = Array.isArray(layout && layout.items)
+          ? layout.items.find((candidate) => normalizeNodeId(candidate && candidate.nodeId) === nodeId)
+          : null;
+        if (item) {{
+          setNetworkGraphLazyTitle(
+            nodeEl,
+            buildNetworkGraphNodeTitle(item, networkGraphViewState.cachedNodeMap, networkGraphRootNodeId)
+          );
+        }}
+      }}
+    }}
+
     function buildNetworkGraphSceneMarkup(scene) {{
       const safeScene = (scene && typeof scene === "object") ? scene : {{}};
       const rootId = normalizeNodeId(safeScene.rootId || "");
@@ -6260,53 +6364,6 @@
           <text class="network-graph-ring-label" x="480" y="${{(310 - Number(ring.radius) - 8).toFixed(1)}}" text-anchor="middle">${{escAttr(ring.label)}}</text>
         </g>
       `).join("");
-
-      function buildNetworkGraphEdgeTitle(edge) {{
-        const fromLabel = networkGraphNodeDisplayName(edge.a, nodeMap);
-        const toLabel = networkGraphNodeDisplayName(edge.b, nodeMap);
-        const lastAgeLabel = Number.isFinite(edge.lastSeenUnix) && edge.lastSeenUnix > 0
-          ? (
-            typeof formatIdleAge === "function"
-              ? formatIdleAge(edge.lastSeenUnix, Math.floor(Date.now() / 1000))
-              : `${{Math.max(0, Math.floor((Date.now() / 1000) - edge.lastSeenUnix))}}s ago`
-          )
-          : (edge.lastSeenLabel || "n/a");
-        return [
-          `${{fromLabel}} <-> ${{toLabel}}`,
-          `Packets: ${{Math.round(edge.weight)}}`,
-          `Directions observed: ${{edge.directionCount}}`,
-          `Last seen: ${{lastAgeLabel}}`,
-          `Avg packet hops: ${{edge.avgHops == null ? "n/a" : edge.avgHops}}`,
-        ].join("\n");
-      }}
-
-      function buildNetworkGraphNodeTitle(item) {{
-        const displayName = networkGraphNodeDisplayName(item.nodeId, nodeMap);
-        const statusLine = item.broadcastOnly
-          ? (
-            item.nodeId === rootId
-              ? "Heard recently via broadcast only"
-              : "No explicit node link, only recent broadcast evidence"
-          )
-          : item.detached
-          ? "No current path from the root"
-          : (item.layer === 0 ? "Root node" : `${{item.layer}} hop${{item.layer === 1 ? "" : "s"}} away`);
-        return [
-          displayName,
-          item.nodeId,
-          statusLine,
-          `Visible links: ${{item.degree}}`,
-          `Observed packets on links: ${{Math.round(item.weight)}}`,
-          item.signalMeta && item.broadcastOnly
-            ? (
-              Number(item.signalMeta.broadcastPacketCount || 0) > 0
-                ? `Recent broadcast packets: ${{item.signalMeta.broadcastPacketCount}}${{item.signalMeta.lastPortnum ? ` (${{item.signalMeta.lastPortnum}})` : ""}}`
-                : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, last packet hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
-            )
-            : "",
-          `Last heard: ${{(item.node && item.node.last_heard) || "n/a"}}`,
-        ].filter(Boolean).join("\n");
-      }}
 
       function resolveNetworkGraphNodeEmoji(item) {{
         const nodeId = normalizeNodeId(item && item.nodeId || "");
@@ -6344,9 +6401,7 @@
             x2="${{Number(toPos.x).toFixed(1)}}"
             y2="${{Number(toPos.y).toFixed(1)}}"
             style="stroke-width:${{width.toFixed(2)}}"
-          >
-            <title>${{escAttr(buildNetworkGraphEdgeTitle(edge))}}</title>
-          </line>
+          ></line>
         `;
       }}).join("");
 
@@ -6431,7 +6486,6 @@
                 ? `<text class="network-graph-node-label is-priority-${{labelPriority}}${{labelOffsetY < 0 ? " is-above" : " is-below"}}${{(item.detached || item.broadcastOnly) ? " is-secondary" : ""}}${{item.broadcastOnly ? " is-broadcast-only" : ""}}" x="0" y="${{labelOffsetY.toFixed(1)}}" data-network-graph-label-offset-y="${{labelOffsetY.toFixed(1)}}" data-network-graph-node-radius="${{Number(item.radius).toFixed(1)}}" text-anchor="middle">${{escAttr(label)}}</text>`
                 : ""
             }}
-            <title>${{escAttr(buildNetworkGraphNodeTitle(item))}}</title>
           </g>
         `;
       }}).join("");
@@ -6629,24 +6683,6 @@
       const selfPathInfo = resolveNetworkGraphSelfPathInfo(safeScene);
       const localPathEdgeKeys = selfPathInfo.visible ? selfPathInfo.edgeKeys : new Set();
 
-      const buildEdgeTitle = (edge) => {{
-        const fromLabel = networkGraphNodeDisplayName(edge.a, nodeMap);
-        const toLabel = networkGraphNodeDisplayName(edge.b, nodeMap);
-        const lastAgeLabel = Number.isFinite(edge.lastSeenUnix) && edge.lastSeenUnix > 0
-          ? (
-            typeof formatIdleAge === "function"
-              ? formatIdleAge(edge.lastSeenUnix, Math.floor(Date.now() / 1000))
-              : `${{Math.max(0, Math.floor((Date.now() / 1000) - edge.lastSeenUnix))}}s ago`
-          )
-          : (edge.lastSeenLabel || "n/a");
-        return [
-          `${{fromLabel}} <-> ${{toLabel}}`,
-          `Packets: ${{Math.round(edge.weight)}}`,
-          `Directions observed: ${{edge.directionCount}}`,
-          `Last seen: ${{lastAgeLabel}}`,
-          `Avg packet hops: ${{edge.avgHops == null ? "n/a" : edge.avgHops}}`,
-        ].join("\n");
-      }};
       const edgeByKey = new Map(edges.map((edge) => [buildNetworkGraphEdgeDomKey(edge), edge]));
       const edgeEls = svg.querySelectorAll("[data-network-graph-edge-key]");
       const localPathEdgeEls = [];
@@ -6672,7 +6708,7 @@
         edgeEl.style.removeProperty("--network-graph-edge-spread-color");
         const titleEl = edgeEl.querySelector("title");
         if (titleEl instanceof SVGTitleElement) {{
-          const nextText = buildEdgeTitle(edge);
+          const nextText = buildNetworkGraphEdgeTitle(edge, nodeMap);
           if (titleEl.textContent !== nextText) {{
             titleEl.textContent = nextText;
           }}
@@ -6705,34 +6741,12 @@
         }} else {{
           nodeEl.removeAttribute("style");
         }}
-        const displayName = networkGraphNodeDisplayName(item.nodeId, nodeMap);
-        const statusLine = item.broadcastOnly
-          ? (
-            item.nodeId === rootId
-              ? "Heard recently via broadcast only"
-              : "No explicit node link, only recent broadcast evidence"
-          )
-          : item.detached
-          ? "No current path from the root"
-          : (item.layer === 0 ? "Root node" : `${{item.layer}} hop${{item.layer === 1 ? "" : "s"}} away`);
-        const titleText = [
-          displayName,
-          item.nodeId,
-          statusLine,
-          `Visible links: ${{item.degree}}`,
-          `Observed packets on links: ${{Math.round(item.weight)}}`,
-          item.signalMeta && item.broadcastOnly
-            ? (
-              Number(item.signalMeta.broadcastPacketCount || 0) > 0
-                ? `Recent broadcast packets: ${{item.signalMeta.broadcastPacketCount}}${{item.signalMeta.lastPortnum ? ` (${{item.signalMeta.lastPortnum}})` : ""}}`
-                : `Saved heard packets: ${{Math.max(0, Math.trunc(Number(item.signalMeta.savedPackets) || 0))}}, last packet hops away: ${{Number.isFinite(Number(item.signalMeta.hopsAway)) ? Math.trunc(Number(item.signalMeta.hopsAway)) : "n/a"}}`
-            )
-            : "",
-          `Last heard: ${{(item.node && item.node.last_heard) || "n/a"}}`,
-        ].filter(Boolean).join("\n");
         const titleEl = nodeEl.querySelector("title");
-        if (titleEl instanceof SVGTitleElement && titleEl.textContent !== titleText) {{
-          titleEl.textContent = titleText;
+        if (titleEl instanceof SVGTitleElement) {{
+          const nextText = buildNetworkGraphNodeTitle(item, nodeMap, rootId);
+          if (titleEl.textContent !== nextText) {{
+            titleEl.textContent = nextText;
+          }}
         }}
       }});
     }}
@@ -7869,6 +7883,14 @@
           ? ""
           : routeKey;
         syncNetworkGraphSelectedTagRoute(svg);
+      }});
+
+      svg.addEventListener("pointerover", (event) => {{
+        hydrateNetworkGraphLazyTitle(event.target);
+      }});
+
+      svg.addEventListener("focusin", (event) => {{
+        hydrateNetworkGraphLazyTitle(event.target);
       }});
 
       svg.addEventListener("wheel", (event) => {{

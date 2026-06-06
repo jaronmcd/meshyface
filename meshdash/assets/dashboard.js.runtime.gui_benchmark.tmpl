@@ -206,6 +206,12 @@
       const chatStats = chatStatsStore && chatStatsStore.last && typeof chatStatsStore.last === "object"
         ? chatStatsStore.last
         : null;
+      const pollStatsStore = (typeof window !== "undefined" && window.__meshPollPerfStats && typeof window.__meshPollPerfStats === "object")
+        ? window.__meshPollPerfStats
+        : null;
+      const pollStats = pollStatsStore && pollStatsStore.last && typeof pollStatsStore.last === "object"
+        ? pollStatsStore.last
+        : null;
       return {{
         activeLayoutView,
         activeNetworkSubview,
@@ -231,6 +237,17 @@
           derivedCacheHit: !!chatStats.derivedCacheHit,
           phases: Array.isArray(chatStats.phases)
             ? chatStats.phases.slice(-16).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+            : [],
+        }} : null,
+        pollPerf: pollStats ? {{
+          status: pollStats.status || "",
+          profile: pollStats.profile || "",
+          totalMs: meshGuiBenchmarkRoundMs(pollStats.totalMs),
+          httpStatus: Math.max(0, Math.trunc(Number(pollStats.httpStatus) || 0)),
+          view: pollStats.view || "",
+          subview: pollStats.subview || "",
+          phases: Array.isArray(pollStats.phases)
+            ? pollStats.phases.slice(-24).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
             : [],
         }} : null,
         networkGraphRender: graphStats ? {{
@@ -270,6 +287,31 @@
           totalMs: meshGuiBenchmarkRoundMs(run.totalMs),
           phases: Array.isArray(run.phases)
             ? run.phases.slice(-16).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
+            : [],
+        }};
+      }});
+    }}
+
+    function meshGuiBenchmarkPollPerfRunCount() {{
+      const pollStatsStore = (typeof window !== "undefined" && window.__meshPollPerfStats && typeof window.__meshPollPerfStats === "object")
+        ? window.__meshPollPerfStats
+        : null;
+      return pollStatsStore && Array.isArray(pollStatsStore.runs) ? pollStatsStore.runs.length : 0;
+    }}
+
+    function meshGuiBenchmarkPollPerfRunsSince(startIndex) {{
+      const pollStatsStore = (typeof window !== "undefined" && window.__meshPollPerfStats && typeof window.__meshPollPerfStats === "object")
+        ? window.__meshPollPerfStats
+        : null;
+      const runs = pollStatsStore && Array.isArray(pollStatsStore.runs) ? pollStatsStore.runs : [];
+      const safeStart = Math.max(0, Math.trunc(Number(startIndex) || 0));
+      return runs.slice(safeStart).slice(-8).map((run) => {{
+        if (!run || typeof run !== "object") return run;
+        return {{
+          ...run,
+          totalMs: meshGuiBenchmarkRoundMs(run.totalMs),
+          phases: Array.isArray(run.phases)
+            ? run.phases.slice(-24).map((phase) => (phase && typeof phase === "object" ? {{ ...phase }} : phase))
             : [],
         }};
       }});
@@ -400,6 +442,7 @@
       const beforeChatSamples = chatPerfStats.samples;
       const beforeChatRuns = meshGuiBenchmarkChatRenderRunCount();
       const beforeGraphRuns = meshGuiBenchmarkNetworkGraphRenderRunCount();
+      const beforePollRuns = meshGuiBenchmarkPollPerfRunCount();
       await poll();
       await meshGuiBenchmarkNextFrame();
       const chatPerfDelta = chatPerfStats.samples - beforeChatSamples;
@@ -417,6 +460,8 @@
         }},
         chatRenderRunsAdded: Math.max(0, meshGuiBenchmarkChatRenderRunCount() - beforeChatRuns),
         chatRenderRuns: meshGuiBenchmarkChatRenderRunsSince(beforeChatRuns),
+        pollPerfRunsAdded: Math.max(0, meshGuiBenchmarkPollPerfRunCount() - beforePollRuns),
+        pollPerfRuns: meshGuiBenchmarkPollPerfRunsSince(beforePollRuns),
         networkGraphRenderRunsAdded: Math.max(0, meshGuiBenchmarkNetworkGraphRenderRunCount() - beforeGraphRuns),
         networkGraphRenderRuns: meshGuiBenchmarkNetworkGraphRenderRunsSince(beforeGraphRuns),
       }};

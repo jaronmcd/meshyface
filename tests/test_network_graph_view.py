@@ -199,6 +199,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function scheduleNetworkGraphEmptyRetry()' in js
     assert 'function animateNetworkGraphViewBox(svg, rawViewBox, options = {})' in js
     assert 'function syncNetworkGraphTextZoom(svg, rawViewBox)' in js
+    assert 'function buildNetworkGraphEdgeTitle(edge, nodeMap = null)' in js
+    assert 'function buildNetworkGraphNodeTitle(item, nodeMap = null, rootId = "")' in js
+    assert 'function hydrateNetworkGraphLazyTitle(rawTarget)' in js
+    assert 'svg.addEventListener("pointerover", (event) => {' in js
+    assert 'hydrateNetworkGraphLazyTitle(event.target);' in js
     assert 'const zoomFactor = Math.max(1, zoomRatio);' in js
     assert 'data-network-graph-label-offset-y="${labelOffsetY.toFixed(1)}"' in js
     assert 'data-network-graph-node-radius="${Number(item.radius).toFixed(1)}"' in js
@@ -224,6 +229,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())' not in js
     assert '"has-emoji-glyph"' in js
     assert 'class="network-graph-node-emoji-fo"' in js
+    assert '<title>${escAttr(buildNetworkGraphEdgeTitle(edge' not in js
+    assert '<title>${escAttr(buildNetworkGraphNodeTitle(item' not in js
     assert 'label-priority-${labelPriority}' in js
     assert 'network-graph-node-label is-priority-${labelPriority}' in js
     assert 'className: "map-node-emoji-icon"' in js

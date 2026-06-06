@@ -201,13 +201,20 @@
     function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false) {{
       const layer = ensureLinkEstimateHeatmapLayer();
       if (!layer) return;
+      const mapDrawable = (
+        typeof signalHeatmapMapHasDrawableSize === "function"
+          ? signalHeatmapMapHasDrawableSize()
+          : true
+      );
       const heatPoints = (
+        mapDrawable
+        &&
         linkDensity
         && Array.isArray(linkDensity.heatPoints)
       )
         ? linkDensity.heatPoints
         : [];
-      const shouldShow = !!show && heatPoints.length > 0;
+      const shouldShow = !!show && mapDrawable && heatPoints.length > 0;
       layer.setLatLngs(heatPoints);
       if (shouldShow) {{
         if (!map.hasLayer(layer)) {{
