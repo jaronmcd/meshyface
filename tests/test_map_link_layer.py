@@ -109,6 +109,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function resolveSignalHeatGradient(mode = signalHeatmapMode) {" in js
     assert "Signal heatmap uses a warm colorblind-friendly palette; link-cloud heatmaps stay blue." in js
     assert "const gradient = resolveSignalHeatGradient(signalHeatmapMode);" in js
+    assert 'let lastSignalHeatmapSignature = "";' in js
+    assert "const heatSignature = `signal-heatmap:${(heatSignatureHash >>> 0).toString(16)}`;" in js
+    assert "heatSignature === lastSignalHeatmapSignature && heatLayerPresenceMatches" in js
     assert "hideEstimatedMarkers: false," in js
     assert "hideEstimatedMarkers: clouds.length > 0," in js
     assert "cloudLinks" in js

@@ -81,6 +81,43 @@
         && signalHeatmapEnabled
         && pointsCount > 0;
       const gradient = resolveSignalHeatGradient(signalHeatmapMode);
+      let heatSignatureHash = 2166136261;
+      heatSignatureHash = hashMixStr(heatSignatureHash, activeLayoutView);
+      heatSignatureHash = hashMixStr(heatSignatureHash, normalizeSignalHeatmapMode(signalHeatmapMode));
+      heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapEnabled ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, forceHide ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, savedSingleNodeMode ? 1 : 0);
+      heatSignatureHash = hashMixStr(heatSignatureHash, savedSingleNodeMode ? normalizeNodeId(resolveSavedViewNodeId(latestState)) : "");
+      heatSignatureHash = hashMixInt(heatSignatureHash, shouldShow ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, pointsCount);
+      heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(map.getZoom()) * 100) || 0);
+      heatSignatureHash = hashMixStr(heatSignatureHash, String(profile && profile.label || ""));
+      heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(signalHeatDevKnobs || {{}}));
+      heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(gradient || {{}}));
+      heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.radius) * 100) || 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.blur) * 100) || 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.minOpacity) * 1000) || 0);
+      let heatLayerPresenceMatches = true;
+      for (let i = 0; i < layers.length; i++) {{
+        const layer = layers[i];
+        const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
+        if (map.hasLayer(layer) !== desiredLayerVisible) {{
+          heatLayerPresenceMatches = false;
+        }}
+        heatSignatureHash = hashMixInt(heatSignatureHash, desiredLayerVisible ? 1 : 0);
+        const points = buckets[i] || [];
+        heatSignatureHash = hashMixInt(heatSignatureHash, points.length);
+        for (const point of points) {{
+          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[0]) * 100000) || 0);
+          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[1]) * 100000) || 0);
+          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[2]) * 1000) || 0);
+        }}
+      }}
+      const heatSignature = `signal-heatmap:${{(heatSignatureHash >>> 0).toString(16)}}`;
+      if (heatSignature === lastSignalHeatmapSignature && heatLayerPresenceMatches) {{
+        return;
+      }}
+      lastSignalHeatmapSignature = heatSignature;
 
       for (let i = 0; i < layers.length; i++) {{
         const layer = layers[i];
