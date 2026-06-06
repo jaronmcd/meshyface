@@ -5335,6 +5335,7 @@
       lastSceneStructureSignature: "",
       renderSourceSignature: "",
       layoutSourceSignature: "",
+      lastSceneDataSignature: "",
       cachedNodeMap: null,
       cachedCombinedEdges: null,
       cachedLayout: null,
@@ -6508,6 +6509,47 @@
         hash = hashMixStr(hash, `${{normalizeNodeId(edge && edge.a)}}::${{normalizeNodeId(edge && edge.b)}}`);
       }}
       return `network-graph-scene:${{(hash >>> 0).toString(16)}}`;
+    }}
+
+    function buildNetworkGraphSceneDataSignature(scene, sourceSignature = "") {{
+      const safeScene = (scene && typeof scene === "object") ? scene : {{}};
+      const nodeMap = safeScene.nodeMap instanceof Map ? safeScene.nodeMap : new Map();
+      let hash = 2166136261;
+      hash = hashMixStr(hash, String(sourceSignature || ""));
+      hash = hashMixStr(hash, normalizeNodeId(safeScene.rootId || ""));
+      hash = hashMixStr(hash, normalizeNodeId(safeScene.localId || ""));
+      hash = hashMixStr(hash, String(networkGraphViewState.selectedTagRouteKey || ""));
+      hash = hashMixInt(hash, networkGraphViewState.selfPathVisible !== false ? 1 : 0);
+      const hiddenIds = networkGraphViewState.hiddenTagRoutePresetIds instanceof Set
+        ? Array.from(networkGraphViewState.hiddenTagRoutePresetIds).map((value) => String(value || "")).filter(Boolean).sort()
+        : [];
+      hash = hashMixInt(hash, hiddenIds.length);
+      for (const presetId of hiddenIds) {{
+        hash = hashMixStr(hash, presetId);
+      }}
+      const taggedEntries = [];
+      if (typeof nodeTagEntryForNode === "function") {{
+        for (const nodeId of nodeMap.keys()) {{
+          const cleanNodeId = normalizeNodeId(nodeId || "");
+          if (!cleanNodeId) continue;
+          const tagEntry = networkGraphVisibleTagEntryForNode(cleanNodeId);
+          const preset = tagEntry && tagEntry.preset ? tagEntry.preset : null;
+          if (!preset) continue;
+          taggedEntries.push([
+            cleanNodeId,
+            String(preset.id || ""),
+            String(preset.color || ""),
+            String(preset.vibrance || ""),
+            String(tagEntry.emoji || ""),
+          ].join(":"));
+        }}
+      }}
+      taggedEntries.sort();
+      hash = hashMixInt(hash, taggedEntries.length);
+      for (const entry of taggedEntries) {{
+        hash = hashMixStr(hash, entry);
+      }}
+      return `network-graph-data:${{(hash >>> 0).toString(16)}}`;
     }}
 
     function syncNetworkGraphSceneData(svg, scene) {{
@@ -10171,6 +10213,7 @@
         networkGraphViewState.renderedLayoutSnapshot = null;
         networkGraphViewState.lastSelectedId = "";
         networkGraphViewState.lastSceneStructureSignature = "";
+        networkGraphViewState.lastSceneDataSignature = "";
         networkGraphViewState.renderSourceSignature = "";
         networkGraphViewState.layoutSourceSignature = "";
         networkGraphViewState.cachedNodeMap = null;
@@ -10350,6 +10393,11 @@
       }};
       renderNetworkGraphTagRouteLegend(scene);
       const sceneStructureSignature = buildNetworkGraphSceneStructureSignature(scene);
+      const sceneDataSignature = buildNetworkGraphSceneDataSignature(scene, graphSourceSignature);
+      const canSkipSceneDataSync = !!(
+        networkGraphViewState.lastSceneDataSignature === sceneDataSignature
+        && networkGraphViewState.lastSceneStructureSignature === sceneStructureSignature
+      );
       const canPatchSceneDataOnly = !!(
         previousLayoutSnapshot
         && networkGraphViewState.lastSceneStructureSignature === sceneStructureSignature
@@ -10361,14 +10409,20 @@
       }} else if (canPatchSelectionOnly) {{
         cancelNetworkGraphSceneAnimation();
         syncNetworkGraphSceneSelection(svg, {{ rootId, selectedId }});
-        syncNetworkGraphSceneData(svg, scene);
+        if (!canSkipSceneDataSync) {{
+          syncNetworkGraphSceneData(svg, scene);
+        }}
       }} else if (canSkipSceneRender) {{
         cancelNetworkGraphSceneAnimation();
-        syncNetworkGraphSceneData(svg, scene);
+        if (!canSkipSceneDataSync) {{
+          syncNetworkGraphSceneData(svg, scene);
+        }}
       }} else if (canPatchSceneDataOnly) {{
         cancelNetworkGraphSceneAnimation();
         syncNetworkGraphSceneSelection(svg, {{ rootId, selectedId }});
-        syncNetworkGraphSceneData(svg, scene);
+        if (!canSkipSceneDataSync) {{
+          syncNetworkGraphSceneData(svg, scene);
+        }}
       }} else {{
         cancelNetworkGraphSceneAnimation();
         svg.innerHTML = buildNetworkGraphSceneMarkup(scene);
@@ -10376,6 +10430,7 @@
       syncNetworkGraphSelectedTagRoute(svg);
       syncNetworkGraphTextZoom(svg, networkGraphViewState.viewBox);
       networkGraphViewState.lastSceneStructureSignature = sceneStructureSignature;
+      networkGraphViewState.lastSceneDataSignature = sceneDataSignature;
       if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
         markNodeSelectionPerf(perfToken, "selection.graph_render", perfStartMs, {{
           nodes: layout.items.length,

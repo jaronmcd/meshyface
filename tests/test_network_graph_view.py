@@ -261,8 +261,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'networkGraphViewState.resetBounds = {' in js
     assert 'networkGraphViewState.resetCenter = rootPosition' in js
     assert 'layoutSourceSignature: "",' in js
+    assert 'lastSceneDataSignature: "",' in js
     assert 'function buildNetworkGraphLayoutSourceSignature(nodes, historyCapsRaw, rawEdges, state, edgeMode, searchQuery = "")' in js
     assert 'function hydrateNetworkGraphLayoutData(baseLayout, nodeMap, combinedEdges, state)' in js
+    assert 'function buildNetworkGraphSceneDataSignature(scene, sourceSignature = "")' in js
+    assert 'const canSkipSceneDataSync = !!(' in js
     assert 'function resolveNetworkGraphPacketPortnum(packet)' in js
     assert 'safePacket.summary && typeof safePacket.summary === "object"' in js
     assert 'const graphLayoutSourceSignature = buildNetworkGraphLayoutSourceSignature(' in js
