@@ -265,6 +265,8 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
                 "message_id": 123,
                 "from": "!node-a",
                 "to": "^all",
+                "scope": "all",
+                "portnum": "TEXT_MESSAGE_APP",
                 "rx_time": "2026-06-03 00:00:01Z",
                 "captured_at": "2026-06-03 00:00:02Z",
                 "delivery_updated_unix": 1780444801,
@@ -275,9 +277,20 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
                 "message_id": 124,
                 "from": "!node-b",
                 "to": "^all",
+                "scope": "direct",
+                "portnum": "ALERT_APP",
                 "captured_at": "2026-06-03 00:00:03Z",
                 "delivery_updated_at": "2026-06-03 00:00:03Z",
                 "text": "fallback",
+            },
+            {
+                "message_id": 125,
+                "from": "!node-c",
+                "to": "!node-a",
+                "scope": "direct",
+                "portnum": "TEXT_MESSAGE_APP",
+                "rx_time": "2026-06-03 00:00:04Z",
+                "text": "dm",
             },
         ]
     )
@@ -292,6 +305,10 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
     }
     assert slimmed[1]["captured_at"] == "2026-06-03 00:00:03Z"
     assert slimmed[1]["delivery_updated_at"] == "2026-06-03 00:00:03Z"
+    assert slimmed[1]["scope"] == "direct"
+    assert slimmed[1]["portnum"] == "ALERT_APP"
+    assert "scope" not in slimmed[2]
+    assert "portnum" not in slimmed[2]
 
 
 def test_slim_nodes_for_chat_drops_unused_heavy_fields() -> None:

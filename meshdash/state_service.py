@@ -749,6 +749,15 @@ def _slim_recent_packets_for_network_graph(
 def _slim_recent_chat_for_chat_profile(
     recent_chat: list[dict[str, object]],
 ) -> list[dict[str, object]]:
+    def destination_implies_scope(destination: object, scope: object) -> bool:
+        scope_text = str(scope or "").strip().lower()
+        if not scope_text:
+            return False
+        destination_text = str(destination or "").strip().lower()
+        if not destination_text or destination_text in {"^all", "all", "broadcast"}:
+            return scope_text in {"all", "public", "broadcast", "channel"}
+        return scope_text in {"direct", "dm", "private"}
+
     slimmed: list[dict[str, object]] = []
     for entry in recent_chat:
         if not isinstance(entry, Mapping):
@@ -758,6 +767,19 @@ def _slim_recent_chat_for_chat_profile(
             slim_entry.pop("captured_at", None)
         if slim_entry.get("delivery_updated_unix") not in (None, ""):
             slim_entry.pop("delivery_updated_at", None)
+        destination = (
+            slim_entry.get("to")
+            or slim_entry.get("to_id")
+            or slim_entry.get("toId")
+            or slim_entry.get("destination")
+            or slim_entry.get("dest")
+            or slim_entry.get("dest_id")
+            or slim_entry.get("destId")
+        )
+        if destination_implies_scope(destination, slim_entry.get("scope")):
+            slim_entry.pop("scope", None)
+        if str(slim_entry.get("portnum") or "").strip().upper() == "TEXT_MESSAGE_APP":
+            slim_entry.pop("portnum", None)
         slimmed.append(slim_entry)
     return slimmed
 
