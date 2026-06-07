@@ -5,7 +5,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.html_js import build_dashboard_js
 from meshdash.html_template import render_html
-from meshdash.http_routes_get import _APP_ASSETS
 
 
 def test_render_html_includes_reset_all_local_settings_button() -> None:
@@ -72,33 +71,10 @@ def test_dashboard_js_includes_screen_wake_lock_flow() -> None:
     )
 
     assert 'const settingsScreenWakeLockStorageKey = "meshDashboardSettingsScreenWakeLockV1";' in js
-    assert 'const screenWakeLockFallbackVideoUrl = "/assets/screen-wake-fallback.webm";' in js
-    assert 'const screenWakeLockFallbackMp4Url = "/assets/screen-wake-fallback.mp4";' in js
     assert "let settingsScreenWakeLockEnabled = true;" in js
     assert "function initializeScreenWakeLock()" in js
-    assert "function acquireScreenWakeLockFallback()" in js
     assert 'navigator.wakeLock.request("screen")' in js
-    assert "video.play()" in js
     assert 'document.addEventListener("visibilitychange"' in js
     assert 'window.addEventListener("pagehide"' in js
-    assert 'for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"])' in js
-    assert "requestScreenWakeLockFromUserGesture();" in js
-    assert "hasActiveFileTransferSessions()" in js
     assert 'controlId === "settings-appearance-keep-screen-on"' in js
     assert 'runBootStep("initializeScreenWakeLock", () => initializeScreenWakeLock());' in js
-
-
-def test_screen_wake_fallback_media_assets_are_whitelisted() -> None:
-    webm = Path("meshdash/assets/screen-wake-fallback.webm")
-    mp4 = Path("meshdash/assets/screen-wake-fallback.mp4")
-
-    assert _APP_ASSETS["/assets/screen-wake-fallback.webm"] == (
-        "screen-wake-fallback.webm",
-        "video/webm",
-    )
-    assert _APP_ASSETS["/assets/screen-wake-fallback.mp4"] == (
-        "screen-wake-fallback.mp4",
-        "video/mp4",
-    )
-    assert webm.read_bytes().startswith(b"\x1a\x45\xdf\xa3")
-    assert b"ftyp" in mp4.read_bytes()[:32]

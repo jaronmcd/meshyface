@@ -178,9 +178,6 @@
         receiverId: row.toId,
         fileName: row.fileName,
       }});
-      if (decision === "accepted" && typeof requestScreenWakeLockFromUserGesture === "function") {{
-        requestScreenWakeLockFromUserGesture();
-      }}
       if (decision === "declined") {{
         setFileTransferInboundFlowStateByKey(key, asCancel ? "canceled-by-receiver" : "", {{
           transferId: row.transferId,

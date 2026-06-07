@@ -970,9 +970,6 @@
 
     async function sendSelectedFileTransfer() {{
       if (fileTransferSendInFlight) return;
-      if (typeof requestScreenWakeLockFromUserGesture === "function") {{
-        requestScreenWakeLockFromUserGesture();
-      }}
       const fileInput = document.getElementById("files-input");
       if (!(fileInput instanceof HTMLInputElement)) return;
       const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;

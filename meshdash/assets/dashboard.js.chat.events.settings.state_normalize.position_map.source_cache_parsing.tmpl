@@ -103,28 +103,15 @@
       return `${{name}}: ${{clean}}`;
     }}
 
-    function screenWakeLockFallbackMediaSupported() {{
-      if (typeof document === "undefined" || !document || typeof document.createElement !== "function") {{
-        return false;
-      }}
-      try {{
-        const video = document.createElement("video");
-        if (!video || typeof video.play !== "function") return false;
-        if (typeof video.canPlayType !== "function") return true;
-        return !!(
-          video.canPlayType("video/webm")
-          || video.canPlayType('video/webm; codecs="vp8"')
-          || video.canPlayType("video/mp4")
-          || video.canPlayType('video/mp4; codecs="avc1.42E01E"')
-        );
-      }} catch (_err) {{
-        return false;
-      }}
-    }}
-
     function screenWakeLockStatus() {{
       if (!settingsScreenWakeLockEnabled) {{
         return {{ text: "", error: false }};
+      }}
+      if (!screenWakeLockApiAvailable()) {{
+        return {{
+          text: "Screen wake lock is unavailable in this browser or page context.",
+          error: true,
+        }};
       }}
       if (document.visibilityState && document.visibilityState !== "visible") {{
         return {{
@@ -135,35 +122,12 @@
       if (screenWakeLockSentinel) {{
         return {{ text: "Screen wake lock active.", error: false }};
       }}
-      if (screenWakeLockFallbackActive) {{
-        return {{ text: "Screen wake lock fallback active.", error: false }};
-      }}
       if (screenWakeLockRequestInFlight) {{
         return {{ text: "Requesting screen wake lock.", error: false }};
-      }}
-      const nativeAvailable = screenWakeLockApiAvailable();
-      const fallbackAvailable = screenWakeLockFallbackMediaSupported();
-      if (!nativeAvailable && fallbackAvailable && !screenWakeLockUserActivated) {{
-        return {{
-          text: "Screen wake lock fallback is ready. Tap the dashboard once if this device still sleeps.",
-          error: false,
-        }};
-      }}
-      if (screenWakeLockFallbackLastError) {{
-        return {{
-          text: `Screen wake lock fallback blocked: ${{screenWakeLockFallbackLastError}}`,
-          error: true,
-        }};
       }}
       if (screenWakeLockLastError) {{
         return {{
           text: `Screen wake lock blocked: ${{screenWakeLockLastError}}`,
-          error: true,
-        }};
-      }}
-      if (!nativeAvailable && !fallbackAvailable) {{
-        return {{
-          text: "Screen wake lock is unavailable in this browser or page context.",
           error: true,
         }};
       }}
@@ -183,129 +147,7 @@
       }}
     }}
 
-    function ensureScreenWakeLockFallbackVideo() {{
-      if (
-        typeof HTMLVideoElement !== "undefined"
-        && screenWakeLockFallbackVideoEl instanceof HTMLVideoElement
-      ) {{
-        return screenWakeLockFallbackVideoEl;
-      }}
-      if (typeof document === "undefined" || !document || !document.body) return null;
-      let video = null;
-      try {{
-        video = document.createElement("video");
-      }} catch (_err) {{
-        video = null;
-      }}
-      if (
-        !video
-        || (
-          typeof HTMLVideoElement !== "undefined"
-          && !(video instanceof HTMLVideoElement)
-        )
-      ) {{
-        return null;
-      }}
-      video.muted = true;
-      video.defaultMuted = true;
-      video.loop = true;
-      video.autoplay = false;
-      video.playsInline = true;
-      video.preload = "auto";
-      video.setAttribute("muted", "");
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.setAttribute("aria-hidden", "true");
-      video.tabIndex = -1;
-      video.style.position = "fixed";
-      video.style.left = "-9999px";
-      video.style.top = "0";
-      video.style.width = "1px";
-      video.style.height = "1px";
-      video.style.opacity = "0";
-      video.style.pointerEvents = "none";
-      const addSource = (src, type) => {{
-        const source = document.createElement("source");
-        source.src = src;
-        source.type = type;
-        video.appendChild(source);
-      }};
-      addSource(screenWakeLockFallbackVideoUrl, "video/webm");
-      addSource(screenWakeLockFallbackMp4Url, "video/mp4");
-      video.addEventListener("playing", () => {{
-        screenWakeLockFallbackActive = true;
-        screenWakeLockFallbackLastError = "";
-        syncSettingsScreenWakeLockControls();
-      }});
-      video.addEventListener("pause", () => {{
-        screenWakeLockFallbackActive = false;
-        syncSettingsScreenWakeLockControls();
-      }});
-      video.addEventListener("error", () => {{
-        screenWakeLockFallbackActive = false;
-        screenWakeLockFallbackLastError = "fallback video could not load";
-        syncSettingsScreenWakeLockControls();
-      }});
-      document.body.appendChild(video);
-      screenWakeLockFallbackVideoEl = video;
-      return video;
-    }}
-
-    function releaseScreenWakeLockFallback() {{
-      const video = screenWakeLockFallbackVideoEl;
-      screenWakeLockFallbackActive = false;
-      if (video && typeof video.pause === "function") {{
-        try {{
-          video.pause();
-        }} catch (_err) {{
-        }}
-      }}
-      syncSettingsScreenWakeLockControls();
-    }}
-
-    async function acquireScreenWakeLockFallback() {{
-      if (!settingsScreenWakeLockEnabled) {{
-        releaseScreenWakeLockFallback();
-        return false;
-      }}
-      if (document.visibilityState && document.visibilityState !== "visible") {{
-        releaseScreenWakeLockFallback();
-        return false;
-      }}
-      if (!screenWakeLockFallbackMediaSupported()) {{
-        screenWakeLockFallbackActive = false;
-        screenWakeLockFallbackLastError = "";
-        syncSettingsScreenWakeLockControls();
-        return false;
-      }}
-      const video = ensureScreenWakeLockFallbackVideo();
-      if (!video) {{
-        screenWakeLockFallbackActive = false;
-        screenWakeLockFallbackLastError = "fallback video unavailable";
-        syncSettingsScreenWakeLockControls();
-        return false;
-      }}
-      try {{
-        if (video.paused || video.ended) {{
-          const playResult = video.play();
-          if (playResult && typeof playResult.then === "function") {{
-            await playResult;
-          }}
-        }}
-        screenWakeLockFallbackActive = !video.paused;
-        screenWakeLockFallbackLastError = screenWakeLockFallbackActive
-          ? ""
-          : "fallback video did not start";
-      }} catch (err) {{
-        screenWakeLockFallbackActive = false;
-        screenWakeLockFallbackLastError = screenWakeLockErrorMessage(err);
-      }} finally {{
-        syncSettingsScreenWakeLockControls();
-      }}
-      return !!screenWakeLockFallbackActive;
-    }}
-
-    async function releaseNativeScreenWakeLock() {{
+    async function releaseScreenWakeLock() {{
       const sentinel = screenWakeLockSentinel;
       screenWakeLockSentinel = null;
       if (!sentinel || typeof sentinel.release !== "function") {{
@@ -320,28 +162,23 @@
       }}
     }}
 
-    async function releaseScreenWakeLock() {{
-      await releaseNativeScreenWakeLock();
-      releaseScreenWakeLockFallback();
-    }}
-
-    async function acquireNativeScreenWakeLock() {{
+    async function acquireScreenWakeLock() {{
       if (!settingsScreenWakeLockEnabled) {{
-        await releaseNativeScreenWakeLock();
-        return false;
+        await releaseScreenWakeLock();
+        return;
       }}
       if (!screenWakeLockApiAvailable()) {{
         screenWakeLockLastError = "";
         syncSettingsScreenWakeLockControls();
-        return false;
+        return;
       }}
       if (document.visibilityState && document.visibilityState !== "visible") {{
-        await releaseNativeScreenWakeLock();
-        return false;
+        await releaseScreenWakeLock();
+        return;
       }}
       if (screenWakeLockSentinel || screenWakeLockRequestInFlight) {{
         syncSettingsScreenWakeLockControls();
-        return !!screenWakeLockSentinel;
+        return;
       }}
       screenWakeLockRequestInFlight = true;
       screenWakeLockLastError = "";
@@ -355,7 +192,6 @@
               screenWakeLockSentinel = null;
             }}
             syncSettingsScreenWakeLockControls();
-            void refreshScreenWakeLock();
           }});
         }}
       }} catch (err) {{
@@ -364,7 +200,6 @@
         screenWakeLockRequestInFlight = false;
         syncSettingsScreenWakeLockControls();
       }}
-      return !!screenWakeLockSentinel;
     }}
 
     async function refreshScreenWakeLock() {{
@@ -372,22 +207,7 @@
         await releaseScreenWakeLock();
         return;
       }}
-      if (document.visibilityState && document.visibilityState !== "visible") {{
-        await releaseScreenWakeLock();
-        return;
-      }}
-      const nativeActive = await acquireNativeScreenWakeLock();
-      if (nativeActive) {{
-        releaseScreenWakeLockFallback();
-        return;
-      }}
-      await acquireScreenWakeLockFallback();
-    }}
-
-    function requestScreenWakeLockFromUserGesture() {{
-      screenWakeLockUserActivated = true;
-      screenWakeLockFallbackLastError = "";
-      void refreshScreenWakeLock();
+      await acquireScreenWakeLock();
     }}
 
     function bindScreenWakeLockLifecycle() {{
@@ -402,11 +222,6 @@
       window.addEventListener("pagehide", () => {{
         void releaseScreenWakeLock();
       }});
-      for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {{
-        document.addEventListener(eventName, () => {{
-          requestScreenWakeLockFromUserGesture();
-        }}, {{ capture: true, passive: true }});
-      }}
     }}
 
     function initializeScreenWakeLock() {{

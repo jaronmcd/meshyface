@@ -1,9 +1,4 @@
     async function runFileTransferMaintenance(state = latestState) {{
-      if (typeof hasActiveFileTransferSessions === "function" && hasActiveFileTransferSessions()) {{
-        if (typeof refreshScreenWakeLock === "function") {{
-          void refreshScreenWakeLock();
-        }}
-      }}
       await maybeSendFileTransferAckFrames(state);
       await maintainOutgoingFileTransferSessions(state);
       if (activeLayoutView === "files" && state) {{
