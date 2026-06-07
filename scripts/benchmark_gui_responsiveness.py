@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -210,6 +211,112 @@ def run_benchmark(args: argparse.Namespace) -> dict:
     return result
 
 
+_MISSING = object()
+
+
+def _json_pointer_get(payload: object, pointer: str) -> object:
+    if pointer == "":
+        return payload
+    if not pointer.startswith("/"):
+        raise ValueError(f"JSON pointer must be empty or start with '/': {pointer}")
+    current = payload
+    for raw_part in pointer.split("/")[1:]:
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping):
+            if part not in current:
+                return _MISSING
+            current = current[part]
+        elif isinstance(current, list):
+            try:
+                index = int(part)
+            except ValueError:
+                return _MISSING
+            if index < 0 or index >= len(current):
+                return _MISSING
+            current = current[index]
+        else:
+            return _MISSING
+    return current
+
+
+def _as_number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _display_value(value: object) -> str:
+    if value is _MISSING:
+        return "missing"
+    try:
+        return json.dumps(value, sort_keys=True)
+    except TypeError:
+        return str(value)
+
+
+def load_thresholds(path: Path) -> dict:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SystemExit(f"Unable to read benchmark thresholds {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid benchmark thresholds JSON {path}: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise SystemExit(f"Benchmark thresholds must be a JSON object: {path}")
+    return loaded
+
+
+def evaluate_thresholds(result: Mapping[str, object], thresholds: Mapping[str, object]) -> list[str]:
+    failures: list[str] = []
+    for group_name in ("max", "min", "equals"):
+        group = thresholds.get(group_name) or {}
+        if not isinstance(group, Mapping):
+            failures.append(f"{group_name} thresholds must be an object")
+            continue
+        for pointer, expected in group.items():
+            if not isinstance(pointer, str):
+                failures.append(f"{group_name} threshold path must be a string: {_display_value(pointer)}")
+                continue
+            try:
+                actual = _json_pointer_get(result, pointer)
+            except ValueError as exc:
+                failures.append(f"{group_name} {pointer}: {exc}")
+                continue
+            if actual is _MISSING:
+                failures.append(f"{group_name} {pointer}: expected {_display_value(expected)}, got missing")
+                continue
+            if group_name == "equals":
+                if actual != expected:
+                    failures.append(
+                        f"equals {pointer}: expected {_display_value(expected)}, got {_display_value(actual)}"
+                    )
+                continue
+            actual_number = _as_number(actual)
+            expected_number = _as_number(expected)
+            if expected_number is None:
+                failures.append(
+                    f"{group_name} {pointer}: threshold must be numeric, got {_display_value(expected)}"
+                )
+                continue
+            if actual_number is None:
+                failures.append(
+                    f"{group_name} {pointer}: expected numeric value, got {_display_value(actual)}"
+                )
+                continue
+            if group_name == "max" and actual_number > expected_number:
+                failures.append(
+                    f"max {pointer}: expected <= {_display_value(expected)}, got {_display_value(actual)}"
+                )
+            elif group_name == "min" and actual_number < expected_number:
+                failures.append(
+                    f"min {pointer}: expected >= {_display_value(expected)}, got {_display_value(actual)}"
+                )
+    return failures
+
+
 def _fmt_ms(value: object) -> str:
     try:
         return f"{float(value):.1f} ms"
@@ -385,6 +492,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--timeout", type=_positive_int, default=120, help="Browser process timeout in seconds.")
     parser.add_argument("--output-json", type=Path, default=None, help="Write full benchmark JSON to this path.")
+    parser.add_argument(
+        "--thresholds",
+        type=Path,
+        default=None,
+        help="JSON file with max/min/equals JSON-pointer thresholds. Fails nonzero on budget regressions.",
+    )
     parser.add_argument("--json", action="store_true", help="Print full benchmark JSON instead of text summary.")
     parser.add_argument("--no-api", action="store_true", help="Skip direct API timing probes.")
     parser.add_argument("--no-selection", action="store_true", help="Skip node selection timing probes.")
@@ -402,6 +515,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     result = run_benchmark(args)
+    threshold_failures: list[str] = []
+    if args.thresholds:
+        threshold_failures = evaluate_thresholds(result, load_thresholds(args.thresholds))
     if args.output_json:
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
         args.output_json.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -409,7 +525,13 @@ def main(argv: list[str]) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print_summary(result)
-    return 0 if result.get("ok") else 1
+    if threshold_failures:
+        print("Benchmark threshold failures:")
+        for failure in threshold_failures:
+            print(f"  - {failure}")
+    if not result.get("ok"):
+        return 1
+    return 2 if threshold_failures else 0
 
 
 if __name__ == "__main__":

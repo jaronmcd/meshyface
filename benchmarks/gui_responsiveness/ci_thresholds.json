@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "Always-on CI budgets for a locally started dashboard. These are intentionally broad because CI does not carry the production-sized mesh database.",
+  "equals": {
+    "/ok": true
+  },
+  "max": {
+    "/summary/errors": 0,
+    "/summary/longTaskCount": 20,
+    "/summary/totalMs/p95": 15000,
+    "/summary/callbackMs/p95": 10000,
+    "/summary/pollWorkMs/p95": 1000,
+    "/summary/frameP95Ms/p95": 8000,
+    "/summary/frameMaxMs/max": 8000,
+    "/summary/domTotalElements/p95": 16000,
+    "/summary/domActiveSurfaceElements/p95": 8000,
+    "/summary/domBodyHtmlBytes/p95": 8000000,
+    "/summary/domChatFeedItems/p95": 250,
+    "/summary/domChatRosterVisibleItems/p95": 250,
+    "/summary/domNodesTableRows/p95": 500,
+    "/summary/domNetworkGraphNodes/p95": 700,
+    "/summary/domNetworkGraphEdges/p95": 900,
+    "/summary/domSensorElements/p95": 300
+  }
+}
