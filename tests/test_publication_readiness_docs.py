@@ -44,7 +44,7 @@ def test_built_dashboard_js_exposes_offline_atlas_attribution_toggle() -> None:
     assert "setMapOfflineAtlasAttributionVisible(" in js
 
 
-def test_no_hardcoded_meshyface_psk_or_hotspot_default_password() -> None:
+def test_shared_meshyface_psk_is_bundled_without_hotspot_default_password() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -53,5 +53,5 @@ def test_no_hardcoded_meshyface_psk_or_hotspot_default_password() -> None:
     hotspot_script = Path("scripts/deploy_hotspot.sh").read_text(encoding="utf-8")
     legacy_psk = "base64:" + "u2yfVqp2J8P+Uer6z9OnNGwORpCCSNF4GKbzYgya9jM="
     legacy_hotspot_default = "meshyface" + "203"
-    assert legacy_psk not in js
+    assert legacy_psk in js
     assert legacy_hotspot_default not in hotspot_script

@@ -1814,13 +1814,19 @@
                   </div>
                 </div>
                 <div id="channels-overview" class="overview-grid"></div>
-                <section class="settings-channels-simple-actions" aria-label="Channel configuration notes">
-                  <div class="settings-label">Channel Setup</div>
+                <section class="settings-channels-simple-actions" aria-label="Quick channel presets">
+                  <div class="settings-label">Quick Join</div>
                   <div class="channels-panel-copy">
-                    Configure channels directly in the table below, or import channel URLs from trusted sources.
+                    Join the shared <strong>Meshyface</strong> channel without importing a full Meshtastic URL.
+                  </div>
+                  <div class="settings-channels-actions">
+                    <button id="settings-channels-join-meshyface-btn" class="btn btn-secondary" type="button">Join Meshyface</button>
                   </div>
                   <div class="settings-help-note">
-                    Meshyface does not ship a bundled shared channel key in public builds.
+                    Adds or updates a shared secondary channel named <strong>Meshyface</strong>. This does not change LoRa region, modem preset, or frequency slot.
+                  </div>
+                  <div class="settings-help-note">
+                    Channel numbers are local to each radio. Meshyface follows the preset by shared name/key, then uses whichever local slot your radio assigned to it.
                   </div>
                 </section>
                 <section class="channels-app-routing" aria-label="App channel routing">

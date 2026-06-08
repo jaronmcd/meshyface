@@ -1,3 +1,181 @@
+    const meshyfaceBetaChannelPreset = Object.freeze({{
+      name: "Meshyface",
+      psk: "base64:u2yfVqp2J8P+Uer6z9OnNGwORpCCSNF4GKbzYgya9jM=",
+    }});
+
+    function normalizeMeshChannelNameToken(rawValue) {{
+      return String(rawValue == null ? "" : rawValue)
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    }}
+
+    function meshChannelOptionHasPrimaryRole(option) {{
+      if (!option || typeof option !== "object") return false;
+      const rawIndex = Number(option.index);
+      if (Number.isInteger(rawIndex) && rawIndex === 0) return true;
+      const roleText = String(option.role == null ? "" : option.role).trim().toUpperCase();
+      return roleText === "PRIMARY" || roleText === "CHANNEL_ROLE_PRIMARY" || roleText === "1";
+    }}
+
+    function findConfiguredMeshChannelByName(name, localState = null) {{
+      const token = normalizeMeshChannelNameToken(name);
+      if (!token) return null;
+      const sourceState = (localState && typeof localState === "object")
+        ? localState
+        : (settingsLocalStateCache && typeof settingsLocalStateCache === "object")
+          ? settingsLocalStateCache
+          : settingsLocalStateFrom(latestState || {{}});
+      const options = collectMeshChannelOptionsFromLocalState(sourceState, {{ includeFallback: false }});
+      let disabledMatch = null;
+      for (const option of options) {{
+        if (!option || typeof option !== "object") continue;
+        if (normalizeMeshChannelNameToken(option.name) !== token) continue;
+        const match = {{
+          ...option,
+          index: normalizeMeshChannelIndex(option.index),
+        }};
+        if (meshChannelOptionHasPrimaryRole(match)) {{
+          return match;
+        }}
+        if (!option.disabled) {{
+          return match;
+        }}
+        if (!disabledMatch) {{
+          disabledMatch = match;
+        }}
+      }}
+      return disabledMatch;
+    }}
+
+    function mergeMeshChannelOptionList(existingOptions, nextOption) {{
+      const byIndex = new Map();
+      const source = Array.isArray(existingOptions) ? existingOptions : [];
+      for (const option of source) {{
+        if (!option || typeof option !== "object") continue;
+        const rawIndex = Number(option.index);
+        if (!Number.isInteger(rawIndex) || rawIndex < 0) continue;
+        byIndex.set(rawIndex, {{
+          index: rawIndex,
+          name: String(option.name || "").trim(),
+          role: String(option.role || "").trim(),
+          disabled: !!option.disabled,
+          hasPsk: !!option.hasPsk,
+        }});
+      }}
+      if (nextOption && typeof nextOption === "object") {{
+        const rawIndex = Number(nextOption.index);
+        if (Number.isInteger(rawIndex) && rawIndex >= 0) {{
+          const previous = byIndex.get(rawIndex) || {{
+            index: rawIndex,
+            name: "",
+            role: "",
+            disabled: false,
+            hasPsk: false,
+          }};
+          byIndex.set(rawIndex, {{
+            ...previous,
+            ...nextOption,
+            index: rawIndex,
+            name: String(nextOption.name ?? previous.name ?? "").trim(),
+            role: String(nextOption.role ?? previous.role ?? "").trim(),
+            disabled: false,
+            hasPsk: nextOption.hasPsk === true || previous.hasPsk === true,
+          }});
+        }}
+      }}
+      return Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
+    }}
+
+    function cacheMeshChannelPresetOption(channelIndex, channelName) {{
+      const idx = Number(channelIndex);
+      if (!Number.isInteger(idx) || idx < 0) return;
+      const option = {{
+        index: idx,
+        name: String(channelName || "").trim(),
+        role: "SECONDARY",
+        disabled: false,
+        hasPsk: true,
+      }};
+      meshChannelOptions = mergeMeshChannelOptionList(meshChannelOptions, option);
+      meshChannelSendOptions = mergeMeshChannelOptionList(meshChannelSendOptions, option);
+      renderMeshChannelSelect(meshChannelOptions);
+      renderMeshChannelPills(meshChannelOptions);
+      renderMeshChannelSendSelect(meshChannelSendOptions, {{ preserveCurrent: true }});
+      renderMeshChannelSendMenus(meshChannelSendOptions, {{ preserveCurrent: true }});
+      renderMeshChannelAppRoutingControls(meshChannelSendOptions);
+      syncMeshChannelSendControl();
+    }}
+
+    function activateMeshyfaceBetaChannel(channelIndex) {{
+      const idx = Number(channelIndex);
+      if (!Number.isInteger(idx) || idx < 0) return;
+      cacheMeshChannelPresetOption(idx, meshyfaceBetaChannelPreset.name);
+      applyMeshChannelIndex(idx, true);
+      setMeshChannelAppSendMode("games", "fixed", true);
+      setMeshChannelAppSendIndex("games", idx, true);
+    }}
+
+    async function handleJoinMeshyfaceBetaChannel() {{
+      try {{
+        await ensureChannelsViewLocalStateHydrated(false);
+      }} catch (_err) {{}}
+
+      const existing = findConfiguredMeshChannelByName(meshyfaceBetaChannelPreset.name);
+      if (meshChannelOptionHasPrimaryRole(existing)) {{
+        setChannelsStatusText(
+          "Meshyface already matches your primary channel name. Rename that channel first if you want a separate secondary Meshyface channel."
+        );
+        return;
+      }}
+      const payload = {{
+        action: "upsert",
+        role: "SECONDARY",
+        settings: {{
+          name: meshyfaceBetaChannelPreset.name,
+          psk: meshyfaceBetaChannelPreset.psk,
+          uplink_enabled: false,
+          downlink_enabled: false,
+        }},
+      }};
+      const targetSlot = existing;
+      if (targetSlot && Number.isInteger(Number(targetSlot.index)) && Number(targetSlot.index) > 0) {{
+        payload.channel_index = Number(targetSlot.index);
+      }}
+
+      const pendingLabel = targetSlot
+        ? "Updating Meshyface channel..."
+        : "Adding Meshyface channel...";
+      const successLabel = targetSlot
+        ? "Meshyface channel updated"
+        : "Meshyface channel added";
+      const res = await postChannelSettingsPayload(payload, pendingLabel, successLabel);
+      if (!res.ok) return;
+
+      const resultIndex = Number(res.data && res.data.channel_index);
+      const fallbackIndex = targetSlot && Number.isInteger(Number(targetSlot.index))
+        ? Number(targetSlot.index)
+        : null;
+      const appliedIndex = Number.isInteger(resultIndex) && resultIndex >= 0
+        ? resultIndex
+        : fallbackIndex;
+      if (appliedIndex != null) {{
+        activateMeshyfaceBetaChannel(appliedIndex);
+      }}
+
+      setTimeout(async () => {{
+        await fetchSettingsFromRadio();
+        const refreshed = findConfiguredMeshChannelByName(meshyfaceBetaChannelPreset.name);
+        if (refreshed && Number.isInteger(Number(refreshed.index)) && Number(refreshed.index) >= 0) {{
+          activateMeshyfaceBetaChannel(Number(refreshed.index));
+          return;
+        }}
+        if (appliedIndex != null) {{
+          activateMeshyfaceBetaChannel(appliedIndex);
+        }}
+      }}, 700);
+    }}
+
     function looksLikeMeshtasticChannelUrl(rawValue) {{
       const text = String(rawValue == null ? "" : rawValue).trim();
       if (!text) return false;

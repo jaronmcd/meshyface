@@ -318,6 +318,13 @@
         }});
       }}
 
+      const joinMeshyfaceBtn = document.getElementById("settings-channels-join-meshyface-btn");
+      if (joinMeshyfaceBtn instanceof HTMLButtonElement) {{
+        joinMeshyfaceBtn.addEventListener("click", () => {{
+          void handleJoinMeshyfaceBetaChannel();
+        }});
+      }}
+
       const channelsAdvToggle = document.getElementById("settings-channels-advanced-toggle");
       if (channelsAdvToggle instanceof HTMLInputElement) {{
         channelsAdvToggle.checked = !!channelsUiAdvanced;
