@@ -154,6 +154,121 @@
       return cleared;
     }}
 
+    function mergeBackendFileTransferRuntimeRows(rows, state, context = null) {{
+      if (!Array.isArray(rows)) return rows;
+      const ctx = (context && typeof context === "object") ? context : {{}};
+      const nodesById = ctx.nodesById instanceof Map ? ctx.nodesById : new Map();
+      const localNodeId = normalizeNodeId(ctx.localNodeId || resolveLocalNodeId(state || {{}}) || "");
+      if (!isCanonicalNodeId(localNodeId)) return rows;
+      const sessions = fileTransferBackendSessions(state);
+      if (!sessions.length) return rows;
+      const rowsByBaseKey = new Map();
+      for (const row of rows) {{
+        if (!(row && typeof row === "object")) continue;
+        const key = String(row.key || "").trim();
+        if (!key) continue;
+        const baseKey = key.endsWith("|ack-only") ? key.slice(0, -9) : key;
+        if (baseKey && !rowsByBaseKey.has(baseKey)) {{
+          rowsByBaseKey.set(baseKey, row);
+        }}
+      }}
+      for (const raw of sessions) {{
+        if (!(raw && typeof raw === "object")) continue;
+        const senderId = normalizeNodeId(raw.sender_id || raw.senderId || "");
+        const receiverId = normalizeNodeId(raw.receiver_id || raw.receiverId || "");
+        const transferId = String(raw.transfer_id || raw.transferId || "").trim().toLowerCase();
+        if (!isCanonicalNodeId(senderId) || !isCanonicalNodeId(receiverId) || !transferId) continue;
+        const transferKey = String(raw.key || "").trim() || fileTransferKeyOf(senderId, receiverId, transferId);
+        if (!transferKey || isFileTransferDismissedKey(transferKey)) continue;
+        const direction = fileTransferDirectionMeta(senderId, receiverId, localNodeId);
+        if (direction.className !== "inbound") continue;
+        const peerMeta = fileTransferPeerMeta(direction.peerId, nodesById, localNodeId);
+        const totalChunks = Math.max(1, Math.trunc(Number(raw.total_chunks ?? raw.totalChunks) || 1));
+        const receivedChunks = Math.max(
+          0,
+          Math.min(
+            totalChunks,
+            Math.trunc(Number(raw.received_chunks ?? raw.receivedChunks) || 0)
+          )
+        );
+        const percentRaw = Number(raw.percent);
+        const progressPercent = Number.isFinite(percentRaw)
+          ? Math.max(0, Math.min(100, Math.round(percentRaw)))
+          : Math.max(0, Math.min(100, Math.round((receivedChunks / totalChunks) * 100)));
+        const serverComplete = !!(raw.complete || receivedChunks >= totalChunks);
+        const fileName = normalizeFileTransferName(raw.file_name || raw.fileName || `file-${{transferId}}.bin`);
+        const originalBytesRaw = Number(raw.original_file_size ?? raw.originalFileSize ?? raw.file_size ?? raw.fileSize);
+        const originalBytes = Number.isFinite(originalBytesRaw) && originalBytesRaw >= 0
+          ? Math.trunc(originalBytesRaw)
+          : 0;
+        const channelIndex = fileTransferExplicitChannelIndex(raw.channel_index ?? raw.channelIndex);
+        const channelLabel = channelIndex == null
+          ? "Unknown"
+          : meshChannelLabelForIndex(channelIndex, {{ allowAll: false }});
+        const sortUnix = Math.max(
+          0,
+          Math.trunc(Number(raw.updated_unix ?? raw.updatedUnix ?? raw.created_unix ?? raw.createdUnix) || 0)
+        );
+        const existing = rowsByBaseKey.get(transferKey) || null;
+        const existingCanDownload = !!(
+          existing
+          && existing.canDownload
+          && existing.bytes instanceof Uint8Array
+        );
+        const progressLabel = serverComplete
+          ? (existingCanDownload ? "Complete" : "Complete on receiver")
+          : `${{progressPercent}}% received (${{receivedChunks}}/${{totalChunks}} chunks)`;
+        const progressState = serverComplete ? "success" : "active";
+        const sizeLabel = originalBytes > 0
+          ? formatFileTransferSize(originalBytes)
+          : (existing && existing.sizeLabel ? existing.sizeLabel : "n/a");
+        const merged = {{
+          ...(existing || {{}}),
+          key: transferKey,
+          transferId,
+          unix: sortUnix > 0 ? sortUnix : (existing ? existing.unix : null),
+          sortUnix: sortUnix > 0 ? sortUnix : Number(existing && existing.sortUnix || 0),
+          directionClass: direction.className,
+          directionLabel: direction.label,
+          fromId: senderId,
+          toId: receiverId,
+          peerId: direction.peerId,
+          peerLabel: peerMeta.label,
+          peerTitle: peerMeta.title,
+          fileName,
+          downloadName: safeFileTransferDownloadName(fileName),
+          progressLabel,
+          progressSort: serverComplete ? 100 : progressPercent,
+          progressPercent: serverComplete ? 100 : progressPercent,
+          progressState,
+          sizeLabel,
+          sizeSort: originalBytes > 0 ? originalBytes : Number(existing && existing.sizeSort || 0),
+          channelIndex,
+          channelLabel,
+          delivered: serverComplete,
+          requiresInboundAccept: true,
+          inboundAccepted: true,
+          inboundPending: false,
+          inboundDeclined: false,
+          source: "backend_auto_accept",
+          backendAuthoritative: true,
+          backendAutoAccept: true,
+          serverComplete,
+          serverReceivedChunks: receivedChunks,
+          serverTotalChunks: totalChunks,
+          canDownload: existingCanDownload,
+          bytes: existingCanDownload ? existing.bytes : null,
+        }};
+        if (existing) {{
+          Object.assign(existing, merged);
+        }} else {{
+          rows.push(merged);
+          rowsByBaseKey.set(transferKey, merged);
+        }}
+      }}
+      return rows;
+    }}
+
     function buildFileTransferRows(state = latestState) {{
       ensureFileTransferDismissedStateLoaded();
       const frameState = collectFileTransferFrames(state, {{ respectActiveChannel: true }});
@@ -810,6 +925,11 @@
           bytes: null,
         }});
       }}
+
+      mergeBackendFileTransferRuntimeRows(rows, state, {{
+        nodesById,
+        localNodeId,
+      }});
 
       rows.sort((a, b) => {{
         const unixDiff = Number(b.sortUnix || 0) - Number(a.sortUnix || 0);

@@ -463,11 +463,16 @@
     function syncFileTransferAutoAcceptToggle() {{
       const toggle = document.getElementById("files-auto-accept-toggle");
       if (!(toggle instanceof HTMLInputElement)) return;
-      toggle.checked = fileTransferAutoAcceptInboundEnabled();
-      toggle.disabled = !fileTransferFeatureEnabled;
-      toggle.title = toggle.checked
-        ? "Direct inbound file transfers are accepted automatically."
-        : "Direct inbound file transfers require manual acceptance.";
+      const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(latestState);
+      toggle.checked = backendAutoAcceptEnabled || fileTransferAutoAcceptInboundEnabled();
+      toggle.disabled = !fileTransferFeatureEnabled || backendAutoAcceptEnabled;
+      toggle.title = backendAutoAcceptEnabled
+        ? "Backend auto accept is enabled for direct inbound file transfers."
+        : (
+          toggle.checked
+            ? "Direct inbound file transfers are accepted automatically."
+            : "Direct inbound file transfers require manual acceptance."
+        );
     }}
 
     function bindFileTransferAutoAcceptToggle() {{

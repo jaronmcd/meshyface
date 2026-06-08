@@ -6,9 +6,13 @@ from meshdash.file_transfer_protocol import (
     build_file_transfer_ack_frame,
     parse_file_transfer_frame_text,
 )
+from meshdash.revision import RevisionInfo
 from meshdash.services_file_transfer_auto_accept import (
     build_file_transfer_auto_accept_service,
 )
+from meshdash.state_node_contracts import CollectedNodes
+from meshdash.state_service import build_dashboard_state_typed
+from meshdash.tracker_snapshot_contracts import empty_tracker_snapshot
 
 
 def _make_iface(*, local_num: int = 0x12345678, sender_num: int = 0x01020304):
@@ -112,6 +116,35 @@ def test_auto_accept_acks_chunk_progress_and_final_completion() -> None:
         "MF_FILE_V1|A|abcd1234|1|2|AQ==",
         "MF_FILE_V1|A|abcd1234|2|2|AA==",
     ]
+    runtime = service.get_runtime()
+    assert runtime["active_sessions"] == 1
+    assert runtime["sent_ack_count"] == 3
+    assert runtime["sessions"] == [
+        {
+            "key": "!01020304|!12345678|abcd1234",
+            "source": "backend_auto_accept",
+            "authoritative": True,
+            "sender_id": "!01020304",
+            "receiver_id": "!12345678",
+            "transfer_id": "abcd1234",
+            "channel_index": 2,
+            "file_name": "sample.bin",
+            "file_size": 128,
+            "original_file_size": 128,
+            "codec": "raw",
+            "total_chunks": 2,
+            "received_chunks": 2,
+            "missing_chunks": 0,
+            "received_indexes": [0, 1],
+            "percent": 100.0,
+            "complete": True,
+            "created_unix": runtime["sessions"][0]["created_unix"],
+            "updated_unix": runtime["sessions"][0]["updated_unix"],
+            "age_seconds": runtime["sessions"][0]["age_seconds"],
+            "idle_seconds": runtime["sessions"][0]["idle_seconds"],
+            "last_ack_age_seconds": runtime["sessions"][0]["last_ack_age_seconds"],
+        }
+    ]
 
 
 def test_auto_accept_ignores_disabled_and_broadcast_transfers() -> None:
@@ -139,6 +172,69 @@ def test_auto_accept_ignores_disabled_and_broadcast_transfers() -> None:
     )
 
     assert sent_messages == []
+
+
+def test_dashboard_state_exposes_file_transfer_runtime_summary() -> None:
+    class _TrackerWithFileTransferRuntime:
+        def snapshot(self, by_id: dict[str, dict[str, object]]) -> object:
+            return empty_tracker_snapshot()
+
+        def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
+            return {}
+
+        def load_node_capabilities(self) -> dict[str, dict[str, object]]:
+            return {}
+
+        def get_file_transfer_runtime(self) -> dict[str, object]:
+            return {
+                "ok": True,
+                "enabled": True,
+                "active_sessions": 1,
+                "sessions": [
+                    {
+                        "key": "!01020304|!12345678|abcd1234",
+                        "transfer_id": "abcd1234",
+                        "received_chunks": 1,
+                        "total_chunks": 2,
+                    }
+                ],
+            }
+
+    payload = build_dashboard_state_typed(
+        iface=object(),
+        tracker=_TrackerWithFileTransferRuntime(),
+        target="test",
+        started_at=1_800_000_000,
+        storage_probe_path=None,
+        revision_info=RevisionInfo(
+            version="0.0.0",
+            commit="test",
+            label="test",
+            title="test",
+        ),
+        collect_nodes_fn=lambda iface: CollectedNodes(
+            rows=[],
+            full=[],
+            by_id={},
+            with_position_count=0,
+        ),
+        collect_local_state_safe_fn=lambda iface, *, collect_local_state_fn: ({}, None),
+        get_radio_connection_status_fn=lambda iface: None,
+    )
+
+    assert payload.summary["file_transfer"] == {
+        "ok": True,
+        "enabled": True,
+        "active_sessions": 1,
+        "sessions": [
+            {
+                "key": "!01020304|!12345678|abcd1234",
+                "transfer_id": "abcd1234",
+                "received_chunks": 1,
+                "total_chunks": 2,
+            }
+        ],
+    }
 
 
 class _RevisionInfo:
@@ -197,7 +293,7 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
             send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
         )
 
-    build_dashboard_runtime_context(
+    context = build_dashboard_runtime_context(
         args,
         mesh_target_label_fn=lambda _args: "/dev/ttyUSB0 (serial)",
         open_mesh_interface_fn=lambda _args: iface,
@@ -230,6 +326,7 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
         == "FileTransferAutoAcceptService"
     ]
     assert len(service_callbacks) == 1
+    assert callable(getattr(context.tracker, "get_file_transfer_runtime", None))
 
     service_callbacks[0](
         _packet("MF_FILE_V1|M|abcd1234|sample.bin|128|2|raw|128"),

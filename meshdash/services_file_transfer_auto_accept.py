@@ -27,9 +27,15 @@ class _InboundTransferSession:
     transfer_id: str
     channel_index: int
     total_chunks: int
+    file_name: str = "mesh-file.bin"
+    file_size: int = 0
+    original_file_size: int = 0
+    codec: str = "raw"
     received_indexes: set[int] = field(default_factory=set)
     created_monotonic: float = 0.0
     updated_monotonic: float = 0.0
+    created_unix: int = 0
+    updated_unix: int = 0
     last_ack_monotonic: float = 0.0
     last_ack_signature: str = ""
 
@@ -102,6 +108,7 @@ class FileTransferAutoAcceptService:
         send_chat_fn,
         enabled: bool = True,
         now_monotonic_fn=time.monotonic,
+        now_unix_fn=time.time,
         ack_cooldown_seconds: float = _ACK_COOLDOWN_SECONDS,
         meta_ack_refresh_seconds: float = _META_ACK_REFRESH_SECONDS,
         session_ttl_seconds: int = _SESSION_TTL_SECONDS,
@@ -113,6 +120,7 @@ class FileTransferAutoAcceptService:
         self._send_chat_fn = send_chat_fn
         self._enabled = bool(enabled)
         self._now_monotonic_fn = now_monotonic_fn
+        self._now_unix_fn = now_unix_fn
         self._ack_cooldown_seconds = max(0.0, float(ack_cooldown_seconds))
         self._meta_ack_refresh_seconds = max(0.0, float(meta_ack_refresh_seconds))
         self._session_ttl_seconds = max(60, int(session_ttl_seconds))
@@ -122,12 +130,80 @@ class FileTransferAutoAcceptService:
         self._sent_ack_count = 0
         self._last_error = ""
 
+    def _now_unix(self) -> int:
+        try:
+            return max(0, int(self._now_unix_fn()))
+        except Exception:
+            return 0
+
+    def _session_runtime_row(
+        self,
+        session: _InboundTransferSession,
+        *,
+        now_monotonic: float,
+    ) -> dict[str, object]:
+        total_chunks = max(1, int(session.total_chunks or 1))
+        received_indexes = sorted(
+            idx for idx in session.received_indexes if 0 <= int(idx) < total_chunks
+        )
+        received_chunks = min(total_chunks, len(received_indexes))
+        missing_chunks = max(0, total_chunks - received_chunks)
+        percent = round((received_chunks / total_chunks) * 100, 1)
+        key = self._session_key(
+            session.sender_id,
+            session.receiver_id,
+            session.transfer_id,
+        )
+        age_seconds = max(0.0, float(now_monotonic) - float(session.created_monotonic or now_monotonic))
+        idle_seconds = max(0.0, float(now_monotonic) - float(session.updated_monotonic or now_monotonic))
+        return {
+            "key": key,
+            "source": "backend_auto_accept",
+            "authoritative": True,
+            "sender_id": session.sender_id,
+            "receiver_id": session.receiver_id,
+            "transfer_id": session.transfer_id,
+            "channel_index": int(session.channel_index),
+            "file_name": session.file_name or "mesh-file.bin",
+            "file_size": max(0, int(session.file_size or 0)),
+            "original_file_size": max(0, int(session.original_file_size or session.file_size or 0)),
+            "codec": session.codec or "raw",
+            "total_chunks": total_chunks,
+            "received_chunks": received_chunks,
+            "missing_chunks": missing_chunks,
+            "received_indexes": received_indexes,
+            "percent": percent,
+            "complete": received_chunks >= total_chunks,
+            "created_unix": max(0, int(session.created_unix or 0)),
+            "updated_unix": max(0, int(session.updated_unix or 0)),
+            "age_seconds": round(age_seconds, 3),
+            "idle_seconds": round(idle_seconds, 3),
+            "last_ack_age_seconds": (
+                round(max(0.0, float(now_monotonic) - float(session.last_ack_monotonic)), 3)
+                if session.last_ack_monotonic > 0
+                else None
+            ),
+        }
+
     def get_runtime(self) -> dict[str, object]:
         with self._lock:
+            now_monotonic = float(self._now_monotonic_fn())
+            sessions = [
+                self._session_runtime_row(session, now_monotonic=now_monotonic)
+                for session in self._sessions_by_key.values()
+            ]
+            sessions.sort(
+                key=lambda row: (
+                    int(row.get("updated_unix") or 0),
+                    str(row.get("key") or ""),
+                ),
+                reverse=True,
+            )
             return {
                 "ok": True,
                 "enabled": bool(self._enabled),
                 "active_sessions": len(self._sessions_by_key),
+                "sessions": sessions,
                 "sent_ack_count": int(self._sent_ack_count),
                 "last_error": self._last_error,
             }
@@ -233,7 +309,12 @@ class FileTransferAutoAcceptService:
     ) -> tuple[str, str, int] | None:
         transfer_id = str(frame.get("transfer_id") or "").strip().lower()
         total_chunks = max(1, int(frame.get("total_chunks") or 1))
+        file_name = str(frame.get("file_name") or "mesh-file.bin").strip() or "mesh-file.bin"
+        file_size = max(0, int(frame.get("file_size") or 0))
+        original_file_size = max(0, int(frame.get("original_file_size") or file_size or 0))
+        codec = str(frame.get("codec") or "raw").strip().lower() or "raw"
         key = self._session_key(sender_id, receiver_id, transfer_id)
+        now_unix = self._now_unix()
         with self._lock:
             self._prune_locked(now_monotonic)
             session = self._sessions_by_key.get(key)
@@ -244,14 +325,25 @@ class FileTransferAutoAcceptService:
                     transfer_id=transfer_id,
                     channel_index=channel_index,
                     total_chunks=total_chunks,
+                    file_name=file_name,
+                    file_size=file_size,
+                    original_file_size=original_file_size,
+                    codec=codec,
                     created_monotonic=now_monotonic,
                     updated_monotonic=now_monotonic,
+                    created_unix=now_unix,
+                    updated_unix=now_unix,
                 )
                 self._sessions_by_key[key] = session
             else:
                 session.channel_index = channel_index
                 session.total_chunks = total_chunks
+                session.file_name = file_name
+                session.file_size = file_size
+                session.original_file_size = original_file_size
+                session.codec = codec
                 session.updated_monotonic = now_monotonic
+                session.updated_unix = now_unix
                 session.received_indexes = {
                     idx for idx in session.received_indexes if 0 <= idx < total_chunks
                 }
@@ -271,6 +363,7 @@ class FileTransferAutoAcceptService:
         if chunk_index is None or chunk_index < 0:
             return None
         key = self._session_key(sender_id, receiver_id, transfer_id)
+        now_unix = self._now_unix()
         with self._lock:
             self._prune_locked(now_monotonic)
             session = self._sessions_by_key.get(key)
@@ -278,6 +371,7 @@ class FileTransferAutoAcceptService:
                 return None
             session.channel_index = channel_index
             session.updated_monotonic = now_monotonic
+            session.updated_unix = now_unix
             if chunk_index < session.total_chunks:
                 session.received_indexes.add(int(chunk_index))
             final = len(session.received_indexes) >= session.total_chunks

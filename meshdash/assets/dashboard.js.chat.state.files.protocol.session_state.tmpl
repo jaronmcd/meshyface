@@ -283,6 +283,36 @@
       return !!fileTransferAutoAcceptInbound;
     }}
 
+    function fileTransferBackendRuntime(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = (safeState.summary && typeof safeState.summary === "object")
+        ? safeState.summary
+        : {{}};
+      const runtime = (summary.file_transfer && typeof summary.file_transfer === "object")
+        ? summary.file_transfer
+        : (
+          summary.fileTransfer && typeof summary.fileTransfer === "object"
+            ? summary.fileTransfer
+            : null
+        );
+      return runtime && typeof runtime === "object" ? runtime : null;
+    }}
+
+    function fileTransferBackendAutoAcceptEnabled(state = latestState) {{
+      const runtime = fileTransferBackendRuntime(state);
+      return !!(
+        runtime
+        && runtime.ok !== false
+        && runtime.enabled !== false
+      );
+    }}
+
+    function fileTransferBackendSessions(state = latestState) {{
+      const runtime = fileTransferBackendRuntime(state);
+      if (!(runtime && typeof runtime === "object")) return [];
+      return Array.isArray(runtime.sessions) ? runtime.sessions : [];
+    }}
+
     function autoAcceptInboundFileTransferIfEnabled(
       transfer,
       transferKey,
@@ -291,7 +321,7 @@
       localNodeIdRaw = ""
     ) {{
       if (!fileTransferFeatureEnabled) return false;
-      if (!fileTransferAutoAcceptInboundEnabled()) return false;
+      if (!fileTransferAutoAcceptInboundEnabled() && !fileTransferBackendAutoAcceptEnabled(latestState)) return false;
       const key = String(transferKey || (transfer && transfer.key) || "").trim();
       if (!key) return false;
       const senderId = normalizeNodeId(senderIdRaw || (transfer && transfer.fromId) || "");

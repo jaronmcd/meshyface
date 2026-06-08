@@ -1061,6 +1061,14 @@ def build_dashboard_state_typed(
                 summary["bots"] = dict(bots_runtime)
         except Exception:
             pass
+    get_file_transfer_runtime_fn = getattr(tracker, "get_file_transfer_runtime", None)
+    if callable(get_file_transfer_runtime_fn):
+        try:
+            file_transfer_runtime = get_file_transfer_runtime_fn()
+            if isinstance(file_transfer_runtime, Mapping):
+                summary["file_transfer"] = dict(file_transfer_runtime)
+        except Exception:
+            pass
 
     merged_recent_chat = _merge_recent_chat_entries(
         recent_chat=tracker_data.recent_chat,

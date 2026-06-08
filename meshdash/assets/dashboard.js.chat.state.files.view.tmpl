@@ -755,20 +755,38 @@
                 title="Remove this stale transfer row (sender session state is unavailable)."
               >Clear</button>`;
           }} else {{
+            const backendAuthoritative = !!(row && row.backendAuthoritative);
+            const backendInbound = !!(
+              backendAuthoritative
+              && String(row.directionClass || "").trim().toLowerCase() === "inbound"
+            );
+            const serverComplete = !!(row && row.serverComplete);
             const actionLabel = row && row.canDownload
               ? "Download"
               : (
-                row && row.outgoingPausedOffline
-                  ? "Paused"
-                  : (row && row.outgoingRetrying ? "Retrying" : "Waiting")
+                backendInbound
+                  ? (serverComplete ? "Received" : "Receiving")
+                  : (
+                    row && row.outgoingPausedOffline
+                      ? "Paused"
+                      : (row && row.outgoingRetrying ? "Retrying" : "Waiting")
+                  )
               );
             const actionDisabled = row && row.canDownload ? "" : " disabled";
             const actionTitle = row && row.canDownload
               ? `Download ${{row.downloadName || row.fileName || "file"}}`
               : (
-                row && row.outgoingPausedOffline
-                  ? "Transfer is auto-paused while peer appears offline."
-                  : (row && row.outgoingWaitingForAccept ? "Waiting for receiver accept" : "Waiting for all chunks")
+                backendInbound
+                  ? (
+                    serverComplete
+                      ? "Backend receiver has the complete transfer; this browser does not have download bytes."
+                      : "Backend receiver is tracking this transfer."
+                  )
+                  : (
+                    row && row.outgoingPausedOffline
+                      ? "Transfer is auto-paused while peer appears offline."
+                      : (row && row.outgoingWaitingForAccept ? "Waiting for receiver accept" : "Waiting for all chunks")
+                  )
               );
             actionSort = row && row.canDownload ? 3 : 0;
             actionHtml = `<button

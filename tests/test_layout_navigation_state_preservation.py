@@ -193,3 +193,27 @@ def test_dashboard_js_syncs_files_destination_from_node_selection() -> None:
     assert 'if (activeLayoutView === "files" && typeof syncFileTransferDestinationFromSelectedNode === "function") {' in select_block
     assert "syncFileTransferDestinationFromSelectedNode(latestState, { persist: true });" in select_block
     assert "const selectedSeed = syncFileTransferDestinationFromSelectedNode(state, { persist: true });" in render_block
+
+
+def test_dashboard_js_uses_backend_file_transfer_runtime_for_rows_and_ack_suppression() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+        file_transfer_auto_accept=True,
+    )
+
+    assert "function fileTransferBackendRuntime(state = latestState)" in js
+    assert "function fileTransferBackendAutoAcceptEnabled(state = latestState)" in js
+    assert "function fileTransferBackendSessions(state = latestState)" in js
+    assert "function mergeBackendFileTransferRuntimeRows(rows, state, context = null)" in js
+    assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(state);" in js
+    assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(latestState);" in js
+    assert "toggle.disabled = !fileTransferFeatureEnabled || backendAutoAcceptEnabled;" in js
+    assert "Backend auto accept is enabled for direct inbound file transfers." in js
+    assert "if (backendAutoAcceptEnabled) {" in js
+    assert "source: \"backend_auto_accept\"" in js
+    assert "backendAuthoritative: true" in js
+    assert "Complete on receiver" in js
+    assert "Backend receiver has the complete transfer; this browser does not have download bytes." in js

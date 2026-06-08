@@ -7,6 +7,7 @@
       if (!isCanonicalNodeId(localNodeId)) return;
       const nowMs = Date.now();
       const nowUnix = Math.trunc(nowMs / 1000);
+      const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(state);
       const maybeSendInboundFlowSignal = async (transfer, transferKey, senderId, actionRaw, force = false) => {{
         const action = String(actionRaw || "").trim().toLowerCase();
         if (action !== "pause" && action !== "resume" && action !== "cancel") return false;
@@ -239,6 +240,14 @@
         const priorFlowSignal = fileTransferFlowSignalSentByKey.get(transferKey) || null;
         if (priorFlowSignal && String(priorFlowSignal.action || "") === "pause") {{
           await maybeSendInboundFlowSignal(transfer, transferKey, senderId, "resume", true);
+        }}
+        if (backendAutoAcceptEnabled) {{
+          fileTransferAckSentState.delete(transferKey);
+          fileTransferAckObservedChunksByKey.delete(transferKey);
+          fileTransferAckProbeCursorByKey.delete(transferKey);
+          fileTransferAckProbeStateByKey.delete(transferKey);
+          fileTransferAckMissingChannelWarnByKey.delete(transferKey);
+          continue;
         }}
         const receivedIndexes = Array.from(transfer.chunks.keys())
           .map((idx) => Math.trunc(Number(idx)))

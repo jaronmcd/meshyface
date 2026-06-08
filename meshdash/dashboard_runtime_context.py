@@ -571,6 +571,14 @@ def build_dashboard_runtime_context(
             subscribe_fn(file_transfer_auto_accept_service.on_receive, "meshtastic.receive")
             try:
                 setattr(
+                    tracker,
+                    "get_file_transfer_runtime",
+                    file_transfer_auto_accept_service.get_runtime,
+                )
+            except Exception:
+                pass
+            try:
+                setattr(
                     loaders.state_fn,
                     "get_file_transfer_auto_accept_runtime_fn",
                     file_transfer_auto_accept_service.get_runtime,
