@@ -166,7 +166,12 @@
         const intensityMul = 1 + (((Number.isFinite(baseMul) ? baseMul : 1) - 1) * signalGain);
         const adjusted = clampUnitInterval(intensity * intensityMul);
         const points = buckets[idx] || buckets[0];
-        points.push([lat, lon, Math.max(intensityFloor, adjusted)]);
+        const heatPoint = [lat, lon, Math.max(intensityFloor, adjusted)];
+        const heatNodeId = normalizeNodeId(node && node.id);
+        if (heatNodeId) {{
+          heatPoint._meshHeatKey = `signal-node:${{heatNodeId}}`;
+        }}
+        points.push(heatPoint);
       }}
       return buckets;
     }}
@@ -200,7 +205,9 @@
       const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
       const intensity = intensityFloor + (eased * (1 - intensityFloor));
       // Saved/Node view uses a simple singular footprint for the selected node.
-      buckets[0].push([lat, lon, Math.max(intensityFloor, clampUnitInterval(intensity))]);
+      const heatPoint = [lat, lon, Math.max(intensityFloor, clampUnitInterval(intensity))];
+      heatPoint._meshHeatKey = `signal-saved:${{selectedId}}`;
+      buckets[0].push(heatPoint);
       return buckets;
     }}
 
@@ -238,4 +245,3 @@
         minOpacity: signalHeatDevKnobs.minOpacity,
       }};
     }}
-

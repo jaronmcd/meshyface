@@ -1458,18 +1458,34 @@
 
       let linkedLocation = null;
       try {{
-        const overlay = buildMapLinkLayerOverlay(nodes, edges, {{ mode: "both" }});
+        const overlay = buildMapLinkLayerOverlay(nodes, edges, {{
+          mode: "live",
+          minEstimateAnchors: mapLinkMinCityEstimateAnchors,
+          minEstimateConfidence: mapLinkMinCityEstimateConfidence,
+        }});
         const estimates = overlay && overlay.estimates instanceof Map ? overlay.estimates : null;
         const estimate = estimates ? estimates.get(nodeId) : null;
         const lat = Number(estimate && estimate.lat);
         const lon = Number(estimate && estimate.lon);
-        if (selfNodeCityCoordinateIsValid(lat, lon)) {{
+        const confidence = Number(estimate && estimate.confidence);
+        const anchorCount = Math.max(0, Math.trunc(Number(estimate && estimate.anchorCount) || 0));
+        const fitScore = Number(estimate && estimate.fitScore);
+        if (
+          selfNodeCityCoordinateIsValid(lat, lon)
+          && anchorCount >= mapLinkMinCityEstimateAnchors
+          && Number.isFinite(confidence)
+          && confidence >= mapLinkMinCityEstimateConfidence
+          && Number.isFinite(fitScore)
+          && fitScore >= mapLinkMinCityEstimateFit
+        ) {{
           // Legacy guard for compatibility tests: source: "linked",
           linkedLocation = {{
             lat,
             lon,
             source: "estimated",
-            confidence: Number(estimate && estimate.confidence),
+            confidence,
+            anchorCount,
+            fitScore,
           }};
         }}
       }} catch (_err) {{
@@ -1489,7 +1505,10 @@
       if (typeof resolveNodeCityLocationMeta === "function") {{
         const locationMeta = resolveNodeCityLocationMeta(cleanNodeId, safeState, node, {{
           allowEstimate: true,
-          estimateMode: "both",
+          estimateMode: "live",
+          minEstimateAnchors: mapLinkMinCityEstimateAnchors,
+          minEstimateConfidence: mapLinkMinCityEstimateConfidence,
+          minEstimateFit: mapLinkMinCityEstimateFit,
           extraSources: canUseLocalState ? [safeState.local_state, safeState.localState] : [],
         }});
         if (locationMeta && typeof locationMeta === "object" && locationMeta.location) {{
@@ -1567,7 +1586,7 @@
       selfMetric.classList.toggle("has-self-node-city", hasAnyCityLine);
       if (!cleanLabel) return;
 
-      const sourceLabel = location && location.source === "estimated" ? "linked map estimate" : "GPS position";
+      const sourceLabel = location && location.source === "estimated" ? "live link-inferred location" : "GPS position";
       const cityTitle = `Nearest city from ${{sourceLabel}}: ${{cleanLabel}}`;
       const metricBaseTitle = String(selfMetric.dataset.baseTitle || "").trim();
       selfMetric.title = metricBaseTitle ? `${{metricBaseTitle}} • ${{cityTitle}}` : cityTitle;

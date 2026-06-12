@@ -310,18 +310,35 @@
       return linkEstimateHeatmapLayer;
     }}
 
-    function clearLinkEstimateHeatmapLayer() {{
+    function clearLinkEstimateHeatmapLayer(options = null) {{
       if (!linkEstimateHeatmapLayer) return;
-      if (linkEstimateHeatmapLayer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
-        try {{
-          L.Util.cancelAnimFrame(linkEstimateHeatmapLayer._frame);
-        }} catch (_err) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const layer = linkEstimateHeatmapLayer;
+      const removeNow = () => {{
+        cancelMapHeatLayerDrift(layer, true);
+        if (layer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
+          try {{
+            L.Util.cancelAnimFrame(layer._frame);
+          }} catch (_err) {{
+          }}
+          layer._frame = null;
         }}
-        linkEstimateHeatmapLayer._frame = null;
+        if (map.hasLayer(layer)) {{
+          map.removeLayer(layer);
+        }}
+      }};
+      const canFade = opts.fade !== false
+        && typeof fadeOutMapHeatLayer === "function"
+        && map.hasLayer(layer);
+      if (!canFade) {{
+        removeNow();
+        return;
       }}
-      if (map.hasLayer(linkEstimateHeatmapLayer)) {{
-        map.removeLayer(linkEstimateHeatmapLayer);
-      }}
+      fadeOutMapHeatLayer(layer, {{
+        keyPrefix: "estimate",
+        durationMs: mapHeatLayerFadeOutMs,
+        onComplete: removeNow,
+      }});
     }}
 
     function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false) {{
@@ -351,7 +368,10 @@
       if (typeof forceHeatLayerPointerPassthrough === "function") {{
         forceHeatLayerPointerPassthrough(layer);
       }}
-      layer.setLatLngs(heatPoints);
+      animateMapHeatLayerLatLngs(layer, heatPoints, {{
+        keyPrefix: "estimate",
+        durationMs: mapEstimatedOverlayDriftMs,
+      }});
     }}
 
     function bindMapLinkLegendControls(legend) {{
@@ -408,8 +428,8 @@
       const cloudsEnabled = !!mapEstimatedNodeCloudsEnabled;
       const hideLinkedDots = !!(linkDensity && linkDensity.hideEstimatedMarkers && cloudsEnabled);
       const linkedNodesLegendTitle = hideLinkedDots
-        ? "Show estimated node clouds (blue density overlay). Node dots are hidden while cluster-link view is active."
-        : "Show estimated node clouds (blue density overlay).";
+        ? "Show link-inferred node clouds (blue density overlay). Node dots are hidden while cluster-link view is active."
+        : "Show link-inferred node clouds (blue density overlay).";
       const cloudLinks = (linkDensity && Array.isArray(linkDensity.cloudLinks))
         ? linkDensity.cloudLinks
         : [];
@@ -455,9 +475,9 @@
       );
       const estimatedCloudHeatLegendHtml = showEstimatedCloudHeat
         ? `
-          <div class="map-link-legend-item is-info is-heatmap" style="--map-link-legend-color:#5fa4ff;" title="Blue heatmap: estimated node clouds and estimated link density from history or live evidence.">
+          <div class="map-link-legend-item is-info is-heatmap" style="--map-link-legend-color:#5fa4ff;" title="Blue heatmap: link-inferred node clusters and common path density from observed link evidence.">
             <span class="map-link-legend-swatch is-cloud-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Estimate heatmap</span>
+            <span class="map-link-legend-name">Inferred clusters</span>
             <span class="map-link-legend-count">${{estimatedCloudHeatCount}}</span>
           </div>
         `
@@ -474,9 +494,9 @@
             <span class="map-link-legend-count">${{actualCount}}</span>
           </div>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#68bde8;" title="${{linkedNodesLegendTitle}}">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated-clouds"${{cloudsEnabled ? " checked" : ""}} aria-label="Show estimated node clouds" />
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated-clouds"${{cloudsEnabled ? " checked" : ""}} aria-label="Show link-inferred node clouds" />
             <span class="map-link-legend-swatch is-node-linked" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Estimated nodes${{hideLinkedDots ? " (hidden)" : ""}}</span>
+            <span class="map-link-legend-name">Inferred nodes${{hideLinkedDots ? " (hidden)" : ""}}</span>
             <span class="map-link-legend-count">${{linkedCount}}</span>
           </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show confirmed packet lines between positioned nodes">
@@ -485,8 +505,8 @@
             <span class="map-link-legend-name">Real links</span>
             <span class="map-link-legend-count">${{packetCount}}</span>
           </label>
-          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#5fa4ff;" title="Show the most-used estimated paths built from history and live evidence.">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated"${{estimatedLinksEnabled ? " checked" : ""}} aria-label="Show estimated links" />
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#5fa4ff;" title="Show the most-used link-inferred paths built from observed evidence.">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated"${{estimatedLinksEnabled ? " checked" : ""}} aria-label="Show common link-inferred paths" />
             <span class="map-link-legend-swatch is-link-heat" aria-hidden="true"></span>
             <span class="map-link-legend-name">Common paths</span>
             <span class="map-link-legend-count">${{estimatedCount}}</span>
@@ -523,6 +543,9 @@
         nodeLayer.clearLayers();
         edgeLayer.clearLayers();
         trailLayer.clearLayers();
+        for (const line of linkEstimateLines.values()) {{
+          cancelMapPolylineDrift(line);
+        }}
         linkEstimateLayer.clearLayers();
         clearLinkEstimateHeatmapLayer();
         renderMapLinkLegend();
@@ -840,6 +863,8 @@
           );
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.anchorCount) || 0) : 0);
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.supportLinks) || 0) : 0);
+          markerHash = hashMixInt(markerHash, isEstimated ? (Math.round(Number(estimate && estimate.fitScore) * 1000) || 0) : 1000);
+          markerHash = hashMixInt(markerHash, isEstimated ? (Math.round(Number(estimate && estimate.residualKm) * 10) || 0) : 0);
           const existingMarker = nodeMarkers.get(normalizedId);
           const prevMarkerHash = nodeMarkerMeta.get(normalizedId);
           seenNodeIds.add(normalizedId);
@@ -871,13 +896,15 @@
               state: latestState,
               isEstimated: true,
               positionBadge: {{
-                label: "Estimated",
+                label: "Inferred",
                 className: "history",
-                title: "Position is inferred from nearby links rather than a direct GPS fix.",
+                title: "Position is inferred from link topology rather than a direct GPS fix.",
               }},
               confidenceLabel,
               confidencePct: confidenceValue * 100,
               qualityPct,
+              fitPct: clampMapLinkValue(Number(estimate && estimate.fitScore), 0, 1) * 100,
+              residualKm: estimate && estimate.residualKm != null ? estimate.residualKm : null,
               anchorCount: estimate && estimate.anchorCount ? estimate.anchorCount : 0,
               supportLinks: estimate && estimate.supportLinks ? estimate.supportLinks : 0,
               avgHops: estimate && estimate.avgHops != null ? estimate.avgHops : null,
@@ -1111,55 +1138,59 @@
                 : 0
             );
 
+            const linePath = [
+              [Number(estimateLine.fromLat), Number(estimateLine.fromLon)],
+              [Number(estimateLine.toLat), Number(estimateLine.toLon)],
+            ];
+            const lineStyle = {{
+              color: isCloudLink
+                ? (lineMode === "live" ? "#8fd3ff" : "#4f9bff")
+                : (
+                  lineMode === "live"
+                    ? (estimatedEndpoints >= 2 ? "#9cd8ff" : "#7cc7ff")
+                    : (estimatedEndpoints >= 2 ? "#2f6f8c" : "#3384a6")
+                ),
+              dashArray: isCloudLink
+                ? (lineMode === "live" ? null : "6 7")
+                : (
+                  lineMode === "live"
+                    ? (estimatedEndpoints >= 2 ? "2 5" : "5 5")
+                    : (estimatedEndpoints >= 2 ? "4 7" : "8 6")
+                ),
+              opacity: isCloudLink
+                ? (0.14 + (qualityScore * 0.13) + (trafficPct * 0.34))
+                : (
+                  lineMode === "live"
+                    ? (0.12 + (qualityScore * 0.1) + (trafficPct * 0.34))
+                    : (0.1 + (qualityScore * 0.08) + (trafficPct * 0.3))
+                ),
+              weight: isCloudLink
+                ? (0.9 + (qualityScore * 0.9) + (trafficPct * 2.6))
+                : (
+                  lineMode === "live"
+                    ? (0.8 + (qualityScore * 0.6) + (trafficPct * 2.8))
+                    : (0.75 + (qualityScore * 0.45) + (trafficPct * 2.3))
+                ),
+              lineCap: "round",
+              lineJoin: "round",
+              bubblingMouseEvents: false,
+            }};
             const existingLine = linkEstimateLines.get(lineKey);
             const prevLineHash = linkEstimateLineMeta.get(lineKey);
             if (existingLine && prevLineHash === lineHash) {{
               continue;
             }}
-            if (existingLine) {{
-              linkEstimateLayer.removeLayer(existingLine);
-              linkEstimateLines.delete(lineKey);
-            }}
-
-            const line = L.polyline(
-              [
-                [Number(estimateLine.fromLat), Number(estimateLine.fromLon)],
-                [Number(estimateLine.toLat), Number(estimateLine.toLon)],
-              ],
-              {{
-                color: isCloudLink
-                  ? (lineMode === "live" ? "#8fd3ff" : "#4f9bff")
-                  : (
-                    lineMode === "live"
-                      ? (estimatedEndpoints >= 2 ? "#9cd8ff" : "#7cc7ff")
-                      : (estimatedEndpoints >= 2 ? "#2f6f8c" : "#3384a6")
-                  ),
-                dashArray: isCloudLink
-                  ? (lineMode === "live" ? null : "6 7")
-                  : (
-                    lineMode === "live"
-                      ? (estimatedEndpoints >= 2 ? "2 5" : "5 5")
-                      : (estimatedEndpoints >= 2 ? "4 7" : "8 6")
-                  ),
-                opacity: isCloudLink
-                  ? (0.14 + (qualityScore * 0.13) + (trafficPct * 0.34))
-                  : (
-                    lineMode === "live"
-                      ? (0.12 + (qualityScore * 0.1) + (trafficPct * 0.34))
-                      : (0.1 + (qualityScore * 0.08) + (trafficPct * 0.3))
-                  ),
-                weight: isCloudLink
-                  ? (0.9 + (qualityScore * 0.9) + (trafficPct * 2.6))
-                  : (
-                    lineMode === "live"
-                      ? (0.8 + (qualityScore * 0.6) + (trafficPct * 2.8))
-                      : (0.75 + (qualityScore * 0.45) + (trafficPct * 2.3))
-                  ),
-                lineCap: "round",
-                lineJoin: "round",
-                bubblingMouseEvents: false,
+            let line = existingLine || null;
+            if (line) {{
+              if (typeof line.setStyle === "function") {{
+                line.setStyle(lineStyle);
               }}
-            );
+              animateMapPolylineLatLngs(line, linePath, {{
+                durationMs: mapEstimatedOverlayDriftMs,
+              }});
+            }} else {{
+              line = L.polyline(linePath, lineStyle);
+            }}
             if (isCloudLink) {{
               const cloudId = String(estimateLine && estimateLine.cloudId || "n/a");
               const cloudNodeCount = Math.max(0, Math.trunc(Number(estimateLine && estimateLine.clusterNodeCount) || 0));
@@ -1179,7 +1210,7 @@
                 Traffic: ${{trafficLabel}} weighted packet${{trafficLabel === 1 ? "" : "s"}}<br/>
                 Samples: ${{sampleCount}}<br/>
                 Quality: ${{Math.round(qualityScore * 100)}}%<br/>
-                Cloud->node span: ${{estimateLine.desiredDistanceKm}} km<br/>
+                Cloud-node span: ${{estimateLine.desiredDistanceKm}} km<br/>
                 Avg hops: ${{estimateLine.avgHops == null ? "n/a" : estimateLine.avgHops}}<br/>
                 Avg SNR: ${{estimateLine.avgSnr == null ? "n/a" : estimateLine.avgSnr}}<br/>
                 Avg RSSI: ${{estimateLine.avgRssi == null ? "n/a" : estimateLine.avgRssi}}<br/>
@@ -1191,34 +1222,38 @@
                 ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
                 Traffic: ${{trafficLabel}} weighted packet${{trafficLabel === 1 ? "" : "s"}}<br/>
                 Quality: ${{Math.round(qualityScore * 100)}}%<br/>
-                Target span: ${{estimateLine.desiredDistanceKm}} km
+                Heuristic span: ${{estimateLine.desiredDistanceKm}} km
               `, {{ sticky: true, opacity: 0.9 }});
               line.bindPopup(`
                 <b>Link layer (${{lineMode === "live" ? "live" : "history"}})</b><br/>
                 Nodes: ${{estimateLine.fromId}} <-> ${{estimateLine.toId}}<br/>
                 Traffic: ${{trafficLabel}} weighted packet${{trafficLabel === 1 ? "" : "s"}}<br/>
-                Estimated endpoints: ${{estimatedEndpoints}}<br/>
+                Inferred endpoints: ${{estimatedEndpoints}}<br/>
                 Quality: ${{Math.round(qualityScore * 100)}}%<br/>
-                Target span: ${{estimateLine.desiredDistanceKm}} km<br/>
+                Heuristic span: ${{estimateLine.desiredDistanceKm}} km<br/>
                 Avg hops: ${{estimateLine.avgHops == null ? "n/a" : estimateLine.avgHops}}<br/>
                 Avg SNR: ${{estimateLine.avgSnr == null ? "n/a" : estimateLine.avgSnr}}<br/>
                 Avg RSSI: ${{estimateLine.avgRssi == null ? "n/a" : estimateLine.avgRssi}}<br/>
                 Age: ${{ageLabel}}
               `);
             }}
-            line.addTo(linkEstimateLayer);
+            if (!existingLine) {{
+              line.addTo(linkEstimateLayer);
+            }}
             linkEstimateLines.set(lineKey, line);
             linkEstimateLineMeta.set(lineKey, lineHash);
           }}
 
           for (const [lineKey, line] of Array.from(linkEstimateLines.entries())) {{
             if (seenEstimateKeys.has(lineKey)) continue;
+            cancelMapPolylineDrift(line);
             linkEstimateLayer.removeLayer(line);
             linkEstimateLines.delete(lineKey);
             linkEstimateLineMeta.delete(lineKey);
           }}
         }} else {{
           for (const [lineKey, line] of Array.from(linkEstimateLines.entries())) {{
+            cancelMapPolylineDrift(line);
             linkEstimateLayer.removeLayer(line);
             linkEstimateLines.delete(lineKey);
             linkEstimateLineMeta.delete(lineKey);

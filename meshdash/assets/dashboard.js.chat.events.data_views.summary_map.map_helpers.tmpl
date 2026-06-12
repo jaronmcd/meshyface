@@ -310,6 +310,498 @@
       return parsed;
     }}
 
+    function mapAnimationNowMs() {{
+      return (
+        window.performance
+        && typeof window.performance.now === "function"
+      )
+        ? window.performance.now()
+        : Date.now();
+    }}
+
+    function mapDriftEase(progress) {{
+      const t = clampMapLinkValue(progress, 0, 1);
+      return t * t * (3 - (2 * t));
+    }}
+
+    function normalizeMapLatLngPath(path) {{
+      if (!Array.isArray(path)) return [];
+      const points = [];
+      for (const rawPoint of path) {{
+        const lat = Number(Array.isArray(rawPoint) ? rawPoint[0] : (rawPoint && rawPoint.lat));
+        const lon = Number(
+          Array.isArray(rawPoint)
+            ? rawPoint[1]
+            : (rawPoint && (rawPoint.lng ?? rawPoint.lon))
+        );
+        if (!isValidMapCoord(lat, lon)) continue;
+        points.push([lat, lon]);
+      }}
+      return points;
+    }}
+
+    function mapLatLngPathsSameEnough(a, b) {{
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {{
+        const aPoint = a[i] || [];
+        const bPoint = b[i] || [];
+        if (Math.abs((Number(aPoint[0]) || 0) - (Number(bPoint[0]) || 0)) > 0.0000005) return false;
+        if (Math.abs((Number(aPoint[1]) || 0) - (Number(bPoint[1]) || 0)) > 0.0000005) return false;
+      }}
+      return true;
+    }}
+
+    function mapLatLngPointDistanceMeters(a, b) {{
+      const aPoint = a || [];
+      const bPoint = b || [];
+      const fromPosition = {{
+        lat: Number(Array.isArray(aPoint) ? aPoint[0] : aPoint.lat),
+        lon: Number(Array.isArray(aPoint) ? aPoint[1] : (aPoint.lng ?? aPoint.lon)),
+      }};
+      const toPosition = {{
+        lat: Number(Array.isArray(bPoint) ? bPoint[0] : bPoint.lat),
+        lon: Number(Array.isArray(bPoint) ? bPoint[1] : (bPoint.lng ?? bPoint.lon)),
+      }};
+      return mapEstimatedPositionDistanceMeters(fromPosition, toPosition);
+    }}
+
+    function mapLatLngPathMaxDistanceMeters(a, b) {{
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {{
+        return Number.POSITIVE_INFINITY;
+      }}
+      let maxMeters = 0;
+      for (let i = 0; i < a.length; i += 1) {{
+        const meters = mapLatLngPointDistanceMeters(a[i], b[i]);
+        if (!Number.isFinite(meters)) return Number.POSITIVE_INFINITY;
+        maxMeters = Math.max(maxMeters, meters);
+      }}
+      return maxMeters;
+    }}
+
+    function cancelMapPolylineDrift(layer) {{
+      if (!(layer && typeof layer === "object")) return;
+      const state = layer._meshPolylineDriftAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      layer._meshPolylineDriftAnimation = null;
+    }}
+
+    function animateMapPolylineLatLngs(layer, targetPathRaw, options = null) {{
+      if (!(layer && typeof layer.setLatLngs === "function")) return false;
+      const targetPath = normalizeMapLatLngPath(targetPathRaw);
+      if (targetPath.length <= 0) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      const currentPath = normalizeMapLatLngPath(
+        typeof layer.getLatLngs === "function" ? layer.getLatLngs() : []
+      );
+      if (
+        reduceMotion
+        || durationMs <= 0
+        || currentPath.length !== targetPath.length
+        || currentPath.length <= 0
+      ) {{
+        cancelMapPolylineDrift(layer);
+        layer.setLatLngs(targetPath);
+        return true;
+      }}
+      if (mapLatLngPathsSameEnough(currentPath, targetPath)) {{
+        cancelMapPolylineDrift(layer);
+        layer.setLatLngs(targetPath);
+        return true;
+      }}
+      const maxDriftMeters = Number.isFinite(Number(opts.maxDriftMeters))
+        ? Math.max(0, Number(opts.maxDriftMeters))
+        : mapEstimatedOverlayMaxDriftMeters;
+      const pathDriftMeters = mapLatLngPathMaxDistanceMeters(currentPath, targetPath);
+      if (!Number.isFinite(pathDriftMeters) || pathDriftMeters > maxDriftMeters) {{
+        cancelMapPolylineDrift(layer);
+        layer.setLatLngs(targetPath);
+        const targetOpacity = clampMapLinkValue(Number(layer.options && layer.options.opacity), 0, 1);
+        const fadeDurationMs = Math.max(
+          0,
+          Number(opts.longJumpFadeMs) || mapEstimatedOverlayLongJumpFadeMs
+        );
+        if (
+          reduceMotion
+          || fadeDurationMs <= 0
+          || targetOpacity <= 0
+          || typeof window.requestAnimationFrame !== "function"
+          || typeof layer.setStyle !== "function"
+        ) {{
+          if (typeof layer.setStyle === "function") {{
+            layer.setStyle({{ opacity: targetOpacity }});
+          }}
+          return true;
+        }}
+        const startedAtMs = mapAnimationNowMs();
+        const state = {{
+          raf: null,
+          startedAtMs,
+          durationMs: fadeDurationMs,
+          targetOpacity,
+        }};
+        const step = (timestampMs) => {{
+          const layerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+          if (!layerStillVisible) {{
+            cancelMapPolylineDrift(layer);
+            return;
+          }}
+          const elapsedMs = Math.max(0, Number(timestampMs) - state.startedAtMs);
+          const eased = mapDriftEase(elapsedMs / state.durationMs);
+          layer.setStyle({{ opacity: state.targetOpacity * eased }});
+          if (eased < 1) {{
+            state.raf = window.requestAnimationFrame(step);
+            return;
+          }}
+          layer.setStyle({{ opacity: state.targetOpacity }});
+          layer._meshPolylineDriftAnimation = null;
+        }};
+        layer.setStyle({{ opacity: 0 }});
+        layer._meshPolylineDriftAnimation = state;
+        state.raf = window.requestAnimationFrame(step);
+        return true;
+      }}
+
+      cancelMapPolylineDrift(layer);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        durationMs,
+        fromPath: currentPath,
+        toPath: targetPath,
+      }};
+      const step = (timestampMs) => {{
+        const layerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+        if (!layerStillVisible) {{
+          cancelMapPolylineDrift(layer);
+          return;
+        }}
+        const elapsedMs = Math.max(0, Number(timestampMs) - state.startedAtMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        const framePath = [];
+        for (let i = 0; i < state.toPath.length; i += 1) {{
+          const fromPoint = state.fromPath[i] || state.toPath[i];
+          const toPoint = state.toPath[i] || fromPoint;
+          framePath.push([
+            Number(fromPoint[0]) + ((Number(toPoint[0]) - Number(fromPoint[0])) * eased),
+            Number(fromPoint[1]) + ((Number(toPoint[1]) - Number(fromPoint[1])) * eased),
+          ]);
+        }}
+        layer.setLatLngs(framePath);
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        layer.setLatLngs(state.toPath);
+        layer._meshPolylineDriftAnimation = null;
+      }};
+      layer._meshPolylineDriftAnimation = state;
+      if (typeof window.requestAnimationFrame !== "function") {{
+        layer.setLatLngs(targetPath);
+        layer._meshPolylineDriftAnimation = null;
+        return true;
+      }}
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
+    function mapHeatPointExplicitKey(point) {{
+      if (!(point && typeof point === "object")) return "";
+      return String(point._meshHeatKey || point.meshHeatKey || point.key || "").trim();
+    }}
+
+    function normalizeMapHeatPoints(points, options = null) {{
+      if (!Array.isArray(points)) return [];
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const keyPrefix = String(opts.keyPrefix || "heat").trim() || "heat";
+      const keyCounts = new Map();
+      const normalized = [];
+      for (const rawPoint of points) {{
+        const lat = Number(Array.isArray(rawPoint) ? rawPoint[0] : (rawPoint && rawPoint.lat));
+        const lon = Number(
+          Array.isArray(rawPoint)
+            ? rawPoint[1]
+            : (rawPoint && (rawPoint.lng ?? rawPoint.lon))
+        );
+        const intensity = Number(
+          Array.isArray(rawPoint)
+            ? rawPoint[2]
+            : (rawPoint && (rawPoint.alt ?? rawPoint.intensity ?? rawPoint.value))
+        );
+        if (!isValidMapCoord(lat, lon)) continue;
+        const safeIntensity = clampMapLinkValue(Number.isFinite(intensity) ? intensity : 1, 0, 1);
+        const explicitKey = mapHeatPointExplicitKey(rawPoint);
+        const baseKey = explicitKey || `${{keyPrefix}}:${{Math.round(lat * 100000)}}:${{Math.round(lon * 100000)}}`;
+        const keyIndex = keyCounts.get(baseKey) || 0;
+        keyCounts.set(baseKey, keyIndex + 1);
+        normalized.push({{
+          lat,
+          lon,
+          intensity: safeIntensity,
+          key: keyIndex > 0 ? `${{baseKey}}#${{keyIndex}}` : baseKey,
+        }});
+      }}
+      return normalized;
+    }}
+
+    function mapHeatPointToLatLngArray(point) {{
+      const arr = [
+        Number(point && point.lat) || 0,
+        Number(point && point.lon) || 0,
+        clampMapLinkValue(Number(point && point.intensity), 0, 1),
+      ];
+      const key = String(point && point.key || "").trim();
+      if (key) {{
+        arr._meshHeatKey = key;
+      }}
+      return arr;
+    }}
+
+    function mapHeatPointsToLatLngArrays(points) {{
+      return (Array.isArray(points) ? points : []).map(mapHeatPointToLatLngArray);
+    }}
+
+    function mapHeatPointsSameEnough(a, b) {{
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {{
+        const aPoint = a[i] || {{}};
+        const bPoint = b[i] || {{}};
+        if (String(aPoint.key || "") !== String(bPoint.key || "")) return false;
+        if (Math.abs((Number(aPoint.lat) || 0) - (Number(bPoint.lat) || 0)) > 0.0000005) return false;
+        if (Math.abs((Number(aPoint.lon) || 0) - (Number(bPoint.lon) || 0)) > 0.0000005) return false;
+        if (Math.abs((Number(aPoint.intensity) || 0) - (Number(bPoint.intensity) || 0)) > 0.001) return false;
+      }}
+      return true;
+    }}
+
+    function mapHeatPointDistanceMeters(a, b) {{
+      const fromPoint = a || {{}};
+      const toPoint = b || {{}};
+      return mapEstimatedPositionDistanceMeters(
+        {{ lat: Number(fromPoint.lat), lon: Number(fromPoint.lon) }},
+        {{ lat: Number(toPoint.lat), lon: Number(toPoint.lon) }}
+      );
+    }}
+
+    function cancelMapHeatLayerDrift(layer, clearPoints = false) {{
+      if (!(layer && typeof layer === "object")) return;
+      const state = layer._meshHeatDriftAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      layer._meshHeatDriftAnimation = null;
+      if (clearPoints) {{
+        layer._meshHeatCurrentPoints = [];
+        if (typeof layer.setLatLngs === "function") {{
+          layer.setLatLngs([]);
+        }}
+      }}
+    }}
+
+    function animateMapHeatLayerLatLngs(layer, targetPointsRaw, options = null) {{
+      if (!(layer && typeof layer.setLatLngs === "function")) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const keyPrefix = String(opts.keyPrefix || "heat").trim() || "heat";
+      const onComplete = typeof opts.onComplete === "function" ? opts.onComplete : null;
+      const targetPoints = normalizeMapHeatPoints(targetPointsRaw, {{ keyPrefix }});
+      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      if (reduceMotion || durationMs <= 0 || typeof window.requestAnimationFrame !== "function") {{
+        cancelMapHeatLayerDrift(layer);
+        layer._meshHeatCurrentPoints = targetPoints;
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        if (onComplete) {{
+          onComplete(layer);
+        }}
+        return true;
+      }}
+
+      const currentSource = Array.isArray(layer._meshHeatCurrentPoints)
+        ? layer._meshHeatCurrentPoints
+        : (Array.isArray(layer._latlngs) ? layer._latlngs : []);
+      const currentPoints = normalizeMapHeatPoints(currentSource, {{ keyPrefix }});
+      if (mapHeatPointsSameEnough(currentPoints, targetPoints)) {{
+        cancelMapHeatLayerDrift(layer);
+        layer._meshHeatCurrentPoints = targetPoints;
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        if (onComplete) {{
+          onComplete(layer);
+        }}
+        return true;
+      }}
+
+      const currentByKey = new Map();
+      for (const point of currentPoints) {{
+        if (!currentByKey.has(point.key)) {{
+          currentByKey.set(point.key, point);
+        }}
+      }}
+      const maxDriftMeters = Number.isFinite(Number(opts.maxDriftMeters))
+        ? Math.max(0, Number(opts.maxDriftMeters))
+        : mapEstimatedOverlayMaxDriftMeters;
+      const matchedKeys = new Set();
+      const transitions = [];
+      for (const targetPoint of targetPoints) {{
+        const matchedPoint = currentByKey.get(targetPoint.key) || null;
+        const startPoint = matchedPoint || {{
+          lat: targetPoint.lat,
+          lon: targetPoint.lon,
+          intensity: 0,
+          key: targetPoint.key,
+        }};
+        matchedKeys.add(targetPoint.key);
+        const driftMeters = matchedPoint ? mapHeatPointDistanceMeters(matchedPoint, targetPoint) : 0;
+        if (matchedPoint && (!Number.isFinite(driftMeters) || driftMeters > maxDriftMeters)) {{
+          transitions.push({{
+            key: `${{targetPoint.key}}:out`,
+            from: matchedPoint,
+            to: {{
+              lat: matchedPoint.lat,
+              lon: matchedPoint.lon,
+              intensity: 0,
+              key: `${{targetPoint.key}}:out`,
+            }},
+          }});
+          transitions.push({{
+            key: `${{targetPoint.key}}:in`,
+            from: {{
+              lat: targetPoint.lat,
+              lon: targetPoint.lon,
+              intensity: 0,
+              key: `${{targetPoint.key}}:in`,
+            }},
+            to: targetPoint,
+          }});
+          continue;
+        }}
+        transitions.push({{
+          key: targetPoint.key,
+          from: startPoint,
+          to: targetPoint,
+        }});
+      }}
+      for (const currentPoint of currentPoints) {{
+        if (matchedKeys.has(currentPoint.key)) continue;
+        if (!(Number(currentPoint.intensity) > mapHeatLayerDriftMinIntensity)) continue;
+        transitions.push({{
+          key: currentPoint.key,
+          from: currentPoint,
+          to: {{
+            lat: currentPoint.lat,
+            lon: currentPoint.lon,
+            intensity: 0,
+            key: currentPoint.key,
+          }},
+        }});
+      }}
+      if (!transitions.length) {{
+        cancelMapHeatLayerDrift(layer);
+        layer._meshHeatCurrentPoints = targetPoints;
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        if (onComplete) {{
+          onComplete(layer);
+        }}
+        return true;
+      }}
+
+      cancelMapHeatLayerDrift(layer);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        durationMs,
+        transitions,
+        onComplete,
+        fadeOut: !!opts.fadeOut,
+      }};
+      const step = (timestampMs) => {{
+        const layerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+        if (!layerStillVisible) {{
+          cancelMapHeatLayerDrift(layer);
+          return;
+        }}
+        const elapsedMs = Math.max(0, Number(timestampMs) - state.startedAtMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        const framePoints = [];
+        for (const transition of state.transitions) {{
+          const fromPoint = transition.from || {{}};
+          const toPoint = transition.to || fromPoint;
+          const intensity = Number(fromPoint.intensity) + ((Number(toPoint.intensity) - Number(fromPoint.intensity)) * eased);
+          if (!(intensity > mapHeatLayerDriftMinIntensity)) continue;
+          framePoints.push({{
+            key: transition.key,
+            lat: Number(fromPoint.lat) + ((Number(toPoint.lat) - Number(fromPoint.lat)) * eased),
+            lon: Number(fromPoint.lon) + ((Number(toPoint.lon) - Number(fromPoint.lon)) * eased),
+            intensity: clampMapLinkValue(intensity, 0, 1),
+          }});
+        }}
+        layer._meshHeatCurrentPoints = framePoints;
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(framePoints));
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        layer._meshHeatCurrentPoints = targetPoints;
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        layer._meshHeatDriftAnimation = null;
+        if (state.onComplete) {{
+          state.onComplete(layer);
+        }}
+      }};
+      layer._meshHeatDriftAnimation = state;
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
+    function fadeOutMapHeatLayer(layer, options = null) {{
+      if (!(layer && typeof layer.setLatLngs === "function")) return false;
+      const state = layer._meshHeatDriftAnimation;
+      if (state && state.fadeOut) return true;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const keyPrefix = String(opts.keyPrefix || "heat").trim() || "heat";
+      const currentSource = Array.isArray(layer._meshHeatCurrentPoints)
+        ? layer._meshHeatCurrentPoints
+        : (Array.isArray(layer._latlngs) ? layer._latlngs : []);
+      const currentPoints = normalizeMapHeatPoints(currentSource, {{ keyPrefix }});
+      const onComplete = typeof opts.onComplete === "function" ? opts.onComplete : null;
+      const layerVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+      const hasDrawablePoints = currentPoints.some((point) => (
+        Number(point && point.intensity) > mapHeatLayerDriftMinIntensity
+      ));
+      if (!layerVisible || !hasDrawablePoints) {{
+        cancelMapHeatLayerDrift(layer, true);
+        if (onComplete) {{
+          onComplete(layer);
+        }}
+        return true;
+      }}
+      layer._meshHeatCurrentPoints = currentPoints;
+      return animateMapHeatLayerLatLngs(layer, [], {{
+        keyPrefix,
+        durationMs: Math.max(0, Number(opts.durationMs) || mapHeatLayerFadeOutMs),
+        fadeOut: true,
+        onComplete,
+      }});
+    }}
+
     function estimatedMarkerStyle(isSelected, confidence = 0.5, isLocal = false) {{
       const safeConfidence = clampMapLinkValue(confidence, 0.12, 0.96);
       if (isLocal) {{
@@ -1775,6 +2267,12 @@
       const qualityPct = Number.isFinite(Number(opts.qualityPct))
         ? Math.round(Number(opts.qualityPct))
         : null;
+      const fitPct = Number.isFinite(Number(opts.fitPct))
+        ? Math.round(Number(opts.fitPct))
+        : null;
+      const residualKm = Number.isFinite(Number(opts.residualKm))
+        ? Math.max(0, Math.round(Number(opts.residualKm) * 10) / 10)
+        : null;
       const anchorCount = Number.isFinite(Number(opts.anchorCount))
         ? Math.max(0, Math.trunc(Number(opts.anchorCount)))
         : null;
@@ -1816,15 +2314,17 @@
       if (trailLatest) rows.push(mapNodeFieldHtml("Trail Latest", trailLatest));
 
       if (isEstimated) {{
-        rows.push(mapNodeFieldHtml("Estimate", "Link-layer derived"));
+        rows.push(mapNodeFieldHtml("Location", "Link-inferred"));
         if (confidenceLabel || confidencePct != null) {{
           rows.push(mapNodeFieldHtml(
             "Confidence",
-            confidencePct != null ? `${{confidenceLabel || "Estimate"}} (${{confidencePct}}%)` : confidenceLabel
+            confidencePct != null ? `${{confidenceLabel || "Inferred"}} (${{confidencePct}}%)` : confidenceLabel
           ));
         }}
         if (anchorCount != null) rows.push(mapNodeFieldHtml("Anchors", anchorCount));
         if (supportLinks != null) rows.push(mapNodeFieldHtml("Support Links", supportLinks));
+        if (fitPct != null) rows.push(mapNodeFieldHtml("Topology Fit", `${{fitPct}}%`));
+        if (residualKm != null) rows.push(mapNodeFieldHtml("Avg Fit Error", `${{residualKm}} km`));
         if (qualityPct != null) rows.push(mapNodeFieldHtml("Link Quality", `${{qualityPct}}%`));
         if (avgHops != null && String(avgHops).trim()) rows.push(mapNodeFieldHtml("Avg Link Hops", avgHops));
         if (avgSnr != null && String(avgSnr).trim()) rows.push(mapNodeFieldHtml("Avg Link SNR", avgSnr));
@@ -2252,6 +2752,14 @@
       return clampMapLinkValue(1 - ((ageSeconds - (20 * 60)) / span), 0.14, 1);
     }}
 
+    function mapLinkEdgeHopMetric(edge) {{
+      const avgHops = Number(edge && edge.avgHops);
+      if (Number.isFinite(avgHops)) return avgHops;
+      const lastHops = Number(edge && edge.lastHops);
+      if (Number.isFinite(lastHops)) return lastHops;
+      return 1;
+    }}
+
     function mapLinkEdgeSignalScore(edge) {{
       const metrics = [];
       const avgSnr = Number(edge && edge.avgSnr);
@@ -2262,9 +2770,7 @@
       if (Number.isFinite(avgRssi)) {{
         metrics.push([clampMapLinkValue((avgRssi + 126) / 40, 0, 1), 0.28]);
       }}
-      const avgHops = Number(edge && edge.avgHops);
-      const lastHops = Number(edge && edge.lastHops);
-      const hopsMetric = Number.isFinite(avgHops) ? avgHops : lastHops;
+      const hopsMetric = mapLinkEdgeHopMetric(edge);
       if (Number.isFinite(hopsMetric)) {{
         metrics.push([1 - clampMapLinkValue((Math.max(0, hopsMetric) - 1) / 5, 0, 1), 0.18]);
       }}
@@ -2286,13 +2792,86 @@
 
     function mapLinkDesiredDistanceMeters(edge) {{
       const quality = mapLinkEdgeSignalScore(edge);
-      const avgHops = Number(edge && edge.avgHops);
-      const lastHops = Number(edge && edge.lastHops);
-      const hopMetric = Number.isFinite(avgHops)
-        ? avgHops
-        : (Number.isFinite(lastHops) ? lastHops : 1);
+      const hopMetric = mapLinkEdgeHopMetric(edge);
       const hopPenaltyMeters = Math.max(0, hopMetric - 1) * 2800;
       return Math.round(900 + ((1 - quality) * 17000) + hopPenaltyMeters);
+    }}
+
+    function mapLinkEdgeLocationWeight(edge) {{
+      const signalScore = mapLinkEdgeSignalScore(edge);
+      const hopMetric = mapLinkEdgeHopMetric(edge);
+      const hopOverage = Number.isFinite(hopMetric) ? Math.max(0, hopMetric - 1) : 0;
+      const hopDamping = hopOverage <= 0
+        ? 1
+        : clampMapLinkValue(1 / (1 + (hopOverage * 1.45)), 0.14, 1);
+      const lifetimeWeight = Number(edge && edge.weight);
+      const sessionWeight = Number(edge && edge.sessionWeight);
+      const sampleWeight = Math.max(
+        1,
+        (Number.isFinite(lifetimeWeight) ? lifetimeWeight : 0)
+          + (Number.isFinite(sessionWeight) ? sessionWeight : 0)
+      );
+      const sampleDamping = clampMapLinkValue(Math.log10(sampleWeight + 1) / 2.2, 0.55, 1);
+      return clampMapLinkValue(signalScore * hopDamping * sampleDamping, 0.04, 0.98);
+    }}
+
+    function mapLinkEstimateResidualForNode(nodeId, positions, adjacency) {{
+      const nodePos = positions instanceof Map ? positions.get(nodeId) : null;
+      const peers = adjacency instanceof Map ? adjacency.get(nodeId) : null;
+      if (!nodePos || !(peers instanceof Map) || !peers.size) {{
+        return {{
+          fitScore: 0,
+          residualKm: null,
+          residualRatio: null,
+          sampleCount: 0,
+        }};
+      }}
+      let weightedRelativeError = 0;
+      let weightedMeters = 0;
+      let totalWeight = 0;
+      let sampleCount = 0;
+      for (const [peerId, edge] of peers.entries()) {{
+        const peerPos = positions.get(peerId);
+        if (!peerPos) continue;
+        const dx = Number(peerPos.x) - Number(nodePos.x);
+        const dy = Number(peerPos.y) - Number(nodePos.y);
+        const distance = Math.hypot(dx, dy);
+        const desired = Math.max(1, Number(mapLinkDesiredDistanceMeters(edge)) || 1);
+        if (!Number.isFinite(distance) || !Number.isFinite(desired)) continue;
+        const evidenceWeight = mapLinkEdgeLocationWeight(edge);
+        if (!(evidenceWeight > 0)) continue;
+        const metersError = Math.abs(distance - desired);
+        const relativeError = metersError / Math.max(1800, desired);
+        weightedRelativeError += Math.min(2.5, relativeError) * evidenceWeight;
+        weightedMeters += metersError * evidenceWeight;
+        totalWeight += evidenceWeight;
+        sampleCount += 1;
+      }}
+      if (!(totalWeight > 0)) {{
+        return {{
+          fitScore: 0,
+          residualKm: null,
+          residualRatio: null,
+          sampleCount,
+        }};
+      }}
+      const residualRatio = weightedRelativeError / totalWeight;
+      const residualMeters = weightedMeters / totalWeight;
+      return {{
+        fitScore: clampMapLinkValue(1 - (residualRatio / 1.15), 0, 1),
+        residualKm: Math.round((residualMeters / 1000) * 10) / 10,
+        residualRatio: Math.round(residualRatio * 1000) / 1000,
+        sampleCount,
+      }};
+    }}
+
+    function mapLinkConfidenceFromFit(baseConfidence, fitScore, anchorCount) {{
+      const base = clampMapLinkValue(Number(baseConfidence), 0.06, 0.92);
+      const fit = clampMapLinkValue(Number(fitScore), 0, 1);
+      const anchors = Math.max(0, Math.trunc(Number(anchorCount) || 0));
+      const anchorDamping = anchors >= 3 ? 1 : (anchors >= 2 ? 0.82 : 0.42);
+      const fitDamping = 0.28 + (fit * 0.72);
+      return clampMapLinkValue(base * anchorDamping * fitDamping, 0.06, 0.88);
     }}
 
     function mapLinkWeightedPercentile(entries, quantile = 0.5) {{
@@ -2607,11 +3186,23 @@
       const clouds = [];
       const cloudById = new Map();
       const cloudIdByNodeId = new Map();
-      let cloudSeq = 0;
       for (const members of membersByRoot.values()) {{
         if (!Array.isArray(members) || members.length <= 0) continue;
-        cloudSeq += 1;
-        const cloudId = `c${{cloudSeq}}`;
+        const cloudNodeIds = members
+          .map((member) => normalizeNodeId(member && member.nodeId))
+          .filter((nodeId) => isSelectableNodeId(nodeId));
+        if (!cloudNodeIds.length) continue;
+        let cloudHash = 2166136261;
+        for (const memberNodeId of cloudNodeIds.slice().sort()) {{
+          cloudHash = hashMixStr(cloudHash, memberNodeId);
+        }}
+        const cloudIdBase = `c${{(cloudHash >>> 0).toString(16)}}`;
+        let cloudId = cloudIdBase;
+        let duplicateIndex = 2;
+        while (cloudById.has(cloudId)) {{
+          cloudId = `${{cloudIdBase}}-${{duplicateIndex}}`;
+          duplicateIndex += 1;
+        }}
         let sumX = 0;
         let sumY = 0;
         let totalWeight = 0;
@@ -2643,7 +3234,7 @@
           id: cloudId,
           lat: centerLL.lat,
           lon: centerLL.lon,
-          nodeIds: members.map((member) => member.nodeId),
+          nodeIds: cloudNodeIds,
           nodeCount: members.length,
           avgConfidence: clampMapLinkValue(confidenceTotal / Math.max(1, members.length), 0, 1),
           radiusMeters: cloudRadiusMeters,
@@ -2669,7 +3260,9 @@
           0.06,
           1
         );
-        heatPoints.push([point.lat, point.lon, intensity]);
+        const heatPoint = [point.lat, point.lon, intensity];
+        heatPoint._meshHeatKey = `estimate-node:${{point.nodeId}}`;
+        heatPoints.push(heatPoint);
       }}
       for (const cloud of clouds) {{
         const cloudIntensity = clampMapLinkValue(
@@ -2677,7 +3270,9 @@
           0.22,
           0.92
         );
-        heatPoints.push([cloud.lat, cloud.lon, cloudIntensity]);
+        const heatPoint = [cloud.lat, cloud.lon, cloudIntensity];
+        heatPoint._meshHeatKey = `estimate-cloud:${{cloud.id}}`;
+        heatPoints.push(heatPoint);
       }}
 
       const cloudLinkAgg = new Map();
@@ -2835,6 +3430,17 @@
       const edgeMode = (typeof normalizeMapLinkLayerMode === "function")
         ? normalizeMapLinkLayerMode(opts.mode)
         : "both";
+      const minEstimateAnchors = Math.max(
+        1,
+        Math.trunc(Number(opts.minEstimateAnchors) || mapLinkMinEstimateAnchors)
+      );
+      const minEstimateConfidence = clampMapLinkValue(
+        Number.isFinite(Number(opts.minEstimateConfidence))
+          ? Number(opts.minEstimateConfidence)
+          : mapLinkMinEstimateConfidence,
+        0,
+        1
+      );
       const nodeMap = new Map();
       let anchorLatTotal = 0;
       let anchorLonTotal = 0;
@@ -2913,7 +3519,7 @@
             const peerPos = positions.get(peerId);
             const peerMeta = metaById.get(peerId) || null;
             if (!peerPos || !peerMeta) continue;
-            let weight = mapLinkEdgeSignalScore(edge);
+            let weight = mapLinkEdgeLocationWeight(edge);
             if (!peerPos.fixed) {{
               weight *= 0.58 * clampMapLinkValue(peerMeta.confidence, 0.12, 1);
             }}
@@ -2969,7 +3575,9 @@
           const dy = toPos.y - fromPos.y;
           const distance = Math.hypot(dx, dy) || 1;
           const desired = mapLinkDesiredDistanceMeters(edge);
-          const stiffness = 0.032 + (mapLinkEdgeSignalScore(edge) * 0.045);
+          const locationWeight = mapLinkEdgeLocationWeight(edge);
+          if (!(locationWeight > 0)) continue;
+          const stiffness = 0.018 + (locationWeight * 0.05);
           const delta = (distance - desired) * stiffness;
           const unitX = dx / distance;
           const unitY = dy / distance;
@@ -3027,9 +3635,21 @@
         if (!nodePos || !meta) continue;
         const ll = unprojectMapLinkPoint(nodePos.x, nodePos.y, refLat, refLon);
         if (!isValidMapCoord(ll.lat, ll.lon)) continue;
+        const estimateAnchorCount = meta.anchorIds.size;
+        if (estimateAnchorCount < minEstimateAnchors) continue;
+        const residual = mapLinkEstimateResidualForNode(nodeId, positions, adjacency);
+        const fitScore = clampMapLinkValue(Number(residual && residual.fitScore), 0, 1);
+        const adjustedConfidence = mapLinkConfidenceFromFit(
+          meta.confidence,
+          fitScore,
+          estimateAnchorCount
+        );
+        if (adjustedConfidence < minEstimateConfidence) continue;
 
         let qualitySum = 0;
         let qualityCount = 0;
+        let positionQualitySum = 0;
+        let positionQualityCount = 0;
         let snrWeight = 0;
         let snrSum = 0;
         let rssiWeight = 0;
@@ -3039,8 +3659,11 @@
         const peers = adjacency.get(nodeId) || new Map();
         for (const edge of peers.values()) {{
           const quality = mapLinkEdgeSignalScore(edge);
+          const locationQuality = mapLinkEdgeLocationWeight(edge);
           qualitySum += quality;
           qualityCount += 1;
+          positionQualitySum += locationQuality;
+          positionQualityCount += 1;
           if (Number.isFinite(Number(edge && edge.avgSnr))) {{
             snrSum += Number(edge.avgSnr) * quality;
             snrWeight += quality;
@@ -3058,10 +3681,15 @@
         estimates.set(nodeId, {{
           lat: ll.lat,
           lon: ll.lon,
-          confidence: meta.confidence,
-          anchorCount: meta.anchorIds.size,
+          confidence: adjustedConfidence,
+          rawConfidence: meta.confidence,
+          anchorCount: estimateAnchorCount,
           supportLinks: meta.supportLinks,
           avgLinkQuality: qualityCount > 0 ? (qualitySum / qualityCount) : 0,
+          avgPositionQuality: positionQualityCount > 0 ? (positionQualitySum / positionQualityCount) : 0,
+          fitScore,
+          residualKm: residual && residual.residualKm != null ? residual.residualKm : null,
+          residualRatio: residual && residual.residualRatio != null ? residual.residualRatio : null,
           avgSnr: snrWeight > 0 ? Math.round((snrSum / snrWeight) * 100) / 100 : null,
           avgRssi: rssiWeight > 0 ? Math.round((rssiSum / rssiWeight) * 100) / 100 : null,
           avgHops: hopsWeight > 0 ? Math.round((hopsSum / hopsWeight) * 100) / 100 : null,

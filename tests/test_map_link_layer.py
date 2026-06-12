@@ -88,7 +88,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'data-map-link-legend-toggle="estimated"' in js
     assert "Map layers" in js
     assert "Signal heatmap" in js
-    assert "Estimate heatmap" in js
+    assert "Inferred clusters" in js
     assert "const signalHeatLegendHtml = signalHeatPointCount > 0" in js
     assert "const estimatedCloudHeatLegendHtml = showEstimatedCloudHeat" in js
     assert "Common paths" in js
@@ -101,7 +101,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'const effectiveMapLinkMode = (typeof mapLinkLayerModeForCurrentView === "function")' in js
     assert '? (spreadEdgeMode === "live" ? "live" : "history")' not in js
     assert "lastMapSignature = \"\";" in js
-    assert "Estimated nodes" in js
+    assert "Inferred nodes" in js
     assert "Real nodes" in js
     assert "Real links" in js
     assert 'mapLiveActivityEnabled = true;' in js
@@ -113,10 +113,45 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function buildMapLinkEstimateDensityOverlay(linkOverlay, options = null)" in js
     assert "const mapEstimatedPositionSmoothingById = new Map();" in js
     assert "let mapEstimatedPositionSmoothingActive = false;" in js
+    assert "const mapEstimatedOverlayDriftMs = 4200;" in js
+    assert "const mapEstimatedOverlayMaxDriftMeters = 3200;" in js
+    assert "const mapEstimatedOverlayLongJumpFadeMs = 900;" in js
+    assert "const mapHeatLayerFadeOutMs = 900;" in js
+    assert "const mapHeatLayerDriftMinIntensity = 0.004;" in js
+    assert "const mapLinkMinEstimateAnchors = 2;" in js
+    assert "const mapLinkMinEstimateConfidence = 0.18;" in js
+    assert "const mapLinkMinCityEstimateAnchors = 3;" in js
+    assert "const mapLinkMinCityEstimateConfidence = 0.45;" in js
+    assert "const mapLinkMinCityEstimateFit = 0.42;" in js
     assert "function smoothMapEstimatedPosition(nodeId, target, options = null)" in js
     assert "function smoothMapEstimatedPositions(estimates, options = null)" in js
     assert "function smoothMapLinkLineEndpoints(lines, smoothedEstimates)" in js
     assert "function smoothMapLinkLayerOverlay(linkOverlay, options = null)" in js
+    assert "function mapLinkEdgeLocationWeight(edge)" in js
+    assert "function mapLinkEstimateResidualForNode(nodeId, positions, adjacency)" in js
+    assert "function mapLinkConfidenceFromFit(baseConfidence, fitScore, anchorCount)" in js
+    assert "const minEstimateAnchors = Math.max(" in js
+    assert "if (estimateAnchorCount < minEstimateAnchors) continue;" in js
+    assert "if (adjustedConfidence < minEstimateConfidence) continue;" in js
+    assert "confidence: adjustedConfidence," in js
+    assert "rawConfidence: meta.confidence," in js
+    assert "fitScore," in js
+    assert "residualKm: residual && residual.residualKm != null ? residual.residualKm : null," in js
+    assert "function animateMapPolylineLatLngs(layer, targetPathRaw, options = null)" in js
+    assert "function animateMapHeatLayerLatLngs(layer, targetPointsRaw, options = null)" in js
+    assert "function fadeOutMapHeatLayer(layer, options = null)" in js
+    assert "function mapLatLngPathMaxDistanceMeters(a, b)" in js
+    assert "function mapHeatPointDistanceMeters(a, b)" in js
+    assert "!Number.isFinite(pathDriftMeters) || pathDriftMeters > maxDriftMeters" in js
+    assert "!Number.isFinite(driftMeters) || driftMeters > maxDriftMeters" in js
+    assert 'key: `${targetPoint.key}:out`,' in js
+    assert 'key: `${targetPoint.key}:in`,' in js
+    assert "onComplete: typeof opts.onComplete === \"function\"" not in js
+    assert "const onComplete = typeof opts.onComplete === \"function\" ? opts.onComplete : null;" in js
+    assert "fadeOut: !!opts.fadeOut," in js
+    assert "if (state && state.fadeOut) return true;" in js
+    assert "function cancelMapPolylineDrift(layer)" in js
+    assert "function cancelMapHeatLayerDrift(layer, clearPoints = false)" in js
     assert "const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;" in js
     assert "if (!shouldRenderGraph && signature === lastMapSignature)" in js
     assert "const densitySourceOverlay = smoothMapLinkLayerOverlay(densitySourceOverlayUnsmoothed, {" in js
@@ -126,8 +161,14 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "rawLon: targetLon," in js
     assert "copy.fromLat = Number(fromEstimate.lat);" in js
     assert "copy.toLat = Number(toEstimate.lat);" in js
+    assert 'heatPoint._meshHeatKey = `signal-node:${heatNodeId}`;' in js
+    assert 'heatPoint._meshHeatKey = `estimate-node:${point.nodeId}`;' in js
+    assert "const cloudIdBase = `c${(cloudHash >>> 0).toString(16)}`;" in js
+    assert "for (const memberNodeId of cloudNodeIds.slice().sort())" in js
     assert "const estimateLinesToRender = selectMapEstimatedLinesForRender(estimateLinesAvailable, {" in js
     assert "linkOverlay.renderedEstimatedLineCount = estimateLinesToRender.length;" in js
+    assert "animateMapPolylineLatLngs(line, linePath, {" in js
+    assert "linkEstimateLayer.removeLayer(existingLine);" not in js
     assert "renderTrafficPct: mapEstimatedLineTrafficPct(line, maxTrafficValue)," in js
     assert "key: `corridor::${key}`," in js
     assert "Traffic: ${trafficLabel} weighted packet" in js
@@ -142,9 +183,14 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'let lastSignalHeatmapSignature = "";' in js
     assert "const heatSignature = `signal-heatmap:${(heatSignatureHash >>> 0).toString(16)}`;" in js
     assert "heatSignature === lastSignalHeatmapSignature && heatLayerPresenceMatches" in js
+    assert "animateMapHeatLayerLatLngs(layer, buckets[i] || [], {" in js
     assert "const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));" in js
     assert "if (!desiredLayerVisible) {" in js
     assert "removeSignalHeatmapLayerSafely(layer);" in js
+    assert "function removeSignalHeatmapLayerSafely(layer, options = null)" in js
+    assert 'fadeOutMapHeatLayer(layer, {' in js
+    assert 'keyPrefix: "signal:fade",' in js
+    assert "cancelMapHeatLayerDrift(layer, true);" in js
     assert "function hideSignalHeatmapLayers()" in js
     assert "function cancelSignalHeatmapLayerFrame(layer)" in js
     assert "typeof hideSignalHeatmapLayers === \"function\"" in js
@@ -158,14 +204,29 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "linkEstimateLayer" in js
     assert "let linkEstimateHeatmapLayer = null;" in js
     assert 'const linkEstimateHeatmapPaneName = "linkEstimateHeatmapPane";' in js
+    assert "function clearLinkEstimateHeatmapLayer(options = null)" in js
     assert "function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false)" in js
     assert 'typeof signalHeatmapMapHasDrawableSize === "function"' in js
     assert "const shouldShow = !!show && mapDrawable && heatPoints.length > 0;" in js
     assert "clearLinkEstimateHeatmapLayer();" in js
+    assert "cancelMapHeatLayerDrift(layer, true);" in js
+    assert 'keyPrefix: "estimate",' in js
+    assert "durationMs: mapHeatLayerFadeOutMs," in js
+    assert "animateMapHeatLayerLatLngs(layer, heatPoints, {" in js
     assert "syncLinkEstimateHeatmapLayer(linkDensity, true);" in js
     assert "const hideEstimatedLinkDots = !!(" in js
     assert "if (hideEstimatedLinkDots && isEstimated) {" in js
-    assert 'Estimated nodes${hideLinkedDots ? " (hidden)" : ""}' in js
+    assert 'Inferred nodes${hideLinkedDots ? " (hidden)" : ""}' in js
+    assert "Topology Fit" in js
+    assert "Avg Fit Error" in js
+    assert 'label: "Inferred",' in js
+    assert "Heuristic span" in js
+    assert "Inferred endpoints" in js
+    assert "live link-inferred location" in js
+    assert "estimateMode: \"live\"," in js
+    assert "minEstimateAnchors: mapLinkMinCityEstimateAnchors," in js
+    assert "minEstimateConfidence: mapLinkMinCityEstimateConfidence," in js
+    assert "minEstimateFit: mapLinkMinCityEstimateFit," in js
     assert "estimateLine && estimateLine.avgHops ??" not in js
     assert "estimateLine && estimateLine.avgSnr ??" not in js
     assert "estimateLine && estimateLine.avgRssi ??" not in js

@@ -463,6 +463,17 @@
       const safeState = (state && typeof state === "object") ? state : {{}};
       const opts = (options && typeof options === "object") ? options : {{}};
       const mode = normalizeNodeCityEstimateMode(opts.mode, "both");
+      const minEstimateAnchors = Number.isFinite(Number(opts.minEstimateAnchors))
+        ? Math.max(1, Math.trunc(Number(opts.minEstimateAnchors)))
+        : mapLinkMinEstimateAnchors;
+      const minEstimateConfidence = Number.isFinite(Number(opts.minEstimateConfidence))
+        ? clampMapLinkValue(Number(opts.minEstimateConfidence), 0, 1)
+        : mapLinkMinEstimateConfidence;
+      const cacheMode = [
+        mode,
+        minEstimateAnchors,
+        Math.round(minEstimateConfidence * 1000),
+      ].join(":");
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const traffic = (safeState.traffic && typeof safeState.traffic === "object")
         ? safeState.traffic
@@ -470,20 +481,24 @@
       const edges = Array.isArray(traffic.edges) ? traffic.edges : [];
       if (!(typeof buildMapLinkLayerOverlay === "function") || !nodes.length || !edges.length) {{
         nodeLinkedLocationEstimateCacheState = safeState;
-        nodeLinkedLocationEstimateCacheMode = mode;
+        nodeLinkedLocationEstimateCacheMode = cacheMode;
         nodeLinkedLocationEstimateCacheValue = new Map();
         return nodeLinkedLocationEstimateCacheValue;
       }}
       if (
         nodeLinkedLocationEstimateCacheState === safeState
-        && nodeLinkedLocationEstimateCacheMode === mode
+        && nodeLinkedLocationEstimateCacheMode === cacheMode
         && nodeLinkedLocationEstimateCacheValue instanceof Map
       ) {{
         return nodeLinkedLocationEstimateCacheValue;
       }}
       let estimates = new Map();
       try {{
-        const overlay = buildMapLinkLayerOverlay(nodes, edges, {{ mode }});
+        const overlay = buildMapLinkLayerOverlay(nodes, edges, {{
+          mode,
+          minEstimateAnchors,
+          minEstimateConfidence,
+        }});
         estimates = (overlay && overlay.estimates instanceof Map)
           ? overlay.estimates
           : new Map();
@@ -491,7 +506,7 @@
         estimates = new Map();
       }}
       nodeLinkedLocationEstimateCacheState = safeState;
-      nodeLinkedLocationEstimateCacheMode = mode;
+      nodeLinkedLocationEstimateCacheMode = cacheMode;
       nodeLinkedLocationEstimateCacheValue = estimates;
       return estimates;
     }}
@@ -503,6 +518,15 @@
         nodeId || (item && item.id) || (item && item.node_id) || ""
       );
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const minEstimateAnchors = Number.isFinite(Number(opts.minEstimateAnchors))
+        ? Math.max(1, Math.trunc(Number(opts.minEstimateAnchors)))
+        : mapLinkMinEstimateAnchors;
+      const minEstimateConfidence = Number.isFinite(Number(opts.minEstimateConfidence))
+        ? clampMapLinkValue(Number(opts.minEstimateConfidence), 0, 1)
+        : mapLinkMinEstimateConfidence;
+      const minEstimateFit = Number.isFinite(Number(opts.minEstimateFit))
+        ? clampMapLinkValue(Number(opts.minEstimateFit), 0, 1)
+        : 0;
       const localNodeSources = (
         isSelectableNodeId(cleanNodeId)
         && cleanNodeId === localNodeId
@@ -537,6 +561,8 @@
       estimateSources.push(
         nodeLinkedLocationEstimatesForState(safeState, {{
           mode: opts.estimateMode,
+          minEstimateAnchors,
+          minEstimateConfidence,
         }})
       );
       if (opts.estimateByNodeId instanceof Map) {{
@@ -549,6 +575,12 @@
       for (const estimates of estimateSources) {{
         if (!(estimates instanceof Map)) continue;
         const estimate = estimates.get(cleanNodeId);
+        const estimateAnchorCount = Math.max(0, Math.trunc(Number(estimate && estimate.anchorCount) || 0));
+        const estimateConfidence = Number(estimate && estimate.confidence);
+        const estimateFit = Number(estimate && estimate.fitScore);
+        if (estimateAnchorCount < minEstimateAnchors) continue;
+        if (!Number.isFinite(estimateConfidence) || estimateConfidence < minEstimateConfidence) continue;
+        if (minEstimateFit > 0 && (!Number.isFinite(estimateFit) || estimateFit < minEstimateFit)) continue;
         const location = resolveNodeCityLocationFromCoords(
           estimate && estimate.lat,
           estimate && estimate.lon

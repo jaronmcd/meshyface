@@ -175,7 +175,10 @@
         if (typeof layer.setOptions === "function") {{
           layer.setOptions(visual);
         }}
-        layer.setLatLngs((buckets[i] || []));
+        animateMapHeatLayerLatLngs(layer, buckets[i] || [], {{
+          keyPrefix: `signal:${{i}}`,
+          durationMs: mapEstimatedOverlayDriftMs,
+        }});
       }}
     }}
 
@@ -191,12 +194,30 @@
       layer._frame = null;
     }}
 
-    function removeSignalHeatmapLayerSafely(layer) {{
+    function removeSignalHeatmapLayerSafely(layer, options = null) {{
       if (!layer || typeof layer !== "object") return;
-      cancelSignalHeatmapLayerFrame(layer);
-      if (map && typeof map.hasLayer === "function" && map.hasLayer(layer)) {{
-        map.removeLayer(layer);
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const removeNow = () => {{
+        cancelMapHeatLayerDrift(layer, true);
+        cancelSignalHeatmapLayerFrame(layer);
+        if (map && typeof map.hasLayer === "function" && map.hasLayer(layer)) {{
+          map.removeLayer(layer);
+        }}
+      }};
+      const canFade = opts.fade !== false
+        && typeof fadeOutMapHeatLayer === "function"
+        && map
+        && typeof map.hasLayer === "function"
+        && map.hasLayer(layer);
+      if (!canFade) {{
+        removeNow();
+        return;
       }}
+      fadeOutMapHeatLayer(layer, {{
+        keyPrefix: "signal:fade",
+        durationMs: mapHeatLayerFadeOutMs,
+        onComplete: removeNow,
+      }});
     }}
 
     function hideSignalHeatmapLayers() {{
