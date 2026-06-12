@@ -3496,35 +3496,6 @@
     .map-reset-view-btn:hover {{
       background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
     }}
-    .map-node-filter-btn {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .map-node-filter-btn.has-active-filters {{
-      border-color: color-mix(in srgb, var(--accent) 60%, var(--line) 40%);
-      background: color-mix(in srgb, var(--panel) 68%, var(--accent) 32%);
-      color: color-mix(in srgb, var(--ink) 70%, var(--accent-2) 30%);
-    }}
-    .map-node-filter-badge {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 17px;
-      height: 17px;
-      padding: 0 5px;
-      border-radius: 999px;
-      border: 1px solid color-mix(in srgb, var(--accent) 66%, var(--line) 34%);
-      background: color-mix(in srgb, var(--accent) 22%, var(--panel) 78%);
-      color: color-mix(in srgb, var(--ink) 68%, var(--accent-2) 32%);
-      font-size: 9px;
-      font-weight: 800;
-      line-height: 1;
-      letter-spacing: 0.02em;
-    }}
-    .map-node-filter-badge[hidden] {{
-      display: none !important;
-    }}
     .map-fullscreen-toggle-btn {{
       display: inline-flex;
       align-items: center;
@@ -3616,6 +3587,20 @@
       border-color: #c5ccd6;
       background: #f2f4f8;
       color: #34445f;
+    }}
+    .map-basemap-dock {{
+      position: absolute;
+      right: 8px;
+      bottom: 30px;
+      z-index: 790;
+      display: flex;
+      justify-content: flex-end;
+      max-width: calc(100% - 16px);
+      pointer-events: none;
+    }}
+    .map-basemap-dock .map-basemap-status {{
+      pointer-events: auto;
+      box-shadow: 0 8px 18px rgba(16, 40, 24, 0.14);
     }}
     .map-position-badge {{
       display: inline-flex;

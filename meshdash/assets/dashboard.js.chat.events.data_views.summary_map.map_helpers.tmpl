@@ -3886,68 +3886,6 @@
       }});
     }}
 
-    function activeMapNodeVisibilityFilterRuleCount(state = latestRawState || latestState) {{
-      const safeState = (state && typeof state === "object") ? state : (latestRawState || latestState || {{}});
-      const whitelistActive = (
-        typeof nodeVisibilityWhitelistFilterActive === "function"
-          ? nodeVisibilityWhitelistFilterActive(safeState)
-          : false
-      );
-      const whitelistCount = (
-        whitelistActive
-        && typeof nodeVisibilityWhitelistIds !== "undefined"
-        && nodeVisibilityWhitelistIds instanceof Set
-      )
-        ? nodeVisibilityWhitelistIds.size
-        : 0;
-      const blacklistCount = (
-        typeof nodeVisibilityBlacklistIds !== "undefined"
-        && nodeVisibilityBlacklistIds instanceof Set
-      )
-        ? nodeVisibilityBlacklistIds.size
-        : 0;
-      return Math.max(0, whitelistCount + blacklistCount);
-    }}
-
-    function refreshMapNodeFilterControl(state = latestRawState || latestState) {{
-      const btn = document.getElementById("map-node-filter-btn");
-      if (!(btn instanceof HTMLButtonElement)) return;
-      const badge = document.getElementById("map-node-filter-badge");
-      const activeRules = activeMapNodeVisibilityFilterRuleCount(state);
-      const active = activeRules > 0;
-      btn.classList.toggle("has-active-filters", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-      btn.title = active
-        ? `Node filters active (${{activeRules}} rule${{activeRules === 1 ? "" : "s"}}). Open settings to edit.`
-        : "Open node visibility filters";
-      if (badge instanceof HTMLElement) {{
-        badge.hidden = !active;
-        badge.textContent = activeRules > 99 ? "99+" : String(activeRules);
-      }}
-    }}
-
-    function openMapNodeFilterSettings() {{
-      applyLayoutView("settings", true);
-      if (typeof setActiveSettingsTab === "function") {{
-        setActiveSettingsTab("nodes", true);
-      }}
-      if (typeof renderNodeVisibilityListsUi === "function") {{
-        renderNodeVisibilityListsUi(latestRawState || latestState || {{}});
-      }}
-    }}
-
-    function bindMapNodeFilterControl() {{
-      const btn = document.getElementById("map-node-filter-btn");
-      if (!(btn instanceof HTMLButtonElement)) return;
-      if (btn.dataset.bound !== "1") {{
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", () => {{
-          openMapNodeFilterSettings();
-        }});
-      }}
-      refreshMapNodeFilterControl(latestRawState || latestState || {{}});
-    }}
-
     function resolveMapPositionBadge(node, caps = null, nowUnix = Math.floor(Date.now() / 1000)) {{
       const lat = Number(node && node.lat);
       const lon = Number(node && node.lon);

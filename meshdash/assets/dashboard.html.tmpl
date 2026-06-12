@@ -3101,22 +3101,6 @@ Ready.
         <div id="map-card-actions-host" class="map-card-actions pane-head-actions">
           <div id="map-controls-dock" class="map-controls-dock">
             <button id="map-reset-view-btn" class="map-reset-view-btn" type="button" title="Reset map view">Reset view</button>
-            <button
-              id="map-node-filter-btn"
-              class="map-reset-view-btn map-node-filter-btn"
-              type="button"
-              title="Open node visibility filters"
-              aria-label="Open node visibility filters"
-              aria-pressed="false"
-            >Filters <span id="map-node-filter-badge" class="map-node-filter-badge" hidden>0</span></button>
-            <button
-              type="button"
-              id="map-basemap-status"
-              class="map-basemap-status status-loading"
-              title="Checking map tile availability"
-              aria-label="Toggle map basemap offline mode"
-              aria-pressed="false"
-            >Basemap: checking...</button>
             <div class="map-control-group map-heatmap-controls">
               <label id="map-heatmap-mode-wrap" class="map-heatmap-mode-wrap" title="Choose heatmap recency behavior">
                 <span>Signal Heatmap</span>
@@ -3418,6 +3402,16 @@ Ready.
               data-network-subview-panel="map"
             >
               <div id="map"></div>
+              <div id="map-basemap-dock" class="map-basemap-dock">
+                <button
+                  type="button"
+                  id="map-basemap-status"
+                  class="map-basemap-status status-loading"
+                  title="Checking map tile availability"
+                  aria-label="Toggle map basemap offline mode"
+                  aria-pressed="false"
+                >Basemap: checking...</button>
+              </div>
               <div
                 id="map-link-legend"
                 class="network-graph-legend map-link-legend"

@@ -447,9 +447,6 @@
           rawNodes: Array.isArray(rawState && rawState.nodes) ? rawState.nodes.length : 0,
           nodes: Array.isArray(state && state.nodes) ? state.nodes.length : 0,
         }});
-        if (typeof refreshMapNodeFilterControl === "function") {{
-          refreshMapNodeFilterControl(rawState);
-        }}
         syncSelectedNodeWithVisibilityFilters();
         syncNodeTagsWithMeshtasticFavorites(rawState);
         if (

@@ -46,6 +46,8 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'class="map-fullscreen-toggle-btn network-fullscreen-toggle-btn"' in html
     assert 'aria-label="Enter full screen network view"' in html
     assert html.index('id="map-heatmap-mode"') < html.index('id="map-fullscreen-toggle-btn"')
+    assert html.index('<div id="map"></div>') < html.index('id="map-basemap-dock"')
+    assert html.index('id="map-basemap-status"') < html.index('id="map-link-legend"')
     assert html.index('id="network-map-controls-host"') < html.index('id="map-fullscreen-toggle-btn"')
     assert 'id="network-graph-svg"' in html
     assert 'id="network-graph-back-btn"' not in html

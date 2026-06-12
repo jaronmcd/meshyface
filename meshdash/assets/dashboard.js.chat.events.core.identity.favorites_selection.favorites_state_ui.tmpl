@@ -983,9 +983,6 @@
         }}
       }} catch (_err) {{
       }}
-      if (typeof refreshMapNodeFilterControl === "function") {{
-        refreshMapNodeFilterControl(latestRawState || latestState || {{}});
-      }}
     }}
 
     function persistNodeVisibilityLists() {{
@@ -1194,9 +1191,6 @@
       }}
       if (statusText && typeof setSettingsStatusText === "function") {{
         setSettingsStatusText(statusText);
-      }}
-      if (typeof refreshMapNodeFilterControl === "function") {{
-        refreshMapNodeFilterControl(latestRawState || latestState || {{}});
       }}
       if (typeof requestImmediatePoll === "function") {{
         requestImmediatePoll(0);
