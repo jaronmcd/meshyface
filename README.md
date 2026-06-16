@@ -34,6 +34,47 @@ The source tree still contains dormant/internal hooks and optional backend
 handlers. If an optional backend handler is not wired into the current build,
 the corresponding endpoint returns `503`.
 
+## Screenshots
+
+Network workspace views from a live Meshtastic session.
+
+### Live network map
+
+![Live network map.](docs/screenshots/network-map.png)
+
+Map view with node locations, links, common paths, clusters, and signal heatmap.
+
+### Network overview
+
+![Network overview chart.](docs/screenshots/network-overview.png)
+
+History view for node counts, online status, new nodes, and position reports.
+
+### Link topology
+
+![Link topology graph.](docs/screenshots/network-links.png)
+
+Topology view showing observed links from the selected root node.
+
+### Route trace
+
+![Route trace.](docs/screenshots/network-routes.png)
+
+Trace view for a source, destination, nearby links, and per-hop packet details.
+
+### Sensor history
+
+![Sensor history chart.](docs/screenshots/network-sensors.png)
+
+Telemetry chart comparing sensor history across multiple nodes.
+
+### Status cards
+
+![Status cards.](docs/screenshots/status-cards.png)
+
+Top cards for radio activity, node counts, packets, links, battery, and channel
+use.
+
 ## System Architecture
 
 ```mermaid
