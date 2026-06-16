@@ -121,6 +121,7 @@ are unavailable.
 - `scripts/deploy_hotspot.sh` - remote Wi-Fi hotspot + captive landing helper
 - `requirements.txt` - runtime Python dependencies
 - `requirements-dev.txt` - runtime plus test dependencies
+- [docs/](docs/) - maintenance and operator reference pages
 - `PUBLICATION_CHECKLIST.md` - required checks before making the repo public
 - `THIRD_PARTY_NOTICES.md` - bundled/runtime third-party data and asset notes
 - `tests/` - regression tests included in this repo
@@ -211,27 +212,10 @@ contributes to the same persisted packet, chat, node, and rollup history.
 - BBS host settings and local BBS posts are stored in the history SQLite
   database when BBS is enabled.
 
-### One-shot backfill mode
+### Maintenance commands
 
-To rebuild environment rollups from already-saved packet history:
-
-```bash
-python mesh_dashboard.py \
-  --history-db mesh_dashboard_history.sqlite3 \
-  --backfill-environment-rollups
-```
-
-To clear existing rollups first:
-
-```bash
-python mesh_dashboard.py \
-  --history-db mesh_dashboard_history.sqlite3 \
-  --backfill-environment-rollups \
-  --backfill-environment-rollups-reset
-```
-
-Backfill uses the exact `--history-db` path. To backfill an older per-radio
-database, pass that profiled `.radio-...` filename explicitly.
+Operational commands that inspect or repair local dashboard data are documented
+in [docs/maintenance.md](docs/maintenance.md).
 
 ## Links View Semantics
 
@@ -642,7 +626,8 @@ Related environment variables:
 - `--history-rollup-retention-days <days>`: default `365`
 - `--no-history`: memory-only mode
 - `--seed-from-node-db`: bootstrap live tracker from the connected radio NodeDB
-- `--backfill-environment-rollups`: one-shot rollup rebuild mode
+- `--backfill-environment-rollups`: rebuild environment rollups once and exit;
+  see [docs/maintenance.md](docs/maintenance.md)
 - `--backfill-environment-rollups-reset`: clear existing rollups before rebuild
 - `--node-history-hours <hours>`: default selected-node window, default `72`
 - `--node-history-max-points <n>`: max points returned by

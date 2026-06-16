@@ -17,6 +17,7 @@ def test_readme_drops_unpkg_and_carto_runtime_language() -> None:
 def test_public_docs_do_not_expose_local_benchmark_target() -> None:
     roots = [
         Path("README.md"),
+        Path("docs"),
         Path("PUBLICATION_CHECKLIST.md"),
         Path("THIRD_PARTY_NOTICES.md"),
         Path("THIRD_PARTY_PYTHON_DEPENDENCIES.md"),
