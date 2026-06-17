@@ -563,9 +563,38 @@ def run_dashboard_runtime(
     auto_reconnect = _enable_serial_auto_reconnect(args)
     first_session = True
     offline_bootstrap_error: Optional[Exception] = None
+    preopened_iface: object | None = None
+    preopened_iface_lock = threading.Lock()
+
+    def _close_preopened_iface() -> None:
+        nonlocal preopened_iface
+        with preopened_iface_lock:
+            iface = preopened_iface
+            preopened_iface = None
+        if iface is None:
+            return
+        close_fn = getattr(iface, "close", None)
+        if callable(close_fn):
+            try:
+                close_fn()
+            except Exception:
+                pass
+
     while True:
         startup_offline = False
         startup_error: Optional[Exception] = None
+        context_preopened_iface: object | None = None
+
+        def _open_mesh_interface_with_preopened(open_args: DashboardArgs) -> object:
+            nonlocal context_preopened_iface, preopened_iface
+            with preopened_iface_lock:
+                if preopened_iface is not None:
+                    iface = preopened_iface
+                    preopened_iface = None
+                    context_preopened_iface = iface
+                    return iface
+            return open_mesh_interface_fn(open_args)
+
         if auto_reconnect and (first_session or offline_bootstrap_error is not None):
             startup_offline = True
             connecting = offline_bootstrap_error is None
@@ -596,7 +625,7 @@ def run_dashboard_runtime(
                 context = _build_runtime_context_once(
                     args,
                     mesh_target_label_fn=mesh_target_label_fn,
-                    open_mesh_interface_fn=open_mesh_interface_fn,
+                    open_mesh_interface_fn=_open_mesh_interface_with_preopened,
                     history_store_cls=history_store_cls,
                     dashboard_tracker_cls=dashboard_tracker_cls,
                     subscribe_fn=subscribe_fn,
@@ -614,7 +643,16 @@ def run_dashboard_runtime(
                     utc_now_fn=utc_now_fn,
                     default_chat_max_bytes=default_chat_max_bytes,
                 )
+                context_preopened_iface = None
             except Exception as exc:
+                if context_preopened_iface is not None:
+                    close_fn = getattr(context_preopened_iface, "close", None)
+                    if callable(close_fn):
+                        try:
+                            close_fn()
+                        except Exception:
+                            pass
+                    context_preopened_iface = None
                 startup_offline = True
                 startup_error = exc
                 print(
@@ -700,6 +738,7 @@ def run_dashboard_runtime(
         if auto_reconnect and startup_offline:
 
             def _watch_startup_radio_connect() -> None:
+                nonlocal preopened_iface
                 attempt = 0
                 delay_seconds = 0.5
                 while not stop_watcher.wait(delay_seconds):
@@ -714,12 +753,8 @@ def run_dashboard_runtime(
                                 f"Retrying in {delay_seconds:.0f}s..."
                             )
                         continue
-                    try:
-                        close_fn = getattr(probe_iface, "close", None)
-                        if callable(close_fn):
-                            close_fn()
-                    except Exception:
-                        pass
+                    with preopened_iface_lock:
+                        preopened_iface = probe_iface
                     restart_requested.set()
                     print("Radio link detected. Switching dashboard to live session...")
                     shutdown_fn = getattr(server, "shutdown", None)
@@ -789,12 +824,14 @@ def run_dashboard_runtime(
             )
 
         if interrupted:
+            _close_preopened_iface()
             return
         if startup_offline and auto_reconnect and restart_requested.is_set():
             offline_bootstrap_error = None
             time.sleep(0.5)
             continue
         if startup_offline:
+            _close_preopened_iface()
             return
         if auto_reconnect and restart_requested.is_set():
             reason = str(getattr(context.tracker, "radio_link_error", "") or "").strip()

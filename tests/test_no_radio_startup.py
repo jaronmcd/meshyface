@@ -1,3 +1,4 @@
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -128,6 +129,92 @@ def test_runtime_serves_offline_page_before_first_radio_open(tmp_path) -> None:
 
     assert "serve" in events
     assert "open" not in events[: events.index("serve") + 1]
+
+
+def test_startup_radio_watcher_reuses_detected_interface_for_live_session(tmp_path) -> None:
+    args = _dashboard_args(tmp_path)
+    events: list[str] = []
+
+    class _Iface:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+            events.append("iface_close")
+
+    class _Tracker:
+        radio_link_connected = None
+
+        def on_receive(self, *_args, **_kwargs) -> None:
+            return
+
+        def stop_receiving(self) -> None:
+            events.append("stop_receiving")
+
+    class _Server:
+        count = 0
+
+        def __init__(self, address, handler_cls) -> None:
+            del handler_cls
+            type(self).count += 1
+            self.index = type(self).count
+            self.server_address = (address[0], 18080 + self.index)
+            self._shutdown = threading.Event()
+            events.append(f"server_init:{self.index}")
+
+        def serve_forever(self, poll_interval: float = 0.5) -> None:
+            del poll_interval
+            events.append(f"serve:{self.index}")
+            if self.index == 1:
+                self._shutdown.wait(timeout=3.0)
+
+        def shutdown(self) -> None:
+            events.append(f"shutdown:{self.index}")
+            self._shutdown.set()
+
+        def server_close(self) -> None:
+            events.append(f"server_close:{self.index}")
+
+    iface = _Iface()
+    open_count = 0
+
+    def _open_mesh_interface(_args):
+        nonlocal open_count
+        open_count += 1
+        events.append(f"open:{open_count}")
+        return iface
+
+    run_dashboard_runtime(
+        args,
+        mesh_target_label_fn=lambda _args: "192.0.2.10:4403 (tcp)",
+        open_mesh_interface_fn=_open_mesh_interface,
+        history_store_cls=lambda **_kwargs: object(),
+        dashboard_tracker_cls=lambda **_kwargs: _Tracker(),
+        subscribe_fn=lambda _callback, _topic: None,
+        seed_tracker_fn=lambda _tracker, _iface: None,
+        revision_info_fn=_RevisionInfo,
+        build_state_fn=lambda **_kwargs: {},
+        build_node_history_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_online_activity_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_summary_metrics_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        send_chat_message_fn=lambda **_kwargs: {},
+        send_reaction_packet_fn=lambda **_kwargs: None,
+        get_local_node_id_fn=lambda _iface: "local",
+        normalize_single_emoji_fn=lambda _value: (None, None),
+        to_int_fn=lambda _value: None,
+        utc_now_fn=lambda: "2026-04-23T00:00:00Z",
+        render_html_fn=lambda **_kwargs: "<html></html>",
+        make_http_handler_fn=lambda *_args, **_kwargs: object,
+        guess_lan_ipv4_fn=lambda: None,
+        default_chat_max_bytes=200,
+        threading_http_server_cls=_Server,
+    )
+
+    assert open_count == 1
+    assert events.count("open:1") == 1
+    assert "server_init:2" in events
+    assert iface.closed is True
 
 
 def test_offline_runtime_keeps_standalone_zork_disabled_by_default(tmp_path) -> None:
