@@ -7,6 +7,7 @@ from meshdash.api_custom_telemetry import (
     handle_custom_telemetry_settings_get,
     handle_custom_telemetry_settings_post,
 )
+from meshdash.api_network_tools import handle_network_tool_post
 from meshdash.api_radio import handle_radio_settings_post
 from meshdash.api_theme import handle_theme_settings_get, handle_theme_settings_post
 from meshdash.helpers import to_int
@@ -327,3 +328,55 @@ def test_custom_telemetry_handlers_cover_read_write_and_validation_paths() -> No
     assert calls[5]["payload"]["error"] == "No custom telemetry rules provided"  # type: ignore[index]
     assert calls[6]["payload"]["error"] == "bad rule"  # type: ignore[index]
     assert calls[7]["payload"]["error"] == "Custom telemetry settings update failed: write failed"  # type: ignore[index]
+
+
+def _call_network_tool(
+    calls: list[dict[str, object]],
+    *,
+    run_network_tool_fn,
+    parse_network_tool_request_fn=lambda raw, *, to_int_fn: {"body": raw.decode("utf-8")},
+    validate_content_length_fn=_validate_content_length,
+) -> None:
+    handle_network_tool_post(
+        _Handler(b"tool"),
+        run_network_tool_fn=run_network_tool_fn,
+        to_int_fn=to_int,
+        validate_content_length_fn=validate_content_length_fn,
+        parse_network_tool_request_fn=parse_network_tool_request_fn,
+        write_json_response_fn=_writer(calls),
+    )
+
+
+def test_network_tool_handler_maps_disabled_parse_run_and_status_paths() -> None:
+    calls: list[dict[str, object]] = []
+    received: list[object] = []
+
+    _call_network_tool(calls, run_network_tool_fn=None)
+    _call_network_tool(calls, run_network_tool_fn=lambda request: received.append(request) or {"ok": True})
+    _call_network_tool(calls, run_network_tool_fn=lambda request: {"ok": False, "error": "denied"})
+    _call_network_tool(
+        calls,
+        run_network_tool_fn=lambda request: {"ok": True},
+        parse_network_tool_request_fn=lambda raw, *, to_int_fn: (_ for _ in ()).throw(ValueError("bad tool json")),
+    )
+    _call_network_tool(
+        calls,
+        run_network_tool_fn=lambda request: (_ for _ in ()).throw(ValueError("bad target")),
+    )
+    _call_network_tool(
+        calls,
+        run_network_tool_fn=lambda request: (_ for _ in ()).throw(RuntimeError("tool crashed")),
+    )
+    _call_network_tool(
+        calls,
+        run_network_tool_fn=lambda request: {"ok": True},
+        validate_content_length_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad length")),
+    )
+
+    assert [call["status"] for call in calls] == [503, 200, 400, 400, 400, 500, 400]
+    assert received == [{"body": "tool"}]
+    assert calls[1]["no_store"] is True
+    assert calls[2]["payload"] == {"ok": False, "error": "denied"}
+    assert calls[3]["payload"]["error"] == "bad tool json"  # type: ignore[index]
+    assert calls[4]["payload"]["error"] == "bad target"  # type: ignore[index]
+    assert calls[5]["payload"]["error"] == "Network tool failed: tool crashed"  # type: ignore[index]
