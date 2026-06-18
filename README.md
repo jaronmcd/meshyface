@@ -116,6 +116,29 @@ For a fully air-gapped deployment, the vendored Leaflet assets still load
 locally, and the map uses the bundled offline atlas when online tile servers
 are unavailable.
 
+## Testing And Coverage
+
+Run the normal test suite with:
+
+```bash
+python -m pytest
+```
+
+Run the advisory app coverage report with:
+
+```bash
+python -m pytest \
+  --cov=meshdash \
+  --cov=mesh_dashboard \
+  --cov=mesh_connection \
+  --cov-report=term
+```
+
+Coverage intentionally excludes the ported Zork engine package from scoring,
+but Zork bot and routing tests still run. GitHub Actions publishes the same
+coverage report as an advisory PR comment and artifact; no minimum is enforced
+yet.
+
 ## Standalone Install
 
 ### 1) Clone + venv

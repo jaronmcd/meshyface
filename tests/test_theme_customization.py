@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from meshdash.theme import (
     LIGHT_THEME_VARS,
     build_palette_theme_preset,
 )
-from meshdash.theme_presets import default_theme_presets
+from meshdash.theme_presets import default_theme_presets, load_theme_presets, select_theme_preset
 from meshdash.theme_settings import ThemePresetSettings
 
 
@@ -33,6 +34,46 @@ def test_default_theme_presets_include_blue_generated_palette() -> None:
     assert set(presets["blue"]["light"].keys()) == set(LIGHT_THEME_VARS.keys())
     assert set(presets["blue"]["dark"].keys()) == set(DARK_THEME_VARS.keys())
     assert presets["blue"]["dark"]["--workspace-shell-border"] != DARK_THEME_VARS["--workspace-shell-border"]
+
+
+def test_load_theme_presets_merges_valid_external_presets_and_ignores_invalid_data() -> None:
+    defaults = default_theme_presets()
+    custom_light = {**defaults["default"]["light"], "--theme-base-color": "#123456"}
+    custom_dark = {**defaults["default"]["dark"], "--theme-base-color": "#abcdef"}
+
+    loaded = load_theme_presets(
+        "themes.json",
+        read_text_fn=lambda path: json.dumps(
+            {
+                "sunrise": {"light": custom_light, "dark": custom_dark},
+                "missing-dark": {"light": custom_light},
+                "bad": "not a preset",
+            }
+        ),
+    )
+
+    assert loaded["sunrise"]["light"]["--theme-base-color"] == "#123456"
+    assert loaded["sunrise"]["dark"]["--theme-base-color"] == "#abcdef"
+    assert "missing-dark" not in loaded
+    assert "bad" not in loaded
+    assert select_theme_preset(loaded, "sunrise") is loaded["sunrise"]
+    assert select_theme_preset(loaded, "missing") is loaded["default"]
+
+
+def test_load_theme_presets_falls_back_to_defaults_on_empty_or_bad_sources() -> None:
+    defaults = default_theme_presets()
+
+    assert load_theme_presets(None).keys() == defaults.keys()
+    assert load_theme_presets("themes.json", read_text_fn=lambda path: "[]").keys() == defaults.keys()
+    assert load_theme_presets(
+        "themes.json",
+        read_text_fn=lambda path: (_ for _ in ()).throw(OSError("missing")),
+    ).keys() == defaults.keys()
+    assert load_theme_presets(
+        "themes.json",
+        read_text_fn=lambda path: "{bad",
+        json_loads_fn=lambda text: (_ for _ in ()).throw(ValueError("bad json")),
+    ).keys() == defaults.keys()
 
 
 def test_theme_settings_support_generated_custom_theme_state() -> None:
