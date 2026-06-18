@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   tests:
@@ -60,6 +61,11 @@ jobs:
     name: GUI benchmark report
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Check out repository
@@ -103,19 +109,98 @@ jobs:
           MESH_GUI_BENCH_TIMEOUT: "180"
         run: scripts/run_gui_responsiveness_local.sh
 
+      - name: Download baseline benchmark
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || 'main' }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p benchmarks/gui_responsiveness/results/baseline
+          baseline_run_id=""
+          for candidate_run_id in $(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --branch "$BASE_BRANCH" \
+              --status success \
+              --limit 20 \
+              --json databaseId \
+              --jq '.[].databaseId'
+          ); do
+            if [ "$candidate_run_id" != "$CURRENT_RUN_ID" ]; then
+              baseline_run_id="$candidate_run_id"
+              break
+            fi
+          done
+          if [ -z "$baseline_run_id" ]; then
+            echo "No successful baseline CI run found on ${BASE_BRANCH}."
+            exit 0
+          fi
+          echo "Downloading gui-benchmark-report from run ${baseline_run_id} on ${BASE_BRANCH}."
+          gh run download "$baseline_run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name gui-benchmark-report \
+            --dir benchmarks/gui_responsiveness/results/baseline \
+            || echo "Baseline artifact was not available on run ${baseline_run_id}."
+
       - name: Render benchmark summary
         if: always()
         run: |
           mkdir -p benchmarks/gui_responsiveness/results
           if [ -f benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json ]; then
+            baseline_args=()
+            if [ -f benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json ]; then
+              baseline_args=(
+                --baseline-json
+                benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
+              )
+            fi
             python scripts/render_gui_benchmark_report.py \
               benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json \
-              --output benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md
+              "${baseline_args[@]}" \
+              --output benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
+              --pr-comment-output benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md \
+              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             cat benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md >> "$GITHUB_STEP_SUMMARY"
           else
             printf '# Meshyface GUI Benchmark Report\n\nBenchmark JSON was not produced.\n' \
               | tee benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
               >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Post benchmark PR comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_FILE: benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
+        run: |
+          if [ ! -f "$COMMENT_FILE" ]; then
+            echo "No benchmark PR comment was produced."
+            exit 0
+          fi
+
+          comment_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --paginate \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- meshyface-gui-benchmark-report -->"))) | .id' \
+              | tail -n 1
+          )"
+
+          if [ -n "$comment_id" ]; then
+            gh api \
+              --method PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
+          else
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
           fi
 
       - name: Upload benchmark report
@@ -126,4 +211,6 @@ jobs:
           path: |
             benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json
             benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md
+            benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
+            benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
           if-no-files-found: ignore

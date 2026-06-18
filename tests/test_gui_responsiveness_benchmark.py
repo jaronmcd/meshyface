@@ -203,3 +203,103 @@ def test_gui_benchmark_markdown_report_summarizes_key_metrics() -> None:
     assert "| Body HTML | 2.0 KB |" in markdown
     assert "| switch:chat | 11.0 ms | 1.0 ms | 2.0 ms | 3.0 ms | 340 | 0 |" in markdown
     assert "| state:default | ok | HTTP 200 | 10.5 ms | 2.0 KB |" in markdown
+
+
+def test_gui_benchmark_markdown_report_compares_baseline() -> None:
+    report = _load_report_module()
+    current = {
+        "ok": True,
+        "durationMs": 1500,
+        "summary": {
+            "longTaskCount": 2,
+            "totalMs": {"p95": 120},
+            "callbackMs": {"p95": 80},
+            "pollWorkMs": {"p95": 5},
+            "frameP95Ms": {"p95": 10},
+            "domTotalElements": {"p95": 1250},
+            "domActiveSurfaceElements": {"p95": 350},
+            "domBodyHtmlBytes": {"p95": 3072},
+        },
+    }
+    baseline = {
+        "ok": True,
+        "durationMs": 1000,
+        "summary": {
+            "longTaskCount": 1,
+            "totalMs": {"p95": 100},
+            "callbackMs": {"p95": 100},
+            "pollWorkMs": {"p95": 10},
+            "frameP95Ms": {"p95": 5},
+            "domTotalElements": {"p95": 1000},
+            "domActiveSurfaceElements": {"p95": 400},
+            "domBodyHtmlBytes": {"p95": 2048},
+        },
+    }
+
+    markdown = report.render_markdown_report(current, baseline=baseline)
+
+    assert "## Baseline Comparison" in markdown
+    assert "| Duration | 1500.0 ms | 1000.0 ms | +500.0 ms | +50.0% |" not in markdown
+    assert "| Metric | Before (base) | After (current) | Delta | Delta % |" in markdown
+    app_section, timing_section = markdown.split("### Browser/Runner Timing", maxsplit=1)
+    assert "| Total sample p95 | 100.0 ms | 120.0 ms | +20.0 ms | +20.0% |" not in app_section
+    assert "| Callback p95 | 100.0 ms | 80.0 ms | -20.0 ms | -20.0% |" not in app_section
+    assert "| Frame p95 | 5.0 ms | 10.0 ms | +5.0 ms | +100.0% |" not in app_section
+    assert "| Poll work p95 | 10.0 ms | 5.0 ms | -5.0 ms | -50.0% |" in markdown
+    assert "| Long tasks | 1 | 2 | +1 | +100.0% |" in markdown
+    assert "| Body HTML p95 | 2.0 KB | 3.0 KB | +1.0 KB | +50.0% |" in markdown
+    assert "| Total sample p95 | 100.0 ms | 120.0 ms | +20.0 ms | +20.0% |" in timing_section
+    assert "| Callback p95 | 100.0 ms | 80.0 ms | -20.0 ms | -20.0% |" in timing_section
+    assert "| Frame p95 | 5.0 ms | 10.0 ms | +5.0 ms | +100.0% |" in timing_section
+
+
+def test_gui_benchmark_pr_comment_highlights_before_after() -> None:
+    report = _load_report_module()
+    current = {
+        "ok": True,
+        "durationMs": 1500,
+        "summary": {
+            "samples": 9,
+            "longTaskCount": 0,
+            "errors": 0,
+            "totalMs": {"p95": 120},
+            "callbackMs": {"p95": 80},
+            "pollWorkMs": {"p95": 5},
+            "frameP95Ms": {"p95": 10},
+            "domTotalElements": {"p95": 1250},
+            "domActiveSurfaceElements": {"p95": 350},
+            "domBodyHtmlBytes": {"p95": 3072},
+        },
+    }
+    baseline = {
+        "ok": True,
+        "durationMs": 1000,
+        "summary": {
+            "samples": 9,
+            "longTaskCount": 0,
+            "errors": 0,
+            "totalMs": {"p95": 100},
+            "callbackMs": {"p95": 100},
+            "pollWorkMs": {"p95": 10},
+            "frameP95Ms": {"p95": 5},
+            "domTotalElements": {"p95": 1000},
+            "domActiveSurfaceElements": {"p95": 400},
+            "domBodyHtmlBytes": {"p95": 2048},
+        },
+    }
+
+    comment = report.render_pr_comment(current, baseline=baseline, run_url="https://example.test/run")
+
+    assert "<!-- meshyface-gui-benchmark-report -->" in comment
+    assert "## GUI Benchmark Before/After" in comment
+    assert "| Metric | Before (base) | After (PR) | Delta | Delta % |" in comment
+    main_comment, timing_details = comment.split("<details>", maxsplit=1)
+    assert "| Poll work p95 | 10.0 ms | 5.0 ms | -5.0 ms | -50.0% |" in main_comment
+    assert "| Total sample p95 | 100.0 ms | 120.0 ms | +20.0 ms | +20.0% |" not in main_comment
+    assert "| Callback p95 | 100.0 ms | 80.0 ms | -20.0 ms | -20.0% |" not in main_comment
+    assert "| Total sample p95 | 100.0 ms | 120.0 ms | +20.0 ms | +20.0% |" in timing_details
+    assert "<summary>Browser/runner timing details</summary>" in comment
+    assert comment.index("| Poll work p95 |") < comment.index("### Run Summary")
+    assert comment.index("### Run Summary") < comment.index("| Duration | 1500.0 ms |")
+    assert "| Duration | 1500.0 ms |" in comment
+    assert "[Actions run](https://example.test/run)" in comment
