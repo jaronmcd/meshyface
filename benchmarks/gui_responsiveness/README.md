@@ -18,3 +18,15 @@ python -m pytest -m gui_benchmark --run-gui-benchmark
 ```
 
 For one-off comparisons, use `scripts/benchmark_gui_responsiveness.py` directly and write outputs under `benchmarks/gui_responsiveness/results/`. That directory is ignored because benchmark output can include local hosts, URLs, and runtime-specific data.
+
+To render a saved JSON result as a compact Markdown report:
+
+```bash
+python scripts/render_gui_benchmark_report.py \
+  benchmarks/gui_responsiveness/results/local-gui-responsiveness.json \
+  --output benchmarks/gui_responsiveness/results/local-gui-responsiveness.md
+```
+
+GitHub Actions runs the same offline benchmark as an advisory report job. It
+does not require Meshtastic hardware and normal local `pytest` runs continue to
+skip the browser benchmark unless explicitly enabled.

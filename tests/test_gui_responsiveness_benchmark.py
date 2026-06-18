@@ -13,6 +13,16 @@ def _load_benchmark_module():
     return module
 
 
+def _load_report_module():
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "render_gui_benchmark_report.py"
+    spec = importlib.util.spec_from_file_location("render_gui_benchmark_report", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_dashboard_js_includes_gui_responsiveness_benchmark(
     dashboard_js: str,
     assert_tokens_present: Callable[[str, Sequence[str]], None],
@@ -129,3 +139,67 @@ def test_gui_responsiveness_redacts_url_credentials_from_saved_results() -> None
         == "http://[redacted]@192.0.2.10:8877/path?x=1"
     )
     assert benchmark.redact_url_credentials("http://192.0.2.10:8877/") == "http://192.0.2.10:8877/"
+
+
+def test_gui_benchmark_markdown_report_summarizes_key_metrics() -> None:
+    report = _load_report_module()
+    markdown = report.render_markdown_report(
+        {
+            "ok": True,
+            "durationMs": 1234.56,
+            "_runner": {
+                "browser": "/usr/bin/chromium",
+                "window_size": "1366,900",
+            },
+            "state": {
+                "nodes": 2,
+                "rawNodes": 3,
+                "recentChat": 4,
+                "dom": {
+                    "totalElements": 1200,
+                    "activeSurfaceElements": 340,
+                    "bodyHtmlBytes": 2048,
+                    "mapMarkers": 2,
+                    "networkGraphNodes": 3,
+                    "networkGraphEdges": 4,
+                },
+            },
+            "summary": {
+                "samples": 9,
+                "longTaskCount": 1,
+                "errors": 0,
+                "totalMs": {"p50": 12.3, "p95": 45.6, "max": 78.9},
+                "callbackMs": {"p50": 1, "p95": 2, "max": 3},
+                "pollWorkMs": {"p50": 4, "p95": 5, "max": 6},
+                "frameP95Ms": {"p50": 7, "p95": 8, "max": 9},
+                "byLabel": {
+                    "switch:chat": {
+                        "totalMs": {"count": 1, "p95": 11},
+                        "callbackMs": {"p95": 1},
+                        "pollWorkMs": {"p95": 2},
+                        "frameMaxMs": {"max": 3},
+                        "domActiveSurfaceElements": {"p95": 340},
+                        "longTaskCount": 0,
+                    }
+                },
+            },
+            "api": [
+                {
+                    "label": "state:default",
+                    "ok": True,
+                    "status": 200,
+                    "totalMs": 10.5,
+                    "bytes": 2048,
+                }
+            ],
+        }
+    )
+
+    assert "# Meshyface GUI Benchmark Report" in markdown
+    assert "| Result | pass |" in markdown
+    assert "| Duration | 1234.6 ms |" in markdown
+    assert "| Browser | /usr/bin/chromium |" in markdown
+    assert "| Total sample | 12.3 ms | 45.6 ms | 78.9 ms |" in markdown
+    assert "| Body HTML | 2.0 KB |" in markdown
+    assert "| switch:chat | 11.0 ms | 1.0 ms | 2.0 ms | 3.0 ms | 340 | 0 |" in markdown
+    assert "| state:default | ok | HTTP 200 | 10.5 ms | 2.0 KB |" in markdown
