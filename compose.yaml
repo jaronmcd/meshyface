@@ -1,0 +1,43 @@
+x-meshyface-common: &meshyface-common
+  build:
+    context: .
+    args:
+      MESH_DASH_GIT_COMMIT: ${MESH_DASH_GIT_COMMIT:-nogit}
+      MESH_DASH_VERSION: ${MESH_DASH_VERSION:-0.1.0}
+  image: meshyface:local
+  restart: unless-stopped
+  ports:
+    - "${MESH_DASH_HTTP_PORT:-8877}:8877"
+  volumes:
+    - meshyface-data:/data
+
+x-meshyface-environment: &meshyface-environment
+  MESH_DASH_PRIVATE_MODE: "${MESH_DASH_PRIVATE_MODE:-0}"
+  MESH_DASH_API_TOKEN: "${MESH_DASH_API_TOKEN:-}"
+  MESH_DASH_BBS_ENABLE: "${MESH_DASH_BBS_ENABLE:-0}"
+  MESH_DASH_GAMES_ENABLE: "${MESH_DASH_GAMES_ENABLE:-0}"
+  MESH_DASH_FILE_TRANSFER_ENABLE: "${MESH_DASH_FILE_TRANSFER_ENABLE:-0}"
+  MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT: "${MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT:-0}"
+  MESH_DASH_FILE_TRANSFER_MAX_BYTES: "${MESH_DASH_FILE_TRANSFER_MAX_BYTES:-65536}"
+  MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER: "${MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
+
+services:
+  meshyface-tcp:
+    <<: *meshyface-common
+    profiles: ["tcp"]
+    environment:
+      <<: *meshyface-environment
+      MESH_GATEWAY_HOST: "${MESH_GATEWAY_HOST:-meshtastic-radio.local}"
+      MESH_GATEWAY_PORT: "${MESH_GATEWAY_PORT:-4403}"
+
+  meshyface-serial:
+    <<: *meshyface-common
+    profiles: ["serial"]
+    environment:
+      <<: *meshyface-environment
+      MESH_DASH_MESH_PORT: "${MESH_DASH_MESH_PORT:-/dev/ttyACM0}"
+    devices:
+      - "${MESH_DASH_MESH_PORT:-/dev/ttyACM0}:${MESH_DASH_MESH_PORT:-/dev/ttyACM0}"
+
+volumes:
+  meshyface-data:
