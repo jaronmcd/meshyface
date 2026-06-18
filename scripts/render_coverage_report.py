@@ -97,7 +97,7 @@ def render_markdown_report(
         [
             "## Coverage Report" if pr_comment else "# Meshyface Coverage Report",
             "",
-            "Coverage is advisory; no minimum is enforced yet.",
+            "Coverage minimum: 80.0%. CI fails if total coverage drops below this threshold.",
             "",
         ]
     )

@@ -49,6 +49,7 @@ def test_coverage_report_summarizes_total_and_largest_gaps() -> None:
     )
 
     assert "<!-- meshyface-coverage-report -->" in markdown
+    assert "Coverage minimum: 80.0%" in markdown
     assert "| Coverage | 80.0% |" in markdown
     assert "| Statements | 100 |" in markdown
     assert "| Missing | 20 |" in markdown

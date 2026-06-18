@@ -90,7 +90,8 @@ jobs:
             --cov=mesh_dashboard \
             --cov=mesh_connection \
             --cov-report=term \
-            --cov-report=xml:coverage.xml
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
           python -m coverage json -o coverage.json
           python scripts/render_coverage_report.py \
             coverage.json \
