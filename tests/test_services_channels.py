@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from types import ModuleType
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.api_input_channels import ChannelSettingsRequest
@@ -263,3 +265,222 @@ def test_upsert_new_channel_defaults_psk_instead_of_reusing_disabled_slot_secret
     assert response["ok"] is True
     assert node.channels[1].settings.psk == b"psk:default"
     assert "settings.psk" in response["applied_fields"]
+
+
+def test_import_channel_url_normalizes_add_only_and_uses_getnode_fallback(monkeypatch) -> None:
+    node = _FakeNode()
+    delattr(node, "channels")
+    imported: list[tuple[str, bool]] = []
+
+    def _set_url(url: str, addOnly: bool = False) -> None:  # noqa: N803
+        imported.append((url, addOnly))
+
+    node.setURL = _set_url  # type: ignore[attr-defined]
+    iface = SimpleNamespace(getNode=lambda node_id: node)
+    lock = _FakeLock()
+
+    response = apply_channel_settings(
+        ChannelSettingsRequest(
+            action="import_url",
+            url="https://meshtastic.org/e/#abc",
+            add_only=True,
+        ),
+        iface=iface,
+        send_lock=lock,
+        show_secrets=False,
+    )
+
+    assert response == {
+        "ok": True,
+        "action": "import_url",
+        "add_only": True,
+        "reboot_expected": True,
+    }
+    assert imported == [("https://meshtastic.org/e/?add=true#abc", True)]
+    assert lock.depth == 0
+    assert len(node.channels) == 4
+
+
+def test_export_channel_url_requires_secret_visibility_and_device_support() -> None:
+    node = _FakeNode()
+    iface = _FakeIface(node)
+
+    hidden = apply_channel_settings(
+        ChannelSettingsRequest(action="export_url"),
+        iface=iface,
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+    unsupported = apply_channel_settings(
+        ChannelSettingsRequest(action="export_url"),
+        iface=iface,
+        send_lock=_FakeLock(),
+        show_secrets=True,
+    )
+    node.getURL = lambda *, includeAll=True: f"url:{includeAll}"  # type: ignore[attr-defined]
+    exported = apply_channel_settings(
+        ChannelSettingsRequest(action="export_url", include_all=False),
+        iface=iface,
+        send_lock=_FakeLock(),
+        show_secrets=True,
+    )
+
+    assert hidden["ok"] is False
+    assert "Secrets are redacted" in hidden["error"]
+    assert unsupported == {"ok": False, "error": "Meshtastic node does not support getURL()"}
+    assert exported == {
+        "ok": True,
+        "action": "export_url",
+        "include_all": False,
+        "url": "url:False",
+    }
+
+
+def test_channel_settings_reports_setup_and_capability_failures(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "meshdash.services_channels._import_channel_pb2",
+        lambda: (_ for _ in ()).throw(RuntimeError("protobuf missing")),
+    )
+    protobuf_error = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=1),
+        iface=_FakeIface(_FakeNode()),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    monkeypatch.setattr("meshdash.services_channels._import_channel_pb2", lambda: _FakeChannelPb2)
+    missing_channels = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=1),
+        iface=SimpleNamespace(localNode=object()),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    node_without_writer = SimpleNamespace(channels=_FakeNode().channels)
+    no_writer = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=1),
+        iface=SimpleNamespace(localNode=node_without_writer),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    assert protobuf_error["error"] == "Meshtastic channel protobuf unavailable: protobuf missing"
+    assert missing_channels["error"] == "Channels unavailable: Channels are not loaded"
+    assert no_writer == {"ok": False, "error": "Meshtastic node does not support writeChannel()"}
+
+
+@pytest.mark.parametrize(
+    ("channel_request", "error"),
+    [
+        (ChannelSettingsRequest(action="disable"), "channel_index is required for disable"),
+        (ChannelSettingsRequest(action="disable", channel_index=0), "Primary channel (index 0) cannot be disabled"),
+        (
+            ChannelSettingsRequest(action="disable", channel_index=99),
+            "Disable channels from the end (highest active index) to avoid gaps",
+        ),
+        (ChannelSettingsRequest(action="upsert", channel_index=99), "channel_index out of range"),
+        (ChannelSettingsRequest(action="upsert", channel_index=2, role="PRIMARY"), "Only index 0 can be PRIMARY"),
+        (ChannelSettingsRequest(action="upsert", channel_index=1, role="DISABLED"), "Use action=disable"),
+        (ChannelSettingsRequest(action="upsert", channel_index=1, role="bogus"), "Invalid role"),
+    ],
+)
+def test_channel_settings_rejects_invalid_disable_and_role_requests(monkeypatch, channel_request, error) -> None:
+    monkeypatch.setattr("meshdash.services_channels._import_channel_pb2", lambda: _FakeChannelPb2)
+
+    response = apply_channel_settings(
+        channel_request,
+        iface=_FakeIface(_FakeNode()),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    assert response["ok"] is False
+    assert str(response["error"]).startswith(error)
+
+
+def test_upsert_rejects_nonconsecutive_new_channel_and_empty_name(monkeypatch) -> None:
+    monkeypatch.setattr("meshdash.services_channels._import_channel_pb2", lambda: _FakeChannelPb2)
+    node = _FakeNode()
+
+    nonconsecutive = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=3, settings={"name": "skip"}),
+        iface=_FakeIface(node),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+    empty_name = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=2, settings={"name": ""}),
+        iface=_FakeIface(node),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    assert nonconsecutive["error"] == "Channels must be consecutive. Add the next available channel slot."
+    assert nonconsecutive["next_available_index"] == 2
+    assert empty_name["error"] == "Channel name is required when adding a channel"
+
+
+def test_upsert_applies_module_settings_and_preserves_redacted_psk(monkeypatch) -> None:
+    monkeypatch.setattr("meshdash.services_channels._import_channel_pb2", lambda: _FakeChannelPb2)
+    node = _FakeNode()
+    node.channels[1].settings.psk = b"existing"
+    iface = _FakeIface(node)
+
+    response = apply_channel_settings(
+        ChannelSettingsRequest(
+            action="upsert",
+            channel_index=1,
+            settings={
+                "psk": "<redacted>",
+                "module_settings": {
+                    "is_muted": True,
+                    "position_precision": "18",
+                },
+            },
+        ),
+        iface=iface,
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    assert response["ok"] is True
+    assert node.channels[1].settings.psk == b"existing"
+    assert node.channels[1].module_settings.is_muted is True
+    assert node.channels[1].module_settings.position_precision == 18
+    assert "settings.psk" in response["ignored_fields"]
+    assert "module_settings.is_muted" in response["applied_fields"]
+    assert "module_settings.position_precision" in response["applied_fields"]
+
+
+def test_channel_settings_reports_write_and_verification_failures(monkeypatch) -> None:
+    monkeypatch.setattr("meshdash.services_channels._import_channel_pb2", lambda: _FakeChannelPb2)
+
+    class _BadWriteNode(_FakeNode):
+        def writeChannel(self, index: int) -> None:  # noqa: N802
+            raise RuntimeError(f"bad channel {index}")
+
+    write_failed = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=1, settings={"name": "new"}),
+        iface=_FakeIface(_BadWriteNode()),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    node = _FakeNode()
+    original_write = node.writeChannel
+
+    def _write_and_disable(index: int) -> None:
+        original_write(index)
+        node.channels[index].role = _FakeRole.DISABLED
+
+    node.writeChannel = _write_and_disable  # type: ignore[method-assign]
+    verification_failed = apply_channel_settings(
+        ChannelSettingsRequest(action="upsert", channel_index=1, settings={"name": "new"}),
+        iface=_FakeIface(node),
+        send_lock=_FakeLock(),
+        show_secrets=False,
+    )
+
+    assert write_failed["error"] == "Write failed: bad channel 1"
+    assert write_failed["applied_fields"] == ["settings.name"]
+    assert verification_failed["error"] == "Write verification failed: channel remained disabled on radio"

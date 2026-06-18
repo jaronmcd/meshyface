@@ -1,0 +1,304 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  tests:
+    name: Tests / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+  docker:
+    name: Docker smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t meshyface:ci .
+
+      - name: Check image entrypoint
+        run: docker run --rm meshyface:ci --help
+
+  coverage:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run coverage
+        run: |
+          python -m pytest \
+            --cov=meshdash \
+            --cov=mesh_dashboard \
+            --cov=mesh_connection \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml
+          python -m coverage json -o coverage.json
+          python scripts/render_coverage_report.py \
+            coverage.json \
+            --output coverage-report.md \
+            --pr-comment-output coverage-pr-comment.md \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          cat coverage-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post coverage PR comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_FILE: coverage-pr-comment.md
+        run: |
+          if [ ! -f "$COMMENT_FILE" ]; then
+            echo "No coverage PR comment was produced."
+            exit 0
+          fi
+
+          comment_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --paginate \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- meshyface-coverage-report -->"))) | .id' \
+              | tail -n 1
+          )"
+
+          if [ -n "$comment_id" ]; then
+            gh api \
+              --method PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
+          else
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            coverage.json
+            coverage-report.md
+            coverage-pr-comment.md
+          if-no-files-found: ignore
+
+  gui-benchmark:
+    name: GUI benchmark report
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Select Chrome browser
+        run: |
+          browser="$(
+            command -v google-chrome \
+              || command -v google-chrome-stable \
+              || command -v chromium \
+              || command -v chromium-browser \
+              || true
+          )"
+          if [ -z "$browser" ]; then
+            echo "No Chromium-compatible browser found." >&2
+            exit 1
+          fi
+          "$browser" --version
+          echo "MESH_GUI_BENCH_BROWSER=$browser" >> "$GITHUB_ENV"
+
+      - name: Run offline GUI benchmark
+        continue-on-error: true
+        env:
+          MESH_GUI_BENCH_OUTPUT: benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json
+          MESH_GUI_BENCH_PORT: "8899"
+          MESH_GUI_BENCH_TIMEOUT: "180"
+        run: scripts/run_gui_responsiveness_local.sh
+
+      - name: Download baseline benchmark
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || 'main' }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p benchmarks/gui_responsiveness/results/baseline
+          baseline_run_id=""
+          for candidate_run_id in $(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --branch "$BASE_BRANCH" \
+              --status success \
+              --limit 20 \
+              --json databaseId \
+              --jq '.[].databaseId'
+          ); do
+            if [ "$candidate_run_id" != "$CURRENT_RUN_ID" ]; then
+              baseline_run_id="$candidate_run_id"
+              break
+            fi
+          done
+          if [ -z "$baseline_run_id" ]; then
+            echo "No successful baseline CI run found on ${BASE_BRANCH}."
+            exit 0
+          fi
+          echo "Downloading gui-benchmark-report from run ${baseline_run_id} on ${BASE_BRANCH}."
+          gh run download "$baseline_run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name gui-benchmark-report \
+            --dir benchmarks/gui_responsiveness/results/baseline \
+            || echo "Baseline artifact was not available on run ${baseline_run_id}."
+
+      - name: Render benchmark summary
+        if: always()
+        run: |
+          mkdir -p benchmarks/gui_responsiveness/results
+          if [ -f benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json ]; then
+            baseline_args=()
+            if [ -f benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json ]; then
+              baseline_args=(
+                --baseline-json
+                benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
+              )
+            fi
+            python scripts/render_gui_benchmark_report.py \
+              benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json \
+              "${baseline_args[@]}" \
+              --output benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
+              --pr-comment-output benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md \
+              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            cat benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '# Meshyface GUI Benchmark Report\n\nBenchmark JSON was not produced.\n' \
+              | tee benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Post benchmark PR comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_FILE: benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
+        run: |
+          if [ ! -f "$COMMENT_FILE" ]; then
+            echo "No benchmark PR comment was produced."
+            exit 0
+          fi
+
+          comment_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --paginate \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- meshyface-gui-benchmark-report -->"))) | .id' \
+              | tail -n 1
+          )"
+
+          if [ -n "$comment_id" ]; then
+            gh api \
+              --method PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
+          else
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --field "body=@${COMMENT_FILE}" \
+              --silent
+          fi
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-benchmark-report
+          path: |
+            benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json
+            benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md
+            benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
+            benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
+          if-no-files-found: ignore
