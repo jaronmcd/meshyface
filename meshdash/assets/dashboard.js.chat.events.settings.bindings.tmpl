@@ -322,6 +322,13 @@
         }});
       }}
 
+      const updateReloadBtn = document.getElementById("settings-update-reload");
+      if (updateReloadBtn instanceof HTMLButtonElement) {{
+        updateReloadBtn.addEventListener("click", () => {{
+          void runSettingsBackendReload();
+        }});
+      }}
+
       const resetBtn = document.getElementById("settings-reset");
       if (resetBtn instanceof HTMLButtonElement) {{
         resetBtn.addEventListener("click", () => {{

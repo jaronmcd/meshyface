@@ -22,6 +22,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/bbs",
     "/api/settings/custom_telemetry",
     "/api/system/update",
+    "/api/system/restart",
 }
 _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/chat/send",
@@ -423,6 +424,48 @@ def handle_dashboard_post(
             status_code = int(response_obj.get("http_status") or (200 if response_obj.get("ok") else 409))
         except Exception:
             status_code = 200 if response_obj.get("ok") else 409
+        payload_obj = dict(response_obj)
+        payload_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=payload_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/system/restart":
+        restart_fn = deps.schedule_backend_restart_fn
+        if not callable(restart_fn):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "restart_scheduled": False,
+                    "state": "unavailable",
+                    "error": "Backend reload is not enabled on this dashboard instance.",
+                    "message": "Backend reload is not enabled on this dashboard instance.",
+                },
+                no_store=True,
+            )
+            return
+        try:
+            response_obj = restart_fn()
+        except Exception as exc:
+            response_obj = {
+                "ok": False,
+                "restart_scheduled": False,
+                "state": "error",
+                "error": str(exc or "backend reload failed"),
+                "message": "Backend reload failed.",
+                "http_status": 500,
+            }
+        status_code = 202
+        try:
+            status_code = int(response_obj.get("http_status") or (202 if response_obj.get("ok") else 500))
+        except Exception:
+            status_code = 202 if response_obj.get("ok") else 500
         payload_obj = dict(response_obj)
         payload_obj.pop("http_status", None)
         deps.write_json_response_fn(

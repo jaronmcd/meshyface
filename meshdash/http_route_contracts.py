@@ -275,6 +275,11 @@ class RunNetworkToolFn(Protocol):
         ...
 
 
+class ScheduleBackendRestartFn(Protocol):
+    def __call__(self) -> dict[str, object]:
+        ...
+
+
 class WriteHtmlResponseFn(Protocol):
     def __call__(
         self,
@@ -384,6 +389,7 @@ class DashboardPostRouteDependencies:
     parse_standalone_zork_request_fn: Optional[ParseStandaloneZorkRequestFn] = None
     run_network_tool_fn: Optional[RunNetworkToolFn] = None
     parse_network_tool_request_fn: Optional[ParseNetworkToolRequestFn] = None
+    schedule_backend_restart_fn: Optional[ScheduleBackendRestartFn] = None
     api_token: Optional[str] = None
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None

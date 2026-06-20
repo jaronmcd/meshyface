@@ -47,6 +47,7 @@ def make_http_handler(
     set_custom_telemetry_settings_fn = getattr(state_fn, "set_custom_telemetry_settings_fn", None)
     play_standalone_zork_fn = getattr(state_fn, "play_standalone_zork_fn", None)
     run_network_tool_fn = getattr(state_fn, "run_network_tool_fn", None)
+    schedule_backend_restart_fn = getattr(state_fn, "schedule_backend_restart_fn", None)
     clean_api_token = str(api_token or "").strip() or None
     get_deps = build_get_route_dependencies(
         html_text=html_text,
@@ -79,6 +80,9 @@ def make_http_handler(
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,
         play_standalone_zork_fn=play_standalone_zork_fn,
         run_network_tool_fn=run_network_tool_fn,
+        schedule_backend_restart_fn=(
+            schedule_backend_restart_fn if callable(schedule_backend_restart_fn) else None
+        ),
         api_token=clean_api_token,
         private_mode=bool(private_mode),
         api_metrics=api_metrics,
