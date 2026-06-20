@@ -244,11 +244,18 @@ def test_handle_dashboard_post_rejects_ping_bot_toggle_when_runtime_unavailable(
 
 
 def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _run_update(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"ok": True, "updated": False, "state": "up_to_date", "http_status": 200}
+
     monkeypatch.setattr(
         "meshdash.http_routes_post._run_update_from_github_helper",
-        lambda: {"ok": True, "updated": False, "state": "up_to_date", "http_status": 200},
+        _run_update,
     )
-    handler = _FakeHandler()
+    body = b'{"branch":"beta"}'
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
     deps = type(deps)(
@@ -260,13 +267,14 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
 
     handle_dashboard_post(handler, path="/api/system/update", deps=deps)
 
+    assert captured["target_branch"] == "beta"
     assert calls == [(200, {"ok": True, "updated": False, "state": "up_to_date"})]
 
 
 def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
     update_calls = 0
 
-    def _run_update() -> dict[str, object]:
+    def _run_update(**kwargs: object) -> dict[str, object]:
         nonlocal update_calls
         update_calls += 1
         return {"ok": True}

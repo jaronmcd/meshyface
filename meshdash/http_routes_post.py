@@ -1,4 +1,5 @@
 from importlib import import_module
+import json
 from hmac import compare_digest
 
 from .http_handler_contracts import DashboardHttpHandler
@@ -104,6 +105,30 @@ def _extract_request_api_token(handler: DashboardHttpHandler) -> str:
         if len(parts) == 2 and parts[0].lower() == "bearer":
             return str(parts[1]).strip()
     return _header_value(getattr(handler, "headers", None), "X-API-Token").strip()
+
+
+def _read_system_update_request(handler: DashboardHttpHandler) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    if not raw_length:
+        return {}
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length < 0 or length > 4096:
+        raise ValueError("system update request body is too large")
+    if length == 0:
+        return {}
+    raw_body = handler.rfile.read(length)
+    if not raw_body:
+        return {}
+    try:
+        parsed = json.loads(raw_body.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("system update request body must be an object")
+    return parsed
 
 
 def _record_write_auth_denied(deps: DashboardPostRouteDependencies) -> None:
@@ -367,7 +392,23 @@ def handle_dashboard_post(
 
     if path == "/api/system/update":
         try:
-            response_obj = _run_update_from_github_helper()
+            request_payload = _read_system_update_request(handler)
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={"ok": False, "updated": False, "error": str(exc)},
+                no_store=True,
+            )
+            return
+        try:
+            response_obj = _run_update_from_github_helper(
+                target_branch=(
+                    request_payload.get("branch")
+                    or request_payload.get("target_branch")
+                    or ""
+                ),
+            )
         except Exception as exc:
             response_obj = {
                 "ok": False,

@@ -137,6 +137,18 @@ def _clean_top_nodes_excluded_node_id(value: object) -> str:
     return str(value or "").strip()
 
 
+def _query_branch_value(query: str) -> str:
+    try:
+        query_obj = parse_qs(query or "")
+    except Exception:
+        return ""
+    return str(
+        query_obj.get("branch", [""])[0]
+        or query_obj.get("target_branch", [""])[0]
+        or ""
+    ).strip()
+
+
 def _mapping_value(root: Mapping[str, object], *keys: str) -> object:
     for key in keys:
         if key in root:
@@ -399,7 +411,9 @@ def handle_dashboard_get(
 
     if path == "/api/system/update":
         try:
-            response_obj = _build_update_status_payload_helper()
+            response_obj = _build_update_status_payload_helper(
+                target_branch=_query_branch_value(query),
+            )
         except Exception as exc:
             response_obj = {
                 "ok": False,

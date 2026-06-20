@@ -128,14 +128,21 @@ def test_dashboard_get_reports_version_and_health_errors() -> None:
 
 
 def test_dashboard_get_serves_system_update_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _status(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"ok": True, "available": True, "state": "up_to_date"}
+
     monkeypatch.setattr(
         "meshdash.http_routes_get._build_update_status_payload_helper",
-        lambda: {"ok": True, "available": True, "state": "up_to_date"},
+        _status,
     )
     deps = _make_deps()
 
-    handle_dashboard_get(object(), path="/api/system/update", query="", deps=deps)
+    handle_dashboard_get(object(), path="/api/system/update", query="branch=beta", deps=deps)
 
+    assert captured["target_branch"] == "beta"
     assert deps.recorder.json == [(200, {"ok": True, "available": True, "state": "up_to_date"}, True)]
 
 

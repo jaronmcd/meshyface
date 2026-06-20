@@ -307,6 +307,14 @@
         }});
       }}
 
+      const updateBranchSelect = document.getElementById("settings-update-branch");
+      if (updateBranchSelect instanceof HTMLSelectElement) {{
+        updateBranchSelect.addEventListener("change", () => {{
+          settingsUpdateStatusFetchedAt = 0;
+          void hydrateSettingsUpdateStatus(true);
+        }});
+      }}
+
       const updateApplyBtn = document.getElementById("settings-update-apply");
       if (updateApplyBtn instanceof HTMLButtonElement) {{
         updateApplyBtn.addEventListener("click", () => {{
