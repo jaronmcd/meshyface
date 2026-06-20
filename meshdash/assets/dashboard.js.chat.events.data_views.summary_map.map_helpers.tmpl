@@ -1128,6 +1128,41 @@
       }};
     }}
 
+    function trilateratedMarkerStyle(isSelected, confidence = 0.5, isLocal = false) {{
+      const safeConfidence = clampMapLinkValue(confidence, 0.12, 0.96);
+      if (isLocal) {{
+        return {{
+          radius: (isSelected ? 9.2 : 6.6) + (safeConfidence * (isSelected ? 1.0 : 2.0)),
+          color: isSelected ? "#8b3a68" : "#cc79a7",
+          fillColor: isSelected ? "#ffe4f2" : "#f4a7c7",
+          fillOpacity: isSelected ? 0.97 : 0.72,
+          weight: isSelected ? 2.9 : 2.3,
+          dashArray: "5 3",
+          bubblingMouseEvents: false,
+        }};
+      }}
+      if (isSelected) {{
+        return {{
+          radius: 8.8 + (safeConfidence * 0.9),
+          color: "#9a4577",
+          fillColor: "#ffd7eb",
+          fillOpacity: 0.94,
+          weight: 2.5,
+          dashArray: "6 4",
+          bubblingMouseEvents: false,
+        }};
+      }}
+      return {{
+        radius: 5.8 + (safeConfidence * 1.9),
+        color: "#cc79a7",
+        fillColor: "#f4a7c7",
+        fillOpacity: 0.46 + (safeConfidence * 0.30),
+        weight: 1.9,
+        dashArray: "5 4",
+        bubblingMouseEvents: false,
+      }};
+    }}
+
     function isNetworkMapActivityFlashVisible() {{
       return (
         !!mapLiveActivityEnabled
@@ -1535,7 +1570,9 @@
           nextPositions.set(nodeId, {{
             lat,
             lon,
-            kind: "estimated",
+            kind: String(estimate && estimate.estimateSource || "").trim() === "rssi_trilateration"
+              ? "trilaterated"
+              : "estimated",
             confidence: clampMapLinkValue(Number(estimate && estimate.confidence), 0.08, 1),
           }});
         }}
@@ -1562,10 +1599,11 @@
         const lat = Number(cached.lat);
         const lon = Number(cached.lon);
         if (isValidMapCoord(lat, lon)) {{
+          const cachedKind = String(cached.kind || "").trim();
           return {{
             lat,
             lon,
-            kind: cached.kind === "estimated" ? "estimated" : "actual",
+            kind: cachedKind === "trilaterated" ? "trilaterated" : (cachedKind === "estimated" ? "estimated" : "actual"),
             confidence: cached.confidence,
           }};
         }}
@@ -2280,7 +2318,7 @@
       const radiusBase = Number(style.radius);
       const weightBase = Number(style.weight);
       const fillOpacityBase = Number(style.fillOpacity);
-      style.radius = (Number.isFinite(radiusBase) ? radiusBase : 6) + ((markerKind === "estimated" ? 1.4 : 1.9) * strength);
+      style.radius = (Number.isFinite(radiusBase) ? radiusBase : 6) + ((markerKind === "estimated" || markerKind === "trilaterated" ? 1.4 : 1.9) * strength);
       style.weight = (Number.isFinite(weightBase) ? weightBase : 1) + (1.2 * strength);
       style.fillOpacity = clampMapLinkValue((Number.isFinite(fillOpacityBase) ? fillOpacityBase : 0.78) + (0.22 * strength), 0.12, 1);
       style.opacity = clampMapLinkValue(0.78 + (0.22 * strength), 0.12, 1);
@@ -2320,14 +2358,18 @@
     }}
 
     function resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
-      const kind = markerKind === "estimated" ? "estimated" : "actual";
+      const kind = markerKind === "trilaterated"
+        ? "trilaterated"
+        : (markerKind === "estimated" ? "estimated" : "actual");
       const safeState = (state && typeof state === "object") ? state : latestState;
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState || {{}}) || "");
       const isLocal = !!(localNodeId && normalizeNodeId(nodeId || "") === localNodeId);
-      const baseStyle = kind === "estimated"
-        ? estimatedMarkerStyle(isSelected, markerConfidence, isLocal)
-        : markerStyle(isSelected || isLocal);
-      if (isLocal && kind !== "estimated") {{
+      const baseStyle = kind === "trilaterated"
+        ? trilateratedMarkerStyle(isSelected, markerConfidence, isLocal)
+        : (kind === "estimated"
+          ? estimatedMarkerStyle(isSelected, markerConfidence, isLocal)
+          : markerStyle(isSelected || isLocal));
+      if (isLocal && kind === "actual") {{
         baseStyle.radius = Math.max(Number(baseStyle.radius) || 0, isSelected ? 8.6 : 7.2);
         baseStyle.color = isSelected ? "#3f2b8c" : "#5f40c9";
         baseStyle.fillColor = isSelected ? "#efe4ff" : "#ccb8ff";
@@ -2354,7 +2396,7 @@
     }}
 
     function mapNodeUsesEmojiMarker(nodeId, markerKind = "actual", state = latestState) {{
-      if ((markerKind === "estimated" ? "estimated" : "actual") !== "actual") return false;
+      if (markerKind !== "actual") return false;
       return !!resolveMapNodeEmoji(nodeId, state);
     }}
 
@@ -2573,6 +2615,7 @@
       const avgHops = opts.avgHops;
       const avgSnr = opts.avgSnr;
       const avgRssi = opts.avgRssi;
+      const estimatedLocationLabel = String(opts.estimatedLocationLabel || "Link-inferred").trim() || "Link-inferred";
 
       const headerMeta = [];
       if (emoji) headerMeta.push(`<span class="map-node-info-emoji" aria-hidden="true">${{escAttr(emoji)}}</span>`);
@@ -2605,7 +2648,7 @@
       if (trailLatest) rows.push(mapNodeFieldHtml("Trail Latest", trailLatest));
 
       if (isEstimated) {{
-        rows.push(mapNodeFieldHtml("Location", "Link-inferred"));
+        rows.push(mapNodeFieldHtml("Location", estimatedLocationLabel));
         if (confidenceLabel || confidencePct != null) {{
           rows.push(mapNodeFieldHtml(
             "Confidence",
@@ -3323,6 +3366,301 @@
       return clampMapLinkValue(base * anchorDamping * fitDamping, 0.06, 0.88);
     }}
 
+    function mapLinkSignalSampleCount(edge) {{
+      const rssiSamples = Number(edge && edge.rssiSamples);
+      const snrSamples = Number(edge && edge.snrSamples);
+      return Math.max(
+        0,
+        Number.isFinite(rssiSamples) ? Math.trunc(rssiSamples) : 0,
+        Number.isFinite(snrSamples) ? Math.trunc(snrSamples) : 0
+      );
+    }}
+
+    function mapLinkRangeFromSignal(edge) {{
+      const ranges = [];
+      const samples = Math.max(0, mapLinkSignalSampleCount(edge));
+      const sampleDamping = clampMapLinkValue(Math.log10(samples + 1) / 1.1, 0.35, 1);
+      const avgRssi = Number(edge && edge.avgRssi);
+      if (Number.isFinite(avgRssi)) {{
+        // Path-loss approximation calibrated for coarse LoRa mesh ranges:
+        // around -97dBm near 1km, with exponent 2.4 for mixed urban/suburban terrain.
+        const rssiMeters = 1000 * Math.pow(10, ((-97 - avgRssi) / (10 * 2.4)));
+        ranges.push({{
+          value: clampMapLinkValue(rssiMeters, 120, 65000),
+          weight: 0.66 * sampleDamping,
+        }});
+      }}
+      const avgSnr = Number(edge && edge.avgSnr);
+      if (Number.isFinite(avgSnr)) {{
+        // SNR is not a physical range by itself, but it is useful as a second
+        // coarse range hint when RSSI is missing or distorted.
+        const snrMeters = 900 * Math.pow(2, ((10 - avgSnr) / 5));
+        ranges.push({{
+          value: clampMapLinkValue(snrMeters, 160, 70000),
+          weight: 0.34 * sampleDamping,
+        }});
+      }}
+      if (!ranges.length) return null;
+      let logTotal = 0;
+      let totalWeight = 0;
+      for (const range of ranges) {{
+        const value = Math.max(1, Number(range && range.value) || 1);
+        const weight = Math.max(0, Number(range && range.weight) || 0);
+        if (!(weight > 0)) continue;
+        logTotal += Math.log(value) * weight;
+        totalWeight += weight;
+      }}
+      if (!(totalWeight > 0)) return null;
+      const meters = Math.exp(logTotal / totalWeight);
+      let agreement = ranges.length >= 2 ? 1 : 0.68;
+      if (ranges.length >= 2) {{
+        const ratio = Math.max(ranges[0].value, ranges[1].value) / Math.max(1, Math.min(ranges[0].value, ranges[1].value));
+        agreement = clampMapLinkValue(1 - (Math.log(ratio) / Math.log(10)), 0.28, 1);
+      }}
+      return {{
+        meters,
+        confidence: clampMapLinkValue(agreement * sampleDamping, 0.18, 1),
+        samples,
+      }};
+    }}
+
+    function mapLinkTrilaterationAnchorFromEdge(nodeId, edge, positions, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const a = normalizeNodeId(edge && edge.a);
+      const b = normalizeNodeId(edge && edge.b);
+      const peerId = a === cleanNodeId ? b : (b === cleanNodeId ? a : "");
+      if (!isSelectableNodeId(peerId)) return null;
+      const peerPos = positions instanceof Map ? positions.get(peerId) : null;
+      if (!(peerPos && peerPos.fixed)) return null;
+
+      const lastSeenUnix = Number(edge && edge.lastSeenUnix);
+      if (
+        Number.isFinite(Number(mapLinkMaxTrilaterationAgeSeconds))
+        && Number(mapLinkMaxTrilaterationAgeSeconds) > 0
+      ) {{
+        if (!Number.isFinite(lastSeenUnix) || lastSeenUnix <= 0) return null;
+        if ((Math.max(0, nowUnix - lastSeenUnix)) > Number(mapLinkMaxTrilaterationAgeSeconds)) return null;
+      }}
+
+      const hopMetric = mapLinkEdgeHopMetric(edge);
+      if (
+        Number.isFinite(hopMetric)
+        && Number.isFinite(Number(mapLinkMaxTrilaterationHops))
+        && hopMetric > Number(mapLinkMaxTrilaterationHops)
+      ) {{
+        return null;
+      }}
+
+      const range = mapLinkRangeFromSignal(edge);
+      if (!range || range.samples < mapLinkMinTrilaterationSignalSamples) return null;
+      const locationWeight = mapLinkEdgeLocationWeight(edge);
+      if (!(locationWeight > 0)) return null;
+      const recency = mapLinkRecencyScore(lastSeenUnix, nowUnix);
+      const sampleWeight = clampMapLinkValue(Math.log10(range.samples + 1), 0.35, 1.25);
+      const weight = clampMapLinkValue(locationWeight * range.confidence * recency * sampleWeight, 0.02, 2.5);
+      return {{
+        nodeId: peerId,
+        x: Number(peerPos.x),
+        y: Number(peerPos.y),
+        distanceMeters: range.meters,
+        weight,
+        samples: range.samples,
+        rangeConfidence: range.confidence,
+        avgSnr: Number.isFinite(Number(edge && edge.avgSnr)) ? Number(edge.avgSnr) : null,
+        avgRssi: Number.isFinite(Number(edge && edge.avgRssi)) ? Number(edge.avgRssi) : null,
+        avgHops: Number.isFinite(Number(edge && edge.avgHops)) ? Number(edge.avgHops) : null,
+        lastSeenUnix,
+      }};
+    }}
+
+    function solveMapRssiTrilateration(nodeId, seedPosition, anchors) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const usableAnchors = Array.isArray(anchors)
+        ? anchors.filter((anchor) => (
+            anchor
+            && Number.isFinite(Number(anchor.x))
+            && Number.isFinite(Number(anchor.y))
+            && Number.isFinite(Number(anchor.distanceMeters))
+            && Number(anchor.distanceMeters) > 0
+            && Number.isFinite(Number(anchor.weight))
+            && Number(anchor.weight) > 0
+          ))
+        : [];
+      if (!isSelectableNodeId(cleanNodeId) || usableAnchors.length < mapLinkMinTrilaterationAnchors) return null;
+
+      let x = Number(seedPosition && seedPosition.x);
+      let y = Number(seedPosition && seedPosition.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {{
+        let totalWeight = 0;
+        let sumX = 0;
+        let sumY = 0;
+        for (const anchor of usableAnchors) {{
+          const weight = Number(anchor.weight);
+          sumX += Number(anchor.x) * weight;
+          sumY += Number(anchor.y) * weight;
+          totalWeight += weight;
+        }}
+        if (!(totalWeight > 0)) return null;
+        x = sumX / totalWeight;
+        y = sumY / totalWeight;
+      }}
+
+      for (let iter = 0; iter < 22; iter += 1) {{
+        let a00 = 0;
+        let a01 = 0;
+        let a11 = 0;
+        let b0 = 0;
+        let b1 = 0;
+        for (const anchor of usableAnchors) {{
+          const dx = x - Number(anchor.x);
+          const dy = y - Number(anchor.y);
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const desired = Math.max(1, Number(anchor.distanceMeters));
+          const residual = distance - desired;
+          const jx = dx / distance;
+          const jy = dy / distance;
+          const weight = clampMapLinkValue(Number(anchor.weight), 0.001, 8);
+          a00 += weight * jx * jx;
+          a01 += weight * jx * jy;
+          a11 += weight * jy * jy;
+          b0 += weight * jx * residual;
+          b1 += weight * jy * residual;
+        }}
+        const det = (a00 * a11) - (a01 * a01);
+        if (!Number.isFinite(det) || Math.abs(det) < 1e-6) break;
+        let stepX = ((b0 * a11) - (b1 * a01)) / det;
+        let stepY = ((a00 * b1) - (a01 * b0)) / det;
+        const stepMeters = Math.hypot(stepX, stepY);
+        if (!Number.isFinite(stepMeters) || stepMeters <= 0.5) break;
+        const maxStep = Math.max(420, 14000 - (iter * 520));
+        if (stepMeters > maxStep) {{
+          const ratio = maxStep / stepMeters;
+          stepX *= ratio;
+          stepY *= ratio;
+        }}
+        x -= stepX;
+        y -= stepY;
+        if (Math.hypot(stepX, stepY) < 2) break;
+      }}
+
+      let weightedError = 0;
+      let weightedDistance = 0;
+      let totalWeight = 0;
+      let totalSamples = 0;
+      let qualitySum = 0;
+      let snrWeight = 0;
+      let snrSum = 0;
+      let rssiWeight = 0;
+      let rssiSum = 0;
+      let hopsWeight = 0;
+      let hopsSum = 0;
+      for (const anchor of usableAnchors) {{
+        const dx = x - Number(anchor.x);
+        const dy = y - Number(anchor.y);
+        const distance = Math.hypot(dx, dy);
+        const desired = Math.max(1, Number(anchor.distanceMeters));
+        const weight = clampMapLinkValue(Number(anchor.weight), 0.001, 8);
+        weightedError += Math.abs(distance - desired) * weight;
+        weightedDistance += desired * weight;
+        totalWeight += weight;
+        totalSamples += Math.max(0, Math.trunc(Number(anchor.samples) || 0));
+        qualitySum += clampMapLinkValue(Number(anchor.rangeConfidence), 0, 1) * weight;
+        if (Number.isFinite(Number(anchor.avgSnr))) {{
+          snrSum += Number(anchor.avgSnr) * weight;
+          snrWeight += weight;
+        }}
+        if (Number.isFinite(Number(anchor.avgRssi))) {{
+          rssiSum += Number(anchor.avgRssi) * weight;
+          rssiWeight += weight;
+        }}
+        if (Number.isFinite(Number(anchor.avgHops))) {{
+          hopsSum += Number(anchor.avgHops) * weight;
+          hopsWeight += weight;
+        }}
+      }}
+      if (!(totalWeight > 0)) return null;
+      const residualMeters = weightedError / totalWeight;
+      const residualRatio = residualMeters / Math.max(900, weightedDistance / totalWeight);
+      const fitScore = clampMapLinkValue(1 - (residualRatio / 0.82), 0, 1);
+      const qualityScore = clampMapLinkValue(qualitySum / totalWeight, 0, 1);
+      const anchorScore = clampMapLinkValue((usableAnchors.length - 3) / 4, 0, 1);
+      const sampleScore = clampMapLinkValue(Math.log10(totalSamples + 1) / 1.35, 0, 1);
+      const confidence = clampMapLinkValue(
+        0.08 + (fitScore * 0.54) + (qualityScore * 0.14) + (anchorScore * 0.14) + (sampleScore * 0.10),
+        0.04,
+        0.92
+      );
+      if (confidence < mapLinkMinTrilaterationConfidence || fitScore < mapLinkMinTrilaterationFit) return null;
+      return {{
+        x,
+        y,
+        confidence,
+        fitScore,
+        residualKm: Math.round((residualMeters / 1000) * 10) / 10,
+        residualRatio: Math.round(residualRatio * 1000) / 1000,
+        anchorCount: usableAnchors.length,
+        supportLinks: usableAnchors.length,
+        signalSamples: totalSamples,
+        avgLinkQuality: qualityScore,
+        avgSnr: snrWeight > 0 ? Math.round((snrSum / snrWeight) * 100) / 100 : null,
+        avgRssi: rssiWeight > 0 ? Math.round((rssiSum / rssiWeight) * 100) / 100 : null,
+        avgHops: hopsWeight > 0 ? Math.round((hopsSum / hopsWeight) * 100) / 100 : null,
+      }};
+    }}
+
+    function buildMapRssiTrilaterationEstimates(positions, adjacency, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const refLat = Number(opts.refLat);
+      const refLon = Number(opts.refLon);
+      if (!isValidMapCoord(refLat, refLon)) return new Map();
+      const nowUnix = Number.isFinite(Number(opts.nowUnix))
+        ? Math.trunc(Number(opts.nowUnix))
+        : Math.floor(Date.now() / 1000);
+      const nodeIds = Array.isArray(opts.nodeIds)
+        ? opts.nodeIds.map((nodeId) => normalizeNodeId(nodeId)).filter((nodeId) => isSelectableNodeId(nodeId))
+        : Array.from(positions instanceof Map ? positions.keys() : []);
+      const estimates = new Map();
+      for (const nodeId of nodeIds) {{
+        const nodePos = positions instanceof Map ? positions.get(nodeId) : null;
+        if (!(nodePos && !nodePos.fixed)) continue;
+        const peers = adjacency instanceof Map ? adjacency.get(nodeId) : null;
+        if (!(peers instanceof Map) || peers.size < mapLinkMinTrilaterationAnchors) continue;
+        const anchors = [];
+        for (const edge of peers.values()) {{
+          const anchor = mapLinkTrilaterationAnchorFromEdge(nodeId, edge, positions, nowUnix);
+          if (anchor) anchors.push(anchor);
+        }}
+        if (anchors.length < mapLinkMinTrilaterationAnchors) continue;
+        anchors.sort((left, right) => (Number(right.weight) || 0) - (Number(left.weight) || 0));
+        const solveAnchors = anchors.slice(0, Math.min(10, Math.max(mapLinkMinTrilaterationAnchors, anchors.length)));
+        const solution = solveMapRssiTrilateration(nodeId, nodePos, solveAnchors);
+        if (!solution) continue;
+        const ll = unprojectMapLinkPoint(solution.x, solution.y, refLat, refLon);
+        if (!isValidMapCoord(ll.lat, ll.lon)) continue;
+        estimates.set(nodeId, {{
+          lat: ll.lat,
+          lon: ll.lon,
+          confidence: solution.confidence,
+          rawConfidence: solution.confidence,
+          anchorCount: solution.anchorCount,
+          supportLinks: solution.supportLinks,
+          signalSamples: solution.signalSamples,
+          avgLinkQuality: solution.avgLinkQuality,
+          avgPositionQuality: solution.avgLinkQuality,
+          fitScore: solution.fitScore,
+          residualKm: solution.residualKm,
+          residualRatio: solution.residualRatio,
+          avgSnr: solution.avgSnr,
+          avgRssi: solution.avgRssi,
+          avgHops: solution.avgHops,
+          estimateSource: "rssi_trilateration",
+          rangeFitScore: solution.fitScore,
+          rangeResidualKm: solution.residualKm,
+        }});
+      }}
+      return estimates;
+    }}
+
     function mapLinkWeightedPercentile(entries, quantile = 0.5) {{
       const q = clampMapLinkValue(Number(quantile), 0, 1);
       const prepared = [];
@@ -3855,7 +4193,7 @@
       const liveCloudLinkCount = cloudLinks.filter((entry) => entry.mode === "live").length;
       const result = {{
         enabled: heatPoints.length > 0 && clouds.length > 0,
-        hideEstimatedMarkers: clouds.length > 0,
+        hideEstimatedMarkers: false,
         heatPoints,
         clouds,
         cloudLinks,
@@ -4145,12 +4483,29 @@
         }});
       }}
 
-      const historyCombinedEdges = (typeof combineNetworkGraphEdges === "function")
-        ? combineNetworkGraphEdges(safeRawEdges, nodeMap, {{ mode: "history" }})
-        : combinedEdges;
       const liveCombinedEdges = (typeof combineNetworkGraphEdges === "function")
         ? combineNetworkGraphEdges(liveRawEdges, nodeMap, {{ mode: "live" }})
         : [];
+      const trilaterationAdjacency = (typeof buildNetworkGraphAdjacency === "function")
+        ? buildNetworkGraphAdjacency(nodeMap, liveCombinedEdges)
+        : new Map();
+      const rssiTrilaterationEstimates = buildMapRssiTrilaterationEstimates(positions, trilaterationAdjacency, {{
+        nodeIds: movableIds,
+        refLat,
+        refLon,
+      }});
+      for (const [nodeId, trilaterated] of rssiTrilaterationEstimates.entries()) {{
+        const topologyEstimate = estimates.get(nodeId) || null;
+        estimates.set(nodeId, Object.assign({{}}, topologyEstimate || {{}}, trilaterated, {{
+          topologyConfidence: topologyEstimate ? topologyEstimate.confidence : null,
+          topologyFitScore: topologyEstimate ? topologyEstimate.fitScore : null,
+          topologyResidualKm: topologyEstimate ? topologyEstimate.residualKm : null,
+        }}));
+      }}
+
+      const historyCombinedEdges = (typeof combineNetworkGraphEdges === "function")
+        ? combineNetworkGraphEdges(safeRawEdges, nodeMap, {{ mode: "history" }})
+        : combinedEdges;
       const lineGroups = [];
       if (edgeMode === "history" || edgeMode === "both") {{
         lineGroups.push(["history", historyCombinedEdges]);

@@ -6823,6 +6823,8 @@
       transform: none;
     }}
     .map-link-legend-swatch.is-signal-heat::before,
+    .map-link-legend-swatch.is-signal-coverage-heat::before,
+    .map-link-legend-swatch.is-signal-live-heat::before,
     .map-link-legend-swatch.is-cloud-heat::before {{
       top: 1px;
       left: 2px;
@@ -6831,10 +6833,16 @@
       border-radius: 999px;
       transform: none;
     }}
-    .map-link-legend-swatch.is-signal-heat::before {{
+    .map-link-legend-swatch.is-signal-heat::before,
+    .map-link-legend-swatch.is-signal-coverage-heat::before {{
       background:
         radial-gradient(circle at 50% 50%, rgba(255, 229, 166, 0.98) 0%, rgba(230, 126, 34, 0.78) 48%, rgba(122, 63, 0, 0) 100%),
         linear-gradient(90deg, #332100 0%, #a96800 50%, #f4d38c 100%);
+    }}
+    .map-link-legend-swatch.is-signal-live-heat::before {{
+      background:
+        radial-gradient(circle at 50% 50%, rgba(202, 240, 248, 0.98) 0%, rgba(86, 207, 225, 0.76) 50%, rgba(0, 95, 115, 0) 100%),
+        linear-gradient(90deg, #002b36 0%, #0a9396 52%, #caf0f8 100%);
     }}
     .map-link-legend-swatch.is-cloud-heat::before {{
       background:
@@ -6842,7 +6850,8 @@
         linear-gradient(90deg, #0b2f6f 0%, #1d4ed8 50%, #e0f2fe 100%);
     }}
     .map-link-legend-swatch.is-node-actual::before,
-    .map-link-legend-swatch.is-node-linked::before {{
+    .map-link-legend-swatch.is-node-linked::before,
+    .map-link-legend-swatch.is-node-trilaterated::before {{
       left: 4px;
       right: auto;
       top: 50%;
@@ -6856,6 +6865,12 @@
       border: 2px dashed color-mix(in srgb, var(--map-link-legend-color, #68bde8) 82%, white 18%);
       background: color-mix(in srgb, var(--map-link-legend-color, #68bde8) 42%, transparent);
       box-sizing: border-box;
+    }}
+    .map-link-legend-swatch.is-node-trilaterated::before {{
+      border: 2px dashed color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 88%, white 12%);
+      background: color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 62%, transparent);
+      box-sizing: border-box;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 24%, transparent);
     }}
     .map-link-legend-name {{
       min-width: 0;

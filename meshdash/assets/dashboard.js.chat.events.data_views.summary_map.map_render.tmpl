@@ -246,7 +246,8 @@
         .map((entry) => entry.line);
     }}
 
-    function refreshNetworkMapAfterLegendControlChange() {{
+    function refreshNetworkMapAfterLegendControlChange(options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
       lastMapSignature = "";
@@ -256,7 +257,11 @@
         renderMap(
           latestState.nodes || [],
           (latestState.traffic || {{}}).edges || [],
-          null
+          null,
+          {{
+            bypassHeatmapFade: !!opts.bypassHeatmapFade,
+            bypassNodeFade: !!opts.bypassNodeFade,
+          }}
         );
       }}
     }}
@@ -342,7 +347,9 @@
       }});
     }}
 
-    function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false) {{
+    function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const bypassFade = !!opts.bypassFade;
       const layer = ensureLinkEstimateHeatmapLayer();
       if (!layer) return;
       const mapDrawable = (
@@ -360,24 +367,30 @@
         : [];
       const shouldShow = !!show && mapDrawable && heatPoints.length > 0;
       if (!shouldShow) {{
-        clearLinkEstimateHeatmapLayer();
+        clearLinkEstimateHeatmapLayer({{ fade: !bypassFade }});
         return;
       }}
       const layerAlreadyVisible = map.hasLayer(layer);
       if (!layerAlreadyVisible) {{
         layer.addTo(map);
-        setMapHeatLayerCanvasOpacity(layer, 0);
+        setMapHeatLayerCanvasOpacity(layer, bypassFade ? 1 : 0);
       }}
       if (typeof forceHeatLayerPointerPassthrough === "function") {{
         forceHeatLayerPointerPassthrough(layer);
+      }}
+      if (bypassFade) {{
+        cancelMapHeatLayerOpacityFade(layer);
+        setMapHeatLayerCanvasOpacity(layer, 1);
       }}
       animateMapHeatLayerLatLngs(layer, heatPoints, {{
         keyPrefix: "estimate",
         durationMs: mapEstimatedOverlayDriftMs,
       }});
-      animateMapHeatLayerCanvasOpacity(layer, 1, {{
-        durationMs: mapHeatLayerFadeInMs,
-      }});
+      if (!bypassFade) {{
+        animateMapHeatLayerCanvasOpacity(layer, 1, {{
+          durationMs: mapHeatLayerFadeInMs,
+        }});
+      }}
     }}
 
     function bindMapLinkLegendControls(legend) {{
@@ -391,15 +404,78 @@
           refreshNetworkMapAfterLegendControlChange();
         }});
       }}
-      const cloudsToggle = legend.querySelector('[data-map-link-legend-toggle="estimated-clouds"]');
-      if (cloudsToggle instanceof HTMLInputElement && cloudsToggle.dataset.boundMapLinkLegend !== "1") {{
-        cloudsToggle.dataset.boundMapLinkLegend = "1";
-        cloudsToggle.addEventListener("change", () => {{
-          mapEstimatedNodeCloudsEnabled = !!cloudsToggle.checked;
+      const heatmapToggle = legend.querySelector('[data-map-link-legend-toggle="estimated-heatmap"]');
+      if (heatmapToggle instanceof HTMLInputElement && heatmapToggle.dataset.boundMapLinkLegend !== "1") {{
+        heatmapToggle.dataset.boundMapLinkLegend = "1";
+        heatmapToggle.addEventListener("change", () => {{
+          mapEstimatedNodeCloudsEnabled = !!heatmapToggle.checked;
           if (typeof persistMapEstimatedNodeCloudsPreference === "function") {{
             persistMapEstimatedNodeCloudsPreference();
           }}
-          refreshNetworkMapAfterLegendControlChange();
+          refreshNetworkMapAfterLegendControlChange({{ bypassHeatmapFade: true }});
+        }});
+      }}
+      const signalCoverageToggle = legend.querySelector('[data-map-link-legend-toggle="signal-coverage"]');
+      if (signalCoverageToggle instanceof HTMLInputElement && signalCoverageToggle.dataset.boundMapLinkLegend !== "1") {{
+        signalCoverageToggle.dataset.boundMapLinkLegend = "1";
+        signalCoverageToggle.addEventListener("change", () => {{
+          signalHeatmapCoverageEnabled = !!signalCoverageToggle.checked;
+          signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
+          signalHeatmapMode = typeof signalHeatmapModeFromLayerToggles === "function"
+            ? signalHeatmapModeFromLayerToggles()
+            : (signalHeatmapEnabled ? "coverage" : "none");
+          if (typeof persistSignalHeatmapModePreference === "function") {{
+            persistSignalHeatmapModePreference();
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassHeatmapFade: true }});
+        }});
+      }}
+      const signalLiveToggle = legend.querySelector('[data-map-link-legend-toggle="signal-live"]');
+      if (signalLiveToggle instanceof HTMLInputElement && signalLiveToggle.dataset.boundMapLinkLegend !== "1") {{
+        signalLiveToggle.dataset.boundMapLinkLegend = "1";
+        signalLiveToggle.addEventListener("change", () => {{
+          signalHeatmapLiveEnabled = !!signalLiveToggle.checked;
+          signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
+          signalHeatmapMode = typeof signalHeatmapModeFromLayerToggles === "function"
+            ? signalHeatmapModeFromLayerToggles()
+            : (signalHeatmapEnabled ? "live" : "none");
+          if (typeof persistSignalHeatmapModePreference === "function") {{
+            persistSignalHeatmapModePreference();
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassHeatmapFade: true }});
+        }});
+      }}
+      const realNodesToggle = legend.querySelector('[data-map-link-legend-toggle="real-nodes"]');
+      if (realNodesToggle instanceof HTMLInputElement && realNodesToggle.dataset.boundMapLinkLegend !== "1") {{
+        realNodesToggle.dataset.boundMapLinkLegend = "1";
+        realNodesToggle.addEventListener("change", () => {{
+          mapActualNodesEnabled = !!realNodesToggle.checked;
+          if (typeof persistMapNodeLayerVisibilityPreference === "function") {{
+            persistMapNodeLayerVisibilityPreference();
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassNodeFade: true }});
+        }});
+      }}
+      const linkInferredNodesToggle = legend.querySelector('[data-map-link-legend-toggle="link-inferred-nodes"]');
+      if (linkInferredNodesToggle instanceof HTMLInputElement && linkInferredNodesToggle.dataset.boundMapLinkLegend !== "1") {{
+        linkInferredNodesToggle.dataset.boundMapLinkLegend = "1";
+        linkInferredNodesToggle.addEventListener("change", () => {{
+          mapLinkInferredNodesEnabled = !!linkInferredNodesToggle.checked;
+          if (typeof persistMapNodeLayerVisibilityPreference === "function") {{
+            persistMapNodeLayerVisibilityPreference();
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassNodeFade: true }});
+        }});
+      }}
+      const rssiTrilateratedNodesToggle = legend.querySelector('[data-map-link-legend-toggle="rssi-trilaterated-nodes"]');
+      if (rssiTrilateratedNodesToggle instanceof HTMLInputElement && rssiTrilateratedNodesToggle.dataset.boundMapLinkLegend !== "1") {{
+        rssiTrilateratedNodesToggle.dataset.boundMapLinkLegend = "1";
+        rssiTrilateratedNodesToggle.addEventListener("change", () => {{
+          mapRssiTrilateratedNodesEnabled = !!rssiTrilateratedNodesToggle.checked;
+          if (typeof persistMapNodeLayerVisibilityPreference === "function") {{
+            persistMapNodeLayerVisibilityPreference();
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassNodeFade: true }});
         }});
       }}
       const estimatedToggle = legend.querySelector('[data-map-link-legend-toggle="estimated"]');
@@ -425,85 +501,90 @@
       const actualCount = (nodes || []).reduce((count, node) => (
         count + (isValidMapCoord(Number(node && node.lat), Number(node && node.lon)) ? 1 : 0)
       ), 0);
-      const linkedCount = estimatedPositions instanceof Map ? estimatedPositions.size : 0;
+      let linkedCount = 0;
+      let trilateratedCount = 0;
+      if (estimatedPositions instanceof Map) {{
+        for (const estimate of estimatedPositions.values()) {{
+          const estimateSource = String(estimate && estimate.estimateSource || "").trim();
+          if (estimateSource === "rssi_trilateration") {{
+            trilateratedCount += 1;
+          }} else {{
+            linkedCount += 1;
+          }}
+        }}
+      }}
       const packetCount = countMapPacketLineCandidates(nodes, rawEdges);
       const lines = (linkOverlay && Array.isArray(linkOverlay.lines)) ? linkOverlay.lines : [];
       const linkDensity = (linkOverlay && linkOverlay.linkDensity && typeof linkOverlay.linkDensity === "object")
         ? linkOverlay.linkDensity
         : null;
-      const cloudsEnabled = !!mapEstimatedNodeCloudsEnabled;
-      const hideLinkedDots = !!(linkDensity && linkDensity.hideEstimatedMarkers && cloudsEnabled);
-      const linkedNodesLegendTitle = hideLinkedDots
-        ? "Show link-inferred node clouds (blue density overlay). Node dots are hidden while cluster-link view is active."
-        : "Show link-inferred node clouds (blue density overlay).";
-      const cloudLinks = (linkDensity && Array.isArray(linkDensity.cloudLinks))
-        ? linkDensity.cloudLinks
-        : [];
+      const inferredHeatmapEnabled = !!mapEstimatedNodeCloudsEnabled;
       const rawRenderedEstimatedLineCount = Number(linkOverlay && linkOverlay.renderedEstimatedLineCount);
       const renderedEstimatedLineCount = Number.isFinite(rawRenderedEstimatedLineCount)
         ? Math.max(0, Math.trunc(rawRenderedEstimatedLineCount))
         : -1;
       const estimatedCount = renderedEstimatedLineCount >= 0
         ? renderedEstimatedLineCount
-        : (cloudLinks.length > 0 ? cloudLinks.length : lines.length);
+        : lines.length;
       const modeParts = mapLinkLayerModeParts(mapLinkLayerMode);
       const estimatedLinksEnabled = !!modeParts.estimatedLinks;
-      const signalHeatModeConfig = resolveSignalHeatModeConfig();
-      const signalHeatModeLabel = String(signalHeatModeConfig && signalHeatModeConfig.label ? signalHeatModeConfig.label : "Coverage");
-      const signalHeatBuckets = (
-        signalHeatmapEnabled
-        && signalHeatmapMode !== "none"
-        && supportsSignalHeatmap()
-      )
-        ? collectSignalHeatmapBuckets(nodes, resolveSignalHeatProfile())
+      const signalHeatProfile = resolveSignalHeatProfile();
+      const signalHeatmapSupported = supportsSignalHeatmap();
+      const signalCoverageBuckets = signalHeatmapSupported
+        ? collectSignalHeatmapBuckets(nodes, signalHeatProfile, "coverage")
         : [];
-      const signalHeatPointCount = signalHeatBuckets.reduce((count, bucket) => (
+      const signalLiveBuckets = signalHeatmapSupported
+        ? collectSignalHeatmapBuckets(nodes, signalHeatProfile, "live")
+        : [];
+      const signalCoveragePointCount = signalCoverageBuckets.reduce((count, bucket) => (
         count + (Array.isArray(bucket) ? bucket.length : 0)
       ), 0);
-      const signalHeatLegendHtml = signalHeatPointCount > 0
-        ? `
-          <div class="map-link-legend-item is-info is-heatmap" style="--map-link-legend-color:#d9951a;" title="Warm heatmap: positioned nodes with recent SNR/RSSI signal data. Mode: ${{escAttr(signalHeatModeLabel)}}.">
-            <span class="map-link-legend-swatch is-signal-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Signal heatmap</span>
-            <span class="map-link-legend-count">${{signalHeatPointCount}}</span>
-          </div>
-        `
-        : "";
-      const showEstimatedCloudHeat = !!(
-        cloudsEnabled
-        && linkDensity
-        && linkDensity.enabled
-        && Number(linkDensity.corePointCount) > 0
-      );
-      const estimatedCloudHeatCount = Math.max(
+      const signalLivePointCount = signalLiveBuckets.reduce((count, bucket) => (
+        count + (Array.isArray(bucket) ? bucket.length : 0)
+      ), 0);
+      const inferredHeatmapCount = Math.max(
         0,
         Math.trunc(Number(linkDensity && (linkDensity.cloudCount || linkDensity.corePointCount)) || 0)
       );
-      const estimatedCloudHeatLegendHtml = showEstimatedCloudHeat
-        ? `
-          <div class="map-link-legend-item is-info is-heatmap" style="--map-link-legend-color:#5fa4ff;" title="Blue heatmap: link-inferred node clusters and common path density from observed link evidence.">
-            <span class="map-link-legend-swatch is-cloud-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Inferred clusters</span>
-            <span class="map-link-legend-count">${{estimatedCloudHeatCount}}</span>
-          </div>
-        `
-        : "";
       legend.hidden = false;
       legend.innerHTML = `
         <div class="map-link-legend-title">Map layers</div>
         <div class="map-link-legend-list">
-          ${{signalHeatLegendHtml}}
-          ${{estimatedCloudHeatLegendHtml}}
-          <div class="map-link-legend-item is-info" style="--map-link-legend-color:#35b96f;" title="Nodes with direct GPS or fixed position data">
+          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#d9951a;" title="Show amber historical signal coverage">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-coverage"${{signalHeatmapCoverageEnabled ? " checked" : ""}} aria-label="Show signal coverage heatmap" />
+            <span class="map-link-legend-swatch is-signal-coverage-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Coverage</span>
+            <span class="map-link-legend-count">${{signalCoveragePointCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#0a9396;" title="Show cyan live signal heatmap over coverage">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-live"${{signalHeatmapLiveEnabled ? " checked" : ""}} aria-label="Show live signal heatmap" />
+            <span class="map-link-legend-swatch is-signal-live-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Live</span>
+            <span class="map-link-legend-count">${{signalLivePointCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#5fa4ff;" title="Show inferred node density heatmap">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated-heatmap"${{inferredHeatmapEnabled ? " checked" : ""}} aria-label="Show inferred heatmap" />
+            <span class="map-link-legend-swatch is-cloud-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Inferred heatmap</span>
+            <span class="map-link-legend-count">${{inferredHeatmapCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#35b96f;" title="Show nodes with direct GPS or fixed position data">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="real-nodes"${{mapActualNodesEnabled ? " checked" : ""}} aria-label="Show real nodes" />
             <span class="map-link-legend-swatch is-node-actual" aria-hidden="true"></span>
             <span class="map-link-legend-name">Real nodes</span>
             <span class="map-link-legend-count">${{actualCount}}</span>
-          </div>
-          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#68bde8;" title="${{linkedNodesLegendTitle}}">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated-clouds"${{cloudsEnabled ? " checked" : ""}} aria-label="Show link-inferred node clouds" />
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#68bde8;" title="Show nodes positioned by link topology">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="link-inferred-nodes"${{mapLinkInferredNodesEnabled ? " checked" : ""}} aria-label="Show link-inferred nodes" />
             <span class="map-link-legend-swatch is-node-linked" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Inferred nodes${{hideLinkedDots ? " (hidden)" : ""}}</span>
+            <span class="map-link-legend-name">Link-inferred nodes</span>
             <span class="map-link-legend-count">${{linkedCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#cc79a7;" title="Show nodes positioned by RSSI/SNR trilateration against known GPS anchors">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="rssi-trilaterated-nodes"${{mapRssiTrilateratedNodesEnabled ? " checked" : ""}} aria-label="Show RSSI trilaterated nodes" />
+            <span class="map-link-legend-swatch is-node-trilaterated" aria-hidden="true"></span>
+            <span class="map-link-legend-name">RSSI trilaterated</span>
+            <span class="map-link-legend-count">${{trilateratedCount}}</span>
           </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show confirmed packet lines between positioned nodes">
             <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show real links" />
@@ -523,7 +604,10 @@
       scheduleMapLinkLegendOffsetSync();
     }}
 
-    function renderMap(nodes, edges, nodeHistory = null) {{
+    function renderMap(nodes, edges, nodeHistory = null, options = null) {{
+      const renderOpts = (options && typeof options === "object") ? options : {{}};
+      const bypassHeatmapFade = !!renderOpts.bypassHeatmapFade;
+      const bypassNodeFade = !!renderOpts.bypassNodeFade;
       ensureMapSizeSync();
       const hideHeatmap = activeLayoutView === "saved";
       const mapRenderEdges = edges;
@@ -534,7 +618,7 @@
       const networkSelectionMode = signatures.networkSelectionMode;
       const selectionId = signatures.selection;
 
-      syncSignalHeatmapLayer(nodes, hideHeatmap);
+      syncSignalHeatmapLayer(nodes, hideHeatmap, {{ bypassFade: bypassHeatmapFade }});
       refreshMapCardTitle();
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
@@ -556,7 +640,7 @@
           cancelMapMarkerDrift(marker);
         }}
         linkEstimateLayer.clearLayers();
-        clearLinkEstimateHeatmapLayer();
+        clearLinkEstimateHeatmapLayer({{ fade: !bypassHeatmapFade }});
         renderMapLinkLegend();
         nodeMarkers.clear();
         nodeMarkerMeta.clear();
@@ -715,13 +799,9 @@
         for (const node of (nodes || [])) {{
           byId[normalizeNodeId(node && node.id)] = node;
         }}
-        const estimatedCloudsEnabled = !!mapEstimatedNodeCloudsEnabled;
+        const inferredHeatmapEnabled = !!mapEstimatedNodeCloudsEnabled;
         const needsMapLinkEstimateOverlay = (
           activeLayoutView === "network"
-          && (
-            effectiveMapLinkMode !== "none"
-            || estimatedCloudsEnabled
-          )
         );
         const rawLinkOverlayUnsmoothed = needsMapLinkEstimateOverlay
           ? buildMapLinkLayerOverlay(nodes, mapRenderEdges, {{
@@ -750,69 +830,17 @@
           linkDensity,
         }});
         const showEstimatedLinks = activeLayoutView === "network" && effectiveMapLinkMode !== "none";
-        const modeParts = mapLinkLayerModeParts(effectiveMapLinkMode);
-        const useCloudConsolidation = !!(
-          linkDensity
-          && linkDensity.enabled
-          && estimatedCloudsEnabled
-        );
         const estimateLinesAvailable = showEstimatedLinks
-          ? (
-            useCloudConsolidation
-              ? (
-                Array.isArray(linkDensity && linkDensity.cloudLinks)
-                  ? linkDensity.cloudLinks.filter((line) => {{
-                      const mode = String(line && line.mode || "history").trim().toLowerCase();
-                      if (mode === "live") return !!modeParts.live;
-                      return !!modeParts.history;
-                    }})
-                  : []
-              )
-              : (
-                Array.isArray(linkOverlay.lines)
-                  ? linkOverlay.lines.slice()
-                  : []
-              )
-          )
+          ? (Array.isArray(linkOverlay.lines) ? linkOverlay.lines.slice() : [])
           : [];
         const estimateLinesToRender = selectMapEstimatedLinesForRender(estimateLinesAvailable, {{
           maxLines: 18,
         }});
         linkOverlay.renderedEstimatedLineCount = estimateLinesToRender.length;
         linkOverlay.availableEstimatedLineCount = estimateLinesAvailable.length;
-        const hideEstimatedLinkDots = !!(
-          linkDensity
-          && linkDensity.hideEstimatedMarkers
-          && estimatedCloudsEnabled
-        );
         estimatedPositions = linkOverlay.estimates instanceof Map
           ? linkOverlay.estimates
           : new Map();
-        if (
-          hideEstimatedLinkDots
-          && densitySourceOverlay.estimates instanceof Map
-        ) {{
-          estimatedPositions = densitySourceOverlay.estimates;
-        }} else if (!estimatedCloudsEnabled) {{
-          const linkedEstimatedNodeIds = new Set();
-          const estimateLinesForDots = estimateLinesToRender;
-          for (const estimateLine of estimateLinesForDots) {{
-            const fromId = normalizeNodeId(estimateLine && estimateLine.fromId);
-            const toId = normalizeNodeId(estimateLine && estimateLine.toId);
-            if (estimatedPositions.has(fromId)) {{
-              linkedEstimatedNodeIds.add(fromId);
-            }}
-            if (estimatedPositions.has(toId)) {{
-              linkedEstimatedNodeIds.add(toId);
-            }}
-          }}
-          const filteredEstimatedPositions = new Map();
-          for (const [nodeId, estimate] of estimatedPositions.entries()) {{
-            if (!linkedEstimatedNodeIds.has(nodeId)) continue;
-            filteredEstimatedPositions.set(nodeId, estimate);
-          }}
-          estimatedPositions = filteredEstimatedPositions;
-        }}
         const historyCapsById = new Map(
           Object.entries((latestState && latestState.history_caps && typeof latestState.history_caps === "object") ? latestState.history_caps : {{}})
             .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
@@ -832,9 +860,14 @@
           const markerLat = hasActualPosition ? rawLat : Number(estimate && estimate.lat);
           const markerLon = hasActualPosition ? rawLon : Number(estimate && estimate.lon);
           const isEstimated = !hasActualPosition && !!estimate;
-          if (hideEstimatedLinkDots && isEstimated) {{
-            continue;
-          }}
+          const estimateSource = isEstimated ? String(estimate && estimate.estimateSource || "").trim() : "";
+          const markerKind = isEstimated
+            ? (estimateSource === "rssi_trilateration" ? "trilaterated" : "estimated")
+            : "actual";
+          const markerKindVisible = markerKind === "actual"
+            ? !!mapActualNodesEnabled
+            : (markerKind === "trilaterated" ? !!mapRssiTrilateratedNodesEnabled : !!mapLinkInferredNodesEnabled);
+          if (!markerKindVisible) continue;
           if (!isValidMapCoord(markerLat, markerLon)) continue;
           const isSelected = !!selectedNodeId && normalizedId === selectedNodeId;
           const nodeCaps = historyCapsById.get(normalizedId) || null;
@@ -855,7 +888,7 @@
               ? nodeLastHeardLabel(node, "n/a", nowUnix)
               : (node && (node.last_heard || ""))
           );
-          markerHash = hashMixStr(markerHash, isEstimated ? "estimated" : posBadge.className);
+          markerHash = hashMixStr(markerHash, isEstimated ? markerKind : posBadge.className);
           markerHash = hashMixInt(
             markerHash,
             isEstimated
@@ -877,10 +910,9 @@
           const existingMarker = nodeMarkers.get(normalizedId);
           const prevMarkerHash = nodeMarkerMeta.get(normalizedId);
           const existingMarkerKind = nodeMarkerKinds.get(normalizedId) || "";
-          const markerKind = isEstimated ? "estimated" : "actual";
           const markerConfidence = isEstimated ? Number(estimate && estimate.confidence) : 1;
           let fadeExistingEstimatedMarkerOut = false;
-          if (existingMarker && existingMarkerKind === "estimated") {{
+          if (existingMarker && (existingMarkerKind === "estimated" || existingMarkerKind === "trilaterated")) {{
             if (!isEstimated) {{
               fadeExistingEstimatedMarkerOut = true;
             }} else if (typeof existingMarker.getLatLng === "function") {{
@@ -906,7 +938,7 @@
           const existingUsesEmojiMarker = !!(existingMarker && typeof existingMarker.setIcon === "function");
           const canDriftExistingEstimatedMarker = !!(
             existingMarker
-            && existingMarkerKind === "estimated"
+            && (existingMarkerKind === "estimated" || existingMarkerKind === "trilaterated")
             && isEstimated
             && !fadeExistingEstimatedMarkerOut
             && desiredUsesEmojiMarker === existingUsesEmojiMarker
@@ -935,7 +967,7 @@
             }}
           }}
           if (existingMarker && !canDriftExistingEstimatedMarker) {{
-            if (fadeExistingEstimatedMarkerOut) {{
+            if (fadeExistingEstimatedMarkerOut && !bypassNodeFade) {{
               cancelMapMarkerDrift(existingMarker);
               fadeOutMapNodeMarker(existingMarker, {{
                 layerGroup: nodeLayer,
@@ -954,10 +986,12 @@
             nodeMarkers.delete(normalizedId);
           }}
           const fadeEstimatedMarkerIn = !!(
+            !bypassNodeFade
+            &&
             isEstimated
             && (
               !existingMarker
-              || existingMarkerKind !== "estimated"
+              || existingMarkerKind !== markerKind
               || fadeExistingEstimatedMarkerOut
             )
           );
@@ -976,6 +1010,13 @@
             const confidenceValue = clampMapLinkValue(Number(estimate && estimate.confidence), 0, 1);
             const confidenceLabel = mapLinkConfidenceLabel(confidenceValue);
             const qualityPct = Math.round(clampMapLinkValue(Number(estimate && estimate.avgLinkQuality), 0, 1) * 100);
+            const estimateSource = String(estimate && estimate.estimateSource || "").trim();
+            const estimatedLocationLabel = estimateSource === "rssi_trilateration"
+              ? "RSSI trilaterated"
+              : "Link-inferred";
+            const estimatedPositionTitle = estimateSource === "rssi_trilateration"
+              ? "Position is trilaterated from RSSI/SNR ranges to known GPS anchors."
+              : "Position is inferred from link topology rather than a direct GPS fix.";
             bindMapNodeInfoOverlays(marker, node, {{
               nodeId: normalizedId,
               nowUnix,
@@ -984,8 +1025,9 @@
               positionBadge: {{
                 label: "Inferred",
                 className: "history",
-                title: "Position is inferred from link topology rather than a direct GPS fix.",
+                title: estimatedPositionTitle,
               }},
+              estimatedLocationLabel,
               confidenceLabel,
               confidencePct: confidenceValue * 100,
               qualityPct,
@@ -1038,7 +1080,8 @@
         for (const [nodeId, marker] of Array.from(nodeMarkers.entries())) {{
           if (seenNodeIds.has(nodeId)) continue;
           cancelMapMarkerDrift(marker);
-          if (nodeMarkerKinds.get(nodeId) === "estimated") {{
+          const staleMarkerKind = nodeMarkerKinds.get(nodeId);
+          if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && !bypassNodeFade) {{
             fadeOutMapNodeMarker(marker, {{
               layerGroup: nodeLayer,
               durationMs: mapEstimatedOverlayLongJumpFadeMs,
@@ -1376,15 +1419,15 @@
             linkEstimateLineMeta.delete(lineKey);
           }}
         }}
-        const showEstimatedClouds = (
+        const showInferredHeatmap = (
           activeLayoutView === "network"
-          && estimatedCloudsEnabled
+          && inferredHeatmapEnabled
           && !!(linkDensity && linkDensity.enabled)
         );
-        if (showEstimatedClouds) {{
-          syncLinkEstimateHeatmapLayer(linkDensity, true);
+        if (showInferredHeatmap) {{
+          syncLinkEstimateHeatmapLayer(linkDensity, true, {{ bypassFade: bypassHeatmapFade }});
         }} else {{
-          clearLinkEstimateHeatmapLayer();
+          clearLinkEstimateHeatmapLayer({{ fade: !bypassHeatmapFade }});
         }}
         renderMapLinkLegend(nodes, mapRenderEdges, estimatedPositions, linkOverlay);
       }}

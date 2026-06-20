@@ -5,44 +5,14 @@
     ) {{
       const modeWrap = document.getElementById("map-heatmap-mode-wrap");
       const modeSelect = document.getElementById("map-heatmap-mode");
-      const modeConfig = resolveSignalHeatModeConfig();
-      const modeLabel = String(modeConfig && modeConfig.label ? modeConfig.label : "Coverage");
-      const maxAgeSeconds = Number(modeConfig && modeConfig.maxAgeSeconds);
-      const fadeSeconds = Number(modeConfig && modeConfig.freshDropSeconds);
-      const maxAgeMinutes = Math.max(
-        1,
-        Math.round((Number.isFinite(maxAgeSeconds) ? Math.max(0, maxAgeSeconds) : 0) / 60)
-      );
-      const fadeMinutes = Math.max(
-        1,
-        Math.round((Number.isFinite(fadeSeconds) ? Math.max(0, fadeSeconds) : 0) / 60)
-      );
-      const inMapHeatContext = (
-        activeLayoutView === "network"
-        || activeLayoutView === "saved"
-      );
       if (modeWrap instanceof HTMLElement) {{
-        modeWrap.hidden = !inMapHeatContext;
+        modeWrap.hidden = true;
         modeWrap.classList.toggle("disabled", !supported);
-        const profileText = profileLabel ? `Tuned for ${{profileLabel}}.` : "";
-        const modeText = signalHeatmapMode === "none"
-          ? " Heatmap hidden."
-          : ` Mode: ${{modeLabel}} (heard within ~${{maxAgeMinutes}}m).`;
-        const fadeText = signalHeatmapMode === "none"
-          ? ""
-          : ` Freshness decays over ~${{fadeMinutes}}m.`;
-        const contrastText = signalHeatmapMode !== "none"
-          ? " Signal heatmap uses a warm colorblind-friendly palette; link-cloud heatmaps stay blue."
-          : "";
-        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5
-          ? " Coverage is geo-locked (km-stable across zoom/latitude)."
-          : "";
+        const profileText = profileLabel ? ` Tuned for ${{profileLabel}}.` : "";
+        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5 ? " Coverage is geo-locked." : "";
         const devText = " Dev knobs: window.meshHeatmapDev.get()/set()/reset().";
-        const savedModeText = activeLayoutView === "saved"
-          ? " In Node view this shows only the selected node's signal footprint."
-          : "";
         const baseTitle = supported
-          ? `Overlay realtime signal heatmap from positioned nodes. Intensity and radius are derived from reported SNR/RSSI (freshness-faded). ${{profileText}}${{modeText}}${{fadeText}}${{contrastText}}${{savedModeText}}${{geoText}}${{devText}}`
+          ? `Signal heatmap toggles live in the map legend.${{profileText}}${{geoText}}${{devText}}`
           : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
         if (Number.isFinite(pointsCount)) {{
           modeWrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
@@ -52,68 +22,89 @@
       }}
       if (modeSelect instanceof HTMLSelectElement) {{
         modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
-        modeSelect.disabled = !supported;
+        modeSelect.disabled = true;
       }}
     }}
 
-    function syncSignalHeatmapLayer(nodes, forceHide = false) {{
-      const layers = ensureSignalHeatmapLayers();
+    function syncSignalHeatmapLayer(nodes, forceHide = false, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const bypassFade = !!opts.bypassFade;
       const profile = resolveSignalHeatProfile();
-      const supported = Array.isArray(layers) && layers.length > 0;
       const savedSingleNodeMode = activeLayoutView === "saved"
         && isSelectableNodeId(resolveSavedViewNodeId(latestState));
-      const buckets = supported
-        ? (
-            savedSingleNodeMode
-              ? collectSavedNodeHeatmapBuckets(nodes, profile)
-              : collectSignalHeatmapBuckets(nodes, profile)
-          )
-        : [];
-      const pointsCount = supported
-        ? buckets.reduce((acc, pts) => acc + (Array.isArray(pts) ? pts.length : 0), 0)
-        : 0;
-      updateSignalHeatmapControl(pointsCount, supported, profile.label || "");
+      const modeStates = ["coverage", "live"].map((mode) => {{
+        const layers = ensureSignalHeatmapLayers(mode);
+        const supported = Array.isArray(layers) && layers.length > 0;
+        const buckets = supported
+          ? (
+              savedSingleNodeMode
+                ? collectSavedNodeHeatmapBuckets(nodes, profile, mode)
+                : collectSignalHeatmapBuckets(nodes, profile, mode)
+            )
+          : [];
+        const pointsCount = supported
+          ? buckets.reduce((acc, pts) => acc + (Array.isArray(pts) ? pts.length : 0), 0)
+          : 0;
+        return {{
+          mode,
+          enabled: mode === "live" ? !!signalHeatmapLiveEnabled : !!signalHeatmapCoverageEnabled,
+          layers,
+          supported,
+          buckets,
+          pointsCount,
+          gradient: resolveSignalHeatGradient(mode),
+        }};
+      }});
+      const supported = modeStates.some((state) => !!state.supported);
+      const totalPointsCount = modeStates.reduce((acc, state) => acc + Math.max(0, Number(state.pointsCount) || 0), 0);
+      signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
+      signalHeatmapMode = signalHeatmapModeFromLayerToggles();
+      updateSignalHeatmapControl(totalPointsCount, supported, profile.label || "");
       if (!supported) {{
         return;
       }}
-      const baseVisual = resolveSignalHeatVisualOptions(pointsCount);
       const mapDrawable = signalHeatmapMapHasDrawableSize();
-      const shouldShow = !(forceHide && !savedSingleNodeMode)
-        && mapDrawable
-        && signalHeatmapEnabled
-        && pointsCount > 0;
-      const gradient = resolveSignalHeatGradient(signalHeatmapMode);
+      const maxPointsCount = modeStates.reduce((maxValue, state) => Math.max(maxValue, Number(state.pointsCount) || 0), 0);
+      const baseVisual = resolveSignalHeatVisualOptions(maxPointsCount);
       let heatSignatureHash = 2166136261;
       heatSignatureHash = hashMixStr(heatSignatureHash, activeLayoutView);
-      heatSignatureHash = hashMixStr(heatSignatureHash, normalizeSignalHeatmapMode(signalHeatmapMode));
-      heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapEnabled ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapCoverageEnabled ? 1 : 0);
+      heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapLiveEnabled ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, forceHide ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, mapDrawable ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, savedSingleNodeMode ? 1 : 0);
       heatSignatureHash = hashMixStr(heatSignatureHash, savedSingleNodeMode ? normalizeNodeId(resolveSavedViewNodeId(latestState)) : "");
-      heatSignatureHash = hashMixInt(heatSignatureHash, shouldShow ? 1 : 0);
-      heatSignatureHash = hashMixInt(heatSignatureHash, pointsCount);
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(map.getZoom()) * 100) || 0);
       heatSignatureHash = hashMixStr(heatSignatureHash, String(profile && profile.label || ""));
       heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(signalHeatDevKnobs || {{}}));
-      heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(gradient || {{}}));
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.radius) * 100) || 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.blur) * 100) || 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.minOpacity) * 1000) || 0);
       let heatLayerPresenceMatches = true;
-      for (let i = 0; i < layers.length; i++) {{
-        const layer = layers[i];
-        const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
-        if (map.hasLayer(layer) !== desiredLayerVisible) {{
-          heatLayerPresenceMatches = false;
-        }}
-        heatSignatureHash = hashMixInt(heatSignatureHash, desiredLayerVisible ? 1 : 0);
-        const points = buckets[i] || [];
-        heatSignatureHash = hashMixInt(heatSignatureHash, points.length);
-        for (const point of points) {{
-          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[0]) * 100000) || 0);
-          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[1]) * 100000) || 0);
-          heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[2]) * 1000) || 0);
+      for (const state of modeStates) {{
+        const shouldShow = !(forceHide && !savedSingleNodeMode)
+          && mapDrawable
+          && state.enabled
+          && state.pointsCount > 0;
+        heatSignatureHash = hashMixStr(heatSignatureHash, state.mode);
+        heatSignatureHash = hashMixInt(heatSignatureHash, state.enabled ? 1 : 0);
+        heatSignatureHash = hashMixInt(heatSignatureHash, shouldShow ? 1 : 0);
+        heatSignatureHash = hashMixInt(heatSignatureHash, state.pointsCount);
+        heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(state.gradient || {{}}));
+        for (let i = 0; i < state.layers.length; i++) {{
+          const layer = state.layers[i];
+          const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
+          if (map.hasLayer(layer) !== desiredLayerVisible) {{
+            heatLayerPresenceMatches = false;
+          }}
+          heatSignatureHash = hashMixInt(heatSignatureHash, desiredLayerVisible ? 1 : 0);
+          const points = state.buckets[i] || [];
+          heatSignatureHash = hashMixInt(heatSignatureHash, points.length);
+          for (const point of points) {{
+            heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[0]) * 100000) || 0);
+            heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[1]) * 100000) || 0);
+            heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(point && point[2]) * 1000) || 0);
+          }}
         }}
       }}
       const heatSignature = `signal-heatmap:${{(heatSignatureHash >>> 0).toString(16)}}`;
@@ -122,68 +113,82 @@
       }}
       lastSignalHeatmapSignature = heatSignature;
 
-      for (let i = 0; i < layers.length; i++) {{
-        const layer = layers[i];
-        const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
-        if (!desiredLayerVisible) {{
-          removeSignalHeatmapLayerSafely(layer);
-          continue;
+      for (const state of modeStates) {{
+        const shouldShow = !(forceHide && !savedSingleNodeMode)
+          && mapDrawable
+          && state.enabled
+          && state.pointsCount > 0;
+        for (let i = 0; i < state.layers.length; i++) {{
+          const layer = state.layers[i];
+          const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
+          if (!desiredLayerVisible) {{
+            removeSignalHeatmapLayerSafely(layer, {{ fade: !bypassFade }});
+            continue;
+          }}
+          const bucket = signalHeatBucketDefs[i] || {{}};
+          const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
+          const baseRadiusMul = Number(bucket.radiusMul);
+          const baseBlurMul = Number(bucket.blurMul);
+          const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
+          const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
+          const liveRadiusMul = state.mode === "live" ? 0.72 : 1;
+          const liveBlurMul = state.mode === "live" ? 0.68 : 1;
+          const visual = savedSingleNodeMode
+            ? {{
+                radius: clampNumber(
+                  Math.round(baseVisual.radius * 1.3 * liveRadiusMul),
+                  10,
+                  160,
+                  baseVisual.radius
+                ),
+                blur: clampNumber(
+                  Math.round(baseVisual.blur * 1.2 * liveBlurMul),
+                  8,
+                  140,
+                  baseVisual.blur
+                ),
+                minOpacity: Math.max(baseVisual.minOpacity, state.mode === "live" ? 0.54 : 0.42),
+                gradient: state.gradient,
+              }}
+            : {{
+                radius: clampNumber(
+                  Math.round(baseVisual.radius * radiusMul * liveRadiusMul),
+                  10,
+                  160,
+                  baseVisual.radius
+                ),
+                blur: clampNumber(
+                  Math.round(baseVisual.blur * blurMul * liveBlurMul),
+                  8,
+                  140,
+                  baseVisual.blur
+                ),
+                minOpacity: state.mode === "live" ? Math.max(baseVisual.minOpacity, 0.52) : baseVisual.minOpacity,
+                gradient: state.gradient,
+              }};
+          const layerAlreadyVisible = map.hasLayer(layer);
+          if (!layerAlreadyVisible) {{
+            layer.addTo(map);
+            setMapHeatLayerCanvasOpacity(layer, bypassFade ? 1 : 0);
+          }}
+          forceHeatLayerPointerPassthrough(layer);
+          if (typeof layer.setOptions === "function") {{
+            layer.setOptions(visual);
+          }}
+          if (bypassFade) {{
+            cancelMapHeatLayerOpacityFade(layer);
+            setMapHeatLayerCanvasOpacity(layer, 1);
+          }}
+          animateMapHeatLayerLatLngs(layer, state.buckets[i] || [], {{
+            keyPrefix: `signal:${{state.mode}}:${{i}}`,
+            durationMs: mapEstimatedOverlayDriftMs,
+          }});
+          if (!bypassFade) {{
+            animateMapHeatLayerCanvasOpacity(layer, 1, {{
+              durationMs: mapHeatLayerFadeInMs,
+            }});
+          }}
         }}
-        const bucket = signalHeatBucketDefs[i] || {{}};
-        const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
-        const baseRadiusMul = Number(bucket.radiusMul);
-        const baseBlurMul = Number(bucket.blurMul);
-        const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
-        const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
-        const visual = savedSingleNodeMode
-          ? {{
-              radius: clampNumber(
-                Math.round(baseVisual.radius * 1.3),
-                10,
-                160,
-                baseVisual.radius
-              ),
-              blur: clampNumber(
-                Math.round(baseVisual.blur * 1.2),
-                8,
-                140,
-                baseVisual.blur
-              ),
-              minOpacity: Math.max(baseVisual.minOpacity, 0.42),
-              gradient,
-            }}
-          : {{
-              radius: clampNumber(
-                Math.round(baseVisual.radius * radiusMul),
-                10,
-                160,
-                baseVisual.radius
-              ),
-              blur: clampNumber(
-                Math.round(baseVisual.blur * blurMul),
-                8,
-                140,
-                baseVisual.blur
-              ),
-              minOpacity: baseVisual.minOpacity,
-              gradient,
-            }};
-        const layerAlreadyVisible = map.hasLayer(layer);
-        if (!layerAlreadyVisible) {{
-          layer.addTo(map);
-          setMapHeatLayerCanvasOpacity(layer, 0);
-        }}
-        forceHeatLayerPointerPassthrough(layer);
-        if (typeof layer.setOptions === "function") {{
-          layer.setOptions(visual);
-        }}
-        animateMapHeatLayerLatLngs(layer, buckets[i] || [], {{
-          keyPrefix: `signal:${{i}}`,
-          durationMs: mapEstimatedOverlayDriftMs,
-        }});
-        animateMapHeatLayerCanvasOpacity(layer, 1, {{
-          durationMs: mapHeatLayerFadeInMs,
-        }});
       }}
     }}
 
@@ -227,9 +232,14 @@
     }}
 
     function hideSignalHeatmapLayers() {{
-      const layers = Array.isArray(signalHeatmapLayers) ? signalHeatmapLayers : [];
-      for (const layer of layers) {{
-        removeSignalHeatmapLayerSafely(layer);
+      const layerGroups = signalHeatmapLayers && typeof signalHeatmapLayers === "object"
+        ? Object.values(signalHeatmapLayers)
+        : [];
+      for (const layers of layerGroups) {{
+        if (!Array.isArray(layers)) continue;
+        for (const layer of layers) {{
+          removeSignalHeatmapLayerSafely(layer);
+        }}
       }}
       lastSignalHeatmapSignature = "";
     }}

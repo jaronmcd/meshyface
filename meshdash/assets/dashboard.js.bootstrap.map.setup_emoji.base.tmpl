@@ -168,14 +168,13 @@
       0.80: "#d9951a",
       1.0: "#f4d38c",
     }};
-    // Live signal uses a warm high-contrast scale so it stays distinct from
-    // blue link-cloud heatmaps under common color-vision deficiencies.
+    // Live signal uses cyan/teal so it can be overlaid on amber coverage.
     const signalHeatmapGradientLiveContrast = {{
-      0.04: "#2a1600",
-      0.22: "#7a3f00",
-      0.46: "#b85b00",
-      0.72: "#e67e22",
-      1.0: "#ffe5a6",
+      0.04: "#002b36",
+      0.22: "#005f73",
+      0.46: "#0a9396",
+      0.72: "#56cfe1",
+      1.0: "#caf0f8",
     }};
     const linkEstimateHeatmapGradient = {{
       0.06: "#0b2f6f",
@@ -217,7 +216,7 @@
         includeUnknownAge: false,
       }},
       live: {{
-        label: "Live only",
+        label: "Live",
         freshFullSeconds: 60,
         freshDropSeconds: 8 * 60,
         maxAgeSeconds: 15 * 60,
@@ -226,6 +225,14 @@
       }},
       coverage: {{
         label: "Coverage",
+        freshFullSeconds: 4 * 60,
+        freshDropSeconds: 30 * 60,
+        maxAgeSeconds: 120 * 60,
+        tailWeight: 0.03,
+        includeUnknownAge: false,
+      }},
+      both: {{
+        label: "Coverage + Live",
         freshFullSeconds: 4 * 60,
         freshDropSeconds: 30 * 60,
         maxAgeSeconds: 120 * 60,
@@ -300,6 +307,12 @@
     const mapLinkMinCityEstimateAnchors = 3;
     const mapLinkMinCityEstimateConfidence = 0.45;
     const mapLinkMinCityEstimateFit = 0.42;
+    const mapLinkMinTrilaterationAnchors = 4;
+    const mapLinkMinTrilaterationSignalSamples = 2;
+    const mapLinkMinTrilaterationConfidence = 0.48;
+    const mapLinkMinTrilaterationFit = 0.45;
+    const mapLinkMaxTrilaterationHops = 1.25;
+    const mapLinkMaxTrilaterationAgeSeconds = 7200;
     const edgeLines = new Map();
     const edgeLineMeta = new Map();
     const linkEstimateLines = new Map();
@@ -366,10 +379,12 @@
     const chatPerfStorageKey = "meshDashboardChatPerfMetricsV1";
     const themeStorageKey = "meshDashboardThemePreference";
     const tickerDensityStorageKey = "meshDashboardTickerDensityV1";
-    const signalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV1";
+    const legacySignalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV1";
+    const signalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV2";
     const mapPacketLinesStorageKey = "meshDashboardMapPacketLinesEnabledV2";
     const mapLinkModeStorageKey = "meshDashboardMapLinkModeV1";
     const mapEstimatedNodeCloudsStorageKey = "meshDashboardMapEstimatedNodeCloudsEnabledV1";
+    const mapNodeLayerVisibilityStorageKey = "meshDashboardMapNodeLayerVisibilityV1";
     const mapLiveActivityStorageKey = "meshDashboardMapLiveActivityEnabledV1";
     const mapBasemapModeStorageKey = "meshDashboardMapBasemapModeV1";
     const settingsPositionSourceStorageKey = "meshDashboardSettingsPositionSourceV1";

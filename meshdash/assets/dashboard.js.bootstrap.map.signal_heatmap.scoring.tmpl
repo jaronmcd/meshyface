@@ -139,10 +139,10 @@
       return Math.max(0, signalHeatBucketDefs.length - 1);
     }}
 
-    function collectSignalHeatmapBuckets(nodes, profile) {{
+    function collectSignalHeatmapBuckets(nodes, profile, mode = signalHeatmapMode) {{
       const buckets = signalHeatBucketDefs.map(() => []);
       const nowUnix = Math.floor(Date.now() / 1000);
-      const modeConfig = resolveSignalHeatModeConfig();
+      const modeConfig = resolveSignalHeatModeConfig(mode);
       const intensityFloor = signalHeatDevKnobs.intensityFloor;
       for (const node of (nodes || [])) {{
         const lat = Number(node && node.lat);
@@ -176,7 +176,7 @@
       return buckets;
     }}
 
-    function collectSavedNodeHeatmapBuckets(nodes, profile) {{
+    function collectSavedNodeHeatmapBuckets(nodes, profile, mode = signalHeatmapMode) {{
       const buckets = signalHeatBucketDefs.map(() => []);
       const selectedId = resolveSavedViewNodeId(latestState);
       if (!(activeLayoutView === "saved" && isSelectableNodeId(selectedId))) {{
@@ -192,7 +192,7 @@
         return buckets;
       }}
       const nowUnix = Math.floor(Date.now() / 1000);
-      const modeConfig = resolveSignalHeatModeConfig();
+      const modeConfig = resolveSignalHeatModeConfig(mode);
       const ageSeconds = signalHeatNodeAgeSeconds(selectedNode, nowUnix);
       if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) {{
         return buckets;

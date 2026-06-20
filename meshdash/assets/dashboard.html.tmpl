@@ -3154,13 +3154,14 @@ Ready.
         <div id="map-card-actions-host" class="map-card-actions pane-head-actions">
           <div id="map-controls-dock" class="map-controls-dock">
             <button id="map-reset-view-btn" class="map-reset-view-btn" type="button" title="Reset map view">Reset view</button>
-            <div class="map-control-group map-heatmap-controls">
-              <label id="map-heatmap-mode-wrap" class="map-heatmap-mode-wrap" title="Choose heatmap recency behavior">
+            <div class="map-control-group map-heatmap-controls" hidden>
+              <label id="map-heatmap-mode-wrap" class="map-heatmap-mode-wrap" title="Signal heatmaps are controlled from the map legend" hidden>
                 <span>Signal Heatmap</span>
                 <select id="map-heatmap-mode" class="map-heatmap-mode">
                   <option value="none">None</option>
                   <option value="live">Live only</option>
                   <option value="coverage">Coverage</option>
+                  <option value="both">Coverage + Live</option>
                 </select>
               </label>
             </div>
