@@ -9919,6 +9919,20 @@
       outline: none;
       box-sizing: border-box;
     }}
+    .settings-select {{
+      color-scheme: light;
+    }}
+    .settings-select option {{
+      color: var(--ink);
+      background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%);
+    }}
+    .settings-select option:checked {{
+      color: var(--ink);
+      background: color-mix(in srgb, var(--panel) 74%, var(--accent) 26%);
+    }}
+    .settings-select option:disabled {{
+      color: var(--muted);
+    }}
     .settings-input:focus,
     .settings-select:focus,
     .settings-textarea:focus,

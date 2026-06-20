@@ -2250,12 +2250,24 @@
     }}
     [data-theme="dark"] .settings-input,
     [data-theme="dark"] .settings-select {{
+      color-scheme: dark;
       background: #07140d;
       background: var(--workspace-shell-bg-alt);
       border-color: #2d8f5d;
       border-color: var(--workspace-shell-border);
       color: #c6ffdb;
       color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-select option {{
+      color: var(--workspace-shell-text);
+      background: var(--workspace-shell-bg-alt);
+    }}
+    [data-theme="dark"] .settings-select option:checked {{
+      color: var(--workspace-shell-active-text);
+      background: var(--workspace-shell-active-bg);
+    }}
+    [data-theme="dark"] .settings-select option:disabled {{
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-range-row {{
       border-color: #2d8f5d;

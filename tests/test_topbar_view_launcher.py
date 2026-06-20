@@ -193,6 +193,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
     assert ".settings-update-pr-title {" in css
     assert ".settings-update-pr-full {" in css
+    assert ".settings-select option {" in css
+    assert ".settings-select option:checked {" in css
+    assert '[data-theme="dark"] .settings-select option {' in css
+    assert '[data-theme="dark"] .settings-select option:checked {' in css
+    assert "color-scheme: dark;" in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
