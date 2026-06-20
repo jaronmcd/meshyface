@@ -2895,20 +2895,105 @@
       }});
     }}
 
-    function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+    function mapNodeMarkerStyleWithOpacityScale(baseStyleRaw, scale) {{
+      const safeScale = clampMapLinkValue(Number(scale), 0, 1);
+      const style = (baseStyleRaw && typeof baseStyleRaw === "object")
+        ? Object.assign({{}}, baseStyleRaw)
+        : {{}};
+      const baseOpacity = Number.isFinite(Number(style.opacity))
+        ? clampMapLinkValue(Number(style.opacity), 0, 1)
+        : 1;
+      const baseFillOpacity = Number.isFinite(Number(style.fillOpacity))
+        ? clampMapLinkValue(Number(style.fillOpacity), 0, 1)
+        : 0;
+      style.opacity = baseOpacity * safeScale;
+      style.fillOpacity = baseFillOpacity * safeScale;
+      return style;
+    }}
+
+    function mapNodeMarkerElement(marker) {{
+      if (!(marker && typeof marker === "object")) return null;
+      if (typeof marker.getElement === "function") {{
+        const element = marker.getElement();
+        if (element && element.style) return element;
+      }}
+      if (marker._path && marker._path.style) return marker._path;
+      if (marker._icon && marker._icon.style) return marker._icon;
+      return null;
+    }}
+
+    function syncMapNodeMarkerPendingElementOpacity(marker) {{
+      const element = mapNodeMarkerElement(marker);
+      if (!element) return false;
+      const pendingOpacity = Number(marker && marker._meshMapNodeMarkerPendingElementOpacity);
+      if (Number.isFinite(pendingOpacity)) {{
+        const safeOpacity = clampMapLinkValue(pendingOpacity, 0, 1);
+        element.style.opacity = safeOpacity >= 0.999 ? "" : safeOpacity.toFixed(3);
+        return true;
+      }}
+      element.style.opacity = "";
+      return true;
+    }}
+
+    function setMapNodeMarkerElementOpacity(marker, opacityRaw) {{
+      if (!(marker && typeof marker === "object")) return false;
+      const opacityValue = Number(opacityRaw);
+      marker._meshMapNodeMarkerPendingElementOpacity = Number.isFinite(opacityValue)
+        ? clampMapLinkValue(opacityValue, 0, 1)
+        : null;
+      return syncMapNodeMarkerPendingElementOpacity(marker);
+    }}
+
+    function releaseMapNodeMarkerElementOpacityPrime(marker) {{
+      if (!(marker && typeof marker === "object")) return false;
+      marker._meshMapNodeMarkerPendingElementOpacity = null;
+      if (typeof marker.setStyle === "function") {{
+        return syncMapNodeMarkerPendingElementOpacity(marker);
+      }}
+      return true;
+    }}
+
+    function bindMapNodeMarkerElementOpacitySync(marker) {{
+      if (!(marker && typeof marker === "object")) return marker;
+      if (marker._meshMapNodeMarkerElementOpacitySyncBound) return marker;
+      marker._meshMapNodeMarkerElementOpacitySyncBound = true;
+      if (typeof marker.on === "function") {{
+        marker.on("add", () => {{
+          syncMapNodeMarkerPendingElementOpacity(marker);
+        }});
+      }}
+      return marker;
+    }}
+
+    function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
       if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
-        return L.marker([lat, lon], {{
+        const marker = L.marker([lat, lon], {{
           icon: buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state),
           keyboard: false,
           bubblingMouseEvents: false,
           riseOnHover: true,
           zIndexOffset: isSelected ? 200 : 120,
         }});
+        bindMapNodeMarkerElementOpacitySync(marker);
+        if (Number.isFinite(Number(opts.initialElementOpacity))) {{
+          setMapNodeMarkerElementOpacity(marker, Number(opts.initialElementOpacity));
+        }}
+        return marker;
       }}
-      return L.circleMarker(
+      const resolvedStyle = resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind, markerConfidence, state);
+      const markerStyle = (opts.initialStyle && typeof opts.initialStyle === "object")
+        ? Object.assign({{}}, resolvedStyle, opts.initialStyle)
+        : resolvedStyle;
+      const marker = L.circleMarker(
         [lat, lon],
-        resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind, markerConfidence, state)
+        markerStyle
       );
+      bindMapNodeMarkerElementOpacitySync(marker);
+      if (Number.isFinite(Number(opts.initialElementOpacity))) {{
+        setMapNodeMarkerElementOpacity(marker, Number(opts.initialElementOpacity));
+      }}
+      return marker;
     }}
 
     function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
@@ -2957,27 +3042,46 @@
       marker._meshMapNodeMarkerFadeAnimation = null;
     }}
 
+    function mapNodeMarkerFadeScale(marker, fallbackScale = 1) {{
+      const fallback = clampMapLinkValue(Number(fallbackScale), 0, 1);
+      const state = marker && marker._meshMapNodeMarkerFadeAnimation;
+      if (!(state && typeof state === "object")) return fallback;
+      const currentScale = Number(state.currentScale);
+      if (Number.isFinite(currentScale)) {{
+        return clampMapLinkValue(currentScale, 0, 1);
+      }}
+      const toScale = Number(state.toScale);
+      const fromScale = Number(state.fromScale);
+      if (Number.isFinite(toScale) && Number.isFinite(fromScale)) {{
+        return clampMapLinkValue(toScale > fromScale ? fromScale : fallback, 0, 1);
+      }}
+      return fallback;
+    }}
+
+    function mapNodeMarkerIsFadingOut(marker) {{
+      const state = marker && marker._meshMapNodeMarkerFadeAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const toScale = Number(state.toScale);
+      if (!Number.isFinite(toScale) || toScale > 0.001) return false;
+      return mapNodeMarkerFadeScale(marker, 1) > 0.001;
+    }}
+
     function setMapNodeMarkerOpacityScale(marker, scale, baseStyle = null) {{
       if (!(marker && typeof marker === "object")) return false;
       const safeScale = clampMapLinkValue(Number(scale), 0, 1);
       const sourceStyle = (baseStyle && typeof baseStyle === "object")
         ? baseStyle
         : ((marker.options && typeof marker.options === "object") ? marker.options : {{}});
-      const baseOpacity = Number.isFinite(Number(sourceStyle.opacity))
-        ? clampMapLinkValue(Number(sourceStyle.opacity), 0, 1)
-        : 1;
+      const scaledStyle = mapNodeMarkerStyleWithOpacityScale(sourceStyle, safeScale);
       if (typeof marker.setStyle === "function") {{
-        const baseFillOpacity = Number.isFinite(Number(sourceStyle.fillOpacity))
-          ? clampMapLinkValue(Number(sourceStyle.fillOpacity), 0, 1)
-          : 0;
         marker.setStyle({{
-          opacity: baseOpacity * safeScale,
-          fillOpacity: baseFillOpacity * safeScale,
+          opacity: scaledStyle.opacity,
+          fillOpacity: scaledStyle.fillOpacity,
         }});
         return true;
       }}
       if (typeof marker.setOpacity === "function") {{
-        marker.setOpacity(baseOpacity * safeScale);
+        marker.setOpacity(scaledStyle.opacity);
         return true;
       }}
       return false;
@@ -3015,6 +3119,7 @@
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       if (reduceMotion || durationMs <= 0 || typeof window.requestAnimationFrame !== "function") {{
         setMapNodeMarkerOpacityScale(marker, toScale, baseStyle);
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (onComplete) {{
           onComplete(marker);
         }}
@@ -3028,6 +3133,9 @@
         activeElapsedMs: 0,
         maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
         durationMs,
+        fromScale,
+        toScale,
+        currentScale: fromScale,
       }};
       const step = (timestampMs) => {{
         if (
@@ -3037,21 +3145,30 @@
           && !parentLayer.hasLayer(marker)
         ) {{
           cancelMapNodeMarkerFade(marker);
+          releaseMapNodeMarkerElementOpacityPrime(marker);
           return;
         }}
         const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
         const eased = mapDriftEase(elapsedMs / state.durationMs);
+        const currentScale = fromScale + ((toScale - fromScale) * eased);
+        state.currentScale = currentScale;
+        const currentBaseStyle = (marker._meshMapNodeMarkerFadeBaseStyle && typeof marker._meshMapNodeMarkerFadeBaseStyle === "object")
+          ? marker._meshMapNodeMarkerFadeBaseStyle
+          : baseStyle;
         setMapNodeMarkerOpacityScale(
           marker,
-          fromScale + ((toScale - fromScale) * eased),
-          baseStyle
+          currentScale,
+          currentBaseStyle
         );
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (eased < 1) {{
           state.raf = window.requestAnimationFrame(step);
           return;
         }}
-        setMapNodeMarkerOpacityScale(marker, toScale, baseStyle);
+        setMapNodeMarkerOpacityScale(marker, toScale, currentBaseStyle);
+        state.currentScale = toScale;
         marker._meshMapNodeMarkerFadeAnimation = null;
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (toScale >= 1) {{
           marker._meshMapNodeMarkerFadeBaseStyle = null;
         }}
@@ -3066,16 +3183,25 @@
 
     function fadeInMapNodeMarker(marker, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
+      const fromScale = Number.isFinite(Number(opts.fromScale))
+        ? clampMapLinkValue(Number(opts.fromScale), 0, 1)
+        : 0;
+      if (opts.primeElementOpacity !== false && fromScale <= 0.001) {{
+        setMapNodeMarkerElementOpacity(marker, 0);
+      }}
       return fadeMapNodeMarker(marker, Object.assign({{}}, opts, {{
-        fromScale: 0,
+        fromScale,
         toScale: 1,
       }}));
     }}
 
     function fadeOutMapNodeMarker(marker, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
+      const fromScale = Number.isFinite(Number(opts.fromScale))
+        ? clampMapLinkValue(Number(opts.fromScale), 0, 1)
+        : mapNodeMarkerFadeScale(marker, 1);
       return fadeMapNodeMarker(marker, Object.assign({{}}, opts, {{
-        fromScale: 1,
+        fromScale,
         toScale: 0,
       }}));
     }}

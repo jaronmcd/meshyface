@@ -223,7 +223,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'function animateNetworkGraphScene(svg, fromLayout, toLayout, options = {})' in js
     assert 'function resolveNetworkGraphNodeEmoji(item)' in js
     assert 'function resolveMapNodeEmoji(nodeId, state = latestState)' in js
-    assert 'function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState)' in js
+    assert (
+        'function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", '
+        'markerConfidence = 0.45, state = latestState, options = null)'
+        in js
+    )
     assert 'function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState)' in js
     assert 'function networkGraphVisibleNodeEmojiForNode(nodeId, node = null)' in js
     assert "networkGraphVisibleNodeEmojiForNode(nodeId, item && item.node)" in js

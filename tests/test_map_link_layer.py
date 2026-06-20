@@ -198,6 +198,18 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function fadeMapNodeMarker(marker, options = null)" in js
     assert "function fadeInMapNodeMarker(marker, options = null)" in js
     assert "function fadeOutMapNodeMarker(marker, options = null)" in js
+    assert "function mapNodeMarkerStyleWithOpacityScale(baseStyleRaw, scale)" in js
+    assert "function setMapNodeMarkerElementOpacity(marker, opacityRaw)" in js
+    assert "function releaseMapNodeMarkerElementOpacityPrime(marker)" in js
+    assert "function bindMapNodeMarkerElementOpacitySync(marker)" in js
+    assert "function mapNodeMarkerFadeScale(marker, fallbackScale = 1)" in js
+    assert "function mapNodeMarkerIsFadingOut(marker)" in js
+    assert 'marker.on("add", () => {' in js
+    assert (
+        'function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", '
+        'markerConfidence = 0.45, state = latestState, options = null)'
+        in js
+    )
     assert "function trilateratedMarkerStyle(isSelected, confidence = 0.5, isLocal = false)" in js
     assert 'color: "#cc79a7",' in js
     assert 'fillColor: "#f4a7c7",' in js
@@ -214,18 +226,35 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const activeState = layer._meshHeatOpacityAnimation;" in js
     assert "setMapHeatLayerCanvasOpacity(layer, bypassFade ? 1 : 0);" in js
     assert "if (bypassFade) {" in js
+    assert "const activeFadeState = (marker._meshMapNodeMarkerFadeAnimation" in js
+    assert "const existingMarkerFadingOut = !!(" in js
+    assert "&& !existingMarkerFadingOut" in js
+    assert "mapNodeMarkerFadeScale(" in js
+    assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, activeFadeBaseStyle);" in js
+    assert "primeElementOpacity: false," in js
+    assert "currentScale: fromScale," in js
+    assert "state.currentScale = currentScale;" in js
+    assert "releaseMapNodeMarkerElementOpacityPrime(marker);" in js
     assert "renderMap(nodes, edges, nodeHistory = null, options = null)" in js
     assert "refreshNetworkMapAfterLegendControlChange(options = null)" in js
     assert "{ bypassHeatmapFade: true }" in js
+    assert 'const mapWasAlreadyGraph = lastMapRenderMode === "graph";' in js
+    assert "const allowEstimatedNodeFade = mapWasAlreadyGraph && !bypassNodeFade;" in js
     assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
     assert "fadeOutMapNodeMarker(existingMarker, {" in js
+    assert "fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);" in js
+    assert "initialStyle: fadeEstimatedMarkerInitialStyle," in js
+    assert "initialElementOpacity: 0," in js
+    assert "setMapNodeMarkerElementOpacity(marker, 0);" in js
     assert "setMapNodeMarkerOpacityScale(marker, 0, marker._meshMapNodeMarkerFadeBaseStyle);" in js
     assert "fadeInMapNodeMarker(marker, {" in js
-    assert "if (fadeExistingEstimatedMarkerOut && !bypassNodeFade)" in js
-    assert "const fadeEstimatedMarkerIn = !!(\n            !bypassNodeFade" in js
-    assert 'if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && !bypassNodeFade)' in js
+    assert "if (fadeExistingEstimatedMarkerOut && allowEstimatedNodeFade)" in js
+    assert "const fadeEstimatedMarkerIn = !!(\n            allowEstimatedNodeFade" in js
+    assert 'if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && allowEstimatedNodeFade)' in js
+    assert 'if (!(typeof mapNodeMarkerIsFadingOut === "function" && mapNodeMarkerIsFadingOut(marker)))' in js
+    assert "if (nodeMarkers.get(nodeId) === marker)" in js
     assert "function mapLatLngPathMaxDistanceMeters(a, b)" in js
     assert "function mapHeatPointDistanceMeters(a, b)" in js
     assert "!Number.isFinite(pathDriftMeters) || pathDriftMeters > maxDriftMeters" in js

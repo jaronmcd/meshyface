@@ -779,6 +779,8 @@
       let estimatedPositions = new Map();
       const graphChanged = lastMapRenderMode !== "graph" || graphSignature !== lastMapGraphSignature;
       const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;
+      const mapWasAlreadyGraph = lastMapRenderMode === "graph";
+      const allowEstimatedNodeFade = mapWasAlreadyGraph && !bypassNodeFade;
       if (!shouldRenderGraph && signature === lastMapSignature) {{
         ensureMapSizeSync();
         if (activeLayoutView === "network" && !fitDone) {{
@@ -928,7 +930,12 @@
             }}
           }}
           seenNodeIds.add(normalizedId);
-          if (existingMarker && prevMarkerHash === markerHash) {{
+          const existingMarkerFadingOut = !!(
+            existingMarker
+            && typeof mapNodeMarkerIsFadingOut === "function"
+            && mapNodeMarkerIsFadingOut(existingMarker)
+          );
+          if (existingMarker && prevMarkerHash === markerHash && !existingMarkerFadingOut) {{
             continue;
           }}
           const desiredUsesEmojiMarker = !!(
@@ -946,10 +953,25 @@
           let marker = null;
           if (canDriftExistingEstimatedMarker) {{
             marker = existingMarker;
-            const fadeBaseStyle = marker._meshMapNodeMarkerFadeBaseStyle || null;
-            cancelMapNodeMarkerFade(marker);
-            setMapNodeMarkerOpacityScale(marker, 1, fadeBaseStyle);
-            marker._meshMapNodeMarkerFadeBaseStyle = null;
+            const activeFadeState = (marker._meshMapNodeMarkerFadeAnimation && typeof marker._meshMapNodeMarkerFadeAnimation === "object")
+              ? marker._meshMapNodeMarkerFadeAnimation
+              : null;
+            const activeFadeScale = activeFadeState
+              ? (typeof mapNodeMarkerFadeScale === "function"
+                ? mapNodeMarkerFadeScale(
+                  marker,
+                  Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1
+                )
+                : (Number.isFinite(Number(activeFadeState.currentScale))
+                  ? clampMapLinkValue(Number(activeFadeState.currentScale), 0, 1)
+                  : (Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1)))
+              : 1;
+            if (!activeFadeState) {{
+              const fadeBaseStyle = marker._meshMapNodeMarkerFadeBaseStyle || null;
+              cancelMapNodeMarkerFade(marker);
+              setMapNodeMarkerOpacityScale(marker, 1, fadeBaseStyle);
+              marker._meshMapNodeMarkerFadeBaseStyle = null;
+            }}
             refreshMapNodeMarkerPresentation(
               marker,
               normalizedId,
@@ -958,6 +980,26 @@
               markerConfidence,
               latestState
             );
+            if (activeFadeState) {{
+              const activeFadeBaseStyle = resolveMapNodeMarkerStyle(
+                normalizedId,
+                isSelected,
+                markerKind,
+                markerConfidence,
+                latestState
+              );
+              marker._meshMapNodeMarkerFadeBaseStyle = activeFadeBaseStyle;
+              setMapNodeMarkerOpacityScale(marker, activeFadeScale, activeFadeBaseStyle);
+              if (existingMarkerFadingOut) {{
+                fadeInMapNodeMarker(marker, {{
+                  layerGroup: nodeLayer,
+                  durationMs: mapEstimatedOverlayLongJumpFadeMs,
+                  baseStyle: activeFadeBaseStyle,
+                  fromScale: activeFadeScale,
+                  primeElementOpacity: false,
+                }});
+              }}
+            }}
             if (typeof animateMapMarkerLatLng === "function") {{
               animateMapMarkerLatLng(marker, [markerLat, markerLon], {{
                 durationMs: mapEstimatedOverlayDriftMs,
@@ -967,7 +1009,7 @@
             }}
           }}
           if (existingMarker && !canDriftExistingEstimatedMarker) {{
-            if (fadeExistingEstimatedMarkerOut && !bypassNodeFade) {{
+            if (fadeExistingEstimatedMarkerOut && allowEstimatedNodeFade) {{
               cancelMapMarkerDrift(existingMarker);
               fadeOutMapNodeMarker(existingMarker, {{
                 layerGroup: nodeLayer,
@@ -986,7 +1028,7 @@
             nodeMarkers.delete(normalizedId);
           }}
           const fadeEstimatedMarkerIn = !!(
-            !bypassNodeFade
+            allowEstimatedNodeFade
             &&
             isEstimated
             && (
@@ -995,6 +1037,18 @@
               || fadeExistingEstimatedMarkerOut
             )
           );
+          let fadeEstimatedMarkerBaseStyle = null;
+          let fadeEstimatedMarkerInitialStyle = null;
+          if (fadeEstimatedMarkerIn) {{
+            fadeEstimatedMarkerBaseStyle = resolveMapNodeMarkerStyle(
+              normalizedId,
+              isSelected,
+              markerKind,
+              markerConfidence,
+              latestState
+            );
+            fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);
+          }}
           if (!marker) {{
             marker = createMapNodeMarker(
               markerLat,
@@ -1003,7 +1057,13 @@
               isSelected,
               markerKind,
               markerConfidence,
-              latestState
+              latestState,
+              fadeEstimatedMarkerInitialStyle
+                ? {{
+                  initialStyle: fadeEstimatedMarkerInitialStyle,
+                  initialElementOpacity: 0,
+                }}
+                : null
             );
           }}
           if (isEstimated) {{
@@ -1056,7 +1116,9 @@
             }});
           }}
           if (fadeEstimatedMarkerIn) {{
-            marker._meshMapNodeMarkerFadeBaseStyle = (marker.options && typeof marker.options === "object")
+            marker._meshMapNodeMarkerFadeBaseStyle = (fadeEstimatedMarkerBaseStyle && typeof fadeEstimatedMarkerBaseStyle === "object")
+              ? Object.assign({{}}, fadeEstimatedMarkerBaseStyle)
+              : (marker.options && typeof marker.options === "object")
               ? Object.assign({{}}, marker.options)
               : {{}};
             setMapNodeMarkerOpacityScale(marker, 0, marker._meshMapNodeMarkerFadeBaseStyle);
@@ -1081,16 +1143,25 @@
           if (seenNodeIds.has(nodeId)) continue;
           cancelMapMarkerDrift(marker);
           const staleMarkerKind = nodeMarkerKinds.get(nodeId);
-          if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && !bypassNodeFade) {{
-            fadeOutMapNodeMarker(marker, {{
-              layerGroup: nodeLayer,
-              durationMs: mapEstimatedOverlayLongJumpFadeMs,
-              onComplete: () => {{
-                if (typeof nodeLayer.hasLayer !== "function" || nodeLayer.hasLayer(marker)) {{
-                  nodeLayer.removeLayer(marker);
-                }}
-              }},
-            }});
+          if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && allowEstimatedNodeFade) {{
+            if (!(typeof mapNodeMarkerIsFadingOut === "function" && mapNodeMarkerIsFadingOut(marker))) {{
+              fadeOutMapNodeMarker(marker, {{
+                layerGroup: nodeLayer,
+                durationMs: mapEstimatedOverlayLongJumpFadeMs,
+                onComplete: () => {{
+                  if (typeof nodeLayer.hasLayer !== "function" || nodeLayer.hasLayer(marker)) {{
+                    nodeLayer.removeLayer(marker);
+                  }}
+                  if (nodeMarkers.get(nodeId) === marker) {{
+                    nodeMarkers.delete(nodeId);
+                    nodeMarkerMeta.delete(nodeId);
+                    nodeMarkerKinds.delete(nodeId);
+                    nodeMarkerConfidence.delete(nodeId);
+                  }}
+                }},
+              }});
+            }}
+            continue;
           }} else {{
             cancelMapNodeMarkerFade(marker);
             nodeLayer.removeLayer(marker);
