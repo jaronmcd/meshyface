@@ -732,6 +732,75 @@
       return String(branchSelect.value || "").trim();
     }}
 
+    function settingsUpdateBranchMenuElements() {{
+      return {{
+        select: document.getElementById("settings-update-branch"),
+        menu: document.getElementById("settings-update-branch-menu"),
+        toggle: document.getElementById("settings-update-branch-toggle"),
+        label: document.getElementById("settings-update-branch-toggle-label"),
+        list: document.getElementById("settings-update-branch-options"),
+      }};
+    }}
+
+    function setSettingsUpdateBranchMenuOpen(open) {{
+      const els = settingsUpdateBranchMenuElements();
+      const toggle = els.toggle;
+      const list = els.list;
+      if (!(toggle instanceof HTMLButtonElement) || !(list instanceof HTMLElement)) return;
+      const canOpen = !!open && !toggle.disabled;
+      list.hidden = !canOpen;
+      toggle.setAttribute("aria-expanded", canOpen ? "true" : "false");
+      if (canOpen) {{
+        const selected = list.querySelector('.settings-update-branch-option[aria-selected="true"]');
+        const first = list.querySelector(".settings-update-branch-option:not(:disabled)");
+        const focusTarget = selected instanceof HTMLButtonElement ? selected : first;
+        if (focusTarget instanceof HTMLButtonElement) focusTarget.focus();
+      }}
+    }}
+
+    function closeSettingsUpdateBranchMenu() {{
+      setSettingsUpdateBranchMenuOpen(false);
+    }}
+
+    function toggleSettingsUpdateBranchMenu() {{
+      const list = document.getElementById("settings-update-branch-options");
+      setSettingsUpdateBranchMenuOpen(!(list instanceof HTMLElement) || list.hidden);
+    }}
+
+    function focusSettingsUpdateBranchOption(delta) {{
+      const list = document.getElementById("settings-update-branch-options");
+      if (!(list instanceof HTMLElement) || list.hidden) return;
+      const options = Array.from(list.querySelectorAll(".settings-update-branch-option"))
+        .filter((el) => el instanceof HTMLButtonElement && !el.disabled);
+      if (!options.length) return;
+      const currentIndex = options.indexOf(document.activeElement);
+      let nextIndex = 0;
+      if (delta <= -999) {{
+        nextIndex = 0;
+      }} else if (delta >= 999) {{
+        nextIndex = options.length - 1;
+      }} else {{
+        nextIndex = currentIndex < 0
+          ? 0
+          : (currentIndex + delta + options.length) % options.length;
+      }}
+      const next = options[nextIndex];
+      if (next instanceof HTMLButtonElement) next.focus();
+    }}
+
+    function selectSettingsUpdateBranchValue(value) {{
+      const branchSelect = document.getElementById("settings-update-branch");
+      if (!(branchSelect instanceof HTMLSelectElement)) return;
+      const nextValue = String(value || "").trim();
+      if (branchSelect.value === nextValue) {{
+        closeSettingsUpdateBranchMenu();
+        return;
+      }}
+      branchSelect.value = nextValue;
+      closeSettingsUpdateBranchMenu();
+      branchSelect.dispatchEvent(new Event("change", {{ bubbles: true }}));
+    }}
+
     function settingsUpdateStatusText(payload) {{
       const info = settingsUpdatePayloadObject(payload);
       const message = String(info.message || info.error || "").trim();
@@ -778,6 +847,38 @@
       branchSelect.title = branches.length
         ? "Choose the GitHub branch to fetch, switch to, and fast-forward"
         : "No remote branches are available for this checkout.";
+      const els = settingsUpdateBranchMenuElements();
+      const toggle = els.toggle;
+      const label = els.label;
+      const list = els.list;
+      if (!(toggle instanceof HTMLButtonElement) || !(label instanceof HTMLElement) || !(list instanceof HTMLElement)) return;
+      const selectedValue = String(branchSelect.value || "").trim();
+      const disabled = !!branchSelect.disabled;
+      label.textContent = selectedValue || (branches.length ? "Select branch..." : "No branches found");
+      toggle.disabled = disabled;
+      toggle.title = branchSelect.title;
+      toggle.setAttribute("aria-disabled", disabled ? "true" : "false");
+      if (disabled) setSettingsUpdateBranchMenuOpen(false);
+      list.replaceChildren();
+      const placeholder = document.createElement("button");
+      placeholder.type = "button";
+      placeholder.className = "settings-update-branch-option";
+      placeholder.dataset.branchValue = "";
+      placeholder.setAttribute("role", "option");
+      placeholder.textContent = branches.length ? "Select branch..." : "No branches found";
+      placeholder.disabled = !branches.length;
+      placeholder.setAttribute("aria-selected", selectedValue ? "false" : "true");
+      list.appendChild(placeholder);
+      branches.forEach((branchName) => {{
+        const opt = document.createElement("button");
+        opt.type = "button";
+        opt.className = "settings-update-branch-option";
+        opt.dataset.branchValue = branchName;
+        opt.setAttribute("role", "option");
+        opt.textContent = branchName;
+        opt.setAttribute("aria-selected", branchName === selectedValue ? "true" : "false");
+        list.appendChild(opt);
+      }});
     }}
 
     function settingsUpdatePullRequestHistoryRows(info) {{

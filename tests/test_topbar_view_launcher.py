@@ -68,6 +68,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-status"' not in html
     assert 'Update status not checked.' not in html
     assert 'id="settings-update-branch"' in html
+    assert 'class="settings-select settings-update-branch-native"' in html
+    assert 'id="settings-update-branch-toggle"' in html
+    assert 'id="settings-update-branch-options"' in html
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
     assert 'id="settings-update-reload"' in html
@@ -187,17 +190,20 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-panel {" in css
     assert ".settings-update-actions {" in css
     assert ".settings-update-branch-field {" in css
+    assert ".settings-update-branch-native {" in css
+    assert ".settings-update-branch-toggle {" in css
+    assert ".settings-update-branch-options {" in css
+    assert ".settings-update-branch-option {" in css
+    assert '[data-theme="dark"] .settings-update-branch-toggle {' in css
+    assert '[data-theme="dark"] .settings-update-branch-options {' in css
+    assert '[data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {' in css
     assert ".settings-update-history-panel {" in css
     assert ".settings-update-pr-item {" in css
     assert ".settings-update-pr-summary {" in css
     assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
     assert ".settings-update-pr-title {" in css
     assert ".settings-update-pr-full {" in css
-    assert ".settings-select option {" in css
-    assert ".settings-select option:checked {" in css
-    assert '[data-theme="dark"] .settings-select option {' in css
-    assert '[data-theme="dark"] .settings-select option:checked {' in css
-    assert "color-scheme: dark;" in css
+    assert ".settings-select option {" not in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -233,7 +239,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js
     assert "function readSettingsUpdateBranchSelection() {" in js
+    assert "function toggleSettingsUpdateBranchMenu() {" in js
+    assert "function selectSettingsUpdateBranchValue(value) {" in js
     assert "function renderSettingsUpdateBranchOptions(info, inFlight) {" in js
+    assert 'document.getElementById("settings-update-branch-toggle")' in js
+    assert 'document.getElementById("settings-update-branch-options")' in js
     assert "`/api/system/update?branch=${encodeURIComponent(selectedBranch)}`" in js
     assert "body: JSON.stringify({ branch: selectedBranch })" in js
     assert 'fetch("/api/system/update"' in js

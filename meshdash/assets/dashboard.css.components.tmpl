@@ -2250,7 +2250,6 @@
     }}
     [data-theme="dark"] .settings-input,
     [data-theme="dark"] .settings-select {{
-      color-scheme: dark;
       background: #07140d;
       background: var(--workspace-shell-bg-alt);
       border-color: #2d8f5d;
@@ -2258,15 +2257,34 @@
       color: #c6ffdb;
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .settings-select option {{
-      color: var(--workspace-shell-text);
+    [data-theme="dark"] .settings-update-branch-toggle {{
+      border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
+      color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .settings-select option:checked {{
-      color: var(--workspace-shell-active-text);
+    [data-theme="dark"] .settings-update-branch-toggle[aria-expanded="true"],
+    [data-theme="dark"] .settings-update-branch-toggle:focus-visible {{
+      border-color: var(--workspace-shell-active-border);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 48%, var(--workspace-shell-bg-alt) 52%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-shell-active-border) 28%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-branch-options {{
+      border-color: var(--workspace-shell-border-muted);
+      background: var(--workspace-shell-bg-alt);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+    }}
+    [data-theme="dark"] .settings-update-branch-option {{
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-branch-option:hover,
+    [data-theme="dark"] .settings-update-branch-option:focus-visible {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 42%, var(--workspace-shell-bg-alt) 58%);
+    }}
+    [data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {{
       background: var(--workspace-shell-active-bg);
+      color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .settings-select option:disabled {{
+    [data-theme="dark"] .settings-update-branch-option:disabled {{
       color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-range-row {{
