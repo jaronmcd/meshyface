@@ -292,7 +292,7 @@
       return fitMapToMostNodes(nodes, {{
         pad: 0.18,
         maxZoom: 13,
-        animate: opts.animate !== false,
+        animate: opts.animate === true,
         durationSeconds: Number.isFinite(Number(opts.durationSeconds))
           ? Number(opts.durationSeconds)
           : 0.68,
@@ -458,11 +458,15 @@
       const targetPoint = normalizeMapLatLngPoint(targetLatLngRaw);
       if (!targetPoint) return false;
       const opts = (options && typeof options === "object") ? options : {{}};
-      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = marker._meshMarkerDriftAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && Array.isArray(activeState.toPoint)
         && mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)
@@ -538,11 +542,15 @@
       const targetPath = normalizeMapLatLngPath(targetPathRaw);
       if (targetPath.length <= 0) return false;
       const opts = (options && typeof options === "object") ? options : {{}};
-      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = layer._meshPolylineDriftAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && Array.isArray(activeState.toPath)
         && mapLatLngPathsSameEnough(activeState.toPath, targetPath)
@@ -800,14 +808,18 @@
       if (!canvas) return false;
       const opts = (options && typeof options === "object") ? options : {{}};
       const targetOpacity = clampMapLinkValue(Number(targetOpacityRaw), 0, 1);
-      const durationMs = Math.max(
-        0,
-        Number(opts.durationMs) || (targetOpacity >= mapHeatLayerCurrentOpacity(layer) ? mapHeatLayerFadeInMs : mapHeatLayerFadeOutMs)
-      );
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(
+          0,
+          Number(opts.durationMs) || (targetOpacity >= mapHeatLayerCurrentOpacity(layer) ? mapHeatLayerFadeInMs : mapHeatLayerFadeOutMs)
+        );
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = layer._meshHeatOpacityAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && Math.abs((Number(activeState.toOpacity) || 0) - targetOpacity) <= 0.001
       ) {{
@@ -891,11 +903,15 @@
       const keyPrefix = String(opts.keyPrefix || "heat").trim() || "heat";
       const onComplete = typeof opts.onComplete === "function" ? opts.onComplete : null;
       const targetPoints = normalizeMapHeatPoints(targetPointsRaw, {{ keyPrefix }});
-      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = layer._meshHeatDriftAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && !activeState.fadeOut
         && Array.isArray(activeState.targetPoints)
@@ -1091,6 +1107,163 @@
         fadeOut: true,
         onComplete,
       }});
+    }}
+
+    function finishMapMarkerDrift(marker) {{
+      if (!(marker && typeof marker === "object")) return false;
+      const state = marker._meshMarkerDriftAnimation;
+      const targetPoint = Array.isArray(state && state.toPoint) ? state.toPoint : null;
+      if (!targetPoint) return false;
+      cancelMapMarkerDrift(marker);
+      if (typeof marker.setLatLng === "function") {{
+        marker.setLatLng(targetPoint);
+      }}
+      return true;
+    }}
+
+    function finishMapPolylineDrift(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshPolylineDriftAnimation;
+      const targetPath = Array.isArray(state && state.toPath) ? state.toPath : null;
+      if (!targetPath) return false;
+      const targetOpacity = Number(state && state.targetOpacity);
+      cancelMapPolylineDrift(layer);
+      if (typeof layer.setLatLngs === "function") {{
+        layer.setLatLngs(targetPath);
+      }}
+      if (Number.isFinite(targetOpacity) && typeof layer.setStyle === "function") {{
+        layer.setStyle({{ opacity: clampMapLinkValue(targetOpacity, 0, 1) }});
+      }}
+      return true;
+    }}
+
+    function finishMapHeatLayerDrift(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshHeatDriftAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const targetPoints = Array.isArray(state.targetPoints) ? state.targetPoints : [];
+      const onComplete = typeof state.onComplete === "function" ? state.onComplete : null;
+      cancelMapHeatLayerDrift(layer);
+      layer._meshHeatCurrentPoints = targetPoints;
+      if (typeof layer.setLatLngs === "function") {{
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+      }}
+      if (onComplete) {{
+        onComplete(layer);
+      }}
+      return true;
+    }}
+
+    function finishMapHeatLayerOpacityFade(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshHeatOpacityAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const targetOpacity = clampMapLinkValue(Number(state.toOpacity), 0, 1);
+      cancelMapHeatLayerOpacityFade(layer);
+      setMapHeatLayerCanvasOpacity(layer, targetOpacity);
+      return true;
+    }}
+
+    function collectMapHeatLayersForViewportSync() {{
+      const layers = [];
+      const seen = new Set();
+      const addLayer = (layer) => {{
+        if (!(layer && typeof layer === "object") || seen.has(layer)) return;
+        seen.add(layer);
+        layers.push(layer);
+      }};
+      if (linkEstimateHeatmapLayer) {{
+        addLayer(linkEstimateHeatmapLayer);
+      }}
+      const layerGroups = signalHeatmapLayers && typeof signalHeatmapLayers === "object"
+        ? Object.values(signalHeatmapLayers)
+        : [];
+      for (const group of layerGroups) {{
+        if (!Array.isArray(group)) continue;
+        for (const layer of group) {{
+          addLayer(layer);
+        }}
+      }}
+      return layers;
+    }}
+
+    function syncMapHeatLayerViewportNow(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      if (!map || typeof map.hasLayer !== "function" || !map.hasLayer(layer)) return false;
+      if (layer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
+        try {{
+          L.Util.cancelAnimFrame(layer._frame);
+        }} catch (_err) {{
+        }}
+        layer._frame = null;
+      }}
+      if (typeof layer._reset === "function") {{
+        try {{
+          layer._reset();
+          return true;
+        }} catch (_err) {{
+        }}
+      }}
+      if (typeof layer.redraw === "function") {{
+        layer.redraw();
+        return true;
+      }}
+      return false;
+    }}
+
+    function syncMapHeatLayersToViewportNow() {{
+      let synced = false;
+      for (const layer of collectMapHeatLayersForViewportSync()) {{
+        synced = syncMapHeatLayerViewportNow(layer) || synced;
+      }}
+      return synced;
+    }}
+
+    function requestMapHeatLayersViewportSync() {{
+      if (mapHeatLayerViewportSyncRaf !== null) {{
+        return;
+      }}
+      const runSync = () => {{
+        mapHeatLayerViewportSyncRaf = null;
+        syncMapHeatLayersToViewportNow();
+      }};
+      if (typeof window.requestAnimationFrame === "function") {{
+        mapHeatLayerViewportSyncRaf = window.requestAnimationFrame(runSync);
+      }} else {{
+        runSync();
+      }}
+    }}
+
+    function finishMapViewportOverlayAnimations() {{
+      for (const marker of nodeMarkers.values()) {{
+        finishMapMarkerDrift(marker);
+      }}
+      for (const line of linkEstimateLines.values()) {{
+        finishMapPolylineDrift(line);
+      }}
+      for (const layer of collectMapHeatLayersForViewportSync()) {{
+        finishMapHeatLayerDrift(layer);
+        finishMapHeatLayerOpacityFade(layer);
+      }}
+    }}
+
+    function beginMapViewportInteraction() {{
+      mapViewportInteractionActive = true;
+      finishMapViewportOverlayAnimations();
+      requestMapHeatLayersViewportSync();
+    }}
+
+    function syncMapViewportInteractionFrame() {{
+      if (!mapViewportInteractionActive) {{
+        mapViewportInteractionActive = true;
+      }}
+      requestMapHeatLayersViewportSync();
+    }}
+
+    function endMapViewportInteraction() {{
+      finishMapViewportOverlayAnimations();
+      syncMapHeatLayersToViewportNow();
+      mapViewportInteractionActive = false;
     }}
 
     function estimatedMarkerStyle(isSelected, confidence = 0.5, isLocal = false) {{
@@ -4850,7 +5023,7 @@
       if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;
       btn.dataset.bound = "1";
       btn.addEventListener("click", () => {{
-        resetMapViewToMostNodes();
+        resetMapViewToMostNodes({{ animate: false }});
       }});
     }}
 

@@ -308,31 +308,41 @@
       bindMapContainerObserver();
       bindMapWheelActivation();
       map.on("movestart", () => {{
+        beginMapViewportInteraction();
         if ((Number.isFinite(Number(programmaticMapMoveDepth)) ? programmaticMapMoveDepth : 0) > 0) return;
         pendingMapHistoryFocus = false;
       }});
+      map.on("move", () => {{
+        syncMapViewportInteractionFrame();
+      }});
       map.on("zoomstart", () => {{
+        beginMapViewportInteraction();
         if ((Number.isFinite(Number(programmaticMapMoveDepth)) ? programmaticMapMoveDepth : 0) > 0) return;
         pendingMapHistoryFocus = false;
         // Avoid odd canvas artifacts while zooming (leaflet.heat can look glitchy mid-zoom).
         const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-        syncSignalHeatmapLayer(nodes, true);
+        syncSignalHeatmapLayer(nodes, true, {{ bypassFade: true }});
+      }});
+      map.on("zoom", () => {{
+        syncMapViewportInteractionFrame();
       }});
       map.on("zoomend", () => {{
         const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-        syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+        syncSignalHeatmapLayer(nodes, activeLayoutView === "saved", {{ bypassFade: true }});
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();
         }}
+        endMapViewportInteraction();
       }});
       map.on("moveend", () => {{
         const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
         if (signalHeatDevKnobs.geoRadiusLock >= 0.5) {{
-          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved", {{ bypassFade: true }});
         }}
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();
         }}
+        endMapViewportInteraction();
       }});
     }});
     window.addEventListener("resize", () => {{

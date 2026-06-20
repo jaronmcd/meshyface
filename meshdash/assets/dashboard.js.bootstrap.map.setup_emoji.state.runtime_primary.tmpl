@@ -121,6 +121,8 @@
     let pendingMapHistoryFocus = false;
     let programmaticMapMoveDepth = 0;
     let mapResizeObserver = null;
+    let mapViewportInteractionActive = false;
+    let mapHeatLayerViewportSyncRaf = null;
     let activeWheelPane = null;
     let activeWheelPaneLease = null;
     let mapWheelZoomActive = false;

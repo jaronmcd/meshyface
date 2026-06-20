@@ -262,8 +262,20 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "refreshNetworkMapAfterLegendControlChange(options = null)" in js
     assert "{ bypassHeatmapFade: true }" in js
     assert "let networkMapGraphRenderSeen = false;" in js
+    assert "let mapViewportInteractionActive = false;" in js
+    assert "let mapHeatLayerViewportSyncRaf = null;" in js
     assert "const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;" in js
     assert "networkMapGraphRenderSeen = true;" in js
+    assert "animate: opts.animate === true," in js
+    assert "resetMapViewToMostNodes({ animate: false });" in js
+    assert "const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;" in js
+    assert "function requestMapHeatLayersViewportSync()" in js
+    assert "function beginMapViewportInteraction()" in js
+    assert "function syncMapViewportInteractionFrame()" in js
+    assert "function endMapViewportInteraction()" in js
+    assert "map.on(\"move\", () => {" in js
+    assert "syncSignalHeatmapLayer(nodes, true, { bypassFade: true });" in js
+    assert "syncSignalHeatmapLayer(nodes, activeLayoutView === \"saved\", { bypassFade: true });" in js
     assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
     assert "marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;" in js
