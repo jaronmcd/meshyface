@@ -886,10 +886,27 @@
       return rows.filter((row) => row && typeof row === "object");
     }}
 
+    function settingsUpdatePullRequestHistoryKey(row) {{
+      if (!row || typeof row !== "object") return "";
+      const number = String(row.number || "").trim();
+      if (number) return `number:${{number}}`;
+      const commit = String(row.commit || row.commit_short || "").trim();
+      if (commit) return `commit:${{commit}}`;
+      const url = String(row.url || "").trim();
+      if (url) return `url:${{url}}`;
+      const title = String(row.title || row.subject || "").trim();
+      return title ? `title:${{title}}` : "";
+    }}
+
     function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {{
       const host = document.getElementById("settings-update-pr-history");
       if (!(host instanceof HTMLElement)) return;
       const rows = settingsUpdatePullRequestHistoryRows(settingsUpdatePayloadObject(info));
+      const openKeys = new Set(
+        Array.from(host.querySelectorAll(".settings-update-pr-item[open]"))
+          .map((item) => item instanceof HTMLElement ? String(item.dataset.prHistoryKey || "") : "")
+          .filter(Boolean)
+      );
       host.replaceChildren();
       if (!rows.length) {{
         const empty = document.createElement("div");
@@ -903,6 +920,11 @@
       for (const row of rows) {{
         const item = document.createElement("details");
         item.className = "settings-update-pr-item";
+        const rowKey = settingsUpdatePullRequestHistoryKey(row);
+        if (rowKey) {{
+          item.dataset.prHistoryKey = rowKey;
+          item.open = openKeys.has(rowKey);
+        }}
 
         const summary = document.createElement("summary");
         summary.className = "settings-update-pr-summary";

@@ -227,9 +227,12 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
+    assert "function settingsUpdatePullRequestHistoryKey(row) {" in js
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
     assert 'const item = document.createElement("details");' in js
+    assert "item.dataset.prHistoryKey = rowKey;" in js
+    assert "item.open = openKeys.has(rowKey);" in js
     assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
     assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
