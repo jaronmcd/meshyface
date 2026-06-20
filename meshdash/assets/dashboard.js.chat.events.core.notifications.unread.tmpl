@@ -138,7 +138,7 @@
             isReaction
           ),
           kind,
-          countsUnread: !senderIsSelf,
+          countsUnread: kind !== "status" && !senderIsSelf,
           selfRelevant: systemRelevant,
           systemRelevant,
           unix: latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at),
@@ -161,7 +161,12 @@
       if (document.hidden || !tabHasFocus) return false;
       if (!isChatWorkspaceLayoutView(activeLayoutView)) return false;
       const entryChannel = normalizeChatChannel(entry.channel || entry.targetChatChannel || "all");
-      if (entryChannel !== activeChatChannel) return false;
+      const activeChannel = normalizeChatChannel(activeChatChannel || "all");
+      const directRenderedInEveryone = !chatMainDirectModeEnabled
+        && activeChannel === "all"
+        && entryChannel === "direct";
+      if (directRenderedInEveryone) return true;
+      if (entryChannel !== activeChannel) return false;
       if (entryChannel !== "direct") {{
         const activeMeshIdx = activeMeshChannelFilterIndex();
         const entryMeshIdx = normalizeMeshChannelIndex(entry.meshChannelIndex);
@@ -407,6 +412,15 @@
     function clearVisibleChatUnread(channelKey = activeChatChannel) {{
       const key = normalizeChatChannel(channelKey);
       const activeIdx = activeMeshChannelFilterIndex();
+      if (!chatMainDirectModeEnabled && key === "all") {{
+        chatUnreadByMeshChannel.all = Object.create(null);
+        chatUnreadByMeshChannel.direct = Object.create(null);
+        recomputeChatUnreadScope("all");
+        recomputeChatUnreadScope("direct");
+        syncChatRailUnread();
+        syncMeshChannelViewControl();
+        return;
+      }}
       if (key === "direct" || activeIdx === meshChannelAllIndex) {{
         chatUnreadByMeshChannel[key] = Object.create(null);
       }} else {{
