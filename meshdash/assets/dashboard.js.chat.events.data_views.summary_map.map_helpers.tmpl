@@ -417,6 +417,122 @@
       layer._meshPolylineDriftAnimation = null;
     }}
 
+    function cancelMapMarkerDrift(marker) {{
+      if (!(marker && typeof marker === "object")) return;
+      const state = marker._meshMarkerDriftAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      marker._meshMarkerDriftAnimation = null;
+    }}
+
+    function normalizeMapLatLngPoint(rawPoint) {{
+      const lat = Number(Array.isArray(rawPoint) ? rawPoint[0] : (rawPoint && rawPoint.lat));
+      const lon = Number(
+        Array.isArray(rawPoint)
+          ? rawPoint[1]
+          : (rawPoint && (rawPoint.lng ?? rawPoint.lon))
+      );
+      if (!isValidMapCoord(lat, lon)) return null;
+      return [lat, lon];
+    }}
+
+    function mapLatLngPointsSameEnough(a, b) {{
+      const aPoint = normalizeMapLatLngPoint(a);
+      const bPoint = normalizeMapLatLngPoint(b);
+      if (!aPoint || !bPoint) return false;
+      if (Math.abs((Number(aPoint[0]) || 0) - (Number(bPoint[0]) || 0)) > 0.0000005) return false;
+      if (Math.abs((Number(aPoint[1]) || 0) - (Number(bPoint[1]) || 0)) > 0.0000005) return false;
+      return true;
+    }}
+
+    function animateMapMarkerLatLng(marker, targetLatLngRaw, options = null) {{
+      if (!(marker && typeof marker.setLatLng === "function")) return false;
+      const targetPoint = normalizeMapLatLngPoint(targetLatLngRaw);
+      if (!targetPoint) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      const activeState = marker._meshMarkerDriftAnimation;
+      if (
+        !reduceMotion
+        && activeState
+        && Array.isArray(activeState.toPoint)
+        && mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)
+      ) {{
+        return true;
+      }}
+      const currentPoint = normalizeMapLatLngPoint(
+        typeof marker.getLatLng === "function" ? marker.getLatLng() : null
+      );
+      if (reduceMotion || durationMs <= 0 || !currentPoint) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+      if (mapLatLngPointsSameEnough(currentPoint, targetPoint)) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+      const maxDriftMeters = Number.isFinite(Number(opts.maxDriftMeters))
+        ? Math.max(0, Number(opts.maxDriftMeters))
+        : mapEstimatedOverlayMaxDriftMeters;
+      const driftMeters = mapLatLngPointDistanceMeters(currentPoint, targetPoint);
+      if (!Number.isFinite(driftMeters) || driftMeters > maxDriftMeters) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+
+      cancelMapMarkerDrift(marker);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        lastFrameMs: startedAtMs,
+        activeElapsedMs: 0,
+        maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
+        durationMs,
+        fromPoint: currentPoint,
+        toPoint: targetPoint,
+      }};
+      const step = (timestampMs) => {{
+        const markerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(marker);
+        if (!markerStillVisible) {{
+          cancelMapMarkerDrift(marker);
+          return;
+        }}
+        const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        marker.setLatLng([
+          Number(state.fromPoint[0]) + ((Number(state.toPoint[0]) - Number(state.fromPoint[0])) * eased),
+          Number(state.fromPoint[1]) + ((Number(state.toPoint[1]) - Number(state.fromPoint[1])) * eased),
+        ]);
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        marker.setLatLng(state.toPoint);
+        marker._meshMarkerDriftAnimation = null;
+      }};
+      marker._meshMarkerDriftAnimation = state;
+      if (typeof window.requestAnimationFrame !== "function") {{
+        marker.setLatLng(targetPoint);
+        marker._meshMarkerDriftAnimation = null;
+        return true;
+      }}
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
     function animateMapPolylineLatLngs(layer, targetPathRaw, options = null) {{
       if (!(layer && typeof layer.setLatLngs === "function")) return false;
       const targetPath = normalizeMapLatLngPath(targetPathRaw);
@@ -2418,6 +2534,10 @@
       const opts = (options && typeof options === "object") ? options : {{}};
       const overlayNodeId = normalizeNodeId(opts.nodeId || (node && node.id) || "");
       const popupHtml = buildMapNodeInfoHtml(node, Object.assign({{}}, opts, {{ includeActions: true }}));
+      const previousBinding = marker._meshMapNodeInfoBinding;
+      if (previousBinding && typeof previousBinding.clear === "function") {{
+        previousBinding.clear();
+      }}
       marker.bindPopup(popupHtml, {{
         closeButton: true,
         autoPan: true,
@@ -2511,7 +2631,7 @@
           : "";
         return !!opts.suppressHoverTooltip || popupIsOpen() || !!(overlayNodeId && selectedId === overlayNodeId);
       }};
-      marker.on("popupopen", (ev) => {{
+      const onPopupOpen = (ev) => {{
         cancelHoverPopupClose();
         const popup = ev && ev.popup;
         const popupEl = popup && typeof popup.getElement === "function"
@@ -2529,21 +2649,36 @@
             scheduleHoverPopupClose();
           }},
         }});
-      }});
-      marker.on("mouseover", () => {{
+      }};
+      const onMouseOver = () => {{
         markerHovering = true;
         cancelHoverPopupClose();
         scheduleHoverPopupOpen();
-      }});
-      marker.on("mouseout", () => {{
+      }};
+      const onMouseOut = () => {{
         markerHovering = false;
         scheduleHoverPopupClose();
-      }});
-      marker.on("popupclose", () => {{
+      }};
+      const onPopupClose = () => {{
         markerHovering = false;
         popupHovering = false;
         clearHoverPopupTimers();
-      }});
+      }};
+      marker.on("popupopen", onPopupOpen);
+      marker.on("mouseover", onMouseOver);
+      marker.on("mouseout", onMouseOut);
+      marker.on("popupclose", onPopupClose);
+      marker._meshMapNodeInfoBinding = {{
+        clear: () => {{
+          clearHoverPopupTimers();
+          if (typeof marker.off === "function") {{
+            marker.off("popupopen", onPopupOpen);
+            marker.off("mouseover", onMouseOver);
+            marker.off("mouseout", onMouseOut);
+            marker.off("popupclose", onPopupClose);
+          }}
+        }},
+      }};
     }}
 
     function buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
@@ -3151,13 +3286,13 @@
         const targetPosition = {{ lat: targetLat, lon: targetLon }};
         const previousPosition = {{ lat: previousLat, lon: previousLon }};
         const distanceMeters = mapEstimatedPositionDistanceMeters(previousPosition, targetPosition);
-        if (Number.isFinite(distanceMeters) && distanceMeters > 90) {{
+        if (Number.isFinite(distanceMeters) && distanceMeters > 35) {{
           const alpha = clampMapLinkValue(
-            0.075 + (confidence * 0.09) + Math.min(0.045, supportLinks * 0.008),
-            0.075,
-            0.22
+            0.018 + (confidence * 0.027) + Math.min(0.015, supportLinks * 0.003),
+            0.018,
+            0.06
           );
-          const maxStepMeters = 1400 + (confidence * 2200) + Math.min(1100, supportLinks * 160);
+          const maxStepMeters = 30 + (confidence * 55) + Math.min(45, supportLinks * 7);
           const requestedStepMeters = Math.min(distanceMeters, distanceMeters * alpha, maxStepMeters);
           const vec = projectMapLinkPoint(targetLat, targetLon, previousLat, previousLon);
           if (
@@ -3183,7 +3318,7 @@
             {{ lat: nextLat, lon: nextLon }},
             targetPosition
           );
-          active = Number.isFinite(remainingMeters) && remainingMeters > 120;
+          active = Number.isFinite(remainingMeters) && remainingMeters > 45;
         }}
       }}
 

@@ -546,6 +546,9 @@
         for (const line of linkEstimateLines.values()) {{
           cancelMapPolylineDrift(line);
         }}
+        for (const marker of nodeMarkers.values()) {{
+          cancelMapMarkerDrift(marker);
+        }}
         linkEstimateLayer.clearLayers();
         clearLinkEstimateHeatmapLayer();
         renderMapLinkLegend();
@@ -868,6 +871,8 @@
           const existingMarker = nodeMarkers.get(normalizedId);
           const prevMarkerHash = nodeMarkerMeta.get(normalizedId);
           const existingMarkerKind = nodeMarkerKinds.get(normalizedId) || "";
+          const markerKind = isEstimated ? "estimated" : "actual";
+          const markerConfidence = isEstimated ? Number(estimate && estimate.confidence) : 1;
           let fadeExistingEstimatedMarkerOut = false;
           if (existingMarker && existingMarkerKind === "estimated") {{
             if (!isEstimated) {{
@@ -888,8 +893,44 @@
           if (existingMarker && prevMarkerHash === markerHash) {{
             continue;
           }}
-          if (existingMarker) {{
+          const desiredUsesEmojiMarker = !!(
+            typeof mapNodeUsesEmojiMarker === "function"
+            && mapNodeUsesEmojiMarker(normalizedId, markerKind, latestState)
+          );
+          const existingUsesEmojiMarker = !!(existingMarker && typeof existingMarker.setIcon === "function");
+          const canDriftExistingEstimatedMarker = !!(
+            existingMarker
+            && existingMarkerKind === "estimated"
+            && isEstimated
+            && !fadeExistingEstimatedMarkerOut
+            && desiredUsesEmojiMarker === existingUsesEmojiMarker
+          );
+          let marker = null;
+          if (canDriftExistingEstimatedMarker) {{
+            marker = existingMarker;
+            const fadeBaseStyle = marker._meshMapNodeMarkerFadeBaseStyle || null;
+            cancelMapNodeMarkerFade(marker);
+            setMapNodeMarkerOpacityScale(marker, 1, fadeBaseStyle);
+            marker._meshMapNodeMarkerFadeBaseStyle = null;
+            refreshMapNodeMarkerPresentation(
+              marker,
+              normalizedId,
+              isSelected,
+              markerKind,
+              markerConfidence,
+              latestState
+            );
+            if (typeof animateMapMarkerLatLng === "function") {{
+              animateMapMarkerLatLng(marker, [markerLat, markerLon], {{
+                durationMs: mapEstimatedOverlayDriftMs,
+              }});
+            }} else if (typeof marker.setLatLng === "function") {{
+              marker.setLatLng([markerLat, markerLon]);
+            }}
+          }}
+          if (existingMarker && !canDriftExistingEstimatedMarker) {{
             if (fadeExistingEstimatedMarkerOut) {{
+              cancelMapMarkerDrift(existingMarker);
               fadeOutMapNodeMarker(existingMarker, {{
                 layerGroup: nodeLayer,
                 durationMs: mapEstimatedOverlayLongJumpFadeMs,
@@ -901,12 +942,11 @@
               }});
             }} else {{
               cancelMapNodeMarkerFade(existingMarker);
+              cancelMapMarkerDrift(existingMarker);
               nodeLayer.removeLayer(existingMarker);
             }}
             nodeMarkers.delete(normalizedId);
           }}
-          const markerKind = isEstimated ? "estimated" : "actual";
-          const markerConfidence = isEstimated ? Number(estimate && estimate.confidence) : 1;
           const fadeEstimatedMarkerIn = !!(
             isEstimated
             && (
@@ -915,15 +955,17 @@
               || fadeExistingEstimatedMarkerOut
             )
           );
-          const marker = createMapNodeMarker(
-            markerLat,
-            markerLon,
-            normalizedId,
-            isSelected,
-            markerKind,
-            markerConfidence,
-            latestState
-          );
+          if (!marker) {{
+            marker = createMapNodeMarker(
+              markerLat,
+              markerLon,
+              normalizedId,
+              isSelected,
+              markerKind,
+              markerConfidence,
+              latestState
+            );
+          }}
           if (isEstimated) {{
             const confidenceValue = clampMapLinkValue(Number(estimate && estimate.confidence), 0, 1);
             const confidenceLabel = mapLinkConfidenceLabel(confidenceValue);
@@ -960,16 +1002,20 @@
               suppressHoverTooltip: isSelected,
             }});
           }}
-          marker.on("click", () => {{
-            selectNode(normalizedId, true, false);
-          }});
+          if (!canDriftExistingEstimatedMarker) {{
+            marker.on("click", () => {{
+              selectNode(normalizedId, true, false);
+            }});
+          }}
           if (fadeEstimatedMarkerIn) {{
             marker._meshMapNodeMarkerFadeBaseStyle = (marker.options && typeof marker.options === "object")
               ? Object.assign({{}}, marker.options)
               : {{}};
             setMapNodeMarkerOpacityScale(marker, 0, marker._meshMapNodeMarkerFadeBaseStyle);
           }}
-          marker.addTo(nodeLayer);
+          if (!canDriftExistingEstimatedMarker) {{
+            marker.addTo(nodeLayer);
+          }}
           if (fadeEstimatedMarkerIn) {{
             fadeInMapNodeMarker(marker, {{
               layerGroup: nodeLayer,
@@ -985,6 +1031,7 @@
 
         for (const [nodeId, marker] of Array.from(nodeMarkers.entries())) {{
           if (seenNodeIds.has(nodeId)) continue;
+          cancelMapMarkerDrift(marker);
           if (nodeMarkerKinds.get(nodeId) === "estimated") {{
             fadeOutMapNodeMarker(marker, {{
               layerGroup: nodeLayer,

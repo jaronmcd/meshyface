@@ -113,11 +113,12 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function buildMapLinkEstimateDensityOverlay(linkOverlay, options = null)" in js
     assert "const mapEstimatedPositionSmoothingById = new Map();" in js
     assert "let mapEstimatedPositionSmoothingActive = false;" in js
-    assert "const mapEstimatedOverlayDriftMs = 4200;" in js
-    assert "const mapEstimatedOverlayMaxFrameAdvanceMs = 64;" in js
-    assert "const mapEstimatedOverlayMaxDriftMeters = 3200;" in js
-    assert "const mapEstimatedOverlayLongJumpFadeMs = 900;" in js
-    assert "const mapHeatLayerFadeOutMs = 900;" in js
+    assert "const mapEstimatedPositionSmoothingMaxAgeMs = 600000;" in js
+    assert "const mapEstimatedOverlayDriftMs = 18000;" in js
+    assert "const mapEstimatedOverlayMaxFrameAdvanceMs = 32;" in js
+    assert "const mapEstimatedOverlayMaxDriftMeters = 4800;" in js
+    assert "const mapEstimatedOverlayLongJumpFadeMs = 1400;" in js
+    assert "const mapHeatLayerFadeOutMs = 1400;" in js
     assert "const mapHeatLayerDriftMinIntensity = 0.004;" in js
     assert "const mapLinkMinEstimateAnchors = 2;" in js
     assert "const mapLinkMinEstimateConfidence = 0.18;" in js
@@ -139,6 +140,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "fitScore," in js
     assert "residualKm: residual && residual.residualKm != null ? residual.residualKm : null," in js
     assert "function animateMapPolylineLatLngs(layer, targetPathRaw, options = null)" in js
+    assert "function animateMapMarkerLatLng(marker, targetLatLngRaw, options = null)" in js
     assert "function animateMapHeatLayerLatLngs(layer, targetPointsRaw, options = null)" in js
     assert "function fadeOutMapHeatLayer(layer, options = null)" in js
     assert "function fadeMapNodeMarker(marker, options = null)" in js
@@ -149,6 +151,8 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);" in js
     assert "const activeState = layer._meshPolylineDriftAnimation;" in js
     assert "mapLatLngPathsSameEnough(activeState.toPath, targetPath)" in js
+    assert "const activeState = marker._meshMarkerDriftAnimation;" in js
+    assert "mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)" in js
     assert "const activeState = layer._meshHeatDriftAnimation;" in js
     assert "mapHeatPointsSameEnough(activeState.targetPoints, targetPoints)" in js
     assert "activeState.onComplete = onComplete;" in js
@@ -168,6 +172,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "fadeOut: !!opts.fadeOut," in js
     assert "if (state && state.fadeOut) return true;" in js
     assert "function cancelMapPolylineDrift(layer)" in js
+    assert "function cancelMapMarkerDrift(marker)" in js
     assert "function cancelMapHeatLayerDrift(layer, clearPoints = false)" in js
     assert "const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;" in js
     assert "if (!shouldRenderGraph && signature === lastMapSignature)" in js
@@ -178,6 +183,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "rawLon: targetLon," in js
     assert "copy.fromLat = Number(fromEstimate.lat);" in js
     assert "copy.toLat = Number(toEstimate.lat);" in js
+    assert "const canDriftExistingEstimatedMarker = !!(" in js
+    assert "animateMapMarkerLatLng(marker, [markerLat, markerLon], {" in js
+    assert "marker._meshMapNodeInfoBinding = {" in js
     assert 'heatPoint._meshHeatKey = `signal-node:${heatNodeId}`;' in js
     assert 'heatPoint._meshHeatKey = `estimate-node:${point.nodeId}`;' in js
     assert "const cloudIdBase = `c${(cloudHash >>> 0).toString(16)}`;" in js
@@ -277,9 +285,17 @@ def test_dashboard_js_uses_single_popup_for_map_node_hover_and_click() -> None:
     assert "popupOpenTimer = window.setTimeout(finishHoverPopupOpen, popupEnterDelayMs);" in js
     assert 'popupEl.classList.add("is-closing");' in js
     assert 'popupEl.classList.remove("is-closing");' in js
-    assert 'marker.on("mouseover", () => {' in js
-    assert 'marker.on("mouseout", () => {' in js
-    assert 'marker.on("popupclose", () => {' in js
+    assert "const previousBinding = marker._meshMapNodeInfoBinding;" in js
+    assert "previousBinding.clear();" in js
+    assert "const onMouseOver = () => {" in js
+    assert "const onMouseOut = () => {" in js
+    assert "const onPopupClose = () => {" in js
+    assert 'marker.on("mouseover", onMouseOver);' in js
+    assert 'marker.on("mouseout", onMouseOut);' in js
+    assert 'marker.on("popupclose", onPopupClose);' in js
+    assert 'marker.off("mouseover", onMouseOver);' in js
+    assert 'marker.off("mouseout", onMouseOut);' in js
+    assert 'marker.off("popupclose", onPopupClose);' in js
     assert "if (!markerHovering || hoverPopupSuppressed()) return;" in js
     assert "marker.openPopup();" in js
     assert "scheduleHoverPopupOpen();" in js
