@@ -2998,6 +2998,19 @@
 
     function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
       if (!(marker && typeof marker === "object")) return;
+      const activeFadeState = (marker._meshMapNodeMarkerFadeAnimation && typeof marker._meshMapNodeMarkerFadeAnimation === "object")
+        ? marker._meshMapNodeMarkerFadeAnimation
+        : null;
+      const activeFadeScale = activeFadeState
+        ? (typeof mapNodeMarkerFadeScale === "function"
+          ? mapNodeMarkerFadeScale(
+            marker,
+            Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1
+          )
+          : (Number.isFinite(Number(activeFadeState.currentScale))
+            ? clampMapLinkValue(Number(activeFadeState.currentScale), 0, 1)
+            : (Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1)))
+        : null;
       if (isSelected) {{
         if (typeof marker.closeTooltip === "function") {{
           marker.closeTooltip();
@@ -3013,16 +3026,25 @@
         if (typeof marker.setZIndexOffset === "function") {{
           marker.setZIndexOffset(isSelected ? 200 : 120);
         }}
+        if (activeFadeState) {{
+          setMapNodeMarkerElementOpacity(marker, activeFadeScale);
+        }}
         return;
       }}
       if (typeof marker.setStyle === "function") {{
-        marker.setStyle(resolveMapNodeMarkerStyle(
+        const resolvedStyle = resolveMapNodeMarkerStyle(
           nodeId,
           isSelected,
           markerKind,
           markerConfidence,
           state
-        ));
+        );
+        if (activeFadeState) {{
+          marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;
+          setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);
+          return;
+        }}
+        marker.setStyle(resolvedStyle);
       }}
     }}
 

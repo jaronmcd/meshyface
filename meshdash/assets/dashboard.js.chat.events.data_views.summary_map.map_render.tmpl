@@ -779,8 +779,7 @@
       let estimatedPositions = new Map();
       const graphChanged = lastMapRenderMode !== "graph" || graphSignature !== lastMapGraphSignature;
       const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;
-      const mapWasAlreadyGraph = lastMapRenderMode === "graph";
-      const allowEstimatedNodeFade = mapWasAlreadyGraph && !bypassNodeFade;
+      const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;
       if (!shouldRenderGraph && signature === lastMapSignature) {{
         ensureMapSizeSync();
         if (activeLayoutView === "network" && !fitDone) {{
@@ -1520,4 +1519,5 @@
       lastMapSignature = signature;
       lastMapGraphSignature = graphSignature;
       lastMapRenderMode = "graph";
+      networkMapGraphRenderSeen = true;
     }}

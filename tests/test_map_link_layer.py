@@ -239,10 +239,13 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "renderMap(nodes, edges, nodeHistory = null, options = null)" in js
     assert "refreshNetworkMapAfterLegendControlChange(options = null)" in js
     assert "{ bypassHeatmapFade: true }" in js
-    assert 'const mapWasAlreadyGraph = lastMapRenderMode === "graph";' in js
-    assert "const allowEstimatedNodeFade = mapWasAlreadyGraph && !bypassNodeFade;" in js
+    assert "let networkMapGraphRenderSeen = false;" in js
+    assert "const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;" in js
+    assert "networkMapGraphRenderSeen = true;" in js
     assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
+    assert "marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;" in js
+    assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
     assert "cancelMapNodeMarkerFade(existingMarker);\n              cancelMapMarkerDrift(existingMarker);\n              nodeLayer.removeLayer(existingMarker);" in js
     assert "fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);" in js
