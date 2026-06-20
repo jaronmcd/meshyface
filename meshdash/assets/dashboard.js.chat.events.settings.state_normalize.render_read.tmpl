@@ -919,8 +919,6 @@
     }}
 
     async function hydrateSettingsUpdateStatus(force = false) {{
-      const statusEl = document.getElementById("settings-update-status");
-      if (!(statusEl instanceof HTMLElement)) return null;
       const selectedBranch = readSettingsUpdateBranchSelection();
       const nowMs = Date.now();
       if (

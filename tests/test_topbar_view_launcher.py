@@ -64,7 +64,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'data-settings-tab="update"' in html
     assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
     assert '<h3>Software</h3>' in html
-    assert 'id="settings-update-status"' in html
+    assert 'Software version, Git revision, and GitHub update controls' not in html
+    assert 'id="settings-update-status"' not in html
+    assert 'Update status not checked.' not in html
     assert 'id="settings-update-branch"' in html
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
