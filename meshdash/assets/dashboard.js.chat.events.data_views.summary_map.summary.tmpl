@@ -2323,11 +2323,11 @@
       refreshCompactTickerDetailTray();
 
       const revision = s.revision || {{}};
-      const settingsAboutVersion = document.getElementById("settings-about-version");
-      const settingsAboutCommit = document.getElementById("settings-about-commit");
+      const settingsSoftwareVersion = document.getElementById("settings-software-version");
+      const settingsSoftwareCommit = document.getElementById("settings-software-commit");
       if (
-        settingsAboutVersion instanceof HTMLElement
-        || settingsAboutCommit instanceof HTMLElement
+        settingsSoftwareVersion instanceof HTMLElement
+        || settingsSoftwareCommit instanceof HTMLElement
       ) {{
         const fallbackLabel = String(revision.label || "").trim();
         const version = String(revision.version || "").trim();
@@ -2335,13 +2335,13 @@
         const title = String(revision.title || "").trim();
         const versionText = version ? `v${{version}}` : (fallbackLabel || "n/a");
         const commitText = commit || "n/a";
-        if (settingsAboutVersion instanceof HTMLElement) {{
-          settingsAboutVersion.textContent = versionText;
-          settingsAboutVersion.title = title || `Dashboard version ${{versionText}}`;
+        if (settingsSoftwareVersion instanceof HTMLElement) {{
+          settingsSoftwareVersion.textContent = versionText;
+          settingsSoftwareVersion.title = title || `Dashboard version ${{versionText}}`;
         }}
-        if (settingsAboutCommit instanceof HTMLElement) {{
-          settingsAboutCommit.textContent = commitText;
-          settingsAboutCommit.title = title || `Dashboard git revision ${{commitText}}`;
+        if (settingsSoftwareCommit instanceof HTMLElement) {{
+          settingsSoftwareCommit.textContent = commitText;
+          settingsSoftwareCommit.title = title || `Dashboard git revision ${{commitText}}`;
         }}
       }}
 

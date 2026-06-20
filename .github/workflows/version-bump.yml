@@ -1,0 +1,55 @@
+name: Version bump
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump-version:
+    name: Bump patch version
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refresh target branch
+        run: git pull --ff-only origin "${{ github.event.pull_request.base.ref }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Bump version
+        id: bump
+        run: |
+          version="$(python scripts/bump_version.py)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        run: |
+          if git diff --quiet -- meshdash/__init__.py; then
+            echo "Version file was already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add meshdash/__init__.py
+          git commit -m "Bump version to v${{ steps.bump.outputs.version }} [skip ci]"
+          git push origin "HEAD:${{ github.event.pull_request.base.ref }}"

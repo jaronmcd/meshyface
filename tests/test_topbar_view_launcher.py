@@ -55,13 +55,28 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
-    assert 'id="settings-about-version"' in html
-    assert 'id="settings-about-commit"' in html
-    assert 'id="settings-update-status"' in html
+    assert 'id="settings-about-version"' not in html
+    assert 'id="settings-about-commit"' not in html
+    assert 'id="settings-software-version"' in html
+    assert 'id="settings-software-commit"' in html
+    assert 'id="settings-tab-update-btn"' in html
+    assert re.search(r'id="settings-tab-update-btn"[\s\S]*>\s*Software\s*</button>', html)
+    assert 'data-settings-tab="update"' in html
+    assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
+    assert '<h3>Software</h3>' in html
+    assert 'Software version, Git revision, and GitHub update controls' not in html
+    assert 'id="settings-update-status"' not in html
+    assert 'Update status not checked.' not in html
     assert 'id="settings-update-branch"' in html
+    assert 'class="settings-select settings-update-branch-native"' in html
+    assert 'id="settings-update-branch-toggle"' in html
+    assert 'id="settings-update-branch-options"' in html
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
     assert 'id="settings-update-reload"' in html
+    assert 'class="settings-update-history-panel"' in html
+    assert 'id="settings-update-pr-history"' in html
+    assert "PR History" in html
     assert 'class="settings-panel settings-panel-wide settings-about-panel" data-settings-tab-panel="system"' in html
     assert 'class="settings-panel settings-panel-wide settings-device-info-panel" data-settings-tab-panel="system"' in html
     assert 'id="settings-device-info-grid"' in html
@@ -175,6 +190,20 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-panel {" in css
     assert ".settings-update-actions {" in css
     assert ".settings-update-branch-field {" in css
+    assert ".settings-update-branch-native {" in css
+    assert ".settings-update-branch-toggle {" in css
+    assert ".settings-update-branch-options {" in css
+    assert ".settings-update-branch-option {" in css
+    assert '[data-theme="dark"] .settings-update-branch-toggle {' in css
+    assert '[data-theme="dark"] .settings-update-branch-options {' in css
+    assert '[data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {' in css
+    assert ".settings-update-history-panel {" in css
+    assert ".settings-update-pr-item {" in css
+    assert ".settings-update-pr-summary {" in css
+    assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
+    assert ".settings-update-pr-title {" in css
+    assert ".settings-update-pr-full {" in css
+    assert ".settings-select option {" not in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -190,15 +219,31 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "launcherRow.hidden = !visible;" in js
     assert 'workspaceShell.classList.toggle("has-topbar-update-ticker", !!visible);' in js
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
-    assert 'document.getElementById("settings-about-version")' in js
-    assert 'document.getElementById("settings-about-commit")' in js
+    assert 'document.getElementById("settings-about-version")' not in js
+    assert 'document.getElementById("settings-about-commit")' not in js
+    assert 'document.getElementById("settings-software-version")' in js
+    assert 'document.getElementById("settings-software-commit")' in js
+    assert '|| key === "update"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
+    assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
+    assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
+    assert 'document.getElementById("settings-update-pr-history")' in js
+    assert 'const item = document.createElement("details");' in js
+    assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
+    assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
+    assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
+    assert 'full.className = "settings-update-pr-full";' in js
+    assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js
     assert "function readSettingsUpdateBranchSelection() {" in js
+    assert "function toggleSettingsUpdateBranchMenu() {" in js
+    assert "function selectSettingsUpdateBranchValue(value) {" in js
     assert "function renderSettingsUpdateBranchOptions(info, inFlight) {" in js
+    assert 'document.getElementById("settings-update-branch-toggle")' in js
+    assert 'document.getElementById("settings-update-branch-options")' in js
     assert "`/api/system/update?branch=${encodeURIComponent(selectedBranch)}`" in js
     assert "body: JSON.stringify({ branch: selectedBranch })" in js
     assert 'fetch("/api/system/update"' in js

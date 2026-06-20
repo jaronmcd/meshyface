@@ -9203,6 +9203,222 @@
     .settings-update-branch-field {{
       max-width: 360px;
       min-width: 220px;
+      position: relative;
+    }}
+    .settings-update-branch-native {{
+      display: none;
+    }}
+    .settings-update-branch-menu {{
+      position: relative;
+      min-width: 0;
+    }}
+    .settings-update-branch-toggle {{
+      position: relative;
+      width: 100%;
+      min-height: 34px;
+      padding: 7px 34px 7px 10px;
+      border: 1px solid #c8d7c4;
+      border-radius: 10px;
+      background: #f8fbf7;
+      color: #0f2018;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.2;
+      text-align: left;
+      cursor: pointer;
+      outline: none;
+      box-sizing: border-box;
+    }}
+    .settings-update-branch-toggle::after {{
+      content: "";
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: translateY(-65%) rotate(45deg);
+      opacity: 0.78;
+      pointer-events: none;
+    }}
+    .settings-update-branch-toggle[aria-expanded="true"] {{
+      border-color: var(--ui-accent-soft, var(--accent, #2f855a));
+      background: #ffffff;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent, #2f855a)) 22%, transparent);
+    }}
+    .settings-update-branch-toggle[aria-expanded="true"]::after {{
+      transform: translateY(-20%) rotate(225deg);
+    }}
+    .settings-update-branch-toggle:focus-visible {{
+      border-color: var(--ui-accent-soft, var(--accent, #2f855a));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent, #2f855a)) 22%, transparent);
+    }}
+    .settings-update-branch-toggle:disabled {{
+      cursor: default;
+      opacity: 0.62;
+    }}
+    .settings-update-branch-options {{
+      position: absolute;
+      z-index: 70;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 4px;
+      border: 1px solid #aebdae;
+      border-radius: 8px;
+      background: #f8fbf7;
+      box-shadow: 0 10px 24px rgba(15, 32, 24, 0.2);
+    }}
+    .settings-update-branch-options[hidden] {{
+      display: none !important;
+    }}
+    .settings-update-branch-option {{
+      width: 100%;
+      min-height: 28px;
+      padding: 6px 8px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #0f2018;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.25;
+      text-align: left;
+      cursor: pointer;
+    }}
+    .settings-update-branch-option:hover,
+    .settings-update-branch-option:focus-visible {{
+      background: color-mix(in srgb, var(--accent) 14%, var(--panel) 86%);
+      outline: none;
+    }}
+    .settings-update-branch-option[aria-selected="true"] {{
+      background: color-mix(in srgb, var(--panel) 74%, var(--accent) 26%);
+      color: #0f2018;
+      font-weight: 700;
+    }}
+    .settings-update-branch-option:disabled {{
+      color: var(--muted);
+      cursor: default;
+    }}
+    .settings-update-history-panel {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #f8fbf7;
+    }}
+    .settings-update-history-head {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px 12px;
+      min-width: 0;
+    }}
+    .settings-update-history-head h4 {{
+      margin: 0;
+      font-size: 11px;
+      color: #204231;
+      letter-spacing: 0.28px;
+      text-transform: uppercase;
+    }}
+    .settings-update-history-head span {{
+      color: var(--muted);
+      font-size: 11px;
+    }}
+    .settings-update-pr-history {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }}
+    .settings-update-pr-item {{
+      min-width: 0;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+    }}
+    .settings-update-pr-summary {{
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+      padding: 8px 10px;
+      cursor: pointer;
+      list-style: none;
+    }}
+    .settings-update-pr-summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .settings-update-pr-summary::before {{
+      content: "+";
+      flex: 0 0 auto;
+      color: #1f5d3d;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.2;
+    }}
+    .settings-update-pr-item[open] .settings-update-pr-summary::before {{
+      content: "-";
+    }}
+    .settings-update-pr-summary-body {{
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }}
+    .settings-update-pr-main {{
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .settings-update-pr-number {{
+      flex: 0 0 auto;
+      color: #1f5d3d;
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration: none;
+    }}
+    .settings-update-pr-number:hover {{
+      text-decoration: underline;
+    }}
+    .settings-update-pr-title {{
+      min-width: 0;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .settings-update-pr-meta,
+    .settings-update-pr-empty {{
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }}
+    .settings-update-pr-full {{
+      margin: 0 10px 10px 28px;
+      padding: 8px 10px;
+      overflow-x: auto;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #f8fbf7;
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
     }}
     .settings-device-info-panel {{
       order: 1;

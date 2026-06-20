@@ -2196,6 +2196,34 @@
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
     }}
+    [data-theme="dark"] .settings-update-history-panel {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-pr-item {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg) 86%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-history-head h4,
+    [data-theme="dark"] .settings-update-pr-title {{
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-history-head span,
+    [data-theme="dark"] .settings-update-pr-meta,
+    [data-theme="dark"] .settings-update-pr-empty {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .settings-update-pr-number {{
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-summary::before {{
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-full {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
+      color: var(--workspace-shell-text);
+    }}
     [data-theme="dark"] .settings-database-capacity-status,
     [data-theme="dark"] .settings-database-capacity-label,
     [data-theme="dark"] .settings-database-capacity-value {{
@@ -2228,6 +2256,36 @@
       border-color: var(--workspace-shell-border);
       color: #c6ffdb;
       color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-branch-toggle {{
+      border-color: var(--workspace-shell-border);
+      background: var(--workspace-shell-bg-alt);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-branch-toggle[aria-expanded="true"],
+    [data-theme="dark"] .settings-update-branch-toggle:focus-visible {{
+      border-color: var(--workspace-shell-active-border);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 48%, var(--workspace-shell-bg-alt) 52%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-shell-active-border) 28%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-branch-options {{
+      border-color: var(--workspace-shell-border-muted);
+      background: var(--workspace-shell-bg-alt);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+    }}
+    [data-theme="dark"] .settings-update-branch-option {{
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-branch-option:hover,
+    [data-theme="dark"] .settings-update-branch-option:focus-visible {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 42%, var(--workspace-shell-bg-alt) 58%);
+    }}
+    [data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {{
+      background: var(--workspace-shell-active-bg);
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-branch-option:disabled {{
+      color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .settings-range-row {{
       border-color: #2d8f5d;

@@ -15,6 +15,7 @@
         || controlId === "theme-custom-color-depth"
         || controlId === "console-timestamps"
         || controlId === "console-font-size-select"
+        || controlId === "settings-update-branch"
       );
 
       for (const tabBtn of settingsCard.querySelectorAll(".settings-tab-btn[data-settings-tab]")) {{
@@ -314,6 +315,65 @@
           void hydrateSettingsUpdateStatus(true);
         }});
       }}
+      const updateBranchMenu = document.getElementById("settings-update-branch-menu");
+      const updateBranchToggle = document.getElementById("settings-update-branch-toggle");
+      const updateBranchOptions = document.getElementById("settings-update-branch-options");
+      if (updateBranchToggle instanceof HTMLButtonElement) {{
+        updateBranchToggle.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          toggleSettingsUpdateBranchMenu();
+        }});
+        updateBranchToggle.addEventListener("keydown", (ev) => {{
+          if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {{
+            ev.preventDefault();
+            setSettingsUpdateBranchMenuOpen(true);
+          }} else if (ev.key === "Escape") {{
+            closeSettingsUpdateBranchMenu();
+          }}
+        }});
+      }}
+      if (updateBranchOptions instanceof HTMLElement) {{
+        updateBranchOptions.addEventListener("mousedown", (ev) => {{
+          ev.preventDefault();
+        }});
+        updateBranchOptions.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          const option = target instanceof Element ? target.closest(".settings-update-branch-option") : null;
+          if (!(option instanceof HTMLButtonElement) || option.disabled) return;
+          selectSettingsUpdateBranchValue(option.dataset.branchValue || "");
+        }});
+        updateBranchOptions.addEventListener("keydown", (ev) => {{
+          if (ev.key === "ArrowDown") {{
+            ev.preventDefault();
+            focusSettingsUpdateBranchOption(1);
+          }} else if (ev.key === "ArrowUp") {{
+            ev.preventDefault();
+            focusSettingsUpdateBranchOption(-1);
+          }} else if (ev.key === "Home") {{
+            ev.preventDefault();
+            focusSettingsUpdateBranchOption(-9999);
+          }} else if (ev.key === "End") {{
+            ev.preventDefault();
+            focusSettingsUpdateBranchOption(9999);
+          }} else if (ev.key === "Escape") {{
+            ev.preventDefault();
+            closeSettingsUpdateBranchMenu();
+            if (updateBranchToggle instanceof HTMLButtonElement) updateBranchToggle.focus();
+          }} else if (ev.key === "Enter" || ev.key === " ") {{
+            const active = document.activeElement;
+            if (active instanceof HTMLButtonElement && active.classList.contains("settings-update-branch-option")) {{
+              ev.preventDefault();
+              active.click();
+            }}
+          }}
+        }});
+      }}
+      document.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (target instanceof Node && updateBranchMenu instanceof HTMLElement && updateBranchMenu.contains(target)) return;
+        closeSettingsUpdateBranchMenu();
+      }});
 
       const updateApplyBtn = document.getElementById("settings-update-apply");
       if (updateApplyBtn instanceof HTMLButtonElement) {{

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import subprocess
 import threading
 from collections.abc import Callable, Sequence
@@ -264,6 +265,135 @@ def _remote_url(repo_root: Path, remote: str, runner: GitRunner) -> str:
     return _redact_remote_url(_git_text(result))
 
 
+def _github_repo_url(remote_url: str) -> str:
+    value = str(remote_url or "").strip()
+    if not value:
+        return ""
+    if value.startswith("git@github.com:"):
+        path = value.split(":", 1)[1].strip()
+        if path.endswith(".git"):
+            path = path[:-4]
+        return f"https://github.com/{path.strip('/')}" if path else ""
+    try:
+        parsed = urlsplit(value)
+    except Exception:
+        return ""
+    host = (parsed.hostname or "").lower()
+    if host != "github.com":
+        return ""
+    path = parsed.path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    return f"https://github.com/{path}" if path else ""
+
+
+_VERSION_BUMP_SUBJECT_RE = re.compile(
+    r"^Bump version to v(?P<version>\d+\.\d+\.\d+)(?:\s+\[skip ci\])?$",
+    flags=re.IGNORECASE,
+)
+
+
+def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, object] | None:
+    fields = str(record or "").strip("\n\x1e").split("\x1f", 4)
+    if len(fields) < 4:
+        return None
+    commit, commit_short, date_text, subject = (field.strip() for field in fields[:4])
+    body = fields[4].strip() if len(fields) > 4 else ""
+    number = ""
+    title = subject
+
+    merge_match = re.search(r"\bMerge pull request #(\d+)\b", subject, flags=re.IGNORECASE)
+    if merge_match:
+        number = merge_match.group(1)
+        body_lines = [line.strip() for line in body.splitlines() if line.strip()]
+        if body_lines:
+            title = body_lines[0]
+    else:
+        squash_match = re.search(r"\(#(\d+)\)\s*$", subject)
+        if squash_match:
+            number = squash_match.group(1)
+            title = subject[: squash_match.start()].strip()
+
+    if not number:
+        return None
+    message = subject
+    if body:
+        message = f"{subject}\n\n{body}"
+    return {
+        "number": number,
+        "title": title or f"Pull request #{number}",
+        "subject": subject,
+        "body": body,
+        "message": message,
+        "date": date_text,
+        "commit": commit,
+        "commit_short": commit_short,
+        "url": f"{repo_url}/pull/{number}" if repo_url else "",
+    }
+
+
+def _parse_version_bump_history_record(record: str) -> dict[str, str] | None:
+    fields = str(record or "").strip("\n\x1e").split("\x1f", 4)
+    if len(fields) < 4:
+        return None
+    commit, commit_short, _date_text, subject = (field.strip() for field in fields[:4])
+    match = _VERSION_BUMP_SUBJECT_RE.search(subject)
+    if not match:
+        return None
+    version = match.group("version")
+    return {
+        "version": version,
+        "version_label": f"v{version}",
+        "version_commit": commit,
+        "version_commit_short": commit_short,
+    }
+
+
+def _pull_request_history(
+    repo_root: Path,
+    history_ref: str,
+    remote_url: str,
+    runner: GitRunner,
+    *,
+    limit: int = 8,
+) -> list[dict[str, object]]:
+    ref = str(history_ref or "").strip()
+    if not ref:
+        return []
+    result = runner(
+        [
+            "log",
+            "--first-parent",
+            "--max-count=25",
+            "--date=short",
+            "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
+            ref,
+        ],
+        repo_root,
+        10.0,
+    )
+    if result.returncode != 0:
+        return []
+    repo_url = _github_repo_url(remote_url)
+    rows: list[dict[str, object]] = []
+    pending_version: dict[str, str] | None = None
+    for raw_record in _git_text(result).split("\x1e"):
+        version_bump = _parse_version_bump_history_record(raw_record)
+        if version_bump:
+            pending_version = version_bump
+            continue
+        row = _parse_pull_request_history_record(raw_record, repo_url)
+        if not row:
+            continue
+        if pending_version:
+            row.update(pending_version)
+            pending_version = None
+        rows.append(row)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
 def _ahead_behind(repo_root: Path, upstream: str, runner: GitRunner) -> tuple[int | None, int | None]:
     if not upstream:
         return None, None
@@ -389,6 +519,8 @@ def build_update_status_payload(
     dirty = _working_tree_dirty(repo_root, runner)
     ahead, behind = _ahead_behind(repo_root, target_upstream, runner)
     remote_url = _remote_url(repo_root, remote, runner)
+    history_ref = target_upstream or current_upstream or "HEAD"
+    pull_request_history = _pull_request_history(repo_root, history_ref, remote_url, runner)
 
     state, message, can_update, update_needed = _status_state(
         available=True,
@@ -423,6 +555,7 @@ def build_update_status_payload(
         "behind": behind,
         "can_update": can_update,
         "update_needed": update_needed,
+        "pull_request_history": pull_request_history,
     }
 
 
