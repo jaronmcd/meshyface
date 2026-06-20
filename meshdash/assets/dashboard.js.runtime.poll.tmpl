@@ -640,6 +640,7 @@
         }});
         const hasFreshDirectEntry = chatEntries.some((entry) => {{
           if (!entry || entry.channel !== "direct") return false;
+          if (entry.countsUnread === false) return false;
           const key = String(entry.key || "").trim();
           if (!key) return false;
           return !chatSeenMessageKeys.has(key);

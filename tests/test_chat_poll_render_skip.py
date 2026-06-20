@@ -39,6 +39,7 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             '!chatRenderedThisPoll304',
             "chatMaintained: chatMaintainedThisPoll304",
             '!chatRenderedThisPoll',
+            "if (entry.countsUnread === false) return false;",
             'const stableNetworkSubviewName = (typeof normalizeNetworkSubview === "function")',
             "window.setTimeout(() => {",
             'hash = hashMixStr(hash, normalizeNodeId(selectedNodeId || ""));',

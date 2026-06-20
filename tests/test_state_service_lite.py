@@ -6,6 +6,7 @@ from meshdash.state_service import (
     _slim_nodes_for_chat,
     _slim_recent_chat_for_map_activity,
     _slim_recent_chat_for_chat_profile,
+    _slim_recent_chat_for_notifications,
     _slim_recent_packets,
     _slim_recent_packets_for_activity,
     _slim_recent_packets_for_network_graph,
@@ -390,6 +391,64 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
     assert "portnum" not in slimmed[2]
 
 
+def test_slim_recent_chat_for_notifications_keeps_only_unread_fields() -> None:
+    slimmed = _slim_recent_chat_for_notifications(
+        [
+            {
+                "message_id": 100,
+                "from": "!old",
+                "to": "^all",
+                "text": "old",
+            },
+            {
+                "message_id": 101,
+                "from": "!node-a",
+                "from_name": "Node A",
+                "to": "!local",
+                "scope": "direct",
+                "channel_index": 2,
+                "rx_time": "2026-06-03 00:00:01Z",
+                "captured_at": "2026-06-03 00:00:02Z",
+                "text": "hello",
+                "raw": {"drop": True},
+            },
+            {
+                "message_id": 102,
+                "from": "!local",
+                "to": "!node-a",
+                "reply_id": 101,
+                "emoji": ":)",
+                "local_echo": True,
+                "delivery_updated_unix": 1780444822,
+            },
+        ],
+        max_messages=2,
+    )
+
+    assert slimmed == [
+        {
+            "from": "!node-a",
+            "from_name": "Node A",
+            "to": "!local",
+            "message_id": 101,
+            "scope": "direct",
+            "channel_index": 2,
+            "rx_time": "2026-06-03 00:00:01Z",
+            "captured_at": "2026-06-03 00:00:02Z",
+            "text": "hello",
+        },
+        {
+            "from": "!local",
+            "to": "!node-a",
+            "message_id": 102,
+            "reply_id": 101,
+            "delivery_updated_unix": 1780444822,
+            "local_echo": True,
+            "emoji": ":)",
+        },
+    ]
+
+
 def test_slim_nodes_for_chat_drops_unused_heavy_fields() -> None:
     slimmed = _slim_nodes_for_chat(
         [
@@ -447,7 +506,7 @@ def test_slim_nodes_for_chat_keeps_meshtastic_favorite_flag() -> None:
     ]
 
 
-def test_lite_network_profile_omits_recent_chat_rows(monkeypatch) -> None:
+def test_lite_network_profile_keeps_notification_chat_tail(monkeypatch) -> None:
     payload = DashboardStatePayload(
         generated_at="2026-06-03T00:00:00Z",
         summary={},
@@ -505,11 +564,21 @@ def test_lite_network_profile_omits_recent_chat_rows(monkeypatch) -> None:
 
     traffic = state["traffic"]
     assert isinstance(traffic, dict)
-    assert traffic["recent_chat"] == []
+    assert traffic["recent_chat"] == [
+        {"from": "!node-a", "to": "^all", "text": "chat row"},
+        {
+            "from": "!local",
+            "to": "!node-a",
+            "message_id": 22,
+            "delivery_updated_unix": 1780444822,
+            "text": "server reply",
+            "local_echo": True,
+        },
+    ]
     assert traffic["edges"]
 
 
-def test_lite_network_map_profile_keeps_activity_packets_only(monkeypatch) -> None:
+def test_lite_network_map_profile_keeps_activity_packets_and_notification_tail(monkeypatch) -> None:
     payload = DashboardStatePayload(
         generated_at="2026-06-03T00:00:00Z",
         summary={},
@@ -579,12 +648,14 @@ def test_lite_network_map_profile_keeps_activity_packets_only(monkeypatch) -> No
     traffic = state["traffic"]
     assert isinstance(traffic, dict)
     assert traffic["recent_chat"] == [
+        {"from": "!node-a", "to": "^all", "text": "chat row"},
         {
             "local_echo": True,
             "from": "!local",
             "to": "!node-a",
             "message_id": 22,
             "delivery_updated_unix": 1780444822,
+            "text": "server reply",
         }
     ]
     assert traffic["edges"]
@@ -656,7 +727,7 @@ def test_lite_network_graph_profile_keeps_edges_and_graph_packets(monkeypatch) -
 
     traffic = state["traffic"]
     assert isinstance(traffic, dict)
-    assert traffic["recent_chat"] == []
+    assert traffic["recent_chat"] == [{"from": "!node-a", "to": "^all", "text": "chat row"}]
     assert traffic["edges"]
     assert traffic["port_counts"] == []
     assert traffic["node_packet_trends"] == {}
@@ -665,7 +736,7 @@ def test_lite_network_graph_profile_keeps_edges_and_graph_packets(monkeypatch) -
     ]
 
 
-def test_lite_status_profile_omits_live_traffic_rows(monkeypatch) -> None:
+def test_lite_status_profile_keeps_notification_chat_tail(monkeypatch) -> None:
     payload = DashboardStatePayload(
         generated_at="2026-06-03T00:00:00Z",
         summary={},
@@ -719,7 +790,7 @@ def test_lite_status_profile_omits_live_traffic_rows(monkeypatch) -> None:
 
     traffic = state["traffic"]
     assert isinstance(traffic, dict)
-    assert traffic["recent_chat"] == []
+    assert traffic["recent_chat"] == [{"from": "!node-a", "to": "^all", "text": "chat row"}]
     assert traffic["recent_packets"] == []
     assert traffic["edges"] == []
     assert traffic["port_counts"] == []
@@ -729,7 +800,7 @@ def test_lite_status_profile_omits_live_traffic_rows(monkeypatch) -> None:
     assert "last_seen" not in state["history_caps"]["!node-a"]
 
 
-def test_lite_console_profile_keeps_packet_feed_without_chat_or_edges(monkeypatch) -> None:
+def test_lite_console_profile_keeps_packet_feed_and_notification_chat_tail(monkeypatch) -> None:
     payload = DashboardStatePayload(
         generated_at="2026-06-03T00:00:00Z",
         summary={},
@@ -782,7 +853,7 @@ def test_lite_console_profile_keeps_packet_feed_without_chat_or_edges(monkeypatc
 
     traffic = state["traffic"]
     assert isinstance(traffic, dict)
-    assert traffic["recent_chat"] == []
+    assert traffic["recent_chat"] == [{"from": "!node-a", "to": "^all", "text": "chat row"}]
     assert traffic["edges"] == []
     assert traffic["port_counts"] == []
     assert traffic["node_packet_trends"] == {}
