@@ -1100,6 +1100,10 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     topbar_section = css.rsplit("[data-theme=\"dark\"] .topbar {", 1)[1].split("}", 1)[0]
     ticker_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
     hover_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item:hover {", 1)[1].split("}", 1)[0]
+    expanded_hover_section = css.split(
+        "[data-theme=\"dark\"] .topbar.ticker-expanded .summary-ticker-item[data-ticker-id]:not([data-ticker-id=\"self\"]):hover,",
+        1,
+    )[1].split("}", 1)[0]
     neutral_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-neutral {", 1)[1].split("}", 1)[0]
     bad_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item.metric-state-bad {", 1)[1].split("}", 1)[0]
     chart_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .metric-ticker-chart path {", 1)[1].split("}", 1)[0]
@@ -1117,6 +1121,10 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     assert "box-shadow: none;" in ticker_section
     assert "border-color: var(--workspace-shell-border-strong);" in hover_section
     assert "var(--workspace-shell-hover-bg)" in hover_section
+    assert "border-color: var(--workspace-shell-border-strong);" in expanded_hover_section
+    assert "var(--workspace-shell-hover-bg)" in expanded_hover_section
+    assert "var(--panel)" not in expanded_hover_section
+    assert "var(--line)" not in expanded_hover_section
     assert "var(--workspace-shell-text-soft)" in neutral_section
     assert "#cf6f6f" in bad_section
     assert "var(--ticker-card-accent)" in chart_section

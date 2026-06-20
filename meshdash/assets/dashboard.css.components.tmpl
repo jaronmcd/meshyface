@@ -3945,6 +3945,12 @@
       border-color: var(--workspace-shell-border-strong);
       background: color-mix(in srgb, var(--ui-panel-alt) 88%, var(--workspace-shell-hover-bg) 12%);
     }}
+    [data-theme="dark"] .topbar.ticker-expanded .summary-ticker-item[data-ticker-id]:not([data-ticker-id="self"]):hover,
+    [data-theme="dark"] .topbar.ticker-expanded .summary-ticker-item[data-ticker-id]:not([data-ticker-id="self"]):focus-visible {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--ui-panel-alt) 88%, var(--workspace-shell-hover-bg) 12%);
+      outline: none;
+    }}
     [data-theme="dark"] .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item.is-compact-detail-open {{
       border-color: var(--workspace-shell-border);
       background: var(--ui-panel);
