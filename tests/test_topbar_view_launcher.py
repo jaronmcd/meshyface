@@ -57,6 +57,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' in html
     assert 'id="settings-about-commit"' in html
+    assert 'id="settings-update-status"' in html
+    assert 'id="settings-update-branch"' in html
+    assert 'id="settings-update-check"' in html
+    assert 'id="settings-update-apply"' in html
     assert 'class="settings-panel settings-panel-wide settings-about-panel" data-settings-tab-panel="system"' in html
     assert 'class="settings-panel settings-panel-wide settings-device-info-panel" data-settings-tab-panel="system"' in html
     assert 'id="settings-device-info-grid"' in html
@@ -167,6 +171,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "[data-theme=\"dark\"] .settings-device-info-item {" in css
     assert ".settings-device-info-mono {" in css
     assert ".settings-database-info-panel {" in css
+    assert ".settings-update-panel {" in css
+    assert ".settings-update-actions {" in css
+    assert ".settings-update-branch-field {" in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -184,6 +191,17 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
     assert 'document.getElementById("settings-about-version")' in js
     assert 'document.getElementById("settings-about-commit")' in js
+    assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
+    assert "function hydrateSettingsUpdateStatus(force = false) {" in js
+    assert "async function runSettingsGithubUpdate() {" in js
+    assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
+    assert 'document.getElementById("settings-update-branch")' in js
+    assert "function readSettingsUpdateBranchSelection() {" in js
+    assert "function renderSettingsUpdateBranchOptions(info, inFlight) {" in js
+    assert "`/api/system/update?branch=${encodeURIComponent(selectedBranch)}`" in js
+    assert "body: JSON.stringify({ branch: selectedBranch })" in js
+    assert 'fetch("/api/system/update"' in js
+    assert 'document.getElementById("settings-update-apply")' in js
     assert "function renderSettingsDeviceInfo(state = latestState) {" in js
     assert "function hydrateSettingsDeviceInfo(force = false) {" in js
     assert "function renderSettingsDatabaseInfo(payload = settingsDatabaseInfoCache.payload) {" in js

@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from meshdash.api_input_history import parse_node_history_request, parse_online_activity_request
 from meshdash.helpers import to_int
 from meshdash.http_routes_get import handle_dashboard_get
@@ -123,6 +125,25 @@ def test_dashboard_get_reports_version_and_health_errors() -> None:
     assert "state unavailable" in deps.recorder.json[0][1]["error"]
     assert deps.recorder.json[1][0] == 503
     assert deps.recorder.json[1][1]["status"] == "error"
+
+
+def test_dashboard_get_serves_system_update_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _status(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"ok": True, "available": True, "state": "up_to_date"}
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_get._build_update_status_payload_helper",
+        _status,
+    )
+    deps = _make_deps()
+
+    handle_dashboard_get(object(), path="/api/system/update", query="branch=beta", deps=deps)
+
+    assert captured["target_branch"] == "beta"
+    assert deps.recorder.json == [(200, {"ok": True, "available": True, "state": "up_to_date"}, True)]
 
 
 def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:

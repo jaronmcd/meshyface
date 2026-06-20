@@ -720,6 +720,229 @@
       return settingsDatabaseInfoHydratePromise;
     }}
 
+    const settingsUpdateStatusTtlMs = 60000;
+
+    function settingsUpdatePayloadObject(payload) {{
+      return payload && typeof payload === "object" ? payload : {{}};
+    }}
+
+    function readSettingsUpdateBranchSelection() {{
+      const branchSelect = document.getElementById("settings-update-branch");
+      if (!(branchSelect instanceof HTMLSelectElement)) return "";
+      return String(branchSelect.value || "").trim();
+    }}
+
+    function settingsUpdateStatusText(payload) {{
+      const info = settingsUpdatePayloadObject(payload);
+      const message = String(info.message || info.error || "").trim();
+      if (message) return message;
+      if (!info.available) return "Software update is unavailable.";
+      const upstream = String(info.upstream || "").trim();
+      const behind = Number(info.behind);
+      if (Number.isFinite(behind) && behind > 0) {{
+        return `Update available: ${{Math.trunc(behind)}} commit${{behind === 1 ? "" : "s"}} behind${{upstream ? ` ${{upstream}}` : ""}}.`;
+      }}
+      if (info.state === "up_to_date") return "Software is up to date.";
+      if (info.can_update) return "Software update is ready to check GitHub.";
+      return "Update status not checked.";
+    }}
+
+    function renderSettingsUpdateBranchOptions(info, inFlight) {{
+      const branchSelect = document.getElementById("settings-update-branch");
+      if (!(branchSelect instanceof HTMLSelectElement)) return;
+      const branches = Array.isArray(info.branches)
+        ? info.branches.map((value) => String(value || "").trim()).filter(Boolean)
+        : [];
+      const targetBranch = String(info.target_branch || info.remote_branch || "").trim();
+      const previous = String(branchSelect.value || "").trim();
+      const wanted = targetBranch || (branches.includes(previous) ? previous : "");
+      const existing = Array.from(branchSelect.options).map((opt) => opt.value);
+      const nextValues = ["", ...branches];
+      const optionsChanged = existing.length !== nextValues.length
+        || existing.some((value, idx) => value !== nextValues[idx]);
+      if (optionsChanged) {{
+        branchSelect.replaceChildren();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = branches.length ? "Select branch..." : "No branches found";
+        branchSelect.appendChild(placeholder);
+        branches.forEach((branchName) => {{
+          const opt = document.createElement("option");
+          opt.value = branchName;
+          opt.textContent = branchName;
+          branchSelect.appendChild(opt);
+        }});
+      }}
+      branchSelect.value = branches.includes(wanted) ? wanted : "";
+      branchSelect.disabled = !!inFlight || branches.length <= 0;
+      branchSelect.title = branches.length
+        ? "Choose the GitHub branch to fetch, switch to, and fast-forward"
+        : "No remote branches are available for this checkout.";
+    }}
+
+    function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {{
+      const info = settingsUpdatePayloadObject(payload);
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const optionInfo = Array.isArray(info.branches)
+        ? info
+        : (Array.isArray(cachedInfo.branches) ? cachedInfo : info);
+      const renderInfo = Object.assign({{}}, optionInfo, info);
+      const statusEl = document.getElementById("settings-update-status");
+      const checkBtn = document.getElementById("settings-update-check");
+      const applyBtn = document.getElementById("settings-update-apply");
+      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight;
+      const selectedBranch = readSettingsUpdateBranchSelection()
+        || String(renderInfo.target_branch || "").trim();
+      const canUpdate = !!info.can_update && !!selectedBranch && !inFlight;
+      const text = inFlight && settingsUpdateApplyInFlight
+        ? "Updating from GitHub..."
+        : (inFlight ? "Checking GitHub update status..." : settingsUpdateStatusText(info));
+      renderSettingsUpdateBranchOptions(renderInfo, inFlight);
+      if (statusEl instanceof HTMLElement) {{
+        statusEl.textContent = text;
+        const parts = [];
+        const branch = String(renderInfo.branch || "").trim();
+        const upstream = String(renderInfo.target_upstream || renderInfo.upstream || "").trim();
+        const remoteUrl = String(renderInfo.remote_url || "").trim();
+        const commit = String(renderInfo.current_commit_short || renderInfo.current_commit || "").trim();
+        if (branch) parts.push(`Branch: ${{branch}}`);
+        if (selectedBranch) parts.push(`Target: ${{selectedBranch}}`);
+        if (upstream) parts.push(`Upstream: ${{upstream}}`);
+        if (commit) parts.push(`Commit: ${{commit}}`);
+        if (remoteUrl) parts.push(remoteUrl);
+        statusEl.title = parts.join(" | ");
+      }}
+      if (checkBtn instanceof HTMLButtonElement) {{
+        checkBtn.disabled = inFlight;
+      }}
+      if (applyBtn instanceof HTMLButtonElement) {{
+        applyBtn.disabled = !canUpdate;
+        applyBtn.title = canUpdate
+          ? "Fetch and fast-forward this Git checkout"
+          : settingsUpdateStatusText(info);
+      }}
+    }}
+
+    async function hydrateSettingsUpdateStatus(force = false) {{
+      const statusEl = document.getElementById("settings-update-status");
+      if (!(statusEl instanceof HTMLElement)) return null;
+      const selectedBranch = readSettingsUpdateBranchSelection();
+      const nowMs = Date.now();
+      if (
+        !force
+        && settingsUpdateStatusCache
+        && settingsUpdateStatusFetchedAt > 0
+        && (nowMs - settingsUpdateStatusFetchedAt) < settingsUpdateStatusTtlMs
+      ) {{
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        return settingsUpdateStatusCache;
+      }}
+      if (settingsUpdateStatusFetchInFlight) return settingsUpdateStatusFetchInFlight;
+      renderSettingsUpdateStatus({{ message: "Checking GitHub update status..." }});
+      const statusUrl = selectedBranch
+        ? `/api/system/update?branch=${{encodeURIComponent(selectedBranch)}}`
+        : "/api/system/update";
+      settingsUpdateStatusFetchInFlight = fetchSettingsDeviceInfoJson(statusUrl)
+        .then((payload) => {{
+          settingsUpdateStatusCache = payload;
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(payload);
+          return payload;
+        }})
+        .catch((err) => {{
+          const error = err && err.message ? err.message : String(err || "unknown error");
+          const payload = {{
+            ok: false,
+            available: false,
+            can_update: false,
+            state: "error",
+            error,
+            message: `Update status could not be checked: ${{error}}`,
+          }};
+          settingsUpdateStatusCache = payload;
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(payload);
+          return payload;
+        }})
+        .finally(() => {{
+          settingsUpdateStatusFetchInFlight = null;
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        }});
+      return settingsUpdateStatusFetchInFlight;
+    }}
+
+    async function runSettingsGithubUpdate() {{
+      if (settingsUpdateApplyInFlight) return;
+      const selectedBranch = readSettingsUpdateBranchSelection();
+      if (!selectedBranch) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          can_update: false,
+          message: "Select a GitHub branch first.",
+        }}));
+        return;
+      }}
+      const confirmed = window.confirm(
+        `Update Meshyface from GitHub branch "${{selectedBranch}}" now? Local uncommitted changes or diverged commits will block the update.`
+      );
+      if (!confirmed) return;
+
+      settingsUpdateApplyInFlight = true;
+      renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
+      try {{
+        const resp = await fetch("/api/system/update", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ branch: selectedBranch }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, info, {{
+            ok: false,
+            can_update: false,
+            message: `Update failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        if (info.updated) {{
+          appendConsoleLine(
+            `system-update|${{Date.now()}}|ok`,
+            `[system] update applied: ${{String(info.previous_commit || "").slice(0, 8)}} -> ${{String(info.new_commit || "").slice(0, 8)}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = {{
+          ok: false,
+          available: false,
+          can_update: false,
+          state: "error",
+          error: msg,
+          message: `Update failed: ${{msg}}`,
+        }};
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateApplyInFlight = false;
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        setTimeout(() => {{
+          void hydrateSettingsUpdateStatus(true);
+        }}, 1200);
+      }}
+    }}
+
     function renderSettings(state, force = false) {{
       if (!force && settingsDirty) return;
       refreshSettingsSectionEditors(state);
@@ -1078,6 +1301,7 @@
       if (activeSettingsTab === "system") {{
         void hydrateSettingsDeviceInfo(false);
         void hydrateSettingsDatabaseInfo(false);
+        void hydrateSettingsUpdateStatus(false);
       }}
     }}
 

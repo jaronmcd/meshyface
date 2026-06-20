@@ -24,6 +24,9 @@ from .api_history_chat import (
 from .api_system import (
     handle_state_get as _handle_state_get_helper,
 )
+from .api_system_update import (
+    build_update_status_payload as _build_update_status_payload_helper,
+)
 from .api_theme import (
     handle_theme_settings_get as _handle_theme_settings_get_helper,
 )
@@ -132,6 +135,18 @@ def _state_snapshot_for_ops(state_fn: object) -> object:
 
 def _clean_top_nodes_excluded_node_id(value: object) -> str:
     return str(value or "").strip()
+
+
+def _query_branch_value(query: str) -> str:
+    try:
+        query_obj = parse_qs(query or "")
+    except Exception:
+        return ""
+    return str(
+        query_obj.get("branch", [""])[0]
+        or query_obj.get("target_branch", [""])[0]
+        or ""
+    ).strip()
 
 
 def _mapping_value(root: Mapping[str, object], *keys: str) -> object:
@@ -390,6 +405,24 @@ def handle_dashboard_get(
                 "ok": False,
                 "enabled": False,
                 "error": "history database unavailable on this dashboard instance",
+            }
+        deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
+        return
+
+    if path == "/api/system/update":
+        try:
+            response_obj = _build_update_status_payload_helper(
+                target_branch=_query_branch_value(query),
+            )
+        except Exception as exc:
+            response_obj = {
+                "ok": False,
+                "available": False,
+                "state": "error",
+                "can_update": False,
+                "update_needed": False,
+                "error": str(exc or "update status failed"),
+                "message": "Software update status could not be checked.",
             }
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
         return

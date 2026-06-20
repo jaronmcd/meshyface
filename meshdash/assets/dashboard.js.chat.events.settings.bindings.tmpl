@@ -300,6 +300,28 @@
         }});
       }}
 
+      const updateCheckBtn = document.getElementById("settings-update-check");
+      if (updateCheckBtn instanceof HTMLButtonElement) {{
+        updateCheckBtn.addEventListener("click", () => {{
+          void hydrateSettingsUpdateStatus(true);
+        }});
+      }}
+
+      const updateBranchSelect = document.getElementById("settings-update-branch");
+      if (updateBranchSelect instanceof HTMLSelectElement) {{
+        updateBranchSelect.addEventListener("change", () => {{
+          settingsUpdateStatusFetchedAt = 0;
+          void hydrateSettingsUpdateStatus(true);
+        }});
+      }}
+
+      const updateApplyBtn = document.getElementById("settings-update-apply");
+      if (updateApplyBtn instanceof HTMLButtonElement) {{
+        updateApplyBtn.addEventListener("click", () => {{
+          void runSettingsGithubUpdate();
+        }});
+      }}
+
       const resetBtn = document.getElementById("settings-reset");
       if (resetBtn instanceof HTMLButtonElement) {{
         resetBtn.addEventListener("click", () => {{
