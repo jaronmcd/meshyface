@@ -76,7 +76,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-reload"' in html
     assert 'class="settings-update-history-panel"' in html
     assert 'id="settings-update-pr-history"' in html
-    assert "PR History" in html
+    assert "Commit History" in html
+    assert "Recent local commits on the selected branch" in html
     assert 'class="settings-panel settings-panel-wide settings-about-panel" data-settings-tab-panel="system"' in html
     assert 'class="settings-panel settings-panel-wide settings-device-info-panel" data-settings-tab-panel="system"' in html
     assert 'id="settings-device-info-grid"' in html
@@ -227,9 +228,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
+    assert "Array.isArray(info.commit_history)" in js
     assert "function settingsUpdatePullRequestHistoryKey(row) {" in js
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
+    assert "Checking commit history..." in js
     assert 'const item = document.createElement("details");' in js
     assert "item.dataset.prHistoryKey = rowKey;" in js
     assert "item.open = openRows.has(rowKey);" in js

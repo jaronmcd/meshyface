@@ -882,7 +882,9 @@
     }}
 
     function settingsUpdatePullRequestHistoryRows(info) {{
-      const rows = Array.isArray(info.pull_request_history) ? info.pull_request_history : [];
+      const rows = Array.isArray(info.commit_history)
+        ? info.commit_history
+        : (Array.isArray(info.pull_request_history) ? info.pull_request_history : []);
       return rows.filter((row) => row && typeof row === "object");
     }}
 
@@ -918,8 +920,8 @@
         const empty = document.createElement("div");
         empty.className = "settings-update-pr-empty";
         empty.textContent = inFlight
-          ? "Checking PR history..."
-          : "No recent PR history found for the selected branch.";
+          ? "Checking commit history..."
+          : "No recent commit history found for the selected branch.";
         host.appendChild(empty);
         return;
       }}

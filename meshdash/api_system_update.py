@@ -293,7 +293,7 @@ _VERSION_BUMP_SUBJECT_RE = re.compile(
 )
 
 
-def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, object] | None:
+def _parse_update_history_record(record: str, repo_url: str) -> dict[str, object] | None:
     fields = str(record or "").strip("\n\x1e").split("\x1f", 4)
     if len(fields) < 4:
         return None
@@ -314,21 +314,23 @@ def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, 
             number = squash_match.group(1)
             title = subject[: squash_match.start()].strip()
 
-    if not number:
-        return None
     message = subject
     if body:
         message = f"{subject}\n\n{body}"
+    if number:
+        url = f"{repo_url}/pull/{number}" if repo_url else ""
+    else:
+        url = f"{repo_url}/commit/{commit}" if repo_url and commit else ""
     return {
         "number": number,
-        "title": title or f"Pull request #{number}",
+        "title": title or (f"Pull request #{number}" if number else commit_short or "Commit"),
         "subject": subject,
         "body": body,
         "message": message,
         "date": date_text,
         "commit": commit,
         "commit_short": commit_short,
-        "url": f"{repo_url}/pull/{number}" if repo_url else "",
+        "url": url,
     }
 
 
@@ -349,7 +351,7 @@ def _parse_version_bump_history_record(record: str) -> dict[str, str] | None:
     }
 
 
-def _pull_request_history(
+def _commit_history(
     repo_root: Path,
     history_ref: str,
     remote_url: str,
@@ -382,7 +384,7 @@ def _pull_request_history(
         if version_bump:
             pending_version = version_bump
             continue
-        row = _parse_pull_request_history_record(raw_record, repo_url)
+        row = _parse_update_history_record(raw_record, repo_url)
         if not row:
             continue
         if pending_version:
@@ -392,6 +394,23 @@ def _pull_request_history(
         if len(rows) >= limit:
             break
     return rows
+
+
+def _update_history_ref(
+    repo_root: Path,
+    *,
+    current_branch: str,
+    selected_branch: str,
+    selected_available: bool,
+    target_upstream: str,
+    current_upstream: str,
+    runner: GitRunner,
+) -> str:
+    if selected_branch and selected_branch == current_branch:
+        return "HEAD"
+    if selected_available and selected_branch and _local_branch_exists(repo_root, selected_branch, runner):
+        return selected_branch
+    return target_upstream or current_upstream or "HEAD"
 
 
 def _ahead_behind(repo_root: Path, upstream: str, runner: GitRunner) -> tuple[int | None, int | None]:
@@ -519,8 +538,16 @@ def build_update_status_payload(
     dirty = _working_tree_dirty(repo_root, runner)
     ahead, behind = _ahead_behind(repo_root, target_upstream, runner)
     remote_url = _remote_url(repo_root, remote, runner)
-    history_ref = target_upstream or current_upstream or "HEAD"
-    pull_request_history = _pull_request_history(repo_root, history_ref, remote_url, runner)
+    history_ref = _update_history_ref(
+        repo_root,
+        current_branch=branch,
+        selected_branch=selected_branch,
+        selected_available=selected_available,
+        target_upstream=target_upstream,
+        current_upstream=current_upstream,
+        runner=runner,
+    )
+    commit_history = _commit_history(repo_root, history_ref, remote_url, runner)
 
     state, message, can_update, update_needed = _status_state(
         available=True,
@@ -555,7 +582,8 @@ def build_update_status_payload(
         "behind": behind,
         "can_update": can_update,
         "update_needed": update_needed,
-        "pull_request_history": pull_request_history,
+        "commit_history": commit_history,
+        "pull_request_history": commit_history,
     }
 
 
