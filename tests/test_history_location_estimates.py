@@ -143,3 +143,14 @@ def test_load_location_estimates_reads_rollups_from_history_store() -> None:
     assert payload["window_seconds"] == 24 * 60 * 60
     assert payload["limit"] == 5
     assert payload["estimate_count"] >= 0
+
+    with (
+        patch("meshdash.history_location_estimates.time.time", return_value=1_700_000_205),
+        patch(
+            "meshdash.history_location_estimates._fetch_link_metric_rows",
+            side_effect=AssertionError("cache miss"),
+        ),
+    ):
+        cached_payload = load_location_estimates(store, window="24h", limit=5)
+
+    assert cached_payload is payload

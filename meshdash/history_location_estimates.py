@@ -18,6 +18,8 @@ _MIN_CONFIDENCE = 0.42
 _MIN_FIT = 0.36
 _MAX_ANCHORS = 10
 _MAX_CITY_DISTANCE_KM = 120.0
+_CACHE_TTL_SECONDS = 30
+_CACHE_MAX_ENTRIES = 16
 _WINDOW_SECONDS = {
     "6h": 6 * 60 * 60,
     "12h": 12 * 60 * 60,
@@ -58,6 +60,39 @@ def _clean_limit(raw_limit: object) -> int:
     if parsed is None:
         parsed = _DEFAULT_LIMIT
     return max(1, min(_MAX_LIMIT, int(parsed)))
+
+
+def _cache_get(store: HistoryStoreReadState, key: tuple[object, ...], now_unix: int) -> Optional[dict[str, object]]:
+    cache = getattr(store, "_location_estimates_cache", None)
+    if not isinstance(cache, dict):
+        return None
+    cached = cache.get(key)
+    if not isinstance(cached, tuple) or len(cached) != 2:
+        return None
+    cached_unix = _to_int(cached[0])
+    payload = cached[1]
+    if cached_unix is None or not isinstance(payload, dict):
+        return None
+    if max(0, int(now_unix) - cached_unix) > _CACHE_TTL_SECONDS:
+        return None
+    return payload
+
+
+def _cache_set(store: HistoryStoreReadState, key: tuple[object, ...], now_unix: int, payload: dict[str, object]) -> None:
+    cache = getattr(store, "_location_estimates_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        try:
+            setattr(store, "_location_estimates_cache", cache)
+        except Exception:
+            return
+    cache[key] = (int(now_unix), payload)
+    if len(cache) > _CACHE_MAX_ENTRIES:
+        oldest_key = min(
+            cache,
+            key=lambda item: _to_int(cache.get(item, (0,))[0]) or 0,
+        )
+        cache.pop(oldest_key, None)
 
 
 def _is_valid_coord(lat: object, lon: object) -> bool:
@@ -593,10 +628,15 @@ def load_location_estimates(
 ) -> dict[str, object]:
     clean_window = _normalize_window(window)
     clean_limit = _clean_limit(limit)
+    now_unix = int(time.time())
+    cache_key = (clean_window, clean_limit)
+    cached_payload = _cache_get(store, cache_key, now_unix)
+    if cached_payload is not None:
+        return cached_payload
     window_seconds = int(_WINDOW_SECONDS[clean_window])
     cutoff_unix = 0
     if window_seconds > 0:
-        cutoff_unix = max(0, int(time.time()) - window_seconds)
+        cutoff_unix = max(0, now_unix - window_seconds)
 
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
@@ -620,6 +660,8 @@ def load_location_estimates(
         position_rows=position_rows,
         window=clean_window,
         limit=clean_limit,
+        now_unix=now_unix,
     )
     payload["window_seconds"] = window_seconds
+    _cache_set(store, cache_key, now_unix, payload)
     return payload
