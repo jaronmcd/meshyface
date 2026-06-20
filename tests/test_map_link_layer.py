@@ -244,7 +244,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
-    assert "fadeOutMapNodeMarker(existingMarker, {" in js
+    assert "cancelMapNodeMarkerFade(existingMarker);\n              cancelMapMarkerDrift(existingMarker);\n              nodeLayer.removeLayer(existingMarker);" in js
     assert "fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);" in js
     assert "initialStyle: fadeEstimatedMarkerInitialStyle," in js
     assert "initialElementOpacity: 0," in js

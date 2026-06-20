@@ -1017,16 +1017,9 @@
           }}
           if (existingMarker && !canDriftExistingEstimatedMarker) {{
             if (fadeExistingEstimatedMarkerOut && allowEstimatedNodeFade) {{
+              cancelMapNodeMarkerFade(existingMarker);
               cancelMapMarkerDrift(existingMarker);
-              fadeOutMapNodeMarker(existingMarker, {{
-                layerGroup: nodeLayer,
-                durationMs: mapEstimatedOverlayLongJumpFadeMs,
-                onComplete: () => {{
-                  if (typeof nodeLayer.hasLayer !== "function" || nodeLayer.hasLayer(existingMarker)) {{
-                    nodeLayer.removeLayer(existingMarker);
-                  }}
-                }},
-              }});
+              nodeLayer.removeLayer(existingMarker);
             }} else {{
               cancelMapNodeMarkerFade(existingMarker);
               cancelMapMarkerDrift(existingMarker);
