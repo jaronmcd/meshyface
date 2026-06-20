@@ -786,7 +786,7 @@
               aria-selected="false"
               data-settings-tab="update"
             >
-              Update
+              Software
             </button>
             <button
               id="settings-tab-system-btn"
@@ -2227,8 +2227,6 @@
                 Runtime status for this dashboard process.
               </div>
               <div class="chat-settings-meta-list">
-                <div class="chat-settings-meta-item">Version: <span id="settings-about-version">loading...</span></div>
-                <div class="chat-settings-meta-item">Git: <span id="settings-about-commit">loading...</span></div>
                 <div class="chat-settings-meta-item">{safety_label}</div>
               </div>
               <span id="disk-meter" class="disk-meter settings-system-disk-meter" title="Disk free on dashboard host">
@@ -2245,10 +2243,14 @@
           </div>
 
           <div class="settings-panel settings-panel-wide" data-settings-tab-panel="update" hidden>
-            <h3>Update</h3>
+            <h3>Software</h3>
             <div class="settings-fields">
               <div class="settings-help-note">
-                GitHub update controls for this dashboard checkout.
+                Software version, Git revision, and GitHub update controls for this dashboard checkout.
+              </div>
+              <div class="chat-settings-meta-list">
+                <div class="chat-settings-meta-item">Version: <span id="settings-software-version">loading...</span></div>
+                <div class="chat-settings-meta-item">Git: <span id="settings-software-commit">loading...</span></div>
               </div>
               <div class="settings-update-panel">
                 <div id="settings-update-status" class="settings-help-note">Update status not checked.</div>

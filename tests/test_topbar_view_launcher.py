@@ -55,11 +55,15 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
-    assert 'id="settings-about-version"' in html
-    assert 'id="settings-about-commit"' in html
+    assert 'id="settings-about-version"' not in html
+    assert 'id="settings-about-commit"' not in html
+    assert 'id="settings-software-version"' in html
+    assert 'id="settings-software-commit"' in html
     assert 'id="settings-tab-update-btn"' in html
+    assert re.search(r'id="settings-tab-update-btn"[\s\S]*>\s*Software\s*</button>', html)
     assert 'data-settings-tab="update"' in html
     assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
+    assert '<h3>Software</h3>' in html
     assert 'id="settings-update-status"' in html
     assert 'id="settings-update-branch"' in html
     assert 'id="settings-update-check"' in html
@@ -202,8 +206,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "launcherRow.hidden = !visible;" in js
     assert 'workspaceShell.classList.toggle("has-topbar-update-ticker", !!visible);' in js
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
-    assert 'document.getElementById("settings-about-version")' in js
-    assert 'document.getElementById("settings-about-commit")' in js
+    assert 'document.getElementById("settings-about-version")' not in js
+    assert 'document.getElementById("settings-about-commit")' not in js
+    assert 'document.getElementById("settings-software-version")' in js
+    assert 'document.getElementById("settings-software-commit")' in js
     assert '|| key === "update"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
