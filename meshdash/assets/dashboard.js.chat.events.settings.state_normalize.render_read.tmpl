@@ -800,9 +800,13 @@
         return;
       }}
       for (const row of rows) {{
-        const item = document.createElement("div");
+        const item = document.createElement("details");
         item.className = "settings-update-pr-item";
 
+        const summary = document.createElement("summary");
+        summary.className = "settings-update-pr-summary";
+        const summaryBody = document.createElement("div");
+        summaryBody.className = "settings-update-pr-summary-body";
         const main = document.createElement("div");
         main.className = "settings-update-pr-main";
         const number = String(row.number || "").trim();
@@ -823,7 +827,7 @@
         titleEl.textContent = String(row.title || (number ? `Pull request #${{number}}` : "Pull request")).trim();
         titleEl.title = titleEl.textContent;
         main.appendChild(titleEl);
-        item.appendChild(main);
+        summaryBody.appendChild(main);
 
         const metaParts = [];
         const dateText = String(row.date || "").trim();
@@ -834,7 +838,17 @@
           const meta = document.createElement("div");
           meta.className = "settings-update-pr-meta";
           meta.textContent = metaParts.join(" | ");
-          item.appendChild(meta);
+          summaryBody.appendChild(meta);
+        }}
+        summary.appendChild(summaryBody);
+        item.appendChild(summary);
+
+        const messageText = String(row.message || row.body || row.subject || row.title || "").trim();
+        if (messageText) {{
+          const full = document.createElement("pre");
+          full.className = "settings-update-pr-full";
+          full.textContent = messageText;
+          item.appendChild(full);
         }}
         host.appendChild(item);
       }}

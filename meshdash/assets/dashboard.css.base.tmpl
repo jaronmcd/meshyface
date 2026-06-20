@@ -9240,14 +9240,38 @@
       min-width: 0;
     }}
     .settings-update-pr-item {{
+      min-width: 0;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #ffffff;
+    }}
+    .settings-update-pr-summary {{
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+      padding: 8px 10px;
+      cursor: pointer;
+      list-style: none;
+    }}
+    .settings-update-pr-summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .settings-update-pr-summary::before {{
+      content: "+";
+      flex: 0 0 auto;
+      color: #1f5d3d;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.2;
+    }}
+    .settings-update-pr-item[open] .settings-update-pr-summary::before {{
+      content: "-";
+    }}
+    .settings-update-pr-summary-body {{
       display: flex;
       flex-direction: column;
       gap: 3px;
       min-width: 0;
-      padding: 8px 10px;
-      border: 1px solid #d7e5d2;
-      border-radius: 8px;
-      background: #ffffff;
     }}
     .settings-update-pr-main {{
       display: flex;
@@ -9279,6 +9303,20 @@
       color: var(--muted);
       font-size: 11px;
       line-height: 1.35;
+    }}
+    .settings-update-pr-full {{
+      margin: 0 10px 10px 28px;
+      padding: 8px 10px;
+      overflow-x: auto;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #f8fbf7;
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
     }}
     .settings-device-info-panel {{
       order: 1;

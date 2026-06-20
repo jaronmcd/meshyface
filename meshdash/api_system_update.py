@@ -310,9 +310,15 @@ def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, 
 
     if not number:
         return None
+    message = subject
+    if body:
+        message = f"{subject}\n\n{body}"
     return {
         "number": number,
         "title": title or f"Pull request #{number}",
+        "subject": subject,
+        "body": body,
+        "message": message,
         "date": date_text,
         "commit": commit,
         "commit_short": commit_short,

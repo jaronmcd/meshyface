@@ -93,7 +93,7 @@ class _FakeGitRunner:
                         "dddddddd",
                         "2026-06-19",
                         "Hold local coverage threshold (#43)",
-                        "",
+                        "Detailed coverage notes\n\nReviewed-by: local",
                     ]
                 ),
                 sep.join(
@@ -161,6 +161,9 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
         {
             "number": "42",
             "title": "Add Update tab",
+            "subject": "Merge pull request #42 from j/update-tab",
+            "body": "Add Update tab",
+            "message": "Merge pull request #42 from j/update-tab\n\nAdd Update tab",
             "date": "2026-06-20",
             "commit": "cccccccc11111111222222223333333344444444",
             "commit_short": "cccccccc",
@@ -169,6 +172,9 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
         {
             "number": "43",
             "title": "Hold local coverage threshold",
+            "subject": "Hold local coverage threshold (#43)",
+            "body": "Detailed coverage notes\n\nReviewed-by: local",
+            "message": "Hold local coverage threshold (#43)\n\nDetailed coverage notes\n\nReviewed-by: local",
             "date": "2026-06-19",
             "commit": "dddddddd11111111222222223333333344444444",
             "commit_short": "dddddddd",

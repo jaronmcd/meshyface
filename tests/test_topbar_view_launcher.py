@@ -183,7 +183,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-branch-field {" in css
     assert ".settings-update-history-panel {" in css
     assert ".settings-update-pr-item {" in css
+    assert ".settings-update-pr-summary {" in css
+    assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
     assert ".settings-update-pr-title {" in css
+    assert ".settings-update-pr-full {" in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -207,6 +210,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
+    assert 'const item = document.createElement("details");' in js
+    assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
+    assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
