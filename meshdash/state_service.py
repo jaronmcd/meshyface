@@ -801,6 +801,140 @@ def _slim_recent_chat_for_map_activity(
     return slimmed
 
 
+def _slim_recent_chat_for_notifications(
+    recent_chat: list[dict[str, object]],
+    *,
+    max_messages: int = 80,
+) -> list[dict[str, object]]:
+    """Keep only chat fields needed for unread/background notification tracking."""
+    try:
+        max_messages = max(0, int(max_messages))
+    except Exception:
+        max_messages = 80
+    if max_messages <= 0:
+        return []
+    keep_keys = (
+        "from",
+        "from_id",
+        "fromId",
+        "from_name",
+        "fromName",
+        "source",
+        "source_id",
+        "sourceId",
+        "to",
+        "to_id",
+        "toId",
+        "destination",
+        "dest",
+        "dest_id",
+        "destId",
+        "message_id",
+        "messageId",
+        "packet_id",
+        "packetId",
+        "reply_id",
+        "replyId",
+        "portnum",
+        "scope",
+        "channel",
+        "channel_index",
+        "channelIndex",
+        "rx_time",
+        "captured_at",
+        "time",
+        "rx_time_unix",
+        "time_unix",
+        "delivery_updated_at",
+        "delivery_updated_unix",
+        "text",
+        "decoded_text",
+        "payload_text",
+        "local_echo",
+        "localEcho",
+        "is_reaction",
+        "isReaction",
+        "emoji",
+        "emoji_codepoint",
+        "emojiCodepoint",
+        "kind",
+    )
+    slimmed: list[dict[str, object]] = []
+    for entry in recent_chat[-max_messages:]:
+        if not isinstance(entry, Mapping):
+            continue
+        slim_entry: dict[str, object] = {}
+        for key in keep_keys:
+            value = entry.get(key)
+            if value is not None:
+                slim_entry[key] = value
+        if slim_entry:
+            slimmed.append(slim_entry)
+    return slimmed
+
+
+def _chat_entry_slim_merge_key(entry: object) -> str:
+    if not isinstance(entry, Mapping):
+        return ""
+    for key in ("message_id", "messageId", "packet_id", "packetId"):
+        value = _to_int(entry.get(key))
+        if value is not None and value > 0:
+            return f"id:{int(value)}"
+    from_id = _normalize_node_id_text(
+        entry.get("from")
+        or entry.get("from_id")
+        or entry.get("fromId")
+        or entry.get("source")
+        or entry.get("source_id")
+        or entry.get("sourceId")
+    )
+    to_id = _normalize_node_id_text(
+        entry.get("to")
+        or entry.get("to_id")
+        or entry.get("toId")
+        or entry.get("destination")
+        or entry.get("dest")
+        or entry.get("dest_id")
+        or entry.get("destId")
+    )
+    rx_time = str(
+        entry.get("rx_time")
+        or entry.get("captured_at")
+        or entry.get("time")
+        or entry.get("rx_time_unix")
+        or entry.get("time_unix")
+        or ""
+    ).strip()
+    text = str(
+        entry.get("text")
+        or entry.get("decoded_text")
+        or entry.get("payload_text")
+        or ""
+    ).strip()
+    channel = str(entry.get("channel") or entry.get("channel_index") or entry.get("channelIndex") or "").strip()
+    if not from_id and not to_id and not rx_time and not text:
+        return ""
+    return f"sig:{from_id}|{to_id}|{rx_time}|{channel}|{text}"
+
+
+def _merge_slim_recent_chat_rows(
+    *row_groups: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    merged: list[dict[str, object]] = []
+    seen_keys: set[str] = set()
+    for rows in row_groups:
+        for entry in rows:
+            if not isinstance(entry, Mapping):
+                continue
+            key = _chat_entry_slim_merge_key(entry)
+            if key and key in seen_keys:
+                continue
+            if key:
+                seen_keys.add(key)
+            merged.append(dict(entry))
+    return merged
+
+
 def _slim_recent_chat_for_chat_profile(
     recent_chat: list[dict[str, object]],
 ) -> list[dict[str, object]]:
@@ -1306,6 +1440,7 @@ def build_dashboard_state_lite(
             max_packets=120,
         )
     slim_recent_chat = list(state_payload.traffic.recent_chat)
+    notification_recent_chat = _slim_recent_chat_for_notifications(slim_recent_chat)
     slim_edges = list(state_payload.traffic.edges)
     slim_port_counts = list(state_payload.traffic.port_counts)
     slim_node_packet_trends = state_payload.traffic.node_packet_trends
@@ -1317,23 +1452,26 @@ def build_dashboard_state_lite(
     elif profile_name == "network":
         slim_nodes = _slim_nodes_for_chat(state_payload.nodes)
         slim_edges = _slim_edges_for_network(state_payload.traffic.edges)
-        slim_recent_chat = []
+        slim_recent_chat = notification_recent_chat
     elif profile_name in {"network-graph", "network_graph"}:
         slim_nodes = _slim_nodes_for_chat(state_payload.nodes)
         slim_edges = _slim_edges_for_network(state_payload.traffic.edges)
-        slim_recent_chat = []
+        slim_recent_chat = notification_recent_chat
         slim_port_counts = []
         slim_node_packet_trends = {}
     elif profile_name in {"network-map", "network_map"}:
         slim_nodes = _slim_nodes_for_chat(state_payload.nodes)
         slim_edges = _slim_edges_for_network(state_payload.traffic.edges)
-        slim_recent_chat = _slim_recent_chat_for_map_activity(slim_recent_chat)
+        slim_recent_chat = _merge_slim_recent_chat_rows(
+            notification_recent_chat,
+            _slim_recent_chat_for_map_activity(slim_recent_chat),
+        )
         slim_port_counts = []
         slim_node_packet_trends = {}
     elif profile_name in {"status", "console"}:
         slim_nodes = _slim_nodes_for_chat(state_payload.nodes)
         slim_edges = []
-        slim_recent_chat = []
+        slim_recent_chat = notification_recent_chat
         slim_port_counts = []
         slim_node_packet_trends = {}
     slim_history_caps = _slim_history_caps(

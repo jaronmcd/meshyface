@@ -245,13 +245,19 @@
           : stateUrlBase;
         forceStateReloadOnce = false;
         const previousStateEtag = String(stateEtag || "");
+        const previousStateEtagProfile = String(stateEtagProfile || "");
         const headers = {{}};
-        if (stateEtag && stateUrl === stateUrlBase) {{
+        if (
+          stateEtag
+          && stateUrl === stateUrlBase
+          && previousStateEtagProfile === pollProfile
+        ) {{
           headers["If-None-Match"] = stateEtag;
         }}
         markPollPerfPhase(pollPerfRun, "request-start", {{
           conditional: !!headers["If-None-Match"],
           forceReload: stateUrl !== stateUrlBase,
+          etagProfile: previousStateEtagProfile,
         }});
         const resp = await fetch(stateUrl, {{ cache: "no-store", headers }});
         if (pollPerfRun) {{
@@ -268,6 +274,7 @@
               renderNodesPlaceholder("Syncing nodes...");
             }}
             stateEtag = "";
+            stateEtagProfile = "";
             forceStateReloadOnce = true;
             requestImmediatePoll(20);
             pollPerfStatus = "retry";
@@ -432,6 +439,7 @@
         const responseStateEtag = newEtag ? String(newEtag) : "";
         if (newEtag) {{
           stateEtag = responseStateEtag;
+          stateEtagProfile = pollProfile;
         }}
         const rawState = await resp.json();
         markPollPerfPhase(pollPerfRun, "json");
@@ -632,6 +640,7 @@
         }});
         const hasFreshDirectEntry = chatEntries.some((entry) => {{
           if (!entry || entry.channel !== "direct") return false;
+          if (entry.countsUnread === false) return false;
           const key = String(entry.key || "").trim();
           if (!key) return false;
           return !chatSeenMessageKeys.has(key);

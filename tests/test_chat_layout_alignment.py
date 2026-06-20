@@ -285,6 +285,11 @@ def test_chat_history_render_window_is_bounded_for_responsiveness(dashboard_js: 
     assert "const chatHistoryPageSize = 180;" in dashboard_js
     assert "return chatFeedMaxEntries;" in dashboard_js
     assert 'params.set("limit", String(chatHistoryPageSize));' in dashboard_js
+    assert "const activePollProfile = String(latestStatePollProfile || \"\").trim();" in dashboard_js
+    assert 'activePollProfile !== "chat"' in dashboard_js
+    assert 'activePollProfile !== "default"' in dashboard_js
+    assert 'markRenderChatPhase("profile-wait");' in dashboard_js
+    assert "Loading chat..." in dashboard_js
 
 
 def test_chat_hop_count_uses_nested_routing_metadata(dashboard_js: str) -> None:

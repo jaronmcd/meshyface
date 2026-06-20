@@ -579,6 +579,32 @@
       }}
       const traffic = state.traffic || {{}};
       const s = state.summary || {{}};
+      const activePollProfile = String(latestStatePollProfile || "").trim();
+      if (
+        isChatWorkspaceLayoutView(activeLayoutView)
+        && activePollProfile
+        && activePollProfile !== "chat"
+        && activePollProfile !== "default"
+      ) {{
+        markRenderChatPhase("profile-wait");
+        const feed = (typeof document !== "undefined")
+          ? document.getElementById("chat-feed")
+          : null;
+        if (
+          feed instanceof HTMLElement
+          && !feed.querySelector(".chat-feed-item")
+        ) {{
+          feed.innerHTML = '<div class="chat-feed-empty">Loading chat...</div>';
+        }}
+        const waitUnix = Math.floor(Date.now() / 1000);
+        renderChatChangeSummary(waitUnix);
+        bindChatChangeSummaryControls();
+        finishChatRenderStats("profile-wait", {{
+          profile: activePollProfile,
+          rawMessages: Array.isArray(traffic.recent_chat) ? traffic.recent_chat.length : 0,
+        }});
+        return;
+      }}
       const chatScroller = getChatScroller();
       const shouldStickBottom = !!(chatScroller && (chatStickToBottom || isNearBottom(chatScroller)));
       const nodes = Array.isArray(state.nodes) ? state.nodes : [];
