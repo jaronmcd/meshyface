@@ -830,8 +830,10 @@
         summaryBody.appendChild(main);
 
         const metaParts = [];
+        const versionText = String(row.version_label || row.version || "").trim();
         const dateText = String(row.date || "").trim();
         const commitText = String(row.commit_short || "").trim();
+        if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${{versionText}}`);
         if (dateText) metaParts.push(dateText);
         if (commitText) metaParts.push(commitText);
         if (metaParts.length) {{

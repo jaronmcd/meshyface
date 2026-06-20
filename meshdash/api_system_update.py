@@ -287,6 +287,12 @@ def _github_repo_url(remote_url: str) -> str:
     return f"https://github.com/{path}" if path else ""
 
 
+_VERSION_BUMP_SUBJECT_RE = re.compile(
+    r"^Bump version to v(?P<version>\d+\.\d+\.\d+)(?:\s+\[skip ci\])?$",
+    flags=re.IGNORECASE,
+)
+
+
 def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, object] | None:
     fields = str(record or "").strip("\n\x1e").split("\x1f", 4)
     if len(fields) < 4:
@@ -326,6 +332,23 @@ def _parse_pull_request_history_record(record: str, repo_url: str) -> dict[str, 
     }
 
 
+def _parse_version_bump_history_record(record: str) -> dict[str, str] | None:
+    fields = str(record or "").strip("\n\x1e").split("\x1f", 4)
+    if len(fields) < 4:
+        return None
+    commit, commit_short, _date_text, subject = (field.strip() for field in fields[:4])
+    match = _VERSION_BUMP_SUBJECT_RE.search(subject)
+    if not match:
+        return None
+    version = match.group("version")
+    return {
+        "version": version,
+        "version_label": f"v{version}",
+        "version_commit": commit,
+        "version_commit_short": commit_short,
+    }
+
+
 def _pull_request_history(
     repo_root: Path,
     history_ref: str,
@@ -353,10 +376,18 @@ def _pull_request_history(
         return []
     repo_url = _github_repo_url(remote_url)
     rows: list[dict[str, object]] = []
+    pending_version: dict[str, str] | None = None
     for raw_record in _git_text(result).split("\x1e"):
+        version_bump = _parse_version_bump_history_record(raw_record)
+        if version_bump:
+            pending_version = version_bump
+            continue
         row = _parse_pull_request_history_record(raw_record, repo_url)
         if not row:
             continue
+        if pending_version:
+            row.update(pending_version)
+            pending_version = None
         rows.append(row)
         if len(rows) >= limit:
             break

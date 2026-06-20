@@ -217,6 +217,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
     assert 'const item = document.createElement("details");' in js
+    assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
+    assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js

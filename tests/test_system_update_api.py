@@ -80,11 +80,29 @@ class _FakeGitRunner:
             records = [
                 sep.join(
                     [
+                        "ffffffff11111111222222223333333344444444",
+                        "ffffffff",
+                        "2026-06-20",
+                        "Bump version to v0.1.2 [skip ci]",
+                        "",
+                    ]
+                ),
+                sep.join(
+                    [
                         "cccccccc11111111222222223333333344444444",
                         "cccccccc",
                         "2026-06-20",
                         "Merge pull request #42 from j/update-tab",
                         "Add Update tab",
+                    ]
+                ),
+                sep.join(
+                    [
+                        "9999999911111111222222223333333344444444",
+                        "99999999",
+                        "2026-06-19",
+                        "Bump version to v0.1.1 [skip ci]",
+                        "",
                     ]
                 ),
                 sep.join(
@@ -168,6 +186,10 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "commit": "cccccccc11111111222222223333333344444444",
             "commit_short": "cccccccc",
             "url": "https://github.com/jaronmcd/meshyface/pull/42",
+            "version": "0.1.2",
+            "version_label": "v0.1.2",
+            "version_commit": "ffffffff11111111222222223333333344444444",
+            "version_commit_short": "ffffffff",
         },
         {
             "number": "43",
@@ -179,6 +201,10 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "commit": "dddddddd11111111222222223333333344444444",
             "commit_short": "dddddddd",
             "url": "https://github.com/jaronmcd/meshyface/pull/43",
+            "version": "0.1.1",
+            "version_label": "v0.1.1",
+            "version_commit": "9999999911111111222222223333333344444444",
+            "version_commit_short": "99999999",
         },
     ]
 
