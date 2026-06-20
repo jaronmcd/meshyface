@@ -65,6 +65,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
     assert 'id="settings-update-reload"' in html
+    assert 'class="settings-update-history-panel"' in html
+    assert 'id="settings-update-pr-history"' in html
+    assert "PR History" in html
     assert 'class="settings-panel settings-panel-wide settings-about-panel" data-settings-tab-panel="system"' in html
     assert 'class="settings-panel settings-panel-wide settings-device-info-panel" data-settings-tab-panel="system"' in html
     assert 'id="settings-device-info-grid"' in html
@@ -178,6 +181,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-panel {" in css
     assert ".settings-update-actions {" in css
     assert ".settings-update-branch-field {" in css
+    assert ".settings-update-history-panel {" in css
+    assert ".settings-update-pr-item {" in css
+    assert ".settings-update-pr-title {" in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -198,6 +204,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert '|| key === "update"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
+    assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
+    assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
+    assert 'document.getElementById("settings-update-pr-history")' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js

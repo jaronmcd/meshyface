@@ -780,6 +780,66 @@
         : "No remote branches are available for this checkout.";
     }}
 
+    function settingsUpdatePullRequestHistoryRows(info) {{
+      const rows = Array.isArray(info.pull_request_history) ? info.pull_request_history : [];
+      return rows.filter((row) => row && typeof row === "object");
+    }}
+
+    function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {{
+      const host = document.getElementById("settings-update-pr-history");
+      if (!(host instanceof HTMLElement)) return;
+      const rows = settingsUpdatePullRequestHistoryRows(settingsUpdatePayloadObject(info));
+      host.replaceChildren();
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "settings-update-pr-empty";
+        empty.textContent = inFlight
+          ? "Checking PR history..."
+          : "No recent PR history found for the selected branch.";
+        host.appendChild(empty);
+        return;
+      }}
+      for (const row of rows) {{
+        const item = document.createElement("div");
+        item.className = "settings-update-pr-item";
+
+        const main = document.createElement("div");
+        main.className = "settings-update-pr-main";
+        const number = String(row.number || "").trim();
+        const url = String(row.url || "").trim();
+        if (number) {{
+          const numberEl = url ? document.createElement("a") : document.createElement("span");
+          numberEl.className = "settings-update-pr-number";
+          numberEl.textContent = `#${{number}}`;
+          if (numberEl instanceof HTMLAnchorElement) {{
+            numberEl.href = url;
+            numberEl.target = "_blank";
+            numberEl.rel = "noopener noreferrer";
+          }}
+          main.appendChild(numberEl);
+        }}
+        const titleEl = document.createElement("div");
+        titleEl.className = "settings-update-pr-title";
+        titleEl.textContent = String(row.title || (number ? `Pull request #${{number}}` : "Pull request")).trim();
+        titleEl.title = titleEl.textContent;
+        main.appendChild(titleEl);
+        item.appendChild(main);
+
+        const metaParts = [];
+        const dateText = String(row.date || "").trim();
+        const commitText = String(row.commit_short || "").trim();
+        if (dateText) metaParts.push(dateText);
+        if (commitText) metaParts.push(commitText);
+        if (metaParts.length) {{
+          const meta = document.createElement("div");
+          meta.className = "settings-update-pr-meta";
+          meta.textContent = metaParts.join(" | ");
+          item.appendChild(meta);
+        }}
+        host.appendChild(item);
+      }}
+    }}
+
     function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {{
       const info = settingsUpdatePayloadObject(payload);
       const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
@@ -807,6 +867,7 @@
         text = "Checking GitHub update status...";
       }}
       renderSettingsUpdateBranchOptions(renderInfo, inFlight);
+      renderSettingsUpdatePullRequestHistory(renderInfo, inFlight);
       if (statusEl instanceof HTMLElement) {{
         statusEl.textContent = text;
         const parts = [];

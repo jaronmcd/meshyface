@@ -67,7 +67,46 @@ class _FakeGitRunner:
                 return GitCommandResult(128, "unknown revision")
             return GitCommandResult(0, "0\t4")
         if command == ("remote", "get-url", "origin"):
-            return GitCommandResult(0, "https://token@example.com/jaronmcd/meshyface.git")
+            return GitCommandResult(0, "https://token@github.com/jaronmcd/meshyface.git")
+        if command[0:5] == (
+            "log",
+            "--first-parent",
+            "--max-count=25",
+            "--date=short",
+            "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
+        ):
+            sep = "\x1f"
+            end = "\x1e"
+            records = [
+                sep.join(
+                    [
+                        "cccccccc11111111222222223333333344444444",
+                        "cccccccc",
+                        "2026-06-20",
+                        "Merge pull request #42 from j/update-tab",
+                        "Add Update tab",
+                    ]
+                ),
+                sep.join(
+                    [
+                        "dddddddd11111111222222223333333344444444",
+                        "dddddddd",
+                        "2026-06-19",
+                        "Hold local coverage threshold (#43)",
+                        "",
+                    ]
+                ),
+                sep.join(
+                    [
+                        "eeeeeeee11111111222222223333333344444444",
+                        "eeeeeeee",
+                        "2026-06-18",
+                        "Internal maintenance commit",
+                        "",
+                    ]
+                ),
+            ]
+            return GitCommandResult(0, end.join(records) + end)
         if command == ("fetch", "--prune", "origin"):
             if self.fetch_fails:
                 return GitCommandResult(128, "Could not resolve host: github.com")
@@ -114,10 +153,28 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
     assert payload["state"] == "update_available"
     assert payload["can_update"] is True
     assert payload["update_needed"] is True
-    assert payload["remote_url"] == "https://example.com/jaronmcd/meshyface.git"
+    assert payload["remote_url"] == "https://github.com/jaronmcd/meshyface.git"
     assert payload["current_commit_short"] == "aaaaaaaa"
     assert payload["branches"] == ["beta", "main"]
     assert payload["target_branch"] == "main"
+    assert payload["pull_request_history"] == [
+        {
+            "number": "42",
+            "title": "Add Update tab",
+            "date": "2026-06-20",
+            "commit": "cccccccc11111111222222223333333344444444",
+            "commit_short": "cccccccc",
+            "url": "https://github.com/jaronmcd/meshyface/pull/42",
+        },
+        {
+            "number": "43",
+            "title": "Hold local coverage threshold",
+            "date": "2026-06-19",
+            "commit": "dddddddd11111111222222223333333344444444",
+            "commit_short": "dddddddd",
+            "url": "https://github.com/jaronmcd/meshyface/pull/43",
+        },
+    ]
 
 
 def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:
