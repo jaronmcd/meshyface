@@ -230,6 +230,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const existingMarkerFadingOut = !!(" in js
     assert "&& !existingMarkerFadingOut" in js
     assert "mapNodeMarkerFadeScale(" in js
+    assert "} else {\n              const activeFadeBaseStyle = resolveMapNodeMarkerStyle(" in js
     assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, activeFadeBaseStyle);" in js
     assert "primeElementOpacity: false," in js
     assert "currentScale: fromScale," in js

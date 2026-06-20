@@ -971,16 +971,15 @@
               cancelMapNodeMarkerFade(marker);
               setMapNodeMarkerOpacityScale(marker, 1, fadeBaseStyle);
               marker._meshMapNodeMarkerFadeBaseStyle = null;
-            }}
-            refreshMapNodeMarkerPresentation(
-              marker,
-              normalizedId,
-              isSelected,
-              markerKind,
-              markerConfidence,
-              latestState
-            );
-            if (activeFadeState) {{
+              refreshMapNodeMarkerPresentation(
+                marker,
+                normalizedId,
+                isSelected,
+                markerKind,
+                markerConfidence,
+                latestState
+              );
+            }} else {{
               const activeFadeBaseStyle = resolveMapNodeMarkerStyle(
                 normalizedId,
                 isSelected,
@@ -988,6 +987,14 @@
                 markerConfidence,
                 latestState
               );
+              if (isSelected) {{
+                if (typeof marker.closeTooltip === "function") {{
+                  marker.closeTooltip();
+                }}
+                if (typeof marker.unbindTooltip === "function") {{
+                  marker.unbindTooltip();
+                }}
+              }}
               marker._meshMapNodeMarkerFadeBaseStyle = activeFadeBaseStyle;
               setMapNodeMarkerOpacityScale(marker, activeFadeScale, activeFadeBaseStyle);
               if (existingMarkerFadingOut) {{
