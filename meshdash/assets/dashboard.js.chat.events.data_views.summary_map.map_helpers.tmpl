@@ -749,6 +749,120 @@
       );
     }}
 
+    function mapHeatLayerCanvas(layer) {{
+      const canvas = layer && layer._canvas;
+      return canvas instanceof HTMLCanvasElement ? canvas : null;
+    }}
+
+    function cancelMapHeatLayerOpacityFade(layer) {{
+      if (!(layer && typeof layer === "object")) return;
+      const state = layer._meshHeatOpacityAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      layer._meshHeatOpacityAnimation = null;
+    }}
+
+    function mapHeatLayerCurrentOpacity(layer) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      const remembered = Number(layer && layer._meshHeatCanvasOpacity);
+      if (Number.isFinite(remembered)) {{
+        return clampMapLinkValue(remembered, 0, 1);
+      }}
+      if (canvas) {{
+        const rawStyleOpacity = String(canvas.style.opacity || "").trim();
+        const styleOpacity = Number(rawStyleOpacity);
+        if (rawStyleOpacity && Number.isFinite(styleOpacity)) {{
+          return clampMapLinkValue(styleOpacity, 0, 1);
+        }}
+      }}
+      return 1;
+    }}
+
+    function setMapHeatLayerCanvasOpacity(layer, opacity) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      if (!canvas) return false;
+      const safeOpacity = clampMapLinkValue(Number(opacity), 0, 1);
+      canvas.style.opacity = safeOpacity >= 0.999 ? "" : safeOpacity.toFixed(3);
+      layer._meshHeatCanvasOpacity = safeOpacity;
+      return true;
+    }}
+
+    function animateMapHeatLayerCanvasOpacity(layer, targetOpacityRaw, options = null) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      if (!canvas) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const targetOpacity = clampMapLinkValue(Number(targetOpacityRaw), 0, 1);
+      const durationMs = Math.max(
+        0,
+        Number(opts.durationMs) || (targetOpacity >= mapHeatLayerCurrentOpacity(layer) ? mapHeatLayerFadeInMs : mapHeatLayerFadeOutMs)
+      );
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      const activeState = layer._meshHeatOpacityAnimation;
+      if (
+        !reduceMotion
+        && activeState
+        && Math.abs((Number(activeState.toOpacity) || 0) - targetOpacity) <= 0.001
+      ) {{
+        return true;
+      }}
+      const fromOpacity = Number.isFinite(Number(opts.fromOpacity))
+        ? clampMapLinkValue(Number(opts.fromOpacity), 0, 1)
+        : mapHeatLayerCurrentOpacity(layer);
+      if (
+        reduceMotion
+        || durationMs <= 0
+        || Math.abs(fromOpacity - targetOpacity) <= 0.001
+        || typeof window.requestAnimationFrame !== "function"
+      ) {{
+        cancelMapHeatLayerOpacityFade(layer);
+        setMapHeatLayerCanvasOpacity(layer, targetOpacity);
+        return true;
+      }}
+
+      cancelMapHeatLayerOpacityFade(layer);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        lastFrameMs: startedAtMs,
+        activeElapsedMs: 0,
+        maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
+        durationMs,
+        fromOpacity,
+        toOpacity: targetOpacity,
+      }};
+      const step = (timestampMs) => {{
+        const layerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+        if (!layerStillVisible) {{
+          cancelMapHeatLayerOpacityFade(layer);
+          return;
+        }}
+        const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        setMapHeatLayerCanvasOpacity(
+          layer,
+          state.fromOpacity + ((state.toOpacity - state.fromOpacity) * eased)
+        );
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        setMapHeatLayerCanvasOpacity(layer, state.toOpacity);
+        layer._meshHeatOpacityAnimation = null;
+      }};
+      layer._meshHeatOpacityAnimation = state;
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
     function cancelMapHeatLayerDrift(layer, clearPoints = false) {{
       if (!(layer && typeof layer === "object")) return;
       const state = layer._meshHeatDriftAnimation;
@@ -960,15 +1074,20 @@
       ));
       if (!layerVisible || !hasDrawablePoints) {{
         cancelMapHeatLayerDrift(layer, true);
+        cancelMapHeatLayerOpacityFade(layer);
         if (onComplete) {{
           onComplete(layer);
         }}
         return true;
       }}
       layer._meshHeatCurrentPoints = currentPoints;
+      const durationMs = Math.max(0, Number(opts.durationMs) || mapHeatLayerFadeOutMs);
+      animateMapHeatLayerCanvasOpacity(layer, 0, {{
+        durationMs,
+      }});
       return animateMapHeatLayerLatLngs(layer, [], {{
         keyPrefix,
-        durationMs: Math.max(0, Number(opts.durationMs) || mapHeatLayerFadeOutMs),
+        durationMs,
         fadeOut: true,
         onComplete,
       }});

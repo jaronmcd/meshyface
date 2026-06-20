@@ -316,6 +316,7 @@
       const layer = linkEstimateHeatmapLayer;
       const removeNow = () => {{
         cancelMapHeatLayerDrift(layer, true);
+        cancelMapHeatLayerOpacityFade(layer);
         if (layer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
           try {{
             L.Util.cancelAnimFrame(layer._frame);
@@ -362,8 +363,10 @@
         clearLinkEstimateHeatmapLayer();
         return;
       }}
-      if (!map.hasLayer(layer)) {{
+      const layerAlreadyVisible = map.hasLayer(layer);
+      if (!layerAlreadyVisible) {{
         layer.addTo(map);
+        setMapHeatLayerCanvasOpacity(layer, 0);
       }}
       if (typeof forceHeatLayerPointerPassthrough === "function") {{
         forceHeatLayerPointerPassthrough(layer);
@@ -371,6 +374,9 @@
       animateMapHeatLayerLatLngs(layer, heatPoints, {{
         keyPrefix: "estimate",
         durationMs: mapEstimatedOverlayDriftMs,
+      }});
+      animateMapHeatLayerCanvasOpacity(layer, 1, {{
+        durationMs: mapHeatLayerFadeInMs,
       }});
     }}
 

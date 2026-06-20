@@ -118,7 +118,8 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const mapEstimatedOverlayMaxFrameAdvanceMs = 32;" in js
     assert "const mapEstimatedOverlayMaxDriftMeters = 4800;" in js
     assert "const mapEstimatedOverlayLongJumpFadeMs = 1400;" in js
-    assert "const mapHeatLayerFadeOutMs = 1400;" in js
+    assert "const mapHeatLayerFadeInMs = 9000;" in js
+    assert "const mapHeatLayerFadeOutMs = 9000;" in js
     assert "const mapHeatLayerDriftMinIntensity = 0.004;" in js
     assert "const mapLinkMinEstimateAnchors = 2;" in js
     assert "const mapLinkMinEstimateConfidence = 0.18;" in js
@@ -142,6 +143,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function animateMapPolylineLatLngs(layer, targetPathRaw, options = null)" in js
     assert "function animateMapMarkerLatLng(marker, targetLatLngRaw, options = null)" in js
     assert "function animateMapHeatLayerLatLngs(layer, targetPointsRaw, options = null)" in js
+    assert "function animateMapHeatLayerCanvasOpacity(layer, targetOpacityRaw, options = null)" in js
     assert "function fadeOutMapHeatLayer(layer, options = null)" in js
     assert "function fadeMapNodeMarker(marker, options = null)" in js
     assert "function fadeInMapNodeMarker(marker, options = null)" in js
@@ -155,6 +157,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)" in js
     assert "const activeState = layer._meshHeatDriftAnimation;" in js
     assert "mapHeatPointsSameEnough(activeState.targetPoints, targetPoints)" in js
+    assert "const activeState = layer._meshHeatOpacityAnimation;" in js
+    assert "setMapHeatLayerCanvasOpacity(layer, 0);" in js
+    assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
     assert "fadeOutMapNodeMarker(existingMarker, {" in js
@@ -174,6 +179,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function cancelMapPolylineDrift(layer)" in js
     assert "function cancelMapMarkerDrift(marker)" in js
     assert "function cancelMapHeatLayerDrift(layer, clearPoints = false)" in js
+    assert "function cancelMapHeatLayerOpacityFade(layer)" in js
     assert "const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;" in js
     assert "if (!shouldRenderGraph && signature === lastMapSignature)" in js
     assert "const densitySourceOverlay = smoothMapLinkLayerOverlay(densitySourceOverlayUnsmoothed, {" in js
@@ -216,6 +222,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'fadeOutMapHeatLayer(layer, {' in js
     assert 'keyPrefix: "signal:fade",' in js
     assert "cancelMapHeatLayerDrift(layer, true);" in js
+    assert "cancelMapHeatLayerOpacityFade(layer);" in js
     assert "function hideSignalHeatmapLayers()" in js
     assert "function cancelSignalHeatmapLayerFrame(layer)" in js
     assert "typeof hideSignalHeatmapLayers === \"function\"" in js

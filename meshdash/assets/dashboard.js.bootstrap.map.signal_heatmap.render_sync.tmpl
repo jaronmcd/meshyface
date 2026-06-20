@@ -168,8 +168,10 @@
               minOpacity: baseVisual.minOpacity,
               gradient,
             }};
-        if (!map.hasLayer(layer)) {{
+        const layerAlreadyVisible = map.hasLayer(layer);
+        if (!layerAlreadyVisible) {{
           layer.addTo(map);
+          setMapHeatLayerCanvasOpacity(layer, 0);
         }}
         forceHeatLayerPointerPassthrough(layer);
         if (typeof layer.setOptions === "function") {{
@@ -178,6 +180,9 @@
         animateMapHeatLayerLatLngs(layer, buckets[i] || [], {{
           keyPrefix: `signal:${{i}}`,
           durationMs: mapEstimatedOverlayDriftMs,
+        }});
+        animateMapHeatLayerCanvasOpacity(layer, 1, {{
+          durationMs: mapHeatLayerFadeInMs,
         }});
       }}
     }}
@@ -199,6 +204,7 @@
       const opts = (options && typeof options === "object") ? options : {{}};
       const removeNow = () => {{
         cancelMapHeatLayerDrift(layer, true);
+        cancelMapHeatLayerOpacityFade(layer);
         cancelSignalHeatmapLayerFrame(layer);
         if (map && typeof map.hasLayer === "function" && map.hasLayer(layer)) {{
           map.removeLayer(layer);
