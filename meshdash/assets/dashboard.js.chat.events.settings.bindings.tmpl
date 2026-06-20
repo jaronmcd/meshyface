@@ -300,6 +300,20 @@
         }});
       }}
 
+      const updateCheckBtn = document.getElementById("settings-update-check");
+      if (updateCheckBtn instanceof HTMLButtonElement) {{
+        updateCheckBtn.addEventListener("click", () => {{
+          void hydrateSettingsUpdateStatus(true);
+        }});
+      }}
+
+      const updateApplyBtn = document.getElementById("settings-update-apply");
+      if (updateApplyBtn instanceof HTMLButtonElement) {{
+        updateApplyBtn.addEventListener("click", () => {{
+          void runSettingsGithubUpdate();
+        }});
+      }}
+
       const resetBtn = document.getElementById("settings-reset");
       if (resetBtn instanceof HTMLButtonElement) {{
         resetBtn.addEventListener("click", () => {{
