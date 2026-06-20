@@ -24,6 +24,7 @@ from .dashboard_setup import open_optional_history_store
 from .dashboard_server import (
     build_dashboard_server,
 )
+from .api_system_restart import schedule_backend_restart
 from .helpers import format_epoch, to_int
 from .history_profile import build_shared_history_db_path
 from .runtime_types import (
@@ -692,6 +693,10 @@ def run_dashboard_runtime(
                 default_chat_max_bytes=default_chat_max_bytes,
             )
         first_session = False
+        try:
+            setattr(context.state_fn, "schedule_backend_restart_fn", schedule_backend_restart)
+        except Exception:
+            pass
 
         server_parts = build_dashboard_server(
             args=args,

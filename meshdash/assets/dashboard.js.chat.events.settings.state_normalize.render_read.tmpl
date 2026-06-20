@@ -790,13 +790,22 @@
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
       const applyBtn = document.getElementById("settings-update-apply");
-      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight;
+      const reloadBtn = document.getElementById("settings-update-reload");
+      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
       const canUpdate = !!info.can_update && !!selectedBranch && !inFlight;
-      const text = inFlight && settingsUpdateApplyInFlight
-        ? "Updating from GitHub..."
-        : (inFlight ? "Checking GitHub update status..." : settingsUpdateStatusText(info));
+      const restartRequired = !!renderInfo.restart_required;
+      const requirementsChanged = !!renderInfo.requirements_changed;
+      const canReloadBackend = restartRequired && !requirementsChanged && !inFlight;
+      let text = settingsUpdateStatusText(info);
+      if (settingsUpdateApplyInFlight) {{
+        text = "Updating from GitHub...";
+      }} else if (settingsBackendReloadInFlight) {{
+        text = "Reloading backend...";
+      }} else if (inFlight) {{
+        text = "Checking GitHub update status...";
+      }}
       renderSettingsUpdateBranchOptions(renderInfo, inFlight);
       if (statusEl instanceof HTMLElement) {{
         statusEl.textContent = text;
@@ -820,6 +829,15 @@
         applyBtn.title = canUpdate
           ? "Fetch and fast-forward this Git checkout"
           : settingsUpdateStatusText(info);
+      }}
+      if (reloadBtn instanceof HTMLButtonElement) {{
+        reloadBtn.disabled = !canReloadBackend;
+        reloadBtn.textContent = settingsBackendReloadInFlight ? "Reloading..." : "Reload Backend";
+        reloadBtn.title = requirementsChanged
+          ? "Python requirements changed; install requirements before reloading"
+          : (restartRequired
+            ? "Restart the dashboard backend so the updated code is loaded"
+            : "Available after an update changes the running code");
       }}
     }}
 
@@ -937,9 +955,72 @@
       }} finally {{
         settingsUpdateApplyInFlight = false;
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
-        setTimeout(() => {{
-          void hydrateSettingsUpdateStatus(true);
-        }}, 1200);
+        if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {{
+          setTimeout(() => {{
+            void hydrateSettingsUpdateStatus(true);
+          }}, 1200);
+        }}
+      }}
+    }}
+
+    async function waitForSettingsBackendReload() {{
+      const startedAt = Date.now();
+      const deadlineMs = startedAt + 30000;
+      while (Date.now() < deadlineMs) {{
+        await new Promise((resolve) => window.setTimeout(resolve, 700));
+        try {{
+          const resp = await fetch(`/api/version?reload=${{Date.now()}}`, {{ cache: "no-store" }});
+          if (resp.ok) {{
+            window.location.reload();
+            return true;
+          }}
+        }} catch (_err) {{
+        }}
+      }}
+      return false;
+    }}
+
+    async function runSettingsBackendReload() {{
+      if (settingsBackendReloadInFlight) return;
+      settingsBackendReloadInFlight = true;
+      renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+        message: "Reloading backend..."
+      }}));
+      try {{
+        const resp = await fetch("/api/system/restart", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: "{{}}",
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          throw new Error(String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim());
+        }}
+        appendConsoleLine(
+          `system-reload|${{Date.now()}}|pending`,
+          "[system] backend reload scheduled"
+        );
+        const reloaded = await waitForSettingsBackendReload();
+        if (!reloaded) {{
+          settingsBackendReloadInFlight = false;
+          renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+            message: "Backend reload was requested. Refresh once the dashboard is reachable."
+          }}));
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsBackendReloadInFlight = false;
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          ok: false,
+          message: `Backend reload failed: ${{msg}}`
+        }}));
       }}
     }}
 

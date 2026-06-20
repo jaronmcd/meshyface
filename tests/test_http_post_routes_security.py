@@ -296,6 +296,79 @@ def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pyt
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 
+def test_handle_dashboard_post_schedules_system_restart() -> None:
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    restart_calls = 0
+
+    def _schedule_restart() -> dict[str, object]:
+        nonlocal restart_calls
+        restart_calls += 1
+        return {
+            "ok": True,
+            "restart_scheduled": True,
+            "state": "pending",
+            "message": "Backend reload scheduled.",
+            "http_status": 202,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        schedule_backend_restart_fn=_schedule_restart,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/restart", deps=deps)
+
+    assert restart_calls == 1
+    assert calls == [
+        (
+            202,
+            {
+                "ok": True,
+                "restart_scheduled": True,
+                "state": "pending",
+                "message": "Backend reload scheduled.",
+            },
+        )
+    ]
+
+
+def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
+    restart_calls = 0
+
+    def _schedule_restart() -> dict[str, object]:
+        nonlocal restart_calls
+        restart_calls += 1
+        return {"ok": True}
+
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        schedule_backend_restart_fn=_schedule_restart,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/restart", deps=deps)
+
+    assert restart_calls == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
 def test_handle_dashboard_post_sets_ping_message_only_mode() -> None:
     body = json.dumps({"action": "set_mode", "message_only": True}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})

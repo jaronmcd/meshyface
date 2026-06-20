@@ -61,6 +61,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-branch"' in html
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
+    assert 'id="settings-update-reload"' in html
     assert 'class="settings-panel settings-panel-wide settings-about-panel" data-settings-tab-panel="system"' in html
     assert 'class="settings-panel settings-panel-wide settings-device-info-panel" data-settings-tab-panel="system"' in html
     assert 'id="settings-device-info-grid"' in html
@@ -201,6 +202,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "`/api/system/update?branch=${encodeURIComponent(selectedBranch)}`" in js
     assert "body: JSON.stringify({ branch: selectedBranch })" in js
     assert 'fetch("/api/system/update"' in js
+    assert "if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {" in js
+    assert "async function runSettingsBackendReload() {" in js
+    assert 'fetch("/api/system/restart"' in js
+    assert 'document.getElementById("settings-update-reload")' in js
+    assert "settingsBackendReloadInFlight" in js
     assert 'document.getElementById("settings-update-apply")' in js
     assert "function renderSettingsDeviceInfo(state = latestState) {" in js
     assert "function hydrateSettingsDeviceInfo(force = false) {" in js
