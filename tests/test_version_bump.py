@@ -57,9 +57,15 @@ def test_version_bump_workflow_runs_after_merged_pr_to_main() -> None:
     assert "- closed" in workflow
     assert "- main" in workflow
     assert "contents: write" in workflow
+    assert "pull-requests: write" in workflow
     assert "concurrency:" in workflow
     assert "github.event.pull_request.merged == true" in workflow
+    assert "!startsWith(github.event.pull_request.head.ref, 'version-bump/')" in workflow
     assert "git pull --ff-only origin" in workflow
+    assert "Check whether PR already bumped version" in workflow
+    assert "meshdash/__init__.py" in workflow
     assert "python scripts/bump_version.py" in workflow
     assert str(VERSION_FILE) in workflow
-    assert 'git push origin "HEAD:${{ github.event.pull_request.base.ref }}"' in workflow
+    assert 'git push --force-with-lease origin "HEAD:${branch}"' in workflow
+    assert "gh pr create" in workflow
+    assert 'Automated version bump after #${{ github.event.pull_request.number }} merged.' in workflow

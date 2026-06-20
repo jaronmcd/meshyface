@@ -175,7 +175,7 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
     assert payload["current_commit_short"] == "aaaaaaaa"
     assert payload["branches"] == ["beta", "main"]
     assert payload["target_branch"] == "main"
-    assert payload["pull_request_history"] == [
+    expected_history = [
         {
             "number": "42",
             "title": "Add Update tab",
@@ -206,7 +206,55 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "version_commit": "9999999911111111222222223333333344444444",
             "version_commit_short": "99999999",
         },
+        {
+            "number": "",
+            "title": "Internal maintenance commit",
+            "subject": "Internal maintenance commit",
+            "body": "",
+            "message": "Internal maintenance commit",
+            "date": "2026-06-18",
+            "commit": "eeeeeeee11111111222222223333333344444444",
+            "commit_short": "eeeeeeee",
+            "url": "https://github.com/jaronmcd/meshyface/commit/eeeeeeee11111111222222223333333344444444",
+        },
     ]
+    assert payload["commit_history"] == expected_history
+    assert payload["pull_request_history"] == expected_history
+    log_commands = [
+        command
+        for command in runner.commands
+        if command[0:5]
+        == (
+            "log",
+            "--first-parent",
+            "--max-count=25",
+            "--date=short",
+            "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
+        )
+    ]
+    assert log_commands[-1][-1] == "HEAD"
+
+
+def test_update_status_uses_local_selected_branch_history_when_available(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(local_branches={"main", "beta"})
+
+    payload = build_update_status_payload(repo_dir=tmp_path, target_branch="beta", runner=runner)
+
+    assert payload["target_branch"] == "beta"
+    assert ("show-ref", "--verify", "--quiet", "refs/heads/beta") in runner.commands
+    log_commands = [
+        command
+        for command in runner.commands
+        if command[0:5]
+        == (
+            "log",
+            "--first-parent",
+            "--max-count=25",
+            "--date=short",
+            "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
+        )
+    ]
+    assert log_commands[-1][-1] == "beta"
 
 
 def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:

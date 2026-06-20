@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: version-bump-${{ github.event.pull_request.base.ref }}
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   bump-version:
     name: Bump patch version
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'version-bump/')
     runs-on: ubuntu-latest
 
     steps:
@@ -30,21 +31,35 @@ jobs:
       - name: Refresh target branch
         run: git pull --ff-only origin "${{ github.event.pull_request.base.ref }}"
 
+      - name: Check whether PR already bumped version
+        id: changed
+        run: |
+          if git diff-tree --no-commit-id --name-only -r "${{ github.event.pull_request.merge_commit_sha }}" | grep -qx "meshdash/__init__.py"; then
+            echo "version_file_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_file_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python
+        if: steps.changed.outputs.version_file_changed != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Bump version
+        if: steps.changed.outputs.version_file_changed != 'true'
         id: bump
         run: |
           version="$(python scripts/bump_version.py)"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump
+        if: steps.changed.outputs.version_file_changed != 'true'
+        id: commit
         run: |
           if git diff --quiet -- meshdash/__init__.py; then
             echo "Version file was already current."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -52,4 +67,30 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add meshdash/__init__.py
           git commit -m "Bump version to v${{ steps.bump.outputs.version }} [skip ci]"
-          git push origin "HEAD:${{ github.event.pull_request.base.ref }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push version bump branch
+        if: steps.commit.outputs.changed == 'true'
+        id: push
+        run: |
+          branch="version-bump/pr-${{ github.event.pull_request.number }}"
+          git push --force-with-lease origin "HEAD:${branch}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+
+      - name: Open version bump PR
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing_url="$(gh pr list --repo "$GITHUB_REPOSITORY" --base "${{ github.event.pull_request.base.ref }}" --head "${{ steps.push.outputs.branch }}" --state open --json url --jq '.[0].url // ""')"
+          if [ -n "$existing_url" ]; then
+            echo "Version bump PR already exists: ${existing_url}"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "${{ github.event.pull_request.base.ref }}" \
+            --head "${{ steps.push.outputs.branch }}" \
+            --title "Bump version to v${{ steps.bump.outputs.version }}" \
+            --body "Automated version bump after #${{ github.event.pull_request.number }} merged."

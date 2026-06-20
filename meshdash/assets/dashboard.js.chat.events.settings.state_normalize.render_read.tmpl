@@ -882,7 +882,9 @@
     }}
 
     function settingsUpdatePullRequestHistoryRows(info) {{
-      const rows = Array.isArray(info.pull_request_history) ? info.pull_request_history : [];
+      const rows = Array.isArray(info.commit_history)
+        ? info.commit_history
+        : (Array.isArray(info.pull_request_history) ? info.pull_request_history : []);
       return rows.filter((row) => row && typeof row === "object");
     }}
 
@@ -902,18 +904,24 @@
       const host = document.getElementById("settings-update-pr-history");
       if (!(host instanceof HTMLElement)) return;
       const rows = settingsUpdatePullRequestHistoryRows(settingsUpdatePayloadObject(info));
-      const openKeys = new Set(
-        Array.from(host.querySelectorAll(".settings-update-pr-item[open]"))
-          .map((item) => item instanceof HTMLElement ? String(item.dataset.prHistoryKey || "") : "")
-          .filter(Boolean)
-      );
+      const openRows = new Map();
+      for (const item of Array.from(host.querySelectorAll(".settings-update-pr-item[open]"))) {{
+        if (!(item instanceof HTMLElement)) continue;
+        const itemKey = String(item.dataset.prHistoryKey || "");
+        if (!itemKey) continue;
+        const full = item.querySelector(".settings-update-pr-full");
+        openRows.set(itemKey, {{
+          top: full instanceof HTMLElement ? Number(full.scrollTop) || 0 : 0,
+          left: full instanceof HTMLElement ? Number(full.scrollLeft) || 0 : 0,
+        }});
+      }}
       host.replaceChildren();
       if (!rows.length) {{
         const empty = document.createElement("div");
         empty.className = "settings-update-pr-empty";
         empty.textContent = inFlight
-          ? "Checking PR history..."
-          : "No recent PR history found for the selected branch.";
+          ? "Checking commit history..."
+          : "No recent commit history found for the selected branch.";
         host.appendChild(empty);
         return;
       }}
@@ -923,8 +931,9 @@
         const rowKey = settingsUpdatePullRequestHistoryKey(row);
         if (rowKey) {{
           item.dataset.prHistoryKey = rowKey;
-          item.open = openKeys.has(rowKey);
+          item.open = openRows.has(rowKey);
         }}
+        const restoreScroll = rowKey ? openRows.get(rowKey) : null;
 
         const summary = document.createElement("summary");
         summary.className = "settings-update-pr-summary";
@@ -969,13 +978,26 @@
         item.appendChild(summary);
 
         const messageText = String(row.message || row.body || row.subject || row.title || "").trim();
+        let restoreFullScroll = null;
         if (messageText) {{
           const full = document.createElement("pre");
           full.className = "settings-update-pr-full";
           full.textContent = messageText;
+          if (restoreScroll) {{
+            restoreFullScroll = () => {{
+              full.scrollTop = restoreScroll.top;
+              full.scrollLeft = restoreScroll.left;
+            }};
+          }}
           item.appendChild(full);
         }}
         host.appendChild(item);
+        if (restoreFullScroll) {{
+          restoreFullScroll();
+          if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {{
+            window.requestAnimationFrame(restoreFullScroll);
+          }}
+        }}
       }}
     }}
 
