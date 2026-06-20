@@ -740,6 +740,27 @@ def test_dashboard_map_emoji_marker_ring_uses_node_marker_color() -> None:
     assert "border-color: var(--map-node-ring-color, #9db5ff);" in css
 
 
+def test_dashboard_node_emoji_markers_can_be_disabled() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'const nodeEmojiMarkersStorageKey = "meshDashboardNodeEmojiMarkersEnabledV1";' in js
+    assert "let nodeEmojiMarkersEnabled = true;" in js
+    assert "function nodeEmojiMarkersAreEnabled() {" in js
+    assert "function loadNodeEmojiMarkersPreference() {" in js
+    assert "function persistNodeEmojiMarkersPreference() {" in js
+    assert 'runBootStep("loadNodeEmojiMarkersPreference", () => loadNodeEmojiMarkersPreference());' in js
+    assert 'data-map-link-legend-toggle="emoji-markers"' in js
+    assert "nodeEmojiMarkersEnabled = !!emojiMarkersToggle.checked;" in js
+    assert 'if (typeof invalidateNetworkGraphRenderCache === "function") {' in js
+    assert "refreshNetworkMapAfterLegendControlChange({ bypassNodeFade: true });" in js
+    assert 'if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";' in js
+    assert 'if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return false;' in js
+
+
 def test_record_direct_edge_observation_tracks_signal_metrics() -> None:
     session_edges: dict[tuple[str, str], dict[str, object]] = {}
     historical_edges: dict[tuple[str, str], dict[str, object]] = {}

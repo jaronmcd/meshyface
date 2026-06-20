@@ -2386,6 +2386,7 @@
     }}
 
     function resolveMapNodeEmoji(nodeId, state = latestState) {{
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!cleanNodeId) return "";
       const safeState = (state && typeof state === "object") ? state : latestState;
@@ -2398,6 +2399,7 @@
 
     function mapNodeUsesEmojiMarker(nodeId, markerKind = "actual", state = latestState) {{
       if (markerKind !== "actual") return false;
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return false;
       return !!resolveMapNodeEmoji(nodeId, state);
     }}
 

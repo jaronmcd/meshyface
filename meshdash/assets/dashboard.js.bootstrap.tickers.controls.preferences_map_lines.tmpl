@@ -407,6 +407,17 @@
       }}
     }}
 
+    function nodeEmojiMarkersAreEnabled() {{
+      return nodeEmojiMarkersEnabled !== false;
+    }}
+
+    function persistNodeEmojiMarkersPreference() {{
+      try {{
+        window.localStorage.setItem(nodeEmojiMarkersStorageKey, nodeEmojiMarkersAreEnabled() ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
     function persistMapLiveActivityPreference() {{
       try {{
         window.localStorage.setItem(mapLiveActivityStorageKey, mapLiveActivityEnabled ? "1" : "0");
@@ -471,6 +482,19 @@
         }}
         if (Object.prototype.hasOwnProperty.call(parsed, "trilaterated")) {{
           mapRssiTrilateratedNodesEnabled = parsed.trilaterated !== false;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadNodeEmojiMarkersPreference() {{
+      nodeEmojiMarkersEnabled = true;
+      try {{
+        const stored = window.localStorage.getItem(nodeEmojiMarkersStorageKey);
+        if (stored === "0") {{
+          nodeEmojiMarkersEnabled = false;
+        }} else if (stored === "1") {{
+          nodeEmojiMarkersEnabled = true;
         }}
       }} catch (_err) {{
       }}

@@ -3957,6 +3957,7 @@
 
     function networkRoutesScopeNodeEmoji(nodeId, node = null) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";
       if (!cleanNodeId || typeof nodeVisualEmojiForNode !== "function") return "";
       return String(nodeVisualEmojiForNode(cleanNodeId, null, node) || "").trim();
     }}
@@ -5887,6 +5888,7 @@
     function networkGraphVisibleNodeEmojiForNode(nodeId, node = null) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!cleanNodeId) return "";
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";
       const tagEntry = networkGraphVisibleTagEntryForNode(cleanNodeId);
       if (tagEntry && typeof nodeVisualEmojiForNode === "function") {{
         return String(nodeVisualEmojiForNode(cleanNodeId, tagEntry, node) || "").trim();
@@ -8169,6 +8171,7 @@
       networkGraphViewState.cachedCombinedEdges = null;
       networkGraphViewState.cachedLayout = null;
       networkGraphViewState.lastSceneStructureSignature = "";
+      networkGraphViewState.lastSceneDataSignature = "";
       networkGraphViewState.renderedPositions = new Map();
       networkGraphViewState.renderedLayoutSnapshot = null;
     }}

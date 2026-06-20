@@ -478,6 +478,23 @@
           refreshNetworkMapAfterLegendControlChange({{ bypassNodeFade: true }});
         }});
       }}
+      const emojiMarkersToggle = legend.querySelector('[data-map-link-legend-toggle="emoji-markers"]');
+      if (emojiMarkersToggle instanceof HTMLInputElement && emojiMarkersToggle.dataset.boundMapLinkLegend !== "1") {{
+        emojiMarkersToggle.dataset.boundMapLinkLegend = "1";
+        emojiMarkersToggle.addEventListener("change", () => {{
+          nodeEmojiMarkersEnabled = !!emojiMarkersToggle.checked;
+          if (typeof persistNodeEmojiMarkersPreference === "function") {{
+            persistNodeEmojiMarkersPreference();
+          }}
+          if (typeof invalidateNetworkGraphRenderCache === "function") {{
+            invalidateNetworkGraphRenderCache();
+          }} else if (typeof networkGraphViewState !== "undefined" && networkGraphViewState && typeof networkGraphViewState === "object") {{
+            networkGraphViewState.lastSceneStructureSignature = "";
+            networkGraphViewState.lastSceneDataSignature = "";
+          }}
+          refreshNetworkMapAfterLegendControlChange({{ bypassNodeFade: true }});
+        }});
+      }}
       const estimatedToggle = legend.querySelector('[data-map-link-legend-toggle="estimated"]');
       if (estimatedToggle instanceof HTMLInputElement && estimatedToggle.dataset.boundMapLinkLegend !== "1") {{
         estimatedToggle.dataset.boundMapLinkLegend = "1";
@@ -585,6 +602,12 @@
             <span class="map-link-legend-swatch is-node-trilaterated" aria-hidden="true"></span>
             <span class="map-link-legend-name">RSSI trilaterated</span>
             <span class="map-link-legend-count">${{trilateratedCount}}</span>
+          </label>
+          <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#35b96f;" title="Use emoji node markers where nodes have assigned emoji. Turn off for plain green node markers.">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="emoji-markers"${{nodeEmojiMarkersAreEnabled() ? " checked" : ""}} aria-label="Show emoji node markers" />
+            <span class="map-link-legend-swatch is-node-actual" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Emoji markers</span>
+            <span class="map-link-legend-count">${{nodeEmojiMarkersAreEnabled() ? "on" : "off"}}</span>
           </label>
           <label class="map-link-legend-item is-toggle" style="--map-link-legend-color:#bf1f43;" title="Show confirmed packet lines between positioned nodes">
             <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="packet"${{mapPacketLinesEnabled ? " checked" : ""}} aria-label="Show real links" />
