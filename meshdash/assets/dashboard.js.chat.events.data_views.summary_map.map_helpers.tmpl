@@ -1530,6 +1530,7 @@
 
     function seedNetworkMapPacketActivityTokens(state = latestState) {{
       lastNetworkMapPacketTokens = snapshotNetworkMapPacketActivityTokens(state);
+      networkMapPacketActivityPrimed = true;
     }}
 
     function ensureMapTransmitPulsePane() {{
@@ -3273,6 +3274,15 @@
       const nodesToRipple = new Map();
       const directionsToAnimate = [];
       const networkMapVisible = isNetworkMapActivityFlashVisible();
+      if (networkMapVisible && !networkMapPacketActivityPrimed) {{
+        seedNetworkMapPacketActivityTokens(safeState);
+        mapNodeActivityFlashById.clear();
+        clearMapNodeTransmitPulseRings();
+        clearMapNodeActivityDirections();
+        clearMapTracePaths();
+        stopMapNodeActivityFlashLoop();
+        return;
+      }}
       for (const packetEntry of recentPackets) {{
         if (!isMeshRadioActivityPacket(packetEntry, localNodeId)) continue;
         const token = mapPacketActivityToken(packetEntry);
@@ -3324,9 +3334,11 @@
         }});
       }}
       lastNetworkMapPacketTokens = currentTokens;
+      networkMapPacketActivityPrimed = true;
       if (!networkMapVisible || (nodesToFlash.size <= 0 && nodesToRipple.size <= 0 && directionsToAnimate.length <= 0)) {{
         if (!networkMapVisible) {{
           lastNetworkMapPacketTokens = currentTokens;
+          networkMapPacketActivityPrimed = true;
           mapNodeActivityFlashById.clear();
           clearMapNodeTransmitPulseRings();
           clearMapNodeActivityDirections();

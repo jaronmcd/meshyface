@@ -780,6 +780,7 @@
       const graphChanged = lastMapRenderMode !== "graph" || graphSignature !== lastMapGraphSignature;
       const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;
       const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;
+      const allowInitialNetworkNodeFade = activeLayoutView === "network" && !networkMapGraphRenderSeen && !bypassNodeFade;
       if (!shouldRenderGraph && signature === lastMapSignature) {{
         ensureMapSizeSync();
         if (activeLayoutView === "network" && !fitDone) {{
@@ -809,9 +810,13 @@
               mode: effectiveMapLinkMode !== "none" ? effectiveMapLinkMode : "both",
             }})
           : {{ estimates: new Map(), lines: [] }};
-        const densitySourceOverlayUnsmoothed = needsMapLinkEstimateOverlay
+        const densitySourceOverlayUnsmoothed = (
+          needsMapLinkEstimateOverlay
+          && effectiveMapLinkMode !== "both"
+          && effectiveMapLinkMode !== "none"
+        )
           ? buildMapLinkLayerOverlay(nodes, mapRenderEdges, {{ mode: "both" }})
-          : {{ estimates: new Map(), lines: [] }};
+          : rawLinkOverlayUnsmoothed;
         const densitySourceOverlay = smoothMapLinkLayerOverlay(densitySourceOverlayUnsmoothed, {{
           updateCache: true,
         }});
@@ -1036,17 +1041,23 @@
               || fadeExistingEstimatedMarkerOut
             )
           );
-          let fadeEstimatedMarkerBaseStyle = null;
-          let fadeEstimatedMarkerInitialStyle = null;
-          if (fadeEstimatedMarkerIn) {{
-            fadeEstimatedMarkerBaseStyle = resolveMapNodeMarkerStyle(
+          const fadeInitialMarkerIn = !!(
+            allowInitialNetworkNodeFade
+            && !existingMarker
+            && !canDriftExistingEstimatedMarker
+          );
+          const fadeMarkerIn = fadeEstimatedMarkerIn || fadeInitialMarkerIn;
+          let fadeMarkerBaseStyle = null;
+          let fadeMarkerInitialStyle = null;
+          if (fadeMarkerIn) {{
+            fadeMarkerBaseStyle = resolveMapNodeMarkerStyle(
               normalizedId,
               isSelected,
               markerKind,
               markerConfidence,
               latestState
             );
-            fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);
+            fadeMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeMarkerBaseStyle, 0);
           }}
           if (!marker) {{
             marker = createMapNodeMarker(
@@ -1057,9 +1068,9 @@
               markerKind,
               markerConfidence,
               latestState,
-              fadeEstimatedMarkerInitialStyle
+              fadeMarkerInitialStyle
                 ? {{
-                  initialStyle: fadeEstimatedMarkerInitialStyle,
+                  initialStyle: fadeMarkerInitialStyle,
                   initialElementOpacity: 0,
                 }}
                 : null
@@ -1114,9 +1125,9 @@
               selectNode(normalizedId, true, false);
             }});
           }}
-          if (fadeEstimatedMarkerIn) {{
-            marker._meshMapNodeMarkerFadeBaseStyle = (fadeEstimatedMarkerBaseStyle && typeof fadeEstimatedMarkerBaseStyle === "object")
-              ? Object.assign({{}}, fadeEstimatedMarkerBaseStyle)
+          if (fadeMarkerIn) {{
+            marker._meshMapNodeMarkerFadeBaseStyle = (fadeMarkerBaseStyle && typeof fadeMarkerBaseStyle === "object")
+              ? Object.assign({{}}, fadeMarkerBaseStyle)
               : (marker.options && typeof marker.options === "object")
               ? Object.assign({{}}, marker.options)
               : {{}};
@@ -1125,10 +1136,10 @@
           if (!canDriftExistingEstimatedMarker) {{
             marker.addTo(nodeLayer);
           }}
-          if (fadeEstimatedMarkerIn) {{
+          if (fadeMarkerIn) {{
             fadeInMapNodeMarker(marker, {{
               layerGroup: nodeLayer,
-              durationMs: mapEstimatedOverlayLongJumpFadeMs,
+              durationMs: fadeInitialMarkerIn ? 520 : mapEstimatedOverlayLongJumpFadeMs,
               baseStyle: marker._meshMapNodeMarkerFadeBaseStyle,
             }});
           }}

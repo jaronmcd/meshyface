@@ -182,7 +182,14 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function buildMapRssiTrilaterationEstimates(positions, adjacency, options = null)" in js
     assert "function ensureBackendLocationEstimates(modeRaw, options = null)" in js
     assert 'fetch(`/api/history/location_estimates?${params.toString()}`' in js
+    assert "function backendLocationEstimateSignature(estimates)" in js
+    assert "function updateBackendLocationEstimateSignature(windowName, estimates)" in js
+    assert "let networkMapPacketActivityPrimed = false;" in js
+    assert "function seedNetworkMapPacketActivityTokens(state = latestState)" in js
+    assert "if (networkMapVisible && !networkMapPacketActivityPrimed)" in js
+    assert "networkMapPacketActivityPrimed = true;" in js
     assert "let estimates = new Map(backendEstimates);" in js
+    assert "if (backendEstimates.size > 0 || (backendRequestPending && !backendCacheKnown))" in js
     assert "const rssiTrilaterationEstimates = buildMapRssiTrilaterationEstimates" in js
     assert 'estimateSource: "rssi_trilateration",' in js
     assert "RSSI trilaterated" in js
@@ -251,8 +258,8 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
     assert "cancelMapNodeMarkerFade(existingMarker);\n              cancelMapMarkerDrift(existingMarker);\n              nodeLayer.removeLayer(existingMarker);" in js
-    assert "fadeEstimatedMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeEstimatedMarkerBaseStyle, 0);" in js
-    assert "initialStyle: fadeEstimatedMarkerInitialStyle," in js
+    assert "fadeMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeMarkerBaseStyle, 0);" in js
+    assert "initialStyle: fadeMarkerInitialStyle," in js
     assert "initialElementOpacity: 0," in js
     assert "setMapNodeMarkerElementOpacity(marker, 0);" in js
     assert "setMapNodeMarkerOpacityScale(marker, 0, marker._meshMapNodeMarkerFadeBaseStyle);" in js
@@ -278,6 +285,11 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function cancelMapHeatLayerOpacityFade(layer)" in js
     assert "const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;" in js
     assert "if (!shouldRenderGraph && signature === lastMapSignature)" in js
+    assert 'const allowInitialNetworkNodeFade = activeLayoutView === "network" && !networkMapGraphRenderSeen && !bypassNodeFade;' in js
+    assert "const fadeInitialMarkerIn = !!(" in js
+    assert "durationMs: fadeInitialMarkerIn ? 520 : mapEstimatedOverlayLongJumpFadeMs" in js
+    assert "&& effectiveMapLinkMode !== \"both\"" in js
+    assert ": rawLinkOverlayUnsmoothed;" in js
     assert "const densitySourceOverlay = smoothMapLinkLayerOverlay(densitySourceOverlayUnsmoothed, {" in js
     assert "const rawLinkOverlay = smoothMapLinkLayerOverlay(rawLinkOverlayUnsmoothed, {" in js
     assert "mapEstimatedPositionSmoothingActive = anyActive;" in js
