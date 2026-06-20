@@ -286,7 +286,7 @@
       const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
 
       const gradient = resolveSignalHeatGradient(key);
-      signalHeatmapLayers[key] = signalHeatBucketDefs.map((bucket) => {{
+      signalHeatmapLayers[key] = signalHeatBucketDefs.map((bucket, bucketIndex) => {{
         const baseRadiusMul = Number(bucket.radiusMul) || 1;
         const baseBlurMul = Number(bucket.blurMul) || 1;
         const radiusMul = 1 + ((baseRadiusMul - 1) * signalGain);
@@ -303,7 +303,7 @@
           140,
           baseBlur
         );
-        return L.heatLayer(
+        const layer = L.heatLayer(
           [],
           Object.assign(
             {{ pane: paneName }},
@@ -311,6 +311,9 @@
             {{ radius, blur, minOpacity: baseOpacity, gradient }}
           )
         );
+        layer._meshSignalHeatmapMode = key;
+        layer._meshSignalHeatmapBucketIndex = bucketIndex;
+        return layer;
       }});
       return signalHeatmapLayers[key];
     }}
@@ -322,6 +325,17 @@
       // Some leaflet.heat builds render into overlayPane (ignoring custom panes),
       // which can block marker hover/click unless canvas hit-testing is disabled.
       canvas.style.pointerEvents = "none";
+    }}
+
+    function applySignalHeatmapLayerCanvasStacking(layer, mode = "coverage") {{
+      if (!layer || typeof layer !== "object") return;
+      const canvas = layer._canvas;
+      if (!(canvas instanceof HTMLCanvasElement)) return;
+      const key = normalizeSignalHeatmapMode(mode) === "live" ? "live" : "coverage";
+      const zIndex = key === "live" ? 431 : 430;
+      canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = String(zIndex);
+      canvas.dataset.meshSignalHeatmapMode = key;
     }}
 
     function signalHeatmapMapHasDrawableSize() {{

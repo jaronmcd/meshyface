@@ -34,7 +34,8 @@ def test_dashboard_html_adds_map_link_layer_toggle() -> None:
     assert 'aria-label="Map links legend"' in html
     assert ">Packet Lines</span>" not in html
     assert "Choose whether the link layer shows history links, live links, or both" not in html
-    assert 'class="map-control-group map-heatmap-controls"' in html
+    assert 'class="map-control-group map-heatmap-controls"' not in html
+    assert 'id="map-heatmap-mode"' not in html
 
 
 def test_dashboard_js_supports_map_link_layer_overlay() -> None:
@@ -91,8 +92,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'estimated: mode !== "none",' in js
     assert "function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null)" in js
     assert "function bindMapLinkLegendControls(legend)" in js
-    assert 'data-map-link-legend-toggle="signal-coverage"' in js
-    assert 'data-map-link-legend-toggle="signal-live"' in js
+    assert 'data-map-link-legend-toggle="signal-heatmap"' in js
+    assert 'data-map-link-legend-toggle="signal-coverage"' not in js
+    assert 'data-map-link-legend-toggle="signal-live"' not in js
     assert 'data-map-link-legend-toggle="packet"' in js
     assert 'data-map-link-legend-toggle="estimated-heatmap"' in js
     assert 'data-map-link-legend-toggle="real-nodes"' in js
@@ -100,13 +102,14 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'data-map-link-legend-toggle="rssi-trilaterated-nodes"' in js
     assert 'data-map-link-legend-toggle="estimated"' in js
     assert "Map layers" in js
-    assert "Coverage" in js
-    assert "Live" in js
+    assert "Signal heatmap" in js
+    assert 'applySignalHeatmapMode(signalHeatmapToggle.checked ? "both" : "none");' in js
     assert "Inferred heatmap" in js
     assert 'collectSignalHeatmapBuckets(nodes, signalHeatProfile, "coverage")' in js
     assert 'collectSignalHeatmapBuckets(nodes, signalHeatProfile, "live")' in js
-    assert "const signalCoveragePointCount = signalCoverageBuckets.reduce(" in js
-    assert "const signalLivePointCount = signalLiveBuckets.reduce(" in js
+    assert "signalCoverageBuckets = maskSignalCoverageBucketsWithLive(signalCoverageBuckets, signalLiveBuckets);" in js
+    assert "const signalHeatmapPointCount = (" in js
+    assert "+ signalHeatmapBucketPointCount(signalLiveBuckets)" in js
     assert "const inferredHeatmapCount = Math.max(" in js
     assert "Common paths" in js
     assert 'renderMapLinkLegend(nodes, mapRenderEdges, estimatedPositions, linkOverlay);' in js
@@ -220,6 +223,15 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
         'markerConfidence = 0.45, state = latestState, options = null)'
         in js
     )
+    assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
+    assert "function ensureMapNodeMarkerPane()" in js
+    assert 'pane.style.zIndex = "620";' in js
+    assert "pane: mapNodeMarkerPaneName," in js
+    assert "markerStyle.pane = mapNodeMarkerPaneName;" in js
+    assert 'radius: 6.4,' in js
+    assert 'color: "#062f20",' in js
+    assert 'fillOpacity: 0.9,' in js
+    assert 'weight: 1.8,' in js
     assert "function trilateratedMarkerStyle(isSelected, confidence = 0.5, isLocal = false)" in js
     assert 'color: "#cc79a7",' in js
     assert 'fillColor: "#f4a7c7",' in js
@@ -316,12 +328,20 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert '0.46: "#0a9396",' in js
     assert '1.0: "#caf0f8",' in js
     assert "function resolveSignalHeatGradient(mode = signalHeatmapMode) {" in js
-    assert "Signal heatmap toggles live in the map legend." in js
+    assert "Signal heatmap is controlled from the map legend." in js
     assert "function signalHeatmapPaneNameForMode(mode = \"coverage\")" in js
     assert 'pane.style.zIndex = key === "live" ? "431" : "430";' in js
     assert "function ensureSignalHeatmapLayers(mode = \"coverage\")" in js
+    assert "layer._meshSignalHeatmapMode = key;" in js
+    assert "function applySignalHeatmapLayerCanvasStacking(layer, mode = \"coverage\")" in js
+    assert 'const zIndex = key === "live" ? 431 : 430;' in js
+    assert "canvas.style.zIndex = String(zIndex);" in js
+    assert "canvas.dataset.meshSignalHeatmapMode = key;" in js
     assert "collectSignalHeatmapBuckets(nodes, profile, mode)" in js
     assert "collectSavedNodeHeatmapBuckets(nodes, profile, mode)" in js
+    assert "function signalHeatmapPointMaskKey(point)" in js
+    assert "function signalHeatmapBucketPointCount(buckets)" in js
+    assert "function maskSignalCoverageBucketsWithLive(coverageBuckets, liveBuckets)" in js
     assert "function signalHeatmapMapHasDrawableSize()" in js
     assert "const mapDrawable = signalHeatmapMapHasDrawableSize();" in js
     assert "&& mapDrawable" in js
@@ -334,6 +354,10 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "keyPrefix: `signal:${state.mode}:${i}`," in js
     assert "function syncSignalHeatmapLayer(nodes, forceHide = false, options = null)" in js
     assert "const bypassFade = !!opts.bypassFade;" in js
+    assert "coverageState.buckets = maskSignalCoverageBucketsWithLive(coverageState.buckets, liveState.buckets);" in js
+    assert "applySignalHeatmapLayerCanvasStacking(layer, state.mode);" in js
+    assert 'const liveRadiusMul = state.mode === "live" ? 0.72 : 1;' not in js
+    assert 'const liveBlurMul = state.mode === "live" ? 0.68 : 1;' not in js
     assert "const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));" in js
     assert "if (!desiredLayerVisible) {" in js
     assert "removeSignalHeatmapLayerSafely(layer, { fade: !bypassFade });" in js
@@ -547,8 +571,8 @@ def test_dashboard_css_positions_map_link_legend_below_zoom() -> None:
     assert ".map-link-legend-swatch.is-node-trilaterated::before {" in css
     assert "var(--map-link-legend-color, #cc79a7)" in css
     assert ".map-link-legend-swatch.is-link-heat::before {" in css
-    assert ".map-link-legend-swatch.is-signal-coverage-heat::before" in css
-    assert ".map-link-legend-swatch.is-signal-live-heat::before" in css
+    assert ".map-link-legend-swatch.is-signal-heat::before" in css
+    assert "#a96800 42%, #0a9396 58%" in css
     assert ".map-link-legend-swatch.is-cloud-heat::before" in css
 
 
@@ -599,6 +623,7 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "const mapNodeTransmitPulseRings = new Set();" in js
     assert "const mapNodeTransmitPulseMaxRings = 72;" in js
     assert "let mapTraceProgressTimer = null;" in js
+    assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
     assert 'const mapTransmitPulsePaneName = "mapTransmitPulsePane";' in js
     assert "let mapNodeActivityFlashRaf = null;" in js
     assert "let lastNetworkMapPacketTokens = new Set();" in js

@@ -153,6 +153,20 @@
     const mapFrameElement = mapElement ? mapElement.closest(".map-frame") : null;
     const topbarElement = document.querySelector(".topbar");
     const topbarNotifyCornerElement = document.querySelector(".topbar-notify-corner");
+    const mapNodeMarkerPaneName = "mapNodeMarkerPane";
+    function ensureMapNodeMarkerPane() {{
+      if (!map || typeof map.getPane !== "function") return null;
+      let pane = map.getPane(mapNodeMarkerPaneName);
+      if (!pane && typeof map.createPane === "function") {{
+        pane = map.createPane(mapNodeMarkerPaneName);
+      }}
+      if (pane) {{
+        pane.style.zIndex = "620";
+        pane.style.pointerEvents = "auto";
+      }}
+      return pane;
+    }}
+    ensureMapNodeMarkerPane();
     const nodeLayer = L.layerGroup().addTo(map);
     const edgeLayer = L.layerGroup().addTo(map);
     const trailLayer = L.layerGroup().addTo(map);

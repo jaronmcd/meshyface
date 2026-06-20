@@ -2976,6 +2976,7 @@
           keyboard: false,
           bubblingMouseEvents: false,
           riseOnHover: true,
+          pane: mapNodeMarkerPaneName,
           zIndexOffset: isSelected ? 200 : 120,
         }});
         bindMapNodeMarkerElementOpacitySync(marker);
@@ -2988,6 +2989,7 @@
       const markerStyle = (opts.initialStyle && typeof opts.initialStyle === "object")
         ? Object.assign({{}}, resolvedStyle, opts.initialStyle)
         : resolvedStyle;
+      markerStyle.pane = mapNodeMarkerPaneName;
       const marker = L.circleMarker(
         [lat, lon],
         markerStyle

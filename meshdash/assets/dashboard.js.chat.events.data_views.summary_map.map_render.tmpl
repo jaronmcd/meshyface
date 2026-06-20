@@ -415,30 +415,18 @@
           refreshNetworkMapAfterLegendControlChange({{ bypassHeatmapFade: true }});
         }});
       }}
-      const signalCoverageToggle = legend.querySelector('[data-map-link-legend-toggle="signal-coverage"]');
-      if (signalCoverageToggle instanceof HTMLInputElement && signalCoverageToggle.dataset.boundMapLinkLegend !== "1") {{
-        signalCoverageToggle.dataset.boundMapLinkLegend = "1";
-        signalCoverageToggle.addEventListener("change", () => {{
-          signalHeatmapCoverageEnabled = !!signalCoverageToggle.checked;
-          signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
-          signalHeatmapMode = typeof signalHeatmapModeFromLayerToggles === "function"
-            ? signalHeatmapModeFromLayerToggles()
-            : (signalHeatmapEnabled ? "coverage" : "none");
-          if (typeof persistSignalHeatmapModePreference === "function") {{
-            persistSignalHeatmapModePreference();
+      const signalHeatmapToggle = legend.querySelector('[data-map-link-legend-toggle="signal-heatmap"]');
+      if (signalHeatmapToggle instanceof HTMLInputElement && signalHeatmapToggle.dataset.boundMapLinkLegend !== "1") {{
+        signalHeatmapToggle.dataset.boundMapLinkLegend = "1";
+        signalHeatmapToggle.addEventListener("change", () => {{
+          if (typeof applySignalHeatmapMode === "function") {{
+            applySignalHeatmapMode(signalHeatmapToggle.checked ? "both" : "none");
+          }} else {{
+            signalHeatmapCoverageEnabled = !!signalHeatmapToggle.checked;
+            signalHeatmapLiveEnabled = !!signalHeatmapToggle.checked;
+            signalHeatmapEnabled = !!signalHeatmapToggle.checked;
+            signalHeatmapMode = signalHeatmapToggle.checked ? "both" : "none";
           }}
-          refreshNetworkMapAfterLegendControlChange({{ bypassHeatmapFade: true }});
-        }});
-      }}
-      const signalLiveToggle = legend.querySelector('[data-map-link-legend-toggle="signal-live"]');
-      if (signalLiveToggle instanceof HTMLInputElement && signalLiveToggle.dataset.boundMapLinkLegend !== "1") {{
-        signalLiveToggle.dataset.boundMapLinkLegend = "1";
-        signalLiveToggle.addEventListener("change", () => {{
-          signalHeatmapLiveEnabled = !!signalLiveToggle.checked;
-          signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
-          signalHeatmapMode = typeof signalHeatmapModeFromLayerToggles === "function"
-            ? signalHeatmapModeFromLayerToggles()
-            : (signalHeatmapEnabled ? "live" : "none");
           if (typeof persistSignalHeatmapModePreference === "function") {{
             persistSignalHeatmapModePreference();
           }}
@@ -547,18 +535,20 @@
       const estimatedLinksEnabled = !!modeParts.estimatedLinks;
       const signalHeatProfile = resolveSignalHeatProfile();
       const signalHeatmapSupported = supportsSignalHeatmap();
-      const signalCoverageBuckets = signalHeatmapSupported
+      let signalCoverageBuckets = signalHeatmapSupported
         ? collectSignalHeatmapBuckets(nodes, signalHeatProfile, "coverage")
         : [];
       const signalLiveBuckets = signalHeatmapSupported
         ? collectSignalHeatmapBuckets(nodes, signalHeatProfile, "live")
         : [];
-      const signalCoveragePointCount = signalCoverageBuckets.reduce((count, bucket) => (
-        count + (Array.isArray(bucket) ? bucket.length : 0)
-      ), 0);
-      const signalLivePointCount = signalLiveBuckets.reduce((count, bucket) => (
-        count + (Array.isArray(bucket) ? bucket.length : 0)
-      ), 0);
+      if (signalHeatmapCoverageEnabled && signalHeatmapLiveEnabled) {{
+        signalCoverageBuckets = maskSignalCoverageBucketsWithLive(signalCoverageBuckets, signalLiveBuckets);
+      }}
+      const signalHeatmapPointCount = (
+        signalHeatmapBucketPointCount(signalCoverageBuckets)
+        + signalHeatmapBucketPointCount(signalLiveBuckets)
+      );
+      const signalHeatmapLegendEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
       const inferredHeatmapCount = Math.max(
         0,
         Math.trunc(Number(linkDensity && (linkDensity.cloudCount || linkDensity.corePointCount)) || 0)
@@ -567,17 +557,11 @@
       legend.innerHTML = `
         <div class="map-link-legend-title">Map layers</div>
         <div class="map-link-legend-list">
-          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#d9951a;" title="Show amber historical signal coverage">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-coverage"${{signalHeatmapCoverageEnabled ? " checked" : ""}} aria-label="Show signal coverage heatmap" />
-            <span class="map-link-legend-swatch is-signal-coverage-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Coverage</span>
-            <span class="map-link-legend-count">${{signalCoveragePointCount}}</span>
-          </label>
-          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#0a9396;" title="Show cyan live signal heatmap over coverage">
-            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-live"${{signalHeatmapLiveEnabled ? " checked" : ""}} aria-label="Show live signal heatmap" />
-            <span class="map-link-legend-swatch is-signal-live-heat" aria-hidden="true"></span>
-            <span class="map-link-legend-name">Live</span>
-            <span class="map-link-legend-count">${{signalLivePointCount}}</span>
+          <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#0a9396;" title="Show two-color signal heatmap: amber coverage and cyan live">
+            <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-heatmap"${{signalHeatmapLegendEnabled ? " checked" : ""}} aria-label="Show signal heatmap" />
+            <span class="map-link-legend-swatch is-signal-heat" aria-hidden="true"></span>
+            <span class="map-link-legend-name">Signal heatmap</span>
+            <span class="map-link-legend-count">${{signalHeatmapPointCount}}</span>
           </label>
           <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#5fa4ff;" title="Show inferred node density heatmap">
             <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="estimated-heatmap"${{inferredHeatmapEnabled ? " checked" : ""}} aria-label="Show inferred heatmap" />

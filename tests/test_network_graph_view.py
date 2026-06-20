@@ -45,7 +45,7 @@ def test_dashboard_html_adds_network_graph_subview() -> None:
     assert 'id="map-fullscreen-toggle-btn"' in html
     assert 'class="map-fullscreen-toggle-btn network-fullscreen-toggle-btn"' in html
     assert 'aria-label="Enter full screen network view"' in html
-    assert html.index('id="map-heatmap-mode"') < html.index('id="map-fullscreen-toggle-btn"')
+    assert 'id="map-heatmap-mode"' not in html
     assert html.index('<div id="map"></div>') < html.index('id="map-basemap-dock"')
     assert html.index('id="map-basemap-status"') < html.index('id="map-link-legend"')
     assert html.index('id="network-map-controls-host"') < html.index('id="map-fullscreen-toggle-btn"')
@@ -229,6 +229,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
         'markerConfidence = 0.45, state = latestState, options = null)'
         in js
     )
+    assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
+    assert "markerStyle.pane = mapNodeMarkerPaneName;" in js
     assert 'function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState)' in js
     assert 'function networkGraphVisibleNodeEmojiForNode(nodeId, node = null)' in js
     assert "networkGraphVisibleNodeEmojiForNode(nodeId, item && item.node)" in js

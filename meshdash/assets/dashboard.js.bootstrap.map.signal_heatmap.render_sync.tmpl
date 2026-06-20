@@ -9,10 +9,10 @@
         modeWrap.hidden = true;
         modeWrap.classList.toggle("disabled", !supported);
         const profileText = profileLabel ? ` Tuned for ${{profileLabel}}.` : "";
-        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5 ? " Coverage is geo-locked." : "";
+        const geoText = signalHeatDevKnobs.geoRadiusLock >= 0.5 ? " Coverage radius is geo-locked." : "";
         const devText = " Dev knobs: window.meshHeatmapDev.get()/set()/reset().";
         const baseTitle = supported
-          ? `Signal heatmap toggles live in the map legend.${{profileText}}${{geoText}}${{devText}}`
+          ? `Signal heatmap is controlled from the map legend.${{profileText}}${{geoText}}${{devText}}`
           : "Heatmap overlay is unavailable (leaflet.heat not loaded).";
         if (Number.isFinite(pointsCount)) {{
           modeWrap.title = `${{baseTitle}} Active nodes with signal+position: ${{pointsCount}}.`;
@@ -55,6 +55,18 @@
           gradient: resolveSignalHeatGradient(mode),
         }};
       }});
+      const coverageState = modeStates.find((state) => state && state.mode === "coverage") || null;
+      const liveState = modeStates.find((state) => state && state.mode === "live") || null;
+      if (
+        coverageState
+        && liveState
+        && coverageState.enabled
+        && liveState.enabled
+        && liveState.pointsCount > 0
+      ) {{
+        coverageState.buckets = maskSignalCoverageBucketsWithLive(coverageState.buckets, liveState.buckets);
+        coverageState.pointsCount = signalHeatmapBucketPointCount(coverageState.buckets);
+      }}
       const supported = modeStates.some((state) => !!state.supported);
       const totalPointsCount = modeStates.reduce((acc, state) => acc + Math.max(0, Number(state.pointsCount) || 0), 0);
       signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
@@ -131,18 +143,16 @@
           const baseBlurMul = Number(bucket.blurMul);
           const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
           const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
-          const liveRadiusMul = state.mode === "live" ? 0.72 : 1;
-          const liveBlurMul = state.mode === "live" ? 0.68 : 1;
           const visual = savedSingleNodeMode
             ? {{
                 radius: clampNumber(
-                  Math.round(baseVisual.radius * 1.3 * liveRadiusMul),
+                  Math.round(baseVisual.radius * 1.3),
                   10,
                   160,
                   baseVisual.radius
                 ),
                 blur: clampNumber(
-                  Math.round(baseVisual.blur * 1.2 * liveBlurMul),
+                  Math.round(baseVisual.blur * 1.2),
                   8,
                   140,
                   baseVisual.blur
@@ -152,13 +162,13 @@
               }}
             : {{
                 radius: clampNumber(
-                  Math.round(baseVisual.radius * radiusMul * liveRadiusMul),
+                  Math.round(baseVisual.radius * radiusMul),
                   10,
                   160,
                   baseVisual.radius
                 ),
                 blur: clampNumber(
-                  Math.round(baseVisual.blur * blurMul * liveBlurMul),
+                  Math.round(baseVisual.blur * blurMul),
                   8,
                   140,
                   baseVisual.blur
@@ -172,6 +182,7 @@
             setMapHeatLayerCanvasOpacity(layer, bypassFade ? 1 : 0);
           }}
           forceHeatLayerPointerPassthrough(layer);
+          applySignalHeatmapLayerCanvasStacking(layer, state.mode);
           if (typeof layer.setOptions === "function") {{
             layer.setOptions(visual);
           }}
