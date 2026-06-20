@@ -232,7 +232,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("settings-update-pr-history")' in js
     assert 'const item = document.createElement("details");' in js
     assert "item.dataset.prHistoryKey = rowKey;" in js
-    assert "item.open = openKeys.has(rowKey);" in js
+    assert "item.open = openRows.has(rowKey);" in js
+    assert 'const full = item.querySelector(".settings-update-pr-full");' in js
+    assert "full.scrollTop = restoreScroll.top;" in js
+    assert "window.requestAnimationFrame(restoreFullScroll);" in js
     assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
     assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
