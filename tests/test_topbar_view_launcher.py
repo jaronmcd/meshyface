@@ -57,6 +57,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' in html
     assert 'id="settings-about-commit"' in html
+    assert 'id="settings-tab-update-btn"' in html
+    assert 'data-settings-tab="update"' in html
+    assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
     assert 'id="settings-update-status"' in html
     assert 'id="settings-update-branch"' in html
     assert 'id="settings-update-check"' in html
@@ -192,8 +195,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
     assert 'document.getElementById("settings-about-version")' in js
     assert 'document.getElementById("settings-about-commit")' in js
+    assert '|| key === "update"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false) {" in js
+    assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js

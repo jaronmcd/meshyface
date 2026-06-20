@@ -134,10 +134,16 @@ python -m pytest \
   --cov-report=term
 ```
 
+Run the local coverage gate with the stricter 85% minimum:
+
+```bash
+scripts/run_coverage_local.sh
+```
+
 Coverage intentionally excludes the ported Zork engine package from scoring,
 but Zork bot and routing tests still run. GitHub Actions publishes the same
-coverage report as an advisory PR comment and artifact; no minimum is enforced
-yet.
+coverage report as an advisory PR comment and artifact, and fails below 80%.
+The local gate stays 5 percentage points higher than CI.
 
 ## Standalone Install
 

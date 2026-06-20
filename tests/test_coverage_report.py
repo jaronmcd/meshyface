@@ -55,3 +55,15 @@ def test_coverage_report_summarizes_total_and_largest_gaps() -> None:
     assert "| Missing | 20 |" in markdown
     assert markdown.index("meshdash/big_gap.py") < markdown.index("meshdash/small_gap.py")
     assert "[Actions run](https://example.test/run)" in markdown
+
+
+def test_local_coverage_gate_stays_stricter_than_ci() -> None:
+    ci_workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    local_runner = Path("scripts/run_coverage_local.sh").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "--cov-fail-under=80" in ci_workflow
+    assert 'COVERAGE_MIN="${MESH_LOCAL_COVERAGE_MIN:-85}"' in local_runner
+    assert '--cov-fail-under="${COVERAGE_MIN}"' in local_runner
+    assert "stricter 85% minimum" in readme
+    assert "fails below 80%" in readme

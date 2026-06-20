@@ -153,6 +153,7 @@
         || key === "nodes"
         || key === "lists"
         || key === "appearance"
+        || key === "update"
         || key === "system"
       ) return key === "lists" ? "nodes" : key;
       return "core";
@@ -233,6 +234,10 @@
         }}
         if (typeof hydrateSettingsDatabaseInfo === "function") {{
           void hydrateSettingsDatabaseInfo(false);
+        }}
+      }} else if (next === "update") {{
+        if (typeof hydrateSettingsUpdateStatus === "function") {{
+          void hydrateSettingsUpdateStatus(false);
         }}
       }}
     }}

@@ -779,6 +779,16 @@
               Appearance
             </button>
             <button
+              id="settings-tab-update-btn"
+              class="settings-tab-btn workspace-pill-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-settings-tab="update"
+            >
+              Update
+            </button>
+            <button
               id="settings-tab-system-btn"
               class="settings-tab-btn workspace-pill-btn"
               type="button"
@@ -2221,6 +2231,25 @@
                 <div class="chat-settings-meta-item">Git: <span id="settings-about-commit">loading...</span></div>
                 <div class="chat-settings-meta-item">{safety_label}</div>
               </div>
+              <span id="disk-meter" class="disk-meter settings-system-disk-meter" title="Disk free on dashboard host">
+                <span id="disk-label" class="disk-label">Disk free: n/a</span>
+                <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
+              </span>
+              <div class="settings-row settings-row-danger">
+                <button id="settings-reset-local-state" class="btn btn-danger" type="button">Reset All Local Settings</button>
+                <button id="settings-reset-nodedb" class="btn btn-danger" type="button">Reset Radio NodeDB</button>
+                <button id="settings-reset-dashboard-db" class="btn btn-danger" type="button">Reset Dashboard DB</button>
+                <span class="settings-danger-note">Danger zone: browser-local reset clears this dashboard origin&apos;s stored settings, location cache, session state, and browser databases. The radio and dashboard DB reset buttons remain separate.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="update" hidden>
+            <h3>Update</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                GitHub update controls for this dashboard checkout.
+              </div>
               <div class="settings-update-panel">
                 <div id="settings-update-status" class="settings-help-note">Update status not checked.</div>
                 <label class="settings-field settings-update-branch-field">
@@ -2234,16 +2263,6 @@
                   <button id="settings-update-apply" class="btn btn-secondary" type="button" disabled>Update from GitHub</button>
                   <button id="settings-update-reload" class="btn btn-secondary" type="button" disabled>Reload Backend</button>
                 </div>
-              </div>
-              <span id="disk-meter" class="disk-meter settings-system-disk-meter" title="Disk free on dashboard host">
-                <span id="disk-label" class="disk-label">Disk free: n/a</span>
-                <span class="disk-track"><span id="disk-fill" class="disk-fill"></span></span>
-              </span>
-              <div class="settings-row settings-row-danger">
-                <button id="settings-reset-local-state" class="btn btn-danger" type="button">Reset All Local Settings</button>
-                <button id="settings-reset-nodedb" class="btn btn-danger" type="button">Reset Radio NodeDB</button>
-                <button id="settings-reset-dashboard-db" class="btn btn-danger" type="button">Reset Dashboard DB</button>
-                <span class="settings-danger-note">Danger zone: browser-local reset clears this dashboard origin&apos;s stored settings, location cache, session state, and browser databases. The radio and dashboard DB reset buttons remain separate.</span>
               </div>
             </div>
           </div>
