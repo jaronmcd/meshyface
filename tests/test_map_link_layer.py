@@ -180,6 +180,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function mapLinkRangeFromSignal(edge)" in js
     assert "function solveMapRssiTrilateration(nodeId, seedPosition, anchors)" in js
     assert "function buildMapRssiTrilaterationEstimates(positions, adjacency, options = null)" in js
+    assert "function ensureBackendLocationEstimates(modeRaw, options = null)" in js
+    assert 'fetch(`/api/history/location_estimates?${params.toString()}`' in js
+    assert "let estimates = new Map(backendEstimates);" in js
     assert "const rssiTrilaterationEstimates = buildMapRssiTrilaterationEstimates" in js
     assert 'estimateSource: "rssi_trilateration",' in js
     assert "RSSI trilaterated" in js

@@ -74,6 +74,7 @@ def _copy_state_fn_attrs(target_fn: object, source_fn: object) -> None:
         "raw_nodes_full",
         "top_nodes_fn",
         "link_edges_fn",
+        "location_estimates_fn",
         "database_stats_fn",
         "_sensitive_field_names",
     ):
@@ -301,6 +302,12 @@ def build_dashboard_runtime_loaders_with_dependencies(
     if callable(link_edges_fn):
         try:
             setattr(state_fn, "link_edges_fn", link_edges_fn)
+        except Exception:
+            pass
+    location_estimates_fn = getattr(dependencies.history_store, "load_location_estimates", None)
+    if callable(location_estimates_fn):
+        try:
+            setattr(state_fn, "location_estimates_fn", location_estimates_fn)
         except Exception:
             pass
     chat_history_fn = getattr(dependencies.history_store, "load_chat_page", None)

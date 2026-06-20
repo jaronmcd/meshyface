@@ -459,10 +459,166 @@
       return {{ lat: Number(lat), lon: Number(lon) }};
     }}
 
+    function nodeBackendLocationEstimateWindow(modeRaw) {{
+      const clean = String(modeRaw || "").trim().toLowerCase();
+      const supported = new Set(["6h", "12h", "24h", "72h", "7d", "14d", "30d", "max"]);
+      if (supported.has(clean)) return clean;
+      if (clean === "live") return "24h";
+      const graphMode = (typeof networkGraphEdgeMode === "string")
+        ? String(networkGraphEdgeMode || "").trim().toLowerCase()
+        : "";
+      if (supported.has(graphMode)) return graphMode;
+      return clean === "history" ? "7d" : "72h";
+    }}
+
+    function nodeBackendLocationEstimateCacheTtlMs() {{
+      const pollMs = Number(refreshMs) || 0;
+      return Math.max(30000, pollMs * 8);
+    }}
+
+    function nodeBackendLocationEstimateCityCacheKey(location) {{
+      if (!location || typeof location !== "object") return "";
+      const lat = Number(location.lat);
+      const lon = Number(location.lon);
+      if (!isValidLatLonRange(lat, lon)) return "";
+      return `${{lat.toFixed(4)}},${{lon.toFixed(4)}}`;
+    }}
+
+    function normalizeBackendLocationEstimate(raw) {{
+      if (!raw || typeof raw !== "object") return null;
+      const nodeId = normalizeNodeId(raw.node_id || raw.nodeId || raw.id || "");
+      if (!isSelectableNodeId(nodeId)) return null;
+      const lat = Number(raw.lat ?? raw.estimated_lat ?? raw.estimatedLat);
+      const lon = Number(raw.lon ?? raw.estimated_lon ?? raw.estimatedLon);
+      const location = resolveNodeCityLocationFromCoords(lat, lon);
+      if (!location) return null;
+      const confidence = Number(raw.confidence);
+      const anchorCount = Number(raw.anchor_count ?? raw.anchorCount);
+      const fitScore = Number(raw.fit_score ?? raw.fitScore);
+      const estimate = {{
+        lat: location.lat,
+        lon: location.lon,
+        confidence: Number.isFinite(confidence) ? confidence : 0,
+        rawConfidence: Number.isFinite(confidence) ? confidence : 0,
+        anchorCount: Number.isFinite(anchorCount) ? Math.max(0, Math.trunc(anchorCount)) : 0,
+        supportLinks: Number(raw.support_links ?? raw.supportLinks) || 0,
+        signalSamples: Number(raw.signal_samples ?? raw.signalSamples) || 0,
+        avgLinkQuality: Number(raw.avg_link_quality ?? raw.avgLinkQuality) || 0,
+        avgPositionQuality: Number(raw.avg_position_quality ?? raw.avgPositionQuality) || 0,
+        fitScore: Number.isFinite(fitScore) ? fitScore : 0,
+        residualKm: raw.residual_km ?? raw.residualKm ?? null,
+        residualRatio: raw.residual_ratio ?? raw.residualRatio ?? null,
+        avgSnr: raw.avg_snr ?? raw.avgSnr ?? null,
+        avgRssi: raw.avg_rssi ?? raw.avgRssi ?? null,
+        avgHops: raw.avg_hops ?? raw.avgHops ?? null,
+        estimateSource: String(raw.estimate_source || raw.estimateSource || raw.source || "rssi_trilateration").trim() || "rssi_trilateration",
+        source: "backend",
+        window: String(raw.window || "").trim(),
+        city: String(raw.city || "").trim(),
+        cityDistanceKm: raw.city_distance_km ?? raw.cityDistanceKm ?? null,
+      }};
+      return [nodeId, estimate];
+    }}
+
+    function seedBackendLocationEstimateCityCache(estimates) {{
+      if (!(estimates instanceof Map) || !(nodeCityHintCache instanceof Map)) return;
+      for (const estimate of estimates.values()) {{
+        const city = String(estimate && estimate.city || "").trim();
+        if (!city) continue;
+        const key = nodeBackendLocationEstimateCityCacheKey(estimate);
+        if (key) nodeCityHintCache.set(key, city);
+      }}
+    }}
+
+    function invalidateNodeLinkedLocationEstimateCache() {{
+      nodeLinkedLocationEstimateCacheState = null;
+      nodeLinkedLocationEstimateCacheMode = "";
+      nodeLinkedLocationEstimateCacheValue = new Map();
+      if (typeof invalidateNetworkGraphRenderCache === "function") {{
+        try {{ invalidateNetworkGraphRenderCache(); }} catch (_err) {{}}
+      }}
+    }}
+
+    function refreshLocationEstimateViews() {{
+      invalidateNodeLinkedLocationEstimateCache();
+      if (!latestState || typeof latestState !== "object") return;
+      try {{
+        if (
+          activeLayoutView === "network"
+          && typeof renderNetworkGraphView === "function"
+        ) {{
+          renderNetworkGraphView(latestState);
+        }} else if (
+          typeof renderMap === "function"
+          && activeLayoutView === "map"
+        ) {{
+          renderMap(latestState.nodes || [], ((latestState.traffic || {{}}).edges || []), null);
+        }} else if (typeof renderNodes === "function") {{
+          renderNodes(latestState.nodes || []);
+        }}
+      }} catch (_err) {{}}
+    }}
+
+    function ensureBackendLocationEstimates(modeRaw, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const windowName = nodeBackendLocationEstimateWindow(opts.backendWindow || modeRaw || "72h");
+      const limit = Math.max(1, Math.min(3000, Math.trunc(Number(opts.limit) || 600)));
+      const force = !!opts.force;
+      if (!(nodeBackendLocationEstimateCache instanceof Map)) nodeBackendLocationEstimateCache = new Map();
+      if (!(nodeBackendLocationEstimateFetchedAtMs instanceof Map)) nodeBackendLocationEstimateFetchedAtMs = new Map();
+      if (!(nodeBackendLocationEstimateRequests instanceof Map)) nodeBackendLocationEstimateRequests = new Map();
+      if (!force && nodeBackendLocationEstimateCache.has(windowName)) {{
+        const fetchedAtMs = Number(nodeBackendLocationEstimateFetchedAtMs.get(windowName) || 0);
+        if (Number.isFinite(fetchedAtMs) && fetchedAtMs > 0 && (Date.now() - fetchedAtMs) < nodeBackendLocationEstimateCacheTtlMs()) {{
+          return;
+        }}
+      }}
+      if (nodeBackendLocationEstimateRequests.has(windowName)) return;
+      const params = new URLSearchParams();
+      params.set("window", windowName);
+      params.set("limit", String(limit));
+      const request = fetch(`/api/history/location_estimates?${{params.toString()}}`, {{ cache: "no-store" }})
+        .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error(`HTTP ${{resp.status}}`)))
+        .then((payload) => {{
+          const estimates = new Map();
+          const rawEstimates = payload && Array.isArray(payload.estimates) ? payload.estimates : [];
+          for (const raw of rawEstimates) {{
+            const normalized = normalizeBackendLocationEstimate(raw);
+            if (normalized) estimates.set(normalized[0], normalized[1]);
+          }}
+          nodeBackendLocationEstimateCache.set(windowName, estimates);
+          nodeBackendLocationEstimateFetchedAtMs.set(windowName, Date.now());
+          seedBackendLocationEstimateCityCache(estimates);
+          refreshLocationEstimateViews();
+        }})
+        .catch((_err) => {{
+          nodeBackendLocationEstimateCache.set(windowName, new Map());
+          nodeBackendLocationEstimateFetchedAtMs.set(windowName, Date.now());
+        }})
+        .finally(() => {{
+          nodeBackendLocationEstimateRequests.delete(windowName);
+        }});
+      nodeBackendLocationEstimateRequests.set(windowName, request);
+    }}
+
+    function backendLocationEstimatesForState(_state = latestState, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const windowName = nodeBackendLocationEstimateWindow(opts.backendWindow || opts.mode || opts.estimateMode || "72h");
+      ensureBackendLocationEstimates(windowName, opts);
+      const cached = (nodeBackendLocationEstimateCache instanceof Map)
+        ? nodeBackendLocationEstimateCache.get(windowName)
+        : null;
+      return cached instanceof Map ? cached : new Map();
+    }}
+
     function nodeLinkedLocationEstimatesForState(state = latestState, options = null) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const opts = (options && typeof options === "object") ? options : {{}};
       const mode = normalizeNodeCityEstimateMode(opts.mode, "both");
+      const backendWindow = nodeBackendLocationEstimateWindow(opts.backendWindow || mode);
+      const backendFetchedAtMs = (nodeBackendLocationEstimateFetchedAtMs instanceof Map)
+        ? Number(nodeBackendLocationEstimateFetchedAtMs.get(backendWindow) || 0)
+        : 0;
       const minEstimateAnchors = Number.isFinite(Number(opts.minEstimateAnchors))
         ? Math.max(1, Math.trunc(Number(opts.minEstimateAnchors)))
         : mapLinkMinEstimateAnchors;
@@ -473,7 +629,14 @@
         mode,
         minEstimateAnchors,
         Math.round(minEstimateConfidence * 1000),
+        backendWindow,
+        Math.trunc(backendFetchedAtMs),
       ].join(":");
+      const backendEstimates = backendLocationEstimatesForState(safeState, {{
+        mode,
+        backendWindow,
+        limit: opts.limit || 600,
+      }});
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const traffic = (safeState.traffic && typeof safeState.traffic === "object")
         ? safeState.traffic
@@ -482,7 +645,7 @@
       if (!(typeof buildMapLinkLayerOverlay === "function") || !nodes.length || !edges.length) {{
         nodeLinkedLocationEstimateCacheState = safeState;
         nodeLinkedLocationEstimateCacheMode = cacheMode;
-        nodeLinkedLocationEstimateCacheValue = new Map();
+        nodeLinkedLocationEstimateCacheValue = new Map(backendEstimates);
         return nodeLinkedLocationEstimateCacheValue;
       }}
       if (
@@ -492,18 +655,21 @@
       ) {{
         return nodeLinkedLocationEstimateCacheValue;
       }}
-      let estimates = new Map();
+      let estimates = new Map(backendEstimates);
       try {{
         const overlay = buildMapLinkLayerOverlay(nodes, edges, {{
           mode,
           minEstimateAnchors,
           minEstimateConfidence,
         }});
-        estimates = (overlay && overlay.estimates instanceof Map)
+        const frontendEstimates = (overlay && overlay.estimates instanceof Map)
           ? overlay.estimates
           : new Map();
+        for (const [nodeId, estimate] of frontendEstimates.entries()) {{
+          if (!estimates.has(nodeId)) estimates.set(nodeId, estimate);
+        }}
       }} catch (_err) {{
-        estimates = new Map();
+        estimates = new Map(backendEstimates);
       }}
       nodeLinkedLocationEstimateCacheState = safeState;
       nodeLinkedLocationEstimateCacheMode = cacheMode;
