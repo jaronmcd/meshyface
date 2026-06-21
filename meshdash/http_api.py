@@ -45,6 +45,7 @@ def make_http_handler(
     append_bbs_host_post_fn = getattr(state_fn, "append_bbs_host_post_fn", None)
     get_custom_telemetry_settings_fn = getattr(state_fn, "get_custom_telemetry_settings_fn", None)
     set_custom_telemetry_settings_fn = getattr(state_fn, "set_custom_telemetry_settings_fn", None)
+    set_raw_packet_capture_settings_fn = getattr(state_fn, "set_raw_packet_capture_settings_fn", None)
     play_standalone_zork_fn = getattr(state_fn, "play_standalone_zork_fn", None)
     run_network_tool_fn = getattr(state_fn, "run_network_tool_fn", None)
     schedule_backend_restart_fn = getattr(state_fn, "schedule_backend_restart_fn", None)
@@ -78,6 +79,7 @@ def make_http_handler(
         apply_radio_settings_fn=apply_radio_settings_fn,
         apply_channel_settings_fn=apply_channel_settings_fn,
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,
+        set_raw_packet_capture_settings_fn=set_raw_packet_capture_settings_fn,
         play_standalone_zork_fn=play_standalone_zork_fn,
         run_network_tool_fn=run_network_tool_fn,
         schedule_backend_restart_fn=(

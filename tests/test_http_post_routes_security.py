@@ -214,6 +214,64 @@ def test_handle_dashboard_post_toggles_ping_bot_runtime() -> None:
     ]
 
 
+def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
+    body = json.dumps({"capture_enabled": True}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    def _write_json_response(handler, *, status_code, payload_obj, **kwargs):
+        calls.append((status_code, payload_obj))
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_raw_packet_capture_settings_fn=lambda settings: received.append(settings)
+        or {"ok": True, "capture_enabled": settings["capture_enabled"]},
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": _write_json_response,
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/raw_packets", deps=deps)
+
+    assert received == [{"capture_enabled": True}]
+    assert calls == [(200, {"ok": True, "capture_enabled": True})]
+
+
+def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:
+    body = json.dumps({"capture_enabled": True}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _set_raw_packet_capture_settings(settings: object) -> dict[str, object]:
+        nonlocal updates
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_raw_packet_capture_settings_fn=_set_raw_packet_capture_settings,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/raw_packets", deps=deps)
+
+    assert updates == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
 def test_handle_dashboard_post_rejects_ping_bot_toggle_when_runtime_unavailable() -> None:
     body = json.dumps({"enabled": True}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})

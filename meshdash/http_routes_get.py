@@ -104,6 +104,32 @@ def _write_vendor_asset_response(
     return True
 
 
+def _download_filename_token(value: object, fallback: str) -> str:
+    clean = "".join(
+        ch if ch.isalnum() or ch in "._-" else "_"
+        for ch in str(value or "").strip()
+    ).strip("._")
+    return clean or fallback
+
+
+def _write_binary_download_response(
+    handler: DashboardHttpHandler,
+    *,
+    payload: bytes,
+    filename: object,
+    content_type: object,
+) -> None:
+    safe_filename = _download_filename_token(filename, "download.bin")
+    handler.send_response(200)
+    handler.send_header("Content-Type", str(content_type or "application/octet-stream"))
+    _send_no_store_headers(handler)
+    handler.send_header("Content-Disposition", f'attachment; filename="{safe_filename}"')
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
 def _record_state_poll_request(deps: DashboardGetRouteDependencies) -> None:
     metrics = deps.api_metrics
     record_fn = getattr(metrics, "record_state_poll_request", None)
@@ -408,6 +434,53 @@ def handle_dashboard_get(
                 "error": "history database unavailable on this dashboard instance",
             }
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
+        return
+
+    if path == "/api/system/database/raw_packets/download":
+        download_fn = getattr(deps.state_fn, "raw_packet_database_download_fn", None)
+        if not callable(download_fn):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={"ok": False, "error": "raw packet database unavailable on this dashboard instance"},
+                no_store=True,
+            )
+            return
+        try:
+            response_obj = download_fn()
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={"ok": False, "error": str(exc or "raw packet database download failed")},
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping) or not bool(response_obj.get("ok")):
+            status_code = _to_int_helper(response_obj.get("status_code")) if isinstance(response_obj, Mapping) else None
+            error = response_obj.get("error") if isinstance(response_obj, Mapping) else None
+            deps.write_json_response_fn(
+                handler,
+                status_code=status_code or 503,
+                payload_obj={"ok": False, "error": str(error or "raw packet database download failed")},
+                no_store=True,
+            )
+            return
+        raw_payload = response_obj.get("bytes")
+        if not isinstance(raw_payload, (bytes, bytearray, memoryview)):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={"ok": False, "error": "raw packet database download payload is invalid"},
+                no_store=True,
+            )
+            return
+        _write_binary_download_response(
+            handler,
+            payload=bytes(raw_payload),
+            filename=response_obj.get("filename") or "meshdash_raw_packets.sqlite3",
+            content_type=response_obj.get("content_type") or "application/vnd.sqlite3",
+        )
         return
 
     if path == "/api/system/update":

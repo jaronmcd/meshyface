@@ -22,8 +22,10 @@ from meshdash.api_input_chat import (
     validate_content_length as validate_chat_content_length,
 )
 from meshdash.api_input_custom_telemetry import parse_custom_telemetry_settings_request
+from meshdash.api_input_raw_packets import parse_raw_packet_capture_settings_request
 from meshdash.api_input_zork import parse_standalone_zork_request
 from meshdash.api_network_tools import handle_network_tool_post
+from meshdash.api_raw_packets import handle_raw_packet_capture_settings_post
 from meshdash.api_radio import handle_radio_settings_post
 from meshdash.api_theme import handle_theme_settings_get, handle_theme_settings_post
 from meshdash.api_zork import handle_standalone_zork_post
@@ -455,6 +457,8 @@ def test_chat_custom_telemetry_and_standalone_zork_input_parsers() -> None:
     body = parse_chat_send_body(b"not json", to_int_fn=to_int)
     telemetry = parse_custom_telemetry_settings_request(b'{"rules":[{"name":"battery"}]}')
     empty_telemetry = parse_custom_telemetry_settings_request(b"not json")
+    raw_enabled = parse_raw_packet_capture_settings_request(b'{"settings":{"enabled":"yes"}}')
+    raw_disabled = parse_raw_packet_capture_settings_request(b'{"capture_enabled":"off"}')
     zork = parse_standalone_zork_request(b'{"text":"look","session_id":"local-1"}')
     empty_zork = parse_standalone_zork_request(b"not json")
 
@@ -487,6 +491,19 @@ def test_chat_custom_telemetry_and_standalone_zork_input_parsers() -> None:
     }
     assert telemetry.rules == [{"name": "battery"}]
     assert empty_telemetry.rules is None
+    assert raw_enabled.settings == {"capture_enabled": True}
+    assert raw_disabled.settings == {"capture_enabled": False}
+    for raw_body, expected in [
+        (b"not json", "invalid JSON request body"),
+        (b"{}", "capture_enabled is required"),
+        (b'{"capture_enabled":"maybe"}', "capture_enabled must be boolean"),
+    ]:
+        try:
+            parse_raw_packet_capture_settings_request(raw_body)
+        except ValueError as exc:
+            assert str(exc) == expected
+        else:
+            raise AssertionError(f"{raw_body!r} should have failed")
     assert zork.text == "look"
     assert zork.session_id == "local-1"
     assert empty_zork.text is None
@@ -825,6 +842,53 @@ def test_custom_telemetry_handlers_cover_read_write_and_validation_paths() -> No
     assert calls[5]["payload"]["error"] == "No custom telemetry rules provided"  # type: ignore[index]
     assert calls[6]["payload"]["error"] == "bad rule"  # type: ignore[index]
     assert calls[7]["payload"]["error"] == "Custom telemetry settings update failed: write failed"  # type: ignore[index]
+
+
+def test_raw_packet_capture_settings_handler_maps_status_paths() -> None:
+    calls: list[dict[str, object]] = []
+    received: list[object] = []
+
+    def _call(
+        *,
+        set_raw_packet_capture_settings_fn,
+        body: bytes = b'{"capture_enabled":true}',
+        validate_content_length_fn=_validate_content_length,
+    ) -> None:
+        handle_raw_packet_capture_settings_post(
+            _Handler(body),
+            set_raw_packet_capture_settings_fn=set_raw_packet_capture_settings_fn,
+            to_int_fn=to_int,
+            validate_content_length_fn=validate_content_length_fn,
+            parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request,
+            write_json_response_fn=_writer(calls),
+        )
+
+    _call(set_raw_packet_capture_settings_fn=None)
+    _call(
+        set_raw_packet_capture_settings_fn=lambda settings: received.append(settings)
+        or {"ok": True, "capture_enabled": settings["capture_enabled"]},
+    )
+    _call(set_raw_packet_capture_settings_fn=lambda settings: {"ok": True}, body=b"{bad json")
+    _call(set_raw_packet_capture_settings_fn=lambda settings: {"ok": False, "error": "raw denied"})
+    _call(
+        set_raw_packet_capture_settings_fn=lambda settings: (_ for _ in ()).throw(ValueError("bad raw setting")),
+    )
+    _call(
+        set_raw_packet_capture_settings_fn=lambda settings: (_ for _ in ()).throw(RuntimeError("write failed")),
+    )
+    _call(
+        set_raw_packet_capture_settings_fn=lambda settings: {"ok": True},
+        validate_content_length_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad length")),
+    )
+
+    assert [call["status"] for call in calls] == [503, 200, 400, 400, 400, 500, 400]
+    assert received == [{"capture_enabled": True}]
+    assert calls[1] == {"status": 200, "payload": {"ok": True, "capture_enabled": True}, "no_store": True}
+    assert calls[2]["payload"]["error"] == "invalid JSON request body"  # type: ignore[index]
+    assert calls[3]["payload"] == {"ok": False, "error": "raw denied"}
+    assert calls[4]["payload"]["error"] == "bad raw setting"  # type: ignore[index]
+    assert calls[5]["payload"]["error"] == "Raw packet capture settings update failed: write failed"  # type: ignore[index]
+    assert calls[6]["payload"]["error"] == "Invalid request size"  # type: ignore[index]
 
 
 def _call_network_tool(

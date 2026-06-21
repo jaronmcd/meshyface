@@ -329,6 +329,13 @@ class DashboardTracker:
             if not self._accept_packets:
                 return
             self.live_packet_count += 1
+            history_store = getattr(self, "_history_store", None)
+            save_raw_packet_fn = getattr(history_store, "save_raw_packet", None)
+            if callable(save_raw_packet_fn):
+                try:
+                    save_raw_packet_fn(packet)
+                except Exception:
+                    pass
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._bump_state_revision_unlocked()
             bot_services = [

@@ -21,6 +21,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/theme",
     "/api/settings/bbs",
     "/api/settings/custom_telemetry",
+    "/api/settings/raw_packets",
     "/api/system/update",
     "/api/system/restart",
 }
@@ -60,6 +61,10 @@ _handle_bbs_host_post_helper = _load_optional_handler(
 _handle_custom_telemetry_settings_post_helper = _load_optional_handler(
     ".api_custom_telemetry",
     "handle_custom_telemetry_settings_post",
+)
+_handle_raw_packet_capture_settings_post_helper = _load_optional_handler(
+    ".api_raw_packets",
+    "handle_raw_packet_capture_settings_post",
 )
 _handle_radio_settings_post_helper = _load_optional_handler(".api_radio", "handle_radio_settings_post")
 _handle_channel_settings_post_helper = _load_optional_handler(
@@ -387,6 +392,28 @@ def handle_dashboard_post(
             to_int_fn=deps.to_int_fn,
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_custom_telemetry_settings_request_fn=parse_custom_telemetry_settings_request_fn,
+            write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/settings/raw_packets":
+        parse_raw_packet_capture_settings_request_fn = deps.parse_raw_packet_capture_settings_request_fn
+        if (
+            parse_raw_packet_capture_settings_request_fn is None
+            or not callable(_handle_raw_packet_capture_settings_post_helper)
+        ):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={"ok": False, "error": "Raw packet capture settings are not enabled on this dashboard instance"},
+            )
+            return
+        _handle_raw_packet_capture_settings_post_helper(
+            handler,
+            set_raw_packet_capture_settings_fn=deps.set_raw_packet_capture_settings_fn,
+            to_int_fn=deps.to_int_fn,
+            validate_content_length_fn=deps.validate_content_length_fn,
+            parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
         )
         return

@@ -21,6 +21,20 @@ from .history_store_policy import (
 def close_history_store(store: HistoryStoreRuntimeState) -> None:
     with store._lock:
         store._conn.close()
+    raw_conn = getattr(store, "_raw_packet_conn", None)
+    if raw_conn is not None:
+        raw_lock = getattr(store, "_raw_packet_lock", None) or getattr(store, "_lock", None)
+        if raw_lock is None:
+            try:
+                raw_conn.close()
+            except Exception:
+                pass
+        else:
+            with raw_lock:
+                try:
+                    raw_conn.close()
+                except Exception:
+                    pass
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None:
         return

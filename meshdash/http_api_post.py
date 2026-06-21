@@ -22,6 +22,7 @@ from .http_route_contracts import (
     SetPingBotEnabledFn,
     SetPingBotMessageOnlyFn,
     SetCustomTelemetrySettingsFn,
+    SetRawPacketCaptureSettingsFn,
     SetThemePresetFn,
     SetZorkBotEnabledFn,
     ToIntFn,
@@ -67,6 +68,10 @@ parse_custom_telemetry_settings_request = _load_optional_callable(
     ".api_input_custom_telemetry",
     "parse_custom_telemetry_settings_request",
 )
+parse_raw_packet_capture_settings_request = _load_optional_callable(
+    ".api_input_raw_packets",
+    "parse_raw_packet_capture_settings_request",
+)
 parse_standalone_zork_request = _load_optional_callable(".api_input_zork", "parse_standalone_zork_request")
 parse_network_tool_request = _load_optional_callable(
     ".api_input_network_tools",
@@ -89,6 +94,7 @@ def build_post_route_dependencies(
     apply_radio_settings_fn: ApplyRadioSettingsFn | None = None,
     apply_channel_settings_fn: ApplyChannelSettingsFn | None = None,
     set_custom_telemetry_settings_fn: SetCustomTelemetrySettingsFn | None = None,
+    set_raw_packet_capture_settings_fn: SetRawPacketCaptureSettingsFn | None = None,
     play_standalone_zork_fn: PlayStandaloneZorkFn | None = None,
     run_network_tool_fn: RunNetworkToolFn | None = None,
     schedule_backend_restart_fn: ScheduleBackendRestartFn | None = None,
@@ -123,6 +129,8 @@ def build_post_route_dependencies(
         parse_bbs_host_request_fn=parse_bbs_host_request,
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,
         parse_custom_telemetry_settings_request_fn=parse_custom_telemetry_settings_request,
+        set_raw_packet_capture_settings_fn=set_raw_packet_capture_settings_fn,
+        parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request,
         apply_radio_settings_fn=apply_radio_settings_fn,
         parse_radio_settings_request_fn=parse_radio_settings_request,
         apply_channel_settings_fn=apply_channel_settings_fn,
