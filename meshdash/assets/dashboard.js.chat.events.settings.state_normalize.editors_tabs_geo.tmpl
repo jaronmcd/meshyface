@@ -154,6 +154,7 @@
         || key === "lists"
         || key === "appearance"
         || key === "update"
+        || key === "database"
         || key === "system"
       ) return key === "lists" ? "nodes" : key;
       return "core";
@@ -229,6 +230,7 @@
         if (typeof hydrateSettingsDeviceInfo === "function") {{
           void hydrateSettingsDeviceInfo(false);
         }}
+      }} else if (next === "database") {{
         if (typeof renderSettingsDatabaseInfo === "function") {{
           renderSettingsDatabaseInfo();
         }}

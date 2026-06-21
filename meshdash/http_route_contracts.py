@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .api_input_history import NodeHistoryQuery, OnlineActivityQuery
     from .api_input_network_tools import NetworkToolRequest
     from .api_input_radio import RadioSettingsRequest
+    from .api_input_raw_packets import RawPacketCaptureSettingsRequest
     from .api_input_theme import ThemeSettingsRequest
     from .api_input_zork import StandaloneZorkRequest
 else:
@@ -22,6 +23,7 @@ else:
     NetworkToolRequest = object
     OnlineActivityQuery = object
     RadioSettingsRequest = object
+    RawPacketCaptureSettingsRequest = object
     ThemeSettingsRequest = object
     StandaloneZorkRequest = object
     ZorkBotToggleRequest = object
@@ -139,6 +141,11 @@ class SetCustomTelemetrySettingsFn(Protocol):
         ...
 
 
+class SetRawPacketCaptureSettingsFn(Protocol):
+    def __call__(self, settings: object) -> dict[str, object]:
+        ...
+
+
 class ToIntFn(Protocol):
     def __call__(self, value: object) -> Optional[int]:
         ...
@@ -217,6 +224,11 @@ class ParseBbsHostRequestFn(Protocol):
 
 class ParseCustomTelemetrySettingsRequestFn(Protocol):
     def __call__(self, raw_body: bytes) -> CustomTelemetrySettingsRequest:
+        ...
+
+
+class ParseRawPacketCaptureSettingsRequestFn(Protocol):
+    def __call__(self, raw_body: bytes) -> RawPacketCaptureSettingsRequest:
         ...
 
 
@@ -382,6 +394,8 @@ class DashboardPostRouteDependencies:
     parse_bbs_host_request_fn: Optional[ParseBbsHostRequestFn] = None
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
+    set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None
+    parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None
     apply_channel_settings_fn: Optional[ApplyChannelSettingsFn] = None

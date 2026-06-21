@@ -24,6 +24,9 @@ from .history_store_policy import (
 from .history_profile import (
     local_node_id_from_profiled_history_db_path as _local_node_id_from_profiled_history_db_path_helper,
 )
+from .history_raw_packets import (
+    initialize_raw_packet_store_runtime as _initialize_raw_packet_store_runtime_helper,
+)
 
 
 def _load_custom_telemetry_settings_from_conn(conn: object) -> tuple[list[dict[str, object]], int]:
@@ -60,6 +63,7 @@ def initialize_history_store_runtime(
     build_history_store_policy_fn: BuildHistoryStorePolicyFn = _build_history_store_policy_helper,
     open_and_initialize_history_connection_with_policy_fn: OpenHistoryConnectionWithPolicyFn = _open_and_initialize_history_connection_with_policy_helper,
     open_and_initialize_history_connection_fn: OpenHistoryConnectionLegacyFn = _open_and_initialize_history_connection_helper,
+    initialize_raw_packet_store_runtime_fn: Callable[..., None] = _initialize_raw_packet_store_runtime_helper,
 ) -> None:
     policy = build_history_store_policy_fn(
         max_rows=max_rows,
@@ -122,6 +126,11 @@ def initialize_history_store_runtime(
         "ping_message_only": False,
     }
     store._bot_runtime_settings_updated_unix = 0
+    initialize_raw_packet_store_runtime_fn(
+        store,
+        history_db_path=store.db_path,
+        lock_factory=lock_factory,
+    )
 
     # Only create a separate read connection when we're using the default
     # connection opener *and* the DB path is file-backed. In-memory SQLite

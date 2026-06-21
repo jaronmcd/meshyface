@@ -62,6 +62,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-tab-update-btn"' in html
     assert re.search(r'id="settings-tab-update-btn"[\s\S]*>\s*Software\s*</button>', html)
     assert 'data-settings-tab="update"' in html
+    assert 'id="settings-tab-database-btn"' in html
+    assert re.search(r'id="settings-tab-database-btn"[\s\S]*>\s*Database\s*</button>', html)
+    assert 'data-settings-tab="database"' in html
     assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
     assert '<h3>Software</h3>' in html
     assert 'Software version, Git revision, and GitHub update controls' not in html
@@ -88,7 +91,19 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-device-info-hardware"' in html
     assert 'id="settings-device-info-public-key"' in html
     assert 'id="settings-device-info-wifi"' in html
-    assert 'class="settings-panel settings-panel-wide settings-database-info-panel" data-settings-tab-panel="system"' in html
+    assert 'class="settings-panel settings-panel-wide settings-database-info-panel" data-settings-tab-panel="database"' in html
+    assert 'class="settings-database-group settings-database-history-group"' in html
+    assert 'id="settings-database-history-title"' in html
+    assert ">History database</h4>" in html
+    assert 'class="settings-database-group settings-database-raw-group"' in html
+    assert 'id="settings-database-raw-title"' in html
+    assert ">Raw packet database</h4>" in html
+    assert 'id="settings-raw-packet-capture-enabled"' in html
+    assert 'id="settings-raw-packet-download"' in html
+    assert "Download raw DB" in html
+    assert 'id="settings-raw-packet-grid"' in html
+    assert 'id="settings-raw-packet-db-size"' in html
+    assert 'id="settings-raw-packet-rows"' in html
     assert 'id="settings-database-capacity"' in html
     assert 'id="settings-database-capacity-packets-fill"' in html
     assert 'id="settings-database-capacity-events-fill"' in html
@@ -191,6 +206,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "[data-theme=\"dark\"] .settings-device-info-item {" in css
     assert ".settings-device-info-mono {" in css
     assert ".settings-database-info-panel {" in css
+    assert ".settings-database-group {" in css
+    assert ".settings-database-group-head {" in css
+    assert ".settings-database-group-head h4 {" in css
+    assert ".settings-database-raw-controls {" in css
+    assert ".settings-database-raw-actions {" in css
     assert ".settings-update-panel {" in css
     assert ".settings-update-actions {" in css
     assert "#settings-update-reload.is-restart-required {" in css
@@ -231,6 +251,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("settings-software-version")' in js
     assert 'document.getElementById("settings-software-commit")' in js
     assert '|| key === "update"' in js
+    assert '|| key === "database"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js
     assert "function hydrateSettingsUpdateStatus(force = false, primeUpdateAction = false) {" in js
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
@@ -302,6 +323,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function hydrateSettingsDeviceInfo(force = false) {" in js
     assert "function renderSettingsDatabaseInfo(payload = settingsDatabaseInfoCache.payload) {" in js
     assert "function hydrateSettingsDatabaseInfo(force = false) {" in js
+    assert "function setRawPacketCaptureEnabled(enabled) {" in js
+    assert "function downloadRawPacketDatabase() {" in js
+    assert "rawPacketSettingsEndpoint" in js
+    assert "rawPacketDatabaseDownloadEndpoint" in js
     assert 'fetchSettingsDeviceInfoJson("/api/raw/my_info")' in js
     assert 'fetchSettingsDeviceInfoJson("/api/raw/metadata")' in js
     assert 'fetchSettingsDeviceInfoJson("/api/raw/local_state")' in js
@@ -314,6 +339,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function renderSettingsDatabaseCapacity(stats, policy) {" in js
     assert 'document.getElementById(`settings-database-capacity-${key}-fill`)' in js
     assert "function settingsDatabaseInfoHealthText(stats, policy) {" in js
+    assert 'next === "database"' in js
     assert 'next === "system"' in js
     assert 'const settingsBadgeEmojiStorageKey = "meshDashboardSettingsBadgeEmojiV1";' not in js
     assert 'document.getElementById("layout-view-menu-head-mark")' not in js

@@ -64,6 +64,12 @@ from .history_store_settings import (
 from .history_store_database_stats import (
     load_database_stats as _load_database_stats_helper,
 )
+from .history_raw_packets import (
+    build_raw_packet_database_download as _build_raw_packet_database_download_helper,
+    load_raw_packet_stats as _load_raw_packet_stats_helper,
+    save_raw_packet_capture as _save_raw_packet_capture_helper,
+    save_raw_packet_settings as _save_raw_packet_settings_helper,
+)
 
 
 class HistoryStore:
@@ -236,7 +242,21 @@ class HistoryStore:
         )
 
     def database_stats(self) -> dict[str, object]:
-        return _load_database_stats_helper(self)
+        stats = _load_database_stats_helper(self)
+        stats["raw_packet_store"] = _load_raw_packet_stats_helper(self)
+        return stats
+
+    def raw_packet_stats(self) -> dict[str, object]:
+        return _load_raw_packet_stats_helper(self)
+
+    def set_raw_packet_capture_settings(self, settings: object) -> dict[str, object]:
+        return _save_raw_packet_settings_helper(self, settings=settings)
+
+    def save_raw_packet(self, packet: object) -> bool:
+        return _save_raw_packet_capture_helper(self, packet)
+
+    def raw_packet_database_download(self) -> dict[str, object]:
+        return _build_raw_packet_database_download_helper(self)
 
     def save_connection_event(
         self,

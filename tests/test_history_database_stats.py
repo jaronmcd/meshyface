@@ -1,3 +1,4 @@
+import io
 import json
 import sqlite3
 import sys
@@ -10,6 +11,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from meshdash.history_schema import initialize_history_schema
 from meshdash.history_store_database_stats import load_database_stats
 from meshdash.http_routes_get import handle_dashboard_get
+
+
+class _DownloadHandler:
+    def __init__(self) -> None:
+        self.headers: dict[str, object] = {}
+        self.sent_status: int | None = None
+        self.sent_headers: list[tuple[str, str]] = []
+        self.wfile = io.BytesIO()
+
+    def send_response(self, code: int) -> None:
+        self.sent_status = code
+
+    def send_header(self, key: str, value: str) -> None:
+        self.sent_headers.append((key, value))
+
+    def end_headers(self) -> None:
+        pass
 
 
 def _make_store(conn: sqlite3.Connection, db_path: str) -> SimpleNamespace:
@@ -115,6 +133,76 @@ def test_database_stats_route_reports_unavailable_without_helper() -> None:
                 "ok": False,
                 "enabled": False,
                 "error": "history database unavailable on this dashboard instance",
+            },
+            True,
+        )
+    ]
+
+
+def test_raw_packet_database_download_route_streams_sqlite_bytes() -> None:
+    payload = b"SQLite format 3\x00payload"
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    setattr(
+        state_fn,
+        "raw_packet_database_download_fn",
+        lambda: {
+            "ok": True,
+            "filename": "mesh raw.sqlite3",
+            "content_type": "application/vnd.sqlite3",
+            "bytes": payload,
+        },
+    )
+    written: list[tuple[int, dict[str, object], bool]] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
+            (status_code, payload_obj, no_store)
+        ),
+    )
+    handler = _DownloadHandler()
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    headers = dict(handler.sent_headers)
+    assert written == []
+    assert handler.sent_status == 200
+    assert headers["Content-Type"] == "application/vnd.sqlite3"
+    assert headers["Content-Disposition"] == 'attachment; filename="mesh_raw.sqlite3"'
+    assert headers["Content-Length"] == str(len(payload))
+    assert headers["Cache-Control"].startswith("no-store")
+    assert handler.wfile.getvalue() == payload
+
+
+def test_raw_packet_database_download_route_reports_unavailable_without_helper() -> None:
+    written: list[tuple[int, dict[str, object], bool]] = []
+    deps = SimpleNamespace(
+        state_fn=lambda: {},
+        write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
+            (status_code, payload_obj, no_store)
+        ),
+    )
+
+    handle_dashboard_get(
+        _DownloadHandler(),
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert written == [
+        (
+            503,
+            {
+                "ok": False,
+                "error": "raw packet database unavailable on this dashboard instance",
             },
             True,
         )

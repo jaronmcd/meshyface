@@ -84,6 +84,7 @@ def test_initialize_history_store_runtime_uses_legacy_open_and_preloads_settings
         lock_factory=lock_factory,
         build_history_store_policy_fn=lambda **kwargs: policy,
         open_and_initialize_history_connection_fn=open_legacy,
+        initialize_raw_packet_store_runtime_fn=lambda *_args, **_kwargs: None,
     )
 
     assert store.db_path == "/tmp/history.radio-abcdef12.sqlite3"
@@ -307,6 +308,10 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_save_bbs_settings_helper", lambda store, *, settings: _record("set_bbs", settings))
     monkeypatch.setattr(runtime_impl, "_save_bot_runtime_settings_helper", lambda store, *, settings: _record("set_bot", settings))
     monkeypatch.setattr(runtime_impl, "_append_bbs_post_helper", lambda store, *, post: _record("append_post", post))
+    monkeypatch.setattr(runtime_impl, "_load_raw_packet_stats_helper", lambda store: _record("raw_stats"))
+    monkeypatch.setattr(runtime_impl, "_save_raw_packet_settings_helper", lambda store, *, settings: _record("raw_settings", settings))
+    monkeypatch.setattr(runtime_impl, "_save_raw_packet_capture_helper", lambda store, packet: _record("raw_packet", packet))
+    monkeypatch.setattr(runtime_impl, "_build_raw_packet_database_download_helper", lambda store: _record("raw_download"))
 
     store = runtime_impl.HistoryStore(
         db_path=":memory:",
@@ -345,6 +350,11 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     assert store.load_summary_metrics(24)["helper"] == "summary"
     assert store.load_top_nodes(category="heard", limit=3, exclude_node_ids=["!skip"])["helper"] == "top"
     assert store.database_stats()["helper"] == "stats"
+    assert store.database_stats()["raw_packet_store"]["helper"] == "raw_stats"
+    assert store.raw_packet_stats()["helper"] == "raw_stats"
+    assert store.set_raw_packet_capture_settings({"capture_enabled": True})["helper"] == "raw_settings"
+    assert store.save_raw_packet({"id": 1})["helper"] == "raw_packet"
+    assert store.raw_packet_database_download()["helper"] == "raw_download"
     store.save_connection_event("!a", "!b", 1, "TEXT", 2)
     store.save_packet({"id": 1})
     store.save_chat({"text": "hi"})
