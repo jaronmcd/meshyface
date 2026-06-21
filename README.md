@@ -157,11 +157,13 @@ Choose one install path:
 
 You do not need both checkouts.
 
-### 1) Manual run: clone + venv
+### Manual Foreground Run
 
 Use this for a quick foreground run. If you are setting up the systemd service,
-skip to [Run the clone as a systemd service](#4-run-the-clone-as-a-systemd-service)
-and use the `/opt/meshyface` clone path there.
+skip to [Recommended Service Install](#recommended-service-install) and use the
+`/opt/meshyface` clone path there.
+
+Clone and create the virtual environment:
 
 ```bash
 git clone https://github.com/jaronmcd/meshyface.git meshyface
@@ -172,7 +174,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 2A) Run with Wi-Fi/TCP radio
+Run with Wi-Fi/TCP radio:
 
 ```bash
 python mesh_dashboard.py \
@@ -185,7 +187,7 @@ python mesh_dashboard.py \
 
 Note: replace `192.168.1.42` with the Wi-Fi IP address of your radio.
 
-### 2B) Run with USB serial radio
+Run with USB serial radio:
 
 ```bash
 python mesh_dashboard.py \
@@ -198,14 +200,14 @@ python mesh_dashboard.py \
 Tip: use `/dev/serial/by-id/...` for a stable serial path when possible.
 
 
-### 3) Open UI
+Open the UI:
 
 - Local: `http://127.0.0.1:8877`
 - LAN: `http://<host-ip>:8877`
 
 Run `python mesh_dashboard.py --help` for the authoritative runtime flag list.
 
-### 4) Run the clone as a systemd service
+## Recommended Service Install
 
 This is the preferred public GitHub install path for persistent hosts. It keeps
 the dashboard as a normal git checkout, so the Software panel in Settings can
