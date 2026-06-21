@@ -1076,6 +1076,7 @@
     }}
 
     async function hydrateSettingsUpdateStatus(force = false, primeUpdateAction = false) {{
+      clearSettingsBackendReloadUrlFlags();
       const selectedBranch = readSettingsUpdateBranchSelection();
       const nowMs = Date.now();
       if (
@@ -1224,19 +1225,121 @@
       }}
     }}
 
+    function clearSettingsBackendReloadUrlFlags() {{
+      if (typeof window === "undefined" || !window.location || !window.history) return;
+      try {{
+        const nextUrl = new URL(window.location.href);
+        const staleParams = [
+          "_mesh_recover",
+          "_mesh_recover_reason",
+          "_mesh_boot_retry",
+          "_mesh_backend_reload",
+          "_mesh_backend_reload_reason",
+        ];
+        let changed = false;
+        for (const key of staleParams) {{
+          if (nextUrl.searchParams.has(key)) {{
+            nextUrl.searchParams.delete(key);
+            changed = true;
+          }}
+        }}
+        if (changed) {{
+          window.history.replaceState(window.history.state, "", nextUrl.toString());
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function forceSettingsBackendReloadHardRefresh(reason = "backend-reloaded") {{
+      if (typeof window === "undefined" || !window.location) return;
+      try {{
+        const nextUrl = new URL(window.location.href);
+        const staleParams = [
+          "_mesh_recover",
+          "_mesh_recover_reason",
+          "_mesh_boot_retry",
+          "_mesh_backend_reload",
+          "_mesh_backend_reload_reason",
+        ];
+        for (const key of staleParams) {{
+          nextUrl.searchParams.delete(key);
+        }}
+        nextUrl.searchParams.set("_mesh_backend_reload", String(Date.now()));
+        nextUrl.searchParams.set("_mesh_backend_reload_reason", String(reason || "backend-reloaded"));
+        window.location.replace(nextUrl.toString());
+      }} catch (_err) {{
+        window.location.href = `/?_mesh_backend_reload=${{Date.now()}}&_mesh_backend_reload_reason=${{encodeURIComponent(String(reason || "backend-reloaded"))}}`;
+      }}
+    }}
+
+    function settingsBackendReloadStateConnected(state) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      if (typeof radioLinkStateFromState === "function") {{
+        try {{
+          return radioLinkStateFromState(safeState).isConnected === true;
+        }} catch (_err) {{
+        }}
+      }}
+      const summary = safeState.summary && typeof safeState.summary === "object" ? safeState.summary : {{}};
+      const link = summary.radio_link && typeof summary.radio_link === "object" ? summary.radio_link : null;
+      if (link) {{
+        const stateText = String(link.state || link.status || "").trim().toLowerCase();
+        if (link.connected === true || link.is_connected === true || link.isConnected === true) return true;
+        if (["connected", "online", "up", "ok"].includes(stateText)) return true;
+      }}
+      const legacy = summary.radio_connection && typeof summary.radio_connection === "object" ? summary.radio_connection : null;
+      if (legacy) {{
+        const stateText = String(legacy.state || legacy.status || "").trim().toLowerCase();
+        if (legacy.connected === true || legacy.is_connected === true || legacy.isConnected === true) return true;
+        if (["connected", "online", "up", "ok"].includes(stateText)) return true;
+      }}
+      return false;
+    }}
+
+    async function fetchSettingsBackendReloadState() {{
+      const resp = await fetch(`/api/state?lite=1&profile=status&reload=${{Date.now()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) return null;
+      return await resp.json();
+    }}
+
     async function waitForSettingsBackendReload() {{
       const startedAt = Date.now();
-      const deadlineMs = startedAt + 30000;
+      const deadlineMs = startedAt + 45000;
+      let backendReady = false;
       while (Date.now() < deadlineMs) {{
         await new Promise((resolve) => window.setTimeout(resolve, 700));
         try {{
           const resp = await fetch(`/api/version?reload=${{Date.now()}}`, {{ cache: "no-store" }});
           if (resp.ok) {{
-            window.location.reload();
-            return true;
+            backendReady = true;
+            const state = await fetchSettingsBackendReloadState();
+            if (settingsBackendReloadStateConnected(state)) {{
+              renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+                message: "Radio link is back. Reloading dashboard..."
+              }}));
+              forceSettingsBackendReloadHardRefresh("radio-online");
+              return true;
+            }}
+            if ((Date.now() - startedAt) >= 6000) {{
+              renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+                message: "Backend is back. Reloading dashboard..."
+              }}));
+              forceSettingsBackendReloadHardRefresh("backend-online");
+              return true;
+            }}
+            renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+              message: "Backend is back. Waiting for radio link..."
+            }}));
           }}
         }} catch (_err) {{
         }}
+      }}
+      if (backendReady) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          message: "Backend is back. Reloading dashboard..."
+        }}));
+        forceSettingsBackendReloadHardRefresh("backend-online");
+        return true;
       }}
       return false;
     }}

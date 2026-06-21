@@ -106,6 +106,143 @@
       return true;
     }}
 
+    function forceNextStatePollFresh(reason = "manual") {{
+      stateEtag = "";
+      stateEtagProfile = "";
+      forceStateReloadOnce = true;
+      pollFreshnessUiLastStateKey = "";
+      if (typeof window !== "undefined") {{
+        window.__meshLastForcedStatePollAtMs = Date.now();
+        window.__meshLastForcedStatePollReason = String(reason || "manual");
+      }}
+    }}
+
+    const staleStartupStateSuppressWindowMs = 90000;
+
+    function staleOverlaySummaryForState(state) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      return (safeState.summary && typeof safeState.summary === "object") ? safeState.summary : {{}};
+    }}
+
+    function staleOverlayCount(value) {{
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? Math.max(0, Math.trunc(numberValue)) : 0;
+    }}
+
+    function staleOverlayRadioLinkForState(state) {{
+      if (typeof radioLinkStateFromState === "function") {{
+        try {{
+          return radioLinkStateFromState(state);
+        }} catch (_err) {{
+        }}
+      }}
+      const summary = staleOverlaySummaryForState(state);
+      const link = (summary.radio_link && typeof summary.radio_link === "object")
+        ? summary.radio_link
+        : null;
+      const stateText = String((link && (link.state || link.status)) || "").trim().toLowerCase();
+      const connected = !!(link && (link.connected === true || link.is_connected === true || link.isConnected === true));
+      return {{
+        state: stateText || (connected ? "connected" : "unknown"),
+        source: String((link && link.source) || ""),
+        reason: String((link && (link.reason || link.error)) || ""),
+        isConnected: connected || stateText === "connected",
+        isConnecting: stateText === "connecting",
+        isDisconnected: stateText === "disconnected" || stateText === "lost",
+      }};
+    }}
+
+    function stateNodeCountForStaleOverlayGuard(state) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = staleOverlaySummaryForState(safeState);
+      const nodesCount = Array.isArray(safeState.nodes) ? safeState.nodes.length : 0;
+      return Math.max(
+        nodesCount,
+        staleOverlayCount(summary.node_count),
+        staleOverlayCount(summary.saved_node_count)
+      );
+    }}
+
+    function stateLooksHealthyForStaleOverlayGuard(state) {{
+      const summary = staleOverlaySummaryForState(state);
+      const link = staleOverlayRadioLinkForState(state);
+      const nodeCount = stateNodeCountForStaleOverlayGuard(state);
+      const onlineCount = staleOverlayCount(summary.online_node_count);
+      const livePacketCount = staleOverlayCount(summary.live_packet_count);
+      return !!(
+        link.isConnected
+        && (nodeCount > 0 || onlineCount > 0 || livePacketCount > 0)
+      );
+    }}
+
+    function stateLooksLikeStartupConnectingOverlay(state) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = staleOverlaySummaryForState(safeState);
+      const link = staleOverlayRadioLinkForState(safeState);
+      const trackerError = String(safeState.tracker_error || "").trim();
+      const localStateError = String(safeState.local_state_error || "").trim();
+      const nodesError = String(safeState.nodes_error || "").trim();
+      const candidateStartupSource = !!(
+        /startup/i.test(String(link.source || ""))
+        || /radio connecting/i.test(trackerError)
+        || /radio connecting/i.test(localStateError)
+        || /radio connecting/i.test(nodesError)
+      );
+      const noLiveMeshSignal = (
+        staleOverlayCount(summary.online_node_count) <= 0
+        && staleOverlayCount(summary.live_packet_count) <= 0
+        && staleOverlayCount(summary.edge_count) <= 0
+        && staleOverlayCount(summary.real_edge_count) <= 0
+      );
+      return !!(
+        link.isConnecting
+        && candidateStartupSource
+        && noLiveMeshSignal
+      );
+    }}
+
+    function recentlyForcedStatePollForStaleOverlayGuard() {{
+      if (typeof window === "undefined") return false;
+      const forcedAtMs = Number(window.__meshLastForcedStatePollAtMs || 0);
+      if (!Number.isFinite(forcedAtMs) || forcedAtMs <= 0) return false;
+      return (Date.now() - forcedAtMs) <= staleStartupStateSuppressWindowMs;
+    }}
+
+    function shouldSuppressStaleStartupStateOverlay(candidate, previous, rawCandidate = null) {{
+      if (!stateLooksHealthyForStaleOverlayGuard(previous)) return false;
+      const stateForStartupCheck = (rawCandidate && typeof rawCandidate === "object") ? rawCandidate : candidate;
+      if (!stateLooksLikeStartupConnectingOverlay(stateForStartupCheck)) return false;
+      return recentlyForcedStatePollForStaleOverlayGuard();
+    }}
+
+    function suppressStaleStartupStateOverlay(candidate, previous, rawCandidate = null) {{
+      stateEtag = "";
+      stateEtagProfile = "";
+      forceStateReloadOnce = true;
+      pollFreshnessUiLastStateKey = "";
+      if (typeof window !== "undefined") {{
+        const candidateSummary = staleOverlaySummaryForState(rawCandidate || candidate);
+        const previousSummary = staleOverlaySummaryForState(previous);
+        window.__meshSuppressedStaleStartupState = {{
+          atMs: Date.now(),
+          reason: "startup-connecting-over-healthy-state",
+          candidateRadio: staleOverlayRadioLinkForState(rawCandidate || candidate),
+          candidateNodeCount: stateNodeCountForStaleOverlayGuard(rawCandidate || candidate),
+          candidateOnlineNodeCount: staleOverlayCount(candidateSummary.online_node_count),
+          previousRadio: staleOverlayRadioLinkForState(previous),
+          previousNodeCount: stateNodeCountForStaleOverlayGuard(previous),
+          previousOnlineNodeCount: staleOverlayCount(previousSummary.online_node_count),
+        }};
+      }}
+      if (typeof appendConsoleLine === "function") {{
+        appendConsoleLine(
+          `state|${{Date.now()}}|stale-startup-suppressed`,
+          "[state] suppressed stale startup/connecting snapshot over live radio state"
+        );
+      }}
+      requestImmediatePoll(Math.min(Math.max(refreshMs, 1000), 3000));
+    }}
+
     function pollPerfEnabled() {{
       return !!(
         typeof window !== "undefined"
@@ -443,12 +580,22 @@
         }}
         const rawState = await resp.json();
         markPollPerfPhase(pollPerfRun, "json");
+        const state = applyNodeVisibilityFiltersToState(rawState);
+        if (shouldSuppressStaleStartupStateOverlay(state, latestState, rawState)) {{
+          suppressStaleStartupStateOverlay(state, latestState, rawState);
+          markPollPerfPhase(pollPerfRun, "suppress-stale-startup-state", {{
+            profile: pollProfile,
+            responseEtag: responseStateEtag,
+          }});
+          pollPerfStatus = "suppressed-stale-startup-state";
+          pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
+          return;
+        }}
         latestRawState = rawState;
         updateNodeNameCache(
           (rawState && rawState.nodes) || [],
           (rawState && rawState.history_caps) || null
         );
-        const state = applyNodeVisibilityFiltersToState(rawState);
         latestState = state;
         latestStatePollProfile = pollProfile;
         markPollPerfPhase(pollPerfRun, "state-normalize", {{

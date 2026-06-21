@@ -8,6 +8,7 @@ import pytest
 from meshdash.http_responses import (
     _gzip_if_accepted,
     _header_value,
+    _send_no_store_headers,
     json_bytes,
     write_html_response,
     write_json_response,
@@ -62,6 +63,17 @@ def test_gzip_if_accepted_checks_size_acceptance_and_compression_ratio(monkeypat
     assert already_compact == compact_payload
 
 
+def test_send_no_store_headers_blocks_normal_reload_cache_reuse() -> None:
+    handler = _Handler()
+
+    _send_no_store_headers(handler)
+
+    headers = handler.header_dict()
+    assert headers["Cache-Control"] == "no-store, no-cache, max-age=0, must-revalidate"
+    assert headers["Pragma"] == "no-cache"
+    assert headers["Expires"] == "0"
+
+
 def test_write_json_response_sets_headers_body_and_optional_gzip() -> None:
     handler = _Handler(headers={"Accept-Encoding": "gzip"})
     payload = {"message": "x" * 2000}
@@ -79,7 +91,9 @@ def test_write_json_response_sets_headers_body_and_optional_gzip() -> None:
     assert handler.status_code == 201
     assert handler.ended is True
     assert headers["Content-Type"] == "application/json; charset=utf-8"
-    assert headers["Cache-Control"] == "no-store"
+    assert headers["Cache-Control"] == "no-store, no-cache, max-age=0, must-revalidate"
+    assert headers["Pragma"] == "no-cache"
+    assert headers["Expires"] == "0"
     assert headers["X-Test"] == "yes"
     assert headers["Content-Encoding"] == "gzip"
     assert headers["Vary"] == "Accept-Encoding"
@@ -101,6 +115,7 @@ def test_write_html_and_text_responses_set_content_types_and_bodies() -> None:
         text_handler,
         status_code=404,
         text="not found",
+        no_store=True,
         extra_headers={"X-Reason": "missing"},
     )
 
@@ -108,11 +123,16 @@ def test_write_html_and_text_responses_set_content_types_and_bodies() -> None:
     text_headers = text_handler.header_dict()
     assert html_handler.status_code == 200
     assert html_headers["Content-Type"] == "text/html; charset=utf-8"
-    assert html_headers["Cache-Control"] == "no-store"
+    assert html_headers["Cache-Control"] == "no-store, no-cache, max-age=0, must-revalidate"
+    assert html_headers["Pragma"] == "no-cache"
+    assert html_headers["Expires"] == "0"
     assert html_headers["X-Frame-Options"] == "DENY"
     assert html_handler.wfile.getvalue() == b"<html>ok</html>"
 
     assert text_handler.status_code == 404
     assert text_headers["Content-Type"] == "text/plain; charset=utf-8"
+    assert text_headers["Cache-Control"] == "no-store, no-cache, max-age=0, must-revalidate"
+    assert text_headers["Pragma"] == "no-cache"
+    assert text_headers["Expires"] == "0"
     assert text_headers["X-Reason"] == "missing"
     assert text_handler.wfile.getvalue() == b"not found"

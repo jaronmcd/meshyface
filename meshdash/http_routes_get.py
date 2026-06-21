@@ -32,6 +32,7 @@ from .api_theme import (
 )
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardGetRouteDependencies
+from .http_responses import _send_no_store_headers
 from .offline_atlas import load_offline_atlas_payload as _load_offline_atlas_payload_helper
 from .helpers import to_int as _to_int_helper
 
@@ -87,7 +88,7 @@ def _write_vendor_asset_response(
     except OSError:
         handler.send_response(404)
         handler.send_header("Content-Type", "text/plain; charset=utf-8")
-        handler.send_header("Cache-Control", "no-store")
+        _send_no_store_headers(handler)
         handler.send_header("Content-Length", "9")
         handler.end_headers()
         handler.wfile.write(b"Not Found")
@@ -308,7 +309,7 @@ def handle_dashboard_get(
             handler,
             status_code=200,
             text=metrics_text,
-            extra_headers={"Cache-Control": "no-store"},
+            no_store=True,
         )
         return
 

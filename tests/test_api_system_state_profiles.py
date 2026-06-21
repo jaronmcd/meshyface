@@ -419,7 +419,9 @@ def test_handle_state_get_returns_304_when_etag_matches_in_headers_get() -> None
     assert written == []
     assert handler.status_code == 304
     assert handler.header_dict() == {
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
         "ETag": "state-etag",
         "Content-Length": "0",
     }

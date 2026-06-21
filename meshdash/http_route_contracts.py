@@ -312,6 +312,7 @@ class WriteTextResponseFn(Protocol):
         *,
         status_code: int,
         text: str,
+        no_store: bool = False,
         extra_headers: Optional[Mapping[str, str]] = None,
     ) -> None:
         ...

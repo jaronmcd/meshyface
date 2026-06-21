@@ -269,6 +269,16 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'Update from GitHub' in js
     assert "if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {" in js
     assert "async function runSettingsBackendReload() {" in js
+    assert "function clearSettingsBackendReloadUrlFlags() {" in js
+    assert "clearSettingsBackendReloadUrlFlags();" in js
+    assert "function forceSettingsBackendReloadHardRefresh(reason = \"backend-reloaded\") {" in js
+    assert "function settingsBackendReloadStateConnected(state) {" in js
+    assert "async function fetchSettingsBackendReloadState() {" in js
+    assert "`/api/state?lite=1&profile=status&reload=${Date.now()}`" in js
+    assert "forceSettingsBackendReloadHardRefresh(\"radio-online\");" in js
+    assert "window.location.replace(nextUrl.toString());" in js
+    assert '"_mesh_backend_reload_reason",' in js
+    assert '"_mesh_recover_reason",' in js
     assert 'fetch("/api/system/restart"' in js
     assert 'document.getElementById("settings-update-reload")' in js
     assert 'document.getElementById("settings-update-restart-status")' not in js
@@ -280,6 +290,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "Available after an update changes the running code" not in js
     assert "settingsBackendReloadInFlight" in js
     assert 'document.getElementById("settings-update-apply")' not in js
+    reload_block = js[
+        js.index("async function waitForSettingsBackendReload() {"):
+        js.index("async function runSettingsBackendReload() {")
+    ]
+    assert "window.location.reload();" not in reload_block
+    assert "settingsBackendReloadStateConnected(state)" in reload_block
+    assert "if ((Date.now() - startedAt) >= 6000) {" in reload_block
+    assert "forceSettingsBackendReloadHardRefresh(\"backend-online\");" in reload_block
     assert "function renderSettingsDeviceInfo(state = latestState) {" in js
     assert "function hydrateSettingsDeviceInfo(force = false) {" in js
     assert "function renderSettingsDatabaseInfo(payload = settingsDatabaseInfoCache.payload) {" in js

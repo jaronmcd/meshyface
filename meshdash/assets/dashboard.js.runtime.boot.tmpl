@@ -228,6 +228,17 @@
       }}
     }}
 
+    function requestFreshStateAfterPageActivation(reason = "page-activation") {{
+      if (typeof forceNextStatePollFresh === "function") {{
+        forceNextStatePollFresh(reason);
+      }} else {{
+        stateEtag = "";
+        stateEtagProfile = "";
+        forceStateReloadOnce = true;
+      }}
+      void pollOnce();
+    }}
+
     function persistDashboardSessionStateNow() {{
       if (typeof persistConsoleSessionState === "function") {{
         persistConsoleSessionState({{ immediate: true }});
@@ -246,7 +257,7 @@
         return;
       }}
       tabHasFocus = (typeof document.hasFocus === "function") ? !!document.hasFocus() : true;
-      void pollOnce();
+      requestFreshStateAfterPageActivation("visibility");
     }});
     window.addEventListener("blur", () => {{
       tabHasFocus = false;
@@ -256,7 +267,10 @@
     }});
     window.addEventListener("focus", () => {{
       tabHasFocus = true;
-      void pollOnce();
+      requestFreshStateAfterPageActivation("focus");
+    }});
+    window.addEventListener("pageshow", (event) => {{
+      requestFreshStateAfterPageActivation(event && event.persisted ? "pageshow-persisted" : "pageshow");
     }});
     window.addEventListener("pagehide", () => {{
       persistDashboardSessionStateNow();
@@ -265,6 +279,11 @@
       persistDashboardSessionStateNow();
     }});
 
+    runBootStep("forceInitialStatePollFresh", () => {{
+      if (typeof forceNextStatePollFresh === "function") {{
+        forceNextStatePollFresh("initial-load");
+      }}
+    }});
     void pollOnce();
     const hiddenRefreshMs = Math.max(refreshMs * 6, 15000);
     let lastScheduledPollMs = 0;
