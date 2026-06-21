@@ -219,7 +219,8 @@ service unit. It is not special to the app, but the commands below and
 
 - repo clone: `/opt/meshyface`
 - virtualenv: `/opt/meshyface/.venv`
-- environment file: `/opt/meshyface/config/dashboard.env`
+- environment file: `/etc/meshyface/dashboard.env`
+- writable app data: `/var/lib/meshyface`
 - service user/group: `meshyface` / `dialout`
 
 If you clone somewhere else, update every `/opt/meshyface` path in the service
@@ -238,32 +239,35 @@ sudo -u meshyface git clone https://github.com/jaronmcd/meshyface.git /opt/meshy
 sudo -u meshyface python3 -m venv /opt/meshyface/.venv
 sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install --upgrade pip
 sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install -r /opt/meshyface/requirements.txt
-sudo install -d -o meshyface -g dialout /opt/meshyface/config
+sudo install -d -o root -g dialout -m 0750 /etc/meshyface
+sudo install -d -o meshyface -g dialout -m 0750 /var/lib/meshyface
 ```
 
-For a Wi-Fi/TCP radio, create `/opt/meshyface/config/dashboard.env` with:
+For a Wi-Fi/TCP radio, create `/etc/meshyface/dashboard.env` with:
 
 ```bash
-sudo tee /opt/meshyface/config/dashboard.env >/dev/null <<'EOF'
+sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
 MESH_GATEWAY_HOST=192.168.1.42
 MESH_GATEWAY_PORT=4403
-MESH_DASH_HISTORY_DB=/opt/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
 PYTHONUNBUFFERED=1
 EOF
-sudo chown meshyface:dialout /opt/meshyface/config/dashboard.env
-sudo chmod 0640 /opt/meshyface/config/dashboard.env
+sudo chown root:dialout /etc/meshyface/dashboard.env
+sudo chmod 0640 /etc/meshyface/dashboard.env
 ```
 
 For a USB serial radio, use this `dashboard.env` instead:
 
 ```bash
-sudo tee /opt/meshyface/config/dashboard.env >/dev/null <<'EOF'
+sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
 MESH_DASH_MESH_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
-MESH_DASH_HISTORY_DB=/opt/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
 PYTHONUNBUFFERED=1
 EOF
-sudo chown meshyface:dialout /opt/meshyface/config/dashboard.env
-sudo chmod 0640 /opt/meshyface/config/dashboard.env
+sudo chown root:dialout /etc/meshyface/dashboard.env
+sudo chmod 0640 /etc/meshyface/dashboard.env
 ```
 
 Then install and start the service:
@@ -296,6 +300,8 @@ sudo systemctl daemon-reload
 sudo systemctl reset-failed meshtastic-dashboard.service 2>/dev/null || true
 
 sudo rm -rf /opt/meshyface
+sudo rm -rf /etc/meshyface
+sudo rm -rf /var/lib/meshyface
 
 if getent passwd meshyface >/dev/null; then
   sudo userdel -r meshyface 2>/dev/null || sudo userdel meshyface
