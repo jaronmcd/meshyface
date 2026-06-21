@@ -319,18 +319,10 @@
         }});
       }}
 
-      const updateSyncBtn = document.getElementById("settings-update-sync");
-      if (updateSyncBtn instanceof HTMLButtonElement) {{
-        updateSyncBtn.addEventListener("click", () => {{
-          void runSettingsUpdateBranchSync();
-        }});
-      }}
-
       const updateBranchSelect = document.getElementById("settings-update-branch");
       if (updateBranchSelect instanceof HTMLSelectElement) {{
         updateBranchSelect.addEventListener("change", () => {{
           settingsUpdateActionReadyBranch = "";
-          settingsUpdateSyncReadyBranch = "";
           settingsUpdateStatusFetchedAt = 0;
           void hydrateSettingsUpdateStatus(true);
         }});

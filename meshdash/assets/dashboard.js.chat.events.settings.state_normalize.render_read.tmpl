@@ -1163,31 +1163,24 @@
         : (Array.isArray(cachedInfo.branches) ? cachedInfo : info);
       const renderInfo = Object.assign({{}}, optionInfo, info);
       const statusEl = document.getElementById("settings-update-status");
-      const syncBtn = document.getElementById("settings-update-sync");
       const checkBtn = document.getElementById("settings-update-check");
       const reloadBtn = document.getElementById("settings-update-reload");
-      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateSyncInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
+      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
       const updateActionReady = !!info.can_update
         && !!selectedBranch
         && settingsUpdateActionReadyBranch === selectedBranch;
-      const syncActionReady = !!selectedBranch
-        && settingsUpdateSyncReadyBranch === selectedBranch;
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
       const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
-      if (settingsUpdateSyncInFlight) {{
-        text = "Syncing branches from GitHub...";
-      }} else if (settingsUpdateApplyInFlight) {{
+      if (settingsUpdateApplyInFlight) {{
         text = "Updating from GitHub...";
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
         text = "Checking GitHub update status...";
-      }} else if (syncActionReady) {{
-        text = `Click Confirm Sync to fetch GitHub branches and align ${{selectedBranch}}.`;
       }}
       renderSettingsUpdateBranchOptions(renderInfo, inFlight);
       renderSettingsUpdatePullRequestHistory(renderInfo, inFlight);
@@ -1215,16 +1208,6 @@
         checkBtn.title = updateActionReady
           ? "Fetch and fast-forward this Git checkout"
           : settingsUpdateStatusText(info);
-      }}
-      if (syncBtn instanceof HTMLButtonElement) {{
-        syncBtn.disabled = inFlight || !selectedBranch;
-        syncBtn.textContent = settingsUpdateSyncInFlight
-          ? "Syncing..."
-          : (syncActionReady ? "Confirm Sync" : "Sync Branches");
-        syncBtn.classList.toggle("is-confirm-ready", syncActionReady);
-        syncBtn.title = syncActionReady
-          ? `Confirm branch sync for ${{selectedBranch}}`
-          : "Fetch GitHub branches and back up/align the selected stale local branch";
       }}
       if (reloadBtn instanceof HTMLButtonElement) {{
         reloadBtn.disabled = !canReloadBackend;
@@ -1265,13 +1248,13 @@
         return settingsUpdateStatusCache;
       }}
       if (settingsUpdateStatusFetchInFlight) return settingsUpdateStatusFetchInFlight;
-      if (settingsUpdateSyncInFlight) return settingsUpdateStatusCache;
       if (primeUpdateAction) settingsUpdateActionReadyBranch = "";
-      settingsUpdateSyncReadyBranch = "";
       renderSettingsUpdateStatus({{ message: "Checking GitHub update status..." }});
-      const statusUrl = selectedBranch
-        ? `/api/system/update?branch=${{encodeURIComponent(selectedBranch)}}`
-        : "/api/system/update";
+      const statusParams = new URLSearchParams();
+      if (selectedBranch) statusParams.set("branch", selectedBranch);
+      if (force) statusParams.set("refresh", "1");
+      const statusQuery = statusParams.toString();
+      const statusUrl = statusQuery ? `/api/system/update?${{statusQuery}}` : "/api/system/update";
       settingsUpdateStatusFetchInFlight = fetchSettingsDeviceInfoJson(statusUrl)
         .then((payload) => {{
           settingsUpdateStatusCache = payload;
@@ -1308,7 +1291,7 @@
     }}
 
     async function runSettingsUpdatePrimaryAction() {{
-      if (settingsUpdateStatusFetchInFlight || settingsUpdateSyncInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
       const info = settingsUpdatePayloadObject(settingsUpdateStatusCache);
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(info.target_branch || "").trim();
@@ -1322,88 +1305,11 @@
       void hydrateSettingsUpdateStatus(true, true);
     }}
 
-    async function runSettingsUpdateBranchSync() {{
-      if (settingsUpdateStatusFetchInFlight || settingsUpdateSyncInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
-      const selectedBranch = readSettingsUpdateBranchSelection();
-      if (!selectedBranch) {{
-        settingsUpdateSyncReadyBranch = "";
-        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
-          can_update: false,
-          message: "Select a GitHub branch first.",
-        }}));
-        return;
-      }}
-      if (settingsUpdateSyncReadyBranch !== selectedBranch) {{
-        settingsUpdateSyncReadyBranch = selectedBranch;
-        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
-          message: `Click Confirm Sync to fetch GitHub branches and align ${{selectedBranch}}.`,
-        }}));
-        return;
-      }}
-      settingsUpdateActionReadyBranch = "";
-      settingsUpdateSyncReadyBranch = "";
-      settingsUpdateSyncInFlight = true;
-      renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
-        message: "Syncing branches from GitHub...",
-      }}));
-      try {{
-        const resp = await fetch("/api/system/update/sync", {{
-          method: "POST",
-          headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{ branch: selectedBranch }}),
-          cache: "no-store",
-        }});
-        const text = await resp.text();
-        let payload = null;
-        try {{
-          payload = text ? JSON.parse(text) : null;
-        }} catch (_err) {{
-        }}
-        const info = settingsUpdatePayloadObject(payload);
-        if (!resp.ok || info.ok === false) {{
-          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
-          settingsUpdateStatusCache = Object.assign({{}}, info, {{
-            ok: false,
-            can_update: false,
-            message: `Branch sync failed: ${{errMsg}}`,
-          }});
-          settingsUpdateStatusFetchedAt = Date.now();
-          renderSettingsUpdateStatus(settingsUpdateStatusCache);
-          return;
-        }}
-        settingsUpdateStatusCache = info;
-        settingsUpdateStatusFetchedAt = Date.now();
-        const syncedBranch = selectedBranch || String(info.target_branch || "").trim();
-        settingsUpdateActionReadyBranch = info.can_update && syncedBranch ? syncedBranch : "";
-        renderSettingsUpdateStatus(info);
-        appendConsoleLine(
-          `system-update-sync|${{Date.now()}}|ok`,
-          "[system] branches synced from GitHub"
-        );
-      }} catch (err) {{
-        const msg = err && err.message ? err.message : String(err || "unknown error");
-        settingsUpdateStatusCache = {{
-          ok: false,
-          available: false,
-          can_update: false,
-          state: "error",
-          error: msg,
-          message: `Branch sync failed: ${{msg}}`,
-        }};
-        settingsUpdateStatusFetchedAt = Date.now();
-        renderSettingsUpdateStatus(settingsUpdateStatusCache);
-      }} finally {{
-        settingsUpdateSyncInFlight = false;
-        renderSettingsUpdateStatus(settingsUpdateStatusCache);
-      }}
-    }}
-
     async function runSettingsGithubUpdate() {{
-      if (settingsUpdateSyncInFlight || settingsUpdateApplyInFlight) return;
+      if (settingsUpdateApplyInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       if (!selectedBranch) {{
         settingsUpdateActionReadyBranch = "";
-        settingsUpdateSyncReadyBranch = "";
         renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
           can_update: false,
           message: "Select a GitHub branch first.",
@@ -1412,7 +1318,6 @@
       }}
 
       settingsUpdateActionReadyBranch = "";
-      settingsUpdateSyncReadyBranch = "";
       settingsUpdateApplyInFlight = true;
       renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
       try {{

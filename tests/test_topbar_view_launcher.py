@@ -68,7 +68,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
     assert '<h3>Software</h3>' in html
     assert 'Software version, Git revision, and GitHub update controls' not in html
-    assert 'id="settings-update-sync"' in html
+    assert 'id="settings-update-sync"' not in html
     assert 'id="settings-update-status"' in html
     assert 'Update status not checked.' in html
     assert 'id="settings-update-branch"' in html
@@ -273,13 +273,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
-    assert "async function runSettingsUpdateBranchSync() {" in js
-    assert 'fetch("/api/system/update/sync"' in js
-    assert 'settingsUpdateSyncReadyBranch === selectedBranch' in js
-    assert 'Confirm Sync' in js
-    assert 'Click Confirm Sync to fetch GitHub branches and align ${selectedBranch}.' in js
-    assert "settingsUpdateSyncInFlight" in js
-    assert 'document.getElementById("settings-update-sync")' in js
+    assert "async function runSettingsUpdateBranchSync() {" not in js
+    assert 'fetch("/api/system/update/sync"' not in js
+    assert "settingsUpdateSyncInFlight" not in js
+    assert 'document.getElementById("settings-update-sync")' not in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js
     assert "function readSettingsUpdateBranchSelection() {" in js
@@ -288,7 +285,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function renderSettingsUpdateBranchOptions(info, inFlight) {" in js
     assert 'document.getElementById("settings-update-branch-toggle")' in js
     assert 'document.getElementById("settings-update-branch-options")' in js
-    assert "`/api/system/update?branch=${encodeURIComponent(selectedBranch)}`" in js
+    assert 'statusParams.set("branch", selectedBranch);' in js
+    assert 'statusParams.set("refresh", "1");' in js
     assert "body: JSON.stringify({ branch: selectedBranch })" in js
     assert 'fetch("/api/system/update"' in js
     assert "async function runSettingsUpdatePrimaryAction() {" in js
