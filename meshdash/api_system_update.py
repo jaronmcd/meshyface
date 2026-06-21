@@ -631,6 +631,27 @@ def _local_branch_exists(repo_root: Path, branch: str, runner: GitRunner) -> boo
     return result.returncode == 0
 
 
+def _ref_short_commit(repo_root: Path, ref: str, runner: GitRunner) -> str:
+    clean_ref = str(ref or "").strip()
+    if not clean_ref:
+        return ""
+    result = runner(["rev-parse", "--short=7", clean_ref], repo_root, 5.0)
+    return _git_text(result) if result.returncode == 0 else ""
+
+
+def _sync_backup_branch_name(repo_root: Path, branch: str, runner: GitRunner) -> str:
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(branch or "").strip()).strip(".-")
+    if not stem:
+        stem = "branch"
+    short_commit = _ref_short_commit(repo_root, branch, runner) or "local"
+    base = f"{stem[:120]}-before-sync-{short_commit}"
+    for idx in range(50):
+        candidate = base if idx == 0 else f"{base}-{idx + 1}"
+        if _clean_branch_name(candidate) and not _local_branch_exists(repo_root, candidate, runner):
+            return candidate
+    return ""
+
+
 def run_update_from_github(
     *,
     repo_dir: str | os.PathLike[str] | None = None,
@@ -842,6 +863,197 @@ def run_update_from_github(
                 "changed_files": changed_files,
                 "requirements_changed": requirements_changed,
                 "restart_required": old_commit != new_commit,
+                "message": message,
+                "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def sync_update_branches_from_github(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    target_branch: object = None,
+    runner: GitRunner = _run_git,
+    fetch_timeout: float = 60.0,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "synced": False,
+            "updated": False,
+            "available": True,
+            "state": "busy",
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        repo_root, error = _resolve_repo_root(repo_dir=repo_dir, runner=runner)
+        if repo_root is None:
+            return {
+                "ok": False,
+                "synced": False,
+                "updated": False,
+                "available": False,
+                "state": "unavailable",
+                "can_update": False,
+                "update_needed": False,
+                "message": error,
+                "error": error,
+                "http_status": 409,
+            }
+
+        branch = _current_branch(repo_root, runner)
+        _current_upstream, current_remote, _current_remote_branch = _configured_upstream(
+            repo_root,
+            branch=branch,
+            runner=runner,
+        )
+        remote = _default_update_remote(repo_root, preferred_remote=current_remote, runner=runner)
+        if not remote:
+            return {
+                "ok": False,
+                "synced": False,
+                "updated": False,
+                "available": False,
+                "state": "no_remote",
+                "can_update": False,
+                "update_needed": False,
+                "message": "Software branch sync needs a configured Git remote.",
+                "error": "no git remote is configured",
+                "http_status": 409,
+            }
+
+        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        if fetch_result.returncode != 0:
+            error_text = _short_text(_git_text(fetch_result))
+            message = "Could not reach GitHub or sync branches."
+            if fetch_result.timed_out:
+                message = "GitHub branch sync timed out."
+            return {
+                "ok": False,
+                "synced": False,
+                "updated": False,
+                "available": True,
+                "state": "fetch_failed",
+                "can_update": False,
+                "update_needed": False,
+                "remote": remote,
+                "message": message,
+                "error": error_text or message,
+                "http_status": 503,
+            }
+
+        branch_synced = False
+        backup_branch = ""
+        selected_branch = _clean_branch_name(target_branch)
+        branch_options = _remote_branches(repo_root, remote, runner)
+        if selected_branch and selected_branch in branch_options:
+            target_upstream = f"{remote}/{selected_branch}"
+            if selected_branch != branch and _local_branch_exists(repo_root, selected_branch, runner):
+                branch_ahead, branch_behind = _ahead_behind_refs(
+                    repo_root,
+                    selected_branch,
+                    target_upstream,
+                    runner,
+                )
+                if branch_ahead is None or branch_behind is None:
+                    return {
+                        "ok": False,
+                        "synced": False,
+                        "updated": False,
+                        "available": True,
+                        "state": "compare_failed",
+                        "can_update": False,
+                        "update_needed": False,
+                        "remote": remote,
+                        "target_branch": selected_branch,
+                        "target_upstream": target_upstream,
+                        "message": "Fetched branches, but could not compare the selected local branch with GitHub.",
+                        "error": "selected branch comparison failed",
+                        "http_status": 409,
+                    }
+                if int(branch_ahead or 0) > 0:
+                    backup_branch = _sync_backup_branch_name(repo_root, selected_branch, runner)
+                    if not backup_branch:
+                        return {
+                            "ok": False,
+                            "synced": False,
+                            "updated": False,
+                            "available": True,
+                            "state": "backup_failed",
+                            "can_update": False,
+                            "update_needed": False,
+                            "remote": remote,
+                            "target_branch": selected_branch,
+                            "target_upstream": target_upstream,
+                            "message": f"Fetched branches, but could not choose a backup branch name for {selected_branch}.",
+                            "error": "backup branch name could not be generated",
+                            "http_status": 409,
+                        }
+                    backup_result = runner(["branch", backup_branch, selected_branch], repo_root, 10.0)
+                    if backup_result.returncode != 0:
+                        error_text = _short_text(_git_text(backup_result))
+                        return {
+                            "ok": False,
+                            "synced": False,
+                            "updated": False,
+                            "available": True,
+                            "state": "backup_failed",
+                            "can_update": False,
+                            "update_needed": False,
+                            "remote": remote,
+                            "target_branch": selected_branch,
+                            "target_upstream": target_upstream,
+                            "message": f"Fetched branches, but could not back up local branch {selected_branch}.",
+                            "error": error_text or "git branch backup failed",
+                            "http_status": 409,
+                        }
+                if int(branch_ahead or 0) > 0 or int(branch_behind or 0) > 0:
+                    sync_result = runner(["branch", "-f", selected_branch, target_upstream], repo_root, 10.0)
+                    if sync_result.returncode != 0:
+                        error_text = _short_text(_git_text(sync_result))
+                        return {
+                            "ok": False,
+                            "synced": False,
+                            "updated": False,
+                            "available": True,
+                            "state": "branch_sync_failed",
+                            "can_update": False,
+                            "update_needed": False,
+                            "remote": remote,
+                            "target_branch": selected_branch,
+                            "target_upstream": target_upstream,
+                            "backup_branch": backup_branch,
+                            "message": f"Fetched branches, but could not align {selected_branch} to {target_upstream}.",
+                            "error": error_text or "git branch -f failed",
+                            "http_status": 409,
+                        }
+                    branch_synced = True
+
+        payload = build_update_status_payload(
+            repo_dir=repo_root,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        if branch_synced and backup_branch:
+            message = f"Branches synced from GitHub. Local {selected_branch} was backed up as {backup_branch} and aligned to {remote}/{selected_branch}."
+        elif branch_synced:
+            message = f"Branches synced from GitHub. Local {selected_branch} was aligned to {remote}/{selected_branch}."
+        else:
+            message = "Branches synced from GitHub."
+        payload.update(
+            {
+                "ok": True,
+                "synced": True,
+                "branch_synced": branch_synced,
+                "backup_branch": backup_branch,
+                "updated": False,
+                "connection_ok": True,
                 "message": message,
                 "http_status": 200,
             }
