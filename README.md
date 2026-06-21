@@ -97,20 +97,50 @@ flowchart LR
   Radio -->|receive callbacks| Tracker
 ```
 
-## Requirements
+## Prerequisites And Dependencies
 
-- Linux host strongly recommended for server mode
-  - Debian-based hosts such as Raspberry Pi OS Bookworm work with the bundled
-    deploy helper
-- Python 3.11+
-- Meshtastic-accessible radio over either:
-  - TCP (`--mesh-host` + `--mesh-tcp-port`)
-  - Serial USB (`--mesh-port`)
-- Python packages:
-  - install runtime packages with `python -m pip install -r requirements.txt`
-  - install test packages with `python -m pip install -r requirements-dev.txt`
-- Browser access to:
-  - `https://tile.openstreetmap.org/...` if you want online basemaps
+Meshyface is a Python web service. For a persistent dashboard host, use Linux
+with systemd; Debian, Ubuntu, and Raspberry Pi OS Bookworm or newer are the
+expected paths.
+
+Required host packages for the standalone install:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git python3 python3-venv
+```
+
+Runtime requirements:
+
+- Python `3.11+`
+- outbound HTTPS during install for GitHub and PyPI, unless dependencies are
+  already mirrored or cached
+- a Meshtastic radio reachable over TCP (`--mesh-host` + `--mesh-tcp-port`) or
+  USB serial (`--mesh-port`)
+- for USB serial, a stable `/dev/serial/by-id/...` path is recommended
+- for USB serial under systemd, the service user must have access to the serial
+  device; the documented unit uses group `dialout`
+
+Python runtime packages are pinned in `requirements.txt`:
+
+- `meshtastic==2.7.8`
+- `pypubsub==4.0.7`
+- `protobuf==7.34.1`
+
+Install them with:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Development and test dependencies live in `requirements-dev.txt`:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Browser access to `https://tile.openstreetmap.org/...` is only needed for
+online basemaps.
 
 For a fully air-gapped deployment, the vendored Leaflet assets still load
 locally, and the map uses the bundled offline atlas when online tile servers
@@ -118,7 +148,20 @@ are unavailable.
 
 ## Standalone Install
 
-### 1) Clone + venv
+Choose one install path:
+
+- Manual run: clone into your home directory or any working directory and run
+  the dashboard in the foreground.
+- Systemd service: clone into `/opt/meshyface` and use the included service
+  unit. This is the recommended path for persistent hosts.
+
+You do not need both checkouts.
+
+### 1) Manual run: clone + venv
+
+Use this for a quick foreground run. If you are setting up the systemd service,
+skip to [Run the clone as a systemd service](#4-run-the-clone-as-a-systemd-service)
+and use the `/opt/meshyface` clone path there.
 
 ```bash
 git clone https://github.com/jaronmcd/meshyface.git meshyface
@@ -170,12 +213,19 @@ check GitHub branches and apply git-based updates. If you want to push a local
 checkout from a workstation over SSH instead, use the deploy helper in
 [Workstation Push Deployment](#workstation-push-deployment).
 
-The included `meshtastic-dashboard.service` assumes this layout:
+The `/opt/meshyface` path is a system-wide install convention for the included
+service unit. It is not special to the app, but the commands below and
+`meshtastic-dashboard.service` assume this layout:
 
 - repo clone: `/opt/meshyface`
 - virtualenv: `/opt/meshyface/.venv`
 - environment file: `/opt/meshyface/config/dashboard.env`
 - service user/group: `meshyface` / `dialout`
+
+If you clone somewhere else, update every `/opt/meshyface` path in the service
+unit and commands. For the copy/paste install below, clone directly into
+`/opt/meshyface`; do not also create a separate `~/meshyface` checkout unless
+you want a personal test copy.
 
 On a Debian, Ubuntu, or Raspberry Pi OS host:
 
@@ -234,6 +284,27 @@ sudo -u meshyface git pull --ff-only
 sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install -r requirements.txt
 sudo systemctl restart meshtastic-dashboard
 ```
+
+To uninstall this systemd layout and remove its managed data:
+
+```bash
+sudo systemctl disable --now meshtastic-dashboard.service 2>/dev/null || true
+sudo systemctl stop meshtastic-dashboard.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/meshtastic-dashboard.service
+sudo rm -f /etc/systemd/system/multi-user.target.wants/meshtastic-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed meshtastic-dashboard.service 2>/dev/null || true
+
+sudo rm -rf /opt/meshyface
+
+if getent passwd meshyface >/dev/null; then
+  sudo userdel -r meshyface 2>/dev/null || sudo userdel meshyface
+fi
+sudo rm -rf /home/meshyface
+```
+
+If you also made a separate test checkout under your login user's home, remove
+that checkout separately, for example `rm -rf ~/meshyface`.
 
 ## Docker Install
 
