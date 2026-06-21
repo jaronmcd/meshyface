@@ -47,6 +47,7 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             "uptime_seconds": 42,
             "node_count": 3,
             "live_packet_count": 8,
+            "radio_link": {"connected": True, "state": "connected"},
             "radio_connection": {"state": "connected"},
             "revision": {
                 "version": "1.2.3",

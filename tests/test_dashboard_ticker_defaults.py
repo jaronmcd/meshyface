@@ -755,6 +755,10 @@ def test_radio_ticker_uses_rx_tx_metric() -> None:
     assert 'const radioMetric = document.getElementById("m-radio");' in js
     assert 'const radioStatusLine = document.getElementById("m-radio-status");' in js
     assert 'const radioCard = document.getElementById("summary-ticker-radio");' in js
+    assert "function radioLinkStateFromState(state = latestState) {" in js
+    assert "const link = (summary.radio_link && typeof summary.radio_link === \"object\")" in js
+    assert "const radioLinkState = radioLinkStateFromState(safeState);" in js
+    assert 'let key = radioLinkState.isConnected ? "online" : freshnessKey;' in js
     assert "const trafficMetricText = `RX ${trafficSnap.rxRecent} · TX ${trafficSnap.txRecent}`;" in js
     assert "const trafficMetricTotal = trafficSnap.rxRecent + trafficSnap.txRecent;" in js
     assert 'trafficEl.className = "radio-ticker-traffic";' in js

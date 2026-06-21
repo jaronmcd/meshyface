@@ -306,6 +306,14 @@ def _build_offline_state_loader(
         "target": target,
         "error": startup_error_text,
     }
+    radio_link_summary = {
+        "state": "connecting" if connecting else "disconnected",
+        "connected": False,
+        "changed_unix": None,
+        "reason": startup_error_text,
+        "target": target,
+        "source": "startup",
+    }
 
     def state_fn() -> dict[str, object]:
         uptime_seconds = int(max(0, time.time() - started_at))
@@ -332,6 +340,7 @@ def _build_offline_state_loader(
                 "saved_node_count": len(cached_nodes),
                 "online_node_count": 0,
                 "online_node_count_source": "offline",
+                "radio_link": radio_link_summary,
                 "radio_connection": radio_connection_summary,
             },
             "summary_error": None,

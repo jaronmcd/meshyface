@@ -1,3 +1,4 @@
+import meshdash.runtime_state_loader as runtime_state_loader
 from meshdash.revision import RevisionInfo
 from meshdash.runtime_state_contracts import StateSnapshotRuntimeDependencies
 from meshdash.runtime_state_loader import build_state_snapshot_loader_with_dependencies
@@ -113,6 +114,67 @@ def test_state_snapshot_cache_key_includes_tracker_state_revision() -> None:
         "lite_network_graph",
         "lite_network_map",
     ]
+
+
+def test_state_snapshot_etag_includes_backend_runtime_instance() -> None:
+    tracker = _Tracker()
+
+    def build_state_fn(**_kwargs):
+        return {"ok": True}
+
+    first = build_state_snapshot_loader_with_dependencies(
+        dependencies=StateSnapshotRuntimeDependencies(
+            iface=object(),
+            tracker=tracker,
+            started_at=100.0,
+            target="test",
+            show_secrets=False,
+            storage_probe_path=None,
+            revision_info=_revision(),
+        ),
+        build_state_fn=build_state_fn,
+    )
+    second = build_state_snapshot_loader_with_dependencies(
+        dependencies=StateSnapshotRuntimeDependencies(
+            iface=object(),
+            tracker=tracker,
+            started_at=101.0,
+            target="test",
+            show_secrets=False,
+            storage_probe_path=None,
+            revision_info=_revision(),
+        ),
+        build_state_fn=build_state_fn,
+    )
+
+    assert first.etag() != second.etag()  # type: ignore[attr-defined]
+
+
+def test_state_snapshot_etag_handles_invalid_runtime_revision_inputs(monkeypatch) -> None:
+    tracker = _Tracker()
+    tracker.live_packet_count = "bad"
+    tracker.radio_link_changed_unix = object()
+    tracker.state_revision = "bad"
+    monkeypatch.setattr(runtime_state_loader.time, "time", lambda: 6_000.0)
+
+    def build_state_fn(**_kwargs):
+        return {"ok": True}
+
+    state_fn = build_state_snapshot_loader_with_dependencies(
+        dependencies=StateSnapshotRuntimeDependencies(
+            iface=object(),
+            tracker=tracker,
+            started_at="not-a-time",
+            target="test",
+            show_secrets=False,
+            storage_probe_path=None,
+            revision_info=_revision(),
+        ),
+        build_state_fn=build_state_fn,
+    )
+
+    assert state_fn() == {"ok": True}
+    assert state_fn.etag() == 'W/"full-b0-p0-r0-s0-t100"'  # type: ignore[attr-defined]
 
 
 def test_record_local_chat_bumps_tracker_state_revision() -> None:

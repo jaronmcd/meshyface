@@ -160,6 +160,8 @@ def test_offline_runtime_uses_cached_history_nodes(tmp_path) -> None:
     assert context.history_enabled is True
     assert state["summary"]["node_count"] == 2
     assert state["summary"]["nodes_with_position"] == 1
+    assert state["summary"]["radio_link"]["state"] == "connecting"
+    assert state["summary"]["radio_link"]["connected"] is False
     assert state["summary"]["radio_connection"]["state"] == "connecting"
     assert [node["id"] for node in state["nodes"]] == ["!49b5dff0", "!02edc4f8"]
     assert state["nodes"][0]["long_name"] == "green"

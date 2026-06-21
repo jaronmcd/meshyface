@@ -89,6 +89,89 @@
       }};
     }}
 
+    function coerceRadioLinkBool(value) {{
+      if (value === true) return true;
+      if (value === false) return false;
+      if (value == null) return null;
+      const text = String(value).trim().toLowerCase();
+      if (["1", "true", "yes", "on", "up", "connected", "online", "ok"].includes(text)) return true;
+      if (["0", "false", "no", "off", "down", "disconnected", "offline", "lost"].includes(text)) return false;
+      return null;
+    }}
+
+    function normalizeRadioLinkStateToken(value) {{
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (["connected", "online", "up", "ok"].includes(text)) return "connected";
+      if (["connecting", "pending", "waiting"].includes(text)) return "connecting";
+      if (["lost", "disconnected", "offline", "down"].includes(text)) return "disconnected";
+      return "";
+    }}
+
+    function radioLinkStateFromState(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = (safeState.summary && typeof safeState.summary === "object") ? safeState.summary : {{}};
+      const link = (summary.radio_link && typeof summary.radio_link === "object")
+        ? summary.radio_link
+        : null;
+      const legacyRadio = (!link && summary.radio_connection && typeof summary.radio_connection === "object")
+        ? summary.radio_connection
+        : null;
+      const source = link ? String(link.source || "summary.radio_link") : (legacyRadio ? "summary.radio_connection" : "");
+      const target = String((link && link.target) || summary.target || "").trim();
+      const reason = String(
+        (link && (link.reason || link.error))
+        || (legacyRadio && legacyRadio.error)
+        || safeState.tracker_error
+        || safeState.local_state_error
+        || ""
+      ).trim();
+      let connected = link
+        ? coerceRadioLinkBool(link.connected ?? link.is_connected ?? link.isConnected)
+        : null;
+      let stateText = link
+        ? normalizeRadioLinkStateToken(link.state || link.status)
+        : "";
+      if (!stateText && connected === true) stateText = "connected";
+      if (!stateText && connected === false) stateText = "disconnected";
+
+      if (!link && legacyRadio) {{
+        stateText = normalizeRadioLinkStateToken(legacyRadio.state || legacyRadio.status);
+        connected = coerceRadioLinkBool(legacyRadio.connected ?? legacyRadio.is_connected ?? legacyRadio.isConnected);
+        if (!stateText && connected === true) stateText = "connected";
+        if (!stateText && connected === false) stateText = "disconnected";
+      }}
+
+      const trackerError = String(safeState.tracker_error || "").trim();
+      const localStateError = String(safeState.local_state_error || "").trim();
+      if (!stateText && (/radio connecting/i.test(trackerError) || /radio connecting/i.test(localStateError))) {{
+        stateText = "connecting";
+      }}
+      if (!stateText && /radio link lost/i.test(trackerError)) {{
+        stateText = "disconnected";
+      }}
+      if (stateText === "connected") connected = true;
+      if (stateText === "connecting" || stateText === "disconnected") connected = false;
+
+      const changedRaw = Number(link && (link.changed_unix ?? link.changedUnix));
+      const changedUnix = Number.isFinite(changedRaw) && changedRaw > 0 ? Math.trunc(changedRaw) : null;
+      const stateName = stateText || "unknown";
+      const label = stateName === "connected"
+        ? "Active"
+        : (stateName === "connecting" ? "Connecting" : (stateName === "disconnected" ? "Lost" : "Unknown"));
+      return {{
+        state: stateName,
+        connected,
+        changedUnix,
+        reason,
+        source,
+        target,
+        label,
+        isConnected: connected === true,
+        isConnecting: stateName === "connecting",
+        isDisconnected: stateName === "disconnected",
+      }};
+    }}
+
     function buildTargetRadioStatus(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nowUnix = Math.floor(Date.now() / 1000);
@@ -135,17 +218,9 @@
       if (trackerError) errors.push(`tracker: ${{trackerError}}`);
       if (pollErrorActive) errors.push(`poll: ${{pollError}}`);
       const errorSummary = errors.join(" | ");
-      const trackerReportsLost = /radio link lost/i.test(trackerError);
-      const radioConnectionSummary = (safeState.summary && typeof safeState.summary.radio_connection === "object")
-        ? safeState.summary.radio_connection
-        : null;
-      const radioConnectionState = String(
-        (radioConnectionSummary && (radioConnectionSummary.state || radioConnectionSummary.status)) || ""
-      ).trim().toLowerCase();
-      const trackerReportsConnecting = /radio connecting/i.test(trackerError)
-        || /radio connecting/i.test(localStateError)
-        || radioConnectionState === "connecting"
-        || !!(radioConnectionSummary && radioConnectionSummary.connecting === true);
+      const radioLinkState = radioLinkStateFromState(safeState);
+      const trackerReportsLost = radioLinkState.isDisconnected || /radio link lost/i.test(trackerError);
+      const trackerReportsConnecting = radioLinkState.isConnecting;
       if (trackerReportsConnecting) {{
         const detail = errorSummary || "waiting for radio link";
         return {{
@@ -154,6 +229,17 @@
           inlineText: "Connecting",
           text: `Connecting · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
           title: `Connecting to radio. ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
+        }};
+      }}
+
+      if (radioLinkState.isConnected && !isCanonicalNodeId(localId)) {{
+        const detail = errorSummary || radioLinkState.reason || "local radio id unavailable";
+        return {{
+          ...trafficMetricPayload,
+          key: "online",
+          inlineText: "Active",
+          text: `Active · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`,
+          title: `Radio session connected. ${{detail}} | ${{trafficText}} | ${{activityText}}${{ipDetailSuffix}}`,
         }};
       }}
 
@@ -215,11 +301,11 @@
         }};
       }}
 
-      let key = freshnessKey;
+      let key = radioLinkState.isConnected ? "online" : freshnessKey;
       let label = "Unknown";
-      if (freshnessKey === "online") label = "Active";
-      else if (freshnessKey === "warn") label = "Aging";
-      else if (freshnessKey === "stale") label = "Stale";
+      if (key === "online") label = "Active";
+      else if (key === "warn") label = "Aging";
+      else if (key === "stale") label = "Stale";
 
       const text = `${{label}} · ${{lastActivityCompact}} · ${{trafficCompactText}}${{ipCompactSuffix}}`;
       const statusUsesTraffic = Number.isFinite(statusFreshnessUnix)
