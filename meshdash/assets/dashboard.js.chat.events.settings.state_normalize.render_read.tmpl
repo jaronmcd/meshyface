@@ -1011,6 +1011,7 @@
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
       const reloadBtn = document.getElementById("settings-update-reload");
+      const restartStatusEl = document.getElementById("settings-update-restart-status");
       const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
@@ -1063,6 +1064,13 @@
           : (restartRequired
             ? "Restart the dashboard backend so the updated code is loaded"
             : "Restart the dashboard backend");
+      }}
+      if (restartStatusEl instanceof HTMLElement) {{
+        restartStatusEl.hidden = !restartRequired;
+        restartStatusEl.classList.toggle("is-blocked", restartRequired && requirementsChanged);
+        restartStatusEl.textContent = requirementsChanged
+          ? "Restart needed after Python requirements are installed"
+          : "Restart needed to use the updated code";
       }}
     }}
 
