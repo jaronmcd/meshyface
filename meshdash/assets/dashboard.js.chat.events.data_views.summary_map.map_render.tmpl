@@ -395,6 +395,20 @@
 
     function bindMapLinkLegendControls(legend) {{
       if (!(legend instanceof HTMLElement)) return;
+      const collapseToggle = legend.querySelector('[data-map-link-legend-collapse="1"]');
+      if (collapseToggle instanceof HTMLButtonElement && collapseToggle.dataset.boundMapLinkLegend !== "1") {{
+        collapseToggle.dataset.boundMapLinkLegend = "1";
+        collapseToggle.addEventListener("click", () => {{
+          setMapLinkLegendCollapsed(true);
+        }});
+      }}
+      const expandToggle = legend.querySelector('[data-map-link-legend-expand="1"]');
+      if (expandToggle instanceof HTMLButtonElement && expandToggle.dataset.boundMapLinkLegend !== "1") {{
+        expandToggle.dataset.boundMapLinkLegend = "1";
+        expandToggle.addEventListener("click", () => {{
+          setMapLinkLegendCollapsed(false);
+        }});
+      }}
       const packetToggle = legend.querySelector('[data-map-link-legend-toggle="packet"]');
       if (packetToggle instanceof HTMLInputElement && packetToggle.dataset.boundMapLinkLegend !== "1") {{
         packetToggle.dataset.boundMapLinkLegend = "1";
@@ -494,6 +508,35 @@
       }}
     }}
 
+    function setMapLinkLegendCollapsed(collapsed, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      mapLinkLegendCollapsed = !!collapsed;
+      const legend = document.getElementById("map-link-legend");
+      if (legend instanceof HTMLElement) {{
+        legend.classList.toggle("is-collapsed", mapLinkLegendCollapsed);
+        const collapseToggle = legend.querySelector('[data-map-link-legend-collapse="1"]');
+        if (collapseToggle instanceof HTMLButtonElement) {{
+          collapseToggle.setAttribute("aria-expanded", mapLinkLegendCollapsed ? "false" : "true");
+          collapseToggle.title = "Collapse map layers legend";
+          collapseToggle.setAttribute("aria-label", "Collapse map layers legend");
+        }}
+        const expandToggle = legend.querySelector('[data-map-link-legend-expand="1"]');
+        if (expandToggle instanceof HTMLButtonElement) {{
+          expandToggle.setAttribute("aria-expanded", mapLinkLegendCollapsed ? "false" : "true");
+          expandToggle.title = "Expand map layers legend";
+          expandToggle.setAttribute("aria-label", "Expand map layers legend");
+        }}
+        const list = legend.querySelector(".map-link-legend-list");
+        if (list instanceof HTMLElement) {{
+          list.setAttribute("aria-hidden", mapLinkLegendCollapsed ? "true" : "false");
+        }}
+      }}
+      if (opts.persist !== false && typeof persistMapLinkLegendCollapsedPreference === "function") {{
+        persistMapLinkLegendCollapsedPreference();
+      }}
+      scheduleMapLinkLegendOffsetSync();
+    }}
+
     function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null) {{
       const legend = document.getElementById("map-link-legend");
       if (!(legend instanceof HTMLElement)) return;
@@ -554,9 +597,31 @@
         Math.trunc(Number(linkDensity && (linkDensity.cloudCount || linkDensity.corePointCount)) || 0)
       );
       legend.hidden = false;
+      legend.classList.toggle("is-collapsed", !!mapLinkLegendCollapsed);
       legend.innerHTML = `
-        <div class="map-link-legend-title">Map layers</div>
-        <div class="map-link-legend-list">
+        <div class="map-link-legend-head">
+          <div class="map-link-legend-title">Map layers</div>
+          <button
+            type="button"
+            class="map-link-legend-collapse-btn"
+            data-map-link-legend-collapse="1"
+            title="Collapse map layers legend"
+            aria-label="Collapse map layers legend"
+            aria-expanded="${{mapLinkLegendCollapsed ? "false" : "true"}}"
+          ><span class="map-link-legend-collapse-icon" aria-hidden="true"></span></button>
+        </div>
+        <button
+          type="button"
+          class="map-link-legend-collapsed-btn"
+          data-map-link-legend-expand="1"
+          title="Expand map layers legend"
+          aria-label="Expand map layers legend"
+          aria-expanded="${{mapLinkLegendCollapsed ? "false" : "true"}}"
+        >
+          <span class="map-link-legend-collapsed-icon" aria-hidden="true"></span>
+          <span class="map-link-legend-collapsed-label">Layers</span>
+        </button>
+        <div class="map-link-legend-list" aria-hidden="${{mapLinkLegendCollapsed ? "true" : "false"}}">
           <label class="map-link-legend-item is-toggle is-heatmap" style="--map-link-legend-color:#0a9396;" title="Show two-color signal heatmap: amber coverage and cyan live">
             <input class="map-link-legend-input" type="checkbox" data-map-link-legend-toggle="signal-heatmap"${{signalHeatmapLegendEnabled ? " checked" : ""}} aria-label="Show signal heatmap" />
             <span class="map-link-legend-swatch is-signal-heat" aria-hidden="true"></span>

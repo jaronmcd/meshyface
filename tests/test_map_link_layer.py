@@ -64,10 +64,12 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let mapPacketLinesEnabled = false;" in js
     assert 'const mapLinkModeStorageKey = "meshDashboardMapLinkModeV1";' in js
     assert 'const mapNodeLayerVisibilityStorageKey = "meshDashboardMapNodeLayerVisibilityV1";' in js
+    assert 'const mapLinkLegendCollapsedStorageKey = "meshDashboardMapLinkLegendCollapsedV1";' in js
     assert 'const mapLiveActivityStorageKey = "meshDashboardMapLiveActivityEnabledV1";' in js
     assert "let mapActualNodesEnabled = true;" in js
     assert "let mapLinkInferredNodesEnabled = true;" in js
     assert "let mapRssiTrilateratedNodesEnabled = true;" in js
+    assert "let mapLinkLegendCollapsed = false;" in js
     assert "function updateMapPacketLinesControl()" in js
     assert "function bindMapPacketLinesControl()" in js
     assert "function updateMapLinkLayerControl()" in js
@@ -76,7 +78,10 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function loadMapLinkLayerModePreference()" in js
     assert "function persistMapNodeLayerVisibilityPreference()" in js
     assert "function loadMapNodeLayerVisibilityPreference()" in js
+    assert "function persistMapLinkLegendCollapsedPreference()" in js
+    assert "function loadMapLinkLegendCollapsedPreference()" in js
     assert 'runBootStep("loadMapNodeLayerVisibilityPreference", () => loadMapNodeLayerVisibilityPreference());' in js
+    assert 'runBootStep("loadMapLinkLegendCollapsedPreference", () => loadMapLinkLegendCollapsedPreference());' in js
     assert "function bindMapLinkLayerControl()" in js
     assert "function updateMapLiveActivityControl()" in js
     assert "function loadMapLiveActivityPreference()" in js
@@ -92,6 +97,10 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'estimated: mode !== "none",' in js
     assert "function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null)" in js
     assert "function bindMapLinkLegendControls(legend)" in js
+    assert "function setMapLinkLegendCollapsed(collapsed, options = null)" in js
+    assert 'data-map-link-legend-collapse="1"' in js
+    assert 'data-map-link-legend-expand="1"' in js
+    assert 'class="map-link-legend-collapsed-btn"' in js
     assert 'data-map-link-legend-toggle="signal-heatmap"' in js
     assert 'data-map-link-legend-toggle="signal-coverage"' not in js
     assert 'data-map-link-legend-toggle="signal-live"' not in js
@@ -576,6 +585,11 @@ def test_dashboard_css_positions_map_link_legend_below_zoom() -> None:
     css = build_dashboard_css(theme_css="")
 
     assert ".map-link-legend {" in css
+    assert ".map-link-legend.is-collapsed {" in css
+    assert ".map-link-legend-head {" in css
+    assert ".map-link-legend-collapse-btn," in css
+    assert ".map-link-legend-collapsed-btn {" in css
+    assert ".map-link-legend.is-collapsed .map-link-legend-list {" in css
     assert "#network-map-panel-map #map .leaflet-bottom.leaflet-left {" in css
     assert "bottom: var(--map-link-legend-space, 0px);" in css
     assert ".map-link-legend-input {" in css

@@ -6751,10 +6751,26 @@
     .map-link-legend {{
       z-index: 470;
       max-height: min(34%, 236px);
+      transition: max-height 140ms ease, padding 140ms ease, width 140ms ease;
+    }}
+    .map-link-legend.is-collapsed {{
+      width: auto;
+      min-width: 0;
+      max-width: calc(100% - 28px);
+      max-height: none;
+      overflow: visible;
+      padding: 4px;
+      gap: 0;
     }}
     #network-map-panel-map #map .leaflet-bottom.leaflet-left {{
       bottom: var(--map-link-legend-space, 0px);
       transition: bottom 140ms ease;
+    }}
+    .map-link-legend-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }}
     .map-link-legend-title {{
       color: #4a6958;
@@ -6763,6 +6779,95 @@
       letter-spacing: 0.18px;
       line-height: 1.1;
       text-transform: uppercase;
+    }}
+    .map-link-legend-collapse-btn,
+    .map-link-legend-collapsed-btn {{
+      border: 1px solid rgba(154, 182, 164, 0.72);
+      border-radius: 999px;
+      background: color-mix(in srgb, rgba(245, 250, 246, 0.92) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, #274333 82%, var(--accent-2) 18%);
+      box-shadow: 0 3px 10px rgba(16, 40, 24, 0.12);
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .map-link-legend-collapse-btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+    }}
+    .map-link-legend-collapse-btn:hover,
+    .map-link-legend-collapsed-btn:hover {{
+      border-color: color-mix(in srgb, var(--accent) 48%, rgba(154, 182, 164, 0.72) 52%);
+      background: color-mix(in srgb, rgba(245, 250, 246, 0.92) 70%, var(--accent) 30%);
+      color: color-mix(in srgb, #173126 72%, var(--accent-2) 28%);
+    }}
+    .map-link-legend-collapse-btn:focus-visible,
+    .map-link-legend-collapsed-btn:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, white 42%);
+      outline-offset: 2px;
+    }}
+    .map-link-legend-collapse-icon {{
+      position: relative;
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+    }}
+    .map-link-legend-collapse-icon::before {{
+      content: "";
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      top: 5px;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+    }}
+    .map-link-legend-collapsed-btn {{
+      display: none;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.1;
+    }}
+    .map-link-legend-collapsed-icon {{
+      position: relative;
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 15px;
+      height: 14px;
+    }}
+    .map-link-legend-collapsed-icon::before,
+    .map-link-legend-collapsed-icon::after {{
+      content: "";
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border: 1.5px solid currentColor;
+      border-radius: 3px;
+      background: color-mix(in srgb, currentColor 12%, transparent);
+    }}
+    .map-link-legend-collapsed-icon::before {{
+      top: 1px;
+      right: 1px;
+    }}
+    .map-link-legend-collapsed-icon::after {{
+      left: 1px;
+      bottom: 1px;
+      opacity: 0.72;
+    }}
+    .map-link-legend.is-collapsed .map-link-legend-head,
+    .map-link-legend.is-collapsed .map-link-legend-list {{
+      display: none;
+    }}
+    .map-link-legend.is-collapsed .map-link-legend-collapsed-btn {{
+      display: inline-flex;
     }}
     .map-link-legend-list {{
       display: flex;

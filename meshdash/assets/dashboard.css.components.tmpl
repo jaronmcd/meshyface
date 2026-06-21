@@ -6633,6 +6633,23 @@
     [data-theme="dark"] .map-link-legend-title {{
       color: var(--workspace-shell-text-soft);
     }}
+    [data-theme="dark"] .map-link-legend-collapse-btn,
+    [data-theme="dark"] .map-link-legend-collapsed-btn {{
+      border-color: color-mix(in srgb, var(--workspace-shell-border) 78%, transparent);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      color: var(--workspace-shell-text-soft);
+      box-shadow: 0 6px 16px rgba(4, 14, 8, 0.38);
+    }}
+    [data-theme="dark"] .map-link-legend-collapse-btn:hover,
+    [data-theme="dark"] .map-link-legend-collapsed-btn:hover {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .map-link-legend-collapse-btn:focus-visible,
+    [data-theme="dark"] .map-link-legend-collapsed-btn:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
+    }}
     [data-theme="dark"] .map-link-legend-item {{
       color: var(--workspace-shell-text);
     }}

@@ -418,6 +418,13 @@
       }}
     }}
 
+    function persistMapLinkLegendCollapsedPreference() {{
+      try {{
+        window.localStorage.setItem(mapLinkLegendCollapsedStorageKey, mapLinkLegendCollapsed ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
     function persistMapLiveActivityPreference() {{
       try {{
         window.localStorage.setItem(mapLiveActivityStorageKey, mapLiveActivityEnabled ? "1" : "0");
@@ -495,6 +502,19 @@
           nodeEmojiMarkersEnabled = false;
         }} else if (stored === "1") {{
           nodeEmojiMarkersEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadMapLinkLegendCollapsedPreference() {{
+      mapLinkLegendCollapsed = false;
+      try {{
+        const stored = window.localStorage.getItem(mapLinkLegendCollapsedStorageKey);
+        if (stored === "1") {{
+          mapLinkLegendCollapsed = true;
+        }} else if (stored === "0") {{
+          mapLinkLegendCollapsed = false;
         }}
       }} catch (_err) {{
       }}
