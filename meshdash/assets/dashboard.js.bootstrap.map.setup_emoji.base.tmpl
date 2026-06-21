@@ -46,7 +46,7 @@
     const map = createDashboardLeafletMap("map");
     if (map && map.zoomControl) {{
       map.zoomControl.remove();
-      L.control.zoom({{ position: "bottomleft" }}).addTo(map);
+      L.control.zoom({{ position: "topright" }}).addTo(map);
     }}
 
     // Leaflet.heat (via simpleheat) uses a fixed shadow offset of 200px when

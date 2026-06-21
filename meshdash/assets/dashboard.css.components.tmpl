@@ -5706,21 +5706,20 @@
       color: var(--ui-text);
     }}
     [data-theme="dark"] .leaflet-control-zoom {{
-      border-color: var(--workspace-shell-border) !important;
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, var(--ui-bg-elev) 18%);
-      box-shadow: var(--workspace-shell-shadow);
+      background: transparent;
+      box-shadow: none;
     }}
     [data-theme="dark"] .leaflet-control-zoom a {{
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--workspace-shell-bg) 22%);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-accent) 16%);
       color: var(--workspace-shell-text);
-      border-bottom-color: var(--workspace-shell-border);
+      border-color: var(--workspace-shell-border) !important;
     }}
     [data-theme="dark"] .leaflet-control-zoom a:hover {{
-      background: var(--workspace-shell-hover-bg);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-accent) 28%);
       color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .leaflet-control-zoom a:last-child {{
-      border-bottom: 0;
+    [data-theme="dark"] .leaflet-control-zoom a:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .map-card-head {{
       background: #121c16;
@@ -8731,6 +8730,10 @@
         align-items: stretch;
         gap: 8px;
       }}
+      .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+        top: 116px;
+        right: 8px;
+      }}
       .network-map-subview-tabs {{
         width: fit-content;
         max-width: 100%;
@@ -8922,6 +8925,10 @@
         left: 6px;
         right: 6px;
         gap: 6px;
+      }}
+      .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+        top: 108px;
+        right: 6px;
       }}
       .network-map-subview-tabs,
       .map-controls-dock,

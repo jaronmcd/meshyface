@@ -3857,26 +3857,56 @@
       outline-offset: 1px;
     }}
     .leaflet-control-zoom {{
-      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
-      border-radius: 8px !important;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 0 !important;
+      border-radius: 0 !important;
+      overflow: visible;
       box-shadow: none;
-      background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
+      background: transparent;
     }}
     .leaflet-control-zoom a {{
-      background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
-      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
-      border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
-    }}
-    .leaflet-control-zoom a:last-child {{
-      border-bottom: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      width: 28px !important;
+      min-width: 28px;
+      height: 24px !important;
+      padding: 0;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
+      border-radius: 999px !important;
+      background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, var(--ink) 80%, var(--accent-2) 20%);
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1 !important;
+      box-shadow: none;
+      text-decoration: none;
     }}
     .leaflet-control-zoom a:hover {{
       background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
-      color: color-mix(in srgb, var(--ink) 74%, var(--accent-2) 26%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .leaflet-control-zoom a.leaflet-disabled {{
+      opacity: 0.48;
+      cursor: default;
     }}
     .leaflet-control-zoom a:focus {{
       outline: none;
+    }}
+    .leaflet-control-zoom a:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 1px;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+      top: 42px;
+      right: 10px;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right .leaflet-control {{
+      margin-top: 0;
+      margin-right: 0;
     }}
 
     .table-col-resizable thead th {{
