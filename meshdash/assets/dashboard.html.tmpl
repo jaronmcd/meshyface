@@ -789,6 +789,16 @@
               Software
             </button>
             <button
+              id="settings-tab-database-btn"
+              class="settings-tab-btn workspace-pill-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-settings-tab="database"
+            >
+              Database
+            </button>
+            <button
               id="settings-tab-system-btn"
               class="settings-tab-btn workspace-pill-btn"
               type="button"
@@ -1237,143 +1247,197 @@
             </div>
           </div>
 
-          <div class="settings-panel settings-panel-wide settings-database-info-panel" data-settings-tab-panel="system" hidden>
+          <div class="settings-panel settings-panel-wide settings-database-info-panel" data-settings-tab-panel="database" hidden>
             <h3>Database</h3>
             <div class="settings-fields">
-              <div id="settings-database-info-status" class="settings-help-note">Dashboard history database stats are fetched on demand.</div>
-              <div id="settings-database-capacity" class="settings-database-capacity" aria-label="Database capacity">
-                <div class="settings-database-capacity-head">
-                  <span class="settings-label">History window</span>
-                  <span id="settings-database-capacity-status" class="settings-database-capacity-status">n/a</span>
+              <section class="settings-database-group settings-database-history-group" aria-labelledby="settings-database-history-title">
+                <div class="settings-database-group-head">
+                  <h4 id="settings-database-history-title">History database</h4>
+                  <div id="settings-database-info-status" class="settings-help-note">Dashboard history database stats are fetched on demand.</div>
                 </div>
-                <div class="settings-database-capacity-bars">
-                  <div class="settings-database-capacity-row">
-                    <span class="settings-database-capacity-label">Packets</span>
-                    <span class="settings-database-capacity-track"><span id="settings-database-capacity-packets-fill" class="settings-database-capacity-fill"></span></span>
-                    <span id="settings-database-capacity-packets-text" class="settings-database-capacity-value">n/a</span>
+                <div id="settings-database-capacity" class="settings-database-capacity" aria-label="History database capacity">
+                  <div class="settings-database-capacity-head">
+                    <span class="settings-label">History window</span>
+                    <span id="settings-database-capacity-status" class="settings-database-capacity-status">n/a</span>
                   </div>
-                  <div class="settings-database-capacity-row">
-                    <span class="settings-database-capacity-label">Events</span>
-                    <span class="settings-database-capacity-track"><span id="settings-database-capacity-events-fill" class="settings-database-capacity-fill"></span></span>
-                    <span id="settings-database-capacity-events-text" class="settings-database-capacity-value">n/a</span>
-                  </div>
-                </div>
-              </div>
-              <div id="settings-database-info-grid" class="settings-device-info-grid settings-database-info-grid" aria-live="polite">
-                <div class="settings-device-info-item settings-device-info-item-wide">
-                  <span class="settings-label">Database path</span>
-                  <span id="settings-database-info-path" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Total on disk</span>
-                  <span id="settings-database-info-total-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Total rows</span>
-                  <span id="settings-database-info-total-rows" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Health</span>
-                  <span id="settings-database-info-health" class="settings-device-info-value">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Packets</span>
-                  <span id="settings-database-info-packets" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Packet events</span>
-                  <span id="settings-database-info-packet-events" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Chat</span>
-                  <span id="settings-database-info-chat" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Oldest packet</span>
-                  <span id="settings-database-info-oldest-packet" class="settings-device-info-value">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Newest packet</span>
-                  <span id="settings-database-info-newest-packet" class="settings-device-info-value">n/a</span>
-                </div>
-                <div class="settings-device-info-item">
-                  <span class="settings-label">Packet retention</span>
-                  <span id="settings-database-info-retention" class="settings-device-info-value">n/a</span>
-                </div>
-              </div>
-              <details class="settings-database-advanced">
-                <summary>Advanced diagnostics</summary>
-                <div class="settings-device-info-grid settings-database-info-grid settings-database-advanced-grid">
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Main DB</span>
-                    <span id="settings-database-info-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">WAL</span>
-                    <span id="settings-database-info-wal-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Connections</span>
-                    <span id="settings-database-info-connections" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Node caps</span>
-                    <span id="settings-database-info-node-capabilities" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Node saved</span>
-                    <span id="settings-database-info-node-saved-counts" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Node positions</span>
-                    <span id="settings-database-info-node-positions" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Node rollups</span>
-                    <span id="settings-database-info-node-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Link rollups</span>
-                    <span id="settings-database-info-link-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Summary rollups</span>
-                    <span id="settings-database-info-summary-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Env rollups</span>
-                    <span id="settings-database-info-environment-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Malformed text</span>
-                    <span id="settings-database-info-malformed-text" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Settings rows</span>
-                    <span id="settings-database-info-settings" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Event retention</span>
-                    <span id="settings-database-info-event-retention" class="settings-device-info-value">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Rollup retention</span>
-                    <span id="settings-database-info-rollup-retention" class="settings-device-info-value">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">SQLite pages</span>
-                    <span id="settings-database-info-pages" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Free pages</span>
-                    <span id="settings-database-info-freelist" class="settings-device-info-value settings-device-info-mono">n/a</span>
-                  </div>
-                  <div class="settings-device-info-item">
-                    <span class="settings-label">Generated</span>
-                    <span id="settings-database-info-generated" class="settings-device-info-value">n/a</span>
+                  <div class="settings-database-capacity-bars">
+                    <div class="settings-database-capacity-row">
+                      <span class="settings-database-capacity-label">Packets</span>
+                      <span class="settings-database-capacity-track"><span id="settings-database-capacity-packets-fill" class="settings-database-capacity-fill"></span></span>
+                      <span id="settings-database-capacity-packets-text" class="settings-database-capacity-value">n/a</span>
+                    </div>
+                    <div class="settings-database-capacity-row">
+                      <span class="settings-database-capacity-label">Events</span>
+                      <span class="settings-database-capacity-track"><span id="settings-database-capacity-events-fill" class="settings-database-capacity-fill"></span></span>
+                      <span id="settings-database-capacity-events-text" class="settings-database-capacity-value">n/a</span>
+                    </div>
                   </div>
                 </div>
-              </details>
+                <div id="settings-database-info-grid" class="settings-device-info-grid settings-database-info-grid" aria-live="polite">
+                  <div class="settings-device-info-item settings-device-info-item-wide">
+                    <span class="settings-label">Database path</span>
+                    <span id="settings-database-info-path" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Total on disk</span>
+                    <span id="settings-database-info-total-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Total rows</span>
+                    <span id="settings-database-info-total-rows" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Health</span>
+                    <span id="settings-database-info-health" class="settings-device-info-value">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Packets</span>
+                    <span id="settings-database-info-packets" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Packet events</span>
+                    <span id="settings-database-info-packet-events" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Chat</span>
+                    <span id="settings-database-info-chat" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Oldest packet</span>
+                    <span id="settings-database-info-oldest-packet" class="settings-device-info-value">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Newest packet</span>
+                    <span id="settings-database-info-newest-packet" class="settings-device-info-value">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Packet retention</span>
+                    <span id="settings-database-info-retention" class="settings-device-info-value">n/a</span>
+                  </div>
+                </div>
+                <details class="settings-database-advanced">
+                  <summary>Advanced diagnostics</summary>
+                  <div class="settings-device-info-grid settings-database-info-grid settings-database-advanced-grid">
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Main DB</span>
+                      <span id="settings-database-info-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">WAL</span>
+                      <span id="settings-database-info-wal-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Connections</span>
+                      <span id="settings-database-info-connections" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Node caps</span>
+                      <span id="settings-database-info-node-capabilities" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Node saved</span>
+                      <span id="settings-database-info-node-saved-counts" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Node positions</span>
+                      <span id="settings-database-info-node-positions" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Node rollups</span>
+                      <span id="settings-database-info-node-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Link rollups</span>
+                      <span id="settings-database-info-link-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Summary rollups</span>
+                      <span id="settings-database-info-summary-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Env rollups</span>
+                      <span id="settings-database-info-environment-metrics" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Malformed text</span>
+                      <span id="settings-database-info-malformed-text" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Settings rows</span>
+                      <span id="settings-database-info-settings" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Event retention</span>
+                      <span id="settings-database-info-event-retention" class="settings-device-info-value">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Rollup retention</span>
+                      <span id="settings-database-info-rollup-retention" class="settings-device-info-value">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">SQLite pages</span>
+                      <span id="settings-database-info-pages" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Free pages</span>
+                      <span id="settings-database-info-freelist" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                    </div>
+                    <div class="settings-device-info-item">
+                      <span class="settings-label">Generated</span>
+                      <span id="settings-database-info-generated" class="settings-device-info-value">n/a</span>
+                    </div>
+                  </div>
+                </details>
+              </section>
+              <section class="settings-database-group settings-database-raw-group" aria-labelledby="settings-database-raw-title">
+                <div class="settings-database-group-head">
+                  <h4 id="settings-database-raw-title">Raw packet database</h4>
+                  <div id="settings-raw-packet-status" class="settings-help-note">Raw packet capture settings are fetched on demand.</div>
+                </div>
+                <div class="settings-database-raw-controls">
+                  <label class="settings-field settings-inline">
+                    <input id="settings-raw-packet-capture-enabled" type="checkbox" />
+                    <span>Store raw Meshtastic packet bytes</span>
+                  </label>
+                  <div class="settings-database-raw-actions">
+                    <button id="settings-raw-packet-download" class="btn btn-secondary" type="button">Download raw DB</button>
+                  </div>
+                </div>
+                <div id="settings-raw-packet-grid" class="settings-device-info-grid settings-database-info-grid" aria-live="polite">
+                  <div class="settings-device-info-item settings-device-info-item-wide">
+                    <span class="settings-label">Raw database path</span>
+                    <span id="settings-raw-packet-db-path" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Raw DB on disk</span>
+                    <span id="settings-raw-packet-db-size" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Raw packets</span>
+                    <span id="settings-raw-packet-rows" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Raw bytes</span>
+                    <span id="settings-raw-packet-bytes" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Avg raw packet</span>
+                    <span id="settings-raw-packet-average-bytes" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Oldest raw packet</span>
+                    <span id="settings-raw-packet-oldest" class="settings-device-info-value">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item">
+                    <span class="settings-label">Newest raw packet</span>
+                    <span id="settings-raw-packet-newest" class="settings-device-info-value">n/a</span>
+                  </div>
+                  <div class="settings-device-info-item settings-device-info-item-wide">
+                    <span class="settings-label">Raw encodings</span>
+                    <span id="settings-raw-packet-encodings" class="settings-device-info-value settings-device-info-mono">n/a</span>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
 

@@ -42,7 +42,16 @@
       "settings-database-info-pages",
       "settings-database-info-freelist",
       "settings-database-info-generated",
+      "settings-raw-packet-db-path",
+      "settings-raw-packet-db-size",
+      "settings-raw-packet-rows",
+      "settings-raw-packet-bytes",
+      "settings-raw-packet-average-bytes",
+      "settings-raw-packet-oldest",
+      "settings-raw-packet-newest",
+      "settings-raw-packet-encodings",
     ];
+    let settingsRawPacketCaptureInFlight = false;
 
     function settingsDeviceInfoObject(value) {{
       return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -602,6 +611,85 @@
       return `${{countText}} | ${{formatSettingsDatabaseBytes(freelistCount * pageSize)}}`;
     }}
 
+    function settingsRawPacketStoreFromStats(stats) {{
+      return settingsDeviceInfoObject(settingsDeviceInfoFirst([stats], ["raw_packet_store", "rawPacketStore"])) || {{}};
+    }}
+
+    function settingsRawPacketRangeValue(rawStats, keyName) {{
+      const ranges = settingsDeviceInfoObject(settingsDeviceInfoFirst([rawStats], ["ranges"])) || {{}};
+      const range = settingsDeviceInfoObject(ranges.raw_packets || ranges.rawPackets) || {{}};
+      return range[keyName];
+    }}
+
+    function settingsRawPacketEncodingText(rawStats) {{
+      const rows = Array.isArray(rawStats.encoding_counts)
+        ? rawStats.encoding_counts
+        : (Array.isArray(rawStats.encodingCounts) ? rawStats.encodingCounts : []);
+      const parts = rows
+        .map((row) => {{
+          if (!row || typeof row !== "object") return "";
+          const encoding = String(row.encoding || "unknown").trim() || "unknown";
+          const count = formatSettingsDatabaseNumber(row.rows);
+          const bytes = formatSettingsDatabaseBytes(row.bytes);
+          const detail = [count, bytes].filter(Boolean).join(" / ");
+          return detail ? `${{encoding}} ${{detail}}` : encoding;
+        }})
+        .filter(Boolean);
+      return parts.join(" | ");
+    }}
+
+    function renderSettingsRawPacketCapture(stats) {{
+      const rawStats = settingsRawPacketStoreFromStats(stats);
+      const input = document.getElementById("settings-raw-packet-capture-enabled");
+      const downloadButton = document.getElementById("settings-raw-packet-download");
+      const available = rawStats.available !== false && rawStats.ok !== false;
+      const enabled = !!settingsDeviceInfoFirst([rawStats], ["capture_enabled", "captureEnabled"]);
+      if (input instanceof HTMLInputElement) {{
+        input.checked = enabled;
+        input.disabled = settingsRawPacketCaptureInFlight || !available;
+        input.title = available
+          ? "Store incoming packet bytes in the raw packet SQLite database"
+          : "Raw packet database is unavailable.";
+      }}
+      if (downloadButton instanceof HTMLButtonElement) {{
+        downloadButton.disabled = !available;
+        downloadButton.title = available
+          ? "Download a standalone SQLite snapshot of the raw packet database"
+          : "Raw packet database is unavailable.";
+      }}
+
+      setSettingsDatabaseInfoValue("settings-raw-packet-db-path", settingsDeviceInfoFirst([rawStats], ["path"]));
+      setSettingsDatabaseInfoValue("settings-raw-packet-db-size", formatSettingsDatabaseBytes(
+        settingsDeviceInfoFirst([rawStats], ["total_size_bytes", "totalSizeBytes"])
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-rows", formatSettingsDatabaseNumber(
+        settingsDeviceInfoFirst([rawStats], ["packet_rows", "packetRows"])
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-bytes", formatSettingsDatabaseBytes(
+        settingsDeviceInfoFirst([rawStats], ["packet_bytes", "packetBytes"])
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-average-bytes", formatSettingsDatabaseBytes(
+        settingsDeviceInfoFirst([rawStats], ["average_packet_bytes", "averagePacketBytes"])
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-oldest", formatSettingsDatabaseEpoch(
+        settingsRawPacketRangeValue(rawStats, "first_unix")
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-newest", formatSettingsDatabaseEpoch(
+        settingsRawPacketRangeValue(rawStats, "last_unix")
+      ));
+      setSettingsDatabaseInfoValue("settings-raw-packet-encodings", settingsRawPacketEncodingText(rawStats));
+
+      const rawRows = formatSettingsDatabaseNumber(settingsDeviceInfoFirst([rawStats], ["packet_rows", "packetRows"]));
+      const rawSize = formatSettingsDatabaseBytes(settingsDeviceInfoFirst([rawStats], ["total_size_bytes", "totalSizeBytes"]));
+      const statusParts = [];
+      statusParts.push(enabled ? "Raw packet capture on" : "Raw packet capture off");
+      if (rawRows) statusParts.push(`${{rawRows}} packets`);
+      if (rawSize) statusParts.push(rawSize);
+      const rawError = settingsDeviceInfoText(settingsDeviceInfoFirst([rawStats], ["error"]));
+      if (rawError) statusParts.push(rawError);
+      setText("settings-raw-packet-status", statusParts.join(" | "));
+    }}
+
     function renderSettingsDatabaseInfo(payload = settingsDatabaseInfoCache.payload) {{
       const grid = document.getElementById("settings-database-info-grid");
       if (!(grid instanceof HTMLElement)) return;
@@ -616,6 +704,7 @@
       if (stats.ok === false || stats.enabled === false) {{
         clearSettingsDatabaseInfoValues();
         clearSettingsDatabaseCapacity();
+        renderSettingsRawPacketCapture(stats);
         const errorText = settingsDeviceInfoText(settingsDeviceInfoFirst([stats], ["error"]));
         setText("settings-database-info-status", errorText || "History database stats are unavailable on this dashboard instance.");
         return;
@@ -623,6 +712,7 @@
 
       const policy = settingsDeviceInfoObject(settingsDeviceInfoFirst([stats], ["policy"])) || {{}};
       renderSettingsDatabaseCapacity(stats, policy);
+      renderSettingsRawPacketCapture(stats);
       setSettingsDatabaseInfoValue("settings-database-info-path", settingsDeviceInfoFirst([stats], ["path"]));
       setSettingsDatabaseInfoValue("settings-database-info-total-size", formatSettingsDatabaseBytes(
         settingsDeviceInfoFirst([stats], ["total_size_bytes", "totalSizeBytes"])
@@ -718,6 +808,70 @@
           settingsDatabaseInfoHydratePromise = null;
         }});
       return settingsDatabaseInfoHydratePromise;
+    }}
+
+    function downloadRawPacketDatabase() {{
+      const button = document.getElementById("settings-raw-packet-download");
+      if (button instanceof HTMLButtonElement && button.disabled) return;
+      const anchor = document.createElement("a");
+      anchor.href = `${{rawPacketDatabaseDownloadEndpoint}}?ts=${{Date.now()}}`;
+      anchor.rel = "noopener";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setText("settings-raw-packet-status", "Raw packet database download requested.");
+      setSettingsStatusText("Raw packet database download requested.");
+    }}
+
+    async function setRawPacketCaptureEnabled(enabled) {{
+      if (settingsRawPacketCaptureInFlight) return;
+      const input = document.getElementById("settings-raw-packet-capture-enabled");
+      const previous = !enabled;
+      settingsRawPacketCaptureInFlight = true;
+      if (input instanceof HTMLInputElement) {{
+        input.disabled = true;
+        input.checked = !!enabled;
+      }}
+      setText("settings-raw-packet-status", enabled ? "Enabling raw packet capture..." : "Disabling raw packet capture...");
+      try {{
+        const resp = await fetch(rawPacketSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ capture_enabled: !!enabled }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsDeviceInfoObject(payload) || {{}};
+        if (!resp.ok || info.ok === false) {{
+          const msg = String(info.error || text || `HTTP ${{resp.status}}`).trim();
+          throw new Error(msg);
+        }}
+        if (settingsDatabaseInfoCache.payload && typeof settingsDatabaseInfoCache.payload === "object") {{
+          settingsDatabaseInfoCache.payload.raw_packet_store = info;
+          settingsDatabaseInfoCache.fetchedAt = Date.now();
+          renderSettingsDatabaseInfo(settingsDatabaseInfoCache.payload);
+        }}
+        setSettingsStatusText(enabled ? "Raw packet capture enabled." : "Raw packet capture disabled.");
+        settingsDatabaseInfoCache.fetchedAt = 0;
+        void hydrateSettingsDatabaseInfo(true);
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        if (input instanceof HTMLInputElement) {{
+          input.checked = previous;
+        }}
+        setText("settings-raw-packet-status", `Raw packet capture update failed: ${{msg}}`);
+        setSettingsStatusText(`Raw packet capture update failed: ${{msg}}`);
+        renderSettingsDatabaseInfo(settingsDatabaseInfoCache.payload);
+      }} finally {{
+        settingsRawPacketCaptureInFlight = false;
+        renderSettingsDatabaseInfo(settingsDatabaseInfoCache.payload);
+      }}
     }}
 
     const settingsUpdateStatusTtlMs = 60000;
@@ -1745,6 +1899,7 @@
       renderSettingsDatabaseInfo();
       if (activeSettingsTab === "system") {{
         void hydrateSettingsDeviceInfo(false);
+      }} else if (activeSettingsTab === "database") {{
         void hydrateSettingsDatabaseInfo(false);
       }} else if (activeSettingsTab === "update") {{
         void hydrateSettingsUpdateStatus(false);
