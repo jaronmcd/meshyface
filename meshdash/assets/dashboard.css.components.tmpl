@@ -2196,15 +2196,20 @@
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
     }}
-    [data-theme="dark"] .settings-update-restart-status {{
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required {{
       border-color: color-mix(in srgb, #e2be6b 78%, var(--workspace-shell-border-muted));
       background: color-mix(in srgb, #46310b 62%, var(--workspace-shell-bg-alt));
       color: #ffe4a3;
+      box-shadow: 0 0 0 2px color-mix(in srgb, #e2be6b 25%, transparent);
     }}
-    [data-theme="dark"] .settings-update-restart-status.is-blocked {{
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required:hover {{
+      background: color-mix(in srgb, #5b3f0f 66%, var(--workspace-shell-bg-alt));
+    }}
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required.is-restart-blocked {{
       border-color: color-mix(in srgb, #db8a8a 78%, var(--workspace-shell-border-muted));
       background: color-mix(in srgb, #4a1717 62%, var(--workspace-shell-bg-alt));
       color: #ffd0cd;
+      box-shadow: 0 0 0 2px color-mix(in srgb, #db8a8a 25%, transparent);
     }}
     [data-theme="dark"] .settings-update-history-panel {{
       border-color: var(--workspace-shell-border-muted);

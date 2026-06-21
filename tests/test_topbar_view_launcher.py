@@ -74,10 +74,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' not in html
     assert 'id="settings-update-reload"' in html
-    assert 'id="settings-update-restart-status"' in html
+    assert 'id="settings-update-restart-status"' not in html
     assert '<button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>' in html
     assert '<button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>' in html
-    assert 'class="settings-update-restart-status" aria-live="polite" hidden' in html
     assert 'class="settings-update-history-panel"' in html
     assert 'id="settings-update-pr-history"' in html
     assert "Commit History" in html
@@ -194,15 +193,15 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-database-info-panel {" in css
     assert ".settings-update-panel {" in css
     assert ".settings-update-actions {" in css
-    assert ".settings-update-restart-status {" in css
-    assert ".settings-update-restart-status.is-blocked {" in css
+    assert "#settings-update-reload.is-restart-required {" in css
+    assert "#settings-update-reload.is-restart-required.is-restart-blocked {" in css
     assert ".settings-update-branch-field {" in css
     assert ".settings-update-branch-native {" in css
     assert ".settings-update-branch-toggle {" in css
     assert ".settings-update-branch-options {" in css
     assert ".settings-update-branch-option {" in css
     assert '[data-theme="dark"] .settings-update-branch-toggle {' in css
-    assert '[data-theme="dark"] .settings-update-restart-status {' in css
+    assert '[data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required {' in css
     assert '[data-theme="dark"] .settings-update-branch-options {' in css
     assert '[data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {' in css
     assert ".settings-update-history-panel {" in css
@@ -272,8 +271,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "async function runSettingsBackendReload() {" in js
     assert 'fetch("/api/system/restart"' in js
     assert 'document.getElementById("settings-update-reload")' in js
-    assert 'document.getElementById("settings-update-restart-status")' in js
-    assert 'restartStatusEl.hidden = !restartRequired;' in js
+    assert 'document.getElementById("settings-update-restart-status")' not in js
+    assert 'reloadBtn.classList.toggle("is-restart-required", restartRequired);' in js
+    assert 'reloadBtn.classList.toggle("is-restart-blocked", restartRequired && requirementsChanged);' in js
     assert 'Restart needed to use the updated code' in js
     assert 'Restart needed after Python requirements are installed' in js
     assert "const canReloadBackend = !inFlight;" in js

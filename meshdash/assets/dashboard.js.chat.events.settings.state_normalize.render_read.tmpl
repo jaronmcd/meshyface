@@ -1011,7 +1011,6 @@
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
       const reloadBtn = document.getElementById("settings-update-reload");
-      const restartStatusEl = document.getElementById("settings-update-restart-status");
       const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
@@ -1059,18 +1058,20 @@
       if (reloadBtn instanceof HTMLButtonElement) {{
         reloadBtn.disabled = !canReloadBackend;
         reloadBtn.textContent = settingsBackendReloadInFlight ? "Reloading..." : "Reload Backend";
+        reloadBtn.classList.toggle("is-restart-required", restartRequired);
+        reloadBtn.classList.toggle("is-restart-blocked", restartRequired && requirementsChanged);
+        reloadBtn.setAttribute("aria-label", settingsBackendReloadInFlight
+          ? "Reloading backend"
+          : (restartRequired
+            ? (requirementsChanged
+              ? "Reload Backend. Restart needed after Python requirements are installed."
+              : "Reload Backend. Restart needed to use the updated code.")
+            : "Reload Backend"));
         reloadBtn.title = requirementsChanged
           ? "Python requirements changed; install requirements before reloading"
           : (restartRequired
             ? "Restart the dashboard backend so the updated code is loaded"
             : "Restart the dashboard backend");
-      }}
-      if (restartStatusEl instanceof HTMLElement) {{
-        restartStatusEl.hidden = !restartRequired;
-        restartStatusEl.classList.toggle("is-blocked", restartRequired && requirementsChanged);
-        restartStatusEl.textContent = requirementsChanged
-          ? "Restart needed after Python requirements are installed"
-          : "Restart needed to use the updated code";
       }}
     }}
 

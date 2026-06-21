@@ -9434,28 +9434,20 @@
       gap: 8px;
       min-width: 0;
     }}
-    .settings-update-restart-status {{
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      width: fit-content;
-      max-width: 100%;
-      padding: 6px 10px;
-      border: 1px solid #d9b45f;
-      border-radius: 999px;
+    .settings-update-actions #settings-update-reload.is-restart-required {{
+      border-color: #d9b45f;
       background: #fff8df;
       color: #5d4100;
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1.25;
+      box-shadow: 0 0 0 2px rgba(217, 180, 95, 0.22);
     }}
-    .settings-update-restart-status[hidden] {{
-      display: none;
+    .settings-update-actions #settings-update-reload.is-restart-required:hover {{
+      background: #fff0bd;
     }}
-    .settings-update-restart-status.is-blocked {{
+    .settings-update-actions #settings-update-reload.is-restart-required.is-restart-blocked {{
       border-color: #d58787;
       background: #fff0ef;
       color: #7b1f1f;
+      box-shadow: 0 0 0 2px rgba(213, 135, 135, 0.22);
     }}
     .settings-update-branch-field {{
       max-width: 360px;
