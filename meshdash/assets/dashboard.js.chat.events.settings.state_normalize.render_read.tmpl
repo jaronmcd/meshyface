@@ -1010,12 +1010,13 @@
       const renderInfo = Object.assign({{}}, optionInfo, info);
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
-      const applyBtn = document.getElementById("settings-update-apply");
       const reloadBtn = document.getElementById("settings-update-reload");
       const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
-      const canUpdate = !!info.can_update && !!selectedBranch && !inFlight;
+      const updateActionReady = !!info.can_update
+        && !!selectedBranch
+        && settingsUpdateActionReadyBranch === selectedBranch;
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
       const canReloadBackend = !inFlight;
@@ -1045,10 +1046,12 @@
       }}
       if (checkBtn instanceof HTMLButtonElement) {{
         checkBtn.disabled = inFlight;
-      }}
-      if (applyBtn instanceof HTMLButtonElement) {{
-        applyBtn.disabled = !canUpdate;
-        applyBtn.title = canUpdate
+        checkBtn.textContent = settingsUpdateApplyInFlight
+          ? "Updating..."
+          : (settingsUpdateStatusFetchInFlight
+            ? "Checking..."
+            : (updateActionReady ? "Update from GitHub" : "Check for Updates"));
+        checkBtn.title = updateActionReady
           ? "Fetch and fast-forward this Git checkout"
           : settingsUpdateStatusText(info);
       }}
@@ -1063,7 +1066,7 @@
       }}
     }}
 
-    async function hydrateSettingsUpdateStatus(force = false) {{
+    async function hydrateSettingsUpdateStatus(force = false, primeUpdateAction = false) {{
       const selectedBranch = readSettingsUpdateBranchSelection();
       const nowMs = Date.now();
       if (
@@ -1072,10 +1075,16 @@
         && settingsUpdateStatusFetchedAt > 0
         && (nowMs - settingsUpdateStatusFetchedAt) < settingsUpdateStatusTtlMs
       ) {{
+        if (primeUpdateAction) {{
+          const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+          const cachedBranch = selectedBranch || String(cachedInfo.target_branch || "").trim();
+          settingsUpdateActionReadyBranch = cachedInfo.can_update && cachedBranch ? cachedBranch : "";
+        }}
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
         return settingsUpdateStatusCache;
       }}
       if (settingsUpdateStatusFetchInFlight) return settingsUpdateStatusFetchInFlight;
+      if (primeUpdateAction) settingsUpdateActionReadyBranch = "";
       renderSettingsUpdateStatus({{ message: "Checking GitHub update status..." }});
       const statusUrl = selectedBranch
         ? `/api/system/update?branch=${{encodeURIComponent(selectedBranch)}}`
@@ -1084,6 +1093,11 @@
         .then((payload) => {{
           settingsUpdateStatusCache = payload;
           settingsUpdateStatusFetchedAt = Date.now();
+          if (primeUpdateAction) {{
+            const checkedInfo = settingsUpdatePayloadObject(payload);
+            const checkedBranch = selectedBranch || String(checkedInfo.target_branch || "").trim();
+            settingsUpdateActionReadyBranch = checkedInfo.can_update && checkedBranch ? checkedBranch : "";
+          }}
           renderSettingsUpdateStatus(payload);
           return payload;
         }})
@@ -1099,6 +1113,7 @@
           }};
           settingsUpdateStatusCache = payload;
           settingsUpdateStatusFetchedAt = Date.now();
+          if (primeUpdateAction) settingsUpdateActionReadyBranch = "";
           renderSettingsUpdateStatus(payload);
           return payload;
         }})
@@ -1109,10 +1124,26 @@
       return settingsUpdateStatusFetchInFlight;
     }}
 
+    async function runSettingsUpdatePrimaryAction() {{
+      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      const info = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const selectedBranch = readSettingsUpdateBranchSelection()
+        || String(info.target_branch || "").trim();
+      const updateActionReady = !!info.can_update
+        && !!selectedBranch
+        && settingsUpdateActionReadyBranch === selectedBranch;
+      if (updateActionReady) {{
+        void runSettingsGithubUpdate();
+        return;
+      }}
+      void hydrateSettingsUpdateStatus(true, true);
+    }}
+
     async function runSettingsGithubUpdate() {{
       if (settingsUpdateApplyInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       if (!selectedBranch) {{
+        settingsUpdateActionReadyBranch = "";
         renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
           can_update: false,
           message: "Select a GitHub branch first.",
@@ -1124,6 +1155,7 @@
       );
       if (!confirmed) return;
 
+      settingsUpdateActionReadyBranch = "";
       settingsUpdateApplyInFlight = true;
       renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
       try {{
