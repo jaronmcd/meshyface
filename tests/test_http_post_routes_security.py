@@ -329,6 +329,40 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
     assert calls == [(200, {"ok": True, "updated": False, "state": "up_to_date"})]
 
 
+def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _sync_update(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "synced": True,
+            "updated": False,
+            "state": "update_available",
+            "http_status": 200,
+        }
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._sync_update_branches_from_github_helper",
+        _sync_update,
+    )
+    body = b'{"branch":"dev"}'
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
+
+    assert captured["target_branch"] == "dev"
+    assert calls == [(200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})]
+
+
 def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
     update_calls = 0
 
@@ -351,6 +385,31 @@ def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pyt
     handle_dashboard_post(handler, path="/api/system/update", deps=deps)
 
     assert update_calls == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+    sync_calls = 0
+
+    def _sync_update(**kwargs: object) -> dict[str, object]:
+        nonlocal sync_calls
+        sync_calls += 1
+        return {"ok": True}
+
+    monkeypatch.setattr("meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update)
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
+
+    assert sync_calls == 0
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 

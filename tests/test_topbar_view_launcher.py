@@ -68,8 +68,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="settings-panel settings-panel-wide" data-settings-tab-panel="update"' in html
     assert '<h3>Software</h3>' in html
     assert 'Software version, Git revision, and GitHub update controls' not in html
-    assert 'id="settings-update-status"' not in html
-    assert 'Update status not checked.' not in html
+    assert 'id="settings-update-sync"' in html
+    assert 'id="settings-update-status"' in html
+    assert 'Update status not checked.' in html
     assert 'id="settings-update-branch"' in html
     assert 'class="settings-select settings-update-branch-native"' in html
     assert 'id="settings-update-branch-toggle"' in html
@@ -272,6 +273,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
+    assert "async function runSettingsUpdateBranchSync() {" in js
+    assert 'fetch("/api/system/update/sync"' in js
+    assert 'Sync GitHub branches now? If local branch "${selectedBranch}" is stale or diverged, Meshyface will back it up before aligning it to GitHub.' in js
+    assert "settingsUpdateSyncInFlight" in js
+    assert 'document.getElementById("settings-update-sync")' in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js
     assert "function readSettingsUpdateBranchSelection() {" in js

@@ -147,6 +147,108 @@
       }}
     }}
 
+    function focusSavedNodeCoordinateOnMap(nodeId, latRaw, lonRaw) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const lat = Number(latRaw);
+      const lon = Number(lonRaw);
+      if (!isSelectableNodeId(cleanNodeId) || !isValidMapCoord(lat, lon)) return false;
+
+      const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
+        ? normalizeNetworkSubview(activeNetworkSubview)
+        : String(activeNetworkSubview || "map").trim().toLowerCase();
+      const networkMapVisible = activeLayoutView === "network" && (
+        typeof networkSubviewUsesMap === "function"
+          ? networkSubviewUsesMap(activeNetworkSubviewName)
+          : activeNetworkSubviewName === "map"
+      );
+
+      if (activeLayoutView === "network" && !networkMapVisible) {{
+        if (typeof setActiveNetworkSubview === "function") {{
+          setActiveNetworkSubview("map", {{ persist: true }});
+        }}
+      }} else if (activeLayoutView !== "saved" && activeLayoutView !== "network") {{
+        if (typeof applyLayoutView === "function") {{
+          applyLayoutView("network", true);
+        }}
+        if (typeof setActiveNetworkSubview === "function") {{
+          setActiveNetworkSubview("map", {{ persist: true }});
+        }}
+      }}
+
+      if (normalizeNodeId(selectedNodeId || "") !== cleanNodeId && typeof selectNode === "function") {{
+        selectNode(cleanNodeId, true, false);
+      }}
+
+      const focusCoord = () => {{
+        try {{
+          if (typeof requestMapResizeNow === "function") {{
+            requestMapResizeNow();
+          }} else if (typeof requestMapResize === "function") {{
+            requestMapResize();
+          }}
+        }} catch (_err) {{
+        }}
+        try {{
+          if (typeof L !== "undefined" && map && typeof map.setView === "function") {{
+            const currentZoom = typeof map.getZoom === "function" ? Number(map.getZoom()) : 12;
+            const targetZoom = Math.min(16, Math.max(Number.isFinite(currentZoom) ? currentZoom : 12, 12));
+            const move = () => map.setView([lat, lon], targetZoom, {{ animate: false }});
+            if (typeof withProgrammaticMapMove === "function") {{
+              withProgrammaticMapMove(move);
+            }} else {{
+              move();
+            }}
+          }}
+        }} catch (_err) {{
+        }}
+        try {{
+          if (typeof focusSelectedNodeOnMap === "function") {{
+            focusSelectedNodeOnMap(null, {{
+              nodeId: cleanNodeId,
+              focusView: false,
+              openPopup: true,
+            }});
+          }}
+        }} catch (_err) {{
+        }}
+        const mapEl = document.getElementById("map");
+        if (mapEl instanceof HTMLElement && typeof mapEl.focus === "function") {{
+          if (!mapEl.hasAttribute("tabindex")) {{
+            mapEl.tabIndex = -1;
+          }}
+          try {{
+            mapEl.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            mapEl.focus();
+          }}
+        }}
+        return true;
+      }};
+
+      window.requestAnimationFrame(() => {{
+        focusCoord();
+        window.setTimeout(focusCoord, 80);
+      }});
+      return true;
+    }}
+
+    function bindSavedNodeCoordinateLinks(root = null) {{
+      if (!(root instanceof HTMLElement)) return;
+      for (const link of root.querySelectorAll(".saved-node-coordinate-link[data-map-node-id]")) {{
+        if (!(link instanceof HTMLAnchorElement) || link.dataset.bound === "1") continue;
+        link.dataset.bound = "1";
+        link.addEventListener("click", (ev) => {{
+          const nodeId = normalizeNodeId(link.dataset.mapNodeId || "");
+          const lat = Number(link.dataset.mapLat);
+          const lon = Number(link.dataset.mapLon);
+          if (!isSelectableNodeId(nodeId) || !isValidMapCoord(lat, lon)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          focusSavedNodeCoordinateOnMap(nodeId, lat, lon);
+        }});
+      }}
+    }}
+
     function bindSavedNodeBbsButtons(root = null) {{
       if (!(root instanceof HTMLElement)) return;
       for (const btn of root.querySelectorAll(".saved-node-inline-link[data-bbs-node-id]")) {{
@@ -342,7 +444,7 @@
         && Number.isFinite(Number(node.lat))
         && Number.isFinite(Number(node.lon))
       )
-        ? savedDetailCoord(node.lat, node.lon)
+        ? savedDetailMapCoordLink(nodeId, node.lat, node.lon, "Focus live GPS position on map")
         : "n/a";
       const voltageValue = (
         node
@@ -372,7 +474,9 @@
         && latestTrail.sats_in_view != null
         && Number.isFinite(Number(latestTrail.sats_in_view))
       ) ? Number(latestTrail.sats_in_view) : null;
-      const latestTrailPos = latestTrail ? savedDetailCoord(latestTrail.lat, latestTrail.lon) : "n/a";
+      const latestTrailPos = latestTrail
+        ? savedDetailMapCoordLink(nodeId, latestTrail.lat, latestTrail.lon, "Focus latest trail position on map")
+        : "n/a";
       const livePositionAvailable = livePosText !== "n/a";
       const historyPositionAvailable = latestTrailPos !== "n/a";
       const latestPosText = livePositionAvailable ? livePosText : latestTrailPos;
@@ -559,6 +663,8 @@
       const notesMarkupChanged = setElementHtmlIfChanged(notesHost, nextNotesHtml, "chat-node-details-notes");
       bindSavedNodeDetailLinkButtons(host);
       bindSavedNodeDetailLinkButtons(linksHost);
+      bindSavedNodeCoordinateLinks(host);
+      bindSavedNodeCoordinateLinks(locationHost);
       bindSavedNodeBbsButtons(host);
       bindSavedNodeBbsButtons(linksHost);
       if (detailsMarkupChanged || notesMarkupChanged) {{

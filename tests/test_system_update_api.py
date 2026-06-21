@@ -4,6 +4,7 @@ from meshdash.api_system_update import (
     GitCommandResult,
     build_update_status_payload,
     run_update_from_github,
+    sync_update_branches_from_github,
 )
 
 
@@ -19,6 +20,8 @@ class _FakeGitRunner:
         current_branch: str = "main",
         remote_branches: list[str] | None = None,
         local_branches: set[str] | None = None,
+        branch_ahead: int = 0,
+        branch_behind: int = 4,
     ) -> None:
         self.dirty = dirty
         self.ahead = ahead
@@ -28,6 +31,8 @@ class _FakeGitRunner:
         self.current_branch = current_branch
         self.remote_branches = list(remote_branches or ["main", "beta"])
         self.local_branches = set(local_branches or {current_branch})
+        self.branch_ahead = branch_ahead
+        self.branch_behind = branch_behind
         self.commit = "aaaaaaaa11111111222222223333333344444444"
         self.new_commit = "bbbbbbbb11111111222222223333333344444444"
         self.commands: list[tuple[str, ...]] = []
@@ -41,6 +46,8 @@ class _FakeGitRunner:
             return GitCommandResult(0, self.current_branch)
         if command == ("rev-parse", "--verify", "HEAD^{commit}"):
             return GitCommandResult(0, self.commit)
+        if command == ("rev-parse", "--short=7", "beta"):
+            return GitCommandResult(0, "bbbbbbb")
         if command == ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"):
             if self.current_branch == "main":
                 return GitCommandResult(0, "origin/main")
@@ -65,7 +72,7 @@ class _FakeGitRunner:
         if command == ("rev-list", "--left-right", "--count", "beta...origin/beta"):
             if self.compare_fails:
                 return GitCommandResult(128, "unknown revision")
-            return GitCommandResult(0, "0\t4")
+            return GitCommandResult(0, f"{self.branch_ahead}\t{self.branch_behind}")
         if command == ("remote", "get-url", "origin"):
             return GitCommandResult(0, "https://token@github.com/jaronmcd/meshyface.git")
         if command[0:5] == (
@@ -129,8 +136,29 @@ class _FakeGitRunner:
             if self.fetch_fails:
                 return GitCommandResult(128, "Could not resolve host: github.com")
             return GitCommandResult(0, "")
-        if command == ("show-ref", "--verify", "--quiet", "refs/heads/beta"):
-            return GitCommandResult(0 if "beta" in self.local_branches else 1, "")
+        if command[0:3] == ("show-ref", "--verify", "--quiet") and len(command) == 4:
+            branch_ref = command[3]
+            branch_name = branch_ref.removeprefix("refs/heads/")
+            return GitCommandResult(0 if branch_name in self.local_branches else 1, "")
+        if command[0:1] == ("branch",) and len(command) == 3 and command[1] != "-f":
+            backup_branch = command[1]
+            source_branch = command[2]
+            if source_branch not in self.local_branches or backup_branch in self.local_branches:
+                return GitCommandResult(1, "branch backup failed")
+            self.local_branches.add(backup_branch)
+            return GitCommandResult(0, f"branch '{backup_branch}' created")
+        if command == ("branch", "-f", "beta", "origin/beta"):
+            self.local_branches.add("beta")
+            self.branch_ahead = 0
+            self.branch_behind = 0
+            return GitCommandResult(0, "branch 'beta' reset")
+        if command == ("reset", "--hard", "origin/beta"):
+            self.commit = self.new_commit
+            self.ahead = 0
+            self.behind = 0
+            self.branch_ahead = 0
+            self.branch_behind = 0
+            return GitCommandResult(0, "HEAD is now at bbbbbbb")
         if command == ("switch", "beta"):
             if "beta" not in self.local_branches:
                 return GitCommandResult(1, "branch not found")
@@ -269,6 +297,68 @@ def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:
     assert payload["new_commit"] == runner.new_commit
     assert ("fetch", "--prune", "origin") in runner.commands
     assert ("merge", "--ff-only", "origin/main") in runner.commands
+
+
+def test_sync_update_branches_fetches_without_merging(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(behind=2)
+
+    payload = sync_update_branches_from_github(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["synced"] is True
+    assert payload["updated"] is False
+    assert payload["connection_ok"] is True
+    assert payload["state"] == "update_available"
+    assert ("fetch", "--prune", "origin") in runner.commands
+    assert ("merge", "--ff-only", "origin/main") not in runner.commands
+    assert runner.commit == "aaaaaaaa11111111222222223333333344444444"
+
+
+def test_sync_update_branches_backs_up_and_aligns_stale_selected_branch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        local_branches={"main", "beta"},
+        branch_ahead=3,
+        branch_behind=4,
+    )
+
+    payload = sync_update_branches_from_github(repo_dir=tmp_path, target_branch="beta", runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["synced"] is True
+    assert payload["branch_synced"] is True
+    assert payload["updated"] is False
+    assert payload["backup_branch"] == "beta-before-sync-bbbbbbb"
+    assert "beta-before-sync-bbbbbbb" in runner.local_branches
+    assert ("branch", "beta-before-sync-bbbbbbb", "beta") in runner.commands
+    assert ("branch", "-f", "beta", "origin/beta") in runner.commands
+    assert runner.current_branch == "main"
+    assert runner.branch_ahead == 0
+    assert runner.branch_behind == 0
+    assert "backed up as beta-before-sync-bbbbbbb" in payload["message"]
+
+
+def test_sync_update_branches_can_align_clean_checked_out_branch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="beta",
+        local_branches={"beta"},
+        branch_ahead=3,
+        branch_behind=4,
+    )
+
+    payload = sync_update_branches_from_github(repo_dir=tmp_path, target_branch="beta", runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["synced"] is True
+    assert payload["branch_synced"] is True
+    assert payload["updated"] is True
+    assert payload["restart_required"] is True
+    assert payload["backup_branch"] == "beta-before-sync-bbbbbbb"
+    assert ("branch", "beta-before-sync-bbbbbbb", "beta") in runner.commands
+    assert ("reset", "--hard", "origin/beta") in runner.commands
+    assert runner.current_branch == "beta"
+    assert runner.branch_ahead == 0
+    assert runner.branch_behind == 0
 
 
 def test_run_update_switches_to_selected_remote_branch(tmp_path: Path) -> None:

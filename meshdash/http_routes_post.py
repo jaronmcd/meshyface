@@ -6,6 +6,7 @@ from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
     run_update_from_github as _run_update_from_github_helper,
+    sync_update_branches_from_github as _sync_update_branches_from_github_helper,
 )
 
 
@@ -23,6 +24,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/custom_telemetry",
     "/api/settings/raw_packets",
     "/api/system/update",
+    "/api/system/update/sync",
     "/api/system/restart",
 }
 _PRIVATE_MODE_BLOCKED_POST_PATHS = {
@@ -444,6 +446,50 @@ def handle_dashboard_post(
                 "state": "error",
                 "error": str(exc or "software update failed"),
                 "message": "Software update failed.",
+                "http_status": 500,
+            }
+        status_code = 200
+        try:
+            status_code = int(response_obj.get("http_status") or (200 if response_obj.get("ok") else 409))
+        except Exception:
+            status_code = 200 if response_obj.get("ok") else 409
+        payload_obj = dict(response_obj)
+        payload_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=payload_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/system/update/sync":
+        try:
+            request_payload = _read_system_update_request(handler)
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={"ok": False, "synced": False, "updated": False, "error": str(exc)},
+                no_store=True,
+            )
+            return
+        try:
+            response_obj = _sync_update_branches_from_github_helper(
+                target_branch=(
+                    request_payload.get("branch")
+                    or request_payload.get("target_branch")
+                    or ""
+                ),
+            )
+        except Exception as exc:
+            response_obj = {
+                "ok": False,
+                "synced": False,
+                "updated": False,
+                "state": "error",
+                "error": str(exc or "software branch sync failed"),
+                "message": "Software branch sync failed.",
                 "http_status": 500,
             }
         status_code = 200

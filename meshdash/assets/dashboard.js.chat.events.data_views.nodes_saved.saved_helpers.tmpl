@@ -36,6 +36,25 @@
       return `${{latNum.toFixed(5)}}, ${{lonNum.toFixed(5)}}`;
     }}
 
+    function savedDetailMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {{
+      const text = savedDetailCoord(lat, lon);
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const latNum = Number(lat);
+      const lonNum = Number(lon);
+      if (
+        text === "n/a"
+        || !isSelectableNodeId(cleanNodeId)
+        || !isValidMapCoord(latNum, lonNum)
+      ) {{
+        return text;
+      }}
+      const titleText = String(title || "Focus GPS position on map").trim() || "Focus GPS position on map";
+      return savedDetailHtmlValue(
+        `<a href="#map" class="saved-node-inline-link saved-node-coordinate-link" data-map-node-id="${{escAttr(cleanNodeId)}}" data-map-lat="${{escAttr(latNum.toFixed(6))}}" data-map-lon="${{escAttr(lonNum.toFixed(6))}}" title="${{escAttr(titleText)}}" aria-label="${{escAttr(titleText)}}">${{escAttr(text)}}</a>`,
+        text
+      );
+    }}
+
     function savedDetailDurationHours(startUnix, endUnix) {{
       const start = Number(startUnix);
       const end = Number(endUnix);
