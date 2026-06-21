@@ -40,6 +40,7 @@
     let lastMapSignature = "";
     let lastMapGraphSignature = "";
     let lastMapRenderMode = "";
+    let networkMapGraphRenderSeen = false;
     let lastSignalHeatmapSignature = "";
     let mapResizeRaf = null;
     let mapResizeStabilizeTimers = [];
@@ -120,6 +121,10 @@
     let pendingMapHistoryFocus = false;
     let programmaticMapMoveDepth = 0;
     let mapResizeObserver = null;
+    let mapViewportInteractionActive = false;
+    let mapHeatLayerViewportSyncRaf = null;
+    let mapHeatLayerViewportSyncLastMs = 0;
+    const mapHeatLayerViewportSyncMinIntervalMs = 260;
     let activeWheelPane = null;
     let activeWheelPaneLease = null;
     let mapWheelZoomActive = false;
@@ -209,6 +214,7 @@
     let settingsUpdateStatusCache = null;
     let settingsUpdateStatusFetchedAt = 0;
     let settingsUpdateStatusFetchInFlight = null;
+    let settingsUpdateActionReadyBranch = "";
     let settingsUpdateApplyInFlight = false;
     let settingsBackendReloadInFlight = false;
     let customTelemetrySettingsFetchInFlight = false;

@@ -304,13 +304,14 @@
       const updateCheckBtn = document.getElementById("settings-update-check");
       if (updateCheckBtn instanceof HTMLButtonElement) {{
         updateCheckBtn.addEventListener("click", () => {{
-          void hydrateSettingsUpdateStatus(true);
+          void runSettingsUpdatePrimaryAction();
         }});
       }}
 
       const updateBranchSelect = document.getElementById("settings-update-branch");
       if (updateBranchSelect instanceof HTMLSelectElement) {{
         updateBranchSelect.addEventListener("change", () => {{
+          settingsUpdateActionReadyBranch = "";
           settingsUpdateStatusFetchedAt = 0;
           void hydrateSettingsUpdateStatus(true);
         }});
@@ -374,13 +375,6 @@
         if (target instanceof Node && updateBranchMenu instanceof HTMLElement && updateBranchMenu.contains(target)) return;
         closeSettingsUpdateBranchMenu();
       }});
-
-      const updateApplyBtn = document.getElementById("settings-update-apply");
-      if (updateApplyBtn instanceof HTMLButtonElement) {{
-        updateApplyBtn.addEventListener("click", () => {{
-          void runSettingsGithubUpdate();
-        }});
-      }}
 
       const updateReloadBtn = document.getElementById("settings-update-reload");
       if (updateReloadBtn instanceof HTMLButtonElement) {{

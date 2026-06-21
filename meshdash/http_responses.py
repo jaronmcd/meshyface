@@ -51,6 +51,12 @@ def _gzip_if_accepted(
         return payload, None
 
 
+def _send_no_store_headers(handler: DashboardHttpHandler) -> None:
+    handler.send_header("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
+    handler.send_header("Pragma", "no-cache")
+    handler.send_header("Expires", "0")
+
+
 def write_json_response(
     handler: DashboardHttpHandler,
     *,
@@ -64,7 +70,7 @@ def write_json_response(
     handler.send_response(status_code)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     if no_store:
-        handler.send_header("Cache-Control", "no-store")
+        _send_no_store_headers(handler)
     if extra_headers:
         for key, value in extra_headers.items():
             handler.send_header(str(key), str(value))
@@ -88,7 +94,7 @@ def write_html_response(
     handler.send_response(200)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     if no_store:
-        handler.send_header("Cache-Control", "no-store")
+        _send_no_store_headers(handler)
     if extra_headers:
         for key, value in extra_headers.items():
             handler.send_header(str(key), str(value))
@@ -105,12 +111,15 @@ def write_text_response(
     *,
     status_code: int,
     text: str,
+    no_store: bool = False,
     extra_headers: Optional[Mapping[str, str]] = None,
 ) -> None:
     payload = text.encode("utf-8")
     payload, content_encoding = _gzip_if_accepted(handler, payload)
     handler.send_response(status_code)
     handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    if no_store:
+        _send_no_store_headers(handler)
     if extra_headers:
         for key, value in extra_headers.items():
             handler.send_header(str(key), str(value))

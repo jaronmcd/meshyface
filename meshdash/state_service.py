@@ -89,6 +89,52 @@ def _first_positive_int(*values: object) -> Optional[int]:
     return None
 
 
+def _coerce_optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on", "up", "connected", "online", "ok"}:
+        return True
+    if text in {"0", "false", "no", "off", "down", "disconnected", "offline", "lost"}:
+        return False
+    return None
+
+
+def _coerce_positive_unix(value: object) -> int | None:
+    try:
+        unix_value = int(value) if value is not None else None
+    except Exception:
+        return None
+    if unix_value is None or unix_value <= 0:
+        return None
+    return unix_value
+
+
+def _build_radio_link_summary(*, tracker: object, target: str) -> dict[str, object]:
+    connected = _coerce_optional_bool(getattr(tracker, "radio_link_connected", None))
+    changed_unix = _coerce_positive_unix(getattr(tracker, "radio_link_changed_unix", None))
+    reason_raw = getattr(tracker, "radio_link_error", None)
+    reason = str(reason_raw).strip() if reason_raw else ""
+    if connected is True:
+        state = "connected"
+        reason = ""
+    elif connected is False:
+        state = "disconnected"
+    else:
+        state = "unknown"
+
+    return {
+        "state": state,
+        "connected": connected,
+        "changed_unix": changed_unix,
+        "reason": reason or None,
+        "target": target,
+        "source": "tracker.radio_link_connected",
+    }
+
+
 def _to_jsonable_safe(
     value: object,
     *,
@@ -1260,6 +1306,7 @@ def build_dashboard_state_typed(
     summary["online_node_count"] = max(0, int(summary_online_node_count))
     summary["online_node_count_source"] = summary_online_node_count_source
     summary["online_node_window_seconds"] = _ONLINE_NODE_WINDOW_SECONDS
+    summary["radio_link"] = _build_radio_link_summary(tracker=tracker, target=target)
     if isinstance(radio_connection_status, Mapping) and radio_connection_status:
         summary["radio_connection"] = dict(radio_connection_status)
     get_zork_bot_runtime_fn = getattr(tracker, "get_zork_bot_runtime", None)

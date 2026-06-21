@@ -224,12 +224,12 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
     assert state_fn() == {"variant": "full", "target": "radio"}
     assert state_fn() == {"variant": "full", "target": "radio"}
     assert calls == ["full"]
-    assert state_fn.etag() == 'W/"full-p1-r2-s3-t100"'  # type: ignore[attr-defined]
+    assert state_fn.etag() == 'W/"full-b1000-p1-r2-s3-t100"'  # type: ignore[attr-defined]
 
     tracker.state_revision = "4"
     assert state_fn()["variant"] == "full"
     assert calls == ["full", "full"]
-    assert state_fn.etag() == 'W/"full-p1-r2-s4-t100"'  # type: ignore[attr-defined]
+    assert state_fn.etag() == 'W/"full-b1000-p1-r2-s4-t100"'  # type: ignore[attr-defined]
 
     for attr_name, etag_name in (
         ("lite", "lite"),
@@ -243,7 +243,7 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
         variant = getattr(state_fn, attr_name)
         assert variant()["variant"] == attr_name
         assert variant()["variant"] == attr_name
-        assert variant.etag() == f'W/"{etag_name}-p1-r2-s4-t100"'
+        assert variant.etag() == f'W/"{etag_name}-b1000-p1-r2-s4-t100"'
 
     assert calls == [
         "full",

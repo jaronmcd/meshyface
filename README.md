@@ -97,57 +97,73 @@ flowchart LR
   Radio -->|receive callbacks| Tracker
 ```
 
-## Requirements
+## Prerequisites And Dependencies
 
-- Linux host strongly recommended for server mode
-  - Debian-based hosts such as Raspberry Pi OS Bookworm work with the bundled
-    deploy helper
-- Python 3.11+
-- Meshtastic-accessible radio over either:
-  - TCP (`--mesh-host` + `--mesh-tcp-port`)
-  - Serial USB (`--mesh-port`)
-- Python packages:
-  - install runtime packages with `python -m pip install -r requirements.txt`
-  - install test packages with `python -m pip install -r requirements-dev.txt`
-- Browser access to:
-  - `https://tile.openstreetmap.org/...` if you want online basemaps
+Meshyface is a Python web service. For a persistent dashboard host, use Linux
+with systemd; Debian, Ubuntu, and Raspberry Pi OS Bookworm or newer are the
+expected paths.
+
+Required host packages for the standalone install:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git python3 python3-venv
+```
+
+Runtime requirements:
+
+- Python `3.11+`
+- outbound HTTPS during install for GitHub and PyPI, unless dependencies are
+  already mirrored or cached
+- a Meshtastic radio reachable over TCP (`--mesh-host` + `--mesh-tcp-port`) or
+  USB serial (`--mesh-port`)
+- for USB serial, a stable `/dev/serial/by-id/...` path is recommended
+- for USB serial under systemd, the service user must have access to the serial
+  device; the documented unit uses group `dialout`
+
+Python runtime packages are pinned in `requirements.txt`:
+
+- `meshtastic==2.7.8`
+- `pypubsub==4.0.7`
+- `protobuf==7.34.1`
+
+Install them with:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Development and test dependencies live in `requirements-dev.txt`:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Browser access to `https://tile.openstreetmap.org/...` is only needed for
+online basemaps.
 
 For a fully air-gapped deployment, the vendored Leaflet assets still load
 locally, and the map uses the bundled offline atlas when online tile servers
 are unavailable.
 
-## Testing And Coverage
-
-Run the normal test suite with:
-
-```bash
-python -m pytest
-```
-
-Run the advisory app coverage report with:
-
-```bash
-python -m pytest \
-  --cov=meshdash \
-  --cov=mesh_dashboard \
-  --cov=mesh_connection \
-  --cov-report=term
-```
-
-Run the local coverage gate with the stricter 85% minimum:
-
-```bash
-scripts/run_coverage_local.sh
-```
-
-Coverage intentionally excludes the ported Zork engine package from scoring,
-but Zork bot and routing tests still run. GitHub Actions publishes the same
-coverage report as an advisory PR comment and artifact, and fails below 80%.
-The local gate stays 5 percentage points higher than CI.
-
 ## Standalone Install
 
-### 1) Clone + venv
+Choose one install path:
+
+- Manual run: clone into your home directory or any working directory and run
+  the dashboard in the foreground.
+- Systemd service: clone into `/opt/meshyface` and use the included service
+  unit. This is the recommended path for persistent hosts.
+
+You do not need both checkouts.
+
+### Manual Foreground Run
+
+Use this for a quick foreground run. If you are setting up the systemd service,
+skip to [Recommended Service Install](#recommended-service-install) and use the
+`/opt/meshyface` clone path there.
+
+Clone and create the virtual environment:
 
 ```bash
 git clone https://github.com/jaronmcd/meshyface.git meshyface
@@ -158,18 +174,20 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 2A) Run with Wi-Fi/TCP radio
+Run with Wi-Fi/TCP radio:
 
 ```bash
 python mesh_dashboard.py \
-  --mesh-host meshtastic-radio.local \
+  --mesh-host 192.168.1.42 \
   --mesh-tcp-port 4403 \
   --http-host 0.0.0.0 \
   --http-port 8877 \
   --refresh-ms 3000
 ```
 
-### 2B) Run with USB serial radio
+Note: replace `192.168.1.42` with the Wi-Fi IP address of your radio.
+
+Run with USB serial radio:
 
 ```bash
 python mesh_dashboard.py \
@@ -182,12 +200,119 @@ python mesh_dashboard.py \
 Tip: use `/dev/serial/by-id/...` for a stable serial path when possible.
 
 
-### 3) Open UI
+Open the UI:
 
 - Local: `http://127.0.0.1:8877`
 - LAN: `http://<host-ip>:8877`
 
 Run `python mesh_dashboard.py --help` for the authoritative runtime flag list.
+
+## Recommended Service Install
+
+This is the preferred public GitHub install path for persistent hosts. It keeps
+the dashboard as a normal git checkout, so the Software panel in Settings can
+check GitHub branches and apply git-based updates. If you want to push a local
+checkout from a workstation over SSH instead, use the deploy helper in
+[Workstation Push Deployment](#workstation-push-deployment).
+
+The `/opt/meshyface` path is a system-wide install convention for the included
+service unit. It is not special to the app, but the commands below and
+`meshtastic-dashboard.service` assume this layout:
+
+- repo clone: `/opt/meshyface`
+- virtualenv: `/opt/meshyface/.venv`
+- environment file: `/etc/meshyface/dashboard.env`
+- writable app data: `/var/lib/meshyface`
+- service user/group: `meshyface` / `dialout`
+
+If you clone somewhere else, update every `/opt/meshyface` path in the service
+unit and commands. For the copy/paste install below, clone directly into
+`/opt/meshyface`; do not also create a separate `~/meshyface` checkout unless
+you want a personal test copy.
+
+On a Debian, Ubuntu, or Raspberry Pi OS host:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git python3 python3-venv
+sudo useradd --system --create-home --groups dialout meshyface || true
+sudo install -d -o meshyface -g dialout /opt/meshyface
+sudo -u meshyface git clone https://github.com/jaronmcd/meshyface.git /opt/meshyface
+sudo -u meshyface python3 -m venv /opt/meshyface/.venv
+sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install --upgrade pip
+sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install -r /opt/meshyface/requirements.txt
+sudo install -d -o root -g dialout -m 0750 /etc/meshyface
+sudo install -d -o meshyface -g dialout -m 0750 /var/lib/meshyface
+```
+
+For a Wi-Fi/TCP radio, create `/etc/meshyface/dashboard.env` with:
+
+```bash
+sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
+MESH_GATEWAY_HOST=192.168.1.42
+MESH_GATEWAY_PORT=4403
+MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+PYTHONUNBUFFERED=1
+EOF
+sudo chown root:dialout /etc/meshyface/dashboard.env
+sudo chmod 0640 /etc/meshyface/dashboard.env
+```
+
+For a USB serial radio, use this `dashboard.env` instead:
+
+```bash
+sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
+MESH_DASH_MESH_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
+MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
+MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+PYTHONUNBUFFERED=1
+EOF
+sudo chown root:dialout /etc/meshyface/dashboard.env
+sudo chmod 0640 /etc/meshyface/dashboard.env
+```
+
+Then install and start the service:
+
+```bash
+cd /opt/meshyface
+sudo install -m 0644 meshtastic-dashboard.service /etc/systemd/system/meshtastic-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now meshtastic-dashboard
+sudo systemctl status meshtastic-dashboard --no-pager -l
+```
+
+After pulling updates:
+
+```bash
+cd /opt/meshyface
+sudo -u meshyface git pull --ff-only
+sudo -u meshyface /opt/meshyface/.venv/bin/python -m pip install -r requirements.txt
+sudo systemctl restart meshtastic-dashboard
+```
+
+To uninstall this systemd layout and remove its managed data:
+
+```bash
+sudo systemctl disable --now meshtastic-dashboard.service 2>/dev/null || true
+sudo systemctl stop meshtastic-dashboard.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/meshtastic-dashboard.service
+sudo rm -f /etc/systemd/system/multi-user.target.wants/meshtastic-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed meshtastic-dashboard.service 2>/dev/null || true
+
+sudo rm -rf /opt/meshyface
+sudo rm -rf /etc/meshyface
+sudo rm -rf /var/lib/meshyface
+
+if getent passwd meshyface >/dev/null; then
+  sudo userdel -r meshyface 2>/dev/null || sudo userdel meshyface
+fi
+sudo rm -rf /home/meshyface
+```
+
+If you also made a separate test checkout under your login user's home, remove
+that checkout separately, for example `rm -rf ~/meshyface`.
 
 ## Docker Install
 
@@ -295,7 +420,7 @@ The current root is the node the graph is centered around. Selecting a
 different node changes the root and recomputes the numbered distance rings from
 that node.
 
-## Proxmox And Service Deployment
+## Proxmox Runtime Topology
 
 You have two common deployment models:
 
@@ -306,9 +431,31 @@ You have two common deployment models:
 ### Recommended: Proxmox with TCP radio
 
 If your radio is on Wi-Fi/Ethernet and exposes TCP (usually `4403`), run the
-dashboard in a VM or container and connect over network.
+dashboard in a VM or container and connect over network. Use the standalone
+systemd install or Docker install above inside that VM/container.
 
-#### Fast bootstrap/deploy from your workstation
+## Workstation Push Deployment
+
+For public installs, prefer the standalone clone plus systemd flow above. The
+Settings Software panel expects the running app to be a git checkout when you
+want in-app GitHub updates.
+
+`scripts/deploy_meshyface.sh` is a workstation-managed push deploy helper. It
+copies the local checkout over SSH, renders a target-specific systemd unit, and
+can bootstrap or reset a host. It is useful when:
+
+- the target should not or cannot clone from GitHub directly
+- you are pushing local, unreleased changes
+- you want a one-command Raspberry Pi or Proxmox bootstrap from your workstation
+- you need the reset/uninstall flows built into the helper
+
+It is not a fully offline installer. During `--bootstrap` it still uses the
+target host's package manager and `pip` unless those dependencies are already
+provisioned. A deploy-helper-managed app directory is also a copied payload, not
+a git checkout, so update those hosts by rerunning the helper instead of using
+the in-app git updater.
+
+### Push bootstrap/deploy from your workstation
 
 From this repo:
 
@@ -321,8 +468,8 @@ From this repo:
   --clean-app-dir
 ```
 
-This installs the runtime, deploys app files, writes `dashboard.env`, and
-restarts the service.
+This installs the runtime, deploys app files from your local checkout, writes
+`dashboard.env`, and restarts the service.
 
 Bootstrap assumptions:
 
@@ -340,7 +487,7 @@ Important naming note:
 - In `scripts/deploy_meshyface.sh` and the bundled `dashboard.env`,
   `MESH_PORT` is the TCP port for historical reasons.
 
-#### Update loop
+### Update loop
 
 ```bash
 ./scripts/deploy_meshyface.sh \
@@ -350,7 +497,7 @@ Important naming note:
   --clean-app-dir
 ```
 
-#### Full reset + redeploy
+### Full reset + redeploy
 
 If you want to remove the current Meshyface install on the target and rebuild it
 from scratch in one step, use `--wipe-remote-root`. This removes the managed
@@ -365,7 +512,7 @@ systemd unit plus the deploy root, then bootstraps fresh:
 
 `--wipe-remote-root` implies `--bootstrap`.
 
-#### Full uninstall + hard reboot
+### Full uninstall + hard reboot
 
 If you want to remove Meshyface from the Pi and stop there:
 
@@ -386,7 +533,7 @@ That removes:
 `--hard-reboot` can also be used after a normal deploy if you want the host to
 come back from a forced reboot instead of just restarting the service.
 
-#### Raspberry Pi target
+### Raspberry Pi target
 
 For a Raspberry Pi running Raspberry Pi OS Bookworm or newer, the same
 bootstrap flow works as long as the SSH user has `sudo` access:
@@ -523,3 +670,33 @@ Related environment variables:
   it casually on shared displays.
 - BBS and file transfer can consume significant mesh airtime. Keep them
   disabled unless you have explicitly accepted that tradeoff.
+
+
+## Testing And Coverage
+
+Run the normal test suite with:
+
+```bash
+python -m pytest
+```
+
+Run the advisory app coverage report with:
+
+```bash
+python -m pytest \
+  --cov=meshdash \
+  --cov=mesh_dashboard \
+  --cov=mesh_connection \
+  --cov-report=term
+```
+
+Run the local coverage gate with the stricter 85% minimum:
+
+```bash
+scripts/run_coverage_local.sh
+```
+
+Coverage intentionally excludes the ported Zork engine package from scoring,
+but Zork bot and routing tests still run. GitHub Actions publishes the same
+coverage report as an advisory PR comment and artifact, and fails below 80%.
+The local gate stays 5 percentage points higher than CI.

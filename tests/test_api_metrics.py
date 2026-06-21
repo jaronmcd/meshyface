@@ -43,6 +43,20 @@ def test_derive_counts_and_radio_link_states() -> None:
         {"summary": {"radio_connection": {"wifi": {"connected": "false"}, "serial": {"is_connected": "no"}}}}
     ) == 0
     assert derive_radio_link_up({"summary": {"radio_connection": {"wifi": {"connected": "maybe"}}}}) == -1
+    assert derive_radio_link_up({"summary": {"radio_link": {"connected": True}}}) == 1
+    assert derive_radio_link_up({"summary": {"radio_link": {"is_connected": "yes"}}}) == 1
+    assert derive_radio_link_up({"summary": {"radio_link": {"state": "connected"}}}) == 1
+    assert derive_radio_link_up({"summary": {"radio_link": {"state": "connecting"}}}) == 0
+    assert derive_radio_link_up({"summary": {"radio_link": {"status": "offline"}}}) == 0
+    assert derive_radio_link_up({"summary": {"radio_link": {"state": "maybe"}}}) == -1
+    assert derive_radio_link_up(
+        {
+            "summary": {
+                "radio_link": {"connected": False},
+                "radio_connection": {"state": "connected"},
+            }
+        }
+    ) == 0
 
 
 def test_build_prometheus_metrics_text_renders_state_and_counter_values() -> None:
@@ -51,6 +65,7 @@ def test_build_prometheus_metrics_text_renders_state_and_counter_values() -> Non
             "summary": {
                 "node_count": 3,
                 "live_packet_count": 9,
+                "radio_link": {"connected": True},
                 "radio_connection": {"state": "up"},
             },
             "traffic": {

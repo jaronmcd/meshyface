@@ -47,6 +47,7 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             "uptime_seconds": 42,
             "node_count": 3,
             "live_packet_count": 8,
+            "radio_link": {"connected": True, "state": "connected"},
             "radio_connection": {"state": "connected"},
             "revision": {
                 "version": "1.2.3",
@@ -206,6 +207,7 @@ def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_hist
     )
     state_fn.top_nodes_fn = lambda **kwargs: calls.setdefault("top", kwargs) or {"ok": True, "items": []}  # type: ignore[attr-defined]
     state_fn.link_edges_fn = lambda **kwargs: calls.setdefault("links", kwargs) or {"ok": True, "edges": []}  # type: ignore[attr-defined]
+    state_fn.location_estimates_fn = lambda **kwargs: calls.setdefault("location", kwargs) or {"ok": True, "estimates": []}  # type: ignore[attr-defined]
     state_fn.environment_metrics_history_fn = lambda **kwargs: calls.setdefault("environment", kwargs) or {  # type: ignore[attr-defined]
         "ok": True,
         "points": [],
@@ -218,6 +220,7 @@ def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_hist
 
     handle_dashboard_get(object(), path="/api/history/top_nodes", query="category=chats&limit=4", deps=deps)
     handle_dashboard_get(object(), path="/api/history/links", query="window=24h&limit=7", deps=deps)
+    handle_dashboard_get(object(), path="/api/history/location_estimates", query="window=7d&limit=8", deps=deps)
     handle_dashboard_get(
         object(),
         path="/api/history/environment",
@@ -228,6 +231,7 @@ def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_hist
 
     assert calls["top"] == {"category": "chats", "limit": 4, "exclude_node_ids": ["!self"]}
     assert calls["links"] == {"window": "24h", "limit": 7}
+    assert calls["location"] == {"window": "7d", "limit": 8}
     assert calls["environment"] == {
         "window_hours": 2,
         "metric": "temperature",
@@ -248,17 +252,20 @@ def test_dashboard_get_history_routes_return_unavailable_or_error_payloads() -> 
     state_fn = _StateFn({})
     state_fn.top_nodes_fn = bad_top_nodes  # type: ignore[attr-defined]
     state_fn.link_edges_fn = bad_links  # type: ignore[attr-defined]
+    state_fn.location_estimates_fn = lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("location failed"))  # type: ignore[attr-defined]
     deps = _make_deps(state_fn=state_fn)
 
     handle_dashboard_get(object(), path="/api/history/top_nodes", query="category=saved_packets", deps=deps)
     handle_dashboard_get(object(), path="/api/history/links", query="", deps=deps)
+    handle_dashboard_get(object(), path="/api/history/location_estimates", query="", deps=deps)
     handle_dashboard_get(object(), path="/api/history/environment", query="metric=humidity", deps=deps)
     handle_dashboard_get(object(), path="/api/history/malformed", query="node=!abc", deps=deps)
 
     assert deps.recorder.json[0][1]["error"] == "top failed"
     assert deps.recorder.json[1][1]["error"] == "links failed"
-    assert deps.recorder.json[2][1]["error"] == "environment history unavailable on this node"
-    assert deps.recorder.json[3][1]["error"] == "malformed text history unavailable on this node"
+    assert deps.recorder.json[2][1]["error"] == "location failed"
+    assert deps.recorder.json[3][1]["error"] == "environment history unavailable on this node"
+    assert deps.recorder.json[4][1]["error"] == "malformed text history unavailable on this node"
 
 
 def test_dashboard_get_history_search_handles_private_missing_success_and_errors() -> None:

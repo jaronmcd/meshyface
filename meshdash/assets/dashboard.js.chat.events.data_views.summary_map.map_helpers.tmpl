@@ -292,7 +292,7 @@
       return fitMapToMostNodes(nodes, {{
         pad: 0.18,
         maxZoom: 13,
-        animate: opts.animate !== false,
+        animate: opts.animate === true,
         durationSeconds: Number.isFinite(Number(opts.durationSeconds))
           ? Number(opts.durationSeconds)
           : 0.68,
@@ -417,16 +417,140 @@
       layer._meshPolylineDriftAnimation = null;
     }}
 
+    function cancelMapMarkerDrift(marker) {{
+      if (!(marker && typeof marker === "object")) return;
+      const state = marker._meshMarkerDriftAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      marker._meshMarkerDriftAnimation = null;
+    }}
+
+    function normalizeMapLatLngPoint(rawPoint) {{
+      const lat = Number(Array.isArray(rawPoint) ? rawPoint[0] : (rawPoint && rawPoint.lat));
+      const lon = Number(
+        Array.isArray(rawPoint)
+          ? rawPoint[1]
+          : (rawPoint && (rawPoint.lng ?? rawPoint.lon))
+      );
+      if (!isValidMapCoord(lat, lon)) return null;
+      return [lat, lon];
+    }}
+
+    function mapLatLngPointsSameEnough(a, b) {{
+      const aPoint = normalizeMapLatLngPoint(a);
+      const bPoint = normalizeMapLatLngPoint(b);
+      if (!aPoint || !bPoint) return false;
+      if (Math.abs((Number(aPoint[0]) || 0) - (Number(bPoint[0]) || 0)) > 0.0000005) return false;
+      if (Math.abs((Number(aPoint[1]) || 0) - (Number(bPoint[1]) || 0)) > 0.0000005) return false;
+      return true;
+    }}
+
+    function animateMapMarkerLatLng(marker, targetLatLngRaw, options = null) {{
+      if (!(marker && typeof marker.setLatLng === "function")) return false;
+      const targetPoint = normalizeMapLatLngPoint(targetLatLngRaw);
+      if (!targetPoint) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      const activeState = marker._meshMarkerDriftAnimation;
+      if (
+        !snapToTarget
+        && !reduceMotion
+        && activeState
+        && Array.isArray(activeState.toPoint)
+        && mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)
+      ) {{
+        return true;
+      }}
+      const currentPoint = normalizeMapLatLngPoint(
+        typeof marker.getLatLng === "function" ? marker.getLatLng() : null
+      );
+      if (reduceMotion || durationMs <= 0 || !currentPoint) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+      if (mapLatLngPointsSameEnough(currentPoint, targetPoint)) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+      const maxDriftMeters = Number.isFinite(Number(opts.maxDriftMeters))
+        ? Math.max(0, Number(opts.maxDriftMeters))
+        : mapEstimatedOverlayMaxDriftMeters;
+      const driftMeters = mapLatLngPointDistanceMeters(currentPoint, targetPoint);
+      if (!Number.isFinite(driftMeters) || driftMeters > maxDriftMeters) {{
+        cancelMapMarkerDrift(marker);
+        marker.setLatLng(targetPoint);
+        return true;
+      }}
+
+      cancelMapMarkerDrift(marker);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        lastFrameMs: startedAtMs,
+        activeElapsedMs: 0,
+        maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
+        durationMs,
+        fromPoint: currentPoint,
+        toPoint: targetPoint,
+      }};
+      const step = (timestampMs) => {{
+        const markerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(marker);
+        if (!markerStillVisible) {{
+          cancelMapMarkerDrift(marker);
+          return;
+        }}
+        const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        marker.setLatLng([
+          Number(state.fromPoint[0]) + ((Number(state.toPoint[0]) - Number(state.fromPoint[0])) * eased),
+          Number(state.fromPoint[1]) + ((Number(state.toPoint[1]) - Number(state.fromPoint[1])) * eased),
+        ]);
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        marker.setLatLng(state.toPoint);
+        marker._meshMarkerDriftAnimation = null;
+      }};
+      marker._meshMarkerDriftAnimation = state;
+      if (typeof window.requestAnimationFrame !== "function") {{
+        marker.setLatLng(targetPoint);
+        marker._meshMarkerDriftAnimation = null;
+        return true;
+      }}
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
     function animateMapPolylineLatLngs(layer, targetPathRaw, options = null) {{
       if (!(layer && typeof layer.setLatLngs === "function")) return false;
       const targetPath = normalizeMapLatLngPath(targetPathRaw);
       if (targetPath.length <= 0) return false;
       const opts = (options && typeof options === "object") ? options : {{}};
-      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = layer._meshPolylineDriftAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && Array.isArray(activeState.toPath)
         && mapLatLngPathsSameEnough(activeState.toPath, targetPath)
@@ -633,6 +757,124 @@
       );
     }}
 
+    function mapHeatLayerCanvas(layer) {{
+      const canvas = layer && layer._canvas;
+      return canvas instanceof HTMLCanvasElement ? canvas : null;
+    }}
+
+    function cancelMapHeatLayerOpacityFade(layer) {{
+      if (!(layer && typeof layer === "object")) return;
+      const state = layer._meshHeatOpacityAnimation;
+      if (
+        state
+        && state.raf != null
+        && typeof window.cancelAnimationFrame === "function"
+      ) {{
+        try {{
+          window.cancelAnimationFrame(state.raf);
+        }} catch (_err) {{
+        }}
+      }}
+      layer._meshHeatOpacityAnimation = null;
+    }}
+
+    function mapHeatLayerCurrentOpacity(layer) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      const remembered = Number(layer && layer._meshHeatCanvasOpacity);
+      if (Number.isFinite(remembered)) {{
+        return clampMapLinkValue(remembered, 0, 1);
+      }}
+      if (canvas) {{
+        const rawStyleOpacity = String(canvas.style.opacity || "").trim();
+        const styleOpacity = Number(rawStyleOpacity);
+        if (rawStyleOpacity && Number.isFinite(styleOpacity)) {{
+          return clampMapLinkValue(styleOpacity, 0, 1);
+        }}
+      }}
+      return 1;
+    }}
+
+    function setMapHeatLayerCanvasOpacity(layer, opacity) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      if (!canvas) return false;
+      const safeOpacity = clampMapLinkValue(Number(opacity), 0, 1);
+      canvas.style.opacity = safeOpacity >= 0.999 ? "" : safeOpacity.toFixed(3);
+      layer._meshHeatCanvasOpacity = safeOpacity;
+      return true;
+    }}
+
+    function animateMapHeatLayerCanvasOpacity(layer, targetOpacityRaw, options = null) {{
+      const canvas = mapHeatLayerCanvas(layer);
+      if (!canvas) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const targetOpacity = clampMapLinkValue(Number(targetOpacityRaw), 0, 1);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(
+          0,
+          Number(opts.durationMs) || (targetOpacity >= mapHeatLayerCurrentOpacity(layer) ? mapHeatLayerFadeInMs : mapHeatLayerFadeOutMs)
+        );
+      const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
+      const activeState = layer._meshHeatOpacityAnimation;
+      if (
+        !snapToTarget
+        && !reduceMotion
+        && activeState
+        && Math.abs((Number(activeState.toOpacity) || 0) - targetOpacity) <= 0.001
+      ) {{
+        return true;
+      }}
+      const fromOpacity = Number.isFinite(Number(opts.fromOpacity))
+        ? clampMapLinkValue(Number(opts.fromOpacity), 0, 1)
+        : mapHeatLayerCurrentOpacity(layer);
+      if (
+        reduceMotion
+        || durationMs <= 0
+        || Math.abs(fromOpacity - targetOpacity) <= 0.001
+        || typeof window.requestAnimationFrame !== "function"
+      ) {{
+        cancelMapHeatLayerOpacityFade(layer);
+        setMapHeatLayerCanvasOpacity(layer, targetOpacity);
+        return true;
+      }}
+
+      cancelMapHeatLayerOpacityFade(layer);
+      const startedAtMs = mapAnimationNowMs();
+      const state = {{
+        raf: null,
+        startedAtMs,
+        lastFrameMs: startedAtMs,
+        activeElapsedMs: 0,
+        maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
+        durationMs,
+        fromOpacity,
+        toOpacity: targetOpacity,
+      }};
+      const step = (timestampMs) => {{
+        const layerStillVisible = !map || typeof map.hasLayer !== "function" || map.hasLayer(layer);
+        if (!layerStillVisible) {{
+          cancelMapHeatLayerOpacityFade(layer);
+          return;
+        }}
+        const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
+        const eased = mapDriftEase(elapsedMs / state.durationMs);
+        setMapHeatLayerCanvasOpacity(
+          layer,
+          state.fromOpacity + ((state.toOpacity - state.fromOpacity) * eased)
+        );
+        if (eased < 1) {{
+          state.raf = window.requestAnimationFrame(step);
+          return;
+        }}
+        setMapHeatLayerCanvasOpacity(layer, state.toOpacity);
+        layer._meshHeatOpacityAnimation = null;
+      }};
+      layer._meshHeatOpacityAnimation = state;
+      state.raf = window.requestAnimationFrame(step);
+      return true;
+    }}
+
     function cancelMapHeatLayerDrift(layer, clearPoints = false) {{
       if (!(layer && typeof layer === "object")) return;
       const state = layer._meshHeatDriftAnimation;
@@ -661,11 +903,15 @@
       const keyPrefix = String(opts.keyPrefix || "heat").trim() || "heat";
       const onComplete = typeof opts.onComplete === "function" ? opts.onComplete : null;
       const targetPoints = normalizeMapHeatPoints(targetPointsRaw, {{ keyPrefix }});
-      const durationMs = Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
+      const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;
+      const durationMs = snapToTarget
+        ? 0
+        : Math.max(0, Number(opts.durationMs) || mapEstimatedOverlayDriftMs);
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       const activeState = layer._meshHeatDriftAnimation;
       if (
-        !reduceMotion
+        !snapToTarget
+        && !reduceMotion
         && activeState
         && !activeState.fadeOut
         && Array.isArray(activeState.targetPoints)
@@ -844,18 +1090,202 @@
       ));
       if (!layerVisible || !hasDrawablePoints) {{
         cancelMapHeatLayerDrift(layer, true);
+        cancelMapHeatLayerOpacityFade(layer);
         if (onComplete) {{
           onComplete(layer);
         }}
         return true;
       }}
       layer._meshHeatCurrentPoints = currentPoints;
+      const durationMs = Math.max(0, Number(opts.durationMs) || mapHeatLayerFadeOutMs);
+      animateMapHeatLayerCanvasOpacity(layer, 0, {{
+        durationMs,
+      }});
       return animateMapHeatLayerLatLngs(layer, [], {{
         keyPrefix,
-        durationMs: Math.max(0, Number(opts.durationMs) || mapHeatLayerFadeOutMs),
+        durationMs,
         fadeOut: true,
         onComplete,
       }});
+    }}
+
+    function finishMapMarkerDrift(marker) {{
+      if (!(marker && typeof marker === "object")) return false;
+      const state = marker._meshMarkerDriftAnimation;
+      const targetPoint = Array.isArray(state && state.toPoint) ? state.toPoint : null;
+      if (!targetPoint) return false;
+      cancelMapMarkerDrift(marker);
+      if (typeof marker.setLatLng === "function") {{
+        marker.setLatLng(targetPoint);
+      }}
+      return true;
+    }}
+
+    function finishMapPolylineDrift(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshPolylineDriftAnimation;
+      const targetPath = Array.isArray(state && state.toPath) ? state.toPath : null;
+      if (!targetPath) return false;
+      const targetOpacity = Number(state && state.targetOpacity);
+      cancelMapPolylineDrift(layer);
+      if (typeof layer.setLatLngs === "function") {{
+        layer.setLatLngs(targetPath);
+      }}
+      if (Number.isFinite(targetOpacity) && typeof layer.setStyle === "function") {{
+        layer.setStyle({{ opacity: clampMapLinkValue(targetOpacity, 0, 1) }});
+      }}
+      return true;
+    }}
+
+    function finishMapHeatLayerDrift(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshHeatDriftAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const targetPoints = Array.isArray(state.targetPoints) ? state.targetPoints : [];
+      const onComplete = typeof state.onComplete === "function" ? state.onComplete : null;
+      cancelMapHeatLayerDrift(layer);
+      layer._meshHeatCurrentPoints = targetPoints;
+      if (typeof layer.setLatLngs === "function") {{
+        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+      }}
+      if (onComplete) {{
+        onComplete(layer);
+      }}
+      return true;
+    }}
+
+    function finishMapHeatLayerOpacityFade(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const state = layer._meshHeatOpacityAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const targetOpacity = clampMapLinkValue(Number(state.toOpacity), 0, 1);
+      cancelMapHeatLayerOpacityFade(layer);
+      setMapHeatLayerCanvasOpacity(layer, targetOpacity);
+      return true;
+    }}
+
+    function collectMapHeatLayersForViewportSync() {{
+      const layers = [];
+      const seen = new Set();
+      const addLayer = (layer) => {{
+        if (!(layer && typeof layer === "object") || seen.has(layer)) return;
+        seen.add(layer);
+        layers.push(layer);
+      }};
+      if (linkEstimateHeatmapLayer) {{
+        addLayer(linkEstimateHeatmapLayer);
+      }}
+      const layerGroups = signalHeatmapLayers && typeof signalHeatmapLayers === "object"
+        ? Object.values(signalHeatmapLayers)
+        : [];
+      for (const group of layerGroups) {{
+        if (!Array.isArray(group)) continue;
+        for (const layer of group) {{
+          addLayer(layer);
+        }}
+      }}
+      return layers;
+    }}
+
+    function syncMapHeatLayerViewportNow(layer) {{
+      if (!(layer && typeof layer === "object")) return false;
+      if (!map || typeof map.hasLayer !== "function" || !map.hasLayer(layer)) return false;
+      if (layer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
+        try {{
+          L.Util.cancelAnimFrame(layer._frame);
+        }} catch (_err) {{
+        }}
+        layer._frame = null;
+      }}
+      if (typeof layer._reset === "function") {{
+        try {{
+          layer._reset();
+          return true;
+        }} catch (_err) {{
+        }}
+      }}
+      if (typeof layer.redraw === "function") {{
+        layer.redraw();
+        return true;
+      }}
+      return false;
+    }}
+
+    function syncMapHeatLayersToViewportNow() {{
+      let synced = false;
+      for (const layer of collectMapHeatLayersForViewportSync()) {{
+        synced = syncMapHeatLayerViewportNow(layer) || synced;
+      }}
+      return synced;
+    }}
+
+    function requestMapHeatLayersViewportSync(options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const force = !!opts.force;
+      if (mapHeatLayerViewportSyncRaf !== null) {{
+        if (!force) {{
+          return;
+        }}
+        if (typeof window.cancelAnimationFrame === "function") {{
+          try {{
+            window.cancelAnimationFrame(mapHeatLayerViewportSyncRaf);
+          }} catch (_err) {{
+          }}
+        }}
+        mapHeatLayerViewportSyncRaf = null;
+      }}
+      const nowMs = (typeof mapAnimationNowMs === "function") ? mapAnimationNowMs() : Date.now();
+      const syncAgeMs = nowMs - (Number(mapHeatLayerViewportSyncLastMs) || 0);
+      if (
+        !force
+        && mapViewportInteractionActive
+        && syncAgeMs >= 0
+        && syncAgeMs < mapHeatLayerViewportSyncMinIntervalMs
+      ) {{
+        return;
+      }}
+      const runSync = () => {{
+        mapHeatLayerViewportSyncRaf = null;
+        mapHeatLayerViewportSyncLastMs = (typeof mapAnimationNowMs === "function") ? mapAnimationNowMs() : Date.now();
+        syncMapHeatLayersToViewportNow();
+      }};
+      if (typeof window.requestAnimationFrame === "function") {{
+        mapHeatLayerViewportSyncRaf = window.requestAnimationFrame(runSync);
+      }} else {{
+        runSync();
+      }}
+    }}
+
+    function finishMapViewportOverlayAnimations() {{
+      for (const marker of nodeMarkers.values()) {{
+        finishMapMarkerDrift(marker);
+      }}
+      for (const line of linkEstimateLines.values()) {{
+        finishMapPolylineDrift(line);
+      }}
+      for (const layer of collectMapHeatLayersForViewportSync()) {{
+        finishMapHeatLayerDrift(layer);
+        finishMapHeatLayerOpacityFade(layer);
+      }}
+    }}
+
+    function beginMapViewportInteraction() {{
+      mapViewportInteractionActive = true;
+      finishMapViewportOverlayAnimations();
+    }}
+
+    function syncMapViewportInteractionFrame() {{
+      if (!mapViewportInteractionActive) {{
+        mapViewportInteractionActive = true;
+      }}
+      requestMapHeatLayersViewportSync();
+    }}
+
+    function endMapViewportInteraction() {{
+      finishMapViewportOverlayAnimations();
+      mapHeatLayerViewportSyncLastMs = 0;
+      syncMapHeatLayersToViewportNow();
+      mapViewportInteractionActive = false;
     }}
 
     function estimatedMarkerStyle(isSelected, confidence = 0.5, isLocal = false) {{
@@ -888,6 +1318,41 @@
         fillColor: "#8fd8f5",
         fillOpacity: 0.34 + (safeConfidence * 0.34),
         weight: 1.8,
+        dashArray: "5 4",
+        bubblingMouseEvents: false,
+      }};
+    }}
+
+    function trilateratedMarkerStyle(isSelected, confidence = 0.5, isLocal = false) {{
+      const safeConfidence = clampMapLinkValue(confidence, 0.12, 0.96);
+      if (isLocal) {{
+        return {{
+          radius: (isSelected ? 9.2 : 6.6) + (safeConfidence * (isSelected ? 1.0 : 2.0)),
+          color: isSelected ? "#8b3a68" : "#cc79a7",
+          fillColor: isSelected ? "#ffe4f2" : "#f4a7c7",
+          fillOpacity: isSelected ? 0.97 : 0.72,
+          weight: isSelected ? 2.9 : 2.3,
+          dashArray: "5 3",
+          bubblingMouseEvents: false,
+        }};
+      }}
+      if (isSelected) {{
+        return {{
+          radius: 8.8 + (safeConfidence * 0.9),
+          color: "#9a4577",
+          fillColor: "#ffd7eb",
+          fillOpacity: 0.94,
+          weight: 2.5,
+          dashArray: "6 4",
+          bubblingMouseEvents: false,
+        }};
+      }}
+      return {{
+        radius: 5.8 + (safeConfidence * 1.9),
+        color: "#cc79a7",
+        fillColor: "#f4a7c7",
+        fillOpacity: 0.46 + (safeConfidence * 0.30),
+        weight: 1.9,
         dashArray: "5 4",
         bubblingMouseEvents: false,
       }};
@@ -1260,6 +1725,7 @@
 
     function seedNetworkMapPacketActivityTokens(state = latestState) {{
       lastNetworkMapPacketTokens = snapshotNetworkMapPacketActivityTokens(state);
+      networkMapPacketActivityPrimed = true;
     }}
 
     function ensureMapTransmitPulsePane() {{
@@ -1300,7 +1766,9 @@
           nextPositions.set(nodeId, {{
             lat,
             lon,
-            kind: "estimated",
+            kind: String(estimate && estimate.estimateSource || "").trim() === "rssi_trilateration"
+              ? "trilaterated"
+              : "estimated",
             confidence: clampMapLinkValue(Number(estimate && estimate.confidence), 0.08, 1),
           }});
         }}
@@ -1327,10 +1795,11 @@
         const lat = Number(cached.lat);
         const lon = Number(cached.lon);
         if (isValidMapCoord(lat, lon)) {{
+          const cachedKind = String(cached.kind || "").trim();
           return {{
             lat,
             lon,
-            kind: cached.kind === "estimated" ? "estimated" : "actual",
+            kind: cachedKind === "trilaterated" ? "trilaterated" : (cachedKind === "estimated" ? "estimated" : "actual"),
             confidence: cached.confidence,
           }};
         }}
@@ -2045,7 +2514,7 @@
       const radiusBase = Number(style.radius);
       const weightBase = Number(style.weight);
       const fillOpacityBase = Number(style.fillOpacity);
-      style.radius = (Number.isFinite(radiusBase) ? radiusBase : 6) + ((markerKind === "estimated" ? 1.4 : 1.9) * strength);
+      style.radius = (Number.isFinite(radiusBase) ? radiusBase : 6) + ((markerKind === "estimated" || markerKind === "trilaterated" ? 1.4 : 1.9) * strength);
       style.weight = (Number.isFinite(weightBase) ? weightBase : 1) + (1.2 * strength);
       style.fillOpacity = clampMapLinkValue((Number.isFinite(fillOpacityBase) ? fillOpacityBase : 0.78) + (0.22 * strength), 0.12, 1);
       style.opacity = clampMapLinkValue(0.78 + (0.22 * strength), 0.12, 1);
@@ -2085,14 +2554,18 @@
     }}
 
     function resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
-      const kind = markerKind === "estimated" ? "estimated" : "actual";
+      const kind = markerKind === "trilaterated"
+        ? "trilaterated"
+        : (markerKind === "estimated" ? "estimated" : "actual");
       const safeState = (state && typeof state === "object") ? state : latestState;
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState || {{}}) || "");
       const isLocal = !!(localNodeId && normalizeNodeId(nodeId || "") === localNodeId);
-      const baseStyle = kind === "estimated"
-        ? estimatedMarkerStyle(isSelected, markerConfidence, isLocal)
-        : markerStyle(isSelected || isLocal);
-      if (isLocal && kind !== "estimated") {{
+      const baseStyle = kind === "trilaterated"
+        ? trilateratedMarkerStyle(isSelected, markerConfidence, isLocal)
+        : (kind === "estimated"
+          ? estimatedMarkerStyle(isSelected, markerConfidence, isLocal)
+          : markerStyle(isSelected || isLocal));
+      if (isLocal && kind === "actual") {{
         baseStyle.radius = Math.max(Number(baseStyle.radius) || 0, isSelected ? 8.6 : 7.2);
         baseStyle.color = isSelected ? "#3f2b8c" : "#5f40c9";
         baseStyle.fillColor = isSelected ? "#efe4ff" : "#ccb8ff";
@@ -2108,6 +2581,7 @@
     }}
 
     function resolveMapNodeEmoji(nodeId, state = latestState) {{
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!cleanNodeId) return "";
       const safeState = (state && typeof state === "object") ? state : latestState;
@@ -2119,7 +2593,8 @@
     }}
 
     function mapNodeUsesEmojiMarker(nodeId, markerKind = "actual", state = latestState) {{
-      if ((markerKind === "estimated" ? "estimated" : "actual") !== "actual") return false;
+      if (markerKind !== "actual") return false;
+      if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return false;
       return !!resolveMapNodeEmoji(nodeId, state);
     }}
 
@@ -2338,6 +2813,7 @@
       const avgHops = opts.avgHops;
       const avgSnr = opts.avgSnr;
       const avgRssi = opts.avgRssi;
+      const estimatedLocationLabel = String(opts.estimatedLocationLabel || "Link-inferred").trim() || "Link-inferred";
 
       const headerMeta = [];
       if (emoji) headerMeta.push(`<span class="map-node-info-emoji" aria-hidden="true">${{escAttr(emoji)}}</span>`);
@@ -2370,7 +2846,7 @@
       if (trailLatest) rows.push(mapNodeFieldHtml("Trail Latest", trailLatest));
 
       if (isEstimated) {{
-        rows.push(mapNodeFieldHtml("Location", "Link-inferred"));
+        rows.push(mapNodeFieldHtml("Location", estimatedLocationLabel));
         if (confidenceLabel || confidencePct != null) {{
           rows.push(mapNodeFieldHtml(
             "Confidence",
@@ -2418,6 +2894,10 @@
       const opts = (options && typeof options === "object") ? options : {{}};
       const overlayNodeId = normalizeNodeId(opts.nodeId || (node && node.id) || "");
       const popupHtml = buildMapNodeInfoHtml(node, Object.assign({{}}, opts, {{ includeActions: true }}));
+      const previousBinding = marker._meshMapNodeInfoBinding;
+      if (previousBinding && typeof previousBinding.clear === "function") {{
+        previousBinding.clear();
+      }}
       marker.bindPopup(popupHtml, {{
         closeButton: true,
         autoPan: true,
@@ -2511,7 +2991,7 @@
           : "";
         return !!opts.suppressHoverTooltip || popupIsOpen() || !!(overlayNodeId && selectedId === overlayNodeId);
       }};
-      marker.on("popupopen", (ev) => {{
+      const onPopupOpen = (ev) => {{
         cancelHoverPopupClose();
         const popup = ev && ev.popup;
         const popupEl = popup && typeof popup.getElement === "function"
@@ -2529,21 +3009,36 @@
             scheduleHoverPopupClose();
           }},
         }});
-      }});
-      marker.on("mouseover", () => {{
+      }};
+      const onMouseOver = () => {{
         markerHovering = true;
         cancelHoverPopupClose();
         scheduleHoverPopupOpen();
-      }});
-      marker.on("mouseout", () => {{
+      }};
+      const onMouseOut = () => {{
         markerHovering = false;
         scheduleHoverPopupClose();
-      }});
-      marker.on("popupclose", () => {{
+      }};
+      const onPopupClose = () => {{
         markerHovering = false;
         popupHovering = false;
         clearHoverPopupTimers();
-      }});
+      }};
+      marker.on("popupopen", onPopupOpen);
+      marker.on("mouseover", onMouseOver);
+      marker.on("mouseout", onMouseOut);
+      marker.on("popupclose", onPopupClose);
+      marker._meshMapNodeInfoBinding = {{
+        clear: () => {{
+          clearHoverPopupTimers();
+          if (typeof marker.off === "function") {{
+            marker.off("popupopen", onPopupOpen);
+            marker.off("mouseover", onMouseOver);
+            marker.off("mouseout", onMouseOut);
+            marker.off("popupclose", onPopupClose);
+          }}
+        }},
+      }};
     }}
 
     function buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
@@ -2598,24 +3093,124 @@
       }});
     }}
 
-    function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+    function mapNodeMarkerStyleWithOpacityScale(baseStyleRaw, scale) {{
+      const safeScale = clampMapLinkValue(Number(scale), 0, 1);
+      const style = (baseStyleRaw && typeof baseStyleRaw === "object")
+        ? Object.assign({{}}, baseStyleRaw)
+        : {{}};
+      const baseOpacity = Number.isFinite(Number(style.opacity))
+        ? clampMapLinkValue(Number(style.opacity), 0, 1)
+        : 1;
+      const baseFillOpacity = Number.isFinite(Number(style.fillOpacity))
+        ? clampMapLinkValue(Number(style.fillOpacity), 0, 1)
+        : 0;
+      style.opacity = baseOpacity * safeScale;
+      style.fillOpacity = baseFillOpacity * safeScale;
+      return style;
+    }}
+
+    function mapNodeMarkerElement(marker) {{
+      if (!(marker && typeof marker === "object")) return null;
+      if (typeof marker.getElement === "function") {{
+        const element = marker.getElement();
+        if (element && element.style) return element;
+      }}
+      if (marker._path && marker._path.style) return marker._path;
+      if (marker._icon && marker._icon.style) return marker._icon;
+      return null;
+    }}
+
+    function syncMapNodeMarkerPendingElementOpacity(marker) {{
+      const element = mapNodeMarkerElement(marker);
+      if (!element) return false;
+      const pendingOpacity = Number(marker && marker._meshMapNodeMarkerPendingElementOpacity);
+      if (Number.isFinite(pendingOpacity)) {{
+        const safeOpacity = clampMapLinkValue(pendingOpacity, 0, 1);
+        element.style.opacity = safeOpacity >= 0.999 ? "" : safeOpacity.toFixed(3);
+        return true;
+      }}
+      element.style.opacity = "";
+      return true;
+    }}
+
+    function setMapNodeMarkerElementOpacity(marker, opacityRaw) {{
+      if (!(marker && typeof marker === "object")) return false;
+      const opacityValue = Number(opacityRaw);
+      marker._meshMapNodeMarkerPendingElementOpacity = Number.isFinite(opacityValue)
+        ? clampMapLinkValue(opacityValue, 0, 1)
+        : null;
+      return syncMapNodeMarkerPendingElementOpacity(marker);
+    }}
+
+    function releaseMapNodeMarkerElementOpacityPrime(marker) {{
+      if (!(marker && typeof marker === "object")) return false;
+      marker._meshMapNodeMarkerPendingElementOpacity = null;
+      if (typeof marker.setStyle === "function") {{
+        return syncMapNodeMarkerPendingElementOpacity(marker);
+      }}
+      return true;
+    }}
+
+    function bindMapNodeMarkerElementOpacitySync(marker) {{
+      if (!(marker && typeof marker === "object")) return marker;
+      if (marker._meshMapNodeMarkerElementOpacitySyncBound) return marker;
+      marker._meshMapNodeMarkerElementOpacitySyncBound = true;
+      if (typeof marker.on === "function") {{
+        marker.on("add", () => {{
+          syncMapNodeMarkerPendingElementOpacity(marker);
+        }});
+      }}
+      return marker;
+    }}
+
+    function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
       if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
-        return L.marker([lat, lon], {{
+        const marker = L.marker([lat, lon], {{
           icon: buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state),
           keyboard: false,
           bubblingMouseEvents: false,
           riseOnHover: true,
+          pane: mapNodeMarkerPaneName,
           zIndexOffset: isSelected ? 200 : 120,
         }});
+        bindMapNodeMarkerElementOpacitySync(marker);
+        if (Number.isFinite(Number(opts.initialElementOpacity))) {{
+          setMapNodeMarkerElementOpacity(marker, Number(opts.initialElementOpacity));
+        }}
+        return marker;
       }}
-      return L.circleMarker(
+      const resolvedStyle = resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind, markerConfidence, state);
+      const markerStyle = (opts.initialStyle && typeof opts.initialStyle === "object")
+        ? Object.assign({{}}, resolvedStyle, opts.initialStyle)
+        : resolvedStyle;
+      markerStyle.pane = mapNodeMarkerPaneName;
+      const marker = L.circleMarker(
         [lat, lon],
-        resolveMapNodeMarkerStyle(nodeId, isSelected, markerKind, markerConfidence, state)
+        markerStyle
       );
+      bindMapNodeMarkerElementOpacitySync(marker);
+      if (Number.isFinite(Number(opts.initialElementOpacity))) {{
+        setMapNodeMarkerElementOpacity(marker, Number(opts.initialElementOpacity));
+      }}
+      return marker;
     }}
 
     function refreshMapNodeMarkerPresentation(marker, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
       if (!(marker && typeof marker === "object")) return;
+      const activeFadeState = (marker._meshMapNodeMarkerFadeAnimation && typeof marker._meshMapNodeMarkerFadeAnimation === "object")
+        ? marker._meshMapNodeMarkerFadeAnimation
+        : null;
+      const activeFadeScale = activeFadeState
+        ? (typeof mapNodeMarkerFadeScale === "function"
+          ? mapNodeMarkerFadeScale(
+            marker,
+            Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1
+          )
+          : (Number.isFinite(Number(activeFadeState.currentScale))
+            ? clampMapLinkValue(Number(activeFadeState.currentScale), 0, 1)
+            : (Number(activeFadeState.toScale) > Number(activeFadeState.fromScale) ? 0 : 1)))
+        : null;
       if (isSelected) {{
         if (typeof marker.closeTooltip === "function") {{
           marker.closeTooltip();
@@ -2631,16 +3226,25 @@
         if (typeof marker.setZIndexOffset === "function") {{
           marker.setZIndexOffset(isSelected ? 200 : 120);
         }}
+        if (activeFadeState) {{
+          setMapNodeMarkerElementOpacity(marker, activeFadeScale);
+        }}
         return;
       }}
       if (typeof marker.setStyle === "function") {{
-        marker.setStyle(resolveMapNodeMarkerStyle(
+        const resolvedStyle = resolveMapNodeMarkerStyle(
           nodeId,
           isSelected,
           markerKind,
           markerConfidence,
           state
-        ));
+        );
+        if (activeFadeState) {{
+          marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;
+          setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);
+          return;
+        }}
+        marker.setStyle(resolvedStyle);
       }}
     }}
 
@@ -2660,27 +3264,46 @@
       marker._meshMapNodeMarkerFadeAnimation = null;
     }}
 
+    function mapNodeMarkerFadeScale(marker, fallbackScale = 1) {{
+      const fallback = clampMapLinkValue(Number(fallbackScale), 0, 1);
+      const state = marker && marker._meshMapNodeMarkerFadeAnimation;
+      if (!(state && typeof state === "object")) return fallback;
+      const currentScale = Number(state.currentScale);
+      if (Number.isFinite(currentScale)) {{
+        return clampMapLinkValue(currentScale, 0, 1);
+      }}
+      const toScale = Number(state.toScale);
+      const fromScale = Number(state.fromScale);
+      if (Number.isFinite(toScale) && Number.isFinite(fromScale)) {{
+        return clampMapLinkValue(toScale > fromScale ? fromScale : fallback, 0, 1);
+      }}
+      return fallback;
+    }}
+
+    function mapNodeMarkerIsFadingOut(marker) {{
+      const state = marker && marker._meshMapNodeMarkerFadeAnimation;
+      if (!(state && typeof state === "object")) return false;
+      const toScale = Number(state.toScale);
+      if (!Number.isFinite(toScale) || toScale > 0.001) return false;
+      return mapNodeMarkerFadeScale(marker, 1) > 0.001;
+    }}
+
     function setMapNodeMarkerOpacityScale(marker, scale, baseStyle = null) {{
       if (!(marker && typeof marker === "object")) return false;
       const safeScale = clampMapLinkValue(Number(scale), 0, 1);
       const sourceStyle = (baseStyle && typeof baseStyle === "object")
         ? baseStyle
         : ((marker.options && typeof marker.options === "object") ? marker.options : {{}});
-      const baseOpacity = Number.isFinite(Number(sourceStyle.opacity))
-        ? clampMapLinkValue(Number(sourceStyle.opacity), 0, 1)
-        : 1;
+      const scaledStyle = mapNodeMarkerStyleWithOpacityScale(sourceStyle, safeScale);
       if (typeof marker.setStyle === "function") {{
-        const baseFillOpacity = Number.isFinite(Number(sourceStyle.fillOpacity))
-          ? clampMapLinkValue(Number(sourceStyle.fillOpacity), 0, 1)
-          : 0;
         marker.setStyle({{
-          opacity: baseOpacity * safeScale,
-          fillOpacity: baseFillOpacity * safeScale,
+          opacity: scaledStyle.opacity,
+          fillOpacity: scaledStyle.fillOpacity,
         }});
         return true;
       }}
       if (typeof marker.setOpacity === "function") {{
-        marker.setOpacity(baseOpacity * safeScale);
+        marker.setOpacity(scaledStyle.opacity);
         return true;
       }}
       return false;
@@ -2718,6 +3341,7 @@
       const reduceMotion = typeof prefersReducedMotion === "function" && prefersReducedMotion();
       if (reduceMotion || durationMs <= 0 || typeof window.requestAnimationFrame !== "function") {{
         setMapNodeMarkerOpacityScale(marker, toScale, baseStyle);
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (onComplete) {{
           onComplete(marker);
         }}
@@ -2731,6 +3355,9 @@
         activeElapsedMs: 0,
         maxFrameAdvanceMs: mapEstimatedOverlayMaxFrameAdvanceMs,
         durationMs,
+        fromScale,
+        toScale,
+        currentScale: fromScale,
       }};
       const step = (timestampMs) => {{
         if (
@@ -2740,21 +3367,30 @@
           && !parentLayer.hasLayer(marker)
         ) {{
           cancelMapNodeMarkerFade(marker);
+          releaseMapNodeMarkerElementOpacityPrime(marker);
           return;
         }}
         const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);
         const eased = mapDriftEase(elapsedMs / state.durationMs);
+        const currentScale = fromScale + ((toScale - fromScale) * eased);
+        state.currentScale = currentScale;
+        const currentBaseStyle = (marker._meshMapNodeMarkerFadeBaseStyle && typeof marker._meshMapNodeMarkerFadeBaseStyle === "object")
+          ? marker._meshMapNodeMarkerFadeBaseStyle
+          : baseStyle;
         setMapNodeMarkerOpacityScale(
           marker,
-          fromScale + ((toScale - fromScale) * eased),
-          baseStyle
+          currentScale,
+          currentBaseStyle
         );
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (eased < 1) {{
           state.raf = window.requestAnimationFrame(step);
           return;
         }}
-        setMapNodeMarkerOpacityScale(marker, toScale, baseStyle);
+        setMapNodeMarkerOpacityScale(marker, toScale, currentBaseStyle);
+        state.currentScale = toScale;
         marker._meshMapNodeMarkerFadeAnimation = null;
+        releaseMapNodeMarkerElementOpacityPrime(marker);
         if (toScale >= 1) {{
           marker._meshMapNodeMarkerFadeBaseStyle = null;
         }}
@@ -2769,16 +3405,25 @@
 
     function fadeInMapNodeMarker(marker, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
+      const fromScale = Number.isFinite(Number(opts.fromScale))
+        ? clampMapLinkValue(Number(opts.fromScale), 0, 1)
+        : 0;
+      if (opts.primeElementOpacity !== false && fromScale <= 0.001) {{
+        setMapNodeMarkerElementOpacity(marker, 0);
+      }}
       return fadeMapNodeMarker(marker, Object.assign({{}}, opts, {{
-        fromScale: 0,
+        fromScale,
         toScale: 1,
       }}));
     }}
 
     function fadeOutMapNodeMarker(marker, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
+      const fromScale = Number.isFinite(Number(opts.fromScale))
+        ? clampMapLinkValue(Number(opts.fromScale), 0, 1)
+        : mapNodeMarkerFadeScale(marker, 1);
       return fadeMapNodeMarker(marker, Object.assign({{}}, opts, {{
-        fromScale: 1,
+        fromScale,
         toScale: 0,
       }}));
     }}
@@ -2828,6 +3473,15 @@
       const nodesToRipple = new Map();
       const directionsToAnimate = [];
       const networkMapVisible = isNetworkMapActivityFlashVisible();
+      if (networkMapVisible && !networkMapPacketActivityPrimed) {{
+        seedNetworkMapPacketActivityTokens(safeState);
+        mapNodeActivityFlashById.clear();
+        clearMapNodeTransmitPulseRings();
+        clearMapNodeActivityDirections();
+        clearMapTracePaths();
+        stopMapNodeActivityFlashLoop();
+        return;
+      }}
       for (const packetEntry of recentPackets) {{
         if (!isMeshRadioActivityPacket(packetEntry, localNodeId)) continue;
         const token = mapPacketActivityToken(packetEntry);
@@ -2879,9 +3533,11 @@
         }});
       }}
       lastNetworkMapPacketTokens = currentTokens;
+      networkMapPacketActivityPrimed = true;
       if (!networkMapVisible || (nodesToFlash.size <= 0 && nodesToRipple.size <= 0 && directionsToAnimate.length <= 0)) {{
         if (!networkMapVisible) {{
           lastNetworkMapPacketTokens = currentTokens;
+          networkMapPacketActivityPrimed = true;
           mapNodeActivityFlashById.clear();
           clearMapNodeTransmitPulseRings();
           clearMapNodeActivityDirections();
@@ -3069,6 +3725,301 @@
       return clampMapLinkValue(base * anchorDamping * fitDamping, 0.06, 0.88);
     }}
 
+    function mapLinkSignalSampleCount(edge) {{
+      const rssiSamples = Number(edge && edge.rssiSamples);
+      const snrSamples = Number(edge && edge.snrSamples);
+      return Math.max(
+        0,
+        Number.isFinite(rssiSamples) ? Math.trunc(rssiSamples) : 0,
+        Number.isFinite(snrSamples) ? Math.trunc(snrSamples) : 0
+      );
+    }}
+
+    function mapLinkRangeFromSignal(edge) {{
+      const ranges = [];
+      const samples = Math.max(0, mapLinkSignalSampleCount(edge));
+      const sampleDamping = clampMapLinkValue(Math.log10(samples + 1) / 1.1, 0.35, 1);
+      const avgRssi = Number(edge && edge.avgRssi);
+      if (Number.isFinite(avgRssi)) {{
+        // Path-loss approximation calibrated for coarse LoRa mesh ranges:
+        // around -97dBm near 1km, with exponent 2.4 for mixed urban/suburban terrain.
+        const rssiMeters = 1000 * Math.pow(10, ((-97 - avgRssi) / (10 * 2.4)));
+        ranges.push({{
+          value: clampMapLinkValue(rssiMeters, 120, 65000),
+          weight: 0.66 * sampleDamping,
+        }});
+      }}
+      const avgSnr = Number(edge && edge.avgSnr);
+      if (Number.isFinite(avgSnr)) {{
+        // SNR is not a physical range by itself, but it is useful as a second
+        // coarse range hint when RSSI is missing or distorted.
+        const snrMeters = 900 * Math.pow(2, ((10 - avgSnr) / 5));
+        ranges.push({{
+          value: clampMapLinkValue(snrMeters, 160, 70000),
+          weight: 0.34 * sampleDamping,
+        }});
+      }}
+      if (!ranges.length) return null;
+      let logTotal = 0;
+      let totalWeight = 0;
+      for (const range of ranges) {{
+        const value = Math.max(1, Number(range && range.value) || 1);
+        const weight = Math.max(0, Number(range && range.weight) || 0);
+        if (!(weight > 0)) continue;
+        logTotal += Math.log(value) * weight;
+        totalWeight += weight;
+      }}
+      if (!(totalWeight > 0)) return null;
+      const meters = Math.exp(logTotal / totalWeight);
+      let agreement = ranges.length >= 2 ? 1 : 0.68;
+      if (ranges.length >= 2) {{
+        const ratio = Math.max(ranges[0].value, ranges[1].value) / Math.max(1, Math.min(ranges[0].value, ranges[1].value));
+        agreement = clampMapLinkValue(1 - (Math.log(ratio) / Math.log(10)), 0.28, 1);
+      }}
+      return {{
+        meters,
+        confidence: clampMapLinkValue(agreement * sampleDamping, 0.18, 1),
+        samples,
+      }};
+    }}
+
+    function mapLinkTrilaterationAnchorFromEdge(nodeId, edge, positions, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const a = normalizeNodeId(edge && edge.a);
+      const b = normalizeNodeId(edge && edge.b);
+      const peerId = a === cleanNodeId ? b : (b === cleanNodeId ? a : "");
+      if (!isSelectableNodeId(peerId)) return null;
+      const peerPos = positions instanceof Map ? positions.get(peerId) : null;
+      if (!(peerPos && peerPos.fixed)) return null;
+
+      const lastSeenUnix = Number(edge && edge.lastSeenUnix);
+      if (
+        Number.isFinite(Number(mapLinkMaxTrilaterationAgeSeconds))
+        && Number(mapLinkMaxTrilaterationAgeSeconds) > 0
+      ) {{
+        if (!Number.isFinite(lastSeenUnix) || lastSeenUnix <= 0) return null;
+        if ((Math.max(0, nowUnix - lastSeenUnix)) > Number(mapLinkMaxTrilaterationAgeSeconds)) return null;
+      }}
+
+      const hopMetric = mapLinkEdgeHopMetric(edge);
+      if (
+        Number.isFinite(hopMetric)
+        && Number.isFinite(Number(mapLinkMaxTrilaterationHops))
+        && hopMetric > Number(mapLinkMaxTrilaterationHops)
+      ) {{
+        return null;
+      }}
+
+      const range = mapLinkRangeFromSignal(edge);
+      if (!range || range.samples < mapLinkMinTrilaterationSignalSamples) return null;
+      const locationWeight = mapLinkEdgeLocationWeight(edge);
+      if (!(locationWeight > 0)) return null;
+      const recency = mapLinkRecencyScore(lastSeenUnix, nowUnix);
+      const sampleWeight = clampMapLinkValue(Math.log10(range.samples + 1), 0.35, 1.25);
+      const weight = clampMapLinkValue(locationWeight * range.confidence * recency * sampleWeight, 0.02, 2.5);
+      return {{
+        nodeId: peerId,
+        x: Number(peerPos.x),
+        y: Number(peerPos.y),
+        distanceMeters: range.meters,
+        weight,
+        samples: range.samples,
+        rangeConfidence: range.confidence,
+        avgSnr: Number.isFinite(Number(edge && edge.avgSnr)) ? Number(edge.avgSnr) : null,
+        avgRssi: Number.isFinite(Number(edge && edge.avgRssi)) ? Number(edge.avgRssi) : null,
+        avgHops: Number.isFinite(Number(edge && edge.avgHops)) ? Number(edge.avgHops) : null,
+        lastSeenUnix,
+      }};
+    }}
+
+    function solveMapRssiTrilateration(nodeId, seedPosition, anchors) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      const usableAnchors = Array.isArray(anchors)
+        ? anchors.filter((anchor) => (
+            anchor
+            && Number.isFinite(Number(anchor.x))
+            && Number.isFinite(Number(anchor.y))
+            && Number.isFinite(Number(anchor.distanceMeters))
+            && Number(anchor.distanceMeters) > 0
+            && Number.isFinite(Number(anchor.weight))
+            && Number(anchor.weight) > 0
+          ))
+        : [];
+      if (!isSelectableNodeId(cleanNodeId) || usableAnchors.length < mapLinkMinTrilaterationAnchors) return null;
+
+      let x = Number(seedPosition && seedPosition.x);
+      let y = Number(seedPosition && seedPosition.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {{
+        let totalWeight = 0;
+        let sumX = 0;
+        let sumY = 0;
+        for (const anchor of usableAnchors) {{
+          const weight = Number(anchor.weight);
+          sumX += Number(anchor.x) * weight;
+          sumY += Number(anchor.y) * weight;
+          totalWeight += weight;
+        }}
+        if (!(totalWeight > 0)) return null;
+        x = sumX / totalWeight;
+        y = sumY / totalWeight;
+      }}
+
+      for (let iter = 0; iter < 22; iter += 1) {{
+        let a00 = 0;
+        let a01 = 0;
+        let a11 = 0;
+        let b0 = 0;
+        let b1 = 0;
+        for (const anchor of usableAnchors) {{
+          const dx = x - Number(anchor.x);
+          const dy = y - Number(anchor.y);
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const desired = Math.max(1, Number(anchor.distanceMeters));
+          const residual = distance - desired;
+          const jx = dx / distance;
+          const jy = dy / distance;
+          const weight = clampMapLinkValue(Number(anchor.weight), 0.001, 8);
+          a00 += weight * jx * jx;
+          a01 += weight * jx * jy;
+          a11 += weight * jy * jy;
+          b0 += weight * jx * residual;
+          b1 += weight * jy * residual;
+        }}
+        const det = (a00 * a11) - (a01 * a01);
+        if (!Number.isFinite(det) || Math.abs(det) < 1e-6) break;
+        let stepX = ((b0 * a11) - (b1 * a01)) / det;
+        let stepY = ((a00 * b1) - (a01 * b0)) / det;
+        const stepMeters = Math.hypot(stepX, stepY);
+        if (!Number.isFinite(stepMeters) || stepMeters <= 0.5) break;
+        const maxStep = Math.max(420, 14000 - (iter * 520));
+        if (stepMeters > maxStep) {{
+          const ratio = maxStep / stepMeters;
+          stepX *= ratio;
+          stepY *= ratio;
+        }}
+        x -= stepX;
+        y -= stepY;
+        if (Math.hypot(stepX, stepY) < 2) break;
+      }}
+
+      let weightedError = 0;
+      let weightedDistance = 0;
+      let totalWeight = 0;
+      let totalSamples = 0;
+      let qualitySum = 0;
+      let snrWeight = 0;
+      let snrSum = 0;
+      let rssiWeight = 0;
+      let rssiSum = 0;
+      let hopsWeight = 0;
+      let hopsSum = 0;
+      for (const anchor of usableAnchors) {{
+        const dx = x - Number(anchor.x);
+        const dy = y - Number(anchor.y);
+        const distance = Math.hypot(dx, dy);
+        const desired = Math.max(1, Number(anchor.distanceMeters));
+        const weight = clampMapLinkValue(Number(anchor.weight), 0.001, 8);
+        weightedError += Math.abs(distance - desired) * weight;
+        weightedDistance += desired * weight;
+        totalWeight += weight;
+        totalSamples += Math.max(0, Math.trunc(Number(anchor.samples) || 0));
+        qualitySum += clampMapLinkValue(Number(anchor.rangeConfidence), 0, 1) * weight;
+        if (Number.isFinite(Number(anchor.avgSnr))) {{
+          snrSum += Number(anchor.avgSnr) * weight;
+          snrWeight += weight;
+        }}
+        if (Number.isFinite(Number(anchor.avgRssi))) {{
+          rssiSum += Number(anchor.avgRssi) * weight;
+          rssiWeight += weight;
+        }}
+        if (Number.isFinite(Number(anchor.avgHops))) {{
+          hopsSum += Number(anchor.avgHops) * weight;
+          hopsWeight += weight;
+        }}
+      }}
+      if (!(totalWeight > 0)) return null;
+      const residualMeters = weightedError / totalWeight;
+      const residualRatio = residualMeters / Math.max(900, weightedDistance / totalWeight);
+      const fitScore = clampMapLinkValue(1 - (residualRatio / 0.82), 0, 1);
+      const qualityScore = clampMapLinkValue(qualitySum / totalWeight, 0, 1);
+      const anchorScore = clampMapLinkValue((usableAnchors.length - 3) / 4, 0, 1);
+      const sampleScore = clampMapLinkValue(Math.log10(totalSamples + 1) / 1.35, 0, 1);
+      const confidence = clampMapLinkValue(
+        0.08 + (fitScore * 0.54) + (qualityScore * 0.14) + (anchorScore * 0.14) + (sampleScore * 0.10),
+        0.04,
+        0.92
+      );
+      if (confidence < mapLinkMinTrilaterationConfidence || fitScore < mapLinkMinTrilaterationFit) return null;
+      return {{
+        x,
+        y,
+        confidence,
+        fitScore,
+        residualKm: Math.round((residualMeters / 1000) * 10) / 10,
+        residualRatio: Math.round(residualRatio * 1000) / 1000,
+        anchorCount: usableAnchors.length,
+        supportLinks: usableAnchors.length,
+        signalSamples: totalSamples,
+        avgLinkQuality: qualityScore,
+        avgSnr: snrWeight > 0 ? Math.round((snrSum / snrWeight) * 100) / 100 : null,
+        avgRssi: rssiWeight > 0 ? Math.round((rssiSum / rssiWeight) * 100) / 100 : null,
+        avgHops: hopsWeight > 0 ? Math.round((hopsSum / hopsWeight) * 100) / 100 : null,
+      }};
+    }}
+
+    function buildMapRssiTrilaterationEstimates(positions, adjacency, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const refLat = Number(opts.refLat);
+      const refLon = Number(opts.refLon);
+      if (!isValidMapCoord(refLat, refLon)) return new Map();
+      const nowUnix = Number.isFinite(Number(opts.nowUnix))
+        ? Math.trunc(Number(opts.nowUnix))
+        : Math.floor(Date.now() / 1000);
+      const nodeIds = Array.isArray(opts.nodeIds)
+        ? opts.nodeIds.map((nodeId) => normalizeNodeId(nodeId)).filter((nodeId) => isSelectableNodeId(nodeId))
+        : Array.from(positions instanceof Map ? positions.keys() : []);
+      const estimates = new Map();
+      for (const nodeId of nodeIds) {{
+        const nodePos = positions instanceof Map ? positions.get(nodeId) : null;
+        if (!(nodePos && !nodePos.fixed)) continue;
+        const peers = adjacency instanceof Map ? adjacency.get(nodeId) : null;
+        if (!(peers instanceof Map) || peers.size < mapLinkMinTrilaterationAnchors) continue;
+        const anchors = [];
+        for (const edge of peers.values()) {{
+          const anchor = mapLinkTrilaterationAnchorFromEdge(nodeId, edge, positions, nowUnix);
+          if (anchor) anchors.push(anchor);
+        }}
+        if (anchors.length < mapLinkMinTrilaterationAnchors) continue;
+        anchors.sort((left, right) => (Number(right.weight) || 0) - (Number(left.weight) || 0));
+        const solveAnchors = anchors.slice(0, Math.min(10, Math.max(mapLinkMinTrilaterationAnchors, anchors.length)));
+        const solution = solveMapRssiTrilateration(nodeId, nodePos, solveAnchors);
+        if (!solution) continue;
+        const ll = unprojectMapLinkPoint(solution.x, solution.y, refLat, refLon);
+        if (!isValidMapCoord(ll.lat, ll.lon)) continue;
+        estimates.set(nodeId, {{
+          lat: ll.lat,
+          lon: ll.lon,
+          confidence: solution.confidence,
+          rawConfidence: solution.confidence,
+          anchorCount: solution.anchorCount,
+          supportLinks: solution.supportLinks,
+          signalSamples: solution.signalSamples,
+          avgLinkQuality: solution.avgLinkQuality,
+          avgPositionQuality: solution.avgLinkQuality,
+          fitScore: solution.fitScore,
+          residualKm: solution.residualKm,
+          residualRatio: solution.residualRatio,
+          avgSnr: solution.avgSnr,
+          avgRssi: solution.avgRssi,
+          avgHops: solution.avgHops,
+          estimateSource: "rssi_trilateration",
+          rangeFitScore: solution.fitScore,
+          rangeResidualKm: solution.residualKm,
+        }});
+      }}
+      return estimates;
+    }}
+
     function mapLinkWeightedPercentile(entries, quantile = 0.5) {{
       const q = clampMapLinkValue(Number(quantile), 0, 1);
       const prepared = [];
@@ -3151,13 +4102,13 @@
         const targetPosition = {{ lat: targetLat, lon: targetLon }};
         const previousPosition = {{ lat: previousLat, lon: previousLon }};
         const distanceMeters = mapEstimatedPositionDistanceMeters(previousPosition, targetPosition);
-        if (Number.isFinite(distanceMeters) && distanceMeters > 90) {{
+        if (Number.isFinite(distanceMeters) && distanceMeters > 35) {{
           const alpha = clampMapLinkValue(
-            0.075 + (confidence * 0.09) + Math.min(0.045, supportLinks * 0.008),
-            0.075,
-            0.22
+            0.018 + (confidence * 0.027) + Math.min(0.015, supportLinks * 0.003),
+            0.018,
+            0.06
           );
-          const maxStepMeters = 1400 + (confidence * 2200) + Math.min(1100, supportLinks * 160);
+          const maxStepMeters = 30 + (confidence * 55) + Math.min(45, supportLinks * 7);
           const requestedStepMeters = Math.min(distanceMeters, distanceMeters * alpha, maxStepMeters);
           const vec = projectMapLinkPoint(targetLat, targetLon, previousLat, previousLon);
           if (
@@ -3183,7 +4134,7 @@
             {{ lat: nextLat, lon: nextLon }},
             targetPosition
           );
-          active = Number.isFinite(remainingMeters) && remainingMeters > 120;
+          active = Number.isFinite(remainingMeters) && remainingMeters > 45;
         }}
       }}
 
@@ -3601,7 +4552,7 @@
       const liveCloudLinkCount = cloudLinks.filter((entry) => entry.mode === "live").length;
       const result = {{
         enabled: heatPoints.length > 0 && clouds.length > 0,
-        hideEstimatedMarkers: clouds.length > 0,
+        hideEstimatedMarkers: false,
         heatPoints,
         clouds,
         cloudLinks,
@@ -3891,12 +4842,29 @@
         }});
       }}
 
-      const historyCombinedEdges = (typeof combineNetworkGraphEdges === "function")
-        ? combineNetworkGraphEdges(safeRawEdges, nodeMap, {{ mode: "history" }})
-        : combinedEdges;
       const liveCombinedEdges = (typeof combineNetworkGraphEdges === "function")
         ? combineNetworkGraphEdges(liveRawEdges, nodeMap, {{ mode: "live" }})
         : [];
+      const trilaterationAdjacency = (typeof buildNetworkGraphAdjacency === "function")
+        ? buildNetworkGraphAdjacency(nodeMap, liveCombinedEdges)
+        : new Map();
+      const rssiTrilaterationEstimates = buildMapRssiTrilaterationEstimates(positions, trilaterationAdjacency, {{
+        nodeIds: movableIds,
+        refLat,
+        refLon,
+      }});
+      for (const [nodeId, trilaterated] of rssiTrilaterationEstimates.entries()) {{
+        const topologyEstimate = estimates.get(nodeId) || null;
+        estimates.set(nodeId, Object.assign({{}}, topologyEstimate || {{}}, trilaterated, {{
+          topologyConfidence: topologyEstimate ? topologyEstimate.confidence : null,
+          topologyFitScore: topologyEstimate ? topologyEstimate.fitScore : null,
+          topologyResidualKm: topologyEstimate ? topologyEstimate.residualKm : null,
+        }}));
+      }}
+
+      const historyCombinedEdges = (typeof combineNetworkGraphEdges === "function")
+        ? combineNetworkGraphEdges(safeRawEdges, nodeMap, {{ mode: "history" }})
+        : combinedEdges;
       const lineGroups = [];
       if (edgeMode === "history" || edgeMode === "both") {{
         lineGroups.push(["history", historyCombinedEdges]);
@@ -4077,7 +5045,7 @@
       if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") return;
       btn.dataset.bound = "1";
       btn.addEventListener("click", () => {{
-        resetMapViewToMostNodes();
+        resetMapViewToMostNodes({{ animate: false }});
       }});
     }}
 

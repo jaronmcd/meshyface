@@ -2196,6 +2196,21 @@
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
     }}
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required {{
+      border-color: color-mix(in srgb, #e2be6b 78%, var(--workspace-shell-border-muted));
+      background: color-mix(in srgb, #46310b 62%, var(--workspace-shell-bg-alt));
+      color: #ffe4a3;
+      box-shadow: 0 0 0 2px color-mix(in srgb, #e2be6b 25%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required:hover {{
+      background: color-mix(in srgb, #5b3f0f 66%, var(--workspace-shell-bg-alt));
+    }}
+    [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required.is-restart-blocked {{
+      border-color: color-mix(in srgb, #db8a8a 78%, var(--workspace-shell-border-muted));
+      background: color-mix(in srgb, #4a1717 62%, var(--workspace-shell-bg-alt));
+      color: #ffd0cd;
+      box-shadow: 0 0 0 2px color-mix(in srgb, #db8a8a 25%, transparent);
+    }}
     [data-theme="dark"] .settings-update-history-panel {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
@@ -5706,21 +5721,20 @@
       color: var(--ui-text);
     }}
     [data-theme="dark"] .leaflet-control-zoom {{
-      border-color: var(--workspace-shell-border) !important;
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, var(--ui-bg-elev) 18%);
-      box-shadow: var(--workspace-shell-shadow);
+      background: transparent;
+      box-shadow: none;
     }}
     [data-theme="dark"] .leaflet-control-zoom a {{
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--workspace-shell-bg) 22%);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-accent) 16%);
       color: var(--workspace-shell-text);
-      border-bottom-color: var(--workspace-shell-border);
+      border-color: var(--workspace-shell-border) !important;
     }}
     [data-theme="dark"] .leaflet-control-zoom a:hover {{
-      background: var(--workspace-shell-hover-bg);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 72%, var(--ui-accent) 28%);
       color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .leaflet-control-zoom a:last-child {{
-      border-bottom: 0;
+    [data-theme="dark"] .leaflet-control-zoom a:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .map-card-head {{
       background: #121c16;
@@ -5925,6 +5939,49 @@
     }}
     [data-theme="dark"] .network-map-subview-tab:focus-visible {{
       outline-color: #3f8f68;
+      outline-color: var(--workspace-shell-border-strong);
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-controls-dock,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      border-color: var(--workspace-shell-border) !important;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      border-color: transparent !important;
+      background: transparent;
+      color: var(--workspace-shell-text-soft);
+      box-shadow: none;
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn:hover,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted) !important;
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn:focus-visible,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      color: var(--workspace-shell-text-soft);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn.is-active {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--ui-accent-soft) 22%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
+      color: var(--workspace-shell-active-text);
+      box-shadow: 0 6px 16px rgba(4, 14, 8, 0.42);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn:focus-visible {{
       outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .network-map-placeholder {{
@@ -6590,6 +6647,23 @@
     }}
     [data-theme="dark"] .map-link-legend-title {{
       color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .map-link-legend-collapse-btn,
+    [data-theme="dark"] .map-link-legend-collapsed-btn {{
+      border-color: color-mix(in srgb, var(--workspace-shell-border) 78%, transparent);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      color: var(--workspace-shell-text-soft);
+      box-shadow: 0 6px 16px rgba(4, 14, 8, 0.38);
+    }}
+    [data-theme="dark"] .map-link-legend-collapse-btn:hover,
+    [data-theme="dark"] .map-link-legend-collapsed-btn:hover {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .map-link-legend-collapse-btn:focus-visible,
+    [data-theme="dark"] .map-link-legend-collapsed-btn:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .map-link-legend-item {{
       color: var(--workspace-shell-text);
@@ -8731,6 +8805,10 @@
         align-items: stretch;
         gap: 8px;
       }}
+      .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+        top: 116px;
+        right: 8px;
+      }}
       .network-map-subview-tabs {{
         width: fit-content;
         max-width: 100%;
@@ -8922,6 +9000,10 @@
         left: 6px;
         right: 6px;
         gap: 6px;
+      }}
+      .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+        top: 108px;
+        right: 6px;
       }}
       .network-map-subview-tabs,
       .map-controls-dock,

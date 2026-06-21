@@ -34,7 +34,8 @@ def test_dashboard_html_adds_map_link_layer_toggle() -> None:
     assert 'aria-label="Map links legend"' in html
     assert ">Packet Lines</span>" not in html
     assert "Choose whether the link layer shows history links, live links, or both" not in html
-    assert 'class="map-control-group map-heatmap-controls"' in html
+    assert 'class="map-control-group map-heatmap-controls"' not in html
+    assert 'id="map-heatmap-mode"' not in html
 
 
 def test_dashboard_js_supports_map_link_layer_overlay() -> None:
@@ -61,14 +62,31 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function normalizeNodePacketSeries(raw) {" in js
     assert 'const mapPacketLinesStorageKey = "meshDashboardMapPacketLinesEnabledV2";' in js
     assert "let mapPacketLinesEnabled = false;" in js
+    assert "const dashboardMapDefaultLeafletOptions = Object.freeze({" in js
+    assert "inertia: true," in js
+    assert "inertiaDeceleration: 3000," in js
+    assert "inertiaMaxSpeed: 1200," in js
+    assert "easeLinearity: 0.22," in js
     assert 'const mapLinkModeStorageKey = "meshDashboardMapLinkModeV1";' in js
+    assert 'const mapNodeLayerVisibilityStorageKey = "meshDashboardMapNodeLayerVisibilityV1";' in js
+    assert 'const mapLinkLegendCollapsedStorageKey = "meshDashboardMapLinkLegendCollapsedV1";' in js
     assert 'const mapLiveActivityStorageKey = "meshDashboardMapLiveActivityEnabledV1";' in js
+    assert "let mapActualNodesEnabled = true;" in js
+    assert "let mapLinkInferredNodesEnabled = true;" in js
+    assert "let mapRssiTrilateratedNodesEnabled = true;" in js
+    assert "let mapLinkLegendCollapsed = false;" in js
     assert "function updateMapPacketLinesControl()" in js
     assert "function bindMapPacketLinesControl()" in js
     assert "function updateMapLinkLayerControl()" in js
     assert "function normalizeMapLinkLayerMode(value) {" in js
     assert "function loadMapPacketLinesPreference()" in js
     assert "function loadMapLinkLayerModePreference()" in js
+    assert "function persistMapNodeLayerVisibilityPreference()" in js
+    assert "function loadMapNodeLayerVisibilityPreference()" in js
+    assert "function persistMapLinkLegendCollapsedPreference()" in js
+    assert "function loadMapLinkLegendCollapsedPreference()" in js
+    assert 'runBootStep("loadMapNodeLayerVisibilityPreference", () => loadMapNodeLayerVisibilityPreference());' in js
+    assert 'runBootStep("loadMapLinkLegendCollapsedPreference", () => loadMapLinkLegendCollapsedPreference());' in js
     assert "function bindMapLinkLayerControl()" in js
     assert "function updateMapLiveActivityControl()" in js
     assert "function loadMapLiveActivityPreference()" in js
@@ -84,13 +102,29 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'estimated: mode !== "none",' in js
     assert "function renderMapLinkLegend(nodes = [], rawEdges = [], estimatedPositions = new Map(), linkOverlay = null)" in js
     assert "function bindMapLinkLegendControls(legend)" in js
+    assert "function setMapLinkLegendCollapsed(collapsed, options = null)" in js
+    assert 'data-map-link-legend-collapse="1"' in js
+    assert 'data-map-link-legend-expand="1"' in js
+    assert 'class="map-link-legend-collapsed-btn"' in js
+    assert 'data-map-link-legend-toggle="signal-heatmap"' in js
+    assert 'data-map-link-legend-toggle="signal-coverage"' not in js
+    assert 'data-map-link-legend-toggle="signal-live"' not in js
     assert 'data-map-link-legend-toggle="packet"' in js
+    assert 'data-map-link-legend-toggle="estimated-heatmap"' in js
+    assert 'data-map-link-legend-toggle="real-nodes"' in js
+    assert 'data-map-link-legend-toggle="link-inferred-nodes"' in js
+    assert 'data-map-link-legend-toggle="rssi-trilaterated-nodes"' in js
     assert 'data-map-link-legend-toggle="estimated"' in js
     assert "Map layers" in js
     assert "Signal heatmap" in js
-    assert "Inferred clusters" in js
-    assert "const signalHeatLegendHtml = signalHeatPointCount > 0" in js
-    assert "const estimatedCloudHeatLegendHtml = showEstimatedCloudHeat" in js
+    assert 'applySignalHeatmapMode(signalHeatmapToggle.checked ? "both" : "none");' in js
+    assert "Inferred heatmap" in js
+    assert 'collectSignalHeatmapBuckets(nodes, signalHeatProfile, "coverage")' in js
+    assert 'collectSignalHeatmapBuckets(nodes, signalHeatProfile, "live")' in js
+    assert "signalCoverageBuckets = maskSignalCoverageBucketsWithLive(signalCoverageBuckets, signalLiveBuckets);" in js
+    assert "const signalHeatmapPointCount = (" in js
+    assert "+ signalHeatmapBucketPointCount(signalLiveBuckets)" in js
+    assert "const inferredHeatmapCount = Math.max(" in js
     assert "Common paths" in js
     assert 'renderMapLinkLegend(nodes, mapRenderEdges, estimatedPositions, linkOverlay);' in js
     assert 'mapElement.style.setProperty("--map-link-legend-space"' in js
@@ -101,7 +135,28 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert 'const effectiveMapLinkMode = (typeof mapLinkLayerModeForCurrentView === "function")' in js
     assert '? (spreadEdgeMode === "live" ? "live" : "history")' not in js
     assert "lastMapSignature = \"\";" in js
-    assert "Inferred nodes" in js
+    assert "Link-inferred nodes" in js
+    assert "Inferred nodes" not in js
+    assert "RSSI trilaterated" in js
+    assert "let trilateratedCount = 0;" in js
+    assert "let signalHeatmapCoverageEnabled = true;" in js
+    assert "let signalHeatmapLiveEnabled = true;" in js
+    assert 'let signalHeatmapMode = "both";' in js
+    assert 'const legacySignalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV1";' in js
+    assert 'const signalHeatmapModeStorageKey = "meshDashboardSignalHeatmapModeV2";' in js
+    assert "function signalHeatmapModeFromLayerToggles()" in js
+    assert 'if (signalHeatmapCoverageEnabled && signalHeatmapLiveEnabled) return "both";' in js
+    assert 'signalHeatmapMode = legacyMode === "coverage" ? "both" : legacyMode;' in js
+    assert 'style="--map-link-legend-color:#cc79a7;"' in js
+    assert "is-node-trilaterated" in js
+    assert 'mapActualNodesEnabled ? " checked" : ""' in js
+    assert 'mapLinkInferredNodesEnabled ? " checked" : ""' in js
+    assert 'mapRssiTrilateratedNodesEnabled ? " checked" : ""' in js
+    assert "const markerKindVisible = markerKind === \"actual\"" in js
+    assert 'if (!markerKindVisible) continue;' in js
+    assert "{ bypassNodeFade: true }" in js
+    assert "bypassNodeFade: !!opts.bypassNodeFade," in js
+    assert "const bypassNodeFade = !!renderOpts.bypassNodeFade;" in js
     assert "Real nodes" in js
     assert "Real links" in js
     assert 'mapLiveActivityEnabled = true;' in js
@@ -113,17 +168,25 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function buildMapLinkEstimateDensityOverlay(linkOverlay, options = null)" in js
     assert "const mapEstimatedPositionSmoothingById = new Map();" in js
     assert "let mapEstimatedPositionSmoothingActive = false;" in js
-    assert "const mapEstimatedOverlayDriftMs = 4200;" in js
-    assert "const mapEstimatedOverlayMaxFrameAdvanceMs = 64;" in js
-    assert "const mapEstimatedOverlayMaxDriftMeters = 3200;" in js
-    assert "const mapEstimatedOverlayLongJumpFadeMs = 900;" in js
-    assert "const mapHeatLayerFadeOutMs = 900;" in js
+    assert "const mapEstimatedPositionSmoothingMaxAgeMs = 600000;" in js
+    assert "const mapEstimatedOverlayDriftMs = 18000;" in js
+    assert "const mapEstimatedOverlayMaxFrameAdvanceMs = 32;" in js
+    assert "const mapEstimatedOverlayMaxDriftMeters = 4800;" in js
+    assert "const mapEstimatedOverlayLongJumpFadeMs = 1400;" in js
+    assert "const mapHeatLayerFadeInMs = 9000;" in js
+    assert "const mapHeatLayerFadeOutMs = 9000;" in js
     assert "const mapHeatLayerDriftMinIntensity = 0.004;" in js
     assert "const mapLinkMinEstimateAnchors = 2;" in js
     assert "const mapLinkMinEstimateConfidence = 0.18;" in js
     assert "const mapLinkMinCityEstimateAnchors = 3;" in js
     assert "const mapLinkMinCityEstimateConfidence = 0.45;" in js
     assert "const mapLinkMinCityEstimateFit = 0.42;" in js
+    assert "const mapLinkMinTrilaterationAnchors = 4;" in js
+    assert "const mapLinkMinTrilaterationSignalSamples = 2;" in js
+    assert "const mapLinkMinTrilaterationConfidence = 0.48;" in js
+    assert "const mapLinkMinTrilaterationFit = 0.45;" in js
+    assert "const mapLinkMaxTrilaterationHops = 1.25;" in js
+    assert "const mapLinkMaxTrilaterationAgeSeconds = 7200;" in js
     assert "function smoothMapEstimatedPosition(nodeId, target, options = null)" in js
     assert "function smoothMapEstimatedPositions(estimates, options = null)" in js
     assert "function smoothMapLinkLineEndpoints(lines, smoothedEstimates)" in js
@@ -131,6 +194,22 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function mapLinkEdgeLocationWeight(edge)" in js
     assert "function mapLinkEstimateResidualForNode(nodeId, positions, adjacency)" in js
     assert "function mapLinkConfidenceFromFit(baseConfidence, fitScore, anchorCount)" in js
+    assert "function mapLinkRangeFromSignal(edge)" in js
+    assert "function solveMapRssiTrilateration(nodeId, seedPosition, anchors)" in js
+    assert "function buildMapRssiTrilaterationEstimates(positions, adjacency, options = null)" in js
+    assert "function ensureBackendLocationEstimates(modeRaw, options = null)" in js
+    assert 'fetch(`/api/history/location_estimates?${params.toString()}`' in js
+    assert "function backendLocationEstimateSignature(estimates)" in js
+    assert "function updateBackendLocationEstimateSignature(windowName, estimates)" in js
+    assert "let networkMapPacketActivityPrimed = false;" in js
+    assert "function seedNetworkMapPacketActivityTokens(state = latestState)" in js
+    assert "if (networkMapVisible && !networkMapPacketActivityPrimed)" in js
+    assert "networkMapPacketActivityPrimed = true;" in js
+    assert "let estimates = new Map(backendEstimates);" in js
+    assert "if (backendEstimates.size > 0 || (backendRequestPending && !backendCacheKnown))" in js
+    assert "const rssiTrilaterationEstimates = buildMapRssiTrilaterationEstimates" in js
+    assert 'estimateSource: "rssi_trilateration",' in js
+    assert "RSSI trilaterated" in js
     assert "const minEstimateAnchors = Math.max(" in js
     assert "if (estimateAnchorCount < minEstimateAnchors) continue;" in js
     assert "if (adjustedConfidence < minEstimateConfidence) continue;" in js
@@ -139,24 +218,100 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "fitScore," in js
     assert "residualKm: residual && residual.residualKm != null ? residual.residualKm : null," in js
     assert "function animateMapPolylineLatLngs(layer, targetPathRaw, options = null)" in js
+    assert "function animateMapMarkerLatLng(marker, targetLatLngRaw, options = null)" in js
     assert "function animateMapHeatLayerLatLngs(layer, targetPointsRaw, options = null)" in js
+    assert "function animateMapHeatLayerCanvasOpacity(layer, targetOpacityRaw, options = null)" in js
     assert "function fadeOutMapHeatLayer(layer, options = null)" in js
     assert "function fadeMapNodeMarker(marker, options = null)" in js
     assert "function fadeInMapNodeMarker(marker, options = null)" in js
     assert "function fadeOutMapNodeMarker(marker, options = null)" in js
+    assert "function mapNodeMarkerStyleWithOpacityScale(baseStyleRaw, scale)" in js
+    assert "function setMapNodeMarkerElementOpacity(marker, opacityRaw)" in js
+    assert "function releaseMapNodeMarkerElementOpacityPrime(marker)" in js
+    assert "function bindMapNodeMarkerElementOpacitySync(marker)" in js
+    assert "function mapNodeMarkerFadeScale(marker, fallbackScale = 1)" in js
+    assert "function mapNodeMarkerIsFadingOut(marker)" in js
+    assert 'marker.on("add", () => {' in js
+    assert (
+        'function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", '
+        'markerConfidence = 0.45, state = latestState, options = null)'
+        in js
+    )
+    assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
+    assert "function ensureMapNodeMarkerPane()" in js
+    assert 'pane.style.zIndex = "620";' in js
+    assert "pane: mapNodeMarkerPaneName," in js
+    assert "markerStyle.pane = mapNodeMarkerPaneName;" in js
+    assert 'radius: 6.4,' in js
+    assert 'color: "#062f20",' in js
+    assert 'fillOpacity: 0.9,' in js
+    assert 'weight: 1.8,' in js
+    assert "function trilateratedMarkerStyle(isSelected, confidence = 0.5, isLocal = false)" in js
+    assert 'color: "#cc79a7",' in js
+    assert 'fillColor: "#f4a7c7",' in js
+    assert '? (estimateSource === "rssi_trilateration" ? "trilaterated" : "estimated")' in js
     assert "function advanceMapDriftAnimationElapsedMs(state, timestampMs)" in js
     assert "Math.min(frameDeltaMs, maxFrameAdvanceMs)" in js
     assert "const elapsedMs = advanceMapDriftAnimationElapsedMs(state, timestampMs);" in js
     assert "const activeState = layer._meshPolylineDriftAnimation;" in js
     assert "mapLatLngPathsSameEnough(activeState.toPath, targetPath)" in js
+    assert "const activeState = marker._meshMarkerDriftAnimation;" in js
+    assert "mapLatLngPointsSameEnough(activeState.toPoint, targetPoint)" in js
     assert "const activeState = layer._meshHeatDriftAnimation;" in js
     assert "mapHeatPointsSameEnough(activeState.targetPoints, targetPoints)" in js
+    assert "const activeState = layer._meshHeatOpacityAnimation;" in js
+    assert "setMapHeatLayerCanvasOpacity(layer, bypassFade ? 1 : 0);" in js
+    assert "if (bypassFade) {" in js
+    assert "const activeFadeState = (marker._meshMapNodeMarkerFadeAnimation" in js
+    assert "const existingMarkerFadingOut = !!(" in js
+    assert "&& !existingMarkerFadingOut" in js
+    assert "mapNodeMarkerFadeScale(" in js
+    assert "} else {\n              const activeFadeBaseStyle = resolveMapNodeMarkerStyle(" in js
+    assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, activeFadeBaseStyle);" in js
+    assert "primeElementOpacity: false," in js
+    assert "currentScale: fromScale," in js
+    assert "state.currentScale = currentScale;" in js
+    assert "releaseMapNodeMarkerElementOpacityPrime(marker);" in js
+    assert "renderMap(nodes, edges, nodeHistory = null, options = null)" in js
+    assert "refreshNetworkMapAfterLegendControlChange(options = null)" in js
+    assert "{ bypassHeatmapFade: true }" in js
+    assert "let networkMapGraphRenderSeen = false;" in js
+    assert "let mapViewportInteractionActive = false;" in js
+    assert "let mapHeatLayerViewportSyncRaf = null;" in js
+    assert "let mapHeatLayerViewportSyncLastMs = 0;" in js
+    assert "const mapHeatLayerViewportSyncMinIntervalMs = 260;" in js
+    assert "const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;" in js
+    assert "networkMapGraphRenderSeen = true;" in js
+    assert "animate: opts.animate === true," in js
+    assert "resetMapViewToMostNodes({ animate: false });" in js
+    assert "const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;" in js
+    assert "function requestMapHeatLayersViewportSync(options = null)" in js
+    assert "&& syncAgeMs < mapHeatLayerViewportSyncMinIntervalMs" in js
+    begin_interaction_block = js[js.index("function beginMapViewportInteraction()") : js.index("function syncMapViewportInteractionFrame()")]
+    assert "requestMapHeatLayersViewportSync({ force: true });" not in begin_interaction_block
+    assert "function beginMapViewportInteraction()" in js
+    assert "function syncMapViewportInteractionFrame()" in js
+    assert "function endMapViewportInteraction()" in js
+    assert "map.on(\"move\", () => {" in js
+    assert "syncSignalHeatmapLayer(nodes, true, { bypassFade: true });" in js
+    assert "syncSignalHeatmapLayer(nodes, activeLayoutView === \"saved\", { bypassFade: true });" in js
+    assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
+    assert "marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;" in js
+    assert "setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);" in js
     assert "markerDriftMeters > mapEstimatedOverlayMaxDriftMeters" in js
-    assert "fadeOutMapNodeMarker(existingMarker, {" in js
+    assert "cancelMapNodeMarkerFade(existingMarker);\n              cancelMapMarkerDrift(existingMarker);\n              nodeLayer.removeLayer(existingMarker);" in js
+    assert "fadeMarkerInitialStyle = mapNodeMarkerStyleWithOpacityScale(fadeMarkerBaseStyle, 0);" in js
+    assert "initialStyle: fadeMarkerInitialStyle," in js
+    assert "initialElementOpacity: 0," in js
+    assert "setMapNodeMarkerElementOpacity(marker, 0);" in js
     assert "setMapNodeMarkerOpacityScale(marker, 0, marker._meshMapNodeMarkerFadeBaseStyle);" in js
     assert "fadeInMapNodeMarker(marker, {" in js
-    assert 'if (nodeMarkerKinds.get(nodeId) === "estimated")' in js
+    assert "if (fadeExistingEstimatedMarkerOut && allowEstimatedNodeFade)" in js
+    assert "const fadeEstimatedMarkerIn = !!(\n            allowEstimatedNodeFade" in js
+    assert 'if ((staleMarkerKind === "estimated" || staleMarkerKind === "trilaterated") && allowEstimatedNodeFade)' in js
+    assert 'if (!(typeof mapNodeMarkerIsFadingOut === "function" && mapNodeMarkerIsFadingOut(marker)))' in js
+    assert "if (nodeMarkers.get(nodeId) === marker)" in js
     assert "function mapLatLngPathMaxDistanceMeters(a, b)" in js
     assert "function mapHeatPointDistanceMeters(a, b)" in js
     assert "!Number.isFinite(pathDriftMeters) || pathDriftMeters > maxDriftMeters" in js
@@ -168,9 +323,16 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "fadeOut: !!opts.fadeOut," in js
     assert "if (state && state.fadeOut) return true;" in js
     assert "function cancelMapPolylineDrift(layer)" in js
+    assert "function cancelMapMarkerDrift(marker)" in js
     assert "function cancelMapHeatLayerDrift(layer, clearPoints = false)" in js
+    assert "function cancelMapHeatLayerOpacityFade(layer)" in js
     assert "const shouldRenderGraph = graphChanged || !!mapEstimatedPositionSmoothingActive;" in js
     assert "if (!shouldRenderGraph && signature === lastMapSignature)" in js
+    assert 'const allowInitialNetworkNodeFade = activeLayoutView === "network" && !networkMapGraphRenderSeen && !bypassNodeFade;' in js
+    assert "const fadeInitialMarkerIn = !!(" in js
+    assert "durationMs: fadeInitialMarkerIn ? 520 : mapEstimatedOverlayLongJumpFadeMs" in js
+    assert "&& effectiveMapLinkMode !== \"both\"" in js
+    assert ": rawLinkOverlayUnsmoothed;" in js
     assert "const densitySourceOverlay = smoothMapLinkLayerOverlay(densitySourceOverlayUnsmoothed, {" in js
     assert "const rawLinkOverlay = smoothMapLinkLayerOverlay(rawLinkOverlayUnsmoothed, {" in js
     assert "mapEstimatedPositionSmoothingActive = anyActive;" in js
@@ -178,6 +340,9 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "rawLon: targetLon," in js
     assert "copy.fromLat = Number(fromEstimate.lat);" in js
     assert "copy.toLat = Number(toEstimate.lat);" in js
+    assert "const canDriftExistingEstimatedMarker = !!(" in js
+    assert "animateMapMarkerLatLng(marker, [markerLat, markerLon], {" in js
+    assert "marker._meshMapNodeInfoBinding = {" in js
     assert 'heatPoint._meshHeatKey = `signal-node:${heatNodeId}`;' in js
     assert 'heatPoint._meshHeatKey = `estimate-node:${point.nodeId}`;' in js
     assert "const cloudIdBase = `c${(cloudHash >>> 0).toString(16)}`;" in js
@@ -191,29 +356,53 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "Traffic: ${trafficLabel} weighted packet" in js
     assert "const signalHeatmapGradientCoverage = {" in js
     assert "const signalHeatmapGradientLiveContrast = {" in js
+    assert '0.46: "#0a9396",' in js
+    assert '1.0: "#caf0f8",' in js
     assert "function resolveSignalHeatGradient(mode = signalHeatmapMode) {" in js
-    assert "Signal heatmap uses a warm colorblind-friendly palette; link-cloud heatmaps stay blue." in js
+    assert "Signal heatmap is controlled from the map legend." in js
+    assert "function signalHeatmapPaneNameForMode(mode = \"coverage\")" in js
+    assert 'pane.style.zIndex = key === "live" ? "431" : "430";' in js
+    assert "function ensureSignalHeatmapLayers(mode = \"coverage\")" in js
+    assert "layer._meshSignalHeatmapMode = key;" in js
+    assert "function applySignalHeatmapLayerCanvasStacking(layer, mode = \"coverage\")" in js
+    assert 'const zIndex = key === "live" ? 431 : 430;' in js
+    assert "canvas.style.zIndex = String(zIndex);" in js
+    assert "canvas.dataset.meshSignalHeatmapMode = key;" in js
+    assert "collectSignalHeatmapBuckets(nodes, profile, mode)" in js
+    assert "collectSavedNodeHeatmapBuckets(nodes, profile, mode)" in js
+    assert "function signalHeatmapPointMaskKey(point)" in js
+    assert "function signalHeatmapBucketPointCount(buckets)" in js
+    assert "function maskSignalCoverageBucketsWithLive(coverageBuckets, liveBuckets)" in js
     assert "function signalHeatmapMapHasDrawableSize()" in js
     assert "const mapDrawable = signalHeatmapMapHasDrawableSize();" in js
     assert "&& mapDrawable" in js
-    assert "const gradient = resolveSignalHeatGradient(signalHeatmapMode);" in js
+    assert "gradient: resolveSignalHeatGradient(mode)," in js
+    assert "gradient: state.gradient," in js
     assert 'let lastSignalHeatmapSignature = "";' in js
     assert "const heatSignature = `signal-heatmap:${(heatSignatureHash >>> 0).toString(16)}`;" in js
     assert "heatSignature === lastSignalHeatmapSignature && heatLayerPresenceMatches" in js
-    assert "animateMapHeatLayerLatLngs(layer, buckets[i] || [], {" in js
+    assert "animateMapHeatLayerLatLngs(layer, state.buckets[i] || [], {" in js
+    assert "keyPrefix: `signal:${state.mode}:${i}`," in js
+    assert "function syncSignalHeatmapLayer(nodes, forceHide = false, options = null)" in js
+    assert "const bypassFade = !!opts.bypassFade;" in js
+    assert "coverageState.buckets = maskSignalCoverageBucketsWithLive(coverageState.buckets, liveState.buckets);" in js
+    assert "applySignalHeatmapLayerCanvasStacking(layer, state.mode);" in js
+    assert 'const liveRadiusMul = state.mode === "live" ? 0.72 : 1;' not in js
+    assert 'const liveBlurMul = state.mode === "live" ? 0.68 : 1;' not in js
     assert "const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));" in js
     assert "if (!desiredLayerVisible) {" in js
-    assert "removeSignalHeatmapLayerSafely(layer);" in js
+    assert "removeSignalHeatmapLayerSafely(layer, { fade: !bypassFade });" in js
     assert "function removeSignalHeatmapLayerSafely(layer, options = null)" in js
     assert 'fadeOutMapHeatLayer(layer, {' in js
     assert 'keyPrefix: "signal:fade",' in js
     assert "cancelMapHeatLayerDrift(layer, true);" in js
+    assert "cancelMapHeatLayerOpacityFade(layer);" in js
     assert "function hideSignalHeatmapLayers()" in js
     assert "function cancelSignalHeatmapLayerFrame(layer)" in js
     assert "typeof hideSignalHeatmapLayers === \"function\"" in js
     assert "typeof clearLinkEstimateHeatmapLayer === \"function\"" in js
     assert "hideEstimatedMarkers: false," in js
-    assert "hideEstimatedMarkers: clouds.length > 0," in js
+    assert "hideEstimatedMarkers: clouds.length > 0," not in js
     assert "cloudLinks" in js
     assert "cloudLink: true," in js
     assert "nodeMarkerKinds" in js
@@ -222,18 +411,25 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let linkEstimateHeatmapLayer = null;" in js
     assert 'const linkEstimateHeatmapPaneName = "linkEstimateHeatmapPane";' in js
     assert "function clearLinkEstimateHeatmapLayer(options = null)" in js
-    assert "function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false)" in js
+    assert "function syncLinkEstimateHeatmapLayer(linkDensity = null, show = false, options = null)" in js
     assert 'typeof signalHeatmapMapHasDrawableSize === "function"' in js
     assert "const shouldShow = !!show && mapDrawable && heatPoints.length > 0;" in js
-    assert "clearLinkEstimateHeatmapLayer();" in js
+    assert "clearLinkEstimateHeatmapLayer({ fade: !bypassFade });" in js
     assert "cancelMapHeatLayerDrift(layer, true);" in js
     assert 'keyPrefix: "estimate",' in js
     assert "durationMs: mapHeatLayerFadeOutMs," in js
     assert "animateMapHeatLayerLatLngs(layer, heatPoints, {" in js
-    assert "syncLinkEstimateHeatmapLayer(linkDensity, true);" in js
-    assert "const hideEstimatedLinkDots = !!(" in js
-    assert "if (hideEstimatedLinkDots && isEstimated) {" in js
-    assert 'Inferred nodes${hideLinkedDots ? " (hidden)" : ""}' in js
+    assert "syncLinkEstimateHeatmapLayer(linkDensity, true, { bypassFade: bypassHeatmapFade });" in js
+    assert "const useCloudConsolidation" not in js
+    assert "Array.isArray(linkOverlay.lines) ? linkOverlay.lines.slice() : []" in js
+    assert 'activeLayoutView === "network"' in js
+    assert "const hideEstimatedLinkDots = !!(" not in js
+    assert 'if (estimateSource !== "rssi_trilateration" && !linkedEstimatedNodeIds.has(nodeId)) continue;' not in js
+    assert 'if (hideEstimatedLinkDots && isEstimated && markerKind !== "trilaterated") continue;' not in js
+    assert 'Inferred nodes${hideLinkedDots ? " (hidden)" : ""}' not in js
+    assert '<span class="map-link-legend-name">Inferred heatmap</span>' in js
+    assert '<span class="map-link-legend-name">Link-inferred nodes</span>' in js
+    assert '<span class="map-link-legend-name">RSSI trilaterated</span>' in js
     assert "Topology Fit" in js
     assert "Avg Fit Error" in js
     assert 'label: "Inferred",' in js
@@ -277,9 +473,17 @@ def test_dashboard_js_uses_single_popup_for_map_node_hover_and_click() -> None:
     assert "popupOpenTimer = window.setTimeout(finishHoverPopupOpen, popupEnterDelayMs);" in js
     assert 'popupEl.classList.add("is-closing");' in js
     assert 'popupEl.classList.remove("is-closing");' in js
-    assert 'marker.on("mouseover", () => {' in js
-    assert 'marker.on("mouseout", () => {' in js
-    assert 'marker.on("popupclose", () => {' in js
+    assert "const previousBinding = marker._meshMapNodeInfoBinding;" in js
+    assert "previousBinding.clear();" in js
+    assert "const onMouseOver = () => {" in js
+    assert "const onMouseOut = () => {" in js
+    assert "const onPopupClose = () => {" in js
+    assert 'marker.on("mouseover", onMouseOver);' in js
+    assert 'marker.on("mouseout", onMouseOut);' in js
+    assert 'marker.on("popupclose", onPopupClose);' in js
+    assert 'marker.off("mouseover", onMouseOver);' in js
+    assert 'marker.off("mouseout", onMouseOut);' in js
+    assert 'marker.off("popupclose", onPopupClose);' in js
     assert "if (!markerHovering || hoverPopupSuppressed()) return;" in js
     assert "marker.openPopup();" in js
     assert "scheduleHoverPopupOpen();" in js
@@ -391,12 +595,20 @@ def test_dashboard_css_positions_map_link_legend_below_zoom() -> None:
     css = build_dashboard_css(theme_css="")
 
     assert ".map-link-legend {" in css
+    assert ".map-link-legend.is-collapsed {" in css
+    assert ".map-link-legend-head {" in css
+    assert ".map-link-legend-collapse-btn," in css
+    assert ".map-link-legend-collapsed-btn {" in css
+    assert ".map-link-legend.is-collapsed .map-link-legend-list {" in css
     assert "#network-map-panel-map #map .leaflet-bottom.leaflet-left {" in css
     assert "bottom: var(--map-link-legend-space, 0px);" in css
     assert ".map-link-legend-input {" in css
     assert ".map-link-legend-swatch.is-node-linked::before {" in css
+    assert ".map-link-legend-swatch.is-node-trilaterated::before {" in css
+    assert "var(--map-link-legend-color, #cc79a7)" in css
     assert ".map-link-legend-swatch.is-link-heat::before {" in css
     assert ".map-link-legend-swatch.is-signal-heat::before" in css
+    assert "#a96800 42%, #0a9396 58%" in css
     assert ".map-link-legend-swatch.is-cloud-heat::before" in css
 
 
@@ -447,6 +659,7 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "const mapNodeTransmitPulseRings = new Set();" in js
     assert "const mapNodeTransmitPulseMaxRings = 72;" in js
     assert "let mapTraceProgressTimer = null;" in js
+    assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
     assert 'const mapTransmitPulsePaneName = "mapTransmitPulsePane";' in js
     assert "let mapNodeActivityFlashRaf = null;" in js
     assert "let lastNetworkMapPacketTokens = new Set();" in js
@@ -482,7 +695,8 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "function mapTracePathNodeIds(startNodeId, hops, options = null)" in js
     assert "function mapTracePathSegmentsForNodeIds(nodeIds, state = latestState)" in js
     assert "function cacheNetworkMapActivityPositions(nodes = [], estimatedPositions = new Map())" in js
-    assert 'kind: "estimated",' in js
+    assert 'kind: String(estimate && estimate.estimateSource || "").trim() === "rssi_trilateration"' in js
+    assert '? "trilaterated"' in js
     assert "cacheNetworkMapActivityPositions(nodes, estimatedPositions);" in js
     assert "function mapNodeActivityPosition(nodeId, state = latestState)" in js
     assert "function cacheMapEstimatedCorridorActivityPaths(estimateLines = [])" in js
@@ -585,6 +799,27 @@ def test_dashboard_map_emoji_marker_ring_uses_node_marker_color() -> None:
     assert ".map-node-emoji-marker.is-trace-failed::before {" in css
     assert "border-color: var(--map-node-ring-color, #adc0ff);" in css
     assert "border-color: var(--map-node-ring-color, #9db5ff);" in css
+
+
+def test_dashboard_node_emoji_markers_can_be_disabled() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'const nodeEmojiMarkersStorageKey = "meshDashboardNodeEmojiMarkersEnabledV1";' in js
+    assert "let nodeEmojiMarkersEnabled = true;" in js
+    assert "function nodeEmojiMarkersAreEnabled() {" in js
+    assert "function loadNodeEmojiMarkersPreference() {" in js
+    assert "function persistNodeEmojiMarkersPreference() {" in js
+    assert 'runBootStep("loadNodeEmojiMarkersPreference", () => loadNodeEmojiMarkersPreference());' in js
+    assert 'data-map-link-legend-toggle="emoji-markers"' in js
+    assert "nodeEmojiMarkersEnabled = !!emojiMarkersToggle.checked;" in js
+    assert 'if (typeof invalidateNetworkGraphRenderCache === "function") {' in js
+    assert "refreshNetworkMapAfterLegendControlChange({ bypassNodeFade: true });" in js
+    assert 'if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";' in js
+    assert 'if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return false;' in js
 
 
 def test_record_direct_edge_observation_tracks_signal_metrics() -> None:

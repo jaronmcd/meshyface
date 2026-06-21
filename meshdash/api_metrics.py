@@ -98,6 +98,20 @@ def derive_radio_link_up(payload: object) -> int:
     if "radio link lost" in tracker_error:
         return 0
 
+    radio_link = summary.get("radio_link")
+    if isinstance(radio_link, Mapping):
+        direct = _coerce_optional_bool(radio_link.get("connected"))
+        if direct is None:
+            direct = _coerce_optional_bool(radio_link.get("is_connected"))
+        if direct is not None:
+            return 1 if direct else 0
+        state_hint = str(radio_link.get("state") or radio_link.get("status") or "").strip().lower()
+        if state_hint in {"connected", "online", "up", "ok"}:
+            return 1
+        if state_hint in {"lost", "disconnected", "offline", "down", "connecting"}:
+            return 0
+        return -1
+
     radio = summary.get("radio_connection")
     if not isinstance(radio, Mapping):
         return -1

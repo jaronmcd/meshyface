@@ -255,19 +255,29 @@
       window.meshHeatmapDev = api;
     }}
 
-    function ensureSignalHeatmapLayers() {{
+    function signalHeatmapPaneNameForMode(mode = "coverage") {{
+      const key = normalizeSignalHeatmapMode(mode);
+      return key === "live" ? `${{signalHeatmapPaneName}}Live` : `${{signalHeatmapPaneName}}Coverage`;
+    }}
+
+    function ensureSignalHeatmapLayers(mode = "coverage") {{
       if (!supportsSignalHeatmap()) {{
         return [];
       }}
-      if (Array.isArray(signalHeatmapLayers) && signalHeatmapLayers.length > 0) {{
-        return signalHeatmapLayers;
+      const key = normalizeSignalHeatmapMode(mode) === "live" ? "live" : "coverage";
+      if (!signalHeatmapLayers || typeof signalHeatmapLayers !== "object" || Array.isArray(signalHeatmapLayers)) {{
+        signalHeatmapLayers = {{}};
       }}
-      let pane = map.getPane(signalHeatmapPaneName);
+      if (Array.isArray(signalHeatmapLayers[key]) && signalHeatmapLayers[key].length > 0) {{
+        return signalHeatmapLayers[key];
+      }}
+      const paneName = signalHeatmapPaneNameForMode(key);
+      let pane = map.getPane(paneName);
       if (!pane) {{
-        pane = map.createPane(signalHeatmapPaneName);
+        pane = map.createPane(paneName);
       }}
       if (pane) {{
-        pane.style.zIndex = "430";
+        pane.style.zIndex = key === "live" ? "431" : "430";
         pane.style.pointerEvents = "none";
       }}
       const baseRadius = signalHeatDevKnobs.radius;
@@ -275,7 +285,8 @@
       const baseOpacity = signalHeatDevKnobs.minOpacity;
       const signalGain = clampUnitInterval(signalHeatDevKnobs.radiusSignalGain);
 
-      signalHeatmapLayers = signalHeatBucketDefs.map((bucket) => {{
+      const gradient = resolveSignalHeatGradient(key);
+      signalHeatmapLayers[key] = signalHeatBucketDefs.map((bucket, bucketIndex) => {{
         const baseRadiusMul = Number(bucket.radiusMul) || 1;
         const baseBlurMul = Number(bucket.blurMul) || 1;
         const radiusMul = 1 + ((baseRadiusMul - 1) * signalGain);
@@ -292,16 +303,19 @@
           140,
           baseBlur
         );
-        return L.heatLayer(
+        const layer = L.heatLayer(
           [],
           Object.assign(
-            {{ pane: signalHeatmapPaneName }},
+            {{ pane: paneName }},
             signalHeatmapLayerOptions,
-            {{ radius, blur, minOpacity: baseOpacity }}
+            {{ radius, blur, minOpacity: baseOpacity, gradient }}
           )
         );
+        layer._meshSignalHeatmapMode = key;
+        layer._meshSignalHeatmapBucketIndex = bucketIndex;
+        return layer;
       }});
-      return signalHeatmapLayers;
+      return signalHeatmapLayers[key];
     }}
 
     function forceHeatLayerPointerPassthrough(layer) {{
@@ -311,6 +325,17 @@
       // Some leaflet.heat builds render into overlayPane (ignoring custom panes),
       // which can block marker hover/click unless canvas hit-testing is disabled.
       canvas.style.pointerEvents = "none";
+    }}
+
+    function applySignalHeatmapLayerCanvasStacking(layer, mode = "coverage") {{
+      if (!layer || typeof layer !== "object") return;
+      const canvas = layer._canvas;
+      if (!(canvas instanceof HTMLCanvasElement)) return;
+      const key = normalizeSignalHeatmapMode(mode) === "live" ? "live" : "coverage";
+      const zIndex = key === "live" ? 431 : 430;
+      canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = String(zIndex);
+      canvas.dataset.meshSignalHeatmapMode = key;
     }}
 
     function signalHeatmapMapHasDrawableSize() {{

@@ -3857,26 +3857,56 @@
       outline-offset: 1px;
     }}
     .leaflet-control-zoom {{
-      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
-      border-radius: 8px !important;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 0 !important;
+      border-radius: 0 !important;
+      overflow: visible;
       box-shadow: none;
-      background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
+      background: transparent;
     }}
     .leaflet-control-zoom a {{
-      background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
-      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
-      border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
-    }}
-    .leaflet-control-zoom a:last-child {{
-      border-bottom: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      width: 28px !important;
+      min-width: 28px;
+      height: 24px !important;
+      padding: 0;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
+      border-radius: 999px !important;
+      background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, var(--ink) 80%, var(--accent-2) 20%);
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1 !important;
+      box-shadow: none;
+      text-decoration: none;
     }}
     .leaflet-control-zoom a:hover {{
       background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
-      color: color-mix(in srgb, var(--ink) 74%, var(--accent-2) 26%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .leaflet-control-zoom a.leaflet-disabled {{
+      opacity: 0.48;
+      cursor: default;
     }}
     .leaflet-control-zoom a:focus {{
       outline: none;
+    }}
+    .leaflet-control-zoom a:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 1px;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
+      top: 52px;
+      right: 10px;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right .leaflet-control {{
+      margin-top: 0;
+      margin-right: 0;
     }}
 
     .table-col-resizable thead th {{
@@ -6721,10 +6751,26 @@
     .map-link-legend {{
       z-index: 470;
       max-height: min(34%, 236px);
+      transition: max-height 140ms ease, padding 140ms ease, width 140ms ease;
+    }}
+    .map-link-legend.is-collapsed {{
+      width: auto;
+      min-width: 0;
+      max-width: calc(100% - 28px);
+      max-height: none;
+      overflow: visible;
+      padding: 4px;
+      gap: 0;
     }}
     #network-map-panel-map #map .leaflet-bottom.leaflet-left {{
       bottom: var(--map-link-legend-space, 0px);
       transition: bottom 140ms ease;
+    }}
+    .map-link-legend-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }}
     .map-link-legend-title {{
       color: #4a6958;
@@ -6733,6 +6779,95 @@
       letter-spacing: 0.18px;
       line-height: 1.1;
       text-transform: uppercase;
+    }}
+    .map-link-legend-collapse-btn,
+    .map-link-legend-collapsed-btn {{
+      border: 1px solid rgba(154, 182, 164, 0.72);
+      border-radius: 999px;
+      background: color-mix(in srgb, rgba(245, 250, 246, 0.92) 82%, var(--accent) 18%);
+      color: color-mix(in srgb, #274333 82%, var(--accent-2) 18%);
+      box-shadow: 0 3px 10px rgba(16, 40, 24, 0.12);
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .map-link-legend-collapse-btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+    }}
+    .map-link-legend-collapse-btn:hover,
+    .map-link-legend-collapsed-btn:hover {{
+      border-color: color-mix(in srgb, var(--accent) 48%, rgba(154, 182, 164, 0.72) 52%);
+      background: color-mix(in srgb, rgba(245, 250, 246, 0.92) 70%, var(--accent) 30%);
+      color: color-mix(in srgb, #173126 72%, var(--accent-2) 28%);
+    }}
+    .map-link-legend-collapse-btn:focus-visible,
+    .map-link-legend-collapsed-btn:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, white 42%);
+      outline-offset: 2px;
+    }}
+    .map-link-legend-collapse-icon {{
+      position: relative;
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+    }}
+    .map-link-legend-collapse-icon::before {{
+      content: "";
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      top: 5px;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+    }}
+    .map-link-legend-collapsed-btn {{
+      display: none;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.1;
+    }}
+    .map-link-legend-collapsed-icon {{
+      position: relative;
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 15px;
+      height: 14px;
+    }}
+    .map-link-legend-collapsed-icon::before,
+    .map-link-legend-collapsed-icon::after {{
+      content: "";
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border: 1.5px solid currentColor;
+      border-radius: 3px;
+      background: color-mix(in srgb, currentColor 12%, transparent);
+    }}
+    .map-link-legend-collapsed-icon::before {{
+      top: 1px;
+      right: 1px;
+    }}
+    .map-link-legend-collapsed-icon::after {{
+      left: 1px;
+      bottom: 1px;
+      opacity: 0.72;
+    }}
+    .map-link-legend.is-collapsed .map-link-legend-head,
+    .map-link-legend.is-collapsed .map-link-legend-list {{
+      display: none;
+    }}
+    .map-link-legend.is-collapsed .map-link-legend-collapsed-btn {{
+      display: inline-flex;
     }}
     .map-link-legend-list {{
       display: flex;
@@ -6823,6 +6958,8 @@
       transform: none;
     }}
     .map-link-legend-swatch.is-signal-heat::before,
+    .map-link-legend-swatch.is-signal-coverage-heat::before,
+    .map-link-legend-swatch.is-signal-live-heat::before,
     .map-link-legend-swatch.is-cloud-heat::before {{
       top: 1px;
       left: 2px;
@@ -6831,10 +6968,22 @@
       border-radius: 999px;
       transform: none;
     }}
-    .map-link-legend-swatch.is-signal-heat::before {{
+    .map-link-legend-swatch.is-signal-heat::before,
+    .map-link-legend-swatch.is-signal-coverage-heat::before {{
       background:
         radial-gradient(circle at 50% 50%, rgba(255, 229, 166, 0.98) 0%, rgba(230, 126, 34, 0.78) 48%, rgba(122, 63, 0, 0) 100%),
         linear-gradient(90deg, #332100 0%, #a96800 50%, #f4d38c 100%);
+    }}
+    .map-link-legend-swatch.is-signal-heat::before {{
+      background:
+        radial-gradient(circle at 68% 48%, rgba(202, 240, 248, 0.95) 0%, rgba(86, 207, 225, 0.74) 34%, rgba(0, 95, 115, 0) 70%),
+        radial-gradient(circle at 32% 52%, rgba(255, 229, 166, 0.96) 0%, rgba(230, 126, 34, 0.76) 40%, rgba(122, 63, 0, 0) 74%),
+        linear-gradient(90deg, #332100 0%, #a96800 42%, #0a9396 58%, #caf0f8 100%);
+    }}
+    .map-link-legend-swatch.is-signal-live-heat::before {{
+      background:
+        radial-gradient(circle at 50% 50%, rgba(202, 240, 248, 0.98) 0%, rgba(86, 207, 225, 0.76) 50%, rgba(0, 95, 115, 0) 100%),
+        linear-gradient(90deg, #002b36 0%, #0a9396 52%, #caf0f8 100%);
     }}
     .map-link-legend-swatch.is-cloud-heat::before {{
       background:
@@ -6842,7 +6991,8 @@
         linear-gradient(90deg, #0b2f6f 0%, #1d4ed8 50%, #e0f2fe 100%);
     }}
     .map-link-legend-swatch.is-node-actual::before,
-    .map-link-legend-swatch.is-node-linked::before {{
+    .map-link-legend-swatch.is-node-linked::before,
+    .map-link-legend-swatch.is-node-trilaterated::before {{
       left: 4px;
       right: auto;
       top: 50%;
@@ -6856,6 +7006,12 @@
       border: 2px dashed color-mix(in srgb, var(--map-link-legend-color, #68bde8) 82%, white 18%);
       background: color-mix(in srgb, var(--map-link-legend-color, #68bde8) 42%, transparent);
       box-sizing: border-box;
+    }}
+    .map-link-legend-swatch.is-node-trilaterated::before {{
+      border: 2px dashed color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 88%, white 12%);
+      background: color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 62%, transparent);
+      box-sizing: border-box;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--map-link-legend-color, #cc79a7) 24%, transparent);
     }}
     .map-link-legend-name {{
       min-width: 0;
@@ -9058,6 +9214,84 @@
       outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
       outline-offset: 1px;
     }}
+    .layout.view-network .network-map-controls-host .map-controls-dock,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      box-sizing: border-box;
+      padding: 4px;
+      gap: 4px;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
+      border-radius: 999px !important;
+      background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      isolation: isolate;
+      pointer-events: auto;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      width: 34px;
+      min-width: 34px;
+      align-items: center;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      box-sizing: border-box;
+      border: 1px solid transparent !important;
+      background: transparent;
+      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12px;
+      line-height: 1.2 !important;
+      box-shadow: none;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      width: 24px !important;
+      min-width: 24px;
+      height: 24px !important;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 800;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn {{
+      padding: 5px 11px;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn:hover,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+      border-color: color-mix(in srgb, var(--line) 44%, var(--accent) 56%) !important;
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn:focus-visible,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 1px;
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn {{
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      padding: 4px;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
+      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+      border-color: color-mix(in srgb, var(--line) 44%, var(--accent) 56%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn.is-active {{
+      background: color-mix(in srgb, var(--panel) 64%, var(--accent) 36%);
+      border-color: color-mix(in srgb, var(--line) 38%, var(--accent) 62%);
+      color: color-mix(in srgb, var(--ink) 68%, var(--accent-2) 32%);
+      box-shadow: 0 3px 10px rgba(18, 40, 20, 0.12);
+    }}
     .workspace-chrome-actions {{
       display: inline-flex;
       align-items: center;
@@ -9199,6 +9433,21 @@
       align-items: center;
       gap: 8px;
       min-width: 0;
+    }}
+    .settings-update-actions #settings-update-reload.is-restart-required {{
+      border-color: #d9b45f;
+      background: #fff8df;
+      color: #5d4100;
+      box-shadow: 0 0 0 2px rgba(217, 180, 95, 0.22);
+    }}
+    .settings-update-actions #settings-update-reload.is-restart-required:hover {{
+      background: #fff0bd;
+    }}
+    .settings-update-actions #settings-update-reload.is-restart-required.is-restart-blocked {{
+      border-color: #d58787;
+      background: #fff0ef;
+      color: #7b1f1f;
+      box-shadow: 0 0 0 2px rgba(213, 135, 135, 0.22);
     }}
     .settings-update-branch-field {{
       max-width: 360px;

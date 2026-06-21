@@ -1010,15 +1010,16 @@
       const renderInfo = Object.assign({{}}, optionInfo, info);
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
-      const applyBtn = document.getElementById("settings-update-apply");
       const reloadBtn = document.getElementById("settings-update-reload");
       const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
-      const canUpdate = !!info.can_update && !!selectedBranch && !inFlight;
+      const updateActionReady = !!info.can_update
+        && !!selectedBranch
+        && settingsUpdateActionReadyBranch === selectedBranch;
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
-      const canReloadBackend = restartRequired && !requirementsChanged && !inFlight;
+      const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
       if (settingsUpdateApplyInFlight) {{
         text = "Updating from GitHub...";
@@ -1045,25 +1046,37 @@
       }}
       if (checkBtn instanceof HTMLButtonElement) {{
         checkBtn.disabled = inFlight;
-      }}
-      if (applyBtn instanceof HTMLButtonElement) {{
-        applyBtn.disabled = !canUpdate;
-        applyBtn.title = canUpdate
+        checkBtn.textContent = settingsUpdateApplyInFlight
+          ? "Updating..."
+          : (settingsUpdateStatusFetchInFlight
+            ? "Checking..."
+            : (updateActionReady ? "Update from GitHub" : "Check for Updates"));
+        checkBtn.title = updateActionReady
           ? "Fetch and fast-forward this Git checkout"
           : settingsUpdateStatusText(info);
       }}
       if (reloadBtn instanceof HTMLButtonElement) {{
         reloadBtn.disabled = !canReloadBackend;
         reloadBtn.textContent = settingsBackendReloadInFlight ? "Reloading..." : "Reload Backend";
+        reloadBtn.classList.toggle("is-restart-required", restartRequired);
+        reloadBtn.classList.toggle("is-restart-blocked", restartRequired && requirementsChanged);
+        reloadBtn.setAttribute("aria-label", settingsBackendReloadInFlight
+          ? "Reloading backend"
+          : (restartRequired
+            ? (requirementsChanged
+              ? "Reload Backend. Restart needed after Python requirements are installed."
+              : "Reload Backend. Restart needed to use the updated code.")
+            : "Reload Backend"));
         reloadBtn.title = requirementsChanged
           ? "Python requirements changed; install requirements before reloading"
           : (restartRequired
             ? "Restart the dashboard backend so the updated code is loaded"
-            : "Available after an update changes the running code");
+            : "Restart the dashboard backend");
       }}
     }}
 
-    async function hydrateSettingsUpdateStatus(force = false) {{
+    async function hydrateSettingsUpdateStatus(force = false, primeUpdateAction = false) {{
+      clearSettingsBackendReloadUrlFlags();
       const selectedBranch = readSettingsUpdateBranchSelection();
       const nowMs = Date.now();
       if (
@@ -1072,10 +1085,16 @@
         && settingsUpdateStatusFetchedAt > 0
         && (nowMs - settingsUpdateStatusFetchedAt) < settingsUpdateStatusTtlMs
       ) {{
+        if (primeUpdateAction) {{
+          const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+          const cachedBranch = selectedBranch || String(cachedInfo.target_branch || "").trim();
+          settingsUpdateActionReadyBranch = cachedInfo.can_update && cachedBranch ? cachedBranch : "";
+        }}
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
         return settingsUpdateStatusCache;
       }}
       if (settingsUpdateStatusFetchInFlight) return settingsUpdateStatusFetchInFlight;
+      if (primeUpdateAction) settingsUpdateActionReadyBranch = "";
       renderSettingsUpdateStatus({{ message: "Checking GitHub update status..." }});
       const statusUrl = selectedBranch
         ? `/api/system/update?branch=${{encodeURIComponent(selectedBranch)}}`
@@ -1084,6 +1103,11 @@
         .then((payload) => {{
           settingsUpdateStatusCache = payload;
           settingsUpdateStatusFetchedAt = Date.now();
+          if (primeUpdateAction) {{
+            const checkedInfo = settingsUpdatePayloadObject(payload);
+            const checkedBranch = selectedBranch || String(checkedInfo.target_branch || "").trim();
+            settingsUpdateActionReadyBranch = checkedInfo.can_update && checkedBranch ? checkedBranch : "";
+          }}
           renderSettingsUpdateStatus(payload);
           return payload;
         }})
@@ -1099,6 +1123,7 @@
           }};
           settingsUpdateStatusCache = payload;
           settingsUpdateStatusFetchedAt = Date.now();
+          if (primeUpdateAction) settingsUpdateActionReadyBranch = "";
           renderSettingsUpdateStatus(payload);
           return payload;
         }})
@@ -1109,10 +1134,26 @@
       return settingsUpdateStatusFetchInFlight;
     }}
 
+    async function runSettingsUpdatePrimaryAction() {{
+      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      const info = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const selectedBranch = readSettingsUpdateBranchSelection()
+        || String(info.target_branch || "").trim();
+      const updateActionReady = !!info.can_update
+        && !!selectedBranch
+        && settingsUpdateActionReadyBranch === selectedBranch;
+      if (updateActionReady) {{
+        void runSettingsGithubUpdate();
+        return;
+      }}
+      void hydrateSettingsUpdateStatus(true, true);
+    }}
+
     async function runSettingsGithubUpdate() {{
       if (settingsUpdateApplyInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       if (!selectedBranch) {{
+        settingsUpdateActionReadyBranch = "";
         renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
           can_update: false,
           message: "Select a GitHub branch first.",
@@ -1124,6 +1165,7 @@
       );
       if (!confirmed) return;
 
+      settingsUpdateActionReadyBranch = "";
       settingsUpdateApplyInFlight = true;
       renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
       try {{
@@ -1183,19 +1225,121 @@
       }}
     }}
 
+    function clearSettingsBackendReloadUrlFlags() {{
+      if (typeof window === "undefined" || !window.location || !window.history) return;
+      try {{
+        const nextUrl = new URL(window.location.href);
+        const staleParams = [
+          "_mesh_recover",
+          "_mesh_recover_reason",
+          "_mesh_boot_retry",
+          "_mesh_backend_reload",
+          "_mesh_backend_reload_reason",
+        ];
+        let changed = false;
+        for (const key of staleParams) {{
+          if (nextUrl.searchParams.has(key)) {{
+            nextUrl.searchParams.delete(key);
+            changed = true;
+          }}
+        }}
+        if (changed) {{
+          window.history.replaceState(window.history.state, "", nextUrl.toString());
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function forceSettingsBackendReloadHardRefresh(reason = "backend-reloaded") {{
+      if (typeof window === "undefined" || !window.location) return;
+      try {{
+        const nextUrl = new URL(window.location.href);
+        const staleParams = [
+          "_mesh_recover",
+          "_mesh_recover_reason",
+          "_mesh_boot_retry",
+          "_mesh_backend_reload",
+          "_mesh_backend_reload_reason",
+        ];
+        for (const key of staleParams) {{
+          nextUrl.searchParams.delete(key);
+        }}
+        nextUrl.searchParams.set("_mesh_backend_reload", String(Date.now()));
+        nextUrl.searchParams.set("_mesh_backend_reload_reason", String(reason || "backend-reloaded"));
+        window.location.replace(nextUrl.toString());
+      }} catch (_err) {{
+        window.location.href = `/?_mesh_backend_reload=${{Date.now()}}&_mesh_backend_reload_reason=${{encodeURIComponent(String(reason || "backend-reloaded"))}}`;
+      }}
+    }}
+
+    function settingsBackendReloadStateConnected(state) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      if (typeof radioLinkStateFromState === "function") {{
+        try {{
+          return radioLinkStateFromState(safeState).isConnected === true;
+        }} catch (_err) {{
+        }}
+      }}
+      const summary = safeState.summary && typeof safeState.summary === "object" ? safeState.summary : {{}};
+      const link = summary.radio_link && typeof summary.radio_link === "object" ? summary.radio_link : null;
+      if (link) {{
+        const stateText = String(link.state || link.status || "").trim().toLowerCase();
+        if (link.connected === true || link.is_connected === true || link.isConnected === true) return true;
+        if (["connected", "online", "up", "ok"].includes(stateText)) return true;
+      }}
+      const legacy = summary.radio_connection && typeof summary.radio_connection === "object" ? summary.radio_connection : null;
+      if (legacy) {{
+        const stateText = String(legacy.state || legacy.status || "").trim().toLowerCase();
+        if (legacy.connected === true || legacy.is_connected === true || legacy.isConnected === true) return true;
+        if (["connected", "online", "up", "ok"].includes(stateText)) return true;
+      }}
+      return false;
+    }}
+
+    async function fetchSettingsBackendReloadState() {{
+      const resp = await fetch(`/api/state?lite=1&profile=status&reload=${{Date.now()}}`, {{ cache: "no-store" }});
+      if (!resp.ok) return null;
+      return await resp.json();
+    }}
+
     async function waitForSettingsBackendReload() {{
       const startedAt = Date.now();
-      const deadlineMs = startedAt + 30000;
+      const deadlineMs = startedAt + 45000;
+      let backendReady = false;
       while (Date.now() < deadlineMs) {{
         await new Promise((resolve) => window.setTimeout(resolve, 700));
         try {{
           const resp = await fetch(`/api/version?reload=${{Date.now()}}`, {{ cache: "no-store" }});
           if (resp.ok) {{
-            window.location.reload();
-            return true;
+            backendReady = true;
+            const state = await fetchSettingsBackendReloadState();
+            if (settingsBackendReloadStateConnected(state)) {{
+              renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+                message: "Radio link is back. Reloading dashboard..."
+              }}));
+              forceSettingsBackendReloadHardRefresh("radio-online");
+              return true;
+            }}
+            if ((Date.now() - startedAt) >= 6000) {{
+              renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+                message: "Backend is back. Reloading dashboard..."
+              }}));
+              forceSettingsBackendReloadHardRefresh("backend-online");
+              return true;
+            }}
+            renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+              message: "Backend is back. Waiting for radio link..."
+            }}));
           }}
         }} catch (_err) {{
         }}
+      }}
+      if (backendReady) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          message: "Backend is back. Reloading dashboard..."
+        }}));
+        forceSettingsBackendReloadHardRefresh("backend-online");
+        return true;
       }}
       return false;
     }}

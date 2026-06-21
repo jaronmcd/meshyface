@@ -2,6 +2,7 @@ from urllib.parse import parse_qs
 
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import StateFn, WriteJsonResponseFn
+from .http_responses import _send_no_store_headers
 from .state_payload_contracts import normalize_state_payload_for_api
 
 
@@ -218,7 +219,7 @@ def handle_state_get(
                     continue
         if if_none_match is not None and str(if_none_match).strip() == etag:
             handler.send_response(304)
-            handler.send_header("Cache-Control", "no-store")
+            _send_no_store_headers(handler)
             handler.send_header("ETag", etag)
             handler.send_header("Content-Length", "0")
             handler.end_headers()

@@ -46,6 +46,13 @@ def build_state_snapshot_loader_with_dependencies(
     dependencies: StateSnapshotRuntimeDependencies,
     build_state_fn: BuildStateFn,
 ) -> StateFn:
+    def _runtime_instance_rev() -> int:
+        """Revision token unique to this dashboard backend process."""
+        try:
+            return int(float(dependencies.started_at) * 1000)
+        except Exception:
+            return 0
+
     def _live_packet_rev() -> int:
         """Best-effort revision token that increments when packets are observed."""
         raw = getattr(dependencies.tracker, "live_packet_count", 0)
@@ -73,18 +80,26 @@ def build_state_snapshot_loader_with_dependencies(
     def _time_bucket(seconds: int = 60) -> int:
         return int(time.time() // max(1, seconds))
 
-    def _cache_key() -> tuple[int, int, int, int]:
+    def _cache_key() -> tuple[int, int, int, int, int]:
         # Include a slow time bucket so "slow-changing" summary values like
         # uptime/disk can refresh occasionally even if the mesh is quiet.
         # Also include radio link revision so disconnect/reconnect state appears
         # immediately without waiting for the time bucket to roll.
-        return (_live_packet_rev(), _radio_link_rev(), _state_rev(), _time_bucket(60))
+        # Include the runtime instance so a surviving browser tab cannot reuse
+        # a matching ETag from a previous backend process.
+        return (
+            _runtime_instance_rev(),
+            _live_packet_rev(),
+            _radio_link_rev(),
+            _state_rev(),
+            _time_bucket(60),
+        )
 
     def _etag_for(variant: str) -> str:
-        packet_rev, radio_rev, state_rev, bucket = _cache_key()
-        return f'W/"{variant}-p{packet_rev}-r{radio_rev}-s{state_rev}-t{bucket}"'
+        runtime_rev, packet_rev, radio_rev, state_rev, bucket = _cache_key()
+        return f'W/"{variant}-b{runtime_rev}-p{packet_rev}-r{radio_rev}-s{state_rev}-t{bucket}"'
 
-    full_cache_key: tuple[int, int, int, int] | None = None
+    full_cache_key: tuple[int, int, int, int, int] | None = None
     full_cache_payload: dict[str, object] | None = None
 
     def state_fn() -> dict:
@@ -117,7 +132,7 @@ def build_state_snapshot_loader_with_dependencies(
     # with a `.lite` variant during wiring, expose it here too.
     build_state_lite = getattr(build_state_fn, "lite", None)
     if callable(build_state_lite):
-        lite_cache_key: tuple[int, int, int, int] | None = None
+        lite_cache_key: tuple[int, int, int, int, int] | None = None
         lite_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite() -> dict:
@@ -153,7 +168,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_chat = getattr(build_state_fn, "lite_chat", None)
     if callable(build_state_lite_chat):
-        lite_chat_cache_key: tuple[int, int, int, int] | None = None
+        lite_chat_cache_key: tuple[int, int, int, int, int] | None = None
         lite_chat_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_chat() -> dict:
@@ -189,7 +204,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_network = getattr(build_state_fn, "lite_network", None)
     if callable(build_state_lite_network):
-        lite_network_cache_key: tuple[int, int, int, int] | None = None
+        lite_network_cache_key: tuple[int, int, int, int, int] | None = None
         lite_network_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_network() -> dict:
@@ -225,7 +240,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_network_graph = getattr(build_state_fn, "lite_network_graph", None)
     if callable(build_state_lite_network_graph):
-        lite_network_graph_cache_key: tuple[int, int, int, int] | None = None
+        lite_network_graph_cache_key: tuple[int, int, int, int, int] | None = None
         lite_network_graph_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_network_graph() -> dict:
@@ -261,7 +276,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_network_map = getattr(build_state_fn, "lite_network_map", None)
     if callable(build_state_lite_network_map):
-        lite_network_map_cache_key: tuple[int, int, int, int] | None = None
+        lite_network_map_cache_key: tuple[int, int, int, int, int] | None = None
         lite_network_map_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_network_map() -> dict:
@@ -297,7 +312,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_status = getattr(build_state_fn, "lite_status", None)
     if callable(build_state_lite_status):
-        lite_status_cache_key: tuple[int, int, int, int] | None = None
+        lite_status_cache_key: tuple[int, int, int, int, int] | None = None
         lite_status_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_status() -> dict:
@@ -333,7 +348,7 @@ def build_state_snapshot_loader_with_dependencies(
 
     build_state_lite_console = getattr(build_state_fn, "lite_console", None)
     if callable(build_state_lite_console):
-        lite_console_cache_key: tuple[int, int, int, int] | None = None
+        lite_console_cache_key: tuple[int, int, int, int, int] | None = None
         lite_console_cache_payload: dict[str, object] | None = None
 
         def state_fn_lite_console() -> dict:

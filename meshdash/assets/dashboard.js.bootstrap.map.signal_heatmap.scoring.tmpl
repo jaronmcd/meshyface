@@ -139,10 +139,56 @@
       return Math.max(0, signalHeatBucketDefs.length - 1);
     }}
 
-    function collectSignalHeatmapBuckets(nodes, profile) {{
+    function signalHeatmapPointMaskKey(point) {{
+      if (!(point && typeof point === "object")) return "";
+      const explicit = String(point._meshHeatKey || point.meshHeatKey || point.key || "").trim();
+      if (explicit) return explicit;
+      const lat = Number(Array.isArray(point) ? point[0] : point.lat);
+      const lon = Number(Array.isArray(point) ? point[1] : (point.lng ?? point.lon));
+      if (!isValidMapCoord(lat, lon)) return "";
+      return `geo:${{Math.round(lat * 100000)}}:${{Math.round(lon * 100000)}}`;
+    }}
+
+    function signalHeatmapBucketPointCount(buckets) {{
+      return (Array.isArray(buckets) ? buckets : []).reduce((count, bucket) => (
+        count + (Array.isArray(bucket) ? bucket.length : 0)
+      ), 0);
+    }}
+
+    function signalHeatmapBucketMaskKeys(buckets) {{
+      const keys = new Set();
+      for (const bucket of (Array.isArray(buckets) ? buckets : [])) {{
+        if (!Array.isArray(bucket)) continue;
+        for (const point of bucket) {{
+          const key = signalHeatmapPointMaskKey(point);
+          if (key) keys.add(key);
+        }}
+      }}
+      return keys;
+    }}
+
+    function maskSignalHeatmapBuckets(buckets, maskKeys) {{
+      if (!Array.isArray(buckets) || !(maskKeys instanceof Set) || maskKeys.size <= 0) {{
+        return Array.isArray(buckets) ? buckets : [];
+      }}
+      return buckets.map((bucket) => (
+        Array.isArray(bucket)
+          ? bucket.filter((point) => !maskKeys.has(signalHeatmapPointMaskKey(point)))
+          : []
+      ));
+    }}
+
+    function maskSignalCoverageBucketsWithLive(coverageBuckets, liveBuckets) {{
+      return maskSignalHeatmapBuckets(
+        coverageBuckets,
+        signalHeatmapBucketMaskKeys(liveBuckets)
+      );
+    }}
+
+    function collectSignalHeatmapBuckets(nodes, profile, mode = signalHeatmapMode) {{
       const buckets = signalHeatBucketDefs.map(() => []);
       const nowUnix = Math.floor(Date.now() / 1000);
-      const modeConfig = resolveSignalHeatModeConfig();
+      const modeConfig = resolveSignalHeatModeConfig(mode);
       const intensityFloor = signalHeatDevKnobs.intensityFloor;
       for (const node of (nodes || [])) {{
         const lat = Number(node && node.lat);
@@ -176,7 +222,7 @@
       return buckets;
     }}
 
-    function collectSavedNodeHeatmapBuckets(nodes, profile) {{
+    function collectSavedNodeHeatmapBuckets(nodes, profile, mode = signalHeatmapMode) {{
       const buckets = signalHeatBucketDefs.map(() => []);
       const selectedId = resolveSavedViewNodeId(latestState);
       if (!(activeLayoutView === "saved" && isSelectableNodeId(selectedId))) {{
@@ -192,7 +238,7 @@
         return buckets;
       }}
       const nowUnix = Math.floor(Date.now() / 1000);
-      const modeConfig = resolveSignalHeatModeConfig();
+      const modeConfig = resolveSignalHeatModeConfig(mode);
       const ageSeconds = signalHeatNodeAgeSeconds(selectedNode, nowUnix);
       if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) {{
         return buckets;

@@ -396,6 +396,35 @@
       }}
     }}
 
+    function persistMapNodeLayerVisibilityPreference() {{
+      try {{
+        window.localStorage.setItem(mapNodeLayerVisibilityStorageKey, JSON.stringify({{
+          actual: !!mapActualNodesEnabled,
+          inferred: !!mapLinkInferredNodesEnabled,
+          trilaterated: !!mapRssiTrilateratedNodesEnabled,
+        }}));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function nodeEmojiMarkersAreEnabled() {{
+      return nodeEmojiMarkersEnabled !== false;
+    }}
+
+    function persistNodeEmojiMarkersPreference() {{
+      try {{
+        window.localStorage.setItem(nodeEmojiMarkersStorageKey, nodeEmojiMarkersAreEnabled() ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
+    function persistMapLinkLegendCollapsedPreference() {{
+      try {{
+        window.localStorage.setItem(mapLinkLegendCollapsedStorageKey, mapLinkLegendCollapsed ? "1" : "0");
+      }} catch (_err) {{
+      }}
+    }}
+
     function persistMapLiveActivityPreference() {{
       try {{
         window.localStorage.setItem(mapLiveActivityStorageKey, mapLiveActivityEnabled ? "1" : "0");
@@ -438,6 +467,54 @@
           mapEstimatedNodeCloudsEnabled = false;
         }} else if (stored === "1") {{
           mapEstimatedNodeCloudsEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadMapNodeLayerVisibilityPreference() {{
+      mapActualNodesEnabled = true;
+      mapLinkInferredNodesEnabled = true;
+      mapRssiTrilateratedNodesEnabled = true;
+      try {{
+        const raw = window.localStorage.getItem(mapNodeLayerVisibilityStorageKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+        if (Object.prototype.hasOwnProperty.call(parsed, "actual")) {{
+          mapActualNodesEnabled = parsed.actual !== false;
+        }}
+        if (Object.prototype.hasOwnProperty.call(parsed, "inferred")) {{
+          mapLinkInferredNodesEnabled = parsed.inferred !== false;
+        }}
+        if (Object.prototype.hasOwnProperty.call(parsed, "trilaterated")) {{
+          mapRssiTrilateratedNodesEnabled = parsed.trilaterated !== false;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadNodeEmojiMarkersPreference() {{
+      nodeEmojiMarkersEnabled = true;
+      try {{
+        const stored = window.localStorage.getItem(nodeEmojiMarkersStorageKey);
+        if (stored === "0") {{
+          nodeEmojiMarkersEnabled = false;
+        }} else if (stored === "1") {{
+          nodeEmojiMarkersEnabled = true;
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function loadMapLinkLegendCollapsedPreference() {{
+      mapLinkLegendCollapsed = false;
+      try {{
+        const stored = window.localStorage.getItem(mapLinkLegendCollapsedStorageKey);
+        if (stored === "1") {{
+          mapLinkLegendCollapsed = true;
+        }} else if (stored === "0") {{
+          mapLinkLegendCollapsed = false;
         }}
       }} catch (_err) {{
       }}

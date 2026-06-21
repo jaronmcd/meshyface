@@ -1,4 +1,21 @@
+    function signalHeatmapModeFromLayerToggles() {{
+      if (signalHeatmapCoverageEnabled && signalHeatmapLiveEnabled) return "both";
+      if (signalHeatmapCoverageEnabled) return "coverage";
+      if (signalHeatmapLiveEnabled) return "live";
+      return "none";
+    }}
+
+    function applySignalHeatmapMode(mode) {{
+      const clean = normalizeSignalHeatmapMode(mode);
+      signalHeatmapCoverageEnabled = clean === "coverage" || clean === "both";
+      signalHeatmapLiveEnabled = clean === "live" || clean === "both";
+      signalHeatmapEnabled = !!(signalHeatmapCoverageEnabled || signalHeatmapLiveEnabled);
+      signalHeatmapMode = signalHeatmapModeFromLayerToggles();
+    }}
+
     function persistSignalHeatmapModePreference() {{
+      signalHeatmapMode = signalHeatmapModeFromLayerToggles();
+      signalHeatmapEnabled = signalHeatmapMode !== "none";
       try {{
         window.localStorage.setItem(signalHeatmapModeStorageKey, normalizeSignalHeatmapMode(signalHeatmapMode));
       }} catch (_err) {{
@@ -6,18 +23,25 @@
     }}
 
     function loadSignalHeatmapModePreference() {{
-      signalHeatmapMode = "coverage";
+      signalHeatmapMode = "both";
       try {{
         const stored = window.localStorage.getItem(signalHeatmapModeStorageKey);
-        signalHeatmapMode = normalizeSignalHeatmapMode(stored || "coverage");
+        if (stored != null) {{
+          signalHeatmapMode = normalizeSignalHeatmapMode(stored || "both");
+        }} else {{
+          const legacyStored = window.localStorage.getItem(legacySignalHeatmapModeStorageKey);
+          const legacyMode = normalizeSignalHeatmapMode(legacyStored || "both");
+          signalHeatmapMode = legacyMode === "coverage" ? "both" : legacyMode;
+        }}
       }} catch (_err) {{
       }}
-      signalHeatmapEnabled = signalHeatmapMode !== "none";
+      applySignalHeatmapMode(signalHeatmapMode);
+      persistSignalHeatmapModePreference();
       updateSignalHeatmapControl(null, supportsSignalHeatmap());
     }}
 
     function loadSignalHeatmapPreference() {{
-      signalHeatmapEnabled = normalizeSignalHeatmapMode(signalHeatmapMode) !== "none";
+      applySignalHeatmapMode(signalHeatmapMode);
       updateSignalHeatmapControl(null, supportsSignalHeatmap());
     }}
 
@@ -27,8 +51,7 @@
         modeSelect.dataset.bound = "1";
         modeSelect.value = normalizeSignalHeatmapMode(signalHeatmapMode);
         modeSelect.addEventListener("change", () => {{
-          signalHeatmapMode = normalizeSignalHeatmapMode(modeSelect.value);
-          signalHeatmapEnabled = signalHeatmapMode !== "none";
+          applySignalHeatmapMode(modeSelect.value);
           modeSelect.value = signalHeatmapMode;
           persistSignalHeatmapModePreference();
           const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];

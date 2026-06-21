@@ -406,6 +406,20 @@ def test_dashboard_js_tab_title_uses_chat_unread_only() -> None:
     assert 'const attentionCount = Math.max(unreadCount, systemCount);' not in js
     assert 'const systemCount = Math.max(0, Math.trunc(Number(totalSystemNotificationCount()) || 0));' not in js
 
+
+def test_dashboard_js_status_rows_do_not_seed_chat_unread() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert 'countsUnread: kind !== "status" && !senderIsSelf,' in js
+    assert "const directRenderedInEveryone = !chatMainDirectModeEnabled" in js
+    assert "if (directRenderedInEveryone) return true;" in js
+    assert 'if (!chatMainDirectModeEnabled && key === "all") {' in js
+    assert "chatUnreadByMeshChannel.direct = Object.create(null);" in js
+
 def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     html = render_html(
         refresh_ms=1000,
@@ -741,6 +755,10 @@ def test_radio_ticker_uses_rx_tx_metric() -> None:
     assert 'const radioMetric = document.getElementById("m-radio");' in js
     assert 'const radioStatusLine = document.getElementById("m-radio-status");' in js
     assert 'const radioCard = document.getElementById("summary-ticker-radio");' in js
+    assert "function radioLinkStateFromState(state = latestState) {" in js
+    assert "const link = (summary.radio_link && typeof summary.radio_link === \"object\")" in js
+    assert "const radioLinkState = radioLinkStateFromState(safeState);" in js
+    assert 'let key = radioLinkState.isConnected ? "online" : freshnessKey;' in js
     assert "const trafficMetricText = `RX ${trafficSnap.rxRecent} · TX ${trafficSnap.txRecent}`;" in js
     assert "const trafficMetricTotal = trafficSnap.rxRecent + trafficSnap.txRecent;" in js
     assert 'trafficEl.className = "radio-ticker-traffic";' in js

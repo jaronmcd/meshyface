@@ -262,11 +262,53 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     heatmap_mode_section = css.split(".map-heatmap-mode {", 1)[1].split("}", 1)[0]
     reset_section = css.split(".map-reset-view-btn {", 1)[1].split("}", 1)[0]
     zoom_section = css.split(".leaflet-control-zoom {", 1)[1].split("}", 1)[0]
+    network_zoom_position_section = css.split(
+        ".layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {",
+        1,
+    )[1].split("}", 1)[0]
     tabs_section = css.split(".network-map-subview-tabs {", 1)[1].split("}", 1)[0]
+    overlay_map_controls_section = css.split(
+        ".layout.view-network .network-map-controls-host .map-controls-dock,\n"
+        "    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {",
+        1,
+    )[1].split("}", 1)[0]
+    overlay_map_button_section = css.split(
+        ".layout.view-network .network-map-controls-host .map-reset-view-btn,\n"
+        "    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {",
+        1,
+    )[1].split("}", 1)[0]
+    overlay_zoom_track_section = css.split(
+        ".layout.view-network #network-map-panel-map #map .leaflet-control-zoom {",
+        2,
+    )[2].split("}", 1)[0]
+    overlay_zoom_button_section = css.split(
+        ".layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {",
+        2,
+    )[2].split("}", 1)[0]
+    overlay_fullscreen_section = css.split(".layout.view-network .network-fullscreen-toggle-btn {", 1)[1].split("}", 1)[0]
+    overlay_fullscreen_active_section = css.split(
+        ".layout.view-network .network-fullscreen-toggle-btn.is-active {", 1
+    )[1].split("}", 1)[0]
     dark_heatmap_section = css.split("[data-theme=\"dark\"] .map-heatmap-wrap {", 1)[1].split("}", 1)[0]
     dark_heatmap_mode_wrap_section = css.split("[data-theme=\"dark\"] .map-heatmap-mode-wrap {", 1)[1].split("}", 1)[0]
     dark_heatmap_mode_section = css.split("[data-theme=\"dark\"] .map-heatmap-mode {", 1)[1].split("}", 1)[0]
     dark_zoom_section = css.split("[data-theme=\"dark\"] .leaflet-control-zoom {", 1)[1].split("}", 1)[0]
+    dark_overlay_map_controls_section = css.split(
+        "[data-theme=\"dark\"] .layout.view-network .network-map-controls-host .map-controls-dock,\n"
+        "    [data-theme=\"dark\"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {",
+        1,
+    )[1].split("}", 1)[0]
+    dark_overlay_map_button_section = css.split(
+        "[data-theme=\"dark\"] .layout.view-network .network-map-controls-host .map-reset-view-btn,\n"
+        "    [data-theme=\"dark\"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {",
+        1,
+    )[1].split("}", 1)[0]
+    dark_overlay_fullscreen_section = css.split(
+        "[data-theme=\"dark\"] .layout.view-network .network-fullscreen-toggle-btn {", 1
+    )[1].split("}", 1)[0]
+    dark_overlay_fullscreen_active_section = css.split(
+        "[data-theme=\"dark\"] .layout.view-network .network-fullscreen-toggle-btn.is-active {", 1
+    )[1].split("}", 1)[0]
     dark_status_section = css.split("[data-theme=\"dark\"] .map-basemap-status {", 1)[1].split("}", 1)[0]
     dark_leaflet_section = css.rsplit("[data-theme=\"dark\"] .leaflet-container {", 1)[1].split("}", 1)[0]
     dark_offline_leaflet_section = css.split("[data-theme=\"dark\"] .map-frame.map-basemap-offline .leaflet-container {", 1)[1].split("}", 1)[0]
@@ -276,12 +318,32 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     assert "border: 1px solid transparent;" in heatmap_mode_wrap_section
     assert "border: 1px solid transparent;" in heatmap_mode_section
     assert "var(--accent)" in reset_section
-    assert "var(--line)" in zoom_section
+    assert "border: 0 !important;" in zoom_section
+    assert "top: 52px;" in network_zoom_position_section
     assert "var(--accent)" in tabs_section
+    assert "var(--line)" in overlay_map_controls_section
+    assert "box-sizing: border-box;" in overlay_map_controls_section
+    assert "box-shadow: var(--shadow);" in overlay_map_controls_section
+    assert "backdrop-filter: blur(10px);" in overlay_map_controls_section
+    assert "width: 34px;" in overlay_zoom_track_section
+    assert "min-width: 34px;" in overlay_zoom_track_section
+    assert "background: transparent;" in overlay_map_button_section
+    assert "box-sizing: border-box;" in overlay_map_button_section
+    assert "border: 1px solid transparent !important;" in overlay_map_button_section
+    assert "width: 24px !important;" in overlay_zoom_button_section
+    assert "min-width: 24px;" in overlay_zoom_button_section
+    assert "box-shadow: var(--shadow);" in overlay_fullscreen_section
+    assert "var(--accent)" in overlay_fullscreen_section
+    assert "box-shadow: 0 3px 10px rgba(18, 40, 20, 0.12);" in overlay_fullscreen_active_section
     assert "var(--workspace-shell-border)" in dark_heatmap_section
     assert "border-color: transparent;" in dark_heatmap_mode_wrap_section
     assert "border-color: transparent;" in dark_heatmap_mode_section
-    assert "var(--workspace-shell-bg-alt)" in dark_zoom_section
+    assert "background: transparent;" in dark_zoom_section
+    assert "var(--workspace-shell-bg-alt)" in dark_overlay_map_controls_section
+    assert "var(--workspace-shell-shadow)" in dark_overlay_map_controls_section
+    assert "var(--workspace-shell-text-soft)" in dark_overlay_map_button_section
+    assert "var(--workspace-shell-shadow)" in dark_overlay_fullscreen_section
+    assert "var(--workspace-shell-active-bg)" in dark_overlay_fullscreen_active_section
     assert "var(--workspace-shell-text-soft)" in dark_status_section
     assert "var(--ui-bg-elev)" in dark_leaflet_section
     assert "var(--workspace-shell-bg)" in dark_offline_leaflet_section

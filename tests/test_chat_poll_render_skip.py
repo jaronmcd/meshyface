@@ -26,6 +26,22 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             "const previousStateEtagProfile = String(stateEtagProfile || \"\");",
             "&& previousStateEtagProfile === pollProfile",
             "stateEtagProfile = pollProfile;",
+            "function forceNextStatePollFresh(reason = \"manual\") {",
+            "window.__meshLastForcedStatePollAtMs = Date.now();",
+            'window.__meshLastForcedStatePollReason = String(reason || "manual");',
+            "const staleStartupStateSuppressWindowMs = 90000;",
+            "function shouldSuppressStaleStartupStateOverlay(candidate, previous, rawCandidate = null) {",
+            "function stateLooksLikeStartupConnectingOverlay(state) {",
+            "const candidateStartupSource = !!(",
+            "requestImmediatePoll(Math.min(Math.max(refreshMs, 1000), 3000));",
+            'markPollPerfPhase(pollPerfRun, "suppress-stale-startup-state"',
+            'pollPerfStatus = "suppressed-stale-startup-state";',
+            "function requestFreshStateAfterPageActivation(reason = \"page-activation\") {",
+            'forceNextStatePollFresh("initial-load");',
+            "requestFreshStateAfterPageActivation(\"visibility\");",
+            "requestFreshStateAfterPageActivation(\"focus\");",
+            'window.addEventListener("pageshow", (event) => {',
+            'event && event.persisted ? "pageshow-persisted" : "pageshow"',
             'networkGraphActive304 && latestStatePollProfile === "network-graph"',
             'if (activeLayoutView === "bbs") {',
             'return "network-map";',
@@ -165,3 +181,20 @@ def test_dashboard_js_limits_history_only_roster_seeding_to_direct_chat(
             'if (activeChatChannel === "direct" && historyCapsById && typeof historyCapsById.keys === "function") {',
         ),
     )
+
+
+def test_dashboard_js_suppresses_stale_startup_state_before_accepting_payload(
+    poll_dashboard_js: str,
+) -> None:
+    json_idx = poll_dashboard_js.index("const rawState = await resp.json();")
+    normalize_idx = poll_dashboard_js.index(
+        "const state = applyNodeVisibilityFiltersToState(rawState);",
+        json_idx,
+    )
+    guard_idx = poll_dashboard_js.index(
+        "if (shouldSuppressStaleStartupStateOverlay(state, latestState, rawState)) {",
+        normalize_idx,
+    )
+    accept_idx = poll_dashboard_js.index("latestRawState = rawState;", guard_idx)
+
+    assert json_idx < normalize_idx < guard_idx < accept_idx
