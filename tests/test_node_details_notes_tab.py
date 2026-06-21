@@ -348,6 +348,10 @@ def test_dashboard_js_renders_top_peer_as_clickable_node_link() -> None:
 
     assert 'function savedDetailHtmlValue(html, text = "", fallback = "n/a") {' in js
     assert 'function savedDetailValueMarkup(value, fallback = "n/a") {' in js
+    assert 'function savedDetailMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {' in js
+    assert 'class="saved-node-inline-link saved-node-coordinate-link"' in js
+    assert 'function focusSavedNodeCoordinateOnMap(nodeId, latRaw, lonRaw) {' in js
+    assert 'bindSavedNodeCoordinateLinks(locationHost);' in js
     assert 'const topPeerId = normalizeNodeId((linkStats && linkStats.topPeer) || "");' in js
     assert 'const topPeerLabel = savedDetailText(topPeerName || topPeerId, topPeerId || "n/a");' in js
     assert 'class="saved-node-inline-link"' in js
