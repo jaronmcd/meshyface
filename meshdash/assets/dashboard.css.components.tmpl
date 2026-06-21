@@ -5926,6 +5926,49 @@
       outline-color: #3f8f68;
       outline-color: var(--workspace-shell-border-strong);
     }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-controls-dock,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      border-color: var(--workspace-shell-border) !important;
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      border-color: transparent !important;
+      background: transparent;
+      color: var(--workspace-shell-text-soft);
+      box-shadow: none;
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn:hover,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted) !important;
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .layout.view-network .network-map-controls-host .map-reset-view-btn:focus-visible,
+    [data-theme="dark"] .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      color: var(--workspace-shell-text-soft);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn.is-active {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--ui-accent-soft) 22%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
+      color: var(--workspace-shell-active-text);
+      box-shadow: 0 6px 16px rgba(4, 14, 8, 0.42);
+    }}
+    [data-theme="dark"] .layout.view-network .network-fullscreen-toggle-btn:focus-visible {{
+      outline-color: var(--workspace-shell-border-strong);
+    }}
     [data-theme="dark"] .network-map-placeholder {{
       background:
         radial-gradient(

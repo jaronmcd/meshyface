@@ -3901,7 +3901,7 @@
       outline-offset: 1px;
     }}
     .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right {{
-      top: 42px;
+      top: 52px;
       right: 10px;
     }}
     .layout.view-network #network-map-panel-map #map .leaflet-top.leaflet-right .leaflet-control {{
@@ -9108,6 +9108,84 @@
     .workspace-pill-btn:focus-visible {{
       outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
       outline-offset: 1px;
+    }}
+    .layout.view-network .network-map-controls-host .map-controls-dock,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      box-sizing: border-box;
+      padding: 4px;
+      gap: 4px;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%) !important;
+      border-radius: 999px !important;
+      background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      isolation: isolate;
+      pointer-events: auto;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom {{
+      width: 34px;
+      min-width: 34px;
+      align-items: center;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      box-sizing: border-box;
+      border: 1px solid transparent !important;
+      background: transparent;
+      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12px;
+      line-height: 1.2 !important;
+      box-shadow: none;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a {{
+      width: 24px !important;
+      min-width: 24px;
+      height: 24px !important;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 800;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn {{
+      padding: 5px 11px;
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn:hover,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+      border-color: color-mix(in srgb, var(--line) 44%, var(--accent) 56%) !important;
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .layout.view-network .network-map-controls-host .map-reset-view-btn:focus-visible,
+    .layout.view-network #network-map-panel-map #map .leaflet-control-zoom a:focus-visible {{
+      outline: 2px solid color-mix(in srgb, var(--accent) 58%, var(--panel) 42%);
+      outline-offset: 1px;
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn {{
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      padding: 4px;
+      border: 1px solid color-mix(in srgb, var(--line) 62%, var(--accent) 38%);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
+      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+      border-color: color-mix(in srgb, var(--line) 44%, var(--accent) 56%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .layout.view-network .network-fullscreen-toggle-btn.is-active {{
+      background: color-mix(in srgb, var(--panel) 64%, var(--accent) 36%);
+      border-color: color-mix(in srgb, var(--line) 38%, var(--accent) 62%);
+      color: color-mix(in srgb, var(--ink) 68%, var(--accent-2) 32%);
+      box-shadow: 0 3px 10px rgba(18, 40, 20, 0.12);
     }}
     .workspace-chrome-actions {{
       display: inline-flex;
