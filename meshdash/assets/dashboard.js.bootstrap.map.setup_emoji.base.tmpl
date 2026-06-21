@@ -9,7 +9,10 @@
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false,
-      inertia: false,
+      inertia: true,
+      inertiaDeceleration: 3000,
+      inertiaMaxSpeed: 1200,
+      easeLinearity: 0.22,
       // Keep center constrained to Web Mercator tile coverage.
       // Without this, stale setView/pan state can show "blank" map areas after
       // view/tab switches (only a thin tile strip rendered at one edge).

@@ -62,6 +62,11 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function normalizeNodePacketSeries(raw) {" in js
     assert 'const mapPacketLinesStorageKey = "meshDashboardMapPacketLinesEnabledV2";' in js
     assert "let mapPacketLinesEnabled = false;" in js
+    assert "const dashboardMapDefaultLeafletOptions = Object.freeze({" in js
+    assert "inertia: true," in js
+    assert "inertiaDeceleration: 3000," in js
+    assert "inertiaMaxSpeed: 1200," in js
+    assert "easeLinearity: 0.22," in js
     assert 'const mapLinkModeStorageKey = "meshDashboardMapLinkModeV1";' in js
     assert 'const mapNodeLayerVisibilityStorageKey = "meshDashboardMapNodeLayerVisibilityV1";' in js
     assert 'const mapLinkLegendCollapsedStorageKey = "meshDashboardMapLinkLegendCollapsedV1";' in js
@@ -274,7 +279,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let mapViewportInteractionActive = false;" in js
     assert "let mapHeatLayerViewportSyncRaf = null;" in js
     assert "let mapHeatLayerViewportSyncLastMs = 0;" in js
-    assert "const mapHeatLayerViewportSyncMinIntervalMs = 120;" in js
+    assert "const mapHeatLayerViewportSyncMinIntervalMs = 260;" in js
     assert "const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;" in js
     assert "networkMapGraphRenderSeen = true;" in js
     assert "animate: opts.animate === true," in js
@@ -282,7 +287,8 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;" in js
     assert "function requestMapHeatLayersViewportSync(options = null)" in js
     assert "&& syncAgeMs < mapHeatLayerViewportSyncMinIntervalMs" in js
-    assert "requestMapHeatLayersViewportSync({ force: true });" in js
+    begin_interaction_block = js[js.index("function beginMapViewportInteraction()") : js.index("function syncMapViewportInteractionFrame()")]
+    assert "requestMapHeatLayersViewportSync({ force: true });" not in begin_interaction_block
     assert "function beginMapViewportInteraction()" in js
     assert "function syncMapViewportInteractionFrame()" in js
     assert "function endMapViewportInteraction()" in js
