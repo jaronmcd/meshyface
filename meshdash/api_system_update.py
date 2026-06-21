@@ -908,6 +908,7 @@ def sync_update_branches_from_github(
             }
 
         branch = _current_branch(repo_root, runner)
+        old_commit = _current_commit(repo_root, runner)
         _current_upstream, current_remote, _current_remote_branch = _configured_upstream(
             repo_root,
             branch=branch,
@@ -954,7 +955,9 @@ def sync_update_branches_from_github(
         branch_options = _remote_branches(repo_root, remote, runner)
         if selected_branch and selected_branch in branch_options:
             target_upstream = f"{remote}/{selected_branch}"
-            if selected_branch != branch and _local_branch_exists(repo_root, selected_branch, runner):
+            selected_is_current = selected_branch == branch
+            selected_exists = selected_is_current or _local_branch_exists(repo_root, selected_branch, runner)
+            if selected_exists:
                 branch_ahead, branch_behind = _ahead_behind_refs(
                     repo_root,
                     selected_branch,
@@ -1014,7 +1017,29 @@ def sync_update_branches_from_github(
                             "http_status": 409,
                         }
                 if int(branch_ahead or 0) > 0 or int(branch_behind or 0) > 0:
-                    sync_result = runner(["branch", "-f", selected_branch, target_upstream], repo_root, 10.0)
+                    if selected_is_current and _working_tree_dirty(repo_root, runner):
+                        return {
+                            "ok": False,
+                            "synced": False,
+                            "updated": False,
+                            "available": True,
+                            "state": "dirty",
+                            "can_update": False,
+                            "update_needed": False,
+                            "remote": remote,
+                            "target_branch": selected_branch,
+                            "target_upstream": target_upstream,
+                            "backup_branch": backup_branch,
+                            "message": "Fetched branches, but the checked-out branch has uncommitted changes.",
+                            "error": "working tree has uncommitted changes",
+                            "http_status": 409,
+                        }
+                    sync_args = (
+                        ["reset", "--hard", target_upstream]
+                        if selected_is_current
+                        else ["branch", "-f", selected_branch, target_upstream]
+                    )
+                    sync_result = runner(sync_args, repo_root, 10.0)
                     if sync_result.returncode != 0:
                         error_text = _short_text(_git_text(sync_result))
                         return {
@@ -1030,7 +1055,7 @@ def sync_update_branches_from_github(
                             "target_upstream": target_upstream,
                             "backup_branch": backup_branch,
                             "message": f"Fetched branches, but could not align {selected_branch} to {target_upstream}.",
-                            "error": error_text or "git branch -f failed",
+                            "error": error_text or ("git reset --hard failed" if selected_is_current else "git branch -f failed"),
                             "http_status": 409,
                         }
                     branch_synced = True
@@ -1046,14 +1071,33 @@ def sync_update_branches_from_github(
             message = f"Branches synced from GitHub. Local {selected_branch} was aligned to {remote}/{selected_branch}."
         else:
             message = "Branches synced from GitHub."
+        new_commit = str(payload.get("current_commit") or "")
+        checked_out_updated = bool(branch_synced and selected_branch == branch and old_commit and new_commit and old_commit != new_commit)
+        changed_files = _changed_files(repo_root, old_commit, new_commit, runner) if checked_out_updated else []
+        requirements_changed = any(
+            path == "requirements.txt" or path == "requirements-dev.txt"
+            for path in changed_files
+        )
+        if checked_out_updated:
+            message = f"{message} Reload the dashboard process to use the synced code."
+            if requirements_changed:
+                message = (
+                    f"{message} Python requirements changed; install requirements "
+                    "before reloading."
+                )
         payload.update(
             {
                 "ok": True,
                 "synced": True,
                 "branch_synced": branch_synced,
                 "backup_branch": backup_branch,
-                "updated": False,
+                "updated": checked_out_updated,
                 "connection_ok": True,
+                "previous_commit": old_commit if checked_out_updated else "",
+                "new_commit": new_commit if checked_out_updated else "",
+                "changed_files": changed_files,
+                "requirements_changed": requirements_changed,
+                "restart_required": checked_out_updated,
                 "message": message,
                 "http_status": 200,
             }

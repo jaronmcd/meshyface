@@ -152,6 +152,13 @@ class _FakeGitRunner:
             self.branch_ahead = 0
             self.branch_behind = 0
             return GitCommandResult(0, "branch 'beta' reset")
+        if command == ("reset", "--hard", "origin/beta"):
+            self.commit = self.new_commit
+            self.ahead = 0
+            self.behind = 0
+            self.branch_ahead = 0
+            self.branch_behind = 0
+            return GitCommandResult(0, "HEAD is now at bbbbbbb")
         if command == ("switch", "beta"):
             if "beta" not in self.local_branches:
                 return GitCommandResult(1, "branch not found")
@@ -295,7 +302,7 @@ def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:
 def test_sync_update_branches_fetches_without_merging(tmp_path: Path) -> None:
     runner = _FakeGitRunner(behind=2)
 
-    payload = sync_update_branches_from_github(repo_dir=tmp_path, target_branch="main", runner=runner)
+    payload = sync_update_branches_from_github(repo_dir=tmp_path, runner=runner)
 
     assert payload["ok"] is True
     assert payload["synced"] is True
@@ -329,6 +336,29 @@ def test_sync_update_branches_backs_up_and_aligns_stale_selected_branch(tmp_path
     assert runner.branch_ahead == 0
     assert runner.branch_behind == 0
     assert "backed up as beta-before-sync-bbbbbbb" in payload["message"]
+
+
+def test_sync_update_branches_can_align_clean_checked_out_branch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="beta",
+        local_branches={"beta"},
+        branch_ahead=3,
+        branch_behind=4,
+    )
+
+    payload = sync_update_branches_from_github(repo_dir=tmp_path, target_branch="beta", runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["synced"] is True
+    assert payload["branch_synced"] is True
+    assert payload["updated"] is True
+    assert payload["restart_required"] is True
+    assert payload["backup_branch"] == "beta-before-sync-bbbbbbb"
+    assert ("branch", "beta-before-sync-bbbbbbb", "beta") in runner.commands
+    assert ("reset", "--hard", "origin/beta") in runner.commands
+    assert runner.current_branch == "beta"
+    assert runner.branch_ahead == 0
+    assert runner.branch_behind == 0
 
 
 def test_run_update_switches_to_selected_remote_branch(tmp_path: Path) -> None:

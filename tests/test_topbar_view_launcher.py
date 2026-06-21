@@ -275,7 +275,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "async function runSettingsGithubUpdate() {" in js
     assert "async function runSettingsUpdateBranchSync() {" in js
     assert 'fetch("/api/system/update/sync"' in js
-    assert "Meshyface will back it up before aligning it to GitHub." in js
+    assert 'Sync GitHub branches now? If local branch "${selectedBranch}" is stale or diverged, Meshyface will back it up before aligning it to GitHub.' in js
     assert "settingsUpdateSyncInFlight" in js
     assert 'document.getElementById("settings-update-sync")' in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js

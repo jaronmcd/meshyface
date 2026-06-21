@@ -1317,7 +1317,7 @@
       const selectedBranch = readSettingsUpdateBranchSelection();
       const confirmed = window.confirm(
         selectedBranch
-          ? `Sync GitHub branches now? If local branch "${{selectedBranch}}" is stale or diverged and is not checked out, Meshyface will back it up before aligning it to GitHub.`
+          ? `Sync GitHub branches now? If local branch "${{selectedBranch}}" is stale or diverged, Meshyface will back it up before aligning it to GitHub.`
           : "Sync GitHub branches now?"
       );
       if (!confirmed) return;
