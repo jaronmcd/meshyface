@@ -273,12 +273,16 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "let networkMapGraphRenderSeen = false;" in js
     assert "let mapViewportInteractionActive = false;" in js
     assert "let mapHeatLayerViewportSyncRaf = null;" in js
+    assert "let mapHeatLayerViewportSyncLastMs = 0;" in js
+    assert "const mapHeatLayerViewportSyncMinIntervalMs = 120;" in js
     assert "const allowEstimatedNodeFade = !!networkMapGraphRenderSeen && !bypassNodeFade;" in js
     assert "networkMapGraphRenderSeen = true;" in js
     assert "animate: opts.animate === true," in js
     assert "resetMapViewToMostNodes({ animate: false });" in js
     assert "const snapToTarget = !!opts.snapToTarget || !!mapViewportInteractionActive;" in js
-    assert "function requestMapHeatLayersViewportSync()" in js
+    assert "function requestMapHeatLayersViewportSync(options = null)" in js
+    assert "&& syncAgeMs < mapHeatLayerViewportSyncMinIntervalMs" in js
+    assert "requestMapHeatLayersViewportSync({ force: true });" in js
     assert "function beginMapViewportInteraction()" in js
     assert "function syncMapViewportInteractionFrame()" in js
     assert "function endMapViewportInteraction()" in js

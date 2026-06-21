@@ -1219,12 +1219,34 @@
       return synced;
     }}
 
-    function requestMapHeatLayersViewportSync() {{
+    function requestMapHeatLayersViewportSync(options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const force = !!opts.force;
       if (mapHeatLayerViewportSyncRaf !== null) {{
+        if (!force) {{
+          return;
+        }}
+        if (typeof window.cancelAnimationFrame === "function") {{
+          try {{
+            window.cancelAnimationFrame(mapHeatLayerViewportSyncRaf);
+          }} catch (_err) {{
+          }}
+        }}
+        mapHeatLayerViewportSyncRaf = null;
+      }}
+      const nowMs = (typeof mapAnimationNowMs === "function") ? mapAnimationNowMs() : Date.now();
+      const syncAgeMs = nowMs - (Number(mapHeatLayerViewportSyncLastMs) || 0);
+      if (
+        !force
+        && mapViewportInteractionActive
+        && syncAgeMs >= 0
+        && syncAgeMs < mapHeatLayerViewportSyncMinIntervalMs
+      ) {{
         return;
       }}
       const runSync = () => {{
         mapHeatLayerViewportSyncRaf = null;
+        mapHeatLayerViewportSyncLastMs = (typeof mapAnimationNowMs === "function") ? mapAnimationNowMs() : Date.now();
         syncMapHeatLayersToViewportNow();
       }};
       if (typeof window.requestAnimationFrame === "function") {{
@@ -1250,7 +1272,7 @@
     function beginMapViewportInteraction() {{
       mapViewportInteractionActive = true;
       finishMapViewportOverlayAnimations();
-      requestMapHeatLayersViewportSync();
+      requestMapHeatLayersViewportSync({{ force: true }});
     }}
 
     function syncMapViewportInteractionFrame() {{
@@ -1262,6 +1284,7 @@
 
     function endMapViewportInteraction() {{
       finishMapViewportOverlayAnimations();
+      mapHeatLayerViewportSyncLastMs = 0;
       syncMapHeatLayersToViewportNow();
       mapViewportInteractionActive = false;
     }}
