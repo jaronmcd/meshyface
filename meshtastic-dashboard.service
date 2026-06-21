@@ -1,4 +1,4 @@
-# Example unit for a host laid out under /opt/meshyface.
+# Example unit for a git checkout cloned to /opt/meshyface.
 # scripts/deploy_meshyface.sh renders a host-specific unit during --bootstrap.
 [Unit]
 Description=Meshyface Meshtastic Web Service
@@ -11,7 +11,7 @@ User=meshyface
 Group=dialout
 WorkingDirectory=/opt/meshyface
 EnvironmentFile=/opt/meshyface/config/dashboard.env
-ExecStart=/opt/meshyface/.venv/bin/python /opt/meshyface/app/mesh_dashboard.py --mesh-host ${MESH_HOST} --mesh-tcp-port ${MESH_PORT} --http-host ${DASH_HOST} --http-port ${DASH_PORT} --refresh-ms ${REFRESH_MS}
+ExecStart=/opt/meshyface/.venv/bin/python /opt/meshyface/mesh_dashboard.py --http-host 0.0.0.0 --http-port 8877 --refresh-ms 3000
 Restart=always
 RestartSec=2
 KillSignal=SIGINT
