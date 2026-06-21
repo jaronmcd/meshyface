@@ -330,6 +330,7 @@
       if (updateBranchSelect instanceof HTMLSelectElement) {{
         updateBranchSelect.addEventListener("change", () => {{
           settingsUpdateActionReadyBranch = "";
+          settingsUpdateSyncReadyBranch = "";
           settingsUpdateStatusFetchedAt = 0;
           void hydrateSettingsUpdateStatus(true);
         }});
