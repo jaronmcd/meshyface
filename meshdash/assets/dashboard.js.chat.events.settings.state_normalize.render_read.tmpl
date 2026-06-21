@@ -1018,7 +1018,7 @@
       const canUpdate = !!info.can_update && !!selectedBranch && !inFlight;
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
-      const canReloadBackend = restartRequired && !requirementsChanged && !inFlight;
+      const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
       if (settingsUpdateApplyInFlight) {{
         text = "Updating from GitHub...";
@@ -1059,7 +1059,7 @@
           ? "Python requirements changed; install requirements before reloading"
           : (restartRequired
             ? "Restart the dashboard backend so the updated code is loaded"
-            : "Available after an update changes the running code");
+            : "Restart the dashboard backend");
       }}
     }}
 

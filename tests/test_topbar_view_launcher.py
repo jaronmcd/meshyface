@@ -74,6 +74,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' in html
     assert 'id="settings-update-reload"' in html
+    assert '<button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>' in html
     assert 'class="settings-update-history-panel"' in html
     assert 'id="settings-update-pr-history"' in html
     assert "Commit History" in html
@@ -260,6 +261,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "async function runSettingsBackendReload() {" in js
     assert 'fetch("/api/system/restart"' in js
     assert 'document.getElementById("settings-update-reload")' in js
+    assert "const canReloadBackend = !inFlight;" in js
+    assert "Available after an update changes the running code" not in js
     assert "settingsBackendReloadInFlight" in js
     assert 'document.getElementById("settings-update-apply")' in js
     assert "function renderSettingsDeviceInfo(state = latestState) {" in js
