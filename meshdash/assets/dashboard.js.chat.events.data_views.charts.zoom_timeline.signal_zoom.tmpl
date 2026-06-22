@@ -69,8 +69,11 @@
 
     function getSignalChartAxisBounds(svg) {{
       const rect = svg.getBoundingClientRect();
-      const axisStartPx = rect.left + ((signalChartLayout.padLeft / signalChartLayout.width) * rect.width);
-      const axisEndPx = rect.left + (((signalChartLayout.width - signalChartLayout.padRight) / signalChartLayout.width) * rect.width);
+      const layout = (signalChartRenderLayout && typeof signalChartRenderLayout === "object")
+        ? signalChartRenderLayout
+        : signalChartLayout;
+      const axisStartPx = rect.left + ((layout.padLeft / layout.width) * rect.width);
+      const axisEndPx = rect.left + (((layout.width - layout.padRight) / layout.width) * rect.width);
       const axisWidthPx = Math.max(1, axisEndPx - axisStartPx);
       return {{ axisStartPx, axisEndPx, axisWidthPx }};
     }}
@@ -197,4 +200,3 @@
         }}
       }});
     }}
-

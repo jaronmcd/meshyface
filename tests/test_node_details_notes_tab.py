@@ -188,6 +188,25 @@ def test_render_html_includes_node_workspace_snap_controls() -> None:
     assert 'height: 100%;' in css
 
 
+def test_node_workspace_history_charts_use_responsive_measurements() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=72,
+        node_history_max_points=1440,
+    )
+
+    assert "let signalChartRenderLayout = { ...signalChartLayout };" in js
+    assert "function responsiveAxisTickCount(plotHeight, options = null)" in js
+    assert "function responsiveTimelineLabelLimit(axisWidthPx, options = null)" in js
+    assert "function resolveRenderedSvgChartLayout(svg, baseLayout = null)" in js
+    assert "signalChartRenderLayout = chartLayout;" in js
+    assert "const axisTickCount = responsiveAxisTickCount(plotH, {" in js
+    assert "const snrAxisTicks = buildLinearAxisTicks(snrMin, snrMax, axisTickCount);" in js
+    assert "const rssiAxisTicks = buildLinearAxisTicks(rssiMin, rssiMax, snrAxisTicks.length);" in js
+    assert "const majorLabelLimit = responsiveTimelineLabelLimit(axisWidthPx, {" in js
+    assert "const minLabelSpacingPct = Math.max(" in js
+
+
 def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

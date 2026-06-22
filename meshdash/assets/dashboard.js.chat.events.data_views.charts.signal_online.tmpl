@@ -67,12 +67,14 @@
       const visible = getVisibleSignalRows(rows);
       const plotRows = visible.rows;
 
-      const width = signalChartLayout.width;
-      const height = signalChartLayout.height;
-      const padLeft = signalChartLayout.padLeft;
-      const padRight = signalChartLayout.padRight;
-      const padTop = signalChartLayout.padTop;
-      const padBottom = signalChartLayout.padBottom;
+      const chartLayout = resolveRenderedSvgChartLayout(svg, signalChartLayout);
+      signalChartRenderLayout = chartLayout;
+      const width = chartLayout.width;
+      const height = chartLayout.height;
+      const padLeft = chartLayout.padLeft;
+      const padRight = chartLayout.padRight;
+      const padTop = chartLayout.padTop;
+      const padBottom = chartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
 
@@ -179,24 +181,44 @@
 
       const snrPaths = buildPaths("avg_snr", snrMin, snrMax);
       const rssiPaths = buildPaths("avg_rssi", rssiMin, rssiMax);
-      const midY = padTop + (plotH / 2);
       const chartPalette = historyChartPalette();
       const rightAxisLabelX = width - 6;
+      const axisTickCount = responsiveAxisTickCount(plotH, {{
+        min: 3,
+        max: 9,
+        targetPx: 74,
+      }});
+      const snrAxisTicks = buildLinearAxisTicks(snrMin, snrMax, axisTickCount);
+      const rssiAxisTicks = buildLinearAxisTicks(rssiMin, rssiMax, snrAxisTicks.length);
+      const axisLabelY = (ratio) => {{
+        const y = padTop + (Number(ratio) * plotH);
+        if (ratio <= 0.001) return padTop + 10;
+        if (ratio >= 0.999) return height - padBottom + 11;
+        return y + 4;
+      }};
+      const axisLines = snrAxisTicks.map((tick) => {{
+        const y = padTop + (tick.ratio * plotH);
+        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
+      }}).join("");
+      const snrAxisLabels = snrAxisTicks.map((tick) => (
+        `<text x="${{padLeft - 4}}" y="${{axisLabelY(tick.ratio).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(tick.value, 1)}}</text>`
+      )).join("");
+      const rssiAxisLabels = rssiAxisTicks.map((tick) => (
+        `<text x="${{rightAxisLabelX.toFixed(2)}}" y="${{axisLabelY(tick.ratio).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.compareLabel}}">${{formatMetricValue(tick.value, 0)}}</text>`
+      )).join("");
 
       svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
       svg.innerHTML = `
         <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
-        <line x1="${{padLeft}}" y1="${{midY.toFixed(2)}}" x2="${{width - padRight}}" y2="${{midY.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
         <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
         <line x1="${{width - padRight}}" y1="${{padTop}}" x2="${{width - padRight}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
+        ${{axisLines}}
         ${{snrPaths.rawPath ? `<path d="${{snrPaths.rawPath}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{chartPalette.rawOpacity.toFixed(2)}}"></path>` : ""}}
         ${{rssiPaths.rawPath ? `<path d="${{rssiPaths.rawPath}}" fill="none" stroke="${{chartPalette.compare}}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${{chartPalette.rawOpacity.toFixed(2)}}"></path>` : ""}}
         ${{snrPaths.trendPath ? `<path d="${{snrPaths.trendPath}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}}
         ${{rssiPaths.trendPath ? `<path d="${{rssiPaths.trendPath}}" fill="none" stroke="${{chartPalette.compare}}" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}}
-        <text x="${{padLeft - 4}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(snrMax, 1)}}</text>
-        <text x="${{padLeft - 4}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(snrMin, 1)}}</text>
-        <text x="${{rightAxisLabelX.toFixed(2)}}" y="${{padTop + 10}}" font-size="10" text-anchor="end" fill="${{chartPalette.compareLabel}}">${{formatMetricValue(rssiMax, 0)}}</text>
-        <text x="${{rightAxisLabelX.toFixed(2)}}" y="${{height - padBottom + 11}}" font-size="10" text-anchor="end" fill="${{chartPalette.compareLabel}}">${{formatMetricValue(rssiMin, 0)}}</text>
+        ${{snrAxisLabels}}
+        ${{rssiAxisLabels}}
       `;
       renderSignalTimeline(plotRows, padLeft, padRight, width);
     }}
@@ -612,12 +634,14 @@
         statusWarnWindowSeconds,
         Math.round((Number(meshtasticOnlineWindowSeconds) || (2 * 60 * 60)) / 60) * 60
       );
-      const width = signalChartLayout.width;
-      const height = signalChartLayout.height;
-      const padLeft = signalChartLayout.padLeft;
-      const padRight = signalChartLayout.padRight;
-      const padTop = signalChartLayout.padTop;
-      const padBottom = signalChartLayout.padBottom;
+      const chartLayout = resolveRenderedSvgChartLayout(svg, signalChartLayout);
+      chartState.layout = chartLayout;
+      const width = chartLayout.width;
+      const height = chartLayout.height;
+      const padLeft = chartLayout.padLeft;
+      const padRight = chartLayout.padRight;
+      const padTop = chartLayout.padTop;
+      const padBottom = chartLayout.padBottom;
       const plotW = width - padLeft - padRight;
       const plotH = height - padTop - padBottom;
 

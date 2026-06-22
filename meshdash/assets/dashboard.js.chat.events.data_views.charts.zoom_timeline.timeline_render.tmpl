@@ -57,7 +57,7 @@
       const lo = Number(minValue);
       const hi = Number(maxValue);
       if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
-      const count = Math.max(2, Math.min(7, Math.trunc(Number(tickCount) || 5)));
+      const count = Math.max(2, Math.min(11, Math.trunc(Number(tickCount) || 5)));
       if (Math.abs(hi - lo) < 1e-9) {{
         return [{{ ratio: 0, value: hi }}, {{ ratio: 1, value: lo }}];
       }}
@@ -68,6 +68,58 @@
         ticks.push({{ ratio, value }});
       }}
       return ticks;
+    }}
+
+    function clampInteger(value, minValue, maxValue, fallbackValue) {{
+      const num = Math.trunc(Number(value));
+      const fallback = Math.trunc(Number(fallbackValue));
+      const safe = Number.isFinite(num) ? num : (Number.isFinite(fallback) ? fallback : minValue);
+      return Math.max(minValue, Math.min(maxValue, safe));
+    }}
+
+    function responsiveAxisTickCount(plotHeight, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const minCount = clampInteger(opts.min, 2, 11, 5);
+      const maxCount = clampInteger(opts.max, minCount, 11, 9);
+      const targetPx = Math.max(34, Number(opts.targetPx) || 74);
+      const height = Math.max(0, Number(plotHeight) || 0);
+      const count = Math.round(height / targetPx) + 1;
+      return clampInteger(count, minCount, maxCount, minCount);
+    }}
+
+    function responsiveTimelineLabelLimit(axisWidthPx, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const minCount = clampInteger(opts.min, 2, 16, 4);
+      const maxCount = clampInteger(opts.max, minCount, 16, 12);
+      const targetPx = Math.max(72, Number(opts.targetPx) || 145);
+      const widthPx = Math.max(1, Number(axisWidthPx) || 1);
+      const count = Math.floor(widthPx / targetPx) + 1;
+      return clampInteger(count, minCount, maxCount, minCount);
+    }}
+
+    function responsiveTimelineMinorTickLimit(axisWidthPx) {{
+      const widthPx = Math.max(1, Number(axisWidthPx) || 1);
+      return clampInteger(Math.floor(widthPx / 8), 70, 240, 120);
+    }}
+
+    function resolveRenderedSvgChartLayout(svg, baseLayout = null) {{
+      const base = (baseLayout && typeof baseLayout === "object") ? baseLayout : {{}};
+      const measuredWidth = Number(svg && svg.clientWidth);
+      const measuredHeight = Number(svg && svg.clientHeight);
+      const width = Number.isFinite(measuredWidth) && measuredWidth > 10
+        ? Math.round(measuredWidth)
+        : (Number(base.width) || 900);
+      const height = Number.isFinite(measuredHeight) && measuredHeight > 10
+        ? Math.round(measuredHeight)
+        : (Number(base.height) || 220);
+      return {{
+        width,
+        height,
+        padLeft: Number(base.padLeft) || 44,
+        padRight: Number(base.padRight) || 44,
+        padTop: Number(base.padTop) || 12,
+        padBottom: Number(base.padBottom) || 30,
+      }};
     }}
 
     function setTimelineMessage(timelineId, message) {{
@@ -107,9 +159,14 @@
         return;
       }}
 
-      const axisStartPct = Math.max(0, Math.min(100, (padLeft / width) * 100));
-      const axisEndPct = Math.max(axisStartPct, Math.min(100, ((width - padRight) / width) * 100));
+      const safeWidth = Math.max(1, Number(width) || 1);
+      const axisStartPct = Math.max(0, Math.min(100, (padLeft / safeWidth) * 100));
+      const axisEndPct = Math.max(axisStartPct, Math.min(100, ((safeWidth - padRight) / safeWidth) * 100));
       const axisWidthPct = axisEndPct - axisStartPct;
+      const measuredTimelineWidth = Number(timeline.clientWidth);
+      const axisWidthPx = Number.isFinite(measuredTimelineWidth) && measuredTimelineWidth > 20
+        ? Math.max(1, measuredTimelineWidth * (axisWidthPct / 100))
+        : Math.max(1, safeWidth - Number(padLeft || 0) - Number(padRight || 0));
       const firstValid = validPoints[0];
       const lastValid = validPoints[validPoints.length - 1];
       const startUnix = firstValid.unixTs;
@@ -131,9 +188,13 @@
 
       const dailyMode = spanSeconds >= (36 * 3600);
       const majorStepCandidates = dailyMode
-        ? [86400]
+        ? [3600, 7200, 10800, 21600, 43200, 86400]
         : [300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
-      const majorLabelLimit = dailyMode ? 8 : 9;
+      const majorLabelLimit = responsiveTimelineLabelLimit(axisWidthPx, {{
+        min: dailyMode ? 4 : 3,
+        max: dailyMode ? 12 : 11,
+        targetPx: dailyMode ? 150 : 132,
+      }});
       let majorStep = majorStepCandidates[majorStepCandidates.length - 1];
       for (let i = 0; i < majorStepCandidates.length; i += 1) {{
         const step = majorStepCandidates[i];
@@ -148,7 +209,7 @@
         : (majorStep >= 86400
           ? 21600
           : (majorStep >= 21600 ? 3600 : (majorStep >= 3600 ? 900 : Math.max(60, Math.floor(majorStep / 4)))));
-      const maxMinorTicks = 120;
+      const maxMinorTicks = responsiveTimelineMinorTickLimit(axisWidthPx);
       while ((spanSeconds / minorStep) > maxMinorTicks) {{
         minorStep *= 2;
       }}
@@ -213,17 +274,25 @@
       addMajorTick(endUnix);
       majorTicks.sort((a, b) => a - b);
       const renderedDayKeys = new Set();
-
-      for (let i = 0; i < majorTicks.length; i += 1) {{
-        const unixTs = majorTicks[i];
+      const minLabelSpacingPct = Math.max(
+        3.5,
+        (100 * (dailyMode ? 64 : 56)) / Math.max(1, axisWidthPx)
+      );
+      const majorTickSpecs = majorTicks.map((unixTs) => {{
         const edgeStart = Math.abs(unixTs - startUnix) <= majorEpsilon;
         const edgeEnd = Math.abs(unixTs - endUnix) <= majorEpsilon;
         let label = "";
         if (dailyMode) {{
+          const dt = new Date(unixTs * 1000);
           const dayKey = timelineDayKey(unixTs);
-          if (dayKey && !renderedDayKeys.has(dayKey)) {{
+          const midnight = !Number.isNaN(dt.getTime()) && dt.getHours() === 0 && dt.getMinutes() === 0;
+          if (edgeStart || edgeEnd) {{
+            label = formatTimelineLabel(unixTs, true);
+          }} else if (midnight && dayKey && !renderedDayKeys.has(dayKey)) {{
             renderedDayKeys.add(dayKey);
             label = formatTimelineDayLabel(unixTs);
+          }} else if (majorStep < 86400) {{
+            label = formatTimelineLabel(unixTs, false);
           }}
         }} else if (edgeStart || edgeEnd) {{
           label = formatTimelineLabel(unixTs, spanCrossesDay || spanSeconds >= (12 * 3600));
@@ -240,12 +309,37 @@
             label = formatTimelineLabel(unixTs, false);
           }}
         }}
-        renderTick(unixTs, {{
-          major: true,
+        return {{
+          unixTs,
           edgeStart,
           edgeEnd,
+          leftPct: unixToLeftPct(unixTs),
           label,
+        }};
+      }});
+      const labelledSpecs = [];
+      for (const spec of majorTickSpecs) {{
+        if (!String(spec.label || "").trim()) continue;
+        const previous = labelledSpecs[labelledSpecs.length - 1] || null;
+        if (previous && Math.abs(spec.leftPct - previous.leftPct) < minLabelSpacingPct) {{
+          if (spec.edgeEnd && !previous.edgeStart) {{
+            previous.label = "";
+            labelledSpecs.pop();
+          }} else if (!spec.edgeStart) {{
+            spec.label = "";
+            continue;
+          }}
+        }}
+        labelledSpecs.push(spec);
+      }}
+
+      for (let i = 0; i < majorTickSpecs.length; i += 1) {{
+        const spec = majorTickSpecs[i];
+        renderTick(spec.unixTs, {{
+          major: true,
+          edgeStart: spec.edgeStart,
+          edgeEnd: spec.edgeEnd,
+          label: spec.label,
         }});
       }}
     }}
-

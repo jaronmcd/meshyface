@@ -478,7 +478,15 @@
           trendPath,
         }};
       }});
-      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
+      const axisTicks = buildLinearAxisTicks(
+        minVal,
+        maxVal,
+        responsiveAxisTickCount(plotH, {{
+          min: 5,
+          max: 10,
+          targetPx: 74,
+        }})
+      );
       const axisLabelColor = darkTheme
         ? themeColor("--workspace-shell-text", "#d7e6f2")
         : themeColor("--workspace-shell-text", "#1f6f53");
