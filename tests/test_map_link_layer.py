@@ -375,6 +375,10 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function maskSignalCoverageBucketsWithLive(coverageBuckets, liveBuckets)" in js
     assert "function signalHeatmapMapHasDrawableSize()" in js
     assert "const mapDrawable = signalHeatmapMapHasDrawableSize();" in js
+    assert "function setMapHeatLayerLatLngsSafely(layer, latLngs)" in js
+    assert "leaflet.heat redraw() reads layer._map._animating" in js
+    assert "layer._latlngs = nextLatLngs;" in js
+    assert "if (layer._map !== map) return false;" in js
     assert "&& mapDrawable" in js
     assert "gradient: resolveSignalHeatGradient(mode)," in js
     assert "gradient: state.gradient," in js

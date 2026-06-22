@@ -875,6 +875,20 @@
       return true;
     }}
 
+    function setMapHeatLayerLatLngsSafely(layer, latLngs) {{
+      if (!(layer && typeof layer === "object")) return false;
+      const nextLatLngs = Array.isArray(latLngs) ? latLngs : [];
+      if (layer._map && typeof layer.setLatLngs === "function") {{
+        layer.setLatLngs(nextLatLngs);
+        return true;
+      }}
+      // leaflet.heat redraw() reads layer._map._animating, so avoid setLatLngs
+      // while the layer is detached during map-subview cleanup.
+      layer._latlngs = nextLatLngs;
+      layer._frame = null;
+      return true;
+    }}
+
     function cancelMapHeatLayerDrift(layer, clearPoints = false) {{
       if (!(layer && typeof layer === "object")) return;
       const state = layer._meshHeatDriftAnimation;
@@ -891,9 +905,7 @@
       layer._meshHeatDriftAnimation = null;
       if (clearPoints) {{
         layer._meshHeatCurrentPoints = [];
-        if (typeof layer.setLatLngs === "function") {{
-          layer.setLatLngs([]);
-        }}
+        setMapHeatLayerLatLngsSafely(layer, []);
       }}
     }}
 
@@ -925,7 +937,7 @@
       if (reduceMotion || durationMs <= 0 || typeof window.requestAnimationFrame !== "function") {{
         cancelMapHeatLayerDrift(layer);
         layer._meshHeatCurrentPoints = targetPoints;
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(targetPoints));
         if (onComplete) {{
           onComplete(layer);
         }}
@@ -939,7 +951,7 @@
       if (mapHeatPointsSameEnough(currentPoints, targetPoints)) {{
         cancelMapHeatLayerDrift(layer);
         layer._meshHeatCurrentPoints = targetPoints;
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(targetPoints));
         if (onComplete) {{
           onComplete(layer);
         }}
@@ -1013,7 +1025,7 @@
       if (!transitions.length) {{
         cancelMapHeatLayerDrift(layer);
         layer._meshHeatCurrentPoints = targetPoints;
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(targetPoints));
         if (onComplete) {{
           onComplete(layer);
         }}
@@ -1056,13 +1068,13 @@
           }});
         }}
         layer._meshHeatCurrentPoints = framePoints;
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(framePoints));
+        setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(framePoints));
         if (eased < 1) {{
           state.raf = window.requestAnimationFrame(step);
           return;
         }}
         layer._meshHeatCurrentPoints = targetPoints;
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
+        setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(targetPoints));
         layer._meshHeatDriftAnimation = null;
         if (state.onComplete) {{
           state.onComplete(layer);
@@ -1145,9 +1157,7 @@
       const onComplete = typeof state.onComplete === "function" ? state.onComplete : null;
       cancelMapHeatLayerDrift(layer);
       layer._meshHeatCurrentPoints = targetPoints;
-      if (typeof layer.setLatLngs === "function") {{
-        layer.setLatLngs(mapHeatPointsToLatLngArrays(targetPoints));
-      }}
+      setMapHeatLayerLatLngsSafely(layer, mapHeatPointsToLatLngArrays(targetPoints));
       if (onComplete) {{
         onComplete(layer);
       }}
@@ -1190,6 +1200,7 @@
     function syncMapHeatLayerViewportNow(layer) {{
       if (!(layer && typeof layer === "object")) return false;
       if (!map || typeof map.hasLayer !== "function" || !map.hasLayer(layer)) return false;
+      if (layer._map !== map) return false;
       if (layer._frame && window.L && L.Util && typeof L.Util.cancelAnimFrame === "function") {{
         try {{
           L.Util.cancelAnimFrame(layer._frame);
