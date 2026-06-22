@@ -125,15 +125,31 @@ def test_render_html_places_tag_title_pin_and_mute_actions_in_drawer_header() ->
     )
 
     head_index = html.index('class="chat-node-details-head"')
+    title_index = html.index('id="chat-node-details-title"')
+    controls_index = html.index('class="chat-node-details-head-controls"')
     tag_index = html.index('id="chat-node-details-tab-tag"')
     reset_index = html.index('id="chat-node-details-reset-btn"')
-    title_index = html.index('id="chat-node-details-title"')
     pin_index = html.index('id="chat-node-details-pin-btn"')
     mute_index = html.index('id="chat-node-details-mute-btn"')
     tabs_index = html.index('class="chat-node-details-tabs"')
 
     assert 'id="chat-node-details-dm-btn"' not in html
-    assert head_index < tag_index < reset_index < title_index < pin_index < mute_index < tabs_index
+    assert head_index < title_index < controls_index < tag_index < reset_index < pin_index < mute_index < tabs_index
+
+
+def test_node_details_header_title_sits_above_action_controls() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    main_section = css.split(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
+    controls_section = css.split(".chat-node-details-head-controls {", 1)[1].split("}", 1)[0]
+    title_section = css.split(".chat-node-details-title {", 1)[1].split("}", 1)[0]
+    actions_section = css.split(".chat-node-details-head-actions {", 1)[1].split("}", 1)[0]
+
+    assert "flex-direction: column;" in main_section
+    assert "grid-template-columns: auto auto auto minmax(0, 1fr);" in controls_section
+    assert "font-size: 10px;" in title_section
+    assert "text-align: left;" in title_section
+    assert "grid-column: 4;" in actions_section
 
 
 def test_render_html_includes_node_workspace_snap_controls() -> None:

@@ -4699,18 +4699,24 @@
     .chat-node-details-head {{
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 8px 6px 8px;
+      align-items: end;
+      gap: 6px;
+      padding: 6px 8px 6px 8px;
       border-bottom: 1px solid #d2e1d0;
       background: #edf6ec;
     }}
     .chat-node-details-head-main {{
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }}
+    .chat-node-details-head-controls {{
+      min-width: 0;
       display: grid;
-      grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+      grid-template-columns: auto auto auto minmax(0, 1fr);
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }}
     .chat-node-details-icon-btn {{
       width: 22px;
@@ -4767,15 +4773,16 @@
     .chat-node-details-title {{
       min-width: 0;
       width: 100%;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       color: #264734;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      text-align: center;
+      text-align: left;
       text-transform: uppercase;
       letter-spacing: 0.2px;
+      line-height: 1.15;
     }}
     .chat-node-details-head-actions {{
       display: inline-flex;
@@ -4783,9 +4790,11 @@
       justify-content: flex-end;
       gap: 6px;
       min-width: 0;
+      grid-column: 4;
       justify-self: end;
     }}
     .chat-node-details-close-btn {{
+      align-self: end;
       border: 1px solid #bfd5c3;
       background: #f5fbf6;
       color: #244b37;
