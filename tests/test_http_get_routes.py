@@ -147,6 +147,27 @@ def test_dashboard_get_serves_system_update_status(monkeypatch: pytest.MonkeyPat
     assert deps.recorder.json == [(200, {"ok": True, "available": True, "state": "up_to_date"}, True)]
 
 
+def test_dashboard_get_can_refresh_system_update_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _refresh(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"ok": True, "available": True, "state": "update_available", "refreshed": True}
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_get._refresh_update_status_from_github_helper",
+        _refresh,
+    )
+    deps = _make_deps()
+
+    handle_dashboard_get(object(), path="/api/system/update", query="branch=beta&refresh=1", deps=deps)
+
+    assert captured["target_branch"] == "beta"
+    assert deps.recorder.json == [
+        (200, {"ok": True, "available": True, "state": "update_available", "refreshed": True}, True)
+    ]
+
+
 def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:
     state_fn = _StateFn(
         {

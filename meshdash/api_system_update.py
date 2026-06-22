@@ -652,6 +652,94 @@ def _sync_backup_branch_name(repo_root: Path, branch: str, runner: GitRunner) ->
     return ""
 
 
+def refresh_update_status_from_github(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    target_branch: object = None,
+    runner: GitRunner = _run_git,
+    fetch_timeout: float = 60.0,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "available": True,
+            "state": "busy",
+            "can_update": False,
+            "update_needed": False,
+            "connection_ok": False,
+            "refreshed": False,
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        status = build_update_status_payload(
+            repo_dir=repo_dir,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        if not bool(status.get("available")):
+            payload = dict(status)
+            payload.update({"connection_ok": False, "refreshed": False})
+            return payload
+
+        repo_root = Path(str(status.get("repo_root") or "."))
+        remote = str(status.get("remote") or "").strip()
+        if not remote:
+            payload = dict(status)
+            payload.update(
+                {
+                    "ok": False,
+                    "state": "no_remote",
+                    "connection_ok": False,
+                    "refreshed": False,
+                    "message": "Software update check needs a configured Git remote.",
+                    "error": "no git remote is configured",
+                    "http_status": 409,
+                }
+            )
+            return payload
+
+        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        if fetch_result.returncode != 0:
+            error_text = _short_text(_git_text(fetch_result))
+            message = "Could not reach GitHub or check updates."
+            if fetch_result.timed_out:
+                message = "GitHub update check timed out."
+            payload = dict(status)
+            payload.update(
+                {
+                    "ok": False,
+                    "state": "fetch_failed",
+                    "can_update": False,
+                    "update_needed": False,
+                    "connection_ok": False,
+                    "refreshed": False,
+                    "message": message,
+                    "error": error_text or message,
+                    "http_status": 503,
+                }
+            )
+            return payload
+
+        payload = build_update_status_payload(
+            repo_dir=repo_root,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        payload.update(
+            {
+                "connection_ok": True,
+                "refreshed": True,
+                "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
 def run_update_from_github(
     *,
     repo_dir: str | os.PathLike[str] | None = None,

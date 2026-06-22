@@ -366,6 +366,7 @@
       frameId = window.requestAnimationFrame(tick);
       let detail = null;
       let error = "";
+      let errorStack = "";
       let callbackMs = 0;
       let postCallbackFrameWaitMs = 0;
       try {{
@@ -378,7 +379,11 @@
           postCallbackFrameWaitMs = meshGuiBenchmarkNowMs() - frameWaitStartedAtMs;
         }}
       }} catch (err) {{
-        error = err instanceof Error ? (err.message || String(err)) : String(err || "unknown error");
+        const errObject = err && typeof err === "object" ? err : null;
+        error = errObject && "message" in errObject
+          ? String(errObject.message || err || "unknown error")
+          : String(err || "unknown error");
+        errorStack = errObject && "stack" in errObject ? String(errObject.stack || "") : "";
       }} finally {{
         running = false;
         if (frameId) {{
@@ -421,6 +426,7 @@
         meta: (meta && typeof meta === "object") ? {{ ...meta }} : {{}},
         detail: detail && typeof detail === "object" ? detail : {{}},
         error,
+        ...(errorStack ? {{ errorStack }} : {{}}),
       }};
     }}
 
@@ -956,6 +962,13 @@
     async function meshGuiBenchmarkSwitchView(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
       const subview = view === "network" ? normalizeNetworkSubview(subviewName || activeNetworkSubview) : "";
+      const annotateSwitchError = (stepName, err) => {{
+        const errObject = err && typeof err === "object" ? err : null;
+        const message = errObject && "message" in errObject
+          ? String(errObject.message || err || "unknown error")
+          : String(err || "unknown error");
+        return new Error(`switch ${{view}}${{subview ? `:${{subview}}` : ""}} failed during ${{stepName}}: ${{message}}`);
+      }};
       const beforeChatRuns = meshGuiBenchmarkChatRenderRunCount();
       const beforeGraphRuns = meshGuiBenchmarkNetworkGraphRenderRunCount();
       const beforeEnvMetricsRuns = meshGuiBenchmarkEnvironmentMetricsRenderRunCount();
@@ -974,16 +987,36 @@
         }};
       }}
       if (view === "network" && subview) {{
-        setActiveNetworkSubview(subview, {{ persist: false }});
+        try {{
+          setActiveNetworkSubview(subview, {{ persist: false }});
+        }} catch (err) {{
+          throw annotateSwitchError("setActiveNetworkSubview", err);
+        }}
       }}
-      applyLayoutView(view, false);
+      try {{
+        applyLayoutView(view, false);
+      }} catch (err) {{
+        throw annotateSwitchError("applyLayoutView", err);
+      }}
       if (meshGuiBenchmarkViewUsesEnvironmentMetrics(view, subview)) {{
-        await meshGuiBenchmarkWaitForEnvironmentMetricsRender(beforeEnvMetricsRuns);
+        try {{
+          await meshGuiBenchmarkWaitForEnvironmentMetricsRender(beforeEnvMetricsRuns);
+        }} catch (err) {{
+          throw annotateSwitchError("waitForEnvironmentMetrics", err);
+        }}
       }}
-      await meshGuiBenchmarkNextFrame();
+      try {{
+        await meshGuiBenchmarkNextFrame();
+      }} catch (err) {{
+        throw annotateSwitchError("nextFrame", err);
+      }}
       if (view === "network" && subview === "graph") {{
         await meshGuiBenchmarkSleep(120);
-        await meshGuiBenchmarkNextFrame();
+        try {{
+          await meshGuiBenchmarkNextFrame();
+        }} catch (err) {{
+          throw annotateSwitchError("graphNextFrame", err);
+        }}
       }}
       return {{
         state: meshGuiBenchmarkStateSnapshot(),

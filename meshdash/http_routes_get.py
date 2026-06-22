@@ -26,6 +26,7 @@ from .api_system import (
 )
 from .api_system_update import (
     build_update_status_payload as _build_update_status_payload_helper,
+    refresh_update_status_from_github as _refresh_update_status_from_github_helper,
 )
 from .api_theme import (
     handle_theme_settings_get as _handle_theme_settings_get_helper,
@@ -174,6 +175,19 @@ def _query_branch_value(query: str) -> str:
         or query_obj.get("target_branch", [""])[0]
         or ""
     ).strip()
+
+
+def _query_refresh_requested(query: str) -> bool:
+    try:
+        query_obj = parse_qs(query or "")
+    except Exception:
+        return False
+    value = str(
+        query_obj.get("refresh", [""])[0]
+        or query_obj.get("fetch", [""])[0]
+        or ""
+    ).strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def _mapping_value(root: Mapping[str, object], *keys: str) -> object:
@@ -485,9 +499,15 @@ def handle_dashboard_get(
 
     if path == "/api/system/update":
         try:
-            response_obj = _build_update_status_payload_helper(
-                target_branch=_query_branch_value(query),
-            )
+            target_branch = _query_branch_value(query)
+            if _query_refresh_requested(query):
+                response_obj = _refresh_update_status_from_github_helper(
+                    target_branch=target_branch,
+                )
+            else:
+                response_obj = _build_update_status_payload_helper(
+                    target_branch=target_branch,
+                )
         except Exception as exc:
             response_obj = {
                 "ok": False,

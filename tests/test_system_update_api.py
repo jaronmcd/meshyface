@@ -3,6 +3,7 @@ from pathlib import Path
 from meshdash.api_system_update import (
     GitCommandResult,
     build_update_status_payload,
+    refresh_update_status_from_github,
     run_update_from_github,
     sync_update_branches_from_github,
 )
@@ -283,6 +284,20 @@ def test_update_status_uses_local_selected_branch_history_when_available(tmp_pat
         )
     ]
     assert log_commands[-1][-1] == "beta"
+
+
+def test_refresh_update_status_fetches_without_merging(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(behind=2)
+
+    payload = refresh_update_status_from_github(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["refreshed"] is True
+    assert payload["connection_ok"] is True
+    assert payload["state"] == "update_available"
+    assert ("fetch", "--prune", "origin") in runner.commands
+    assert ("merge", "--ff-only", "origin/main") not in runner.commands
+    assert runner.commit == "aaaaaaaa11111111222222223333333344444444"
 
 
 def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:
