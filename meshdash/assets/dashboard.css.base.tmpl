@@ -2383,7 +2383,8 @@
     .workspace-shell[data-layout-view="games"] .workspace-main,
     .workspace-shell[data-layout-view="bots"] .workspace-main,
     .workspace-shell[data-layout-view="files"] .workspace-main,
-    .workspace-shell[data-layout-view="bbs"] .workspace-main {{
+    .workspace-shell[data-layout-view="bbs"] .workspace-main,
+    .workspace-shell[data-layout-view="node"] .workspace-main {{
       gap: 8px;
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
@@ -2392,7 +2393,8 @@
     .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
     .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
     .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
-    .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs {{
+    .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs,
+    .workspace-shell[data-layout-view="node"] .workspace-main > .layout.view-node {{
       grid-column: 1;
       grid-row: 1;
       min-width: 0;
@@ -2405,13 +2407,15 @@
       .workspace-shell[data-layout-view="games"] .workspace-main,
       .workspace-shell[data-layout-view="bots"] .workspace-main,
       .workspace-shell[data-layout-view="files"] .workspace-main,
-      .workspace-shell[data-layout-view="bbs"] .workspace-main {{
+      .workspace-shell[data-layout-view="bbs"] .workspace-main,
+      .workspace-shell[data-layout-view="node"] .workspace-main {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
       .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
       .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
-      .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs {{
+      .workspace-shell[data-layout-view="bbs"] .workspace-main > .layout.view-bbs,
+      .workspace-shell[data-layout-view="node"] .workspace-main > .layout.view-node {{
         grid-column: 1;
       }}
     }}
@@ -8663,6 +8667,29 @@
       color: #456557;
       font-size: 13px;
       line-height: 1.45;
+    }}
+    .node-workspace {{
+      display: none;
+    }}
+    .node-workspace-back-btn {{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 6;
+      box-shadow: 0 2px 8px rgba(12, 34, 21, 0.14);
+    }}
+    .node-workspace-body {{
+      min-height: 0;
+      overflow: hidden;
+    }}
+    .node-workspace-history-host {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      border: 1px solid #d7e5d2;
+      border-radius: 8px;
+      background: #f9fdf9;
+      overflow: hidden;
     }}
     .saved-node-details {{
       display: none;

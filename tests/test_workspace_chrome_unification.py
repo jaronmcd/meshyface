@@ -134,7 +134,7 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
 
 
-def test_workspace_main_gap_stays_uniform_and_lets_apps_views_use_full_width() -> None:
+def test_workspace_main_gap_stays_uniform_and_lets_fullscreen_views_use_full_width() -> None:
     css = build_dashboard_css(theme_css="")
 
     workspace_main_section = css.split(".workspace-main {", 1)[1].split("}", 1)[0]
@@ -144,6 +144,8 @@ def test_workspace_main_gap_stays_uniform_and_lets_apps_views_use_full_width() -
     assert "gap: 0;" not in workspace_main_section
     assert "grid-template-columns: minmax(0, 1fr);" in apps_workspace_main_section
     assert "grid-template-rows: minmax(0, 1fr);" in apps_workspace_main_section
+    assert '.workspace-shell[data-layout-view="node"] .workspace-main {' in apps_workspace_main_section
+    assert '.workspace-shell[data-layout-view="node"] .workspace-main > .layout.view-node {' in apps_layout_section
     assert '.workspace-shell[data-layout-view="games"] .workspace-main::before,' not in css
     assert "grid-column: 1;" in apps_layout_section
 
@@ -368,11 +370,14 @@ def test_mobile_network_and_games_shells_expand_to_single_phone_column() -> None
 
     mobile_section = css.split("@media (max-width: 760px) {", 1)[1]
 
-    assert '.workspace-shell[data-layout-view="network"] {' in mobile_section
+    assert '.workspace-shell[data-layout-view="network"],' in mobile_section
+    assert '.workspace-shell[data-layout-view="node"] {' in mobile_section
     assert "height: calc(100dvh - var(--workspace-viewport-offset));" in mobile_section
-    assert '.workspace-shell[data-layout-view="network"] .workspace-main {' in mobile_section
+    assert '.workspace-shell[data-layout-view="network"] .workspace-main,' in mobile_section
+    assert '.workspace-shell[data-layout-view="node"] .workspace-main {' in mobile_section
     assert "overflow: hidden;" in mobile_section
-    assert '.workspace-shell[data-layout-view="network"] .workspace-main > .layout.view-network {' in mobile_section
+    assert '.workspace-shell[data-layout-view="network"] .workspace-main > .layout.view-network,' in mobile_section
+    assert '.workspace-shell[data-layout-view="node"] .workspace-main > .layout.view-node {' in mobile_section
     assert ".network-map-chrome {" in mobile_section
     assert "left: 6px;" in mobile_section
     assert ".layout.view-network .map .body {" in mobile_section

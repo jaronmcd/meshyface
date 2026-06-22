@@ -680,9 +680,11 @@
       }}
 
       // Public v0 rail: expose only Chat/Network/Console/Games/BBS/Files/Settings.
+      // Node is an internal snap target entered from the selected-node drawer.
       return (
         resolved === "chat"
         || resolved === "network"
+        || resolved === "node"
         || resolved === "console"
         || resolved === "games"
         || (resolved === "bots" && gamesFeatureEnabled)
@@ -10742,6 +10744,9 @@
       const mapDataBody = document.getElementById("map-data-body");
       const networkHost = document.getElementById("network-node-history-host");
       const savedHost = document.getElementById("saved-node-history-host");
+      const nodeWorkspaceHost = document.getElementById("node-workspace-history-host");
+      const nodeWorkspaceShell = document.getElementById("node-workspace");
+      const nodeWorkspaceBackBtn = document.getElementById("node-workspace-back-btn");
       const drawerHistoryHost = document.getElementById("chat-node-details-history-host");
       const nodesTitle = document.getElementById("nodes-card-title");
       if (!(nodeHistoryPanel instanceof HTMLElement)) return;
@@ -10749,16 +10754,42 @@
       if (!(networkHost instanceof HTMLElement)) return;
 
       const dockInDrawer = (
+        activeLayoutView !== "node"
+        &&
         typeof isChatNodeDetailsHistoryActive === "function"
         && isChatNodeDetailsHistoryActive()
         && (drawerHistoryHost instanceof HTMLElement)
       );
       const dockInSaved = !dockInDrawer && activeLayoutView === "saved" && (savedHost instanceof HTMLElement);
+      const dockInNodeWorkspace = (
+        !dockInDrawer
+        && !dockInSaved
+        && activeLayoutView === "node"
+        && (nodeWorkspaceHost instanceof HTMLElement)
+      );
       const target = dockInDrawer
         ? drawerHistoryHost
-        : (dockInSaved ? savedHost : mapDataBody);
+        : (dockInSaved ? savedHost : (dockInNodeWorkspace ? nodeWorkspaceHost : mapDataBody));
+      const restoreNodeWorkspaceBackButton = () => {{
+        if (!(nodeWorkspaceBackBtn instanceof HTMLButtonElement)) return;
+        if (!(nodeWorkspaceShell instanceof HTMLElement)) return;
+        if (nodeWorkspaceBackBtn.parentElement === nodeWorkspaceShell) return;
+        const body = nodeWorkspaceShell.querySelector(".node-workspace-body");
+        nodeWorkspaceShell.insertBefore(nodeWorkspaceBackBtn, body instanceof HTMLElement ? body : null);
+      }};
+      if (!dockInNodeWorkspace) {{
+        restoreNodeWorkspaceBackButton();
+      }}
       if (nodeHistoryPanel.parentElement !== target) {{
         target.appendChild(nodeHistoryPanel);
+      }}
+      if (dockInNodeWorkspace && nodeWorkspaceBackBtn instanceof HTMLButtonElement) {{
+        const tabs = nodeHistoryPanel.querySelector(".history-tabs");
+        if (tabs instanceof HTMLElement && nodeWorkspaceBackBtn.parentElement !== tabs) {{
+          tabs.appendChild(nodeWorkspaceBackBtn);
+        }}
+      }} else {{
+        restoreNodeWorkspaceBackButton();
       }}
 
       networkHost.hidden = true;
@@ -10766,6 +10797,114 @@
       if (nodesTitle instanceof HTMLElement) {{
         nodesTitle.textContent = activeLayoutView === "network" ? "Network Explorer" : "Nodes";
       }}
+    }}
+
+    function normalizeNodeWorkspaceReturnView(rawView) {{
+      const normalized = normalizeLayoutView(rawView || "");
+      if (!normalized || normalized === "node" || normalized === "saved") {{
+        return "network";
+      }}
+      return normalized;
+    }}
+
+    function selectedNodeWorkspaceNodeId() {{
+      const nodeId = normalizeNodeId(selectedNodeId || "");
+      return isSelectableNodeId(nodeId) ? nodeId : "";
+    }}
+
+    function syncNodeWorkspaceChrome(state = latestState) {{
+      const backBtn = document.getElementById("node-workspace-back-btn");
+      const nodeId = selectedNodeWorkspaceNodeId();
+      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
+      const nodeName = isSelectableNodeId(nodeId) && typeof resolveSavedViewNodeName === "function"
+        ? resolveSavedViewNodeName(safeState, nodeId)
+        : "";
+      const label = nodeName || nodeId || "Node Deep Dive";
+      if (backBtn instanceof HTMLButtonElement) {{
+        backBtn.disabled = !isSelectableNodeId(nodeId);
+        const backTitle = isSelectableNodeId(nodeId)
+          ? `Snap ${{label}} back to the side panel`
+          : "Snap selected node back to the side panel";
+        backBtn.title = backTitle;
+        backBtn.setAttribute("aria-label", backTitle);
+      }}
+    }}
+
+    function ensureNodeWorkspaceHistoryTab() {{
+      if (activeLayoutView !== "node") return;
+      if (activeHistoryTab !== "overview" && activeHistoryTab !== "names") return;
+      if (typeof setHistoryTab === "function") {{
+        setHistoryTab("signal");
+      }} else {{
+        activeHistoryTab = "signal";
+      }}
+    }}
+
+    function renderNodeWorkspace(state = latestState, nodeHistory = null, loadingNodeId = "") {{
+      if (activeLayoutView !== "node") return false;
+      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
+      const nodeId = selectedNodeWorkspaceNodeId();
+      syncNodeWorkspaceChrome(safeState);
+      syncNodeHistoryDock();
+      ensureNodeWorkspaceHistoryTab();
+      if (typeof syncSavedNodeDetailsDock === "function") {{
+        syncSavedNodeDetailsDock(false);
+      }}
+      if (!isSelectableNodeId(nodeId)) {{
+        setMapDataMode("node");
+        syncNodeHistoryDock();
+        const caption = document.getElementById("node-history-caption");
+        if (caption instanceof HTMLElement) {{
+          caption.textContent = "Select a node to load history in this workspace.";
+        }}
+        return false;
+      }}
+      const history = (
+        nodeHistory
+        && typeof nodeHistory === "object"
+        && normalizeNodeId(nodeHistory.node_id || "") === nodeId
+      ) ? nodeHistory : cachedNodeHistory(nodeId);
+      setMapDataMode("node");
+      syncNodeHistoryDock();
+      if (history) {{
+        return renderNodeHistory(history, Array.isArray(safeState.nodes) ? safeState.nodes : []);
+      }}
+      renderNodeHistoryLoading(nodeId);
+      return false;
+    }}
+
+    function openNodeWorkspaceFromSelection(options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const nodeId = selectedNodeWorkspaceNodeId();
+      if (!isSelectableNodeId(nodeId)) return false;
+      const currentView = normalizeLayoutView(activeLayoutView);
+      if (currentView !== "node") {{
+        nodeWorkspaceReturnView = normalizeNodeWorkspaceReturnView(opts.returnView || currentView || nodeWorkspaceReturnView);
+      }}
+      applyLayoutView("node", true);
+      chatNodeDetailsDrawerExpanded = false;
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{
+          fetchHistory: false,
+        }});
+      }}
+      renderNodeWorkspace(latestState || {{}}, cachedNodeHistory(nodeId), nodeId);
+      return true;
+    }}
+
+    function closeNodeWorkspaceToDrawer(options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const returnView = normalizeNodeWorkspaceReturnView(opts.returnView || nodeWorkspaceReturnView || "network");
+      applyLayoutView(returnView, true);
+      const nodeId = selectedNodeWorkspaceNodeId();
+      if (isSelectableNodeId(nodeId) && typeof setChatNodeDetailsDrawerExpanded === "function") {{
+        setChatNodeDetailsDrawerExpanded(true, {{
+          tab: normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab || "details"),
+          fetchHistory: true,
+          rerender: false,
+        }});
+      }}
+      return false;
     }}
 
     function appsLayoutViewLabel(viewName = "") {{
@@ -11032,6 +11171,7 @@
     function topbarLauncherLayoutLabel(viewName) {{
       const normalized = resolveTopbarLauncherLayoutView(viewName);
       if (normalized === "network") return "Network";
+      if (normalized === "node") return "Node";
       if (normalized === "console") return "Console";
       if (normalized === "apps") return "Apps";
       if (normalized === "settings") return "Settings";
@@ -11564,11 +11704,12 @@
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = next === "network" && activeNetworkSubview === "top10";
+        const nodeWorkspaceActive = next === "node";
         let cachedNodeHistory = null;
         const viewHistoryNodeId = next === "saved"
           ? resolveSavedViewNodeId(latestState)
-          : (next === "network" ? normalizeNodeId(selectedNodeId || "") : "");
-        if ((next === "saved" || next === "network") && isSelectableNodeId(viewHistoryNodeId)) {{
+          : ((next === "network" || next === "node") ? normalizeNodeId(selectedNodeId || "") : "");
+        if ((next === "saved" || next === "network" || next === "node") && isSelectableNodeId(viewHistoryNodeId)) {{
           const cached = nodeHistoryCache.get(viewHistoryNodeId);
           if (cached && cached.data) {{
             cachedNodeHistory = cached.data;
@@ -11606,7 +11747,11 @@
             void refreshNetworkDiagnosticsPanel(false);
           }}
         }}
-        renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory);
+        if (nodeWorkspaceActive) {{
+          renderNodeWorkspace(latestState, cachedNodeHistory, cachedNodeHistory ? "" : viewHistoryNodeId);
+        }} else {{
+          renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], cachedNodeHistory);
+        }}
         if (
           !isChatWorkspaceLayoutView(next)
           && shouldHydrateNodeNavigatorRoster(latestState)
@@ -11644,7 +11789,9 @@
           setMapDataMode("activity");
           void refreshHistoryPanels(false);
         }}
-        if (next === "saved") {{
+        if (next === "node") {{
+          renderNodeWorkspace(latestState, cachedNodeHistory, cachedNodeHistory ? "" : viewHistoryNodeId);
+        }} else if (next === "saved") {{
           renderFavorites(latestState, cachedNodeHistory);
         }} else {{
           renderSavedNodeDetails(latestState, cachedNodeHistory);
@@ -11668,6 +11815,8 @@
         }}
       }} else if (next === "network") {{
         renderNodesPlaceholder("Syncing nodes...");
+      }} else if (next === "node") {{
+        renderNodeWorkspace(latestState);
       }} else if (next === "history") {{
         setMapDataMode("activity");
         renderWeeklySummaryLoading();
@@ -11723,7 +11872,7 @@
       }}
       // Ensure node history loads immediately when switching into the map views.
       void refreshSelectedNodeHistory(false);
-      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "node" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -11782,6 +11931,8 @@
       window.syncLayoutViewLauncherButtonState = syncLayoutViewLauncherButtonState;
       window.toggleLayoutViewMenu = toggleLayoutViewMenu;
       window.setActiveNetworkSubview = setActiveNetworkSubview;
+      window.openNodeWorkspaceFromSelection = openNodeWorkspaceFromSelection;
+      window.closeNodeWorkspaceToDrawer = closeNodeWorkspaceToDrawer;
     }}
 
     function loadLayoutView() {{

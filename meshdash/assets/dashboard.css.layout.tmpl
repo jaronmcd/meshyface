@@ -3992,6 +3992,145 @@
       display: none !important;
     }}
 
+    .layout.view-node {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-node .node-workspace {{
+      display: flex;
+      flex-direction: column;
+      grid-column: 1;
+      grid-row: 1;
+      height: 100%;
+      min-height: 0;
+      position: relative;
+      border-color: var(--workspace-shell-border-muted, #d7e5d2);
+      background: var(--workspace-shell-bg, #f7fcf8);
+      overflow: hidden;
+    }}
+    .layout.view-node .node-workspace-body {{
+      display: flex;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      padding: 8px 10px 10px;
+    }}
+    .layout.view-node .node-workspace-history-host {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      padding: 8px;
+      border-color: var(--workspace-shell-border-muted, #d7e5d2);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt, #eef7ef) 46%, var(--ui-panel, #ffffff) 54%);
+    }}
+    .layout.view-node .node-workspace-history-host #map-data-node {{
+      display: flex !important;
+      flex-direction: column;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      gap: 10px;
+    }}
+    .layout.view-node .node-workspace-history-host #node-history-caption {{
+      display: none !important;
+    }}
+    .layout.view-node .node-workspace-history-host .history-tabs {{
+      flex: 0 0 auto;
+      margin: 0;
+    }}
+    .layout.view-node .node-workspace-history-host .history-tabs .node-workspace-back-btn {{
+      position: static;
+      flex: 0 0 auto;
+      margin-left: auto;
+      align-self: center;
+      min-height: 0;
+      border: 1px solid transparent;
+      background: transparent;
+      color: color-mix(in srgb, var(--ink) 84%, var(--accent-2) 16%);
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.2;
+      opacity: 1;
+      box-shadow: none;
+    }}
+    .layout.view-node .node-workspace-history-host .history-tabs .node-workspace-back-btn:hover {{
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent) 30%);
+      border-color: color-mix(in srgb, var(--line) 44%, var(--accent) 56%);
+      color: color-mix(in srgb, var(--ink) 72%, var(--accent-2) 28%);
+    }}
+    .layout.view-node .node-workspace-history-host #tab-btn-overview,
+    .layout.view-node .node-workspace-history-host #tab-panel-overview,
+    .layout.view-node .node-workspace-history-host #tab-btn-names,
+    .layout.view-node .node-workspace-history-host #tab-panel-names {{
+      display: none !important;
+    }}
+    .layout.view-node .node-workspace-history-host #tab-panel-signal,
+    .layout.view-node .node-workspace-history-host #tab-panel-link,
+    .layout.view-node .node-workspace-history-host #tab-panel-online,
+    .layout.view-node .node-workspace-history-host #tab-panel-packets {{
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      gap: 10px;
+    }}
+    .layout.view-node .node-workspace-history-host #signal-chart-wrap,
+    .layout.view-node .node-workspace-history-host #node-link-quality-chart-wrap,
+    .layout.view-node .node-workspace-history-host #node-online-chart-wrap,
+    .layout.view-node .node-workspace-history-host #node-packets-chart-wrap {{
+      flex: 1 1 auto;
+      min-height: 0;
+      height: 100%;
+    }}
+    .layout.view-node .node-workspace-history-host #signal-chart,
+    .layout.view-node .node-workspace-history-host #node-link-quality-chart,
+    .layout.view-node .node-workspace-history-host #node-online-chart,
+    .layout.view-node .node-workspace-history-host #node-packets-chart {{
+      min-height: 0;
+      height: 100%;
+    }}
+    .layout.view-node .settings,
+    .layout.view-node .chat,
+    .layout.view-node .bots,
+    .layout.view-node .games,
+    .layout.view-node .bbs,
+    .layout.view-node .remote,
+    .layout.view-node .nodes,
+    .layout.view-node .map,
+    .layout.view-node .map-data,
+    .layout.view-node .favorites,
+    .layout.view-node .history-chat,
+    .layout.view-node .channels-view,
+    .layout.view-node .packets,
+    .layout.view-node .encription,
+    .layout.view-node .raw,
+    .layout.view-node .console,
+    .layout.view-node .summary,
+    .layout.view-node .splitter,
+    .layout.view-node .hsplitter[data-target="top"],
+    .layout.view-node .hsplitter[data-target="mid"],
+    .layout.view-node .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+    @media (max-width: 900px) {{
+      .layout.view-node .node-workspace-body {{
+        padding: 6px;
+      }}
+      .layout.view-node .node-workspace-history-host #signal-chart-wrap,
+      .layout.view-node .node-workspace-history-host #node-link-quality-chart-wrap,
+      .layout.view-node .node-workspace-history-host #node-online-chart-wrap,
+      .layout.view-node .node-workspace-history-host #node-packets-chart-wrap {{
+        min-height: 280px;
+      }}
+    }}
+
     .layout.view-saved {{
       height: 100%;
       min-height: 0;

@@ -324,6 +324,8 @@
       const nodeId = resolveSavedViewNodeId(safeState);
       const loadingId = normalizeNodeId(loadingNodeId || "");
       const drawerExpanded = (
+        activeLayoutView !== "node"
+        &&
         typeof isChatNodeDetailsDrawerExpanded === "function"
         && isChatNodeDetailsDrawerExpanded()
       );

@@ -199,6 +199,8 @@
     runBootStep("initializeSavedNodeHistory", () => {{
       if (activeLayoutView === "saved" && isSelectableNodeId(initialSavedNodeId)) {{
         renderNodeHistoryLoading(initialSavedNodeId);
+      }} else if (activeLayoutView === "node" && isSelectableNodeId(selectedNodeId || "")) {{
+        renderNodeWorkspace(latestState || {{}}, cachedNodeHistory(selectedNodeId), selectedNodeId);
       }} else {{
         setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
       }}

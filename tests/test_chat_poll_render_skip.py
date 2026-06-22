@@ -92,7 +92,7 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             'const linksSection = needsLinksSection && linkStats',
             "renderChatChangeSummary(nowUnix);",
             "networkSubviewUsesMap(activeNetworkSubviewName)",
-            'if (latestState && (activeLayoutView !== "network" || networkMapVisible)) {',
+            'if (latestState && activeLayoutView !== "node" && (activeLayoutView !== "network" || networkMapVisible)) {',
             'const shouldPrefetchNodeHistory = !!(',
             'activeTab === "history"',
             'if (activeLayoutView === "saved" || networkMapVisible) {',

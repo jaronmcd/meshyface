@@ -38,6 +38,7 @@ def test_dashboard_js_keeps_bbs_hidden_by_default() -> None:
     assert '|| (resolved === "bbs" && bbsFeatureEnabled)' in js
     assert '"bbs"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
     assert '"bots"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
+    assert '"node"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
 
 
 def test_dashboard_js_keeps_whois_quick_action_boot_helpers() -> None:

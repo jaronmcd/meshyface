@@ -3574,6 +3574,7 @@
       const detailsSplitter = document.getElementById("chat-node-details-splitter");
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
+      const workspaceBtn = document.getElementById("chat-node-details-workspace-btn");
       const resetBtn = document.getElementById("chat-node-details-reset-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const locationTabBtn = document.getElementById("chat-node-details-tab-location");
@@ -3658,6 +3659,11 @@
           muteBtn.setAttribute("aria-pressed", "false");
           setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), "Mute");
         }}
+        if (workspaceBtn instanceof HTMLButtonElement) {{
+          workspaceBtn.hidden = true;
+          workspaceBtn.disabled = true;
+          workspaceBtn.dataset.nodeId = "";
+        }}
         if (resetBtn instanceof HTMLButtonElement) {{
           resetBtn.hidden = true;
           resetBtn.disabled = true;
@@ -3679,7 +3685,7 @@
         setDrawerElementHtmlIfChanged(notesHost, "", "notes");
         setDrawerElementHtmlIfChanged(messagesHost, "", "messages");
         setDrawerElementHtmlIfChanged(tagHost, "", "tag");
-        syncSavedNodeDetailsDock(true);
+        syncSavedNodeDetailsDock(activeLayoutView !== "node");
         syncNodeHistoryDock();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.drawer_sync", perfStartMs, {{
@@ -3916,10 +3922,20 @@
           : "Mute unavailable for this node";
         setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), active ? "Muted" : "Mute");
       }}
+      if (workspaceBtn instanceof HTMLButtonElement) {{
+        workspaceBtn.hidden = false;
+        workspaceBtn.disabled = !isSelectableNodeId(selectedId);
+        workspaceBtn.dataset.nodeId = isSelectableNodeId(selectedId) ? selectedId : "";
+        const workspaceTitle = `Open ${{titleName}} in the main workspace`;
+        workspaceBtn.title = workspaceTitle;
+        workspaceBtn.setAttribute("aria-label", workspaceTitle);
+      }}
 
       syncSavedNodeDetailsDock(false);
       const cachedHistory = cachedNodeHistory(selectedId);
-      renderSavedNodeDetails(safeState, cachedHistory);
+      if (activeLayoutView !== "node") {{
+        renderSavedNodeDetails(safeState, cachedHistory);
+      }}
       if (notesHost instanceof HTMLElement && !notesHost.querySelector("#saved-node-note-input")) {{
         notesHost.innerHTML = "";
       }}
@@ -4043,6 +4059,8 @@
 
     function bindChatNodeDetailsDrawerControls() {{
       const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const workspaceBtn = document.getElementById("chat-node-details-workspace-btn");
+      const nodeWorkspaceBackBtn = document.getElementById("node-workspace-back-btn");
       const drawer = document.getElementById("chat-node-details-drawer");
       if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
         closeBtn.dataset.bound = "1";
@@ -4051,6 +4069,22 @@
             fetchHistory: false,
             rerender: false,
           }});
+        }});
+      }}
+      if (workspaceBtn instanceof HTMLButtonElement && workspaceBtn.dataset.bound !== "1") {{
+        workspaceBtn.dataset.bound = "1";
+        workspaceBtn.addEventListener("click", () => {{
+          if (typeof openNodeWorkspaceFromSelection === "function") {{
+            openNodeWorkspaceFromSelection();
+          }}
+        }});
+      }}
+      if (nodeWorkspaceBackBtn instanceof HTMLButtonElement && nodeWorkspaceBackBtn.dataset.bound !== "1") {{
+        nodeWorkspaceBackBtn.dataset.bound = "1";
+        nodeWorkspaceBackBtn.addEventListener("click", () => {{
+          if (typeof closeNodeWorkspaceToDrawer === "function") {{
+            closeNodeWorkspaceToDrawer();
+          }}
         }});
       }}
       if (drawer instanceof HTMLElement) {{

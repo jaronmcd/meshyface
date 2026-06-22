@@ -503,6 +503,14 @@
                   aria-pressed="false"
                   hidden
                 ><span class="chat-node-details-mute-label">Mute</span></button>
+                <button
+                  id="chat-node-details-workspace-btn"
+                  class="chat-node-details-action-btn chat-node-details-workspace-btn"
+                  type="button"
+                  title="Open selected node in main workspace"
+                  aria-label="Open selected node in main workspace"
+                  hidden
+                >Open</button>
               </div>
             </div>
             <button
@@ -693,6 +701,18 @@
     <div id="chat-panel-splitter" class="chat-panel-splitter" title="Drag to resize chat workspace and node navigator" aria-hidden="true"></div>
     <main class="workspace-main">
   <div id="dashboard-layout" class="layout view-chat">
+    <section id="node-workspace" class="card node-workspace" aria-label="Selected node history workspace">
+      <button
+        id="node-workspace-back-btn"
+        class="chat-node-details-action-btn node-workspace-back-btn"
+        type="button"
+        title="Snap selected node back to the side panel"
+        aria-label="Snap selected node back to the side panel"
+      >Back</button>
+      <div class="body node-workspace-body">
+        <div id="node-workspace-history-host" class="node-workspace-history-host" aria-label="Selected node history"></div>
+      </div>
+    </section>
     <section class="card settings" aria-label="Settings">
       <div class="body">
         <div class="settings-chrome workspace-chrome-bar">

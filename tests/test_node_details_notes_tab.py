@@ -136,6 +136,58 @@ def test_render_html_places_tag_title_pin_and_mute_actions_in_drawer_header() ->
     assert head_index < tag_index < reset_index < title_index < pin_index < mute_index < tabs_index
 
 
+def test_render_html_includes_node_workspace_snap_controls() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert 'id="chat-node-details-workspace-btn"' in html
+    assert 'id="node-workspace"' in html
+    assert 'id="node-workspace-history-host"' in html
+    assert 'id="node-workspace-back-btn"' in html
+    assert 'id="node-workspace-details-host"' not in html
+    assert 'node-workspace-head' not in html
+    assert 'data-view="node"' not in html
+    assert 'function openNodeWorkspaceFromSelection(options = null)' in js
+    assert 'function closeNodeWorkspaceToDrawer(options = null)' in js
+    assert 'function ensureNodeWorkspaceHistoryTab()' in js
+    assert 'const tabs = nodeHistoryPanel.querySelector(".history-tabs");' in js
+    assert 'tabs.appendChild(nodeWorkspaceBackBtn);' in js
+    assert 'restoreNodeWorkspaceBackButton();' in js
+    assert 'activeLayoutView === "node" && (requestedTab === "overview" || requestedTab === "names")' in js
+    assert 'setHistoryTab("signal");' in js
+    assert 'window.openNodeWorkspaceFromSelection = openNodeWorkspaceFromSelection;' in js
+    assert 'nodeWorkspaceReturnView = normalizeNodeWorkspaceReturnView' in js
+    assert 'renderNodeWorkspace(latestState || {}, cachedNodeHistory(nodeId), nodeId);' in js
+    assert '.layout.view-node .node-workspace {' in css
+    assert '.layout.view-node .node-workspace-history-host {' in css
+    assert '.layout.view-node .node-workspace-history-host #node-history-caption {' in css
+    assert '.layout.view-node .node-workspace-history-host .history-tabs .node-workspace-back-btn {' in css
+    assert 'margin-left: auto;' in css
+    assert 'position: static;' in css
+    assert '.layout.view-node .node-workspace-history-host #tab-btn-overview,' in css
+    assert '.layout.view-node .node-workspace-history-host #tab-panel-overview,' in css
+    assert '.layout.view-node .node-workspace-history-host #tab-btn-names,' in css
+    assert '.layout.view-node .node-workspace-history-host #tab-panel-names {' in css
+    assert '.layout.view-node .node-workspace-history-host #signal-chart-wrap,' in css
+    assert 'height: 100%;' in css
+
+
 def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

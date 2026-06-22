@@ -202,7 +202,7 @@
       nodeSelectionUiState.pendingShouldFocus = false;
 
       let cachedHistory = null;
-      if (latestState && (activeLayoutView === "saved" || activeLayoutView === "network")) {{
+      if (latestState && (activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "node")) {{
         cachedHistory = cachedNodeHistory(activeSelectedId);
       }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
@@ -240,13 +240,21 @@
             subview: activeNetworkSubviewName,
           }});
         }}
+      }} else if (activeLayoutView === "node") {{
+        const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
+        renderNodeWorkspace(latestState || {{}}, cachedHistory, cachedHistory ? "" : activeSelectedId);
+        if (perfToken > 0) {{
+          markNodeSelectionPerf(perfToken, "selection.node_view", phaseStartMs, {{
+            cachedHistory: !!cachedHistory,
+          }});
+        }}
       }} else if (activeLayoutView === "history") {{
         setMapDataMode("activity");
       }} else {{
         setMapDataMode("live");
       }}
 
-      if (latestState && (activeLayoutView !== "network" || networkMapVisible)) {{
+      if (latestState && activeLayoutView !== "node" && (activeLayoutView !== "network" || networkMapVisible)) {{
         const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
         renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedHistory);
         if (perfToken > 0) {{
@@ -270,13 +278,14 @@
       const focusSelection = (
         shouldFocus
         && activeLayoutView !== "saved"
+        && activeLayoutView !== "node"
         && (
           activeLayoutView !== "network"
           || networkMapVisible
         )
       );
       const focusStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
-      if (activeLayoutView !== "network" || networkMapVisible) {{
+      if (activeLayoutView !== "node" && (activeLayoutView !== "network" || networkMapVisible)) {{
         updateMapSelection(focusSelection);
       }}
       scrollSelectionIntoView();
@@ -816,9 +825,12 @@
 
     function setHistoryTab(tabName) {{
       const nextTab = String(tabName || "").trim().toLowerCase();
-      activeHistoryTab = (nextTab === "signal" || nextTab === "link" || nextTab === "online" || nextTab === "packets" || nextTab === "names" || nextTab === "overview")
+      const requestedTab = (nextTab === "signal" || nextTab === "link" || nextTab === "online" || nextTab === "packets" || nextTab === "names" || nextTab === "overview")
         ? nextTab
         : "overview";
+      activeHistoryTab = (activeLayoutView === "node" && (requestedTab === "overview" || requestedTab === "names"))
+        ? "signal"
+        : requestedTab;
       for (const btn of document.querySelectorAll(".history-tab-btn")) {{
         const isActive = btn.dataset.tab === activeHistoryTab;
         btn.classList.toggle("is-active", isActive);
@@ -941,7 +953,9 @@
         loading: true,
         defaultWindowHours: nodeHistoryHours,
       }});
-      renderSavedNodeDetails(latestState || {{}}, null, nodeId);
+      if (activeLayoutView !== "node") {{
+        renderSavedNodeDetails(latestState || {{}}, null, nodeId);
+      }}
     }}
 
     function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{
@@ -1047,6 +1061,7 @@
       if (
         shouldFocus
         && activeLayoutView !== "network"
+        && activeLayoutView !== "node"
         && typeof setChatNodeDetailsDrawerExpanded === "function"
       ) {{
         setChatNodeDetailsDrawerExpanded(true, {{
@@ -1068,6 +1083,7 @@
       const focusSelection = (
         shouldFocus
         && activeLayoutView !== "saved"
+        && activeLayoutView !== "node"
         && (
           activeLayoutView !== "network"
           || (
@@ -1129,6 +1145,16 @@
         }}
         return;
       }}
+      if (activeLayoutView === "node") {{
+        highlightNodeSelection();
+        renderNodeWorkspace(latestState || {{}}, null);
+        if (typeof syncChatNodeDetailsDrawer === "function") {{
+          syncChatNodeDetailsDrawer(latestState, {{
+            fetchHistory: false,
+          }});
+        }}
+        return;
+      }}
       highlightNodeSelection();
       // If the saved-view freshness chip was showing for a selected node, hide it
       // immediately. (The poll loop might see 304s and skip renderSummary.)
@@ -1156,10 +1182,16 @@
         if (shouldRenderSelectionMap) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
         }}
-        renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
-        renderSavedNodeDetails(latestState, null);
+        if (activeLayoutView === "node") {{
+          renderNodeWorkspace(latestState, null);
+        }} else {{
+          renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
+          renderSavedNodeDetails(latestState, null);
+        }}
       }} else {{
-        renderSavedNodeDetails({{}}, null);
+        if (activeLayoutView !== "node") {{
+          renderSavedNodeDetails({{}}, null);
+        }}
       }}
       if (
         activeLayoutView === "network"

@@ -432,8 +432,8 @@
           const historyTargetId304 = activeLayoutView === "saved"
             ? resolveSavedViewNodeId(latestState)
             : normalizeNodeId(selectedNodeId || "");
-          const historyRelevant304 = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible304)
-            && (mapDataFocus !== "activity" || drawerHistoryVisible304)
+          const historyRelevant304 = (activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "node" || drawerHistoryVisible304)
+            && (activeLayoutView === "node" || mapDataFocus !== "activity" || drawerHistoryVisible304)
             && isSelectableNodeId(historyTargetId304);
           const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
           const nodes304 = Array.isArray(latestState.nodes) ? latestState.nodes : [];
@@ -484,6 +484,12 @@
           markPollPerfPhase(pollPerfRun, "not-modified-network");
           if (trafficVisible304) {{
             renderTraffic(traffic304, nodes304, cachedHistory304);
+          }}
+          if (activeLayoutView === "node") {{
+            const loadingId304 = (historyRelevant304 && !cachedHistory304)
+              ? historyTargetId304
+              : "";
+            renderNodeWorkspace(latestState, cachedHistory304, loadingId304);
           }}
           if (activeLayoutView === "files") {{
             renderFilesView(latestState);
@@ -667,8 +673,8 @@
         const historyTargetId = activeLayoutView === "saved"
           ? resolveSavedViewNodeId(state)
           : normalizeNodeId(selectedNodeId || "");
-        const historyRelevant = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible)
-          && (mapDataFocus !== "activity" || drawerHistoryVisible)
+        const historyRelevant = (activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "node" || drawerHistoryVisible)
+          && (activeLayoutView === "node" || mapDataFocus !== "activity" || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
         const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
@@ -751,6 +757,12 @@
 
         if (trafficVisible) {{
           renderTraffic(state.traffic || {{}}, state.nodes || [], cachedHistory);
+        }}
+        if (activeLayoutView === "node") {{
+          const loadingId = (historyRelevant && !cachedHistory)
+            ? historyTargetId
+            : "";
+          renderNodeWorkspace(state, cachedHistory, loadingId);
         }}
         if (activeLayoutView === "files") {{
           renderFilesView(state);

@@ -38,6 +38,10 @@
         return false;
       }}
 
+      if (activeLayoutView === "node") {{
+        return renderNodeWorkspace(latestState || {{}}, nodeHistory);
+      }}
+
       const savedNodeId = activeLayoutView === "saved"
         ? resolveSavedViewNodeId(latestState)
         : "";

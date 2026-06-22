@@ -289,7 +289,8 @@
         typeof isChatNodeDetailsHistoryActive === "function"
         && isChatNodeDetailsHistoryActive()
       );
-      const shouldShowNodeHistoryPanel = activeLayoutView === "saved" || drawerHistoryActive;
+      const nodeWorkspaceActive = activeLayoutView === "node";
+      const shouldShowNodeHistoryPanel = activeLayoutView === "saved" || drawerHistoryActive || nodeWorkspaceActive;
       let historyPanelRendered = false;
 
       if (activeLayoutView === "saved" || networkMapVisible) {{
@@ -323,6 +324,13 @@
         runHistoryViewRenderStep("saved node details", () => {{
           renderSavedNodeDetails(state, nodeHistory);
         }});
+      }}
+
+      if (nodeWorkspaceActive) {{
+        const nodeWorkspaceRender = runHistoryViewRenderStep("node workspace history", () => {{
+          return renderNodeWorkspace(state, nodeHistory);
+        }});
+        historyPanelRendered = !!nodeWorkspaceRender.result || historyPanelRendered;
       }}
 
       if (drawerHistoryActive) {{
@@ -368,7 +376,7 @@
         }}
         return null;
       }}
-      if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpanded)) {{
+      if (!(activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "node" || drawerExpanded)) {{
         // No need to load node history unless the map views that can use it are visible.
         abortNodeHistoryFetch();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
@@ -379,7 +387,7 @@
         }}
         return null;
       }}
-      if (mapDataFocus === "activity" && !drawerExpanded) {{
+      if (mapDataFocus === "activity" && !drawerExpanded && activeLayoutView !== "node") {{
         // When showing online activity, keep node history idle.
         abortNodeHistoryFetch();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
@@ -427,7 +435,7 @@
       nodeHistoryFetchAbort = new AbortController();
       const signal = nodeHistoryFetchAbort.signal;
 
-      if (!cachedData && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+      if (!cachedData && (activeLayoutView === "saved" || activeLayoutView === "node" || drawerHistoryActive)) {{
         renderNodeHistoryLoading(nodeId);
       }}
 
@@ -442,8 +450,8 @@
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
         );
-        if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpandedNow)) return null;
-        if (mapDataFocus === "activity" && !drawerExpandedNow) return null;
+        if (!(activeLayoutView === "saved" || activeLayoutView === "network" || activeLayoutView === "node" || drawerExpandedNow)) return null;
+        if (mapDataFocus === "activity" && !drawerExpandedNow && activeLayoutView !== "node") return null;
         applyNodeHistoryToView(data);
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.history_refresh", perfStartMs, {{
@@ -458,7 +466,7 @@
         if (seq !== nodeHistoryFetchSeq) return null;
         const msg = err instanceof Error ? err.message : String(err || "unknown error");
         const caption = document.getElementById("node-history-caption");
-        if (caption && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+        if (caption && (activeLayoutView === "saved" || activeLayoutView === "node" || drawerHistoryActive)) {{
           caption.textContent = `History error for ${{nodeId}}: ${{msg}}`;
         }}
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{

@@ -8958,17 +8958,20 @@
       }}
     }}
     @media (max-width: 760px) {{
-      .workspace-shell[data-layout-view="network"] {{
+      .workspace-shell[data-layout-view="network"],
+      .workspace-shell[data-layout-view="node"] {{
         min-height: calc(100dvh - var(--workspace-viewport-offset));
         height: calc(100dvh - var(--workspace-viewport-offset));
         overflow: hidden;
       }}
-      .workspace-shell[data-layout-view="network"] .workspace-main {{
+      .workspace-shell[data-layout-view="network"] .workspace-main,
+      .workspace-shell[data-layout-view="node"] .workspace-main {{
         min-height: 0;
         height: 100%;
         overflow: hidden;
       }}
-      .workspace-shell[data-layout-view="network"] .workspace-main > .layout.view-network {{
+      .workspace-shell[data-layout-view="network"] .workspace-main > .layout.view-network,
+      .workspace-shell[data-layout-view="node"] .workspace-main > .layout.view-node {{
         min-height: 0;
         height: 100%;
       }}
@@ -9226,8 +9229,16 @@
     [data-theme="dark"] .workspace-pill-btn {{
       color: var(--workspace-shell-text-soft);
     }}
+    [data-theme="dark"] .layout.view-node .node-workspace-history-host .history-tabs .node-workspace-back-btn {{
+      color: var(--workspace-shell-text-soft);
+    }}
     [data-theme="dark"] .network-map-subview-tab:hover,
     [data-theme="dark"] .workspace-pill-btn:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .layout.view-node .node-workspace-history-host .history-tabs .node-workspace-back-btn:hover {{
       background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
       border-color: var(--workspace-shell-border-muted);
       color: var(--workspace-shell-text);
