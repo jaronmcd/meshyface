@@ -25,6 +25,7 @@
 
     function historyChartPalette() {{
       const darkTheme = document.documentElement.getAttribute("data-theme") === "dark";
+      const blueColor = historyChartSeriesPaletteColor("blue", "#0072B2");
       const lineColor = historyChartSeriesPaletteColor("bluish green", "#009E73");
       const compareColor = historyChartSeriesPaletteColor("sky blue", "#56B4E9");
       const aux1Color = historyChartSeriesPaletteColor("orange", "#E69F00");
@@ -38,16 +39,21 @@
           : "#dce8df",
         line: lineColor,
         compare: compareColor,
+        blue: blueColor,
         aux1: aux1Color,
         aux2: aux2Color,
         label: lineColor,
         compareLabel: compareColor,
         aux1Label: aux1Color,
         danger: dangerColor,
-        signalWeak: dangerColor,
-        signalMarginal: aux1Color,
-        signalMid: warnColor,
-        signalStrong: lineColor,
+        signalSnrWeak: dangerColor,
+        signalSnrMarginal: aux1Color,
+        signalSnrMid: warnColor,
+        signalSnrStrong: lineColor,
+        signalRssiWeak: aux2Color,
+        signalRssiMarginal: blueColor,
+        signalRssiMid: compareColor,
+        signalRssiStrong: "#8EE6FF",
         connector: darkTheme
           ? historyChartThemeColor("--workspace-shell-border-muted", "#324152")
           : "#c3d2dc",
@@ -131,22 +137,47 @@
       return `#${{toHex(start.r + ((end.r - start.r) * weight))}}${{toHex(start.g + ((end.g - start.g) * weight))}}${{toHex(start.b + ((end.b - start.b) * weight))}}`;
     }}
 
-    function signalChartQualityColor(score, chartPalette) {{
+    function signalChartQualityScale(metricKey, chartPalette) {{
       const palette = (chartPalette && typeof chartPalette === "object") ? chartPalette : {{}};
-      const lowColor = palette.signalWeak || palette.danger || "#D55E00";
-      const marginalColor = palette.signalMarginal || palette.aux1 || "#E69F00";
-      const midColor = palette.signalMid || "#F0E442";
-      const highColor = palette.signalStrong || palette.line || "#009E73";
+      if (String(metricKey || "") === "avg_rssi") {{
+        return {{
+          low: palette.signalRssiWeak || palette.aux2 || "#CC79A7",
+          marginal: palette.signalRssiMarginal || palette.blue || "#0072B2",
+          mid: palette.signalRssiMid || palette.compare || "#56B4E9",
+          high: palette.signalRssiStrong || palette.compare || "#56B4E9",
+        }};
+      }}
+      return {{
+        low: palette.signalSnrWeak || palette.danger || "#D55E00",
+        marginal: palette.signalSnrMarginal || palette.aux1 || "#E69F00",
+        mid: palette.signalSnrMid || "#F0E442",
+        high: palette.signalSnrStrong || palette.line || "#009E73",
+      }};
+    }}
+
+    function signalChartQualityColor(score, chartPalette, metricKey = "avg_snr") {{
+      const palette = (chartPalette && typeof chartPalette === "object") ? chartPalette : {{}};
+      const scale = signalChartQualityScale(metricKey, palette);
       const rawQuality = Number(score);
       if (!Number.isFinite(rawQuality)) return palette.offline || "#999999";
       const quality = Math.max(0, Math.min(1, rawQuality));
       if (quality <= 0.33) {{
-        return signalChartBlendHex(lowColor, marginalColor, quality / 0.33);
+        return signalChartBlendHex(scale.low, scale.marginal, quality / 0.33);
       }}
       if (quality <= 0.66) {{
-        return signalChartBlendHex(marginalColor, midColor, (quality - 0.33) / 0.33);
+        return signalChartBlendHex(scale.marginal, scale.mid, (quality - 0.33) / 0.33);
       }}
-      return signalChartBlendHex(midColor, highColor, (quality - 0.66) / 0.34);
+      return signalChartBlendHex(scale.mid, scale.high, (quality - 0.66) / 0.34);
+    }}
+
+    function signalChartQualityLegendGradient(metricKey, chartPalette) {{
+      const scale = signalChartQualityScale(metricKey, chartPalette);
+      return `linear-gradient(90deg, ${{scale.low}} 0%, ${{scale.marginal}} 33%, ${{scale.mid}} 66%, ${{scale.high}} 100%)`;
+    }}
+
+    function signalChartQualityLegendMarkerLeft(score) {{
+      const quality = Math.max(0, Math.min(1, Number(score) || 0));
+      return `${{(quality * 100).toFixed(1)}}%`;
     }}
 
     function buildSignalChartQualityGradientStops(
@@ -170,7 +201,7 @@
         if (stops.length && offset < lastOffset) offset = lastOffset;
         lastOffset = offset;
         const score = signalChartNormalizeQuality(value, metricKey, profile);
-        const color = signalChartQualityColor(score, chartPalette);
+        const color = signalChartQualityColor(score, chartPalette, metricKey);
         stops.push({{ offset, color }});
       }}
       if (!stops.length) return "";
@@ -195,6 +226,80 @@
       const x1 = Number(padLeft) || 0;
       const x2 = x1 + Math.max(1, Number(plotWidth) || 1);
       return `<linearGradient id="${{escAttr(id)}}" gradientUnits="userSpaceOnUse" x1="${{x1.toFixed(2)}}" y1="0" x2="${{x2.toFixed(2)}}" y2="0">${{body}}</linearGradient>`;
+    }}
+
+    function signalChartLegendMetricMeta(metricKey) {{
+      if (String(metricKey || "") === "avg_rssi") {{
+        return {{
+          label: "Avg RSSI",
+          unit: " dBm",
+          precision: 0,
+        }};
+      }}
+      return {{
+        label: "Avg SNR",
+        unit: " dB",
+        precision: 1,
+      }};
+    }}
+
+    function resetSignalChartLegendQuality() {{
+      const chips = document.querySelectorAll(".signal-legend .legend-chip[data-signal-legend-metric]");
+      for (const chip of chips) {{
+        if (!(chip instanceof HTMLElement)) continue;
+        chip.classList.remove("has-dynamic-quality-gradient", "has-average-marker");
+        chip.style.removeProperty("--signal-legend-quality-gradient");
+        chip.style.removeProperty("--signal-legend-quality-marker-left");
+        chip.removeAttribute("title");
+        chip.removeAttribute("aria-label");
+      }}
+    }}
+
+    function updateSignalChartLegendQuality(rows, profile, chartPalette) {{
+      const source = Array.isArray(rows) ? rows : [];
+      const chips = document.querySelectorAll(".signal-legend .legend-chip[data-signal-legend-metric]");
+      for (const chip of chips) {{
+        if (!(chip instanceof HTMLElement)) continue;
+        const metricKey = String(chip.getAttribute("data-signal-legend-metric") || "").trim();
+        const meta = signalChartLegendMetricMeta(metricKey);
+        chip.classList.add("has-dynamic-quality-gradient");
+        chip.style.setProperty(
+          "--signal-legend-quality-gradient",
+          signalChartQualityLegendGradient(metricKey, chartPalette)
+        );
+        let valueTotal = 0;
+        let qualityTotal = 0;
+        let count = 0;
+        for (const row of source) {{
+          const value = Number(row && row[metricKey]);
+          if (!Number.isFinite(value)) continue;
+          const quality = signalChartNormalizeQuality(value, metricKey, profile);
+          if (!Number.isFinite(quality)) continue;
+          valueTotal += value;
+          qualityTotal += quality;
+          count += 1;
+        }}
+        if (count <= 0) {{
+          chip.classList.remove("has-average-marker");
+          chip.style.removeProperty("--signal-legend-quality-marker-left");
+          chip.title = `${{meta.label}} quality scale: bad to good; no visible points`;
+          chip.setAttribute("aria-label", `${{meta.label}} quality scale: bad to good; no visible points`);
+          continue;
+        }}
+        const avgValue = valueTotal / count;
+        const avgQuality = qualityTotal / count;
+        const valueText = Number.isFinite(avgValue)
+          ? `${{formatMetricValue(avgValue, meta.precision)}}${{meta.unit}}`
+          : "n/a";
+        const qualityText = `${{Math.round(Math.max(0, Math.min(1, avgQuality)) * 100)}}%`;
+        chip.classList.add("has-average-marker");
+        chip.style.setProperty("--signal-legend-quality-marker-left", signalChartQualityLegendMarkerLeft(avgQuality));
+        chip.title = `${{meta.label}} quality scale: bad to good; visible average: ${{valueText}}; average quality: ${{qualityText}}`;
+        chip.setAttribute(
+          "aria-label",
+          `${{meta.label}} quality scale bad to good, visible average ${{valueText}}, average quality ${{qualityText}}`
+        );
+      }}
     }}
 
     function renderSignalChart(points) {{
@@ -238,6 +343,7 @@
         svg.innerHTML = "";
         empty.hidden = false;
         empty.textContent = "No historical signal points yet for this node.";
+        resetSignalChartLegendQuality();
         renderSignalTimeline(plotRows, padLeft, padRight, width);
         return;
       }}
@@ -264,6 +370,7 @@
       );
       const chartPalette = historyChartPalette();
       const signalQualityProfile = resolveSignalChartQualityProfile();
+      updateSignalChartLegendQuality(plotRows, signalQualityProfile, chartPalette);
 
       const buildLinearPath = (points) => {{
         const source = Array.isArray(points) ? points : [];

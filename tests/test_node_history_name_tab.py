@@ -126,11 +126,25 @@ def test_render_html_uses_palette_classes_for_node_history_legends() -> None:
         revision_title="test",
     )
 
-    assert 'class="legend-chip is-primary">Avg SNR (dB)</span>' in html
-    assert 'class="legend-chip is-compare">Avg RSSI (dBm)</span>' in html
+    assert 'data-signal-legend-metric="avg_snr"><span class="legend-chip-label">Avg SNR (dB)</span><span class="quality-scale-label">Bad</span><span class="quality-scale-track" aria-hidden="true"></span><span class="quality-scale-label">Good</span>' in html
+    assert 'data-signal-legend-metric="avg_rssi"><span class="legend-chip-label">Avg RSSI (dBm)</span><span class="quality-scale-label">Bad</span><span class="quality-scale-track" aria-hidden="true"></span><span class="quality-scale-label">Good</span>' in html
     assert 'class="legend-chip is-primary">Packets per minute (history buckets)</span>' in html
     assert 'style="color:#1f6f53;"' not in html
     assert 'style="color:#265d7b;"' not in html
+
+
+def test_dashboard_css_supports_dynamic_signal_legend_quality_gradient() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert "grid-template-columns: minmax(0, 1fr);" in css
+    assert ".signal-legend .legend-chip.has-dynamic-quality-gradient .quality-scale-track {" in css
+    assert ".signal-legend .legend-chip.has-dynamic-quality-gradient.has-average-marker .quality-scale-track::after {" in css
+    section = css.split(".signal-legend .legend-chip.has-dynamic-quality-gradient .quality-scale-track {", 1)[1].split("}", 1)[0]
+    marker_section = css.split(".signal-legend .legend-chip.has-dynamic-quality-gradient.has-average-marker .quality-scale-track::after {", 1)[1].split("}", 1)[0]
+
+    assert "var(--signal-legend-quality-gradient, currentColor)" in section
+    assert "var(--signal-legend-quality-marker-left, 50%)" in marker_section
+    assert ".quality-scale-label" in css
 
 
 def test_dashboard_js_colors_signal_history_by_absolute_signal_quality() -> None:
@@ -142,13 +156,39 @@ def test_dashboard_js_colors_signal_history_by_absolute_signal_quality() -> None
 
     assert "function resolveSignalChartQualityProfile()" in js
     assert "normalizeSignalForHeat(rawValue, range.min, range.max)" in js
+    assert "function signalChartQualityScale(metricKey, chartPalette)" in js
+    assert "signalSnrWeak" in js
+    assert "signalRssiWeak" in js
     assert "buildSignalChartQualityGradientStops(" in js
+    assert "signalChartQualityColor(score, chartPalette, metricKey)" in js
     assert "signal-chart-${safeMetricId}-raw-quality-gradient" in js
     assert "signal-chart-${safeMetricId}-trend-quality-gradient" in js
     assert 'stroke="${escAttr(snrPaths.rawStroke)}"' in js
     assert 'stroke="${escAttr(rssiPaths.trendStroke)}"' in js
     assert 'stroke="${chartPalette.line}" stroke-width="2.15"' not in js
     assert 'stroke="${chartPalette.compare}" stroke-width="2.15"' not in js
+
+
+def test_dashboard_js_updates_signal_legend_average_quality_colors() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function updateSignalChartLegendQuality(rows, profile, chartPalette)" in js
+    assert "function signalChartQualityLegendGradient(metricKey, chartPalette)" in js
+    assert "function signalChartQualityLegendMarkerLeft(score)" in js
+    assert "linear-gradient(90deg, ${scale.low}" in js
+    assert "quality scale bad to good" in js
+    assert '${(quality * 100).toFixed(1)}%' in js
+    assert '".signal-legend .legend-chip[data-signal-legend-metric]"' in js
+    assert 'chip.classList.add("has-dynamic-quality-gradient");' in js
+    assert 'chip.classList.add("has-average-marker");' in js
+    assert '"--signal-legend-quality-gradient"' in js
+    assert 'chip.style.setProperty("--signal-legend-quality-marker-left", signalChartQualityLegendMarkerLeft(avgQuality));' in js
+    assert 'updateSignalChartLegendQuality(plotRows, signalQualityProfile, chartPalette);' in js
+    assert "resetSignalChartLegendQuality();" in js
 
 
 def test_drawer_history_charts_expand_for_node_detail_views() -> None:
