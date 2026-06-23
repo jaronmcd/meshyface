@@ -133,6 +133,24 @@ def test_render_html_uses_palette_classes_for_node_history_legends() -> None:
     assert 'style="color:#265d7b;"' not in html
 
 
+def test_dashboard_js_colors_signal_history_by_absolute_signal_quality() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function resolveSignalChartQualityProfile()" in js
+    assert "normalizeSignalForHeat(rawValue, range.min, range.max)" in js
+    assert "buildSignalChartQualityGradientStops(" in js
+    assert "signal-chart-${safeMetricId}-raw-quality-gradient" in js
+    assert "signal-chart-${safeMetricId}-trend-quality-gradient" in js
+    assert 'stroke="${escAttr(snrPaths.rawStroke)}"' in js
+    assert 'stroke="${escAttr(rssiPaths.trendStroke)}"' in js
+    assert 'stroke="${chartPalette.line}" stroke-width="2.15"' not in js
+    assert 'stroke="${chartPalette.compare}" stroke-width="2.15"' not in js
+
+
 def test_drawer_history_charts_expand_for_node_detail_views() -> None:
     css = build_dashboard_css(theme_css="")
 
