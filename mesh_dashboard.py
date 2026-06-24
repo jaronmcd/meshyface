@@ -173,6 +173,17 @@ def _validate_sideband_traffic_startup_args(
         )
 
 
+def _warn_if_cli_api_token(args: argparse.Namespace) -> None:
+    if not bool(getattr(args, "api_token_supplied_via_cli", False)):
+        return
+    if not str(getattr(args, "api_token", "") or "").strip():
+        return
+    print(
+        "Warning: --api-token exposes the token to local process listings and "
+        "shell history. Prefer MESH_DASH_API_TOKEN on shared hosts."
+    )
+
+
 def _apply_default_gateway(args: argparse.Namespace) -> None:
     # If the user did not override the transport, prefer the shared TCP gateway.
     if bool(getattr(args, "no_default_gateway", False)):
@@ -694,6 +705,7 @@ def main() -> None:
     if bool(getattr(args, "backfill_environment_rollups", False)):
         run_environment_rollup_backfill(args)
         return
+    _warn_if_cli_api_token(args)
     _apply_default_gateway(args)
     run_dashboard(args)
 

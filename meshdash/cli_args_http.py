@@ -1,6 +1,19 @@
 import argparse
 
 
+class _ApiTokenAction(argparse.Action):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        setattr(namespace, self.dest, values)
+        setattr(namespace, "api_token_supplied_via_cli", True)
+
+
 def add_http_runtime_args(
     parser: argparse.ArgumentParser,
     *,
@@ -18,6 +31,7 @@ def add_http_runtime_args(
     default_file_transfer_max_bytes: int = 64 * 1024,
     default_accept_file_transfer_traffic_disclaimer: bool = False,
 ) -> None:
+    parser.set_defaults(api_token_supplied_via_cli=False)
     parser.add_argument(
         "--http-host",
         default=default_http_host,
@@ -75,10 +89,12 @@ def add_http_runtime_args(
     )
     parser.add_argument(
         "--api-token",
+        action=_ApiTokenAction,
         default=default_api_token,
         help=(
             "Optional API token required on write endpoints via Authorization: Bearer <token> "
-            "or X-API-Token header."
+            "or X-API-Token header. Prefer MESH_DASH_API_TOKEN on shared hosts; "
+            "command-line tokens may appear in process listings and shell history."
         ),
     )
     parser.add_argument(

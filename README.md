@@ -597,7 +597,9 @@ Related environment variables:
 - `--private-mode` / `--no-private-mode`: strip public chat slices and block
   selected public endpoints
 - `--api-token <token>`: require auth on write endpoints via
-  `Authorization: Bearer <token>` or `X-API-Token`
+  `Authorization: Bearer <token>` or `X-API-Token`; prefer
+  `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
+  in process listings and shell history
 - `--bbs-enable` / `--no-bbs-enable`: expose or hide the BBS/profile workspace
   when `--accept-file-transfer-traffic-disclaimer` is also set
 - `--games-enable` / `--no-games-enable`: enable playable Zork console
@@ -662,7 +664,10 @@ Related environment variables:
 - This dashboard is intended for trusted LAN/VPN environments.
 - Do not expose it directly to the public internet without a reverse proxy and
   access control.
-- Use `--private-mode` and/or `--api-token` for stricter write-path control.
+- Use `--private-mode` and/or an API token for stricter write-path control.
+- Prefer `MESH_DASH_API_TOKEN` over `--api-token` on shared or multi-user
+  hosts. A command-line token can be visible in process listings and retained
+  in shell history.
 - The built-in `Join Meshyface` channel preset uses an intentionally public
   shared Meshyface PSK for interoperability between users of this software. Do
   not use that public channel for private traffic.
