@@ -11704,6 +11704,8 @@
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = next === "network" && activeNetworkSubview === "top10";
+        const networkMapSubviewActive = next === "network" && networkSubviewUsesMap(activeNetworkSubview);
+        const networkNodesTableActive = next === "network" && (networkMapSubviewActive || activeNetworkSubview === "overview");
         const nodeWorkspaceActive = next === "node";
         let cachedNodeHistory = null;
         const viewHistoryNodeId = next === "saved"
@@ -11725,11 +11727,15 @@
         ) {{
           renderChatNodeNavigatorList(latestState);
         }}
-        if (next === "saved" || next === "network") {{
+        if (next === "saved" || networkMapSubviewActive) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
         }}
         if (next === "network") {{
-          renderNodes(latestState.nodes || []);
+          if (networkNodesTableActive) {{
+            renderNodes(latestState.nodes || []);
+          }} else if (typeof clearHiddenNodesTable === "function") {{
+            clearHiddenNodesTable();
+          }}
           if (networkGraphActive && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(latestState);
           }} else if (networkGraphActive && typeof requestImmediatePoll === "function") {{

@@ -460,10 +460,11 @@
           const freshnessTicked304 = maybeTickFreshnessUIForPoll(latestState, {{
             stateKey: stateEtag,
           }});
+          const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
           const shouldHydrateNavigator304 = !isChatWorkspaceLayoutView(activeLayoutView)
             && shouldHydrateNodeNavigatorRoster(latestState);
           const fullCachedPollRender304 = !!(
-            freshnessTicked304
+            (freshnessTicked304 && !networkGraphActive304)
             || shouldHydrateNavigator304
           );
           markPollPerfPhase(pollPerfRun, "not-modified-context", {{
@@ -493,6 +494,12 @@
             if (historyStale304) {{
               void refreshSelectedNodeHistory(false);
             }}
+            if (freshnessTicked304 && networkGraphActive304) {{
+              renderSummary(latestState);
+              if (typeof clearHiddenNodesTable === "function") {{
+                clearHiddenNodesTable();
+              }}
+            }}
             scheduleFileTransferMaintenance(latestState);
             markPollPerfPhase(pollPerfRun, "not-modified-maintenance", {{
               freshnessTicked: freshnessTicked304,
@@ -517,11 +524,15 @@
             renderMap(nodes304, traffic304.edges || [], cachedHistory304);
           }}
           markPollPerfPhase(pollPerfRun, "not-modified-map");
-          const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
           const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";
           const networkTopNodesActive304 = activeLayoutView === "network" && activeNetworkSubview === "top10";
+          const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || activeNetworkSubview === "overview");
           if (activeLayoutView === "network") {{
-            renderNodes(nodes304);
+            if (networkNodesTableActive304) {{
+              renderNodes(nodes304);
+            }} else if (typeof clearHiddenNodesTable === "function") {{
+              clearHiddenNodesTable();
+            }}
             if (networkGraphActive304 && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
               renderNetworkGraphView(latestState);
             }}
@@ -725,6 +736,7 @@
         const networkRoutesActive = activeLayoutView === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = activeLayoutView === "network" && activeNetworkSubview === "top10";
         const networkSensorsActive = activeLayoutView === "network" && activeNetworkSubview === "sensors";
+        const networkNodesTableActive = activeLayoutView === "network" && (networkMapActive || activeNetworkSubview === "overview");
 
         if (mapVisible && !mapBootstrapFocusDone) {{
           const bootstrap = applyMapBootstrapFocus(state.nodes || [], state);
@@ -774,7 +786,11 @@
         markPollPerfPhase(pollPerfRun, "render-map", {{ mapVisible }});
 
         if (activeLayoutView === "network") {{
-          renderNodes(state.nodes || []);
+          if (networkNodesTableActive) {{
+            renderNodes(state.nodes || []);
+          }} else if (typeof clearHiddenNodesTable === "function") {{
+            clearHiddenNodesTable();
+          }}
           if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(state);
           }}
