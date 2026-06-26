@@ -455,6 +455,13 @@ provisioned. A deploy-helper-managed app directory is also a copied payload, not
 a git checkout, so update those hosts by rerunning the helper instead of using
 the in-app git updater.
 
+If the target already has `meshtastic-dashboard.service` installed with a
+different runtime layout, the helper refuses to deploy before copying files.
+This prevents pushing a payload into one directory while systemd continues to
+serve another checkout. Use `--bootstrap`/`--wipe-remote-root` to convert the
+host to the helper-managed layout, or keep the existing git checkout and update
+it through the Settings Software panel.
+
 ### Push bootstrap/deploy from your workstation
 
 From this repo:

@@ -447,6 +447,61 @@
             pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
             return;
           }}
+          const nowMs304 = Date.now();
+          const ttlMs304 = Math.max(refreshMs * 2, 8000);
+          const historyCacheEntry304 = historyRelevant304 ? nodeHistoryCache.get(historyTargetId304) : null;
+          const historyStale304 = !!(
+            historyRelevant304
+            && (
+              !(historyCacheEntry304 && historyCacheEntry304.data)
+              || (nowMs304 - (historyCacheEntry304.fetchedAt || 0)) >= ttlMs304
+            )
+          );
+          const freshnessTicked304 = maybeTickFreshnessUIForPoll(latestState, {{
+            stateKey: stateEtag,
+          }});
+          const shouldHydrateNavigator304 = !isChatWorkspaceLayoutView(activeLayoutView)
+            && shouldHydrateNodeNavigatorRoster(latestState);
+          const fullCachedPollRender304 = !!(
+            freshnessTicked304
+            || shouldHydrateNavigator304
+          );
+          markPollPerfPhase(pollPerfRun, "not-modified-context", {{
+            hidden: hidden304,
+            freshnessTicked: freshnessTicked304,
+            fullRender: fullCachedPollRender304,
+            historyRelevant: historyRelevant304,
+            historyStale: historyStale304,
+            hydrateNavigator: shouldHydrateNavigator304,
+          }});
+          if (!fullCachedPollRender304) {{
+            let chatMaintainedThisPoll304 = false;
+            if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+              refreshUnchangedChatWorkspace(latestState, Math.floor(nowMs304 / 1000));
+              chatMaintainedThisPoll304 = true;
+            }}
+            if (
+              typeof syncChatNodeDetailsDrawer === "function"
+              && typeof isChatNodeDetailsDrawerExpanded === "function"
+              && isChatNodeDetailsDrawerExpanded()
+            ) {{
+              syncChatNodeDetailsDrawer(latestState, {{
+                // Keep drawer history fresh across non-chat screens without rebuilding the active view.
+                fetchHistory: true,
+              }});
+            }}
+            if (historyStale304) {{
+              void refreshSelectedNodeHistory(false);
+            }}
+            scheduleFileTransferMaintenance(latestState);
+            markPollPerfPhase(pollPerfRun, "not-modified-maintenance", {{
+              freshnessTicked: freshnessTicked304,
+              fullRender: false,
+              historyStale: historyStale304,
+              chatMaintained: chatMaintainedThisPoll304,
+            }});
+            return;
+          }}
           if (
             activeLayoutView === "network"
             && !networkSubviewUsesMap(activeNetworkSubview)
@@ -458,10 +513,6 @@
           const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
           const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
           const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
-          markPollPerfPhase(pollPerfRun, "not-modified-context", {{
-            hidden: hidden304,
-            mapVisible: mapVisible304,
-          }});
           if (mapVisible304) {{
             renderMap(nodes304, traffic304.edges || [], cachedHistory304);
           }}
@@ -559,21 +610,14 @@
               fetchHistory: true,
             }});
           }}
-          if (historyRelevant304) {{
-            const cached = nodeHistoryCache.get(historyTargetId304);
-            const nowMs = Date.now();
-            const ttlMs = Math.max(refreshMs * 2, 8000);
-            const stale = !(cached && cached.data) || (nowMs - (cached.fetchedAt || 0)) >= ttlMs;
-            if (stale) {{
-              void refreshSelectedNodeHistory(false);
-            }}
+          if (historyStale304) {{
+            void refreshSelectedNodeHistory(false);
           }}
           scheduleFileTransferMaintenance(latestState);
-          const freshnessTicked304 = maybeTickFreshnessUIForPoll(latestState, {{
-            stateKey: stateEtag,
-          }});
           markPollPerfPhase(pollPerfRun, "not-modified-maintenance", {{
             freshnessTicked: freshnessTicked304,
+            fullRender: true,
+            historyStale: historyStale304,
           }});
           return;
         }}

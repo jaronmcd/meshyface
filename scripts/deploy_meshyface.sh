@@ -37,6 +37,7 @@ Options:
   --wipe-remote-root       Remove Meshyface service + REMOTE_ROOT, then bootstrap fresh.
   --uninstall              Remove Meshyface service + managed files from the target and exit.
   --hard-reboot            Force reboot the target after uninstall or deploy.
+  --remote-root <path>     Managed root on target host.
   --mesh-host <ip_or_dns>  Radio host for dashboard.env MESH_HOST.
   --mesh-port <port>       Radio TCP port (default: 4403).
   --serial-path <path>     Radio serial device path for dashboard.env MESH_SERIAL_PATH.
@@ -127,6 +128,14 @@ REMOTE_PYTHON="${MESH_DASH_DEPLOY_REMOTE_PYTHON:-}"
 SERVICE_NAME="${MESH_DASH_DEPLOY_SERVICE:-meshtastic-dashboard}"
 SERVICE_USER="${MESH_DASH_DEPLOY_SERVICE_USER:-}"
 SERVICE_GROUP="${MESH_DASH_DEPLOY_SERVICE_GROUP:-dialout}"
+SERVICE_USER_SET=0
+SERVICE_GROUP_SET=0
+if [[ -n "${MESH_DASH_DEPLOY_SERVICE_USER+x}" ]]; then
+  SERVICE_USER_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_SERVICE_GROUP+x}" ]]; then
+  SERVICE_GROUP_SET=1
+fi
 
 BOOTSTRAP=0
 CLEAN_APP_DIR="${MESH_DASH_DEPLOY_CLEAN_APP_DIR:-0}"
@@ -171,6 +180,7 @@ fi
 if [[ -n "${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER+x}" ]]; then
   ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
 fi
+
 SSH_OPTS=(-F /dev/null)
 SCP_OPTS=(-F /dev/null)
 if [[ -n "${USER:-}" ]]; then
@@ -433,6 +443,137 @@ read_remote_identity() {
   fi
 }
 
+DETECTED_SERVICE_UNIT=0
+DETECTED_SERVICE_USER=""
+DETECTED_SERVICE_GROUP=""
+DETECTED_SERVICE_WORKING_DIR=""
+DETECTED_SERVICE_ENV_FILE=""
+DETECTED_SERVICE_CONFIG_DIR=""
+DETECTED_SERVICE_EXEC_START=""
+DETECTED_SERVICE_APP_DIR=""
+DETECTED_SERVICE_REMOTE_PYTHON=""
+
+strip_optional_systemd_path_prefix() {
+  local value="$1"
+  while [[ "${value}" == -* ]]; do
+    value="${value#-}"
+  done
+  printf '%s\n' "${value}"
+}
+
+detect_existing_service_layout() {
+  DETECTED_SERVICE_UNIT=0
+  DETECTED_SERVICE_USER=""
+  DETECTED_SERVICE_GROUP=""
+  DETECTED_SERVICE_WORKING_DIR=""
+  DETECTED_SERVICE_ENV_FILE=""
+  DETECTED_SERVICE_CONFIG_DIR=""
+  DETECTED_SERVICE_EXEC_START=""
+  DETECTED_SERVICE_APP_DIR=""
+  DETECTED_SERVICE_REMOTE_PYTHON=""
+
+  local unit_lines
+  unit_lines="$(
+    ssh_cmd "${TARGET}" "\
+if systemctl cat '${SERVICE_NAME}' >/dev/null 2>&1; then \
+  systemctl cat '${SERVICE_NAME}' | awk -F= '/^(User|Group|WorkingDirectory|EnvironmentFile|ExecStart)=/{print}'; \
+fi" 2>/dev/null || true
+  )"
+  if [[ -z "${unit_lines}" ]]; then
+    return 0
+  fi
+
+  DETECTED_SERVICE_UNIT=1
+  local line key value token env_file
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "${key}" in
+      User)
+        [[ -n "${value}" ]] && DETECTED_SERVICE_USER="${value}"
+        ;;
+      Group)
+        [[ -n "${value}" ]] && DETECTED_SERVICE_GROUP="${value}"
+        ;;
+      WorkingDirectory)
+        [[ -n "${value}" ]] && DETECTED_SERVICE_WORKING_DIR="${value}"
+        ;;
+      EnvironmentFile)
+        if [[ -n "${value}" ]]; then
+          env_file="${value%%[[:space:]]*}"
+          DETECTED_SERVICE_ENV_FILE="$(strip_optional_systemd_path_prefix "${env_file}")"
+        fi
+        ;;
+      ExecStart)
+        [[ -n "${value}" ]] && DETECTED_SERVICE_EXEC_START="${value}"
+        ;;
+    esac
+  done <<< "${unit_lines}"
+
+  if [[ -n "${DETECTED_SERVICE_ENV_FILE}" ]]; then
+    DETECTED_SERVICE_CONFIG_DIR="$(dirname "${DETECTED_SERVICE_ENV_FILE}")"
+  fi
+  if [[ -n "${DETECTED_SERVICE_EXEC_START}" ]]; then
+    DETECTED_SERVICE_REMOTE_PYTHON="${DETECTED_SERVICE_EXEC_START%%[[:space:]]*}"
+    for token in ${DETECTED_SERVICE_EXEC_START}; do
+      case "${token}" in
+        */mesh_dashboard.py)
+          DETECTED_SERVICE_APP_DIR="$(dirname "${token}")"
+          ;;
+      esac
+    done
+  fi
+  if [[ -z "${DETECTED_SERVICE_APP_DIR}" && -n "${DETECTED_SERVICE_WORKING_DIR}" ]]; then
+    DETECTED_SERVICE_APP_DIR="${DETECTED_SERVICE_WORKING_DIR}"
+  fi
+}
+
+guard_existing_service_layout_matches_deploy() {
+  if [[ "${DETECTED_SERVICE_UNIT}" -ne 1 ]]; then
+    return 0
+  fi
+  if [[ "${BOOTSTRAP}" -eq 1 || "${WIPE_REMOTE_ROOT}" -eq 1 || "${UNINSTALL}" -eq 1 ]]; then
+    return 0
+  fi
+
+  local mismatch=0
+  local reasons=()
+  if [[ -n "${DETECTED_SERVICE_APP_DIR}" && "${DETECTED_SERVICE_APP_DIR}" != "${APP_DIR}" ]]; then
+    mismatch=1
+    reasons+=("service app_dir=${DETECTED_SERVICE_APP_DIR}, deploy app_dir=${APP_DIR}")
+  fi
+  if [[ -n "${DETECTED_SERVICE_CONFIG_DIR}" && "${DETECTED_SERVICE_CONFIG_DIR}" != "${CONFIG_DIR}" ]]; then
+    mismatch=1
+    reasons+=("service config_dir=${DETECTED_SERVICE_CONFIG_DIR}, deploy config_dir=${CONFIG_DIR}")
+  fi
+  if [[ -n "${DETECTED_SERVICE_REMOTE_PYTHON}" && "${DETECTED_SERVICE_REMOTE_PYTHON}" != "${REMOTE_PYTHON}" ]]; then
+    mismatch=1
+    reasons+=("service python=${DETECTED_SERVICE_REMOTE_PYTHON}, deploy python=${REMOTE_PYTHON}")
+  fi
+
+  if [[ "${mismatch}" -eq 0 ]]; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+Refusing to deploy because ${SERVICE_NAME}.service is already installed with a different runtime layout.
+
+$(printf '  - %s\n' "${reasons[@]}")
+
+This prevents copying a new payload to one directory while systemd keeps serving another.
+
+To convert the host to the deploy-helper-managed layout, rerun with --bootstrap or --wipe-remote-root.
+To keep the existing service layout, pass explicit path overrides that match the service unit:
+  --app-dir '${DETECTED_SERVICE_APP_DIR}' \\
+  --config-dir '${DETECTED_SERVICE_CONFIG_DIR}' \\
+  --remote-python '${DETECTED_SERVICE_REMOTE_PYTHON}'
+
+If the existing service is a git checkout, the in-app Settings GitHub updater is usually the safer update path.
+EOF
+  exit 1
+}
+
 POSITIONAL_TARGET_SET=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -460,6 +601,11 @@ while [[ $# -gt 0 ]]; do
     --hard-reboot)
       HARD_REBOOT=1
       shift
+      ;;
+    --remote-root)
+      require_arg "$1" "${2:-}"
+      REMOTE_ROOT="$2"
+      shift 2
       ;;
     --mesh-host)
       require_arg "$1" "${2:-}"
@@ -560,11 +706,13 @@ while [[ $# -gt 0 ]]; do
     --service-user)
       require_arg "$1" "${2:-}"
       SERVICE_USER="$2"
+      SERVICE_USER_SET=1
       shift 2
       ;;
     --service-group)
       require_arg "$1" "${2:-}"
       SERVICE_GROUP="$2"
+      SERVICE_GROUP_SET=1
       shift 2
       ;;
     --app-dir)
@@ -668,6 +816,16 @@ fi
 if [[ -z "${REMOTE_PYTHON}" ]]; then
   REMOTE_PYTHON="${REMOTE_VENV}/bin/python"
 fi
+
+detect_existing_service_layout
+if [[ "${SERVICE_USER_SET}" -eq 0 && -n "${DETECTED_SERVICE_USER}" ]]; then
+  SERVICE_USER="${DETECTED_SERVICE_USER}"
+fi
+if [[ "${SERVICE_GROUP_SET}" -eq 0 && -n "${DETECTED_SERVICE_GROUP}" ]]; then
+  SERVICE_GROUP="${DETECTED_SERVICE_GROUP}"
+fi
+guard_existing_service_layout_matches_deploy
+
 if [[ -z "${HISTORY_DB}" ]]; then
   HISTORY_DB="${REMOTE_ROOT}/mesh_dashboard_history.sqlite3"
 fi

@@ -1,7 +1,9 @@
     function setText(id, value) {{
       const el = document.getElementById(id);
       if (!el) return;
-      el.textContent = value == null ? "n/a" : String(value);
+      const nextText = value == null ? "n/a" : String(value);
+      if (el.textContent === nextText) return;
+      el.textContent = nextText;
     }}
 
     const metricTickerSeriesStorageKey = "meshDashboardMetricTickerSeriesV1";
