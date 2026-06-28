@@ -208,6 +208,17 @@ def _remote_branches(repo_root: Path, remote: str, runner: GitRunner) -> list[st
     return sorted(branches)
 
 
+def _local_branches(repo_root: Path, runner: GitRunner) -> list[str]:
+    result = runner(
+        ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+        repo_root,
+        8.0,
+    )
+    if result.returncode != 0:
+        return []
+    return _normalize_branch_options(_git_text(result).splitlines())
+
+
 def _normalize_branch_options(branches: Sequence[object]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -480,6 +491,8 @@ def _status_state(
     branch: str,
     target_branch: str,
     target_available: bool,
+    target_remote_available: bool,
+    target_local_available: bool,
     dirty: bool,
     ahead: int | None,
     behind: int | None,
@@ -495,12 +508,21 @@ def _status_state(
     if dirty:
         return "dirty", "Software update is blocked by local uncommitted changes.", False, False
     if target_branch != branch:
+        if target_local_available and not target_remote_available:
+            return (
+                "local_switch_available",
+                f"Ready to switch from {branch} to local branch {target_branch}.",
+                True,
+                True,
+            )
         return (
             "switch_available",
             f"Ready to switch from {branch} to {target_branch}.",
             True,
             True,
         )
+    if target_local_available and not target_remote_available:
+        return "local_branch", f"Running local branch {target_branch}.", False, False
     if ahead is not None and behind is not None:
         if ahead > 0 and behind > 0:
             return "diverged", "Software update is blocked because local and remote commits diverged.", False, True
@@ -538,6 +560,7 @@ def build_update_status_payload(
     target_branch: object = None,
     runner: GitRunner = _run_git,
     remote_branches_override: Sequence[object] | None = None,
+    local_branches_override: Sequence[object] | None = None,
 ) -> dict[str, object]:
     repo_root, error = _resolve_repo_root(repo_dir=repo_dir, runner=runner)
     if repo_root is None:
@@ -564,13 +587,22 @@ def build_update_status_payload(
         if remote_branches_override is not None
         else _remote_branches(repo_root, remote, runner)
     )
+    local_branch_options = (
+        _normalize_branch_options(local_branches_override)
+        if local_branches_override is not None
+        else _local_branches(repo_root, runner)
+    )
+    combined_branch_options = _normalize_branch_options([*branch_options, *local_branch_options])
     selected_branch, selected_available = _select_target_branch(
         requested_branch=target_branch,
         current_branch=branch,
         upstream_branch=current_remote_branch,
-        branch_options=branch_options,
+        branch_options=combined_branch_options,
     )
-    target_upstream = f"{remote}/{selected_branch}" if remote and selected_branch and selected_available else ""
+    selected_remote_available = selected_branch in branch_options
+    selected_local_available = selected_branch in local_branch_options
+    selected_available = bool(selected_remote_available or selected_local_available)
+    target_upstream = f"{remote}/{selected_branch}" if remote and selected_branch and selected_remote_available else ""
     dirty = _working_tree_dirty(repo_root, runner)
     ahead, behind = _ahead_behind(repo_root, target_upstream, runner)
     remote_url = _remote_url(repo_root, remote, runner)
@@ -590,6 +622,8 @@ def build_update_status_payload(
         branch=branch,
         target_branch=selected_branch,
         target_available=selected_available,
+        target_remote_available=selected_remote_available,
+        target_local_available=selected_local_available,
         dirty=dirty,
         ahead=ahead,
         behind=behind,
@@ -610,7 +644,12 @@ def build_update_status_payload(
         "remote": remote,
         "remote_branch": selected_branch,
         "remote_url": remote_url,
-        "branches": branch_options,
+        "branches": combined_branch_options,
+        "remote_branches": branch_options,
+        "local_branches": local_branch_options,
+        "target_remote_available": selected_remote_available,
+        "target_local_available": selected_local_available,
+        "target_source": "remote" if selected_remote_available else ("local" if selected_local_available else ""),
         "current_commit": commit,
         "current_commit_short": commit[:8] if commit else "",
         "dirty": dirty,
@@ -719,7 +758,7 @@ def _apply_prune_recovery_status(
 ) -> dict[str, object]:
     recovered = dict(payload)
     message = str(recovered.get("message") or "").strip()
-    if str(recovered.get("state") or "") in {"invalid_branch", "select_branch"}:
+    if str(recovered.get("state") or "") in {"invalid_branch", "select_branch", "local_branch"}:
         suffix = "Select a live branch to recover; local stale Git refs could not be pruned automatically."
         message = f"{message} {suffix}".strip()
     recovered.update(
@@ -917,7 +956,77 @@ def run_update_from_github(
         remote = str(status.get("remote") or "").strip()
         selected_branch = str(status.get("target_branch") or "").strip()
         target_upstream = str(status.get("target_upstream") or status.get("upstream") or "").strip()
-        if not remote or not selected_branch or not target_upstream:
+        target_remote_available = bool(status.get("target_remote_available"))
+        target_local_available = bool(status.get("target_local_available"))
+        if not selected_branch or not (target_upstream or target_local_available):
+            return _failure_payload(
+                status,
+                state="select_branch",
+                message="Software update needs a selected GitHub branch.",
+                http_status=409,
+            )
+
+        if target_local_available and not target_remote_available:
+            old_commit = str(status.get("current_commit") or "")
+            current_branch = str(status.get("branch") or "").strip()
+            if selected_branch == current_branch:
+                payload = dict(status)
+                payload.update(
+                    {
+                        "ok": True,
+                        "updated": False,
+                        "connection_ok": True,
+                        "state": "local_branch",
+                        "message": f"Already running local branch {selected_branch}.",
+                        "http_status": 200,
+                    }
+                )
+                return payload
+            switch_result = runner(["switch", selected_branch], repo_root, 20.0)
+            if switch_result.returncode != 0:
+                error = _short_text(_git_text(switch_result))
+                return _failure_payload(
+                    status,
+                    state="switch_failed",
+                    message=f"Could not switch to local branch {selected_branch}.",
+                    http_status=409,
+                    error=error or "git switch failed",
+                )
+            final_status = build_update_status_payload(
+                repo_dir=repo_root,
+                target_branch=selected_branch,
+                runner=runner,
+            )
+            new_commit = str(final_status.get("current_commit") or "")
+            changed_files = _changed_files(repo_root, old_commit, new_commit, runner)
+            requirements_changed = any(
+                path == "requirements.txt" or path == "requirements-dev.txt"
+                for path in changed_files
+            )
+            message = f"Switched to local branch {selected_branch}. Restart the dashboard process to use the selected code."
+            if requirements_changed:
+                message = (
+                    f"Switched to local branch {selected_branch}. Python requirements changed; "
+                    "install requirements and restart the dashboard process."
+                )
+            payload = dict(final_status)
+            payload.update(
+                {
+                    "ok": True,
+                    "updated": old_commit != new_commit,
+                    "connection_ok": True,
+                    "previous_commit": old_commit,
+                    "new_commit": new_commit,
+                    "changed_files": changed_files,
+                    "requirements_changed": requirements_changed,
+                    "restart_required": old_commit != new_commit,
+                    "message": message,
+                    "http_status": 200,
+                }
+            )
+            return payload
+
+        if not remote or not target_upstream:
             return _failure_payload(
                 status,
                 state="select_branch",

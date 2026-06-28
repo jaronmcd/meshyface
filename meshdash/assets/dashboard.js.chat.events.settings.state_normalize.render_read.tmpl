@@ -1171,12 +1171,14 @@
       const updateActionReady = !!info.can_update
         && !!selectedBranch
         && settingsUpdateActionReadyBranch === selectedBranch;
+      const targetSource = String(renderInfo.target_source || info.target_source || "").trim();
+      const localSwitchReady = updateActionReady && targetSource === "local";
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
       const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
       if (settingsUpdateApplyInFlight) {{
-        text = "Updating from GitHub...";
+        text = targetSource === "local" ? "Switching branches..." : "Updating from GitHub...";
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
@@ -1204,9 +1206,9 @@
           ? "Updating..."
           : (settingsUpdateStatusFetchInFlight
             ? "Checking..."
-            : (updateActionReady ? "Update from GitHub" : "Check for Updates"));
+            : (updateActionReady ? (localSwitchReady ? "Switch Branch" : "Update from GitHub") : "Check for Updates"));
         checkBtn.title = updateActionReady
-          ? "Fetch and fast-forward this Git checkout"
+          ? (localSwitchReady ? "Switch to this local branch" : "Fetch and fast-forward this Git checkout")
           : settingsUpdateStatusText(info);
       }}
       if (reloadBtn instanceof HTMLButtonElement) {{
@@ -1308,6 +1310,9 @@
     async function runSettingsGithubUpdate() {{
       if (settingsUpdateApplyInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const targetSource = String(cachedInfo.target_source || "").trim();
+      const localSwitch = targetSource === "local";
       if (!selectedBranch) {{
         settingsUpdateActionReadyBranch = "";
         renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
@@ -1319,7 +1324,7 @@
 
       settingsUpdateActionReadyBranch = "";
       settingsUpdateApplyInFlight = true;
-      renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
+      renderSettingsUpdateStatus({{ message: localSwitch ? "Switching branches..." : "Updating from GitHub..." }});
       try {{
         const resp = await fetch("/api/system/update", {{
           method: "POST",

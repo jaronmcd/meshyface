@@ -66,6 +66,9 @@ class _FakeGitRunner:
         if command == ("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"):
             refs = "\n".join(f"origin/{branch}" for branch in self.remote_branches)
             return GitCommandResult(0, refs)
+        if command == ("for-each-ref", "--format=%(refname:short)", "refs/heads"):
+            refs = "\n".join(sorted(self.local_branches))
+            return GitCommandResult(0, refs)
         if command == ("status", "--porcelain"):
             return GitCommandResult(0, " M meshdash/foo.py" if self.dirty else "")
         if command == ("rev-list", "--left-right", "--count", "HEAD...origin/main"):
@@ -360,15 +363,60 @@ def test_refresh_update_status_recovers_deleted_selected_branch_after_prune_fail
     assert payload["connection_ok"] is True
     assert payload["refreshed"] is True
     assert payload["prune_failed"] is True
-    assert payload["state"] == "invalid_branch"
+    assert payload["state"] == "local_branch"
     assert payload["target_branch"] == "pr/dashboard-perf"
-    assert payload["branches"] == ["dev", "main"]
+    assert payload["branches"] == ["dev", "main", "pr/dashboard-perf"]
     assert payload["can_update"] is False
     assert "Select a live branch" in payload["message"]
     assert "Permission denied" in payload["prune_error"]
     assert ("fetch", "--prune", "origin") in runner.commands
     assert ("fetch", "origin") in runner.commands
     assert ("ls-remote", "--heads", "origin") in runner.commands
+
+
+def test_update_status_allows_local_only_branch_as_rollback_target(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "pr/dashboard-perf"},
+    )
+
+    payload = build_update_status_payload(
+        repo_dir=tmp_path,
+        target_branch="pr/dashboard-perf",
+        runner=runner,
+    )
+
+    assert payload["state"] == "local_switch_available"
+    assert payload["target_branch"] == "pr/dashboard-perf"
+    assert payload["target_source"] == "local"
+    assert payload["target_remote_available"] is False
+    assert payload["target_local_available"] is True
+    assert payload["branches"] == ["dev", "main", "pr/dashboard-perf"]
+    assert payload["can_update"] is True
+
+
+def test_run_update_switches_to_local_only_rollback_branch_without_fetch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "pr/dashboard-perf"},
+    )
+
+    payload = run_update_from_github(
+        repo_dir=tmp_path,
+        target_branch="pr/dashboard-perf",
+        runner=runner,
+    )
+
+    assert payload["ok"] is True
+    assert payload["updated"] is True
+    assert payload["branch"] == "pr/dashboard-perf"
+    assert payload["target_source"] == "local"
+    assert runner.current_branch == "pr/dashboard-perf"
+    assert ("fetch", "--prune", "origin") not in runner.commands
+    assert ("switch", "pr/dashboard-perf") in runner.commands
+    assert "Switched to local branch pr/dashboard-perf" in payload["message"]
 
 
 def test_run_update_can_switch_to_live_branch_after_stale_ref_prune_failure(tmp_path: Path) -> None:
