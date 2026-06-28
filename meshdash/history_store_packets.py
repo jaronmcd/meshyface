@@ -797,6 +797,7 @@ def load_environment_metrics_history(
     metric: str | None = None,
     node_id: str | None = None,
     limit: int | None = None,
+    include_gap_scan: bool = True,
 ) -> dict[str, object]:
     clean_hours = max(1, min(24 * 365, int(window_hours) if isinstance(window_hours, int) else 72))
     clean_limit = max(200, min(100000, int(limit) if isinstance(limit, int) else 20000))
@@ -833,7 +834,9 @@ def load_environment_metrics_history(
                 if earliest_rollup_unix <= 0 or rollup_unix < earliest_rollup_unix:
                     earliest_rollup_unix = int(rollup_unix)
         need_packet_gap_fill = (not rollup_rows) or (
-            earliest_rollup_unix > 0 and earliest_rollup_unix > cutoff
+            bool(include_gap_scan)
+            and earliest_rollup_unix > 0
+            and earliest_rollup_unix > cutoff
         )
         if need_packet_gap_fill:
             packet_rows = list(
