@@ -24,6 +24,7 @@ class _FakeGitRunner:
         remote_branches: list[str] | None = None,
         live_remote_branches: list[str] | None = None,
         local_branches: set[str] | None = None,
+        previous_branch: str = "",
         branch_ahead: int = 0,
         branch_behind: int = 4,
     ) -> None:
@@ -38,6 +39,7 @@ class _FakeGitRunner:
         self.remote_branches = list(remote_branches or ["main", "beta"])
         self.live_remote_branches = list(live_remote_branches or self.remote_branches)
         self.local_branches = set(local_branches or {current_branch})
+        self.previous_branch = previous_branch
         self.branch_ahead = branch_ahead
         self.branch_behind = branch_behind
         self.commit = "aaaaaaaa11111111222222223333333344444444"
@@ -55,6 +57,10 @@ class _FakeGitRunner:
             return GitCommandResult(0, self.commit)
         if command == ("rev-parse", "--short=7", "beta"):
             return GitCommandResult(0, "bbbbbbb")
+        if command == ("rev-parse", "--abbrev-ref", "@{-1}"):
+            if not self.previous_branch:
+                return GitCommandResult(128, "no previous checkout")
+            return GitCommandResult(0, self.previous_branch)
         if command == ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"):
             if self.current_branch == "main":
                 return GitCommandResult(0, "origin/main")
@@ -207,6 +213,7 @@ class _FakeGitRunner:
             branch = command[1]
             if branch not in self.local_branches:
                 return GitCommandResult(1, "branch not found")
+            self.previous_branch = self.current_branch
             self.current_branch = branch
             self.commit = self.new_commit
             self.ahead = 0
@@ -214,6 +221,7 @@ class _FakeGitRunner:
             return GitCommandResult(0, f"Switched to branch '{branch}'")
         if command == ("switch", "--track", "-c", "beta", "origin/beta"):
             self.local_branches.add("beta")
+            self.previous_branch = self.current_branch
             self.current_branch = "beta"
             self.commit = self.new_commit
             self.ahead = 0
@@ -378,7 +386,8 @@ def test_update_status_allows_local_only_branch_as_rollback_target(tmp_path: Pat
     runner = _FakeGitRunner(
         current_branch="main",
         remote_branches=["dev", "main"],
-        local_branches={"main", "pr/dashboard-perf"},
+        local_branches={"main", "old-stale", "pr/dashboard-perf"},
+        previous_branch="pr/dashboard-perf",
     )
 
     payload = build_update_status_payload(
@@ -393,7 +402,31 @@ def test_update_status_allows_local_only_branch_as_rollback_target(tmp_path: Pat
     assert payload["target_remote_available"] is False
     assert payload["target_local_available"] is True
     assert payload["branches"] == ["dev", "main", "pr/dashboard-perf"]
+    assert payload["local_branches"] == ["pr/dashboard-perf"]
+    assert payload["previous_branch"] == "pr/dashboard-perf"
     assert payload["can_update"] is True
+
+
+def test_update_status_hides_unrelated_stale_local_branches(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "old-stale", "pr/dashboard-perf"},
+        previous_branch="pr/dashboard-perf",
+    )
+
+    payload = build_update_status_payload(
+        repo_dir=tmp_path,
+        target_branch="old-stale",
+        runner=runner,
+    )
+
+    assert payload["state"] == "invalid_branch"
+    assert payload["target_branch"] == "old-stale"
+    assert payload["branches"] == ["dev", "main", "pr/dashboard-perf"]
+    assert payload["local_branches"] == ["pr/dashboard-perf"]
+    assert payload["target_local_available"] is False
+    assert payload["can_update"] is False
 
 
 def test_run_update_switches_to_local_only_rollback_branch_without_fetch(tmp_path: Path) -> None:
@@ -401,6 +434,7 @@ def test_run_update_switches_to_local_only_rollback_branch_without_fetch(tmp_pat
         current_branch="main",
         remote_branches=["dev", "main"],
         local_branches={"main", "pr/dashboard-perf"},
+        previous_branch="pr/dashboard-perf",
     )
 
     payload = run_update_from_github(

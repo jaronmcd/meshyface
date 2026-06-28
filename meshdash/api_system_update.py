@@ -255,6 +255,14 @@ def _current_branch(repo_root: Path, runner: GitRunner) -> str:
     return _git_text(result) if result.returncode == 0 else ""
 
 
+def _previous_checkout_branch(repo_root: Path, runner: GitRunner) -> str:
+    result = runner(["rev-parse", "--abbrev-ref", "@{-1}"], repo_root, 5.0)
+    if result.returncode != 0:
+        return ""
+    branch = _clean_branch_name(_git_text(result))
+    return "" if branch == "HEAD" else branch
+
+
 def _current_commit(repo_root: Path, runner: GitRunner) -> str:
     result = runner(["rev-parse", "--verify", "HEAD^{commit}"], repo_root, 5.0)
     return _git_text(result) if result.returncode == 0 else ""
@@ -592,7 +600,13 @@ def build_update_status_payload(
         if local_branches_override is not None
         else _local_branches(repo_root, runner)
     )
-    combined_branch_options = _normalize_branch_options([*branch_options, *local_branch_options])
+    previous_branch = _previous_checkout_branch(repo_root, runner)
+    local_rollback_options = _normalize_branch_options(
+        branch_name
+        for branch_name in (branch, previous_branch)
+        if branch_name and branch_name in local_branch_options and branch_name not in branch_options
+    )
+    combined_branch_options = _normalize_branch_options([*branch_options, *local_rollback_options])
     selected_branch, selected_available = _select_target_branch(
         requested_branch=target_branch,
         current_branch=branch,
@@ -600,7 +614,7 @@ def build_update_status_payload(
         branch_options=combined_branch_options,
     )
     selected_remote_available = selected_branch in branch_options
-    selected_local_available = selected_branch in local_branch_options
+    selected_local_available = selected_branch in local_rollback_options
     selected_available = bool(selected_remote_available or selected_local_available)
     target_upstream = f"{remote}/{selected_branch}" if remote and selected_branch and selected_remote_available else ""
     dirty = _working_tree_dirty(repo_root, runner)
@@ -646,7 +660,8 @@ def build_update_status_payload(
         "remote_url": remote_url,
         "branches": combined_branch_options,
         "remote_branches": branch_options,
-        "local_branches": local_branch_options,
+        "local_branches": local_rollback_options,
+        "previous_branch": previous_branch,
         "target_remote_available": selected_remote_available,
         "target_local_available": selected_local_available,
         "target_source": "remote" if selected_remote_available else ("local" if selected_local_available else ""),
