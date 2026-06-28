@@ -12,6 +12,11 @@ Examples:
   # Fast update to an already configured host
   ./scripts/deploy_meshyface.sh pi@meshyface.local
 
+  # Git-compatible update of an existing checkout used by the systemd service
+  ./scripts/deploy_meshyface.sh \
+    --target pi@meshyface.local \
+    --git-safe-export
+
   # Full reset + redeploy
   ./scripts/deploy_meshyface.sh \
     --target pi@meshyface.local \
@@ -33,6 +38,9 @@ Examples:
 Options:
   --target <user@host>     SSH deploy target.
   --bootstrap              Prepare a fresh host (venv, deps, service, env file).
+  --git-safe-export        Update the active remote git checkout to this clean, pushed local HEAD.
+                           Preserves the remote branch and refuses branch mismatches.
+  --git-safe-allow-dirty   Escape hatch: allow tar overlay export when git-compatible deploy is not possible.
   --clean-app-dir          Remove stale managed app code in APP_DIR before copy.
   --wipe-remote-root       Remove Meshyface service + REMOTE_ROOT, then bootstrap fresh.
   --uninstall              Remove Meshyface service + managed files from the target and exit.
@@ -82,6 +90,8 @@ Env overrides:
   MESH_DASH_DEPLOY_SERVICE
   MESH_DASH_DEPLOY_SERVICE_USER
   MESH_DASH_DEPLOY_SERVICE_GROUP
+  MESH_DASH_DEPLOY_GIT_SAFE_EXPORT
+  MESH_DASH_DEPLOY_GIT_SAFE_ALLOW_DIRTY
   MESH_DASH_DEPLOY_CLEAN_APP_DIR
   MESH_DASH_DEPLOY_WIPE_REMOTE_ROOT
   MESH_DASH_DEPLOY_UNINSTALL
@@ -136,8 +146,22 @@ fi
 if [[ -n "${MESH_DASH_DEPLOY_SERVICE_GROUP+x}" ]]; then
   SERVICE_GROUP_SET=1
 fi
+APP_DIR_EXPLICIT=0
+REMOTE_VENV_EXPLICIT=0
+REMOTE_PYTHON_EXPLICIT=0
+if [[ -n "${APP_DIR}" ]]; then
+  APP_DIR_EXPLICIT=1
+fi
+if [[ -n "${REMOTE_VENV}" ]]; then
+  REMOTE_VENV_EXPLICIT=1
+fi
+if [[ -n "${REMOTE_PYTHON}" ]]; then
+  REMOTE_PYTHON_EXPLICIT=1
+fi
 
 BOOTSTRAP=0
+GIT_SAFE_EXPORT="${MESH_DASH_DEPLOY_GIT_SAFE_EXPORT:-0}"
+GIT_SAFE_ALLOW_DIRTY="${MESH_DASH_DEPLOY_GIT_SAFE_ALLOW_DIRTY:-0}"
 CLEAN_APP_DIR="${MESH_DASH_DEPLOY_CLEAN_APP_DIR:-0}"
 WIPE_REMOTE_ROOT="${MESH_DASH_DEPLOY_WIPE_REMOTE_ROOT:-0}"
 UNINSTALL="${MESH_DASH_DEPLOY_UNINSTALL:-0}"
@@ -342,6 +366,251 @@ cd '${APP_DIR}' && \
   | LC_ALL=C sort -z \
   | LC_ALL=C xargs -0 sha256sum; \
 } | LC_ALL=C sha256sum | awk '{print \$1}'"
+}
+
+create_local_git_safe_export_tar() {
+  local output_tar="$1"
+  (
+    cd "${ROOT_DIR}" || exit 1
+    git rev-parse --is-inside-work-tree >/dev/null
+    git ls-files -z \
+    | tar \
+      --null \
+      --warning=no-timestamp \
+      --exclude='*.pyc' \
+      --files-from - \
+      -cf "${output_tar}"
+  )
+}
+
+detect_remote_service_app_dir() {
+  ssh_cmd "${TARGET}" "SERVICE_NAME='${SERVICE_NAME}' bash -s" <<'REMOTE'
+set -euo pipefail
+unit_text="$(systemctl cat "${SERVICE_NAME}" --no-pager 2>/dev/null || true)"
+if [[ -z "${unit_text}" ]]; then
+  exit 0
+fi
+printf '%s\n' "${unit_text}" | awk -F= '
+  $1 == "ExecStart" {
+    line = substr($0, index($0, "=") + 1)
+    n = split(line, parts, /[[:space:]]+/)
+    for (i = 1; i <= n; i++) {
+      if (parts[i] ~ /\/mesh_dashboard\.py$/) {
+        sub(/\/mesh_dashboard\.py$/, "", parts[i])
+        print parts[i]
+        exit
+      }
+    }
+  }
+'
+REMOTE
+}
+
+git_safe_export_deploy() {
+  local local_tar
+  local local_remote_script
+  local remote_tar
+  local remote_script
+  local local_payload_hash
+  local local_branch
+  local local_commit
+  local local_dirty_status
+  local local_dirty
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo "--git-safe-export requires git locally" >&2
+    exit 1
+  fi
+  if [[ -z "${APP_DIR}" ]]; then
+    echo "--git-safe-export could not determine APP_DIR; pass --app-dir" >&2
+    exit 2
+  fi
+
+  local_branch="$(git -C "${ROOT_DIR}" branch --show-current 2>/dev/null || true)"
+  local_commit="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+  local_dirty_status="$(git -C "${ROOT_DIR}" status --short --untracked-files=no)"
+  local_dirty=0
+  if [[ -n "${local_dirty_status}" ]]; then
+    local_dirty=1
+  fi
+
+  if [[ "${local_dirty}" -eq 1 && ! ( "${GIT_SAFE_ALLOW_DIRTY}" == "1" || "${GIT_SAFE_ALLOW_DIRTY}" == "true" || "${GIT_SAFE_ALLOW_DIRTY}" == "yes" ) ]]; then
+    echo "--git-safe-export refusing dirty local tracked files." >&2
+    printf '%s\n' "${local_dirty_status}" >&2
+    echo "Commit and push first, or use --git-safe-allow-dirty for an intentional scratch overlay." >&2
+    exit 1
+  fi
+
+  local_tar="$(mktemp "${TMPDIR:-/tmp}/meshyface-git-safe-export.XXXXXX.tar")"
+  local_remote_script="$(mktemp "${TMPDIR:-/tmp}/meshyface-git-safe-export.XXXXXX.sh")"
+  remote_tar="/tmp/meshyface-git-safe-export-$(date +%s)-$$.tar"
+  remote_script="/tmp/meshyface-git-safe-export-$(date +%s)-$$.sh"
+  trap 'rm -f "${local_tar}" "${local_remote_script}"' RETURN
+  local_payload_hash="$(compute_local_deploy_payload_hash)"
+  cat >"${local_remote_script}" <<'REMOTE'
+set -euo pipefail
+
+remote_script_path="${BASH_SOURCE[0]:-$0}"
+trap 'rm -f "${REMOTE_TAR:-}" "${remote_script_path}"' EXIT
+
+git_safe() {
+  sudo git -c "safe.directory=${APP_DIR}" -C "${APP_DIR}" "$@"
+}
+
+allow_dirty_overlay() {
+  [[ "${ALLOW_DIRTY}" == "1" || "${ALLOW_DIRTY}" == "true" || "${ALLOW_DIRTY}" == "yes" ]]
+}
+
+restart_service() {
+  if [[ -x "${REMOTE_PYTHON}" ]]; then
+    owner_group="$(sudo stat -c '%U:%G' "${APP_DIR}")"
+    owner_user="${owner_group%%:*}"
+    sudo -u "${owner_user}" "${REMOTE_PYTHON}" -m compileall -x '(^|/)(\.git|\.venv)(/|$)' -q "${APP_DIR}"
+  fi
+  sudo systemctl restart "${SERVICE_NAME}"
+  systemctl is-active "${SERVICE_NAME}"
+}
+
+overlay_export() {
+  if [[ -z "${REMOTE_TAR:-}" || ! -f "${REMOTE_TAR}" ]]; then
+    echo "--git-safe-export overlay payload missing on remote: ${REMOTE_TAR:-}" >&2
+    exit 1
+  fi
+  dirty_status="$(git_safe status --short --untracked-files=no)"
+  if [[ -n "${dirty_status}" && ! allow_dirty_overlay ]]; then
+    echo "--git-safe-export refusing dirty remote tracked files in ${APP_DIR}" >&2
+    printf '%s\n' "${dirty_status}" >&2
+    echo "Re-run with --git-safe-allow-dirty only for an intentional scratch overlay." >&2
+    exit 1
+  fi
+
+  owner_group="$(sudo stat -c '%U:%G' "${APP_DIR}")"
+  sudo bash -c 'cd "$1" && git -c "safe.directory=$1" ls-files -z | xargs -0 -r rm -f --' _ "${APP_DIR}"
+  sudo tar -C "${APP_DIR}" -xf "${REMOTE_TAR}"
+  sudo find "${APP_DIR}" \
+    \( -path "${APP_DIR}/.git" -o -path "${APP_DIR}/.git/*" -o -path "${APP_DIR}/.venv" -o -path "${APP_DIR}/.venv/*" \) -prune \
+    -o -type d -exec chown "${owner_group}" {} +
+  sudo tar -tf "${REMOTE_TAR}" \
+    | sed "s#^#${APP_DIR}/#" \
+    | sudo xargs -r -d '\n' chown "${owner_group}"
+  restart_service
+}
+
+if [[ ! -d "${APP_DIR}" ]]; then
+  echo "--git-safe-export remote APP_DIR does not exist: ${APP_DIR}" >&2
+  exit 1
+fi
+if ! git_safe rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "--git-safe-export requires APP_DIR to be a git worktree: ${APP_DIR}" >&2
+  exit 1
+fi
+
+if [[ "${LOCAL_DIRTY}" == "1" ]]; then
+  echo "[deploy] local tracked files are dirty; using explicit scratch overlay."
+  overlay_export
+  exit 0
+fi
+
+remote_branch="$(git_safe branch --show-current)"
+if [[ -z "${remote_branch}" ]]; then
+  if allow_dirty_overlay; then
+    echo "[deploy] remote checkout is detached; using explicit scratch overlay."
+    overlay_export
+    exit 0
+  fi
+  echo "--git-safe-export remote checkout is detached; refusing to guess a branch." >&2
+  exit 1
+fi
+if [[ -n "${LOCAL_BRANCH}" && "${remote_branch}" != "${LOCAL_BRANCH}" ]]; then
+  if allow_dirty_overlay; then
+    echo "[deploy] remote branch ${remote_branch} differs from local ${LOCAL_BRANCH}; using explicit scratch overlay."
+    overlay_export
+    exit 0
+  fi
+  echo "--git-safe-export refusing branch mismatch." >&2
+  echo "  local branch:  ${LOCAL_BRANCH}" >&2
+  echo "  remote branch: ${remote_branch}" >&2
+  echo "Switch the remote app branch first, or use --git-safe-allow-dirty for a scratch overlay." >&2
+  exit 1
+fi
+
+upstream_ref="$(git_safe rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+if [[ -z "${upstream_ref}" ]]; then
+  upstream_ref="origin/${remote_branch}"
+fi
+remote_name="${upstream_ref%%/*}"
+remote_ref="${upstream_ref#*/}"
+if [[ -z "${remote_name}" || "${remote_name}" == "${upstream_ref}" || -z "${remote_ref}" ]]; then
+  echo "--git-safe-export could not resolve upstream for ${remote_branch}: ${upstream_ref}" >&2
+  exit 1
+fi
+
+git_safe fetch "${remote_name}" "${remote_ref}"
+if ! git_safe cat-file -e "${LOCAL_COMMIT}^{commit}" >/dev/null 2>&1; then
+  if allow_dirty_overlay; then
+    echo "[deploy] local commit is not available on remote upstream; using explicit scratch overlay."
+    overlay_export
+    exit 0
+  fi
+  echo "--git-safe-export local commit is not available in remote ${remote_name}/${remote_ref}: ${LOCAL_COMMIT}" >&2
+  echo "Push the branch first, then rerun deploy." >&2
+  exit 1
+fi
+if ! git_safe merge-base --is-ancestor "${LOCAL_COMMIT}" FETCH_HEAD; then
+  if allow_dirty_overlay; then
+    echo "[deploy] local commit is not on remote upstream; using explicit scratch overlay."
+    overlay_export
+    exit 0
+  fi
+  echo "--git-safe-export local commit is not on remote upstream ${remote_name}/${remote_ref}: ${LOCAL_COMMIT}" >&2
+  echo "Push the selected branch or switch the host to the matching branch first." >&2
+  exit 1
+fi
+
+dirty_status="$(git_safe status --short --untracked-files=no)"
+if [[ -n "${dirty_status}" ]]; then
+  if git_safe diff --quiet "${LOCAL_COMMIT}" --; then
+    echo "[deploy] remote files already match ${LOCAL_COMMIT}; repairing git metadata"
+    git_safe reset --mixed "${LOCAL_COMMIT}"
+  else
+    if allow_dirty_overlay; then
+      echo "[deploy] remote tracked files are dirty; using explicit scratch overlay."
+      overlay_export
+      exit 0
+    fi
+    echo "--git-safe-export refusing dirty remote tracked files in ${APP_DIR}" >&2
+    printf '%s\n' "${dirty_status}" >&2
+    echo "Commit/stash remote changes, or use --git-safe-allow-dirty for a scratch overlay." >&2
+    exit 1
+  fi
+else
+  git_safe merge --ff-only "${LOCAL_COMMIT}"
+fi
+restart_service
+REMOTE
+
+  echo "[deploy] git_safe_export=1"
+  echo "[deploy] local branch: ${local_branch:-detached}"
+  echo "[deploy] local commit: ${local_commit}"
+  echo "[deploy] local payload hash: ${local_payload_hash}"
+  if [[ "${local_dirty}" -eq 1 || "${GIT_SAFE_ALLOW_DIRTY}" == "1" || "${GIT_SAFE_ALLOW_DIRTY}" == "true" || "${GIT_SAFE_ALLOW_DIRTY}" == "yes" ]]; then
+    create_local_git_safe_export_tar "${local_tar}"
+    scp_cmd "${local_tar}" "${TARGET}:${remote_tar}"
+  fi
+  scp_cmd "${local_remote_script}" "${TARGET}:${remote_script}"
+  ssh_cmd -tt "${TARGET}" "\
+APP_DIR='${APP_DIR}' \
+REMOTE_TAR='${remote_tar}' \
+SERVICE_NAME='${SERVICE_NAME}' \
+REMOTE_PYTHON='${REMOTE_PYTHON}' \
+ALLOW_DIRTY='${GIT_SAFE_ALLOW_DIRTY}' \
+LOCAL_BRANCH='${local_branch}' \
+LOCAL_COMMIT='${local_commit}' \
+LOCAL_DIRTY='${local_dirty}' \
+bash '${remote_script}'"
+
+  echo "[deploy] git-safe deploy complete"
+  echo "[deploy] open: http://${TARGET#*@}:${DASH_PORT}"
 }
 
 path_is_within_root() {
@@ -586,6 +855,14 @@ while [[ $# -gt 0 ]]; do
       BOOTSTRAP=1
       shift
       ;;
+    --git-safe-export)
+      GIT_SAFE_EXPORT=1
+      shift
+      ;;
+    --git-safe-allow-dirty)
+      GIT_SAFE_ALLOW_DIRTY=1
+      shift
+      ;;
     --clean-app-dir)
       CLEAN_APP_DIR=1
       shift
@@ -718,6 +995,7 @@ while [[ $# -gt 0 ]]; do
     --app-dir)
       require_arg "$1" "${2:-}"
       APP_DIR="$2"
+      APP_DIR_EXPLICIT=1
       shift 2
       ;;
     --config-dir)
@@ -733,11 +1011,13 @@ while [[ $# -gt 0 ]]; do
     --remote-venv)
       require_arg "$1" "${2:-}"
       REMOTE_VENV="$2"
+      REMOTE_VENV_EXPLICIT=1
       shift 2
       ;;
     --remote-python)
       require_arg "$1" "${2:-}"
       REMOTE_PYTHON="$2"
+      REMOTE_PYTHON_EXPLICIT=1
       shift 2
       ;;
     -h|--help)
@@ -793,13 +1073,37 @@ for local_required in mesh_dashboard.py mesh_connection.py meshdash; do
   fi
 done
 
+if is_truthy "${GIT_SAFE_EXPORT}" && ! is_truthy "${GIT_SAFE_ALLOW_DIRTY}"; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "--git-safe-export requires git locally" >&2
+    exit 1
+  fi
+  preflight_dirty_status="$(git -C "${ROOT_DIR}" status --short --untracked-files=no)"
+  if [[ -n "${preflight_dirty_status}" ]]; then
+    echo "--git-safe-export refusing dirty local tracked files before connecting to target." >&2
+    printf '%s\n' "${preflight_dirty_status}" >&2
+    echo "Commit and push first, or use --git-safe-allow-dirty for an intentional scratch overlay." >&2
+    exit 1
+  fi
+fi
+
 read_remote_identity
 
 if [[ -z "${SERVICE_USER}" ]]; then
   SERVICE_USER="${REMOTE_LOGIN_USER}"
 fi
+if is_truthy "${GIT_SAFE_EXPORT}" && [[ "${APP_DIR_EXPLICIT}" -eq 0 ]]; then
+  detected_app_dir="$(detect_remote_service_app_dir || true)"
+  if [[ -n "${detected_app_dir}" ]]; then
+    APP_DIR="${detected_app_dir}"
+  fi
+fi
 if [[ -z "${REMOTE_ROOT}" ]]; then
-  REMOTE_ROOT="${REMOTE_HOME_DIR}/mesh"
+  if is_truthy "${GIT_SAFE_EXPORT}" && [[ -n "${APP_DIR}" ]]; then
+    REMOTE_ROOT="${APP_DIR}"
+  else
+    REMOTE_ROOT="${REMOTE_HOME_DIR}/mesh"
+  fi
 fi
 if [[ -z "${APP_DIR}" ]]; then
   APP_DIR="${REMOTE_ROOT}/app"
@@ -811,10 +1115,18 @@ if [[ -z "${LOG_DIR}" ]]; then
   LOG_DIR="${REMOTE_ROOT}/logs"
 fi
 if [[ -z "${REMOTE_VENV}" ]]; then
-  REMOTE_VENV="${REMOTE_ROOT}/.venv"
+  if is_truthy "${GIT_SAFE_EXPORT}" && [[ "${REMOTE_VENV_EXPLICIT}" -eq 0 ]]; then
+    REMOTE_VENV="${APP_DIR}/.venv"
+  else
+    REMOTE_VENV="${REMOTE_ROOT}/.venv"
+  fi
 fi
 if [[ -z "${REMOTE_PYTHON}" ]]; then
-  REMOTE_PYTHON="${REMOTE_VENV}/bin/python"
+  if is_truthy "${GIT_SAFE_EXPORT}" && [[ "${REMOTE_PYTHON_EXPLICIT}" -eq 0 ]]; then
+    REMOTE_PYTHON="${APP_DIR}/.venv/bin/python"
+  else
+    REMOTE_PYTHON="${REMOTE_VENV}/bin/python"
+  fi
 fi
 
 detect_existing_service_layout
@@ -842,6 +1154,15 @@ fi
 
 if [[ "${WIPE_REMOTE_ROOT}" -eq 1 && "${BOOTSTRAP}" -eq 0 ]]; then
   BOOTSTRAP=1
+fi
+
+if is_truthy "${GIT_SAFE_EXPORT}"; then
+  if [[ "${BOOTSTRAP}" -eq 1 || "${WIPE_REMOTE_ROOT}" -eq 1 || "${UNINSTALL}" -eq 1 || "${CLEAN_APP_DIR}" -eq 1 ]]; then
+    echo "--git-safe-export cannot be combined with bootstrap, wipe, uninstall, or clean-app-dir" >&2
+    exit 2
+  fi
+  git_safe_export_deploy
+  exit 0
 fi
 
 if [[ -z "${MESH_HOST}" ]]; then
@@ -1102,7 +1423,7 @@ fi
 
 if [[ "${BOOTSTRAP}" -eq 1 ]]; then
   ssh_cmd -tt "${TARGET}" "\
-'${REMOTE_PYTHON}' -m compileall -q '${APP_DIR}' && \
+'${REMOTE_PYTHON}' -m compileall -x '(^|/)(\.git|\.venv)(/|$)' -q '${APP_DIR}' && \
 sudo systemctl enable '${SERVICE_NAME}' && \
 sudo systemctl restart '${SERVICE_NAME}' && \
 SYSTEMD_PAGER=cat sudo systemctl --no-pager -l status '${SERVICE_NAME}'"
@@ -1112,7 +1433,7 @@ else
     exit 1
   fi
   ssh_cmd -tt "${TARGET}" "\
-'${REMOTE_PYTHON}' -m compileall -q '${APP_DIR}' && \
+'${REMOTE_PYTHON}' -m compileall -x '(^|/)(\.git|\.venv)(/|$)' -q '${APP_DIR}' && \
 sudo systemctl restart '${SERVICE_NAME}' && \
 SYSTEMD_PAGER=cat sudo systemctl --no-pager -l status '${SERVICE_NAME}'"
 fi
