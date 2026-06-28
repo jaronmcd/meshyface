@@ -85,7 +85,12 @@ def save_summary_metrics(
         store._conn.commit()
 
 
-def load_summary_metrics(store: HistoryStoreReadState, window_hours: int) -> dict[str, object]:
+def load_summary_metrics(
+    store: HistoryStoreReadState,
+    window_hours: int,
+    *,
+    include_packet_series: bool = True,
+) -> dict[str, object]:
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
         read_conn = store._conn
@@ -100,4 +105,5 @@ def load_summary_metrics(store: HistoryStoreReadState, window_hours: int) -> dic
             fetch_summary_packet_type_rows_fn=_fetch_summary_packet_type_rows_helper,
             build_summary_metrics_payload_fn=_build_summary_metrics_payload_helper,
             now_unix_fn=time.time,
+            include_packet_series=include_packet_series,
         )

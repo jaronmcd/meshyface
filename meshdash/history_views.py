@@ -26,6 +26,7 @@ class HistoryViewStore(Protocol):
         self,
         *,
         window_hours: int,
+        include_packet_series: bool = True,
     ) -> dict[str, object]:
         ...
 
@@ -183,7 +184,11 @@ def build_summary_metrics_loader(
     *,
     default_hours: int,
 ) -> Callable[[Optional[int]], dict[str, object]]:
-    def summary_metrics_loader(hours_override: Optional[int] = None) -> dict[str, object]:
+    def summary_metrics_loader(
+        hours_override: Optional[int] = None,
+        *,
+        include_packet_series: bool = True,
+    ) -> dict[str, object]:
         hours = (
             hours_override
             if isinstance(hours_override, int) and hours_override > 0
@@ -195,7 +200,10 @@ def build_summary_metrics_loader(
         if not callable(load_summary_metrics_fn):
             return empty_summary_metrics(hours)
         try:
-            return load_summary_metrics_fn(window_hours=hours)
+            return load_summary_metrics_fn(
+                window_hours=hours,
+                include_packet_series=include_packet_series,
+            )
         except Exception:
             return empty_summary_metrics(hours)
 

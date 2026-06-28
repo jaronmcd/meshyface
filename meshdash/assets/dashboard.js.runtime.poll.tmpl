@@ -701,11 +701,16 @@
         const activeSummaryWindowHours = activeLayoutView === "network"
           ? networkOverviewWindowHours
           : weeklySummaryWindowHours;
+        const activeSummaryIncludePacketSeries = activeLayoutView === "history"
+          ? historySummaryNeedsPacketSeries()
+          : networkOverviewSummaryNeedsPacketSeries();
         const weeklySummaryPromise = (
           activeLayoutView === "history"
           || networkOverviewActive
         )
-          ? fetchSummaryMetrics(activeSummaryWindowHours).catch((summaryErr) => ({{
+          ? fetchSummaryMetrics(activeSummaryWindowHours, {{
+              includePacketSeries: activeSummaryIncludePacketSeries,
+            }}).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
                 : String(summaryErr || "unknown error"),

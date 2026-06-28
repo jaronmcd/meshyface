@@ -54,7 +54,12 @@ class OnlineActivityFn(Protocol):
 
 
 class SummaryMetricsHistoryFn(Protocol):
-    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
+    def __call__(
+        self,
+        hours_override: Optional[int],
+        *,
+        include_packet_series: bool = True,
+    ) -> dict[str, object]:
         ...
 
 

@@ -229,8 +229,8 @@ class HistoryStore:
             recent_window_seconds=recent_window_seconds,
         )
 
-    def load_summary_metrics(self, window_hours: int) -> dict[str, object]:
-        return _load_summary_metrics_helper(self, window_hours)
+    def load_summary_metrics(self, window_hours: int, *, include_packet_series: bool = True) -> dict[str, object]:
+        return _load_summary_metrics_helper(self, window_hours, include_packet_series=include_packet_series)
 
     def load_top_nodes(
         self,

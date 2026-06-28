@@ -106,3 +106,27 @@ def test_summary_metrics_response_sparse_history_respects_point_limit() -> None:
 
     assert len(response["points"]) <= 64
     assert len(response["packet_series"]["series"]["all"]) <= 64
+
+
+def test_summary_metrics_response_can_skip_packet_series() -> None:
+    calls: list[tuple[object, bool]] = []
+
+    def summary_metrics_fn(hours_override, *, include_packet_series: bool = True):
+        calls.append((hours_override, include_packet_series))
+        return _summary_payload()
+
+    response = build_summary_metrics_response(
+        query="hours=1&packet_series=0",
+        summary_metrics_fn=summary_metrics_fn,
+        default_node_history_hours=24,
+        to_int_fn=to_int,
+        parse_online_activity_request_fn=parse_online_activity_request,
+        empty_summary_metrics_fn=empty_summary_metrics,
+    )
+
+    assert calls == [(1, False)]
+    assert response["packet_series"] == {
+        "available": False,
+        "order": [],
+        "series": {},
+    }

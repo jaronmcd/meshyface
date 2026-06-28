@@ -576,7 +576,9 @@
         select.value = normalized;
       }}
       updateWeeklySummaryNodeSeriesControls(normalized);
-      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderWeeklySummary(cached.data);
       }}
@@ -593,7 +595,9 @@
       if (select instanceof HTMLSelectElement && select.value !== String(weeklySummaryWindowHours)) {{
         select.value = String(weeklySummaryWindowHours);
       }}
-      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderWeeklySummary(cached.data);
       }}
@@ -607,7 +611,9 @@
     function applyWeeklySummaryNodeSeries(nextSeries, persist = true) {{
       weeklySummaryNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
       updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
-      const cached = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderWeeklySummary(cached.data);
       }}
@@ -685,7 +691,9 @@
       if (select instanceof HTMLSelectElement && select.value !== String(networkOverviewWindowHours)) {{
         select.value = String(networkOverviewWindowHours);
       }}
-      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -706,7 +714,9 @@
       updateNetworkOverviewLinkModeControl(normalized);
       updateNetworkOverviewNodeSeriesControls(normalized);
       updateNetworkOverviewPacketSeriesControls(normalized);
-      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -720,7 +730,9 @@
     function applyNetworkOverviewLinkMode(mode, persist = true) {{
       networkOverviewLinkMode = normalizeNetworkOverviewLinkMode(mode);
       updateNetworkOverviewLinkModeControl(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -734,7 +746,9 @@
     function applyNetworkOverviewNodeSeries(nextSeries, persist = true) {{
       networkOverviewNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
       updateNetworkOverviewNodeSeriesControls(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -751,7 +765,9 @@
     function applyNetworkOverviewPacketSeries(nextSeries, persist = true) {{
       networkOverviewPacketSeriesEnabled = normalizeNetworkOverviewPacketSeries(nextSeries);
       updateNetworkOverviewPacketSeriesControls(networkOverviewMetric);
-      const cached = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cached = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (cached && cached.data) {{
         renderNetworkOverviewSummary(cached.data);
       }}
@@ -1288,13 +1304,17 @@
           renderSignalChart(cached.data.points);
         }}
       }}
-      const cachedHistoryWeekly = summaryMetricsCache.get(String(weeklySummaryWindowHours));
+      const cachedHistoryWeekly = summaryMetricsCache.get(
+        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
+      );
       if (cachedHistoryWeekly && cachedHistoryWeekly.data && Array.isArray(cachedHistoryWeekly.data.points)) {{
         if (activeMapDataMode === "activity") {{
           renderWeeklySummary(cachedHistoryWeekly.data);
         }}
       }}
-      const cachedNetworkWeekly = summaryMetricsCache.get(String(networkOverviewWindowHours));
+      const cachedNetworkWeekly = summaryMetricsCache.get(
+        summaryMetricsCacheKey(networkOverviewWindowHours, networkOverviewSummaryNeedsPacketSeries())
+      );
       if (
         activeLayoutView === "network"
         && cachedNetworkWeekly

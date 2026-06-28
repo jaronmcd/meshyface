@@ -19,6 +19,7 @@ from meshdash.history_read_api import (
     load_recent_chat_data,
     load_recent_packets_data,
 )
+from meshdash.history_read_history import load_summary_metrics_history_data
 from meshdash.history_views import (
     build_node_history_loader,
     build_online_activity_loader,
@@ -142,13 +143,49 @@ def test_history_view_loaders_pass_clean_overrides_to_store() -> None:
     node = build_node_history_loader(store, default_hours=6, default_points=10)(" !node ", 24, 100)
     online = build_online_activity_loader(store, default_hours=6)(24)
     summary = build_summary_metrics_loader(store, default_hours=6)(24)
+    summary_without_packets = build_summary_metrics_loader(store, default_hours=6)(
+        24,
+        include_packet_series=False,
+    )
 
     assert node["node_id"] == "!node"
     assert node["window_hours"] == 24
     assert node["max_points"] == 100
     assert online["window_hours"] == 24
     assert summary["window_hours"] == 24
-    assert len(calls) == 3
+    assert summary["include_packet_series"] is True
+    assert summary_without_packets["include_packet_series"] is False
+    assert len(calls) == 4
+
+
+def test_summary_metrics_history_data_skips_packet_type_rows_when_disabled() -> None:
+    calls: list[str] = []
+
+    def fetch_summary_rows(_conn, *, cutoff, limit):
+        calls.append("summary")
+        assert cutoff == 0
+        assert limit > 0
+        return [(0, 1, 1, 1, 1, 1, 1, 1)]
+
+    def fetch_packet_type_rows(_conn, *, cutoff):
+        calls.append("packets")
+        return [(cutoff, "chat", 1)]
+
+    payload = load_summary_metrics_history_data(
+        object(),
+        window_hours=1,
+        fetch_summary_metrics_rows_fn=fetch_summary_rows,
+        fetch_summary_packet_type_rows_fn=fetch_packet_type_rows,
+        build_summary_metrics_payload_fn=lambda **kwargs: {
+            "rows": list(kwargs["rows"]),
+            "packet_type_rows": list(kwargs["packet_type_rows"]),
+        },
+        now_unix_fn=lambda: 3600,
+        include_packet_series=False,
+    )
+
+    assert calls == ["summary"]
+    assert payload["packet_type_rows"] == []
 
 
 def test_metric_rollup_values_merge_existing_rows_and_write_sqlite_rows() -> None:
