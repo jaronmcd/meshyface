@@ -370,6 +370,7 @@ class DashboardGetRouteDependencies:
     get_custom_telemetry_settings_fn: Optional[GetCustomTelemetrySettingsFn] = None
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None
+    dashboard_asset_map: Mapping[str, tuple[str, bytes]] | None = None
 
 
 @dataclass(frozen=True)
