@@ -335,7 +335,8 @@ def test_history_db_open_preserves_existing_file_permissions(tmp_path: Path) -> 
     db_dir = tmp_path / "shared"
     db_path = db_dir / "history.sqlite3"
     db_dir.mkdir(mode=0o755)
-    db_path.touch(mode=0o664)
+    db_path.touch()
+    db_path.chmod(0o664)
     policy = HistoryStorePolicy(
         max_rows=100,
         event_max_rows=1000,

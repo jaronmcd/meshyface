@@ -125,7 +125,8 @@ def test_raw_packet_db_open_preserves_existing_file_permissions(tmp_path: Path) 
     db_dir = tmp_path / "shared"
     raw_path = db_dir / "history.raw.sqlite3"
     db_dir.mkdir(mode=0o755)
-    raw_path.touch(mode=0o664)
+    raw_path.touch()
+    raw_path.chmod(0o664)
 
     conn = open_raw_packet_connection(str(raw_path))
     try:
