@@ -13,9 +13,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
-from meshdash.html_css import build_dashboard_css
-from meshdash.html_js import build_dashboard_js
-from meshdash.html_sections import build_html_shell
+from meshdash.html_css import build_dashboard_css  # noqa: E402
+from meshdash.html_js import build_dashboard_js  # noqa: E402
+from meshdash.html_sections import build_html_shell  # noqa: E402
 
 
 DEFAULT_DASHBOARD_JS_KWARGS = {

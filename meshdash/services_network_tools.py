@@ -604,7 +604,7 @@ def _run_send_node_info(
     is_licensed = bool(getattr(user_payload, "is_licensed", False))
     is_unmessagable = bool(getattr(user_payload, "is_unmessagable", False))
 
-    console_parts = [f"[nodeinfo] broadcast", f"id={node_id}"]
+    console_parts = ["[nodeinfo] broadcast", f"id={node_id}"]
     if long_name:
         console_parts.append(f"long={long_name}")
     if short_name:

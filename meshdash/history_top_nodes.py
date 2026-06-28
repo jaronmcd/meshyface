@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from typing import Optional
 
 from .helpers import format_epoch as _format_epoch
 from .helpers import to_int as _to_int

@@ -5,7 +5,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .dashboard_loaders import DashboardRuntimeLoaders
 from .dashboard_args_contracts import DashboardArgs
 from .dashboard_runtime_loader_contracts import (
     BuildDashboardRuntimeLoaderDependenciesFromLegacyArgsFn,
