@@ -783,6 +783,7 @@ def build_dashboard_runtime_context(
             node_id=None,
             limit=None,
             include_gap_scan=True,
+            catalog_only=False,
         ):
             return load_environment_metrics_history_fn(
                 window_hours=window_hours,
@@ -790,6 +791,7 @@ def build_dashboard_runtime_context(
                 node_id=node_id,
                 limit=limit,
                 include_gap_scan=include_gap_scan,
+                catalog_only=catalog_only,
             )
 
         try:

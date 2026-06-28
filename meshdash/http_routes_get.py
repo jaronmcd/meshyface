@@ -777,6 +777,13 @@ def handle_dashboard_get(
             or ""
         ).strip().lower()
         include_gap_scan = gap_scan_raw not in {"0", "false", "no", "off", "skip"}
+        catalog_raw = str(
+            query_obj.get("catalog", [""])[0]
+            or query_obj.get("catalog_only", [""])[0]
+            or query_obj.get("metadata", [""])[0]
+            or ""
+        ).strip().lower()
+        catalog_only = catalog_raw in {"1", "true", "yes", "on", "only"}
         environment_history_fn = getattr(deps.state_fn, "environment_metrics_history_fn", None)
         if callable(environment_history_fn):
             try:
@@ -786,6 +793,7 @@ def handle_dashboard_get(
                     node_id=node_id or None,
                     limit=limit,
                     include_gap_scan=include_gap_scan,
+                    catalog_only=catalog_only,
                 )
             except Exception as exc:
                 response_obj = {
@@ -797,6 +805,7 @@ def handle_dashboard_get(
                         "node_id": node_id,
                         "limit": limit,
                         "include_gap_scan": include_gap_scan,
+                        "catalog_only": catalog_only,
                     },
                     "points": [],
                     "metrics": [],
@@ -812,6 +821,7 @@ def handle_dashboard_get(
                     "node_id": node_id,
                     "limit": limit,
                     "include_gap_scan": include_gap_scan,
+                    "catalog_only": catalog_only,
                 },
                 "points": [],
                 "metrics": [],

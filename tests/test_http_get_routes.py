@@ -245,7 +245,7 @@ def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_hist
     handle_dashboard_get(
         object(),
         path="/api/history/environment",
-        query="hours=2&metric=temperature&node_id=!abc&limit=9&gap_scan=0",
+        query="hours=2&metric=temperature&node_id=!abc&limit=9&gap_scan=0&catalog=1",
         deps=deps,
     )
     handle_dashboard_get(object(), path="/api/history/malformed", query="hours=1&node=!bad&limit=2", deps=deps)
@@ -259,6 +259,7 @@ def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_hist
         "node_id": "!abc",
         "limit": 9,
         "include_gap_scan": False,
+        "catalog_only": True,
     }
     assert calls["malformed"] == {"window_hours": 1, "node_id": "!bad", "limit": 2}
     assert all(row[0] == 200 for row in deps.recorder.json)

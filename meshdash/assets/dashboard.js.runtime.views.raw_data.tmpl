@@ -1474,6 +1474,7 @@
       const params = new URLSearchParams();
       params.set("hours", String(cleanHours));
       params.set("limit", "25000");
+      params.set("catalog", "1");
       const request = fetch(`/api/history/environment?${{params.toString()}}`, {{ cache: "no-store" }})
         .then(async (resp) => {{
           if (!resp.ok) throw new Error(`sensor history API ${{resp.status}}`);

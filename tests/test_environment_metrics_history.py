@@ -159,6 +159,86 @@ def test_environment_history_can_skip_packet_gap_scan_when_rollups_exist(monkeyp
     assert calls["packet_rows"] == 1
 
 
+def test_environment_history_catalog_only_uses_rollup_metadata_without_points() -> None:
+    conn = sqlite3.connect(":memory:")
+    initialize_history_schema(conn)
+    now = int(time.time() // 60 * 60)
+    rows = [
+        (
+            now - 120,
+            "!11111111",
+            "Voltage Node",
+            "voltage",
+            "Voltage",
+            2,
+            24.0,
+            11.0,
+            13.0,
+            13.0,
+            now - 120,
+        ),
+        (
+            now - 60,
+            "!22222222",
+            "Weather Node",
+            "temperature",
+            "Temperature",
+            1,
+            22.5,
+            22.5,
+            22.5,
+            22.5,
+            now - 60,
+        ),
+    ]
+    conn.executemany(
+        """
+        INSERT INTO environment_metrics_1m(
+          bucket_unix, node_id, node_label, metric_key, metric_label,
+          sample_count, value_sum, value_min, value_max, last_value, last_seen_unix
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        rows,
+    )
+    conn.commit()
+    store = SimpleNamespace(
+        _conn=conn,
+        _read_conn=None,
+        _lock=threading.Lock(),
+        _custom_telemetry_rules=None,
+    )
+
+    catalog = load_environment_metrics_history(
+        store,
+        window_hours=24,
+        catalog_only=True,
+    )
+
+    assert catalog["source"] == "rollup_1m_catalog"
+    assert catalog["points"] == []
+    assert catalog["returned_points"] == 0
+    assert catalog["scanned_packets"] == 2
+    assert catalog["metrics"] == [
+        {
+            "key": "voltage",
+            "label": "Voltage",
+            "count": 2,
+            "nodes": 1,
+            "min": 12.0,
+            "max": 12.0,
+        },
+        {
+            "key": "temperature",
+            "label": "Temperature",
+            "count": 1,
+            "nodes": 1,
+            "min": 22.5,
+            "max": 22.5,
+        },
+    ]
+    assert [node["id"] for node in catalog["nodes"]] == ["!11111111", "!22222222"]
+
+
 def test_dashboard_js_fetches_filtered_sensor_series_from_server() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
@@ -174,6 +254,7 @@ def test_dashboard_js_fetches_filtered_sensor_series_from_server() -> None:
     assert "envMetricsSeriesInflight.has(seriesCacheKey)" in js
     assert "envMetricsViewState.lastSnapshotRenderSignature === renderSignature" in js
     assert "snapshotSkipped: !!(snapshotResult && snapshotResult.skipped)" in js
+    assert 'params.set("catalog", "1");' in js
     assert 'params.set("gap_scan", "0");' in js
     assert 'params.set("metric", cleanMetric);' in js
     assert 'params.set("node_id", cleanNodeId);' in js

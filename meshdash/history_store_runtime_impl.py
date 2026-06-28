@@ -142,6 +142,7 @@ class HistoryStore:
         node_id: str | None = None,
         limit: int | None = None,
         include_gap_scan: bool = True,
+        catalog_only: bool = False,
     ) -> dict[str, object]:
         return _load_environment_metrics_history_helper(
             self,
@@ -150,6 +151,7 @@ class HistoryStore:
             node_id=node_id,
             limit=limit,
             include_gap_scan=include_gap_scan,
+            catalog_only=catalog_only,
         )
 
     def load_malformed_text_history(
