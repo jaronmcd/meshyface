@@ -40,7 +40,9 @@ def test_summary_persistence_wrapper_handles_full_and_lite_state_variants() -> N
         "lite_status",
         "lite_console",
     ):
-        variant_fn = lambda attr_name=attr_name: _variant_payload(attr_name)
+        def variant_fn(attr_name=attr_name):
+            return _variant_payload(attr_name)
+
         setattr(variant_fn, "etag", lambda attr_name=attr_name: f'W/"{attr_name}"')
         setattr(base_state_fn, attr_name, variant_fn)
 

@@ -5,7 +5,7 @@ import os
 import threading
 import time
 from collections.abc import Mapping
-from typing import Callable, Optional
+from typing import Callable
 
 try:
     from meshtastic.protobuf import admin_pb2

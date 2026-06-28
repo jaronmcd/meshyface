@@ -47,8 +47,11 @@ def test_history_read_api_delegates_fetch_and_decode_functions() -> None:
 
         return _fetch_rows
 
-    decode_list = lambda rows: [{"decoded": list(rows)}]
-    decode_map = lambda rows: {str(key): value for key, value in rows}
+    def decode_list(rows):
+        return [{"decoded": list(rows)}]
+
+    def decode_map(rows):
+        return {str(key): value for key, value in rows}
 
     assert load_recent_packets_data(
         conn,

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 import re
-from typing import Iterable
 
 from .port_tools.extract_upstream_rooms import extract_rooms_from_file
 

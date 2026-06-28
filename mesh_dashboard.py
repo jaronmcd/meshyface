@@ -41,7 +41,6 @@ from meshdash.config import (
     UNKNOWN_GIT_COMMIT,
 )
 from meshdash.helpers import (
-    format_epoch as _format_epoch,
     normalize_single_emoji as _normalize_single_emoji,
     to_jsonable as _to_jsonable_helper,
     to_int as _to_int,

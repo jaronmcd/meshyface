@@ -2353,7 +2353,6 @@ class ZorkGame:
             return self._compact(" ".join(part for part in parts if part))
 
         exits: list[str] = []
-        flags = self._session_flags(session)
         for exit_row in room.exits:
             direction = str(exit_row.get("direction") or "").strip().upper()
             if not direction:
@@ -3231,7 +3230,6 @@ class ZorkGame:
 
     def _inventory_text(self, session: dict[str, object]) -> str:
         inventory = self._session_inventory(session)
-        flags = self._session_flags(session)
         if not inventory:
             return "inventory: empty"
         labels: list[str] = []
@@ -3978,7 +3976,6 @@ class ZorkGame:
     def _light_action_response(self, session: dict[str, object], code: str, action: str) -> tuple[str, set[str]]:
         code_key = str(code or "").strip().upper()
         flags = self._session_flags(session)
-        room_id = str(session.get("room") or START_ROOM).strip().upper() or START_ROOM
         object_locations = self._object_locations(session)
         inventory = set(self._session_inventory(session))
         counters = self._session_counters(session)

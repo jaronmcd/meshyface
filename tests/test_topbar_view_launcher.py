@@ -181,7 +181,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "z-index: 1350;" in css
     topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
     topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
-    topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
+    _topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
     topbar_ticker_section = css.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
     topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
     topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]

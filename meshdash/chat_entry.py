@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Optional
 
 from .chat_scope import chat_scope_for_destination
 from .helpers import emoji_from_codepoint, to_int
