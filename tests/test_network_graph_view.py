@@ -479,14 +479,14 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'Choose the link history window for the Links view' in js
     assert '<span class="network-graph-chip-label">1 Hop</span>' not in js
     assert 'const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);' in js
+    assert 'const networkOverviewActive304 = activeLayoutView === "network" && activeNetworkSubview === "overview";' in js
     assert 'const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";' in js
-    assert 'const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || activeNetworkSubview === "overview");' in js
+    assert 'const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || networkOverviewActive304);' in js
     assert 'const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)' in js
     assert 'if (networkNodesTableActive304) {' in js
     assert 'clearHiddenNodesTable();' in js
-    assert 'const networkSensorsActive = activeLayoutView === "network" && activeNetworkSubview === "sensors";' in js
     assert 'return "network-graph";' in js
-    assert '|| (activeLayoutView === "network" && !networkSensorsActive)' in js
+    assert '|| networkOverviewActive' in js
     assert 'if (weeklySummaryPromise) {' in js
     assert 'const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);' in js
     assert 'const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";' in js
