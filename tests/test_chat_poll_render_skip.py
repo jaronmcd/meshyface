@@ -8,7 +8,8 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
         "poll-structural-skip",
         (
             'let chatPollStructuralSignature = "";',
-            "const chatPollStructuralRefreshMs = 15000;",
+            "const chatPollStructuralRefreshMs = Math.max(",
+            "Math.min(180000, Math.trunc(Number(refreshMs) || 3000) * 40)",
             "function buildChatPollStructuralSignature(state = latestState) {",
             'runPollStep("renderChat.workspace", () => renderChat(state, { allowPollSkip: true }));',
             "function refreshUnchangedChatWorkspace(state = latestState",
@@ -52,6 +53,7 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             "&& pollStructuralSignature === chatPollStructuralSignature",
             "&& pollStructuralAgeMs < chatPollStructuralRefreshMs",
             'markRenderChatPhase("poll-skip");',
+            "pollStructuralRefreshMs: Math.max(0, Math.trunc(Number(chatPollStructuralRefreshMs) || 0)),",
             '!chatRenderedThisPoll304',
             "chatMaintained: chatMaintainedThisPoll304",
             '!chatRenderedThisPoll',

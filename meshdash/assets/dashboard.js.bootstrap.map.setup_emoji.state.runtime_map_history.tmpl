@@ -127,7 +127,10 @@
     let chatReplyJumpInFlight = false;
     let chatPollStructuralSignature = "";
     let chatPollStructuralRenderedAtMs = 0;
-    const chatPollStructuralRefreshMs = 15000;
+    const chatPollStructuralRefreshMs = Math.max(
+      60000,
+      Math.min(180000, Math.trunc(Number(refreshMs) || 3000) * 40)
+    );
     let chatMessageEntriesCache = null;
     let chatLabsRenderCache = null;
     const nodeHistoryCache = new Map();

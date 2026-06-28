@@ -644,6 +644,8 @@
           rawPackets: Array.isArray(traffic.recent_packets) ? traffic.recent_packets.length : 0,
           nodes: nodes.length,
           allowPollSkip: true,
+          pollStructuralAgeMs: roundChatPerfMs(pollStructuralAgeMs),
+          pollStructuralRefreshMs: Math.max(0, Math.trunc(Number(chatPollStructuralRefreshMs) || 0)),
         }});
         return;
       }}
