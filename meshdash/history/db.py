@@ -1,4 +1,3 @@
-import os
 import sqlite3
 import time
 from collections.abc import Iterable
@@ -16,6 +15,10 @@ from ..history_maintenance import (
 from ..history_prune import prune_history_tables as _prune_history_tables_helper
 from ..history_schema import initialize_history_schema
 from ..history_store_policy import HistoryStorePolicy
+from ..sqlite_permissions import (
+    secure_sqlite_database_path,
+    secure_sqlite_sidecar_paths,
+)
 from ..sql_contracts import SqlConnection
 
 
@@ -28,10 +31,7 @@ def open_and_initialize_history_connection(
     max_rows: int,
     event_max_rows: int,
 ) -> SqlConnection:
-    db_dir = os.path.dirname(db_path)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
-
+    created_database = secure_sqlite_database_path(db_path)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     _configure_history_connection(conn)
 
@@ -49,6 +49,7 @@ def open_and_initialize_history_connection(
     _backfill_node_hour_seen_helper(conn)
     _backfill_node_capabilities_helper(conn, to_int_fn=_to_int)
     conn.commit()
+    secure_sqlite_sidecar_paths(db_path, created_database=created_database)
     return conn
 
 
@@ -93,8 +94,10 @@ def open_history_read_connection(*, db_path: str) -> SqlConnection:
     Using a separate connection allows true concurrent reads while the writer
     connection is committing (especially effective under WAL).
     """
+    created_database = secure_sqlite_database_path(db_path)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     _configure_history_connection(conn, read_only=True)
+    secure_sqlite_sidecar_paths(db_path, created_database=created_database)
     return conn
 
 

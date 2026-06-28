@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Callable
 
 from .helpers import to_float, to_int, to_jsonable
+from .sqlite_permissions import secure_sqlite_database_path, secure_sqlite_sidecar_paths
 
 
 _RAW_PACKET_SETTINGS_KEY = "raw_packet_capture_v1"
@@ -133,6 +134,7 @@ def _initialize_raw_packet_schema(conn: object) -> None:
 
 
 def open_raw_packet_connection(db_path: str) -> sqlite3.Connection:
+    created_database = secure_sqlite_database_path(db_path)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -144,6 +146,7 @@ def open_raw_packet_connection(db_path: str) -> sqlite3.Connection:
         pass
     _initialize_raw_packet_schema(conn)
     conn.commit()
+    secure_sqlite_sidecar_paths(db_path, created_database=created_database)
     return conn
 
 

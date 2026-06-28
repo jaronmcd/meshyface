@@ -1,7 +1,12 @@
+import os
 import sqlite3
+import stat
 from pathlib import Path
 
-from meshdash.history_raw_packets import raw_packet_db_path_for_history_db_path
+from meshdash.history_raw_packets import (
+    open_raw_packet_connection,
+    raw_packet_db_path_for_history_db_path,
+)
 from meshdash.history_store_runtime import HistoryStore
 
 
@@ -94,3 +99,38 @@ def test_history_store_raw_packet_capture_toggle_and_stats(tmp_path: Path) -> No
         assert row == ("raw_bytes", b"\x01\x02\x03")
     finally:
         store.close()
+
+
+def test_raw_packet_db_file_permissions_ignore_permissive_umask(tmp_path: Path) -> None:
+    raw_path = tmp_path / "private" / "history.raw.sqlite3"
+
+    old_umask = os.umask(0)
+    try:
+        conn = open_raw_packet_connection(str(raw_path))
+    finally:
+        os.umask(old_umask)
+
+    try:
+        assert stat.S_IMODE(raw_path.parent.stat().st_mode) == 0o700
+        assert stat.S_IMODE(raw_path.stat().st_mode) == 0o600
+        for suffix in ("-journal", "-shm", "-wal"):
+            sidecar_path = Path(f"{raw_path}{suffix}")
+            if sidecar_path.exists():
+                assert stat.S_IMODE(sidecar_path.stat().st_mode) == 0o600
+    finally:
+        conn.close()
+
+
+def test_raw_packet_db_open_preserves_existing_file_permissions(tmp_path: Path) -> None:
+    db_dir = tmp_path / "shared"
+    raw_path = db_dir / "history.raw.sqlite3"
+    db_dir.mkdir(mode=0o755)
+    raw_path.touch()
+    raw_path.chmod(0o664)
+
+    conn = open_raw_packet_connection(str(raw_path))
+    try:
+        assert stat.S_IMODE(db_dir.stat().st_mode) == 0o755
+        assert stat.S_IMODE(raw_path.stat().st_mode) == 0o664
+    finally:
+        conn.close()

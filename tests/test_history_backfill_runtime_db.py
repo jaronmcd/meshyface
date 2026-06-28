@@ -1,5 +1,7 @@
 import json
+import os
 import sqlite3
+import stat
 from pathlib import Path
 
 from meshdash.history.db import (
@@ -300,3 +302,52 @@ def test_history_db_open_read_prune_and_reset_paths(tmp_path: Path) -> None:
     assert conn.execute("SELECT COUNT(*) FROM chat").fetchone()[0] == 0
     assert reset_history_connection(conn) == 0
     conn.close()
+
+
+def test_history_db_file_permissions_ignore_permissive_umask(tmp_path: Path) -> None:
+    db_path = tmp_path / "private" / "history.sqlite3"
+    policy = HistoryStorePolicy(
+        max_rows=100,
+        event_max_rows=1000,
+        retention_seconds=7 * 86400,
+        event_retention_seconds=30 * 86400,
+        rollup_retention_seconds=365 * 86400,
+    )
+
+    old_umask = os.umask(0)
+    try:
+        conn = open_and_initialize_history_connection_with_policy(db_path=str(db_path), policy=policy)
+    finally:
+        os.umask(old_umask)
+
+    try:
+        assert stat.S_IMODE(db_path.parent.stat().st_mode) == 0o700
+        assert stat.S_IMODE(db_path.stat().st_mode) == 0o600
+        for suffix in ("-journal", "-shm", "-wal"):
+            sidecar_path = Path(f"{db_path}{suffix}")
+            if sidecar_path.exists():
+                assert stat.S_IMODE(sidecar_path.stat().st_mode) == 0o600
+    finally:
+        conn.close()
+
+
+def test_history_db_open_preserves_existing_file_permissions(tmp_path: Path) -> None:
+    db_dir = tmp_path / "shared"
+    db_path = db_dir / "history.sqlite3"
+    db_dir.mkdir(mode=0o755)
+    db_path.touch()
+    db_path.chmod(0o664)
+    policy = HistoryStorePolicy(
+        max_rows=100,
+        event_max_rows=1000,
+        retention_seconds=7 * 86400,
+        event_retention_seconds=30 * 86400,
+        rollup_retention_seconds=365 * 86400,
+    )
+
+    conn = open_and_initialize_history_connection_with_policy(db_path=str(db_path), policy=policy)
+    try:
+        assert stat.S_IMODE(db_dir.stat().st_mode) == 0o755
+        assert stat.S_IMODE(db_path.stat().st_mode) == 0o664
+    finally:
+        conn.close()
