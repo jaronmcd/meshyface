@@ -17,9 +17,12 @@ class _FakeGitRunner:
         ahead: int = 0,
         behind: int = 2,
         fetch_fails: bool = False,
+        prune_fails: bool = False,
+        fetch_without_prune_fails: bool = False,
         compare_fails: bool = False,
         current_branch: str = "main",
         remote_branches: list[str] | None = None,
+        live_remote_branches: list[str] | None = None,
         local_branches: set[str] | None = None,
         branch_ahead: int = 0,
         branch_behind: int = 4,
@@ -28,9 +31,12 @@ class _FakeGitRunner:
         self.ahead = ahead
         self.behind = behind
         self.fetch_fails = fetch_fails
+        self.prune_fails = prune_fails
+        self.fetch_without_prune_fails = fetch_without_prune_fails
         self.compare_fails = compare_fails
         self.current_branch = current_branch
         self.remote_branches = list(remote_branches or ["main", "beta"])
+        self.live_remote_branches = list(live_remote_branches or self.remote_branches)
         self.local_branches = set(local_branches or {current_branch})
         self.branch_ahead = branch_ahead
         self.branch_behind = branch_behind
@@ -70,6 +76,10 @@ class _FakeGitRunner:
             if self.compare_fails:
                 return GitCommandResult(128, "unknown revision")
             return GitCommandResult(0, "1\t4" if self.current_branch != "beta" else "0\t0")
+        if command == ("rev-list", "--left-right", "--count", "main...origin/main"):
+            if self.compare_fails:
+                return GitCommandResult(128, "unknown revision")
+            return GitCommandResult(0, "0\t0")
         if command == ("rev-list", "--left-right", "--count", "beta...origin/beta"):
             if self.compare_fails:
                 return GitCommandResult(128, "unknown revision")
@@ -134,9 +144,39 @@ class _FakeGitRunner:
             ]
             return GitCommandResult(0, end.join(records) + end)
         if command == ("fetch", "--prune", "origin"):
+            if self.prune_fails:
+                return GitCommandResult(
+                    128,
+                    "error: could not delete references: cannot lock ref "
+                    "'refs/remotes/origin/pr/dashboard-perf': Permission denied",
+                )
             if self.fetch_fails:
                 return GitCommandResult(128, "Could not resolve host: github.com")
             return GitCommandResult(0, "")
+        if command == ("fetch", "origin"):
+            if self.fetch_fails or self.fetch_without_prune_fails:
+                return GitCommandResult(128, "Could not resolve host: github.com")
+            return GitCommandResult(0, "")
+        if command[0:2] == ("fetch", "origin") and len(command) == 3:
+            refspec = command[2]
+            prefix = "+refs/heads/"
+            middle = ":refs/remotes/origin/"
+            if not refspec.startswith(prefix) or middle not in refspec:
+                return GitCommandResult(1, f"unexpected command: {' '.join(command)}")
+            branch = refspec[len(prefix) : refspec.index(middle)]
+            if branch not in self.live_remote_branches:
+                return GitCommandResult(128, f"fatal: couldn't find remote ref {branch}")
+            if branch not in self.remote_branches:
+                self.remote_branches.append(branch)
+            return GitCommandResult(0, "")
+        if command == ("ls-remote", "--heads", "origin"):
+            if self.fetch_fails:
+                return GitCommandResult(128, "Could not resolve host: github.com")
+            refs = "\n".join(
+                f"bbbbbbbb11111111222222223333333344444444\trefs/heads/{branch}"
+                for branch in self.live_remote_branches
+            )
+            return GitCommandResult(0, refs)
         if command[0:3] == ("show-ref", "--verify", "--quiet") and len(command) == 4:
             branch_ref = command[3]
             branch_name = branch_ref.removeprefix("refs/heads/")
@@ -160,14 +200,15 @@ class _FakeGitRunner:
             self.branch_ahead = 0
             self.branch_behind = 0
             return GitCommandResult(0, "HEAD is now at bbbbbbb")
-        if command == ("switch", "beta"):
-            if "beta" not in self.local_branches:
+        if command[0:1] == ("switch",) and len(command) == 2:
+            branch = command[1]
+            if branch not in self.local_branches:
                 return GitCommandResult(1, "branch not found")
-            self.current_branch = "beta"
+            self.current_branch = branch
             self.commit = self.new_commit
             self.ahead = 0
             self.behind = 0
-            return GitCommandResult(0, "Switched to branch 'beta'")
+            return GitCommandResult(0, f"Switched to branch '{branch}'")
         if command == ("switch", "--track", "-c", "beta", "origin/beta"):
             self.local_branches.add("beta")
             self.current_branch = "beta"
@@ -298,6 +339,61 @@ def test_refresh_update_status_fetches_without_merging(tmp_path: Path) -> None:
     assert ("fetch", "--prune", "origin") in runner.commands
     assert ("merge", "--ff-only", "origin/main") not in runner.commands
     assert runner.commit == "aaaaaaaa11111111222222223333333344444444"
+
+
+def test_refresh_update_status_recovers_deleted_selected_branch_after_prune_failure(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="pr/dashboard-perf",
+        remote_branches=["main", "pr/dashboard-perf"],
+        live_remote_branches=["dev", "main"],
+        local_branches={"pr/dashboard-perf"},
+        prune_fails=True,
+    )
+
+    payload = refresh_update_status_from_github(
+        repo_dir=tmp_path,
+        target_branch="pr/dashboard-perf",
+        runner=runner,
+    )
+
+    assert payload["ok"] is True
+    assert payload["connection_ok"] is True
+    assert payload["refreshed"] is True
+    assert payload["prune_failed"] is True
+    assert payload["state"] == "invalid_branch"
+    assert payload["target_branch"] == "pr/dashboard-perf"
+    assert payload["branches"] == ["dev", "main"]
+    assert payload["can_update"] is False
+    assert "Select a live branch" in payload["message"]
+    assert "Permission denied" in payload["prune_error"]
+    assert ("fetch", "--prune", "origin") in runner.commands
+    assert ("fetch", "origin") in runner.commands
+    assert ("ls-remote", "--heads", "origin") in runner.commands
+
+
+def test_run_update_can_switch_to_live_branch_after_stale_ref_prune_failure(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="pr/dashboard-perf",
+        remote_branches=["main", "pr/dashboard-perf"],
+        live_remote_branches=["dev", "main"],
+        local_branches={"pr/dashboard-perf", "main"},
+        prune_fails=True,
+    )
+
+    payload = run_update_from_github(repo_dir=tmp_path, target_branch="main", runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["updated"] is True
+    assert payload["branch"] == "main"
+    assert runner.current_branch == "main"
+    assert ("fetch", "--prune", "origin") in runner.commands
+    assert (
+        "fetch",
+        "origin",
+        "+refs/heads/main:refs/remotes/origin/main",
+    ) in runner.commands
+    assert ("switch", "main") in runner.commands
+    assert ("merge", "--ff-only", "origin/main") in runner.commands
 
 
 def test_run_update_fetches_and_fast_forwards(tmp_path: Path) -> None:

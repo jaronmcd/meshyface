@@ -208,6 +208,37 @@ def _remote_branches(repo_root: Path, remote: str, runner: GitRunner) -> list[st
     return sorted(branches)
 
 
+def _normalize_branch_options(branches: Sequence[object]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in branches:
+        branch = _clean_branch_name(raw)
+        if not branch or branch in seen:
+            continue
+        seen.add(branch)
+        normalized.append(branch)
+    return sorted(normalized)
+
+
+def _live_remote_branches(repo_root: Path, remote: str, runner: GitRunner) -> list[str]:
+    clean_remote = str(remote or "").strip()
+    if not clean_remote:
+        return []
+    result = runner(["ls-remote", "--heads", clean_remote], repo_root, 20.0)
+    if result.returncode != 0:
+        return []
+    branches: list[str] = []
+    for raw in _git_text(result).splitlines():
+        parts = str(raw or "").strip().split()
+        if len(parts) < 2:
+            continue
+        ref = parts[1].strip()
+        if not ref.startswith("refs/heads/"):
+            continue
+        branches.append(ref.removeprefix("refs/heads/"))
+    return _normalize_branch_options(branches)
+
+
 def _current_branch(repo_root: Path, runner: GitRunner) -> str:
     result = runner(["branch", "--show-current"], repo_root, 5.0)
     return _git_text(result) if result.returncode == 0 else ""
@@ -506,6 +537,7 @@ def build_update_status_payload(
     repo_dir: str | os.PathLike[str] | None = None,
     target_branch: object = None,
     runner: GitRunner = _run_git,
+    remote_branches_override: Sequence[object] | None = None,
 ) -> dict[str, object]:
     repo_root, error = _resolve_repo_root(repo_dir=repo_dir, runner=runner)
     if repo_root is None:
@@ -527,7 +559,11 @@ def build_update_status_payload(
         runner=runner,
     )
     remote = _default_update_remote(repo_root, preferred_remote=current_remote, runner=runner)
-    branch_options = _remote_branches(repo_root, remote, runner)
+    branch_options = (
+        _normalize_branch_options(remote_branches_override)
+        if remote_branches_override is not None
+        else _remote_branches(repo_root, remote, runner)
+    )
     selected_branch, selected_available = _select_target_branch(
         requested_branch=target_branch,
         current_branch=branch,
@@ -623,6 +659,83 @@ def _failure_payload(
     return payload
 
 
+def _fetch_prune_failure_can_fallback(result: GitCommandResult) -> bool:
+    if result.returncode == 0 or result.timed_out:
+        return False
+    text = _git_text(result).lower()
+    return any(
+        marker in text
+        for marker in (
+            "could not delete references",
+            "cannot lock ref",
+            "unable to create",
+            "permission denied",
+            "unable to update local ref",
+        )
+    )
+
+
+def _fetch_remote_with_prune_fallback(
+    repo_root: Path,
+    remote: str,
+    runner: GitRunner,
+    timeout: float,
+    *,
+    selected_branch: str = "",
+    fetch_selected_only: bool = False,
+) -> tuple[GitCommandResult, str, bool]:
+    prune_result = runner(["fetch", "--prune", remote], repo_root, timeout)
+    if prune_result.returncode == 0 or not _fetch_prune_failure_can_fallback(prune_result):
+        return prune_result, "", False
+
+    clean_branch = _clean_branch_name(selected_branch)
+    fallback_args = ["fetch", remote]
+    if fetch_selected_only and clean_branch:
+        fallback_args = [
+            "fetch",
+            remote,
+            f"+refs/heads/{clean_branch}:refs/remotes/{remote}/{clean_branch}",
+        ]
+    fallback_result = runner(fallback_args, repo_root, timeout)
+    prune_error = _short_text(_git_text(prune_result))
+    if fallback_result.returncode == 0:
+        return fallback_result, prune_error, True
+
+    fallback_error = _short_text(_git_text(fallback_result))
+    combined = prune_error
+    if fallback_error:
+        combined = f"{combined}\nFallback fetch without prune also failed:\n{fallback_error}"
+    return GitCommandResult(
+        returncode=fallback_result.returncode,
+        stdout=combined,
+        timed_out=fallback_result.timed_out,
+    ), "", False
+
+
+def _apply_prune_recovery_status(
+    payload: dict[str, object],
+    *,
+    prune_error: str,
+) -> dict[str, object]:
+    recovered = dict(payload)
+    message = str(recovered.get("message") or "").strip()
+    if str(recovered.get("state") or "") in {"invalid_branch", "select_branch"}:
+        suffix = "Select a live branch to recover; local stale Git refs could not be pruned automatically."
+        message = f"{message} {suffix}".strip()
+    recovered.update(
+        {
+            "ok": True,
+            "connection_ok": True,
+            "prune_failed": True,
+            "prune_error": prune_error,
+            "error": prune_error,
+            "message": message or "GitHub is reachable, but local stale Git refs could not be pruned automatically.",
+            "http_status": 200,
+        }
+    )
+    return recovered
+
+
 def _local_branch_exists(repo_root: Path, branch: str, runner: GitRunner) -> bool:
     clean = _clean_branch_name(branch)
     if not clean:
@@ -701,9 +814,25 @@ def refresh_update_status_from_github(
             )
             return payload
 
-        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        selected_branch = str(status.get("target_branch") or target_branch or "").strip()
+        fetch_result, prune_error, used_prune_fallback = _fetch_remote_with_prune_fallback(
+            repo_root,
+            remote,
+            runner,
+            fetch_timeout,
+            selected_branch=selected_branch,
+        )
         if fetch_result.returncode != 0:
             error_text = _short_text(_git_text(fetch_result))
+            live_branches = _live_remote_branches(repo_root, remote, runner)
+            if live_branches and _fetch_prune_failure_can_fallback(fetch_result):
+                payload = build_update_status_payload(
+                    repo_dir=repo_root,
+                    target_branch=target_branch,
+                    runner=runner,
+                    remote_branches_override=live_branches,
+                )
+                return _apply_prune_recovery_status(payload, prune_error=error_text)
             message = "Could not reach GitHub or check updates."
             if fetch_result.timed_out:
                 message = "GitHub update check timed out."
@@ -723,11 +852,15 @@ def refresh_update_status_from_github(
             )
             return payload
 
+        live_branch_override = _live_remote_branches(repo_root, remote, runner) if used_prune_fallback else []
         payload = build_update_status_payload(
             repo_dir=repo_root,
             target_branch=target_branch,
             runner=runner,
+            remote_branches_override=live_branch_override or None,
         )
+        if used_prune_fallback:
+            payload = _apply_prune_recovery_status(payload, prune_error=prune_error)
         payload.update(
             {
                 "connection_ok": True,
@@ -792,12 +925,37 @@ def run_update_from_github(
                 http_status=409,
             )
 
-        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        fetch_result, _prune_error, used_prune_fallback = _fetch_remote_with_prune_fallback(
+            repo_root,
+            remote,
+            runner,
+            fetch_timeout,
+            selected_branch=selected_branch,
+            fetch_selected_only=True,
+        )
         if fetch_result.returncode != 0:
             error = _short_text(_git_text(fetch_result))
             message = "Could not reach GitHub or fetch the update."
             if fetch_result.timed_out:
                 message = "GitHub update check timed out."
+            live_branches = _live_remote_branches(repo_root, remote, runner)
+            if live_branches and selected_branch not in live_branches:
+                after_fetch = build_update_status_payload(
+                    repo_dir=repo_root,
+                    target_branch=selected_branch,
+                    runner=runner,
+                    remote_branches_override=live_branches,
+                )
+                return _failure_payload(
+                    after_fetch,
+                    state=str(after_fetch.get("state") or "invalid_branch"),
+                    message=str(
+                        after_fetch.get("message")
+                        or f"GitHub branch {selected_branch} is not available."
+                    ),
+                    http_status=409,
+                    error=error or message,
+                )
             return _failure_payload(
                 status,
                 state="fetch_failed",
@@ -806,10 +964,12 @@ def run_update_from_github(
                 error=error or message,
             )
 
+        live_branch_override = _live_remote_branches(repo_root, remote, runner) if used_prune_fallback else []
         after_fetch = build_update_status_payload(
             repo_dir=repo_root,
             target_branch=selected_branch,
             runner=runner,
+            remote_branches_override=live_branch_override or None,
         )
         ahead = after_fetch.get("ahead")
         behind = after_fetch.get("behind")
