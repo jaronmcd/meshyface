@@ -70,6 +70,18 @@
       fillTable("nodes-table", [`<tr><td colspan="10">${{escAttr(text)}}</td></tr>`]);
     }}
 
+    function clearHiddenNodesTable(message = "Node list is hidden in this view.") {{
+      const tbody = document.querySelector("#nodes-table tbody");
+      if (tbody && tbody.dataset.meshHiddenNodesPlaceholder === "1") return;
+      nodesTableLastHash = -1;
+      nodesTableLastQuery = "";
+      renderNodesPlaceholder(message);
+      const nextTbody = document.querySelector("#nodes-table tbody");
+      if (nextTbody) {{
+        nextTbody.dataset.meshHiddenNodesPlaceholder = "1";
+      }}
+    }}
+
     function nodesTableSortRaw(entry, colIndex) {{
       const node = (entry && typeof entry === "object" && entry.node) ? entry.node : entry;
       const projection = (entry && typeof entry === "object" && entry.projection)
@@ -189,6 +201,10 @@
       const scroller = table ? table.closest(".scroll") : null;
       const scrollTop = scroller && "scrollTop" in scroller ? scroller.scrollTop : null;
       fillTable("nodes-table", rows);
+      const tbody = table ? table.querySelector("tbody") : null;
+      if (tbody) {{
+        delete tbody.dataset.meshHiddenNodesPlaceholder;
+      }}
       if (scrollTop != null && scroller) {{
         scroller.scrollTop = scrollTop;
       }}

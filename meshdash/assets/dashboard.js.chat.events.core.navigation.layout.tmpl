@@ -11560,6 +11560,8 @@
       if (typeof updateGamesFullscreenControl === "function") {{
         updateGamesFullscreenControl(next);
       }}
+      const networkMapSubviewActive = next === "network" && networkSubviewUsesMap(activeNetworkSubview);
+      const networkNodesTableActive = next === "network" && (networkMapSubviewActive || activeNetworkSubview === "overview");
       if (latestState) {{
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
@@ -11584,11 +11586,15 @@
         ) {{
           renderChatNodeNavigatorList(latestState);
         }}
-        if (next === "saved" || next === "network") {{
+        if (next === "saved" || networkMapSubviewActive) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
         }}
         if (next === "network") {{
-          renderNodes(latestState.nodes || []);
+          if (networkNodesTableActive) {{
+            renderNodes(latestState.nodes || []);
+          }} else if (typeof clearHiddenNodesTable === "function") {{
+            clearHiddenNodesTable();
+          }}
           if (networkGraphActive && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(latestState);
           }} else if (networkGraphActive && typeof requestImmediatePoll === "function") {{
@@ -11721,8 +11727,17 @@
           rerender: false,
         }});
       }}
-      // Ensure node history loads immediately when switching into the map views.
-      void refreshSelectedNodeHistory(false);
+      const shouldRefreshSelectedNodeHistoryForView = !!(
+        next === "saved"
+        || networkMapSubviewActive
+        || (
+          typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        )
+      );
+      if (shouldRefreshSelectedNodeHistoryForView) {{
+        void refreshSelectedNodeHistory(false);
+      }}
       if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
