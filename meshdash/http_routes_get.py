@@ -33,7 +33,7 @@ from .api_theme import (
 )
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardGetRouteDependencies
-from .http_responses import _send_no_store_headers
+from .http_responses import _gzip_if_accepted, _send_no_store_headers
 from .offline_atlas import load_offline_atlas_payload as _load_offline_atlas_payload_helper
 from .helpers import to_int as _to_int_helper
 
@@ -99,6 +99,32 @@ def _write_vendor_asset_response(
     handler.send_header("Content-Type", content_type)
     handler.send_header("Cache-Control", "public, max-age=86400")
     handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+    return True
+
+
+def _write_dashboard_asset_response(
+    handler: DashboardHttpHandler,
+    *,
+    path: str,
+    deps: DashboardGetRouteDependencies,
+) -> bool:
+    asset_map = getattr(deps, "dashboard_asset_map", None) or {}
+    asset = asset_map.get(path) if hasattr(asset_map, "get") else None
+    if asset is None:
+        return False
+    content_type, raw_payload = asset
+    payload = bytes(raw_payload)
+    payload, content_encoding = _gzip_if_accepted(handler, payload)
+    handler.send_response(200)
+    handler.send_header("Content-Type", str(content_type))
+    handler.send_header("Cache-Control", "public, max-age=31536000, immutable")
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    if content_encoding:
+        handler.send_header("Content-Encoding", content_encoding)
+        handler.send_header("Vary", "Accept-Encoding")
     handler.send_header("Content-Length", str(len(payload)))
     handler.end_headers()
     handler.wfile.write(payload)
@@ -297,6 +323,9 @@ def handle_dashboard_get(
 ) -> None:
     if path in ("/", "/index.html"):
         deps.write_html_response_fn(handler, html_text=deps.html_text, no_store=True)
+        return
+
+    if _write_dashboard_asset_response(handler, path=path, deps=deps):
         return
 
     if _write_vendor_asset_response(handler, path=path):
@@ -741,6 +770,20 @@ def handle_dashboard_get(
             or query_obj.get("node", [""])[0]
             or ""
         ).strip()
+        gap_scan_raw = str(
+            query_obj.get("include_gap_scan", [""])[0]
+            or query_obj.get("gap_scan", [""])[0]
+            or query_obj.get("gap", [""])[0]
+            or ""
+        ).strip().lower()
+        include_gap_scan = gap_scan_raw not in {"0", "false", "no", "off", "skip"}
+        catalog_raw = str(
+            query_obj.get("catalog", [""])[0]
+            or query_obj.get("catalog_only", [""])[0]
+            or query_obj.get("metadata", [""])[0]
+            or ""
+        ).strip().lower()
+        catalog_only = catalog_raw in {"1", "true", "yes", "on", "only"}
         environment_history_fn = getattr(deps.state_fn, "environment_metrics_history_fn", None)
         if callable(environment_history_fn):
             try:
@@ -749,6 +792,8 @@ def handle_dashboard_get(
                     metric=metric or None,
                     node_id=node_id or None,
                     limit=limit,
+                    include_gap_scan=include_gap_scan,
+                    catalog_only=catalog_only,
                 )
             except Exception as exc:
                 response_obj = {
@@ -759,6 +804,8 @@ def handle_dashboard_get(
                         "metric": metric,
                         "node_id": node_id,
                         "limit": limit,
+                        "include_gap_scan": include_gap_scan,
+                        "catalog_only": catalog_only,
                     },
                     "points": [],
                     "metrics": [],
@@ -773,6 +820,8 @@ def handle_dashboard_get(
                     "metric": metric,
                     "node_id": node_id,
                     "limit": limit,
+                    "include_gap_scan": include_gap_scan,
+                    "catalog_only": catalog_only,
                 },
                 "points": [],
                 "metrics": [],

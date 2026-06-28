@@ -54,7 +54,12 @@ class OnlineActivityFn(Protocol):
 
 
 class SummaryMetricsHistoryFn(Protocol):
-    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
+    def __call__(
+        self,
+        hours_override: Optional[int],
+        *,
+        include_packet_series: bool = True,
+    ) -> dict[str, object]:
         ...
 
 
@@ -370,6 +375,7 @@ class DashboardGetRouteDependencies:
     get_custom_telemetry_settings_fn: Optional[GetCustomTelemetrySettingsFn] = None
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None
+    dashboard_asset_map: Mapping[str, tuple[str, bytes]] | None = None
 
 
 @dataclass(frozen=True)

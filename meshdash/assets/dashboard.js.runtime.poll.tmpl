@@ -432,7 +432,8 @@
           const historyTargetId304 = activeLayoutView === "saved"
             ? resolveSavedViewNodeId(latestState)
             : normalizeNodeId(selectedNodeId || "");
-          const historyRelevant304 = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible304)
+          const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
+          const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)
             && (mapDataFocus !== "activity" || drawerHistoryVisible304)
             && isSelectableNodeId(historyTargetId304);
           const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
@@ -455,7 +456,6 @@
             renderChatNodeNavigatorList(latestState);
           }}
           renderSummary(latestState);
-          const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
           const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
           const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
           markPollPerfPhase(pollPerfRun, "not-modified-context", {{
@@ -467,10 +467,16 @@
           }}
           markPollPerfPhase(pollPerfRun, "not-modified-map");
           const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
+          const networkOverviewActive304 = activeLayoutView === "network" && activeNetworkSubview === "overview";
           const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";
           const networkTopNodesActive304 = activeLayoutView === "network" && activeNetworkSubview === "top10";
+          const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || networkOverviewActive304);
           if (activeLayoutView === "network") {{
-            renderNodes(nodes304);
+            if (networkNodesTableActive304) {{
+              renderNodes(nodes304);
+            }} else if (typeof clearHiddenNodesTable === "function") {{
+              clearHiddenNodesTable();
+            }}
             if (networkGraphActive304 && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
               renderNetworkGraphView(latestState);
             }}
@@ -667,14 +673,15 @@
         const historyTargetId = activeLayoutView === "saved"
           ? resolveSavedViewNodeId(state)
           : normalizeNodeId(selectedNodeId || "");
-        const historyRelevant = (activeLayoutView === "saved" || activeLayoutView === "network" || drawerHistoryVisible)
+        const historyRelevant = (activeLayoutView === "saved" || networkMapActive || drawerHistoryVisible)
           && (mapDataFocus !== "activity" || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
         const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
+        const networkOverviewActive = activeLayoutView === "network" && activeNetworkSubview === "overview";
         const networkRoutesActive = activeLayoutView === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = activeLayoutView === "network" && activeNetworkSubview === "top10";
-        const networkSensorsActive = activeLayoutView === "network" && activeNetworkSubview === "sensors";
+        const networkNodesTableActive = activeLayoutView === "network" && (networkMapActive || networkOverviewActive);
 
         if (mapVisible && !mapBootstrapFocusDone) {{
           const bootstrap = applyMapBootstrapFocus(state.nodes || [], state);
@@ -694,11 +701,16 @@
         const activeSummaryWindowHours = activeLayoutView === "network"
           ? networkOverviewWindowHours
           : weeklySummaryWindowHours;
+        const activeSummaryIncludePacketSeries = activeLayoutView === "history"
+          ? historySummaryNeedsPacketSeries()
+          : networkOverviewSummaryNeedsPacketSeries();
         const weeklySummaryPromise = (
           activeLayoutView === "history"
-          || (activeLayoutView === "network" && !networkSensorsActive)
+          || networkOverviewActive
         )
-          ? fetchSummaryMetrics(activeSummaryWindowHours).catch((summaryErr) => ({{
+          ? fetchSummaryMetrics(activeSummaryWindowHours, {{
+              includePacketSeries: activeSummaryIncludePacketSeries,
+            }}).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
                 : String(summaryErr || "unknown error"),
@@ -724,7 +736,11 @@
         markPollPerfPhase(pollPerfRun, "render-map", {{ mapVisible }});
 
         if (activeLayoutView === "network") {{
-          renderNodes(state.nodes || []);
+          if (networkNodesTableActive) {{
+            renderNodes(state.nodes || []);
+          }} else if (typeof clearHiddenNodesTable === "function") {{
+            clearHiddenNodesTable();
+          }}
           if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(state);
           }}
@@ -766,7 +782,7 @@
             renderWeeklySummaryLoading();
           }}
         }}
-        if (activeLayoutView === "network" && !networkSensorsActive) {{
+        if (networkOverviewActive) {{
           if (weeklySummary && !weeklySummary.error) {{
             renderNetworkOverviewSummary(weeklySummary);
           }} else if (weeklySummary && weeklySummary.error) {{

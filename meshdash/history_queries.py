@@ -139,6 +139,81 @@ def fetch_environment_metric_rollup_rows(
     return conn.execute(sql, tuple(params)).fetchall()
 
 
+def fetch_environment_metric_catalog_metric_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    metric: str | None = None,
+    node_id: str | None = None,
+) -> SqlRows:
+    clean_cutoff = max(0, int(cutoff))
+    where_clauses = ["last_seen_unix >= ?"]
+    params: list[object] = [clean_cutoff]
+    clean_metric = str(metric or "").strip()
+    if clean_metric:
+        where_clauses.append("metric_key = ?")
+        params.append(clean_metric)
+    clean_node_id = str(node_id or "").strip()
+    if clean_node_id:
+        where_clauses.append("node_id = ?")
+        params.append(clean_node_id)
+    sql = f"""
+        SELECT metric_key,
+               COALESCE(NULLIF(MAX(metric_label), ''), metric_key) AS metric_label,
+               SUM(sample_count) AS sample_total,
+               COUNT(DISTINCT node_id) AS node_total,
+               MIN(CASE
+                     WHEN sample_count > 0 THEN value_sum / sample_count
+                     WHEN last_value IS NOT NULL THEN last_value
+                     ELSE value_min
+                   END) AS value_min,
+               MAX(CASE
+                     WHEN sample_count > 0 THEN value_sum / sample_count
+                     WHEN last_value IS NOT NULL THEN last_value
+                     ELSE value_max
+                   END) AS value_max,
+               COUNT(*) AS row_total
+        FROM environment_metrics_1m
+        WHERE {' AND '.join(where_clauses)}
+        GROUP BY metric_key
+        ORDER BY sample_total DESC, metric_label ASC
+        """
+    return conn.execute(sql, tuple(params)).fetchall()
+
+
+def fetch_environment_metric_catalog_node_rows(
+    conn: SqlConnection,
+    *,
+    cutoff: int,
+    metric: str | None = None,
+    node_id: str | None = None,
+) -> SqlRows:
+    clean_cutoff = max(0, int(cutoff))
+    where_clauses = ["last_seen_unix >= ?"]
+    params: list[object] = [clean_cutoff]
+    clean_metric = str(metric or "").strip()
+    if clean_metric:
+        where_clauses.append("metric_key = ?")
+        params.append(clean_metric)
+    clean_node_id = str(node_id or "").strip()
+    if clean_node_id:
+        where_clauses.append("node_id = ?")
+        params.append(clean_node_id)
+    sql = f"""
+        SELECT node_id,
+               COALESCE(NULLIF(MAX(node_label), ''), node_id) AS node_label,
+               SUM(sample_count) AS sample_total,
+               COUNT(DISTINCT metric_key) AS metric_total,
+               MAX(last_seen_unix) AS last_seen_unix,
+               COUNT(*) AS row_total
+        FROM environment_metrics_1m
+        WHERE {' AND '.join(where_clauses)}
+        GROUP BY node_id
+        ORDER BY sample_total DESC, node_label ASC, node_id ASC
+        """
+    return conn.execute(sql, tuple(params)).fetchall()
+
+
 def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
     return conn.execute(
         """

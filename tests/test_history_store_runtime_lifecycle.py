@@ -292,7 +292,7 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_load_node_position_counts_helper", lambda store: _record("position_counts"))
     monkeypatch.setattr(runtime_impl, "_load_node_capabilities_helper", lambda store: _record("capabilities"))
     monkeypatch.setattr(runtime_impl, "_load_node_packet_trends_helper", lambda store, **kwargs: _record("trends", kwargs))
-    monkeypatch.setattr(runtime_impl, "_load_summary_metrics_helper", lambda store, hours: _record("summary", hours))
+    monkeypatch.setattr(runtime_impl, "_load_summary_metrics_helper", lambda store, hours, **kwargs: _record("summary", (hours, kwargs)))
     monkeypatch.setattr(runtime_impl, "_load_top_nodes_helper", lambda store, **kwargs: _record("top", kwargs))
     monkeypatch.setattr(runtime_impl, "_load_database_stats_helper", lambda store: _record("stats"))
     monkeypatch.setattr(runtime_impl, "_save_connection_event_wrapper_helper", lambda store, **kwargs: _record("save_conn", kwargs))

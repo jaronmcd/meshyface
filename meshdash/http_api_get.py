@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 from .api_input_history import parse_node_history_request, parse_online_activity_request
 from .helpers import to_int
+from .html_external_assets import externalize_dashboard_assets
 from .http_handler_contracts import DashboardHttpHandler
 from .http_responses import write_html_response, write_json_response, write_text_response
 from .http_route_contracts import (
@@ -43,8 +44,9 @@ def build_get_route_dependencies(
     api_metrics: ApiMetricsRecorder | None = None,
     to_int_fn: ToIntFn = to_int,
 ) -> DashboardGetRouteDependencies:
+    externalized_assets = externalize_dashboard_assets(html_text)
     return DashboardGetRouteDependencies(
-        html_text=html_text,
+        html_text=externalized_assets.html_text,
         state_fn=state_fn,
         node_history_fn=node_history_fn,
         online_activity_fn=online_activity_fn,
@@ -65,6 +67,7 @@ def build_get_route_dependencies(
         get_custom_telemetry_settings_fn=get_custom_telemetry_settings_fn,
         private_mode=bool(private_mode),
         api_metrics=api_metrics,
+        dashboard_asset_map=externalized_assets.assets,
     )
 
 

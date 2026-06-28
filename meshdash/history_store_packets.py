@@ -2,6 +2,8 @@ import time
 
 from .history_queries import (
     fetch_chat_search_rows as _fetch_chat_search_rows_helper,
+    fetch_environment_metric_catalog_metric_rows as _fetch_environment_metric_catalog_metric_rows_helper,
+    fetch_environment_metric_catalog_node_rows as _fetch_environment_metric_catalog_node_rows_helper,
     fetch_environment_metric_packet_rows as _fetch_environment_metric_packet_rows_helper,
     fetch_environment_metric_rollup_rows as _fetch_environment_metric_rollup_rows_helper,
     fetch_packet_search_rows as _fetch_packet_search_rows_helper,
@@ -544,6 +546,58 @@ def _derive_environment_meta_from_points(
     return metric_meta, node_meta
 
 
+def _environment_catalog_rows_from_rollups(
+    *,
+    metric_rows_raw: list[tuple[object, ...]],
+    node_rows_raw: list[tuple[object, ...]],
+) -> tuple[list[dict[str, object]], list[dict[str, object]], int]:
+    metric_rows: list[dict[str, object]] = []
+    scanned_rows = 0
+    for row in metric_rows_raw:
+        metric_key = _normalize_env_metric_key(row[0] if len(row) > 0 else "")
+        if not metric_key:
+            continue
+        metric_label = _format_env_metric_label(row[1] if len(row) > 1 else metric_key)
+        count = int(_to_int(row[2] if len(row) > 2 else None) or 0)
+        nodes = int(_to_int(row[3] if len(row) > 3 else None) or 0)
+        value_min = _metric_float(row[4] if len(row) > 4 else None)
+        value_max = _metric_float(row[5] if len(row) > 5 else None)
+        scanned_rows += int(_to_int(row[6] if len(row) > 6 else None) or 0)
+        metric_rows.append(
+            {
+                "key": metric_key,
+                "label": metric_label,
+                "count": count,
+                "nodes": nodes,
+                "min": float(value_min or 0.0),
+                "max": float(value_max or 0.0),
+            }
+        )
+    metric_rows.sort(key=lambda item: (-int(item["count"]), str(item["label"])))
+
+    node_rows: list[dict[str, object]] = []
+    for row in node_rows_raw:
+        node_id = _canonical_node_id(row[0] if len(row) > 0 else "")
+        if not node_id:
+            continue
+        node_label = str(row[1] if len(row) > 1 and row[1] is not None else node_id).strip() or node_id
+        count = int(_to_int(row[2] if len(row) > 2 else None) or 0)
+        metrics = int(_to_int(row[3] if len(row) > 3 else None) or 0)
+        last_unix = int(_to_int(row[4] if len(row) > 4 else None) or 0)
+        node_rows.append(
+            {
+                "id": node_id,
+                "label": node_label,
+                "count": count,
+                "metrics": metrics,
+                "last_unix": last_unix,
+                "last_seen": _format_epoch(last_unix) if last_unix > 0 else "n/a",
+            }
+        )
+    node_rows.sort(key=lambda item: (-int(item["count"]), str(item["label"]), str(item["id"])))
+    return metric_rows, node_rows, scanned_rows
+
+
 def load_recent_packets(store: HistoryStoreReadState, limit: int) -> list[dict[str, object]]:
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
@@ -797,6 +851,8 @@ def load_environment_metrics_history(
     metric: str | None = None,
     node_id: str | None = None,
     limit: int | None = None,
+    include_gap_scan: bool = True,
+    catalog_only: bool = False,
 ) -> dict[str, object]:
     clean_hours = max(1, min(24 * 365, int(window_hours) if isinstance(window_hours, int) else 72))
     clean_limit = max(200, min(100000, int(limit) if isinstance(limit, int) else 20000))
@@ -812,6 +868,48 @@ def load_environment_metrics_history(
         read_lock = getattr(store, "_read_lock", None) or store._lock
 
     with read_lock:
+        if catalog_only:
+            metric_catalog_rows = list(
+                _fetch_environment_metric_catalog_metric_rows_helper(
+                    read_conn,
+                    cutoff=cutoff,
+                    metric=clean_metric or None,
+                    node_id=clean_node_id or None,
+                )
+            )
+            node_catalog_rows = list(
+                _fetch_environment_metric_catalog_node_rows_helper(
+                    read_conn,
+                    cutoff=cutoff,
+                    metric=clean_metric or None,
+                    node_id=clean_node_id or None,
+                )
+            )
+            if metric_catalog_rows or node_catalog_rows:
+                metric_rows, node_rows, scanned_count = _environment_catalog_rows_from_rollups(
+                    metric_rows_raw=metric_catalog_rows,
+                    node_rows_raw=node_catalog_rows,
+                )
+                return {
+                    "ok": True,
+                    "window_hours": clean_hours,
+                    "cutoff_unix": cutoff,
+                    "cutoff_time": _format_epoch(cutoff),
+                    "query": {
+                        "metric": clean_metric,
+                        "node_id": clean_node_id,
+                        "limit": clean_limit,
+                        "include_gap_scan": bool(include_gap_scan),
+                        "catalog_only": True,
+                    },
+                    "source": "rollup_1m_catalog",
+                    "scanned_packets": scanned_count,
+                    "total_points": 0,
+                    "returned_points": 0,
+                    "metrics": metric_rows,
+                    "nodes": node_rows,
+                    "points": [],
+                }
         rollup_rows = list(
             _fetch_environment_metric_rollup_rows_helper(
                 read_conn,
@@ -833,7 +931,9 @@ def load_environment_metrics_history(
                 if earliest_rollup_unix <= 0 or rollup_unix < earliest_rollup_unix:
                     earliest_rollup_unix = int(rollup_unix)
         need_packet_gap_fill = (not rollup_rows) or (
-            earliest_rollup_unix > 0 and earliest_rollup_unix > cutoff
+            bool(include_gap_scan)
+            and earliest_rollup_unix > 0
+            and earliest_rollup_unix > cutoff
         )
         if need_packet_gap_fill:
             packet_rows = list(
@@ -930,14 +1030,16 @@ def load_environment_metrics_history(
             "metric": clean_metric,
             "node_id": clean_node_id,
             "limit": clean_limit,
+            "include_gap_scan": bool(include_gap_scan),
+            "catalog_only": bool(catalog_only),
         },
         "source": source_kind,
         "scanned_packets": scanned_count,
         "total_points": len(points),
-        "returned_points": len(points),
+        "returned_points": 0 if catalog_only else len(points),
         "metrics": metric_rows,
         "nodes": node_rows,
-        "points": points,
+        "points": [] if catalog_only else points,
     }
 
 

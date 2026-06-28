@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from inspect import Parameter, signature
 from math import ceil
 from urllib.parse import parse_qs
 
@@ -13,6 +14,7 @@ from .http_route_contracts import (
 _DEFAULT_SUMMARY_MAX_POINTS = 1440
 _MIN_SUMMARY_MAX_POINTS = 64
 _MAX_SUMMARY_MAX_POINTS = 10000
+_FALSE_QUERY_VALUES = {"0", "false", "no", "off", "skip"}
 
 
 def _clean_positive_int(value: object) -> int | None:
@@ -55,6 +57,55 @@ def _summary_points_limit(query: str, to_int_fn: ToIntFn) -> int | None:
     if isinstance(parsed_points, int) and parsed_points > 0:
         return max(_MIN_SUMMARY_MAX_POINTS, min(_MAX_SUMMARY_MAX_POINTS, parsed_points))
     return _DEFAULT_SUMMARY_MAX_POINTS
+
+
+def _summary_packet_series_enabled(query: str) -> bool:
+    query_obj = parse_qs(query or "")
+    raw_values = query_obj.get("packet_series")
+    if not raw_values:
+        return True
+    raw_value = str(raw_values[0] or "").strip().lower()
+    return raw_value not in _FALSE_QUERY_VALUES
+
+
+def _unavailable_packet_series_payload() -> dict[str, object]:
+    return {
+        "available": False,
+        "order": [],
+        "series": {},
+    }
+
+
+def _without_packet_series(payload: dict[str, object]) -> dict[str, object]:
+    next_payload = dict(payload)
+    next_payload["packet_series"] = _unavailable_packet_series_payload()
+    return next_payload
+
+
+def _summary_metrics_fn_supports_packet_series(summary_metrics_fn: SummaryMetricsHistoryFn) -> bool:
+    try:
+        params = signature(summary_metrics_fn).parameters
+    except (TypeError, ValueError):
+        return True
+    return any(
+        name == "include_packet_series" or param.kind == Parameter.VAR_KEYWORD
+        for name, param in params.items()
+    )
+
+
+def _load_summary_metrics_payload(
+    *,
+    summary_metrics_fn: SummaryMetricsHistoryFn,
+    hours_override: int | None,
+    include_packet_series: bool,
+) -> dict[str, object]:
+    if include_packet_series:
+        return summary_metrics_fn(hours_override)
+    if _summary_metrics_fn_supports_packet_series(summary_metrics_fn):
+        return _without_packet_series(
+            summary_metrics_fn(hours_override, include_packet_series=False)
+        )
+    return _without_packet_series(summary_metrics_fn(hours_override))
 
 
 def _aggregate_bucket(bucket_unix: int, first_bucket_unix: int, bucket_seconds: int) -> int:
@@ -224,6 +275,7 @@ def build_summary_metrics_response(
         to_int_fn=to_int_fn,
     )
     hours_override = query_obj.hours_override
+    include_packet_series = _summary_packet_series_enabled(query)
     if summary_metrics_fn is None:
         clean_hours = (
             hours_override
@@ -232,7 +284,11 @@ def build_summary_metrics_response(
         )
         payload = empty_summary_metrics_fn(clean_hours)
     else:
-        payload = summary_metrics_fn(hours_override)
+        payload = _load_summary_metrics_payload(
+            summary_metrics_fn=summary_metrics_fn,
+            hours_override=hours_override,
+            include_packet_series=include_packet_series,
+        )
     return _downsample_summary_metrics_payload(
         payload,
         max_points=_summary_points_limit(query, to_int_fn),

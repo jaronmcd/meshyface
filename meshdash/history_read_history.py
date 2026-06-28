@@ -91,6 +91,7 @@ def load_summary_metrics_history_data(
     fetch_summary_packet_type_rows_fn: FetchSummaryPacketTypeRowsFn | None,
     build_summary_metrics_payload_fn: BuildSummaryMetricsPayloadFn,
     now_unix_fn: NowUnixFn = time.time,
+    include_packet_series: bool = True,
 ) -> HistoryPayload:
     hours = max(1, min(24 * 365, int(window_hours)))
     cutoff = int(now_unix_fn()) - (hours * 3600)
@@ -101,7 +102,7 @@ def load_summary_metrics_history_data(
         limit=limit,
     )
     packet_type_rows = []
-    if callable(fetch_summary_packet_type_rows_fn):
+    if include_packet_series and callable(fetch_summary_packet_type_rows_fn):
         packet_type_rows = fetch_summary_packet_type_rows_fn(
             conn,
             cutoff=cutoff,
