@@ -81,6 +81,15 @@ def _clean_commit_ref(value: object) -> str:
     return commit.lower()
 
 
+def _snapshot_branch_stem(branch: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", str(branch or "").strip()).strip(".-")
+
+
+def _is_snapshot_branch(branch: object) -> bool:
+    name = str(branch or "").strip()
+    return name.startswith("rollback/") or name.startswith("snapshot/")
+
+
 def _candidate_repo_dirs(repo_dir: str | os.PathLike[str] | None = None) -> list[Path]:
     raw_candidates: list[object] = []
     if repo_dir:
@@ -465,9 +474,112 @@ def _update_history_ref(
 ) -> str:
     if selected_branch and selected_branch == current_branch:
         return "HEAD"
+    if target_upstream:
+        return target_upstream
     if selected_available and selected_branch and _local_branch_exists(repo_root, selected_branch, runner):
         return selected_branch
     return target_upstream or current_upstream or "HEAD"
+
+
+def _annotate_commit_history(
+    repo_root: Path,
+    rows: Sequence[dict[str, object]],
+    running_commit: str,
+    runner: GitRunner,
+) -> list[dict[str, object]]:
+    commit = str(running_commit or "").strip()
+    running_index = -1
+    for index, row in enumerate(rows):
+        if str(row.get("commit") or "").strip() == commit:
+            running_index = index
+            break
+
+    annotated: list[dict[str, object]] = []
+    for index, row in enumerate(rows):
+        next_row = dict(row)
+        is_running = index == running_index
+        recovery_required = not is_running and not _commit_supports_in_app_recovery(
+            repo_root,
+            str(row.get("commit") or ""),
+            runner,
+        )
+        if is_running:
+            state = "running"
+            label = "Running"
+        elif recovery_required:
+            state = "recovery_required"
+            label = "Recovery Required"
+        elif running_index >= 0 and index > running_index:
+            state = "previous"
+            label = "Previous"
+        else:
+            state = "available"
+            label = "Available"
+        next_row.update(
+            {
+                "running": is_running,
+                "recovery_required": recovery_required,
+                "timeline_state": state,
+                "timeline_label": label,
+            }
+        )
+        annotated.append(next_row)
+    return annotated
+
+
+def _commit_supports_in_app_recovery(repo_root: Path, commit: str, runner: GitRunner) -> bool:
+    commit_ref = _clean_commit_ref(commit)
+    if not commit_ref:
+        return False
+    checks = [
+        (
+            "rollback_update_to_commit",
+            "meshdash/api_system_update.py",
+        ),
+        (
+            "runSettingsHistoryRollback",
+            "meshdash/assets/dashboard.js.chat.events.settings.state_normalize.render_read.tmpl",
+        ),
+    ]
+    for pattern, path in checks:
+        result = runner(["grep", "-q", pattern, commit_ref, "--", path], repo_root, 5.0)
+        if result.returncode != 0:
+            return False
+    return True
+
+
+def _git_config_get(repo_root: Path, key: str, runner: GitRunner) -> str:
+    result = runner(["config", "--get", key], repo_root, 5.0)
+    if result.returncode != 0:
+        return ""
+    return _git_text(result)
+
+
+def _snapshot_source_branch(
+    repo_root: Path,
+    *,
+    branch: str,
+    branch_options: Sequence[str],
+    previous_branch: str,
+    runner: GitRunner,
+) -> str:
+    if not _is_snapshot_branch(branch):
+        return ""
+
+    configured = _clean_branch_name(
+        _git_config_get(repo_root, f"branch.{branch}.mesh-dashboard-source-branch", runner)
+    )
+    if configured and configured in branch_options:
+        return configured
+
+    if previous_branch and previous_branch in branch_options:
+        return previous_branch
+
+    for candidate in branch_options:
+        stem = _snapshot_branch_stem(candidate)
+        if stem and re.fullmatch(rf"(?:rollback|snapshot)/{re.escape(stem)}-[0-9a-fA-F]{{7,40}}", branch):
+            return candidate
+    return ""
 
 
 def _ahead_behind(repo_root: Path, upstream: str, runner: GitRunner) -> tuple[int | None, int | None]:
@@ -608,16 +720,26 @@ def build_update_status_payload(
         else _local_branches(repo_root, runner)
     )
     previous_branch = _previous_checkout_branch(repo_root, runner)
+    snapshot_source_branch = _snapshot_source_branch(
+        repo_root,
+        branch=branch,
+        branch_options=branch_options,
+        previous_branch=previous_branch,
+        runner=runner,
+    )
     local_rollback_options = _normalize_branch_options(
         branch_name
         for branch_name in (branch, previous_branch)
-        if branch_name and branch_name in local_branch_options and branch_name not in branch_options
+        if branch_name
+        and branch_name in local_branch_options
+        and branch_name not in branch_options
+        and not (_is_snapshot_branch(branch_name) and snapshot_source_branch)
     )
     combined_branch_options = _normalize_branch_options([*branch_options, *local_rollback_options])
     selected_branch, selected_available = _select_target_branch(
         requested_branch=target_branch,
-        current_branch=branch,
-        upstream_branch=current_remote_branch,
+        current_branch="" if snapshot_source_branch else branch,
+        upstream_branch=snapshot_source_branch or current_remote_branch,
         branch_options=combined_branch_options,
     )
     selected_remote_available = selected_branch in branch_options
@@ -636,7 +758,12 @@ def build_update_status_payload(
         current_upstream=current_upstream,
         runner=runner,
     )
-    commit_history = _commit_history(repo_root, history_ref, remote_url, runner)
+    commit_history = _annotate_commit_history(
+        repo_root,
+        _commit_history(repo_root, history_ref, remote_url, runner),
+        commit,
+        runner,
+    )
 
     state, message, can_update, update_needed = _status_state(
         available=True,
@@ -661,6 +788,7 @@ def build_update_status_payload(
         "current_remote_branch": current_remote_branch,
         "upstream": target_upstream,
         "target_branch": selected_branch,
+        "history_branch": selected_branch,
         "target_upstream": target_upstream,
         "remote": remote,
         "remote_branch": selected_branch,
@@ -669,11 +797,15 @@ def build_update_status_payload(
         "remote_branches": branch_options,
         "local_branches": local_rollback_options,
         "previous_branch": previous_branch,
+        "snapshot_branch": branch if _is_snapshot_branch(branch) else "",
+        "snapshot_source_branch": snapshot_source_branch,
         "target_remote_available": selected_remote_available,
         "target_local_available": selected_local_available,
         "target_source": "remote" if selected_remote_available else ("local" if selected_local_available else ""),
         "current_commit": commit,
         "current_commit_short": commit[:8] if commit else "",
+        "running_commit": commit,
+        "running_commit_short": commit[:8] if commit else "",
         "dirty": dirty,
         "ahead": ahead,
         "behind": behind,
@@ -827,7 +959,7 @@ def _sync_backup_branch_name(repo_root: Path, branch: str, runner: GitRunner) ->
 
 
 def _rollback_branch_name(branch: str, commit: str) -> str:
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(branch or "").strip()).strip(".-")
+    stem = _snapshot_branch_stem(branch)
     if not stem:
         stem = "branch"
     short_commit = _clean_commit_ref(commit)[:12] or "commit"
@@ -1377,9 +1509,14 @@ def rollback_update_to_commit(
                 error=error or "git switch -C failed",
             )
 
+        runner(
+            ["config", f"branch.{rollback_branch}.mesh-dashboard-source-branch", selected_branch],
+            repo_root,
+            5.0,
+        )
         final_status = build_update_status_payload(
             repo_dir=repo_root,
-            target_branch=rollback_branch,
+            target_branch=selected_branch,
             runner=runner,
         )
         new_commit = str(final_status.get("current_commit") or "")

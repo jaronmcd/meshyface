@@ -9603,6 +9603,30 @@
       border-radius: 8px;
       background: #ffffff;
     }}
+    .settings-update-pr-item.is-available,
+    .settings-update-pr-item.is-previous {{
+      background: #fbfcfa;
+    }}
+    .settings-update-pr-item.is-available .settings-update-pr-title,
+    .settings-update-pr-item.is-previous .settings-update-pr-title {{
+      color: #58645c;
+    }}
+    .settings-update-pr-item.is-running {{
+      border-color: #62a778;
+      background: #f2fdf6;
+      box-shadow: inset 3px 0 0 #4b9b65;
+    }}
+    .settings-update-pr-item.is-running .settings-update-pr-title {{
+      color: #17492e;
+    }}
+    .settings-update-pr-item.is-recovery-required {{
+      border-color: #d8b36a;
+      background: #fffaf0;
+      box-shadow: inset 3px 0 0 #c18a28;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-title {{
+      color: #6e4b10;
+    }}
     .settings-update-pr-summary {{
       display: flex;
       align-items: center;
@@ -9673,6 +9697,14 @@
     }}
     .settings-update-pr-action:hover:not(:disabled) {{
       background: #edf6ec;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-action {{
+      border-color: #c9983e;
+      background: #fff6df;
+      color: #6e4b10;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-action:hover:not(:disabled) {{
+      background: #ffefc2;
     }}
     .settings-update-pr-action:disabled {{
       cursor: not-allowed;

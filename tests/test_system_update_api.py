@@ -22,6 +22,7 @@ class _FakeGitRunner:
         fetch_without_prune_fails: bool = False,
         compare_fails: bool = False,
         ancestor_fails: bool = False,
+        recovery_required_commits: set[str] | None = None,
         current_branch: str = "main",
         remote_branches: list[str] | None = None,
         live_remote_branches: list[str] | None = None,
@@ -38,6 +39,7 @@ class _FakeGitRunner:
         self.fetch_without_prune_fails = fetch_without_prune_fails
         self.compare_fails = compare_fails
         self.ancestor_fails = ancestor_fails
+        self.recovery_required_commits = set(recovery_required_commits or set())
         self.current_branch = current_branch
         self.remote_branches = list(remote_branches or ["main", "beta"])
         self.live_remote_branches = list(live_remote_branches or self.remote_branches)
@@ -54,6 +56,7 @@ class _FakeGitRunner:
             "dddddddd11111111222222223333333344444444",
             "eeeeeeee11111111222222223333333344444444",
         ]
+        self.git_config: dict[str, str] = {}
         self.commands: list[tuple[str, ...]] = []
 
     def __call__(self, args, cwd: Path, timeout: float) -> GitCommandResult:
@@ -93,6 +96,19 @@ class _FakeGitRunner:
             return GitCommandResult(0, refs)
         if command == ("status", "--porcelain"):
             return GitCommandResult(0, " M meshdash/foo.py" if self.dirty else "")
+        if command[0:2] == ("config", "--get") and len(command) == 3:
+            value = self.git_config.get(command[2], "")
+            return GitCommandResult(0, value) if value else GitCommandResult(1, "")
+        if command[0:1] == ("config",) and len(command) == 3:
+            self.git_config[command[1]] = command[2]
+            return GitCommandResult(0, "")
+        if command[0:2] == ("grep", "-q") and len(command) == 6:
+            commit_ref = command[3]
+            all_commits = [self.commit, self.new_commit, *self.history_commits]
+            matched_commit = next((commit for commit in all_commits if commit.startswith(commit_ref)), "")
+            if not matched_commit:
+                return GitCommandResult(1, "")
+            return GitCommandResult(1 if matched_commit in self.recovery_required_commits else 0, "")
         if command == ("rev-list", "--left-right", "--count", "HEAD...origin/main"):
             if self.compare_fails:
                 return GitCommandResult(128, "unknown revision")
@@ -301,6 +317,10 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "version_label": "v0.1.2",
             "version_commit": "ffffffff11111111222222223333333344444444",
             "version_commit_short": "ffffffff",
+            "running": False,
+            "recovery_required": False,
+            "timeline_state": "available",
+            "timeline_label": "Available",
         },
         {
             "number": "43",
@@ -316,6 +336,10 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "version_label": "v0.1.1",
             "version_commit": "9999999911111111222222223333333344444444",
             "version_commit_short": "99999999",
+            "running": False,
+            "recovery_required": False,
+            "timeline_state": "available",
+            "timeline_label": "Available",
         },
         {
             "number": "",
@@ -327,6 +351,10 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
             "commit": "eeeeeeee11111111222222223333333344444444",
             "commit_short": "eeeeeeee",
             "url": "https://github.com/jaronmcd/meshyface/commit/eeeeeeee11111111222222223333333344444444",
+            "running": False,
+            "recovery_required": False,
+            "timeline_state": "available",
+            "timeline_label": "Available",
         },
     ]
     assert payload["commit_history"] == expected_history
@@ -346,13 +374,12 @@ def test_update_status_reports_git_checkout_state(tmp_path: Path) -> None:
     assert log_commands[-1][-1] == "HEAD"
 
 
-def test_update_status_uses_local_selected_branch_history_when_available(tmp_path: Path) -> None:
+def test_update_status_uses_remote_selected_branch_history_when_available(tmp_path: Path) -> None:
     runner = _FakeGitRunner(local_branches={"main", "beta"})
 
     payload = build_update_status_payload(repo_dir=tmp_path, target_branch="beta", runner=runner)
 
     assert payload["target_branch"] == "beta"
-    assert ("show-ref", "--verify", "--quiet", "refs/heads/beta") in runner.commands
     log_commands = [
         command
         for command in runner.commands
@@ -365,7 +392,7 @@ def test_update_status_uses_local_selected_branch_history_when_available(tmp_pat
             "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
         )
     ]
-    assert log_commands[-1][-1] == "beta"
+    assert log_commands[-1][-1] == "origin/beta"
 
 
 def test_refresh_update_status_fetches_without_merging(tmp_path: Path) -> None:
@@ -502,10 +529,18 @@ def test_rollback_update_to_commit_creates_local_branch_from_selected_history(tm
     assert payload["rollback_branch"] == "rollback/main-dddddddd1111"
     assert payload["rollback_commit"] == "dddddddd11111111222222223333333344444444"
     assert payload["branch"] == "rollback/main-dddddddd1111"
-    assert payload["target_branch"] == "rollback/main-dddddddd1111"
-    assert payload["target_source"] == "local"
+    assert payload["target_branch"] == "main"
+    assert payload["history_branch"] == "main"
+    assert payload["snapshot_branch"] == "rollback/main-dddddddd1111"
+    assert payload["snapshot_source_branch"] == "main"
+    assert payload["target_source"] == "remote"
     assert payload["restart_required"] is True
+    assert payload["commit_history"][0]["timeline_state"] == "available"
+    assert payload["commit_history"][1]["timeline_state"] == "running"
+    assert payload["commit_history"][1]["running"] is True
+    assert payload["commit_history"][2]["timeline_state"] == "previous"
     assert runner.current_branch == "rollback/main-dddddddd1111"
+    assert runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] == "main"
     assert ("rev-parse", "--verify", "dddddddd^{commit}") in runner.commands
     assert (
         "merge-base",
@@ -540,6 +575,60 @@ def test_rollback_update_to_commit_rejects_commit_outside_selected_history(tmp_p
     assert payload["state"] == "invalid_commit"
     assert "not in main history" in payload["message"]
     assert not any(command[0:2] == ("switch", "-C") for command in runner.commands)
+
+
+def test_update_status_keeps_snapshot_history_on_source_branch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="rollback/main-dddddddd1111",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "rollback/main-dddddddd1111"},
+        previous_branch="main",
+    )
+    runner.commit = "dddddddd11111111222222223333333344444444"
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+
+    payload = build_update_status_payload(repo_dir=tmp_path, runner=runner)
+
+    assert payload["branch"] == "rollback/main-dddddddd1111"
+    assert payload["target_branch"] == "main"
+    assert payload["history_branch"] == "main"
+    assert payload["snapshot_branch"] == "rollback/main-dddddddd1111"
+    assert payload["snapshot_source_branch"] == "main"
+    assert payload["branches"] == ["dev", "main"]
+    assert payload["commit_history"][0]["timeline_state"] == "available"
+    assert payload["commit_history"][1]["timeline_state"] == "running"
+    assert payload["commit_history"][2]["timeline_state"] == "previous"
+    log_commands = [
+        command
+        for command in runner.commands
+        if command[0:5]
+        == (
+            "log",
+            "--first-parent",
+            "--max-count=25",
+            "--date=short",
+            "--pretty=format:%H%x1f%h%x1f%ad%x1f%s%x1f%b%x1e",
+        )
+    ]
+    assert log_commands[-1][-1] == "origin/main"
+
+
+def test_update_status_marks_legacy_commits_recovery_required(tmp_path: Path) -> None:
+    legacy_commit = "dddddddd11111111222222223333333344444444"
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main"},
+        recovery_required_commits={legacy_commit},
+    )
+
+    payload = build_update_status_payload(repo_dir=tmp_path, target_branch="main", runner=runner)
+
+    rows = payload["commit_history"]
+    legacy_row = next(row for row in rows if row["commit"] == legacy_commit)
+    assert legacy_row["recovery_required"] is True
+    assert legacy_row["timeline_state"] == "recovery_required"
+    assert legacy_row["timeline_label"] == "Recovery Required"
 
 
 def test_run_update_can_switch_to_live_branch_after_stale_ref_prune_failure(tmp_path: Path) -> None:
