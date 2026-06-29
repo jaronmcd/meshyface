@@ -1054,10 +1054,75 @@
       return title ? `title:${{title}}` : "";
     }}
 
+    async function runSettingsHistoryRollback(row, branch) {{
+      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      const commit = row && typeof row === "object" ? String(row.commit || "").trim() : "";
+      const targetBranch = String(branch || "").trim();
+      if (!commit || !targetBranch) return;
+      settingsUpdateActionReadyBranch = "";
+      settingsUpdateApplyMode = "rollback";
+      settingsUpdateApplyInFlight = true;
+      renderSettingsUpdateStatus({{ message: "Rolling back..." }});
+      try {{
+        const resp = await fetch("/api/system/update", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ branch: targetBranch, rollback_commit: commit }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, info, {{
+            ok: false,
+            can_update: false,
+            message: `Rollback failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        if (info.updated) {{
+          appendConsoleLine(
+            `system-rollback|${{Date.now()}}|ok`,
+            `[system] rollback selected: ${{String(info.previous_commit || "").slice(0, 8)}} -> ${{String(info.new_commit || "").slice(0, 8)}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = {{
+          ok: false,
+          available: false,
+          can_update: false,
+          state: "error",
+          error: msg,
+          message: `Rollback failed: ${{msg}}`,
+        }};
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateApplyInFlight = false;
+        settingsUpdateApplyMode = "";
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }}
+    }}
+
     function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {{
       const host = document.getElementById("settings-update-pr-history");
       if (!(host instanceof HTMLElement)) return;
-      const rows = settingsUpdatePullRequestHistoryRows(settingsUpdatePayloadObject(info));
+      const payloadInfo = settingsUpdatePayloadObject(info);
+      const rows = settingsUpdatePullRequestHistoryRows(payloadInfo);
+      const rollbackBranch = readSettingsUpdateBranchSelection()
+        || String(payloadInfo.target_branch || payloadInfo.remote_branch || "").trim();
       const openRows = new Map();
       for (const item of Array.from(host.querySelectorAll(".settings-update-pr-item[open]"))) {{
         if (!(item instanceof HTMLElement)) continue;
@@ -1129,6 +1194,21 @@
           summaryBody.appendChild(meta);
         }}
         summary.appendChild(summaryBody);
+        const rollbackCommit = String(row.commit || "").trim();
+        if (rollbackCommit && rollbackBranch) {{
+          const rollbackBtn = document.createElement("button");
+          rollbackBtn.type = "button";
+          rollbackBtn.className = "settings-update-pr-action";
+          rollbackBtn.textContent = "Roll Back";
+          rollbackBtn.disabled = !!inFlight;
+          rollbackBtn.title = "Switch to a local rollback branch at this commit";
+          rollbackBtn.addEventListener("click", (evt) => {{
+            evt.preventDefault();
+            evt.stopPropagation();
+            void runSettingsHistoryRollback(row, rollbackBranch);
+          }});
+          summary.appendChild(rollbackBtn);
+        }}
         item.appendChild(summary);
 
         const messageText = String(row.message || row.body || row.subject || row.title || "").trim();
@@ -1178,7 +1258,11 @@
       const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
       if (settingsUpdateApplyInFlight) {{
-        text = targetSource === "local" ? "Switching branches..." : "Updating from GitHub...";
+        text = settingsUpdateApplyMode === "rollback"
+          ? "Rolling back..."
+          : (targetSource === "local" || settingsUpdateApplyMode === "switch"
+            ? "Switching branches..."
+            : "Updating from GitHub...");
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
@@ -1203,7 +1287,9 @@
       if (checkBtn instanceof HTMLButtonElement) {{
         checkBtn.disabled = inFlight;
         checkBtn.textContent = settingsUpdateApplyInFlight
-          ? "Updating..."
+          ? (settingsUpdateApplyMode === "rollback"
+            ? "Rolling..."
+            : (settingsUpdateApplyMode === "switch" ? "Switching..." : "Updating..."))
           : (settingsUpdateStatusFetchInFlight
             ? "Checking..."
             : (updateActionReady ? (localSwitchReady ? "Switch Branch" : "Update from GitHub") : "Check for Updates"));
@@ -1323,6 +1409,7 @@
       }}
 
       settingsUpdateActionReadyBranch = "";
+      settingsUpdateApplyMode = localSwitch ? "switch" : "update";
       settingsUpdateApplyInFlight = true;
       renderSettingsUpdateStatus({{ message: localSwitch ? "Switching branches..." : "Updating from GitHub..." }});
       try {{
@@ -1373,6 +1460,7 @@
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
       }} finally {{
         settingsUpdateApplyInFlight = false;
+        settingsUpdateApplyMode = "";
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
         if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {{
           setTimeout(() => {{

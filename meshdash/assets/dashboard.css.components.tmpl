@@ -2244,6 +2244,14 @@
     [data-theme="dark"] .settings-update-pr-summary::before {{
       color: var(--workspace-shell-active-text);
     }}
+    [data-theme="dark"] .settings-update-pr-action {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, transparent);
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-action:hover:not(:disabled) {{
+      background: color-mix(in srgb, var(--workspace-shell-border) 38%, var(--workspace-shell-bg-alt));
+    }}
     [data-theme="dark"] .settings-update-pr-full {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);

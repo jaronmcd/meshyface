@@ -74,6 +74,13 @@ def _clean_branch_name(value: object) -> str:
     return branch
 
 
+def _clean_commit_ref(value: object) -> str:
+    commit = str(value or "").strip()
+    if not re.fullmatch(r"[0-9A-Fa-f]{7,40}", commit):
+        return ""
+    return commit.lower()
+
+
 def _candidate_repo_dirs(repo_dir: str | os.PathLike[str] | None = None) -> list[Path]:
     raw_candidates: list[object] = []
     if repo_dir:
@@ -819,6 +826,15 @@ def _sync_backup_branch_name(repo_root: Path, branch: str, runner: GitRunner) ->
     return ""
 
 
+def _rollback_branch_name(branch: str, commit: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(branch or "").strip()).strip(".-")
+    if not stem:
+        stem = "branch"
+    short_commit = _clean_commit_ref(commit)[:12] or "commit"
+    candidate = f"rollback/{stem[:100]}-{short_commit}"
+    return candidate if _clean_branch_name(candidate) else ""
+
+
 def refresh_update_status_from_github(
     *,
     repo_dir: str | os.PathLike[str] | None = None,
@@ -1230,6 +1246,166 @@ def run_update_from_github(
                 "ok": True,
                 "updated": old_commit != new_commit,
                 "connection_ok": True,
+                "previous_commit": old_commit,
+                "new_commit": new_commit,
+                "changed_files": changed_files,
+                "requirements_changed": requirements_changed,
+                "restart_required": old_commit != new_commit,
+                "message": message,
+                "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def rollback_update_to_commit(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    target_branch: object = None,
+    target_commit: object = None,
+    runner: GitRunner = _run_git,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "updated": False,
+            "available": True,
+            "state": "busy",
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        commit_ref = _clean_commit_ref(target_commit)
+        if not commit_ref:
+            return {
+                "ok": False,
+                "updated": False,
+                "available": True,
+                "state": "invalid_commit",
+                "message": "Rollback needs a valid commit from the selected branch history.",
+                "error": "invalid rollback commit",
+                "http_status": 400,
+            }
+
+        status = build_update_status_payload(
+            repo_dir=repo_dir,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        if not bool(status.get("available")):
+            return _failure_payload(
+                status,
+                state="unavailable",
+                message=str(status.get("message") or "Software update is unavailable."),
+                http_status=409,
+            )
+        if bool(status.get("dirty")):
+            return _failure_payload(
+                status,
+                state="dirty",
+                message="Rollback is blocked by local uncommitted changes.",
+                http_status=409,
+            )
+
+        repo_root = Path(str(status.get("repo_root") or "."))
+        selected_branch = str(status.get("target_branch") or "").strip()
+        if not selected_branch:
+            return _failure_payload(
+                status,
+                state="select_branch",
+                message="Rollback needs a selected branch.",
+                http_status=409,
+            )
+
+        commit_result = runner(["rev-parse", "--verify", f"{commit_ref}^{{commit}}"], repo_root, 5.0)
+        if commit_result.returncode != 0:
+            error = _short_text(_git_text(commit_result))
+            return _failure_payload(
+                status,
+                state="invalid_commit",
+                message="Rollback commit is not available in this checkout.",
+                http_status=409,
+                error=error or "rollback commit not found",
+            )
+        full_commit = _git_text(commit_result)
+        target_upstream = str(status.get("target_upstream") or status.get("upstream") or "").strip()
+        target_ref = target_upstream if bool(status.get("target_remote_available")) else ""
+        if not target_ref and bool(status.get("target_local_available")):
+            target_ref = selected_branch
+        if not target_ref:
+            return _failure_payload(
+                status,
+                state="invalid_branch",
+                message=f"Rollback branch {selected_branch} is not available.",
+                http_status=409,
+            )
+
+        ancestor_result = runner(["merge-base", "--is-ancestor", full_commit, target_ref], repo_root, 10.0)
+        if ancestor_result.returncode != 0:
+            error = _short_text(_git_text(ancestor_result))
+            return _failure_payload(
+                status,
+                state="invalid_commit",
+                message=f"Rollback commit is not in {selected_branch} history.",
+                http_status=409,
+                error=error or "rollback commit is not an ancestor of the selected branch",
+            )
+
+        rollback_branch = _rollback_branch_name(selected_branch, full_commit)
+        if not rollback_branch:
+            return _failure_payload(
+                status,
+                state="invalid_branch",
+                message="Could not choose a local rollback branch name.",
+                http_status=409,
+                error="rollback branch name could not be generated",
+            )
+
+        old_commit = str(status.get("current_commit") or "")
+        switch_result = runner(["switch", "-C", rollback_branch, full_commit], repo_root, 20.0)
+        if switch_result.returncode != 0:
+            error = _short_text(_git_text(switch_result))
+            return _failure_payload(
+                status,
+                state="rollback_failed",
+                message=f"Could not switch to rollback branch {rollback_branch}.",
+                http_status=409,
+                error=error or "git switch -C failed",
+            )
+
+        final_status = build_update_status_payload(
+            repo_dir=repo_root,
+            target_branch=rollback_branch,
+            runner=runner,
+        )
+        new_commit = str(final_status.get("current_commit") or "")
+        changed_files = _changed_files(repo_root, old_commit, new_commit, runner)
+        requirements_changed = any(
+            path == "requirements.txt" or path == "requirements-dev.txt"
+            for path in changed_files
+        )
+        message = (
+            f"Rolled back to {full_commit[:8]} on local branch {rollback_branch}. "
+            "Restart the dashboard process to use the selected code."
+        )
+        if requirements_changed:
+            message = (
+                f"Rolled back to {full_commit[:8]} on local branch {rollback_branch}. "
+                "Python requirements changed; install requirements and restart the dashboard process."
+            )
+        payload = dict(final_status)
+        payload.update(
+            {
+                "ok": True,
+                "updated": old_commit != new_commit,
+                "connection_ok": True,
+                "rollback": True,
+                "rollback_branch": rollback_branch,
+                "rollback_commit": full_commit,
                 "previous_commit": old_commit,
                 "new_commit": new_commit,
                 "changed_files": changed_files,

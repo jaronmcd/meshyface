@@ -5,6 +5,7 @@ from hmac import compare_digest
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
+    rollback_update_to_commit as _rollback_update_to_commit_helper,
     run_update_from_github as _run_update_from_github_helper,
     sync_update_branches_from_github as _sync_update_branches_from_github_helper,
 )
@@ -432,13 +433,25 @@ def handle_dashboard_post(
             )
             return
         try:
-            response_obj = _run_update_from_github_helper(
-                target_branch=(
-                    request_payload.get("branch")
-                    or request_payload.get("target_branch")
-                    or ""
-                ),
+            target_branch = (
+                request_payload.get("branch")
+                or request_payload.get("target_branch")
+                or ""
             )
+            rollback_commit = (
+                request_payload.get("rollback_commit")
+                or request_payload.get("commit")
+                or ""
+            )
+            if rollback_commit:
+                response_obj = _rollback_update_to_commit_helper(
+                    target_branch=target_branch,
+                    target_commit=rollback_commit,
+                )
+            else:
+                response_obj = _run_update_from_github_helper(
+                    target_branch=target_branch,
+                )
         except Exception as exc:
             response_obj = {
                 "ok": False,

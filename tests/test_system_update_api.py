@@ -4,6 +4,7 @@ from meshdash.api_system_update import (
     GitCommandResult,
     build_update_status_payload,
     refresh_update_status_from_github,
+    rollback_update_to_commit,
     run_update_from_github,
     sync_update_branches_from_github,
 )
@@ -20,6 +21,7 @@ class _FakeGitRunner:
         prune_fails: bool = False,
         fetch_without_prune_fails: bool = False,
         compare_fails: bool = False,
+        ancestor_fails: bool = False,
         current_branch: str = "main",
         remote_branches: list[str] | None = None,
         live_remote_branches: list[str] | None = None,
@@ -35,6 +37,7 @@ class _FakeGitRunner:
         self.prune_fails = prune_fails
         self.fetch_without_prune_fails = fetch_without_prune_fails
         self.compare_fails = compare_fails
+        self.ancestor_fails = ancestor_fails
         self.current_branch = current_branch
         self.remote_branches = list(remote_branches or ["main", "beta"])
         self.live_remote_branches = list(live_remote_branches or self.remote_branches)
@@ -44,6 +47,13 @@ class _FakeGitRunner:
         self.branch_behind = branch_behind
         self.commit = "aaaaaaaa11111111222222223333333344444444"
         self.new_commit = "bbbbbbbb11111111222222223333333344444444"
+        self.history_commits = [
+            "ffffffff11111111222222223333333344444444",
+            "cccccccc11111111222222223333333344444444",
+            "9999999911111111222222223333333344444444",
+            "dddddddd11111111222222223333333344444444",
+            "eeeeeeee11111111222222223333333344444444",
+        ]
         self.commands: list[tuple[str, ...]] = []
 
     def __call__(self, args, cwd: Path, timeout: float) -> GitCommandResult:
@@ -55,6 +65,12 @@ class _FakeGitRunner:
             return GitCommandResult(0, self.current_branch)
         if command == ("rev-parse", "--verify", "HEAD^{commit}"):
             return GitCommandResult(0, self.commit)
+        if command[0:2] == ("rev-parse", "--verify") and len(command) == 3:
+            ref = command[2].removesuffix("^{commit}").lower()
+            for commit in [self.commit, self.new_commit, *self.history_commits]:
+                if commit.startswith(ref):
+                    return GitCommandResult(0, commit)
+            return GitCommandResult(128, "unknown revision")
         if command == ("rev-parse", "--short=7", "beta"):
             return GitCommandResult(0, "bbbbbbb")
         if command == ("rev-parse", "--abbrev-ref", "@{-1}"):
@@ -190,6 +206,10 @@ class _FakeGitRunner:
             branch_ref = command[3]
             branch_name = branch_ref.removeprefix("refs/heads/")
             return GitCommandResult(0 if branch_name in self.local_branches else 1, "")
+        if command[0:2] == ("merge-base", "--is-ancestor") and len(command) == 4:
+            if self.ancestor_fails:
+                return GitCommandResult(1, "not an ancestor")
+            return GitCommandResult(0, "")
         if command[0:1] == ("branch",) and len(command) == 3 and command[1] != "-f":
             backup_branch = command[1]
             source_branch = command[2]
@@ -209,6 +229,16 @@ class _FakeGitRunner:
             self.branch_ahead = 0
             self.branch_behind = 0
             return GitCommandResult(0, "HEAD is now at bbbbbbb")
+        if command[0:2] == ("switch", "-C") and len(command) == 4:
+            branch = command[2]
+            commit = command[3]
+            self.local_branches.add(branch)
+            self.previous_branch = self.current_branch
+            self.current_branch = branch
+            self.commit = commit
+            self.ahead = 0
+            self.behind = 0
+            return GitCommandResult(0, f"Switched to and reset branch '{branch}'")
         if command[0:1] == ("switch",) and len(command) == 2:
             branch = command[1]
             if branch not in self.local_branches:
@@ -451,6 +481,65 @@ def test_run_update_switches_to_local_only_rollback_branch_without_fetch(tmp_pat
     assert ("fetch", "--prune", "origin") not in runner.commands
     assert ("switch", "pr/dashboard-perf") in runner.commands
     assert "Switched to local branch pr/dashboard-perf" in payload["message"]
+
+
+def test_rollback_update_to_commit_creates_local_branch_from_selected_history(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main"},
+    )
+
+    payload = rollback_update_to_commit(
+        repo_dir=tmp_path,
+        target_branch="main",
+        target_commit="dddddddd",
+        runner=runner,
+    )
+
+    assert payload["ok"] is True
+    assert payload["rollback"] is True
+    assert payload["rollback_branch"] == "rollback/main-dddddddd1111"
+    assert payload["rollback_commit"] == "dddddddd11111111222222223333333344444444"
+    assert payload["branch"] == "rollback/main-dddddddd1111"
+    assert payload["target_branch"] == "rollback/main-dddddddd1111"
+    assert payload["target_source"] == "local"
+    assert payload["restart_required"] is True
+    assert runner.current_branch == "rollback/main-dddddddd1111"
+    assert ("rev-parse", "--verify", "dddddddd^{commit}") in runner.commands
+    assert (
+        "merge-base",
+        "--is-ancestor",
+        "dddddddd11111111222222223333333344444444",
+        "origin/main",
+    ) in runner.commands
+    assert (
+        "switch",
+        "-C",
+        "rollback/main-dddddddd1111",
+        "dddddddd11111111222222223333333344444444",
+    ) in runner.commands
+
+
+def test_rollback_update_to_commit_rejects_commit_outside_selected_history(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main"},
+        ancestor_fails=True,
+    )
+
+    payload = rollback_update_to_commit(
+        repo_dir=tmp_path,
+        target_branch="main",
+        target_commit="dddddddd",
+        runner=runner,
+    )
+
+    assert payload["ok"] is False
+    assert payload["state"] == "invalid_commit"
+    assert "not in main history" in payload["message"]
+    assert not any(command[0:2] == ("switch", "-C") for command in runner.commands)
 
 
 def test_run_update_can_switch_to_live_branch_after_stale_ref_prune_failure(tmp_path: Path) -> None:

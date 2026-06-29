@@ -9605,6 +9605,7 @@
     }}
     .settings-update-pr-summary {{
       display: flex;
+      align-items: center;
       gap: 8px;
       min-width: 0;
       padding: 8px 10px;
@@ -9627,6 +9628,7 @@
     }}
     .settings-update-pr-summary-body {{
       display: flex;
+      flex: 1 1 auto;
       flex-direction: column;
       gap: 3px;
       min-width: 0;
@@ -9655,6 +9657,26 @@
       font-weight: 700;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }}
+    .settings-update-pr-action {{
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border: 1px solid #9ec7a4;
+      border-radius: 8px;
+      background: #f8fbf7;
+      color: #1f5d3d;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    .settings-update-pr-action:hover:not(:disabled) {{
+      background: #edf6ec;
+    }}
+    .settings-update-pr-action:disabled {{
+      cursor: not-allowed;
+      opacity: 0.58;
     }}
     .settings-update-pr-meta,
     .settings-update-pr-empty {{

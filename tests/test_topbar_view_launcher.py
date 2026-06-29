@@ -230,6 +230,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-update-pr-summary {" in css
     assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
     assert ".settings-update-pr-title {" in css
+    assert ".settings-update-pr-action {" in css
+    assert '[data-theme="dark"] .settings-update-pr-action {' in css
     assert ".settings-update-pr-full {" in css
     assert ".settings-select option {" not in css
     assert ".settings-database-capacity {" in css
@@ -258,6 +260,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
     assert "Array.isArray(info.commit_history)" in js
     assert "function settingsUpdatePullRequestHistoryKey(row) {" in js
+    assert "async function runSettingsHistoryRollback(row, branch) {" in js
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
     assert "Checking commit history..." in js
@@ -270,6 +273,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
     assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
+    assert 'rollbackBtn.className = "settings-update-pr-action";' in js
+    assert "rollback_commit: commit" in js
+    assert "`system-rollback|${Date.now()}|ok`" in js
+    assert 'settingsUpdateApplyMode === "rollback"' in js
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
