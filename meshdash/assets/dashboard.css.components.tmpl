@@ -2229,9 +2229,33 @@
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg) 86%, transparent);
     }}
+    [data-theme="dark"] .settings-update-pr-item.is-available,
+    [data-theme="dark"] .settings-update-pr-item.is-previous {{
+      background: color-mix(in srgb, var(--workspace-shell-bg) 74%, transparent);
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-available .settings-update-pr-title,
+    [data-theme="dark"] .settings-update-pr-item.is-previous .settings-update-pr-title {{
+      color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-running {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 36%, var(--workspace-shell-bg));
+      box-shadow: inset 3px 0 0 var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-recovery-required {{
+      border-color: color-mix(in srgb, #d8b36a 72%, var(--workspace-shell-border-muted));
+      background: color-mix(in srgb, #3a2b0f 46%, var(--workspace-shell-bg));
+      box-shadow: inset 3px 0 0 #d8b36a;
+    }}
     [data-theme="dark"] .settings-update-history-head h4,
     [data-theme="dark"] .settings-update-pr-title {{
       color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-running .settings-update-pr-title {{
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-recovery-required .settings-update-pr-title {{
+      color: #f5d58e;
     }}
     [data-theme="dark"] .settings-update-history-head span,
     [data-theme="dark"] .settings-update-pr-meta,
@@ -2243,6 +2267,22 @@
     }}
     [data-theme="dark"] .settings-update-pr-summary::before {{
       color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-action {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, transparent);
+      color: var(--workspace-shell-active-text);
+    }}
+    [data-theme="dark"] .settings-update-pr-action:hover:not(:disabled) {{
+      background: color-mix(in srgb, var(--workspace-shell-border) 38%, var(--workspace-shell-bg-alt));
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-recovery-required .settings-update-pr-action {{
+      border-color: color-mix(in srgb, #d8b36a 76%, var(--workspace-shell-border-muted));
+      background: color-mix(in srgb, #4a3712 56%, var(--workspace-shell-bg-alt));
+      color: #f5d58e;
+    }}
+    [data-theme="dark"] .settings-update-pr-item.is-recovery-required .settings-update-pr-action:hover:not(:disabled) {{
+      background: color-mix(in srgb, #5a4317 68%, var(--workspace-shell-bg-alt));
     }}
     [data-theme="dark"] .settings-update-pr-full {{
       border-color: var(--workspace-shell-border-muted);

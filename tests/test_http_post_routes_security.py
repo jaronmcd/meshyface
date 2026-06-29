@@ -329,6 +329,50 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
     assert calls == [(200, {"ok": True, "updated": False, "state": "up_to_date"})]
 
 
+def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    update_calls = 0
+
+    def _run_update(**kwargs: object) -> dict[str, object]:
+        nonlocal update_calls
+        update_calls += 1
+        return {"ok": True}
+
+    def _rollback_update(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "rollback": True,
+            "rollback_branch": "rollback/main-dddddddd1111",
+            "http_status": 200,
+        }
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._run_update_from_github_helper",
+        _run_update,
+    )
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._rollback_update_to_commit_helper",
+        _rollback_update,
+    )
+    body = b'{"branch":"main","rollback_commit":"dddddddd"}'
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update", deps=deps)
+
+    assert update_calls == 0
+    assert captured == {"target_branch": "main", "target_commit": "dddddddd"}
+    assert calls == [(200, {"ok": True, "rollback": True, "rollback_branch": "rollback/main-dddddddd1111"})]
+
+
 def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

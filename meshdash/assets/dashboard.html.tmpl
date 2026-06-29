@@ -2316,30 +2316,32 @@
                 <div class="chat-settings-meta-item">Git: <span id="settings-software-commit">loading...</span></div>
               </div>
               <div class="settings-update-panel">
-                <label class="settings-field settings-update-branch-field">
-                  <span class="settings-label">Update branch</span>
-                  <select id="settings-update-branch" class="settings-select settings-update-branch-native" disabled tabindex="-1" aria-hidden="true">
-                    <option value="">Select branch...</option>
-                  </select>
-                  <div id="settings-update-branch-menu" class="settings-update-branch-menu">
-                    <button
-                      id="settings-update-branch-toggle"
-                      class="settings-update-branch-toggle"
-                      type="button"
-                      aria-haspopup="listbox"
-                      aria-expanded="false"
-                      disabled
-                    >
-                      <span id="settings-update-branch-toggle-label">Select branch...</span>
-                    </button>
-                    <div id="settings-update-branch-options" class="settings-update-branch-options" role="listbox" hidden></div>
-                  </div>
-                </label>
-                <div class="settings-update-actions">
-                  <button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>
-                  <button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>
-                </div>
                 <div id="settings-update-status" class="settings-update-status" aria-live="polite">Update status not checked.</div>
+                <div class="settings-update-control-row">
+                  <label class="settings-field settings-update-branch-field">
+                    <select id="settings-update-branch" class="settings-select settings-update-branch-native" disabled tabindex="-1" aria-hidden="true">
+                      <option value="">Select branch...</option>
+                    </select>
+                    <div id="settings-update-branch-menu" class="settings-update-branch-menu">
+                      <button
+                        id="settings-update-branch-toggle"
+                        class="settings-update-branch-toggle"
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-label="Update branch"
+                        aria-expanded="false"
+                        disabled
+                      >
+                        <span id="settings-update-branch-toggle-label">Select branch...</span>
+                      </button>
+                      <div id="settings-update-branch-options" class="settings-update-branch-options" role="listbox" hidden></div>
+                    </div>
+                  </label>
+                  <div class="settings-update-actions">
+                    <button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>
+                    <button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>
+                  </div>
+                </div>
               </div>
               <div class="settings-update-history-panel">
                 <div class="settings-update-history-head">

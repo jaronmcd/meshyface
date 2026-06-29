@@ -9427,11 +9427,19 @@
       border-radius: 8px;
       background: #f8fbf7;
     }}
+    .settings-update-control-row {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 8px;
+      min-width: 0;
+    }}
     .settings-update-actions {{
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 8px;
+      flex: 0 0 auto;
       min-width: 0;
     }}
     .settings-update-status {{
@@ -9457,7 +9465,8 @@
       box-shadow: 0 0 0 2px rgba(213, 135, 135, 0.22);
     }}
     .settings-update-branch-field {{
-      max-width: 360px;
+      flex: 1 1 360px;
+      max-width: 520px;
       min-width: 220px;
       position: relative;
     }}
@@ -9603,8 +9612,33 @@
       border-radius: 8px;
       background: #ffffff;
     }}
+    .settings-update-pr-item.is-available,
+    .settings-update-pr-item.is-previous {{
+      background: #fbfcfa;
+    }}
+    .settings-update-pr-item.is-available .settings-update-pr-title,
+    .settings-update-pr-item.is-previous .settings-update-pr-title {{
+      color: #58645c;
+    }}
+    .settings-update-pr-item.is-running {{
+      border-color: #62a778;
+      background: #f2fdf6;
+      box-shadow: inset 3px 0 0 #4b9b65;
+    }}
+    .settings-update-pr-item.is-running .settings-update-pr-title {{
+      color: #17492e;
+    }}
+    .settings-update-pr-item.is-recovery-required {{
+      border-color: #d8b36a;
+      background: #fffaf0;
+      box-shadow: inset 3px 0 0 #c18a28;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-title {{
+      color: #6e4b10;
+    }}
     .settings-update-pr-summary {{
       display: flex;
+      align-items: center;
       gap: 8px;
       min-width: 0;
       padding: 8px 10px;
@@ -9627,6 +9661,7 @@
     }}
     .settings-update-pr-summary-body {{
       display: flex;
+      flex: 1 1 auto;
       flex-direction: column;
       gap: 3px;
       min-width: 0;
@@ -9655,6 +9690,34 @@
       font-weight: 700;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }}
+    .settings-update-pr-action {{
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border: 1px solid #9ec7a4;
+      border-radius: 8px;
+      background: #f8fbf7;
+      color: #1f5d3d;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    .settings-update-pr-action:hover:not(:disabled) {{
+      background: #edf6ec;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-action {{
+      border-color: #c9983e;
+      background: #fff6df;
+      color: #6e4b10;
+    }}
+    .settings-update-pr-item.is-recovery-required .settings-update-pr-action:hover:not(:disabled) {{
+      background: #ffefc2;
+    }}
+    .settings-update-pr-action:disabled {{
+      cursor: not-allowed;
+      opacity: 0.58;
     }}
     .settings-update-pr-meta,
     .settings-update-pr-empty {{

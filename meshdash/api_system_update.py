@@ -74,6 +74,22 @@ def _clean_branch_name(value: object) -> str:
     return branch
 
 
+def _clean_commit_ref(value: object) -> str:
+    commit = str(value or "").strip()
+    if not re.fullmatch(r"[0-9A-Fa-f]{7,40}", commit):
+        return ""
+    return commit.lower()
+
+
+def _snapshot_branch_stem(branch: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", str(branch or "").strip()).strip(".-")
+
+
+def _is_snapshot_branch(branch: object) -> bool:
+    name = str(branch or "").strip()
+    return name.startswith("rollback/") or name.startswith("snapshot/")
+
+
 def _candidate_repo_dirs(repo_dir: str | os.PathLike[str] | None = None) -> list[Path]:
     raw_candidates: list[object] = []
     if repo_dir:
@@ -208,9 +224,59 @@ def _remote_branches(repo_root: Path, remote: str, runner: GitRunner) -> list[st
     return sorted(branches)
 
 
+def _local_branches(repo_root: Path, runner: GitRunner) -> list[str]:
+    result = runner(
+        ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+        repo_root,
+        8.0,
+    )
+    if result.returncode != 0:
+        return []
+    return _normalize_branch_options(_git_text(result).splitlines())
+
+
+def _normalize_branch_options(branches: Sequence[object]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in branches:
+        branch = _clean_branch_name(raw)
+        if not branch or branch in seen:
+            continue
+        seen.add(branch)
+        normalized.append(branch)
+    return sorted(normalized)
+
+
+def _live_remote_branches(repo_root: Path, remote: str, runner: GitRunner) -> list[str]:
+    clean_remote = str(remote or "").strip()
+    if not clean_remote:
+        return []
+    result = runner(["ls-remote", "--heads", clean_remote], repo_root, 20.0)
+    if result.returncode != 0:
+        return []
+    branches: list[str] = []
+    for raw in _git_text(result).splitlines():
+        parts = str(raw or "").strip().split()
+        if len(parts) < 2:
+            continue
+        ref = parts[1].strip()
+        if not ref.startswith("refs/heads/"):
+            continue
+        branches.append(ref.removeprefix("refs/heads/"))
+    return _normalize_branch_options(branches)
+
+
 def _current_branch(repo_root: Path, runner: GitRunner) -> str:
     result = runner(["branch", "--show-current"], repo_root, 5.0)
     return _git_text(result) if result.returncode == 0 else ""
+
+
+def _previous_checkout_branch(repo_root: Path, runner: GitRunner) -> str:
+    result = runner(["rev-parse", "--abbrev-ref", "@{-1}"], repo_root, 5.0)
+    if result.returncode != 0:
+        return ""
+    branch = _clean_branch_name(_git_text(result))
+    return "" if branch == "HEAD" else branch
 
 
 def _current_commit(repo_root: Path, runner: GitRunner) -> str:
@@ -408,9 +474,112 @@ def _update_history_ref(
 ) -> str:
     if selected_branch and selected_branch == current_branch:
         return "HEAD"
+    if target_upstream:
+        return target_upstream
     if selected_available and selected_branch and _local_branch_exists(repo_root, selected_branch, runner):
         return selected_branch
     return target_upstream or current_upstream or "HEAD"
+
+
+def _annotate_commit_history(
+    repo_root: Path,
+    rows: Sequence[dict[str, object]],
+    running_commit: str,
+    runner: GitRunner,
+) -> list[dict[str, object]]:
+    commit = str(running_commit or "").strip()
+    running_index = -1
+    for index, row in enumerate(rows):
+        if str(row.get("commit") or "").strip() == commit:
+            running_index = index
+            break
+
+    annotated: list[dict[str, object]] = []
+    for index, row in enumerate(rows):
+        next_row = dict(row)
+        is_running = index == running_index
+        recovery_required = not is_running and not _commit_supports_in_app_recovery(
+            repo_root,
+            str(row.get("commit") or ""),
+            runner,
+        )
+        if is_running:
+            state = "running"
+            label = "Running"
+        elif recovery_required:
+            state = "recovery_required"
+            label = "Recovery Required"
+        elif running_index >= 0 and index > running_index:
+            state = "previous"
+            label = "Previous"
+        else:
+            state = "available"
+            label = "Available"
+        next_row.update(
+            {
+                "running": is_running,
+                "recovery_required": recovery_required,
+                "timeline_state": state,
+                "timeline_label": label,
+            }
+        )
+        annotated.append(next_row)
+    return annotated
+
+
+def _commit_supports_in_app_recovery(repo_root: Path, commit: str, runner: GitRunner) -> bool:
+    commit_ref = _clean_commit_ref(commit)
+    if not commit_ref:
+        return False
+    checks = [
+        (
+            "rollback_update_to_commit",
+            "meshdash/api_system_update.py",
+        ),
+        (
+            "runSettingsHistoryRollback",
+            "meshdash/assets/dashboard.js.chat.events.settings.state_normalize.render_read.tmpl",
+        ),
+    ]
+    for pattern, path in checks:
+        result = runner(["grep", "-q", pattern, commit_ref, "--", path], repo_root, 5.0)
+        if result.returncode != 0:
+            return False
+    return True
+
+
+def _git_config_get(repo_root: Path, key: str, runner: GitRunner) -> str:
+    result = runner(["config", "--get", key], repo_root, 5.0)
+    if result.returncode != 0:
+        return ""
+    return _git_text(result)
+
+
+def _snapshot_source_branch(
+    repo_root: Path,
+    *,
+    branch: str,
+    branch_options: Sequence[str],
+    previous_branch: str,
+    runner: GitRunner,
+) -> str:
+    if not _is_snapshot_branch(branch):
+        return ""
+
+    configured = _clean_branch_name(
+        _git_config_get(repo_root, f"branch.{branch}.mesh-dashboard-source-branch", runner)
+    )
+    if configured and configured in branch_options:
+        return configured
+
+    if previous_branch and previous_branch in branch_options:
+        return previous_branch
+
+    for candidate in branch_options:
+        stem = _snapshot_branch_stem(candidate)
+        if stem and re.fullmatch(rf"(?:rollback|snapshot)/{re.escape(stem)}-[0-9a-fA-F]{{7,40}}", branch):
+            return candidate
+    return ""
 
 
 def _ahead_behind(repo_root: Path, upstream: str, runner: GitRunner) -> tuple[int | None, int | None]:
@@ -449,6 +618,8 @@ def _status_state(
     branch: str,
     target_branch: str,
     target_available: bool,
+    target_remote_available: bool,
+    target_local_available: bool,
     dirty: bool,
     ahead: int | None,
     behind: int | None,
@@ -464,12 +635,21 @@ def _status_state(
     if dirty:
         return "dirty", "Software update is blocked by local uncommitted changes.", False, False
     if target_branch != branch:
+        if target_local_available and not target_remote_available:
+            return (
+                "local_switch_available",
+                f"Ready to switch from {branch} to local branch {target_branch}.",
+                True,
+                True,
+            )
         return (
             "switch_available",
             f"Ready to switch from {branch} to {target_branch}.",
             True,
             True,
         )
+    if target_local_available and not target_remote_available:
+        return "local_branch", f"Running local branch {target_branch}.", False, False
     if ahead is not None and behind is not None:
         if ahead > 0 and behind > 0:
             return "diverged", "Software update is blocked because local and remote commits diverged.", False, True
@@ -506,6 +686,8 @@ def build_update_status_payload(
     repo_dir: str | os.PathLike[str] | None = None,
     target_branch: object = None,
     runner: GitRunner = _run_git,
+    remote_branches_override: Sequence[object] | None = None,
+    local_branches_override: Sequence[object] | None = None,
 ) -> dict[str, object]:
     repo_root, error = _resolve_repo_root(repo_dir=repo_dir, runner=runner)
     if repo_root is None:
@@ -527,14 +709,43 @@ def build_update_status_payload(
         runner=runner,
     )
     remote = _default_update_remote(repo_root, preferred_remote=current_remote, runner=runner)
-    branch_options = _remote_branches(repo_root, remote, runner)
+    branch_options = (
+        _normalize_branch_options(remote_branches_override)
+        if remote_branches_override is not None
+        else _remote_branches(repo_root, remote, runner)
+    )
+    local_branch_options = (
+        _normalize_branch_options(local_branches_override)
+        if local_branches_override is not None
+        else _local_branches(repo_root, runner)
+    )
+    previous_branch = _previous_checkout_branch(repo_root, runner)
+    snapshot_source_branch = _snapshot_source_branch(
+        repo_root,
+        branch=branch,
+        branch_options=branch_options,
+        previous_branch=previous_branch,
+        runner=runner,
+    )
+    local_rollback_options = _normalize_branch_options(
+        branch_name
+        for branch_name in (branch, previous_branch)
+        if branch_name
+        and branch_name in local_branch_options
+        and branch_name not in branch_options
+        and not (_is_snapshot_branch(branch_name) and snapshot_source_branch)
+    )
+    combined_branch_options = _normalize_branch_options([*branch_options, *local_rollback_options])
     selected_branch, selected_available = _select_target_branch(
         requested_branch=target_branch,
-        current_branch=branch,
-        upstream_branch=current_remote_branch,
-        branch_options=branch_options,
+        current_branch="" if snapshot_source_branch else branch,
+        upstream_branch=snapshot_source_branch or current_remote_branch,
+        branch_options=combined_branch_options,
     )
-    target_upstream = f"{remote}/{selected_branch}" if remote and selected_branch and selected_available else ""
+    selected_remote_available = selected_branch in branch_options
+    selected_local_available = selected_branch in local_rollback_options
+    selected_available = bool(selected_remote_available or selected_local_available)
+    target_upstream = f"{remote}/{selected_branch}" if remote and selected_branch and selected_remote_available else ""
     dirty = _working_tree_dirty(repo_root, runner)
     ahead, behind = _ahead_behind(repo_root, target_upstream, runner)
     remote_url = _remote_url(repo_root, remote, runner)
@@ -547,13 +758,20 @@ def build_update_status_payload(
         current_upstream=current_upstream,
         runner=runner,
     )
-    commit_history = _commit_history(repo_root, history_ref, remote_url, runner)
+    commit_history = _annotate_commit_history(
+        repo_root,
+        _commit_history(repo_root, history_ref, remote_url, runner),
+        commit,
+        runner,
+    )
 
     state, message, can_update, update_needed = _status_state(
         available=True,
         branch=branch,
         target_branch=selected_branch,
         target_available=selected_available,
+        target_remote_available=selected_remote_available,
+        target_local_available=selected_local_available,
         dirty=dirty,
         ahead=ahead,
         behind=behind,
@@ -570,13 +788,24 @@ def build_update_status_payload(
         "current_remote_branch": current_remote_branch,
         "upstream": target_upstream,
         "target_branch": selected_branch,
+        "history_branch": selected_branch,
         "target_upstream": target_upstream,
         "remote": remote,
         "remote_branch": selected_branch,
         "remote_url": remote_url,
-        "branches": branch_options,
+        "branches": combined_branch_options,
+        "remote_branches": branch_options,
+        "local_branches": local_rollback_options,
+        "previous_branch": previous_branch,
+        "snapshot_branch": branch if _is_snapshot_branch(branch) else "",
+        "snapshot_source_branch": snapshot_source_branch,
+        "target_remote_available": selected_remote_available,
+        "target_local_available": selected_local_available,
+        "target_source": "remote" if selected_remote_available else ("local" if selected_local_available else ""),
         "current_commit": commit,
         "current_commit_short": commit[:8] if commit else "",
+        "running_commit": commit,
+        "running_commit_short": commit[:8] if commit else "",
         "dirty": dirty,
         "ahead": ahead,
         "behind": behind,
@@ -623,6 +852,83 @@ def _failure_payload(
     return payload
 
 
+def _fetch_prune_failure_can_fallback(result: GitCommandResult) -> bool:
+    if result.returncode == 0 or result.timed_out:
+        return False
+    text = _git_text(result).lower()
+    return any(
+        marker in text
+        for marker in (
+            "could not delete references",
+            "cannot lock ref",
+            "unable to create",
+            "permission denied",
+            "unable to update local ref",
+        )
+    )
+
+
+def _fetch_remote_with_prune_fallback(
+    repo_root: Path,
+    remote: str,
+    runner: GitRunner,
+    timeout: float,
+    *,
+    selected_branch: str = "",
+    fetch_selected_only: bool = False,
+) -> tuple[GitCommandResult, str, bool]:
+    prune_result = runner(["fetch", "--prune", remote], repo_root, timeout)
+    if prune_result.returncode == 0 or not _fetch_prune_failure_can_fallback(prune_result):
+        return prune_result, "", False
+
+    clean_branch = _clean_branch_name(selected_branch)
+    fallback_args = ["fetch", remote]
+    if fetch_selected_only and clean_branch:
+        fallback_args = [
+            "fetch",
+            remote,
+            f"+refs/heads/{clean_branch}:refs/remotes/{remote}/{clean_branch}",
+        ]
+    fallback_result = runner(fallback_args, repo_root, timeout)
+    prune_error = _short_text(_git_text(prune_result))
+    if fallback_result.returncode == 0:
+        return fallback_result, prune_error, True
+
+    fallback_error = _short_text(_git_text(fallback_result))
+    combined = prune_error
+    if fallback_error:
+        combined = f"{combined}\nFallback fetch without prune also failed:\n{fallback_error}"
+    return GitCommandResult(
+        returncode=fallback_result.returncode,
+        stdout=combined,
+        timed_out=fallback_result.timed_out,
+    ), "", False
+
+
+def _apply_prune_recovery_status(
+    payload: dict[str, object],
+    *,
+    prune_error: str,
+) -> dict[str, object]:
+    recovered = dict(payload)
+    message = str(recovered.get("message") or "").strip()
+    if str(recovered.get("state") or "") in {"invalid_branch", "select_branch", "local_branch"}:
+        suffix = "Select a live branch to recover; local stale Git refs could not be pruned automatically."
+        message = f"{message} {suffix}".strip()
+    recovered.update(
+        {
+            "ok": True,
+            "connection_ok": True,
+            "prune_failed": True,
+            "prune_error": prune_error,
+            "error": prune_error,
+            "message": message or "GitHub is reachable, but local stale Git refs could not be pruned automatically.",
+            "http_status": 200,
+        }
+    )
+    return recovered
+
+
 def _local_branch_exists(repo_root: Path, branch: str, runner: GitRunner) -> bool:
     clean = _clean_branch_name(branch)
     if not clean:
@@ -650,6 +956,15 @@ def _sync_backup_branch_name(repo_root: Path, branch: str, runner: GitRunner) ->
         if _clean_branch_name(candidate) and not _local_branch_exists(repo_root, candidate, runner):
             return candidate
     return ""
+
+
+def _rollback_branch_name(branch: str, commit: str) -> str:
+    stem = _snapshot_branch_stem(branch)
+    if not stem:
+        stem = "branch"
+    short_commit = _clean_commit_ref(commit)[:12] or "commit"
+    candidate = f"rollback/{stem[:100]}-{short_commit}"
+    return candidate if _clean_branch_name(candidate) else ""
 
 
 def refresh_update_status_from_github(
@@ -701,9 +1016,25 @@ def refresh_update_status_from_github(
             )
             return payload
 
-        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        selected_branch = str(status.get("target_branch") or target_branch or "").strip()
+        fetch_result, prune_error, used_prune_fallback = _fetch_remote_with_prune_fallback(
+            repo_root,
+            remote,
+            runner,
+            fetch_timeout,
+            selected_branch=selected_branch,
+        )
         if fetch_result.returncode != 0:
             error_text = _short_text(_git_text(fetch_result))
+            live_branches = _live_remote_branches(repo_root, remote, runner)
+            if live_branches and _fetch_prune_failure_can_fallback(fetch_result):
+                payload = build_update_status_payload(
+                    repo_dir=repo_root,
+                    target_branch=target_branch,
+                    runner=runner,
+                    remote_branches_override=live_branches,
+                )
+                return _apply_prune_recovery_status(payload, prune_error=error_text)
             message = "Could not reach GitHub or check updates."
             if fetch_result.timed_out:
                 message = "GitHub update check timed out."
@@ -723,11 +1054,15 @@ def refresh_update_status_from_github(
             )
             return payload
 
+        live_branch_override = _live_remote_branches(repo_root, remote, runner) if used_prune_fallback else []
         payload = build_update_status_payload(
             repo_dir=repo_root,
             target_branch=target_branch,
             runner=runner,
+            remote_branches_override=live_branch_override or None,
         )
+        if used_prune_fallback:
+            payload = _apply_prune_recovery_status(payload, prune_error=prune_error)
         payload.update(
             {
                 "connection_ok": True,
@@ -784,7 +1119,9 @@ def run_update_from_github(
         remote = str(status.get("remote") or "").strip()
         selected_branch = str(status.get("target_branch") or "").strip()
         target_upstream = str(status.get("target_upstream") or status.get("upstream") or "").strip()
-        if not remote or not selected_branch or not target_upstream:
+        target_remote_available = bool(status.get("target_remote_available"))
+        target_local_available = bool(status.get("target_local_available"))
+        if not selected_branch or not (target_upstream or target_local_available):
             return _failure_payload(
                 status,
                 state="select_branch",
@@ -792,12 +1129,105 @@ def run_update_from_github(
                 http_status=409,
             )
 
-        fetch_result = runner(["fetch", "--prune", remote], repo_root, fetch_timeout)
+        if target_local_available and not target_remote_available:
+            old_commit = str(status.get("current_commit") or "")
+            current_branch = str(status.get("branch") or "").strip()
+            if selected_branch == current_branch:
+                payload = dict(status)
+                payload.update(
+                    {
+                        "ok": True,
+                        "updated": False,
+                        "connection_ok": True,
+                        "state": "local_branch",
+                        "message": f"Already running local branch {selected_branch}.",
+                        "http_status": 200,
+                    }
+                )
+                return payload
+            switch_result = runner(["switch", selected_branch], repo_root, 20.0)
+            if switch_result.returncode != 0:
+                error = _short_text(_git_text(switch_result))
+                return _failure_payload(
+                    status,
+                    state="switch_failed",
+                    message=f"Could not switch to local branch {selected_branch}.",
+                    http_status=409,
+                    error=error or "git switch failed",
+                )
+            final_status = build_update_status_payload(
+                repo_dir=repo_root,
+                target_branch=selected_branch,
+                runner=runner,
+            )
+            new_commit = str(final_status.get("current_commit") or "")
+            changed_files = _changed_files(repo_root, old_commit, new_commit, runner)
+            requirements_changed = any(
+                path == "requirements.txt" or path == "requirements-dev.txt"
+                for path in changed_files
+            )
+            message = f"Switched to local branch {selected_branch}. Restart the dashboard process to use the selected code."
+            if requirements_changed:
+                message = (
+                    f"Switched to local branch {selected_branch}. Python requirements changed; "
+                    "install requirements and restart the dashboard process."
+                )
+            payload = dict(final_status)
+            payload.update(
+                {
+                    "ok": True,
+                    "updated": old_commit != new_commit,
+                    "connection_ok": True,
+                    "previous_commit": old_commit,
+                    "new_commit": new_commit,
+                    "changed_files": changed_files,
+                    "requirements_changed": requirements_changed,
+                    "restart_required": old_commit != new_commit,
+                    "message": message,
+                    "http_status": 200,
+                }
+            )
+            return payload
+
+        if not remote or not target_upstream:
+            return _failure_payload(
+                status,
+                state="select_branch",
+                message="Software update needs a selected GitHub branch.",
+                http_status=409,
+            )
+
+        fetch_result, _prune_error, used_prune_fallback = _fetch_remote_with_prune_fallback(
+            repo_root,
+            remote,
+            runner,
+            fetch_timeout,
+            selected_branch=selected_branch,
+            fetch_selected_only=True,
+        )
         if fetch_result.returncode != 0:
             error = _short_text(_git_text(fetch_result))
             message = "Could not reach GitHub or fetch the update."
             if fetch_result.timed_out:
                 message = "GitHub update check timed out."
+            live_branches = _live_remote_branches(repo_root, remote, runner)
+            if live_branches and selected_branch not in live_branches:
+                after_fetch = build_update_status_payload(
+                    repo_dir=repo_root,
+                    target_branch=selected_branch,
+                    runner=runner,
+                    remote_branches_override=live_branches,
+                )
+                return _failure_payload(
+                    after_fetch,
+                    state=str(after_fetch.get("state") or "invalid_branch"),
+                    message=str(
+                        after_fetch.get("message")
+                        or f"GitHub branch {selected_branch} is not available."
+                    ),
+                    http_status=409,
+                    error=error or message,
+                )
             return _failure_payload(
                 status,
                 state="fetch_failed",
@@ -806,10 +1236,12 @@ def run_update_from_github(
                 error=error or message,
             )
 
+        live_branch_override = _live_remote_branches(repo_root, remote, runner) if used_prune_fallback else []
         after_fetch = build_update_status_payload(
             repo_dir=repo_root,
             target_branch=selected_branch,
             runner=runner,
+            remote_branches_override=live_branch_override or None,
         )
         ahead = after_fetch.get("ahead")
         behind = after_fetch.get("behind")
@@ -946,6 +1378,171 @@ def run_update_from_github(
                 "ok": True,
                 "updated": old_commit != new_commit,
                 "connection_ok": True,
+                "previous_commit": old_commit,
+                "new_commit": new_commit,
+                "changed_files": changed_files,
+                "requirements_changed": requirements_changed,
+                "restart_required": old_commit != new_commit,
+                "message": message,
+                "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def rollback_update_to_commit(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    target_branch: object = None,
+    target_commit: object = None,
+    runner: GitRunner = _run_git,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "updated": False,
+            "available": True,
+            "state": "busy",
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        commit_ref = _clean_commit_ref(target_commit)
+        if not commit_ref:
+            return {
+                "ok": False,
+                "updated": False,
+                "available": True,
+                "state": "invalid_commit",
+                "message": "Rollback needs a valid commit from the selected branch history.",
+                "error": "invalid rollback commit",
+                "http_status": 400,
+            }
+
+        status = build_update_status_payload(
+            repo_dir=repo_dir,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        if not bool(status.get("available")):
+            return _failure_payload(
+                status,
+                state="unavailable",
+                message=str(status.get("message") or "Software update is unavailable."),
+                http_status=409,
+            )
+        if bool(status.get("dirty")):
+            return _failure_payload(
+                status,
+                state="dirty",
+                message="Rollback is blocked by local uncommitted changes.",
+                http_status=409,
+            )
+
+        repo_root = Path(str(status.get("repo_root") or "."))
+        selected_branch = str(status.get("target_branch") or "").strip()
+        if not selected_branch:
+            return _failure_payload(
+                status,
+                state="select_branch",
+                message="Rollback needs a selected branch.",
+                http_status=409,
+            )
+
+        commit_result = runner(["rev-parse", "--verify", f"{commit_ref}^{{commit}}"], repo_root, 5.0)
+        if commit_result.returncode != 0:
+            error = _short_text(_git_text(commit_result))
+            return _failure_payload(
+                status,
+                state="invalid_commit",
+                message="Rollback commit is not available in this checkout.",
+                http_status=409,
+                error=error or "rollback commit not found",
+            )
+        full_commit = _git_text(commit_result)
+        target_upstream = str(status.get("target_upstream") or status.get("upstream") or "").strip()
+        target_ref = target_upstream if bool(status.get("target_remote_available")) else ""
+        if not target_ref and bool(status.get("target_local_available")):
+            target_ref = selected_branch
+        if not target_ref:
+            return _failure_payload(
+                status,
+                state="invalid_branch",
+                message=f"Rollback branch {selected_branch} is not available.",
+                http_status=409,
+            )
+
+        ancestor_result = runner(["merge-base", "--is-ancestor", full_commit, target_ref], repo_root, 10.0)
+        if ancestor_result.returncode != 0:
+            error = _short_text(_git_text(ancestor_result))
+            return _failure_payload(
+                status,
+                state="invalid_commit",
+                message=f"Rollback commit is not in {selected_branch} history.",
+                http_status=409,
+                error=error or "rollback commit is not an ancestor of the selected branch",
+            )
+
+        rollback_branch = _rollback_branch_name(selected_branch, full_commit)
+        if not rollback_branch:
+            return _failure_payload(
+                status,
+                state="invalid_branch",
+                message="Could not choose a local rollback branch name.",
+                http_status=409,
+                error="rollback branch name could not be generated",
+            )
+
+        old_commit = str(status.get("current_commit") or "")
+        switch_result = runner(["switch", "-C", rollback_branch, full_commit], repo_root, 20.0)
+        if switch_result.returncode != 0:
+            error = _short_text(_git_text(switch_result))
+            return _failure_payload(
+                status,
+                state="rollback_failed",
+                message=f"Could not switch to rollback branch {rollback_branch}.",
+                http_status=409,
+                error=error or "git switch -C failed",
+            )
+
+        runner(
+            ["config", f"branch.{rollback_branch}.mesh-dashboard-source-branch", selected_branch],
+            repo_root,
+            5.0,
+        )
+        final_status = build_update_status_payload(
+            repo_dir=repo_root,
+            target_branch=selected_branch,
+            runner=runner,
+        )
+        new_commit = str(final_status.get("current_commit") or "")
+        changed_files = _changed_files(repo_root, old_commit, new_commit, runner)
+        requirements_changed = any(
+            path == "requirements.txt" or path == "requirements-dev.txt"
+            for path in changed_files
+        )
+        message = (
+            f"Rolled back to {full_commit[:8]} on local branch {rollback_branch}. "
+            "Restart the dashboard process to use the selected code."
+        )
+        if requirements_changed:
+            message = (
+                f"Rolled back to {full_commit[:8]} on local branch {rollback_branch}. "
+                "Python requirements changed; install requirements and restart the dashboard process."
+            )
+        payload = dict(final_status)
+        payload.update(
+            {
+                "ok": True,
+                "updated": old_commit != new_commit,
+                "connection_ok": True,
+                "rollback": True,
+                "rollback_branch": rollback_branch,
+                "rollback_commit": full_commit,
                 "previous_commit": old_commit,
                 "new_commit": new_commit,
                 "changed_files": changed_files,

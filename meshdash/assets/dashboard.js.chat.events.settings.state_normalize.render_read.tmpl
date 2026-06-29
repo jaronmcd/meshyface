@@ -1054,10 +1054,76 @@
       return title ? `title:${{title}}` : "";
     }}
 
+    async function runSettingsHistoryRollback(row, branch) {{
+      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      const commit = row && typeof row === "object" ? String(row.commit || "").trim() : "";
+      const targetBranch = String(branch || "").trim();
+      if (!commit || !targetBranch) return;
+      settingsUpdateActionReadyBranch = "";
+      settingsUpdateApplyMode = "rollback";
+      settingsUpdateApplyInFlight = true;
+      renderSettingsUpdateStatus({{ message: "Rolling back..." }});
+      try {{
+        const resp = await fetch("/api/system/update", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ branch: targetBranch, rollback_commit: commit }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, info, {{
+            ok: false,
+            can_update: false,
+            message: `Rollback failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        if (info.updated) {{
+          appendConsoleLine(
+            `system-rollback|${{Date.now()}}|ok`,
+            `[system] rollback selected: ${{String(info.previous_commit || "").slice(0, 8)}} -> ${{String(info.new_commit || "").slice(0, 8)}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = {{
+          ok: false,
+          available: false,
+          can_update: false,
+          state: "error",
+          error: msg,
+          message: `Rollback failed: ${{msg}}`,
+        }};
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateApplyInFlight = false;
+        settingsUpdateApplyMode = "";
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }}
+    }}
+
     function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {{
       const host = document.getElementById("settings-update-pr-history");
       if (!(host instanceof HTMLElement)) return;
-      const rows = settingsUpdatePullRequestHistoryRows(settingsUpdatePayloadObject(info));
+      const payloadInfo = settingsUpdatePayloadObject(info);
+      const rows = settingsUpdatePullRequestHistoryRows(payloadInfo);
+      const historyBranch = String(payloadInfo.history_branch || payloadInfo.target_branch || payloadInfo.remote_branch || "").trim();
+      const rollbackBranch = readSettingsUpdateBranchSelection()
+        || historyBranch;
       const openRows = new Map();
       for (const item of Array.from(host.querySelectorAll(".settings-update-pr-item[open]"))) {{
         if (!(item instanceof HTMLElement)) continue;
@@ -1082,6 +1148,13 @@
       for (const row of rows) {{
         const item = document.createElement("details");
         item.className = "settings-update-pr-item";
+        const rowStateRaw = String(row.timeline_state || "").trim().toLowerCase();
+        const rowRunning = !!row.running || rowStateRaw === "running";
+        const rowRecoveryRequired = !!row.recovery_required || rowStateRaw === "recovery_required";
+        const rowState = rowRunning
+          ? "running"
+          : (rowRecoveryRequired ? "recovery-required" : (rowStateRaw === "previous" ? "previous" : (rowStateRaw === "available" ? "available" : "")));
+        if (rowState) item.classList.add(`is-${{rowState}}`);
         const rowKey = settingsUpdatePullRequestHistoryKey(row);
         if (rowKey) {{
           item.dataset.prHistoryKey = rowKey;
@@ -1116,9 +1189,11 @@
         summaryBody.appendChild(main);
 
         const metaParts = [];
+        const timelineLabel = String(row.timeline_label || (rowRunning ? "Running" : "")).trim();
         const versionText = String(row.version_label || row.version || "").trim();
         const dateText = String(row.date || "").trim();
         const commitText = String(row.commit_short || "").trim();
+        if (timelineLabel) metaParts.push(timelineLabel);
         if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${{versionText}}`);
         if (dateText) metaParts.push(dateText);
         if (commitText) metaParts.push(commitText);
@@ -1129,6 +1204,25 @@
           summaryBody.appendChild(meta);
         }}
         summary.appendChild(summaryBody);
+        const rollbackCommit = String(row.commit || "").trim();
+        if (rollbackCommit && rollbackBranch) {{
+          const rollbackBtn = document.createElement("button");
+          rollbackBtn.type = "button";
+          rollbackBtn.className = "settings-update-pr-action";
+          rollbackBtn.textContent = rowRunning ? "Running" : (rowRecoveryRequired ? "Run Legacy" : "Run");
+          rollbackBtn.disabled = !!inFlight || rowRunning;
+          rollbackBtn.title = rowRunning
+            ? "This commit is currently running"
+            : (rowRecoveryRequired
+              ? "This commit predates in-app recovery; use deploy or SSH recovery to move forward afterward"
+              : `Run this commit from ${{historyBranch || rollbackBranch}}`);
+          rollbackBtn.addEventListener("click", (evt) => {{
+            evt.preventDefault();
+            evt.stopPropagation();
+            void runSettingsHistoryRollback(row, rollbackBranch);
+          }});
+          summary.appendChild(rollbackBtn);
+        }}
         item.appendChild(summary);
 
         const messageText = String(row.message || row.body || row.subject || row.title || "").trim();
@@ -1171,12 +1265,18 @@
       const updateActionReady = !!info.can_update
         && !!selectedBranch
         && settingsUpdateActionReadyBranch === selectedBranch;
+      const targetSource = String(renderInfo.target_source || info.target_source || "").trim();
+      const localSwitchReady = updateActionReady && targetSource === "local";
       const restartRequired = !!renderInfo.restart_required;
       const requirementsChanged = !!renderInfo.requirements_changed;
       const canReloadBackend = !inFlight;
       let text = settingsUpdateStatusText(info);
       if (settingsUpdateApplyInFlight) {{
-        text = "Updating from GitHub...";
+        text = settingsUpdateApplyMode === "rollback"
+          ? "Rolling back..."
+          : (targetSource === "local" || settingsUpdateApplyMode === "switch"
+            ? "Switching branches..."
+            : "Updating from GitHub...");
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
@@ -1201,12 +1301,14 @@
       if (checkBtn instanceof HTMLButtonElement) {{
         checkBtn.disabled = inFlight;
         checkBtn.textContent = settingsUpdateApplyInFlight
-          ? "Updating..."
+          ? (settingsUpdateApplyMode === "rollback"
+            ? "Rolling..."
+            : (settingsUpdateApplyMode === "switch" ? "Switching..." : "Updating..."))
           : (settingsUpdateStatusFetchInFlight
             ? "Checking..."
-            : (updateActionReady ? "Update from GitHub" : "Check for Updates"));
+            : (updateActionReady ? (localSwitchReady ? "Switch Branch" : "Run Latest") : "Check for Updates"));
         checkBtn.title = updateActionReady
-          ? "Fetch and fast-forward this Git checkout"
+          ? (localSwitchReady ? "Switch to this local branch" : "Fetch and run the latest commit on this branch")
           : settingsUpdateStatusText(info);
       }}
       if (reloadBtn instanceof HTMLButtonElement) {{
@@ -1308,6 +1410,9 @@
     async function runSettingsGithubUpdate() {{
       if (settingsUpdateApplyInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const targetSource = String(cachedInfo.target_source || "").trim();
+      const localSwitch = targetSource === "local";
       if (!selectedBranch) {{
         settingsUpdateActionReadyBranch = "";
         renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
@@ -1318,8 +1423,9 @@
       }}
 
       settingsUpdateActionReadyBranch = "";
+      settingsUpdateApplyMode = localSwitch ? "switch" : "update";
       settingsUpdateApplyInFlight = true;
-      renderSettingsUpdateStatus({{ message: "Updating from GitHub..." }});
+      renderSettingsUpdateStatus({{ message: localSwitch ? "Switching branches..." : "Updating from GitHub..." }});
       try {{
         const resp = await fetch("/api/system/update", {{
           method: "POST",
@@ -1368,6 +1474,7 @@
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
       }} finally {{
         settingsUpdateApplyInFlight = false;
+        settingsUpdateApplyMode = "";
         renderSettingsUpdateStatus(settingsUpdateStatusCache);
         if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {{
           setTimeout(() => {{

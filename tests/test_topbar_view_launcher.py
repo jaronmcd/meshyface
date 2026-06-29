@@ -79,6 +79,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-apply"' not in html
     assert 'id="settings-update-reload"' in html
     assert 'id="settings-update-restart-status"' not in html
+    assert 'class="settings-update-control-row"' in html
+    assert re.search(
+        r'id="settings-update-status"[\s\S]*class="settings-update-control-row"',
+        html,
+    )
     assert '<button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>' in html
     assert '<button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>' in html
     assert 'class="settings-update-history-panel"' in html
@@ -213,6 +218,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-database-raw-controls {" in css
     assert ".settings-database-raw-actions {" in css
     assert ".settings-update-panel {" in css
+    assert ".settings-update-control-row {" in css
     assert ".settings-update-actions {" in css
     assert "#settings-update-reload.is-restart-required {" in css
     assert "#settings-update-reload.is-restart-required.is-restart-blocked {" in css
@@ -227,9 +233,16 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert '[data-theme="dark"] .settings-update-branch-option[aria-selected="true"] {' in css
     assert ".settings-update-history-panel {" in css
     assert ".settings-update-pr-item {" in css
+    assert ".settings-update-pr-item.is-running {" in css
+    assert ".settings-update-pr-item.is-available," in css
+    assert ".settings-update-pr-item.is-recovery-required {" in css
     assert ".settings-update-pr-summary {" in css
     assert ".settings-update-pr-item[open] .settings-update-pr-summary::before {" in css
     assert ".settings-update-pr-title {" in css
+    assert ".settings-update-pr-action {" in css
+    assert '[data-theme="dark"] .settings-update-pr-action {' in css
+    assert '[data-theme="dark"] .settings-update-pr-item.is-running {' in css
+    assert '[data-theme="dark"] .settings-update-pr-item.is-recovery-required {' in css
     assert ".settings-update-pr-full {" in css
     assert ".settings-select option {" not in css
     assert ".settings-database-capacity {" in css
@@ -258,18 +271,31 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function settingsUpdatePullRequestHistoryRows(info) {" in js
     assert "Array.isArray(info.commit_history)" in js
     assert "function settingsUpdatePullRequestHistoryKey(row) {" in js
+    assert "async function runSettingsHistoryRollback(row, branch) {" in js
     assert "function renderSettingsUpdatePullRequestHistory(info, inFlight = false) {" in js
     assert 'document.getElementById("settings-update-pr-history")' in js
     assert "Checking commit history..." in js
     assert 'const item = document.createElement("details");' in js
+    assert 'const historyBranch = String(payloadInfo.history_branch || payloadInfo.target_branch || payloadInfo.remote_branch || "").trim();' in js
+    assert 'const rowStateRaw = String(row.timeline_state || "").trim().toLowerCase();' in js
+    assert 'const rowRecoveryRequired = !!row.recovery_required || rowStateRaw === "recovery_required";' in js
+    assert 'if (rowState) item.classList.add(`is-${rowState}`);' in js
     assert "item.dataset.prHistoryKey = rowKey;" in js
     assert "item.open = openRows.has(rowKey);" in js
     assert 'const full = item.querySelector(".settings-update-pr-full");' in js
     assert "full.scrollTop = restoreScroll.top;" in js
     assert "window.requestAnimationFrame(restoreFullScroll);" in js
+    assert 'const timelineLabel = String(row.timeline_label || (rowRunning ? "Running" : "")).trim();' in js
     assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
+    assert "if (timelineLabel) metaParts.push(timelineLabel);" in js
     assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
+    assert 'rollbackBtn.className = "settings-update-pr-action";' in js
+    assert "rollback_commit: commit" in js
+    assert "`system-rollback|${Date.now()}|ok`" in js
+    assert 'settingsUpdateApplyMode === "rollback"' in js
+    assert 'rowRecoveryRequired ? "Run Legacy" : "Run"' in js
+    assert "This commit predates in-app recovery" in js
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
@@ -293,7 +319,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "settingsUpdateActionReadyBranch === selectedBranch" in js
     assert 'void hydrateSettingsUpdateStatus(true, true);' in js
     assert 'checkBtn.textContent = settingsUpdateApplyInFlight' in js
-    assert 'Update from GitHub' in js
+    assert 'Run Latest' in js
     assert "if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {" in js
     assert "async function runSettingsBackendReload() {" in js
     assert "function clearSettingsBackendReloadUrlFlags() {" in js
