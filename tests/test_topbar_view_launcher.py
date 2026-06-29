@@ -79,6 +79,11 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-apply"' not in html
     assert 'id="settings-update-reload"' in html
     assert 'id="settings-update-restart-status"' not in html
+    assert 'class="settings-update-control-row"' in html
+    assert re.search(
+        r'id="settings-update-status"[\s\S]*class="settings-update-control-row"',
+        html,
+    )
     assert '<button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>' in html
     assert '<button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>' in html
     assert 'class="settings-update-history-panel"' in html
@@ -213,6 +218,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".settings-database-raw-controls {" in css
     assert ".settings-database-raw-actions {" in css
     assert ".settings-update-panel {" in css
+    assert ".settings-update-control-row {" in css
     assert ".settings-update-actions {" in css
     assert "#settings-update-reload.is-restart-required {" in css
     assert "#settings-update-reload.is-restart-required.is-restart-blocked {" in css
