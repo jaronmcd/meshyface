@@ -633,16 +633,20 @@ def test_update_status_reports_inactive_rollback_cleanup_branches(tmp_path: Path
         local_branches={
             "main",
             "rollback/main-dddddddd1111",
+            "rollback/manual",
             "snapshot/dev-cccccccc1111",
             "beta-before-sync-bbbbbbb",
         },
     )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
 
     payload = build_update_status_payload(repo_dir=tmp_path, runner=runner)
 
     assert payload["branches"] == ["dev", "main"]
     assert payload["rollback_branches"] == [
         "rollback/main-dddddddd1111",
+        "rollback/manual",
         "snapshot/dev-cccccccc1111",
     ]
     assert payload["cleanup_rollback_branches"] == [
@@ -659,10 +663,13 @@ def test_cleanup_update_rollback_branches_deletes_only_inactive_snapshots(tmp_pa
             "main",
             "old-stale",
             "rollback/main-dddddddd1111",
+            "rollback/manual",
             "snapshot/dev-cccccccc1111",
             "beta-before-sync-bbbbbbb",
         },
     )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
 
     payload = cleanup_update_rollback_branches(repo_dir=tmp_path, runner=runner)
 
@@ -676,9 +683,15 @@ def test_cleanup_update_rollback_branches_deletes_only_inactive_snapshots(tmp_pa
     assert payload["protected"] == []
     assert payload["failed"] == []
     assert payload["cleanup_rollback_branches"] == []
-    assert runner.local_branches == {"main", "old-stale", "beta-before-sync-bbbbbbb"}
+    assert runner.local_branches == {
+        "main",
+        "old-stale",
+        "rollback/manual",
+        "beta-before-sync-bbbbbbb",
+    }
     assert ("branch", "-D", "rollback/main-dddddddd1111") in runner.commands
     assert ("branch", "-D", "snapshot/dev-cccccccc1111") in runner.commands
+    assert ("branch", "-D", "rollback/manual") not in runner.commands
     assert not any(command == ("branch", "-D", "old-stale") for command in runner.commands)
 
 
@@ -709,6 +722,8 @@ def test_cleanup_update_rollback_branches_reports_delete_failures(tmp_path: Path
         local_branches={"main", "rollback/main-dddddddd1111", "snapshot/dev-cccccccc1111"},
         delete_branch_failures={"rollback/main-dddddddd1111"},
     )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
 
     payload = cleanup_update_rollback_branches(repo_dir=tmp_path, runner=runner)
 

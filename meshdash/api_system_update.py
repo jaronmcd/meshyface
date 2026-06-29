@@ -555,6 +555,15 @@ def _git_config_get(repo_root: Path, key: str, runner: GitRunner) -> str:
     return _git_text(result)
 
 
+def _snapshot_metadata_source_branch(repo_root: Path, branch: str, runner: GitRunner) -> str:
+    clean_branch = _clean_branch_name(branch)
+    if not clean_branch or not _is_snapshot_branch(clean_branch):
+        return ""
+    return _clean_branch_name(
+        _git_config_get(repo_root, f"branch.{clean_branch}.mesh-dashboard-source-branch", runner)
+    )
+
+
 def _snapshot_source_branch(
     repo_root: Path,
     *,
@@ -722,6 +731,11 @@ def build_update_status_payload(
     rollback_branch_options = _normalize_branch_options(
         branch_name for branch_name in local_branch_options if _is_snapshot_branch(branch_name)
     )
+    managed_rollback_branch_options = _normalize_branch_options(
+        branch_name
+        for branch_name in rollback_branch_options
+        if _snapshot_metadata_source_branch(repo_root, branch_name, runner)
+    )
     previous_branch = _previous_checkout_branch(repo_root, runner)
     snapshot_source_branch = _snapshot_source_branch(
         repo_root,
@@ -801,7 +815,7 @@ def build_update_status_payload(
         "local_branches": local_rollback_options,
         "rollback_branches": rollback_branch_options,
         "cleanup_rollback_branches": _normalize_branch_options(
-            branch_name for branch_name in rollback_branch_options if branch_name != branch
+            branch_name for branch_name in managed_rollback_branch_options if branch_name != branch
         ),
         "previous_branch": previous_branch,
         "snapshot_branch": branch if _is_snapshot_branch(branch) else "",
@@ -1622,7 +1636,7 @@ def cleanup_update_rollback_branches(
         rollback_branches = _normalize_branch_options(
             branch_name
             for branch_name in _local_branches(repo_root, runner)
-            if _is_snapshot_branch(branch_name)
+            if _snapshot_metadata_source_branch(repo_root, branch_name, runner)
         )
         deleted: list[str] = []
         protected: list[str] = []
