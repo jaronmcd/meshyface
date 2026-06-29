@@ -3,6 +3,7 @@ from pathlib import Path
 from meshdash.api_system_update import (
     GitCommandResult,
     build_update_status_payload,
+    cleanup_update_rollback_branches,
     refresh_update_status_from_github,
     rollback_update_to_commit,
     run_update_from_github,
@@ -30,6 +31,7 @@ class _FakeGitRunner:
         previous_branch: str = "",
         branch_ahead: int = 0,
         branch_behind: int = 4,
+        delete_branch_failures: set[str] | None = None,
     ) -> None:
         self.dirty = dirty
         self.ahead = ahead
@@ -47,6 +49,7 @@ class _FakeGitRunner:
         self.previous_branch = previous_branch
         self.branch_ahead = branch_ahead
         self.branch_behind = branch_behind
+        self.delete_branch_failures = set(delete_branch_failures or set())
         self.commit = "aaaaaaaa11111111222222223333333344444444"
         self.new_commit = "bbbbbbbb11111111222222223333333344444444"
         self.history_commits = [
@@ -226,13 +229,23 @@ class _FakeGitRunner:
             if self.ancestor_fails:
                 return GitCommandResult(1, "not an ancestor")
             return GitCommandResult(0, "")
-        if command[0:1] == ("branch",) and len(command) == 3 and command[1] != "-f":
+        if command[0:1] == ("branch",) and len(command) == 3 and command[1] not in {"-f", "-D"}:
             backup_branch = command[1]
             source_branch = command[2]
             if source_branch not in self.local_branches or backup_branch in self.local_branches:
                 return GitCommandResult(1, "branch backup failed")
             self.local_branches.add(backup_branch)
             return GitCommandResult(0, f"branch '{backup_branch}' created")
+        if command[0:2] == ("branch", "-D") and len(command) == 3:
+            branch = command[2]
+            if branch == self.current_branch:
+                return GitCommandResult(1, f"cannot delete branch '{branch}' checked out")
+            if branch in self.delete_branch_failures:
+                return GitCommandResult(1, f"could not delete branch '{branch}'")
+            if branch not in self.local_branches:
+                return GitCommandResult(1, f"branch '{branch}' not found")
+            self.local_branches.remove(branch)
+            return GitCommandResult(0, f"Deleted branch {branch}")
         if command == ("branch", "-f", "beta", "origin/beta"):
             self.local_branches.add("beta")
             self.branch_ahead = 0
@@ -611,6 +624,120 @@ def test_update_status_keeps_snapshot_history_on_source_branch(tmp_path: Path) -
         )
     ]
     assert log_commands[-1][-1] == "origin/main"
+
+
+def test_update_status_reports_inactive_rollback_cleanup_branches(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={
+            "main",
+            "rollback/main-dddddddd1111",
+            "rollback/manual",
+            "snapshot/dev-cccccccc1111",
+            "beta-before-sync-bbbbbbb",
+        },
+    )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
+
+    payload = build_update_status_payload(repo_dir=tmp_path, runner=runner)
+
+    assert payload["branches"] == ["dev", "main"]
+    assert payload["rollback_branches"] == [
+        "rollback/main-dddddddd1111",
+        "rollback/manual",
+        "snapshot/dev-cccccccc1111",
+    ]
+    assert payload["cleanup_rollback_branches"] == [
+        "rollback/main-dddddddd1111",
+        "snapshot/dev-cccccccc1111",
+    ]
+
+
+def test_cleanup_update_rollback_branches_deletes_only_inactive_snapshots(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={
+            "main",
+            "old-stale",
+            "rollback/main-dddddddd1111",
+            "rollback/manual",
+            "snapshot/dev-cccccccc1111",
+            "beta-before-sync-bbbbbbb",
+        },
+    )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
+
+    payload = cleanup_update_rollback_branches(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["cleanup"] is True
+    assert payload["deleted"] == [
+        "rollback/main-dddddddd1111",
+        "snapshot/dev-cccccccc1111",
+    ]
+    assert payload["deleted_count"] == 2
+    assert payload["protected"] == []
+    assert payload["failed"] == []
+    assert payload["cleanup_rollback_branches"] == []
+    assert runner.local_branches == {
+        "main",
+        "old-stale",
+        "rollback/manual",
+        "beta-before-sync-bbbbbbb",
+    }
+    assert ("branch", "-D", "rollback/main-dddddddd1111") in runner.commands
+    assert ("branch", "-D", "snapshot/dev-cccccccc1111") in runner.commands
+    assert ("branch", "-D", "rollback/manual") not in runner.commands
+    assert not any(command == ("branch", "-D", "old-stale") for command in runner.commands)
+
+
+def test_cleanup_update_rollback_branches_skips_checked_out_snapshot(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="rollback/main-dddddddd1111",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "rollback/main-dddddddd1111"},
+        previous_branch="main",
+    )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+
+    payload = cleanup_update_rollback_branches(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["deleted"] == []
+    assert payload["protected"] == ["rollback/main-dddddddd1111"]
+    assert payload["cleanup_rollback_branches"] == []
+    assert "checked-out rollback branch was left in place" in payload["message"]
+    assert ("branch", "-D", "rollback/main-dddddddd1111") not in runner.commands
+    assert runner.local_branches == {"main", "rollback/main-dddddddd1111"}
+
+
+def test_cleanup_update_rollback_branches_reports_delete_failures(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        current_branch="main",
+        remote_branches=["dev", "main"],
+        local_branches={"main", "rollback/main-dddddddd1111", "snapshot/dev-cccccccc1111"},
+        delete_branch_failures={"rollback/main-dddddddd1111"},
+    )
+    runner.git_config["branch.rollback/main-dddddddd1111.mesh-dashboard-source-branch"] = "main"
+    runner.git_config["branch.snapshot/dev-cccccccc1111.mesh-dashboard-source-branch"] = "dev"
+
+    payload = cleanup_update_rollback_branches(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is False
+    assert payload["state"] == "rollback_cleanup_failed"
+    assert payload["deleted"] == ["snapshot/dev-cccccccc1111"]
+    assert payload["failed"] == [
+        {
+            "branch": "rollback/main-dddddddd1111",
+            "error": "could not delete branch 'rollback/main-dddddddd1111'",
+        }
+    ]
+    assert payload["cleanup_rollback_branches"] == ["rollback/main-dddddddd1111"]
+    assert runner.local_branches == {"main", "rollback/main-dddddddd1111"}
 
 
 def test_update_status_marks_legacy_commits_recovery_required(tmp_path: Path) -> None:

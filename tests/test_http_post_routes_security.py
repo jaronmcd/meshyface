@@ -407,6 +407,50 @@ def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.
     assert calls == [(200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})]
 
 
+def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleanup_calls = 0
+
+    def _cleanup_rollbacks(**kwargs: object) -> dict[str, object]:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        return {
+            "ok": True,
+            "cleanup": True,
+            "deleted_count": 1,
+            "deleted": ["rollback/main-dddddddd1111"],
+            "http_status": 200,
+        }
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
+        _cleanup_rollbacks,
+    )
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/rollback-cleanup", deps=deps)
+
+    assert cleanup_calls == 1
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "cleanup": True,
+                "deleted_count": 1,
+                "deleted": ["rollback/main-dddddddd1111"],
+            },
+        )
+    ]
+
+
 def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
     update_calls = 0
 
@@ -454,6 +498,34 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
     assert sync_calls == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_handle_dashboard_post_requires_token_for_rollback_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleanup_calls = 0
+
+    def _cleanup_rollbacks(**kwargs: object) -> dict[str, object]:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
+        _cleanup_rollbacks,
+    )
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/rollback-cleanup", deps=deps)
+
+    assert cleanup_calls == 0
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 

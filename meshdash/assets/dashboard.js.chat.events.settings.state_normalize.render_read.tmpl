@@ -880,6 +880,13 @@
       return payload && typeof payload === "object" ? payload : {{}};
     }}
 
+    function settingsUpdateCleanupRollbackBranches(info) {{
+      const source = Array.isArray(info.cleanup_rollback_branches)
+        ? info.cleanup_rollback_branches
+        : [];
+      return source.map((value) => String(value || "").trim()).filter(Boolean);
+    }}
+
     function readSettingsUpdateBranchSelection() {{
       const branchSelect = document.getElementById("settings-update-branch");
       if (!(branchSelect instanceof HTMLSelectElement)) return "";
@@ -1055,7 +1062,12 @@
     }}
 
     async function runSettingsHistoryRollback(row, branch) {{
-      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      if (
+        settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
       const commit = row && typeof row === "object" ? String(row.commit || "").trim() : "";
       const targetBranch = String(branch || "").trim();
       if (!commit || !targetBranch) return;
@@ -1258,8 +1270,14 @@
       const renderInfo = Object.assign({{}}, optionInfo, info);
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
+      const cleanupBtn = document.getElementById("settings-update-cleanup-rollbacks");
       const reloadBtn = document.getElementById("settings-update-reload");
-      const inFlight = !!settingsUpdateStatusFetchInFlight || !!settingsUpdateApplyInFlight || !!settingsBackendReloadInFlight;
+      const inFlight = !!settingsUpdateStatusFetchInFlight
+        || !!settingsUpdateApplyInFlight
+        || !!settingsBackendReloadInFlight
+        || !!settingsUpdateRollbackCleanupInFlight;
+      const cleanupRollbackBranches = settingsUpdateCleanupRollbackBranches(renderInfo);
+      const cleanupRollbackCount = cleanupRollbackBranches.length;
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(renderInfo.target_branch || "").trim();
       const updateActionReady = !!info.can_update
@@ -1277,6 +1295,8 @@
           : (targetSource === "local" || settingsUpdateApplyMode === "switch"
             ? "Switching branches..."
             : "Updating from GitHub...");
+      }} else if (settingsUpdateRollbackCleanupInFlight) {{
+        text = "Cleaning rollback branches...";
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
@@ -1310,6 +1330,16 @@
         checkBtn.title = updateActionReady
           ? (localSwitchReady ? "Switch to this local branch" : "Fetch and run the latest commit on this branch")
           : settingsUpdateStatusText(info);
+      }}
+      if (cleanupBtn instanceof HTMLButtonElement) {{
+        cleanupBtn.hidden = !settingsUpdateRollbackCleanupInFlight && cleanupRollbackCount <= 0;
+        cleanupBtn.disabled = inFlight || cleanupRollbackCount <= 0;
+        cleanupBtn.textContent = settingsUpdateRollbackCleanupInFlight
+          ? "Cleaning..."
+          : (cleanupRollbackCount > 0 ? `Clean Rollbacks (${{cleanupRollbackCount}})` : "Clean Rollbacks");
+        cleanupBtn.title = cleanupRollbackCount > 0
+          ? `Delete ${{cleanupRollbackCount}} inactive local rollback branch${{cleanupRollbackCount === 1 ? "" : "es"}}`
+          : "No inactive local rollback branches to clean up";
       }}
       if (reloadBtn instanceof HTMLButtonElement) {{
         reloadBtn.disabled = !canReloadBackend;
@@ -1393,7 +1423,12 @@
     }}
 
     async function runSettingsUpdatePrimaryAction() {{
-      if (settingsUpdateStatusFetchInFlight || settingsUpdateApplyInFlight || settingsBackendReloadInFlight) return;
+      if (
+        settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
       const info = settingsUpdatePayloadObject(settingsUpdateStatusCache);
       const selectedBranch = readSettingsUpdateBranchSelection()
         || String(info.target_branch || "").trim();
@@ -1408,7 +1443,7 @@
     }}
 
     async function runSettingsGithubUpdate() {{
-      if (settingsUpdateApplyInFlight) return;
+      if (settingsUpdateApplyInFlight || settingsUpdateRollbackCleanupInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
       const targetSource = String(cachedInfo.target_source || "").trim();
@@ -1481,6 +1516,74 @@
             void hydrateSettingsUpdateStatus(true);
           }}, 1200);
         }}
+      }}
+    }}
+
+    async function runSettingsRollbackCleanup() {{
+      if (
+        settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const cleanupBranches = settingsUpdateCleanupRollbackBranches(cachedInfo);
+      if (!cleanupBranches.length) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          message: "No inactive rollback branches to clean up.",
+        }}));
+        return;
+      }}
+
+      settingsUpdateRollbackCleanupInFlight = true;
+      renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+        message: "Cleaning rollback branches...",
+      }}));
+      try {{
+        const resp = await fetch("/api/system/update/rollback-cleanup", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: "{{}}",
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, info, {{
+            ok: false,
+            message: `Rollback cleanup failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        const deletedCount = Number(info.deleted_count || 0);
+        if (Number.isFinite(deletedCount) && deletedCount > 0) {{
+          appendConsoleLine(
+            `system-rollback-cleanup|${{Date.now()}}|ok`,
+            `[system] cleaned ${{Math.trunc(deletedCount)}} rollback branch${{Math.trunc(deletedCount) === 1 ? "" : "es"}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          ok: false,
+          message: `Rollback cleanup failed: ${{msg}}`,
+        }});
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateRollbackCleanupInFlight = false;
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
       }}
     }}
 

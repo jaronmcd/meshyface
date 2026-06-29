@@ -555,6 +555,15 @@ def _git_config_get(repo_root: Path, key: str, runner: GitRunner) -> str:
     return _git_text(result)
 
 
+def _snapshot_metadata_source_branch(repo_root: Path, branch: str, runner: GitRunner) -> str:
+    clean_branch = _clean_branch_name(branch)
+    if not clean_branch or not _is_snapshot_branch(clean_branch):
+        return ""
+    return _clean_branch_name(
+        _git_config_get(repo_root, f"branch.{clean_branch}.mesh-dashboard-source-branch", runner)
+    )
+
+
 def _snapshot_source_branch(
     repo_root: Path,
     *,
@@ -719,6 +728,14 @@ def build_update_status_payload(
         if local_branches_override is not None
         else _local_branches(repo_root, runner)
     )
+    rollback_branch_options = _normalize_branch_options(
+        branch_name for branch_name in local_branch_options if _is_snapshot_branch(branch_name)
+    )
+    managed_rollback_branch_options = _normalize_branch_options(
+        branch_name
+        for branch_name in rollback_branch_options
+        if _snapshot_metadata_source_branch(repo_root, branch_name, runner)
+    )
     previous_branch = _previous_checkout_branch(repo_root, runner)
     snapshot_source_branch = _snapshot_source_branch(
         repo_root,
@@ -796,6 +813,10 @@ def build_update_status_payload(
         "branches": combined_branch_options,
         "remote_branches": branch_options,
         "local_branches": local_rollback_options,
+        "rollback_branches": rollback_branch_options,
+        "cleanup_rollback_branches": _normalize_branch_options(
+            branch_name for branch_name in managed_rollback_branch_options if branch_name != branch
+        ),
         "previous_branch": previous_branch,
         "snapshot_branch": branch if _is_snapshot_branch(branch) else "",
         "snapshot_source_branch": snapshot_source_branch,
@@ -1550,6 +1571,112 @@ def rollback_update_to_commit(
                 "restart_required": old_commit != new_commit,
                 "message": message,
                 "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def _rollback_cleanup_message(
+    *,
+    deleted_count: int,
+    protected_count: int,
+    failed_count: int,
+) -> str:
+    if failed_count:
+        base = "Rollback cleanup could not delete every local snapshot branch."
+        if deleted_count:
+            plural = "es" if deleted_count != 1 else ""
+            base = f"Deleted {deleted_count} local rollback branch{plural}, but some cleanup failed."
+        return base
+    if deleted_count:
+        suffix = ""
+        if protected_count:
+            suffix = " The checked-out rollback branch was left in place."
+        plural = "es" if deleted_count != 1 else ""
+        return f"Deleted {deleted_count} local rollback branch{plural}.{suffix}"
+    if protected_count:
+        return "No inactive rollback branches to clean up. The checked-out rollback branch was left in place."
+    return "No local rollback branches to clean up."
+
+
+def cleanup_update_rollback_branches(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    runner: GitRunner = _run_git,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "cleanup": False,
+            "available": True,
+            "state": "busy",
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        repo_root, error = _resolve_repo_root(repo_dir=repo_dir, runner=runner)
+        if repo_root is None:
+            return {
+                "ok": False,
+                "cleanup": False,
+                "available": False,
+                "state": "unavailable",
+                "can_update": False,
+                "update_needed": False,
+                "message": error,
+                "error": error,
+                "http_status": 409,
+            }
+
+        current_branch = _current_branch(repo_root, runner)
+        rollback_branches = _normalize_branch_options(
+            branch_name
+            for branch_name in _local_branches(repo_root, runner)
+            if _snapshot_metadata_source_branch(repo_root, branch_name, runner)
+        )
+        deleted: list[str] = []
+        protected: list[str] = []
+        failed: list[dict[str, str]] = []
+        for branch_name in rollback_branches:
+            if branch_name == current_branch:
+                protected.append(branch_name)
+                continue
+            result = runner(["branch", "-D", branch_name], repo_root, 10.0)
+            if result.returncode == 0:
+                deleted.append(branch_name)
+                continue
+            failed.append(
+                {
+                    "branch": branch_name,
+                    "error": _short_text(_git_text(result), limit=360) or "git branch -D failed",
+                }
+            )
+
+        payload = build_update_status_payload(repo_dir=repo_root, runner=runner)
+        failed_count = len(failed)
+        message = _rollback_cleanup_message(
+            deleted_count=len(deleted),
+            protected_count=len(protected),
+            failed_count=failed_count,
+        )
+        payload.update(
+            {
+                "ok": failed_count == 0,
+                "cleanup": True,
+                "deleted": deleted,
+                "deleted_count": len(deleted),
+                "protected": protected,
+                "protected_count": len(protected),
+                "failed": failed,
+                "failed_count": failed_count,
+                "state": "rollback_cleanup_failed" if failed_count else "rollback_cleanup_complete",
+                "message": message,
+                "error": message if failed_count else "",
+                "http_status": 409 if failed_count else 200,
             }
         )
         return payload
