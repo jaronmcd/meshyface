@@ -319,6 +319,13 @@
         }});
       }}
 
+      const updateCleanupRollbacksBtn = document.getElementById("settings-update-cleanup-rollbacks");
+      if (updateCleanupRollbacksBtn instanceof HTMLButtonElement) {{
+        updateCleanupRollbacksBtn.addEventListener("click", () => {{
+          void runSettingsRollbackCleanup();
+        }});
+      }}
+
       const updateBranchSelect = document.getElementById("settings-update-branch");
       if (updateBranchSelect instanceof HTMLSelectElement) {{
         updateBranchSelect.addEventListener("change", () => {{

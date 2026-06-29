@@ -5,6 +5,7 @@ from hmac import compare_digest
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
+    cleanup_update_rollback_branches as _cleanup_update_rollback_branches_helper,
     rollback_update_to_commit as _rollback_update_to_commit_helper,
     run_update_from_github as _run_update_from_github_helper,
     sync_update_branches_from_github as _sync_update_branches_from_github_helper,
@@ -25,6 +26,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/custom_telemetry",
     "/api/settings/raw_packets",
     "/api/system/update",
+    "/api/system/update/rollback-cleanup",
     "/api/system/update/sync",
     "/api/system/restart",
 }
@@ -503,6 +505,33 @@ def handle_dashboard_post(
                 "state": "error",
                 "error": str(exc or "software branch sync failed"),
                 "message": "Software branch sync failed.",
+                "http_status": 500,
+            }
+        status_code = 200
+        try:
+            status_code = int(response_obj.get("http_status") or (200 if response_obj.get("ok") else 409))
+        except Exception:
+            status_code = 200 if response_obj.get("ok") else 409
+        payload_obj = dict(response_obj)
+        payload_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=payload_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/system/update/rollback-cleanup":
+        try:
+            response_obj = _cleanup_update_rollback_branches_helper()
+        except Exception as exc:
+            response_obj = {
+                "ok": False,
+                "cleanup": False,
+                "state": "error",
+                "error": str(exc or "rollback cleanup failed"),
+                "message": "Rollback cleanup failed.",
                 "http_status": 500,
             }
         status_code = 200

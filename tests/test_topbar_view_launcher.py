@@ -77,6 +77,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="settings-update-branch-options"' in html
     assert 'id="settings-update-check"' in html
     assert 'id="settings-update-apply"' not in html
+    assert 'id="settings-update-cleanup-rollbacks"' in html
     assert 'id="settings-update-reload"' in html
     assert 'id="settings-update-restart-status"' not in html
     assert 'class="settings-update-control-row"' in html
@@ -85,6 +86,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
         html,
     )
     assert '<button id="settings-update-check" class="btn btn-secondary" type="button">Check for Updates</button>' in html
+    assert '<button id="settings-update-cleanup-rollbacks" class="btn btn-secondary" type="button" disabled hidden>Clean Rollbacks</button>' in html
     assert '<button id="settings-update-reload" class="btn btn-secondary" type="button">Reload Backend</button>' in html
     assert 'class="settings-update-history-panel"' in html
     assert 'id="settings-update-pr-history"' in html
@@ -299,10 +301,16 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
+    assert "async function runSettingsRollbackCleanup() {" in js
     assert "async function runSettingsUpdateBranchSync() {" not in js
     assert 'fetch("/api/system/update/sync"' not in js
+    assert 'fetch("/api/system/update/rollback-cleanup"' in js
     assert "settingsUpdateSyncInFlight" not in js
     assert 'document.getElementById("settings-update-sync")' not in js
+    assert 'document.getElementById("settings-update-cleanup-rollbacks")' in js
+    assert "settingsUpdateRollbackCleanupInFlight" in js
+    assert "settingsUpdateCleanupRollbackBranches(renderInfo)" in js
+    assert "Clean Rollbacks" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js
     assert 'document.getElementById("settings-update-branch")' in js
     assert "function readSettingsUpdateBranchSelection() {" in js
