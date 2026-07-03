@@ -298,7 +298,8 @@
       }}
     }}
 
-    async function runConsoleCommandLine(rawLine) {{
+    async function runConsoleCommandLine(rawLine, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
       const line = String(rawLine == null ? "" : rawLine).trim();
       const searchMode = typeof parseConsoleSearchCommand === "function"
         ? parseConsoleSearchCommand(line)
@@ -311,12 +312,13 @@
         return;
       }}
       const zorkPromptInput = isZorkConsoleInteractiveSession(consoleInteractiveSession) && !line.startsWith("/");
-      const promptLabel = zorkPromptInput ? ">" : consolePromptLabel;
+      const promptLabel = String(opts.promptLabel || "").trim()
+        || (zorkPromptInput ? ">" : consolePromptLabel);
       const renderedInput = formatConsolePromptEchoLine(promptLabel, line);
       appendConsoleEventLine(renderedInput);
       if (!line) return;
       pushConsoleHistoryEntry(line);
-      if (consoleRunningCommand) {{
+      if (consoleRunningCommand && opts.allowWhileRunning !== true) {{
         const runningCommandName = String(consoleRunningCommand.name || "").trim();
         const stopHint = runningCommandName.toLowerCase() === "live"
           ? "Press Ctrl+C or q to stop before starting a new command."
@@ -375,4 +377,222 @@
         return;
       }}
       await executeConsoleCommand(parsed, normalizedLine || line);
+    }}
+
+    function consoleBatchStripPromptPrefix(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      if (!line) return "";
+      const bracketPrompt = line.match(/^\[[^\]\n]{{1,64}}\]\$\s*(.*)$/);
+      if (bracketPrompt) return String(bracketPrompt[1] || "").trim();
+      const shellPrompt = line.match(/^[$>]\s*(.*)$/);
+      if (shellPrompt) return String(shellPrompt[1] || "").trim();
+      const livePrompt = line.match(/^(?:batch|console|radio|session|zork)>\s*(.*)$/i);
+      if (livePrompt) return String(livePrompt[1] || "").trim();
+      return line;
+    }}
+
+    function consoleBatchLineLooksLikeTranscriptOutput(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      if (!line) return false;
+      if (/^\[[^\]\n]{{1,64}}\](?:\s|$)/.test(line)) return true;
+      if (/^(?:batch|console|radio|session|zork)>$/i.test(line)) return true;
+      return false;
+    }}
+
+    function consoleBatchTextContainsTranscriptOutput(rawText) {{
+      const normalized = String(rawText == null ? "" : rawText)
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n");
+      return normalized
+        .split("\n")
+        .some((rawLine) => {{
+          const line = String(rawLine == null ? "" : rawLine).trim();
+          if (!line) return false;
+          if (consoleBatchStripPromptPrefix(line) !== line) return true;
+          return consoleBatchLineLooksLikeTranscriptOutput(line);
+        }});
+    }}
+
+    function normalizeConsoleBatchLines(rawText) {{
+      const normalized = String(rawText == null ? "" : rawText)
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n");
+      return normalized
+        .split("\n")
+        .map((line) => line.trim())
+        .map((line) => consoleBatchStripPromptPrefix(line))
+        .filter((line) => !consoleBatchLineLooksLikeTranscriptOutput(line))
+        .flatMap((line) => splitConsoleBatchCompoundLine(line))
+        .filter((line) => line && !line.startsWith("#"));
+    }}
+
+    function consoleBatchCommandNames() {{
+      if (typeof ensureConsoleCommandsRegistered === "function") {{
+        ensureConsoleCommandsRegistered();
+      }}
+      if (!(consoleCommandRegistry instanceof Map)) return [];
+      return Array.from(consoleCommandRegistry.keys())
+        .map((name) => String(name || "").trim().toLowerCase())
+        .filter((name) => name && name.length >= 2)
+        .sort((a, b) => b.length - a.length);
+    }}
+
+    function splitConsoleBatchCompoundLine(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      if (!line) return [];
+      if (line.startsWith("#")) return [line];
+      if (typeof ensureConsoleCommandsRegistered === "function") {{
+        ensureConsoleCommandsRegistered();
+      }}
+      const normalizedLine = line.startsWith("/")
+        ? String(line.slice(1) || "").trim()
+        : line;
+      const parsed = parseConsoleCommandLine(normalizedLine);
+      const firstCommand = String(parsed && parsed.command || "").trim().toLowerCase();
+      if (!firstCommand || !(consoleCommandRegistry instanceof Map) || !consoleCommandRegistry.has(firstCommand)) {{
+        return [line];
+      }}
+
+      const lower = line.toLowerCase();
+      const splitIndexes = new Set([0]);
+      const names = consoleBatchCommandNames();
+      for (const name of names) {{
+        let idx = lower.indexOf(name, 1);
+        while (idx >= 0) {{
+          const prev = idx > 0 ? lower[idx - 1] : "";
+          const next = lower[idx + name.length] || "";
+          if (
+            prev
+            && !/\s/.test(prev)
+            && prev !== "-"
+            && (next === "" || /\s/.test(next))
+          ) {{
+            splitIndexes.add(idx);
+          }}
+          idx = lower.indexOf(name, idx + 1);
+        }}
+      }}
+
+      const indexes = Array.from(splitIndexes).sort((a, b) => a - b);
+      if (indexes.length <= 1) return [line];
+      const out = [];
+      for (let i = 0; i < indexes.length; i += 1) {{
+        const start = indexes[i];
+        const end = i + 1 < indexes.length ? indexes[i + 1] : line.length;
+        const segment = line.slice(start, end).trim();
+        if (segment) out.push(segment);
+      }}
+      return out.length ? out : [line];
+    }}
+
+    function consoleBatchLineLooksLikeHelpUsage(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      if (!line) return false;
+      return /\s-\s/.test(line) && /<[^>]+>/.test(line);
+    }}
+
+    function validateConsoleBatchCommands(commands) {{
+      if (typeof ensureConsoleCommandsRegistered === "function") {{
+        ensureConsoleCommandsRegistered();
+      }}
+      const lines = Array.isArray(commands) ? commands : [];
+      for (const rawLine of lines) {{
+        const line = String(rawLine == null ? "" : rawLine).trim();
+        if (!line || line.startsWith("#")) continue;
+        if (consoleBatchLineLooksLikeHelpUsage(line)) {{
+          return {{
+            ok: false,
+            error: "pasted text looks like console help output, not commands",
+          }};
+        }}
+        const normalizedLine = line.startsWith("/")
+          ? String(line.slice(1) || "").trim()
+          : line;
+        const parsed = parseConsoleCommandLine(normalizedLine);
+        if (parsed.error) {{
+          return {{ ok: false, error: `parse error in "${{line}}": ${{parsed.error}}` }};
+        }}
+        const command = String(parsed.command || "").trim().toLowerCase();
+        if (!(consoleCommandRegistry instanceof Map) || !consoleCommandRegistry.has(command)) {{
+          return {{ ok: false, error: `unknown command in paste: ${{command || line}}` }};
+        }}
+      }}
+      return {{ ok: true, error: "" }};
+    }}
+
+    function consoleBatchUnsupportedCommandName(rawLine) {{
+      const line = String(rawLine == null ? "" : rawLine).trim();
+      if (!line) return "";
+      const normalizedLine = line.startsWith("/")
+        ? String(line.slice(1) || "").trim()
+        : line;
+      const parsed = parseConsoleCommandLine(normalizedLine);
+      if (parsed.error) return "";
+      const command = String(parsed.command || "").trim().toLowerCase();
+      return (command === "live" || command === "zork") ? command : "";
+    }}
+
+    async function runConsoleCommandBatch(rawLines) {{
+      const commands = Array.isArray(rawLines)
+        ? rawLines.map((line) => String(line == null ? "" : line).trim()).filter(Boolean)
+        : normalizeConsoleBatchLines(rawLines);
+      if (!commands.length) return false;
+      const validation = validateConsoleBatchCommands(commands);
+      if (!validation.ok) {{
+        appendConsoleEventLine(`[batch] paste ignored: ${{validation.error}}.`);
+        return false;
+      }}
+      if (consoleRunningCommand) {{
+        const runningCommandName = String(consoleRunningCommand.name || "command").trim();
+        appendConsoleEventLine(`[batch] cannot start while ${{runningCommandName}} is running.`);
+        return false;
+      }}
+      if (consoleInteractiveSession) {{
+        appendConsoleEventLine("[batch] cannot run while an interactive console session is active.");
+        return false;
+      }}
+
+      const unsupported = commands
+        .map((line) => consoleBatchUnsupportedCommandName(line))
+        .filter(Boolean);
+      if (unsupported.length) {{
+        appendConsoleEventLine(`[batch] cannot run interactive command in batch: ${{unsupported[0]}}`);
+        return false;
+      }}
+
+      const batchPromptLabel = consolePromptLabel;
+      let interrupted = false;
+      let finished = false;
+      startConsoleRunningCommand("batch", (reason, emitStatus) => {{
+        if (!finished) interrupted = true;
+        if (emitStatus) {{
+          appendConsoleEventLine(`[batch] stopped (${{String(reason || "stopped")}}).`);
+        }}
+      }});
+      appendConsoleEventLine(`[batch] running ${{commands.length}} command${{commands.length === 1 ? "" : "s"}}.`);
+      let completed = 0;
+      try {{
+        for (const commandLine of commands) {{
+          if (interrupted) break;
+          await runConsoleCommandLine(commandLine, {{
+            allowWhileRunning: true,
+            promptLabel: batchPromptLabel,
+          }});
+          completed += 1;
+        }}
+      }} finally {{
+        finished = true;
+        if (
+          consoleRunningCommand
+          && String(consoleRunningCommand.name || "").trim().toLowerCase() === "batch"
+        ) {{
+          stopConsoleRunningCommand("done", false);
+        }}
+      }}
+      if (interrupted) {{
+        appendConsoleEventLine(`[batch] interrupted after ${{completed}}/${{commands.length}} command(s).`);
+      }} else {{
+        appendConsoleEventLine(`[batch] completed ${{completed}}/${{commands.length}} command(s).`);
+      }}
+      return true;
     }}

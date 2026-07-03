@@ -36,6 +36,12 @@ def _parse_packet(packet: dict[str, object]) -> dict[str, object]:
     )
 
 
+class _RawStoreForward:
+    def __init__(self, rr: int, text: bytes) -> None:
+        self.rr = rr
+        self.text = text
+
+
 def test_parse_tracker_packet_infers_reaction_from_emoji_only_reply_text() -> None:
     parsed = _parse_packet(
         {
@@ -148,3 +154,43 @@ def test_build_chat_entry_from_alert_payload_bytes() -> None:
     assert chat_entry is not None
     assert chat_entry["text"] == "test alert"
     assert chat_entry["portnum"] == "ALERT_APP"
+
+
+def test_build_chat_entry_from_store_forward_broadcast_text() -> None:
+    packet = {
+        "id": 559,
+        "from": 101,
+        "to": 202,
+        "rxTime": 1238,
+        "decoded": {
+            "portnum": "STORE_FORWARD_APP",
+            "storeforward": {
+                "rr": "ROUTER_TEXT_BROADCAST",
+                "raw": _RawStoreForward(9, b"recovered hello"),
+            },
+        },
+    }
+    parsed = _parse_packet(packet)
+    chat_entry = build_chat_entry_from_packet(
+        packet=packet,
+        decoded=packet["decoded"],
+        from_id=parsed["from_id"],
+        to_id=parsed["to_id"],
+        packet_id=parsed["packet_id"],
+        hops=parsed["hops"],
+        reply_id=parsed["reply_id"],
+        emoji_glyph=parsed["emoji_glyph"],
+        emoji_codepoint=parsed["emoji_codepoint"],
+        is_reaction=parsed["is_reaction"],
+        utc_now_fn=lambda: "2026-07-02T23:40:00Z",
+        format_epoch_fn=lambda value: str(value),
+    )
+
+    assert chat_entry is not None
+    assert chat_entry["text"] == "recovered hello"
+    assert chat_entry["to"] == "^all"
+    assert chat_entry["scope"] == "all"
+    assert chat_entry["portnum"] == "TEXT_MESSAGE_APP"
+    assert chat_entry["source_portnum"] == "STORE_FORWARD_APP"
+    assert chat_entry["store_forward_recovered"] is True
+    assert chat_entry["store_forward_rr"] == "ROUTER_TEXT_BROADCAST"

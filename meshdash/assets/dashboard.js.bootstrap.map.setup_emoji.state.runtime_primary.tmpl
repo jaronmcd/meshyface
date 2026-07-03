@@ -85,6 +85,8 @@
     let consoleCommandHistoryCursor = -1;
     let consoleCommandDraft = "";
     let consoleAutocompleteState = null;
+    let consoleAutocompleteMenuSelectedIndex = 0;
+    let consoleAutocompleteMenuSignature = "";
     let consolePromptLabel = "$";
     let consoleCursorVisible = true;
     let consoleCursorBlinkTimer = null;
@@ -93,6 +95,8 @@
     let consoleLiveModeActive = false;
     let consoleLiveVerbosity = 0;
     let consoleLiveLayers = null;
+    let consoleLiveFilterText = "";
+    let consoleLiveFilterSpec = null;
     let consoleEventCounter = 0;
     let consoleGrepRunCounter = 0;
     let consoleRenderDeferred = false;
@@ -103,6 +107,9 @@
     let consoleFilterExprCacheParsed = null;
     let consoleFilteredLinesCacheKey = "";
     let consoleFilteredLinesCacheResult = null;
+    let consoleSyntaxNodeTooltipCache = null;
+    const consoleNodeRowsByIdCache = new Map();
+    let consoleNodeRowsCacheVersion = 0;
     let consoleRenderedLogCacheKey = "";
     let consoleRenderedLogCacheHtml = "";
     let consoleRenderedPromptHtml = "";

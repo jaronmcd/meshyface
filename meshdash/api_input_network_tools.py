@@ -27,6 +27,17 @@ _COMMAND_ALIASES = {
     "request-telemetry": "request_telemetry",
     "--request-telemetry": "request_telemetry",
     "request_telemetry": "request_telemetry",
+    "request-store-forward-history": "request_store_forward_history",
+    "--request-store-forward-history": "request_store_forward_history",
+    "request_store_forward_history": "request_store_forward_history",
+    "store-forward-history": "request_store_forward_history",
+    "--store-forward-history": "request_store_forward_history",
+    "store_forward_history": "request_store_forward_history",
+    "storeforward-history": "request_store_forward_history",
+    "storeforward_history": "request_store_forward_history",
+    "sf-history": "request_store_forward_history",
+    "--sf-history": "request_store_forward_history",
+    "sf_history": "request_store_forward_history",
     "send-alert": "send_alert",
     "--send-alert": "send_alert",
     "send_alert": "send_alert",
@@ -104,6 +115,7 @@ class NetworkToolRequest:
     config_type: object = None
     starting_index: int | None = None
     confirm: bool | None = None
+    history_window_minutes: int | None = None
 
 
 def _normalize_command(value: object) -> str:
@@ -257,6 +269,18 @@ def parse_network_tool_request(
         body.get("confirm", body.get("force")),
         label="confirm",
     )
+    history_window_minutes = _parse_optional_int(
+        body.get(
+            "history_window_minutes",
+            body.get(
+                "window_minutes",
+                body.get("history_window", body.get("window")),
+            ),
+        ),
+        label="history_window_minutes",
+        to_int_fn=to_int_fn,
+        min_value=0,
+    )
 
     return NetworkToolRequest(
         command=command,
@@ -271,6 +295,7 @@ def parse_network_tool_request(
         config_type=config_type,
         starting_index=starting_index,
         confirm=confirm,
+        history_window_minutes=history_window_minutes,
     )
 
 

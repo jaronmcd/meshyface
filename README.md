@@ -20,7 +20,27 @@ The current UI exposes:
 - SQLite-backed history, search, rollups, theme persistence, and custom
   telemetry rule persistence
 
+### Console workspace
 
+The Console workspace is a terminal-style control surface for packet traffic,
+history search, and mesh utility commands.
+
+- Type a command name to open autocomplete suggestions. Use `Tab` or `Enter`
+  to accept, `ArrowRight` to accept the ghosted suffix, and `ArrowUp` /
+  `ArrowDown` to move through the popup.
+- Commands that take a node target show rich node suggestions with name, ID,
+  emoji, tag, status, hops, GPS, last-heard state, ports, and node number.
+  Normal text narrows by node names and tags; `!` narrows by node ID.
+- `live` streams packet traffic until `Ctrl+C` or `q`. Use
+  `live grep <text>`, `live rg <text>`, `live filter=<text>`, or bare
+  `live <text>` to stream only matching live packet groups. Layer and
+  verbosity filters still apply, for example
+  `live rg TEXT_MESSAGE_APP -vv --layer=2`.
+- `grep <text>` and `rg <text>` search retained packet/chat history with
+  context windows, limits, packet/chat source filters, and summary/packet
+  scope filters.
+- `/search <text>` filters the visible console output from the prompt without
+  starting a retained-history search.
 
 ## Screenshots
 

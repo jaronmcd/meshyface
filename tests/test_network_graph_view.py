@@ -408,6 +408,40 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const manualRootId = normalizeNodeId(networkGraphViewState.manualRootNodeId || "");' in js
     assert 'if (selectedNodeAvailable) return selectedId;' in js
     assert 'if (manualRootCandidate && manualRootCandidate.hasLinks) return manualRootCandidate.nodeId;' in js
+
+
+def test_node_info_traceroute_uses_console_style_request_payload() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    runner_start = js.index("async function runChatNodeTelemetryTool(rawToolId, rawNodeId = selectedNodeId) {")
+    runner_end = js.index("function normalizeChatNodeDetailsDrawerTab(value)", runner_start)
+    runner_src = js[runner_start:runner_end]
+
+    assert 'const body = Object.assign({ destination: nodeId }, tool.requestBody || {});' in runner_src
+    assert 'body.timeout_ms = resolvedTimeoutMs;' not in runner_src
+    assert 'body.hop_limit = Math.max(1, Math.trunc(Number(resolvedHopLimit)));' not in runner_src
+    assert 'resolveLiveTracerouteHopLimit(nodeId, { state: latestState })' not in runner_src
+
+
+def test_network_tool_post_requests_are_serialized() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    post_start = js.index("let networkToolCommandQueue = Promise.resolve();")
+    post_end = js.index("function restoreChatInputFocus(input)", post_start)
+    post_src = js[post_start:post_end]
+
+    assert "async function postNetworkToolCommand(body) {" in post_src
+    assert "const requestBody = (body && typeof body === \"object\") ? { ...body } : {};" in post_src
+    assert "const queued = networkToolCommandQueue.catch(() => {}).then(runRequest);" in post_src
+    assert "networkToolCommandQueue = queued.catch(() => {});" in post_src
     assert 'networkGraphComponentIsRelationshipAnchor(localCandidate, bestComponent)' in js
     assert 'const parentHintsByNodeId = new Map();' in js
     assert 'const layerOrderIndexByNodeId = new Map([[rootId, 0]]);' in js

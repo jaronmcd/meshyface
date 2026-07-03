@@ -105,8 +105,46 @@
       return true;
     }}
 
+    function handleConsolePastedText(pastedText, inputEl = null) {{
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      const rawText = String(pastedText == null ? "" : pastedText);
+      if (!rawText) return false;
+      const hasLineBreak = /\r|\n/.test(rawText);
+      const batchLines = typeof normalizeConsoleBatchLines === "function"
+        ? normalizeConsoleBatchLines(rawText)
+        : [];
+      const currentDraft = String(input.value || "").trim();
+      const hasTranscriptPaste = hasLineBreak
+        && typeof consoleBatchTextContainsTranscriptOutput === "function"
+        && consoleBatchTextContainsTranscriptOutput(rawText);
+      const canRunBatch = (
+        (batchLines.length > 1 || (hasTranscriptPaste && batchLines.length >= 1))
+        && !currentDraft
+        && !consoleInteractiveSession
+        && typeof runConsoleCommandBatch === "function"
+      );
+      if (canRunBatch) {{
+        input.value = "";
+        consoleCommandHistoryCursor = -1;
+        consoleCommandDraft = "";
+        resetConsoleAutocompleteState();
+        renderConsolePromptBuffer(false);
+        void runConsoleCommandBatch(batchLines);
+        return true;
+      }}
+      if (hasLineBreak && (batchLines.length > 1 || hasTranscriptPaste) && !currentDraft) {{
+        appendConsoleEventLine("[batch] paste ignored: pasted text does not look like a valid command batch.");
+        return true;
+      }}
+      return insertTextIntoConsoleCommandInput(rawText, input);
+    }}
+
     function resetConsoleAutocompleteState() {{
       consoleAutocompleteState = null;
+      consoleAutocompleteMenuSelectedIndex = 0;
+      consoleAutocompleteMenuSignature = "";
+      hideConsoleAutocompleteMenu();
     }}
 
     function syncConsoleCommandDraftRender(rawValue) {{
@@ -330,13 +368,19 @@
         : null;
       if (!normalizedCandidate) return "";
       if (!token) {{
-        return String(normalizedCandidate.displayText || normalizedCandidate.insertText || "");
+        const emptyTokenGhost = Object.prototype.hasOwnProperty.call(normalizedCandidate, "ghostText")
+          ? normalizedCandidate.ghostText
+          : (normalizedCandidate.displayText || normalizedCandidate.insertText || "");
+        return String(emptyTokenGhost || "");
       }}
       const tokenLower = token.toLowerCase();
-      const variants = [
-        String(normalizedCandidate.displayText || ""),
-        String(normalizedCandidate.insertText || ""),
-      ];
+      const hasExplicitGhost = Object.prototype.hasOwnProperty.call(normalizedCandidate, "ghostText");
+      const variants = hasExplicitGhost
+        ? [String(normalizedCandidate.ghostText || "")]
+        : [
+            String(normalizedCandidate.displayText || ""),
+            String(normalizedCandidate.insertText || ""),
+          ];
       for (const variant of variants) {{
         if (!variant) continue;
         if (variant === token) return "";
@@ -371,6 +415,230 @@
       return resolveConsoleAutocompleteGhostRemainder(rawToken, candidates[0]);
     }}
 
+    function acceptConsoleAutocompleteGhost(inputEl, state = latestState) {{
+      if (!(inputEl instanceof HTMLInputElement)) return false;
+      const ghostSuffix = (typeof resolveConsoleAutocompleteGhostSuffix === "function")
+        ? String(resolveConsoleAutocompleteGhostSuffix(inputEl, state) || "")
+        : "";
+      if (!ghostSuffix) return false;
+      return handleConsoleTabAutocomplete(inputEl, state, false);
+    }}
+
+    function consoleAutocompleteMenuElement() {{
+      const el = document.getElementById("console-autocomplete-menu");
+      return el instanceof HTMLElement ? el : null;
+    }}
+
+    function hideConsoleAutocompleteMenu() {{
+      const menu = consoleAutocompleteMenuElement();
+      if (!(menu instanceof HTMLElement)) return;
+      menu.hidden = true;
+      menu.setAttribute("aria-hidden", "true");
+      menu.innerHTML = "";
+    }}
+
+    function isConsoleAutocompleteMenuOpen() {{
+      const menu = consoleAutocompleteMenuElement();
+      return menu instanceof HTMLElement && !menu.hidden;
+    }}
+
+    function consoleAutocompleteCommandMeta(candidate) {{
+      const normalizedCandidate = (typeof normalizeConsoleAutocompleteCandidate === "function")
+        ? normalizeConsoleAutocompleteCandidate(candidate)
+        : null;
+      if (!normalizedCandidate) return "";
+      const commandName = String(normalizedCandidate.insertText || normalizedCandidate.displayText || "")
+        .replace(/^\/+/, "")
+        .trim()
+        .toLowerCase();
+      if (!commandName || !(consoleCommandRegistry instanceof Map)) return "";
+      const def = consoleCommandRegistry.get(commandName);
+      if (!def || typeof def !== "object") return "";
+      const usage = String(def.usage || commandName).trim();
+      const description = String(def.description || "").trim();
+      return [usage, description].filter(Boolean).join(" - ");
+    }}
+
+    function resolveConsoleAutocompleteMenuPayload(inputEl, state = latestState) {{
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return null;
+      if (activeLayoutView !== "console" || document.activeElement !== input) return null;
+      const draft = String(input.value || "");
+      if (!draft) return null;
+      const caret = Math.max(0, Math.trunc(Number(input.selectionStart) || 0));
+      const selectionEnd = Math.max(0, Math.trunc(Number(input.selectionEnd) || 0));
+      if (caret !== selectionEnd || caret !== draft.length) return null;
+      const context = resolveConsoleAutocompleteContext(input);
+      if (!context) return null;
+      if (consoleInteractiveSession && context.tokenIndex === 0 && context.leadingSlash !== true) {{
+        return null;
+      }}
+      const candidates = resolveConsoleAutocompleteCandidates(context, state)
+        .map((candidate) => (
+          typeof normalizeConsoleAutocompleteCandidate === "function"
+            ? normalizeConsoleAutocompleteCandidate(candidate)
+            : null
+        ))
+        .filter((candidate) => !!(candidate && candidate.insertText));
+      if (!candidates.length) return null;
+      const signature = [
+        String(context.rawStart),
+        String(context.rawEnd),
+        String(context.rawToken || ""),
+        String(context.commandName || ""),
+        candidates.map((candidate) => String(candidate.insertText || "")).join("\u001f"),
+      ].join("\u001e");
+      return {{
+        context,
+        candidates,
+        signature,
+      }};
+    }}
+
+    function renderConsoleAutocompleteMenu(inputEl = null, state = latestState) {{
+      const menu = consoleAutocompleteMenuElement();
+      if (!(menu instanceof HTMLElement)) return;
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      const payload = resolveConsoleAutocompleteMenuPayload(input, state);
+      if (!payload) {{
+        hideConsoleAutocompleteMenu();
+        return;
+      }}
+      const candidates = payload.candidates;
+      if (payload.signature !== consoleAutocompleteMenuSignature) {{
+        consoleAutocompleteMenuSignature = payload.signature;
+        consoleAutocompleteMenuSelectedIndex = 0;
+      }}
+      const selectedIndex = Math.max(
+        0,
+        Math.min(candidates.length - 1, Math.trunc(Number(consoleAutocompleteMenuSelectedIndex) || 0))
+      );
+      consoleAutocompleteMenuSelectedIndex = selectedIndex;
+      menu.innerHTML = "";
+      menu.hidden = false;
+      menu.setAttribute("aria-hidden", "false");
+      menu.setAttribute("role", "listbox");
+      menu.dataset.consoleAutocompleteSignature = payload.signature;
+      menu.dataset.consoleAutocompleteSelectedIndex = String(selectedIndex);
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < candidates.length; index += 1) {{
+        const candidate = candidates[index];
+        const kindRaw = String(candidate && candidate.kind || "command").trim().toLowerCase();
+        const kind = kindRaw === "node" ? "node" : "command";
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = `console-autocomplete-item console-autocomplete-item-${{kind}}${{kind === "node" ? " is-node" : ""}}${{index === selectedIndex ? " is-selected" : ""}}`;
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", index === selectedIndex ? "true" : "false");
+        item.dataset.consoleAutocompleteIndex = String(index);
+
+        if (kind === "node") {{
+          const icon = document.createElement("span");
+          icon.className = "console-autocomplete-node-icon";
+          icon.textContent = String(candidate.nodeEmoji || "");
+          item.appendChild(icon);
+
+          const main = document.createElement("span");
+          main.className = "console-autocomplete-node-main";
+
+          const title = document.createElement("span");
+          title.className = "console-autocomplete-node-title";
+
+          const name = document.createElement("span");
+          name.className = "console-autocomplete-node-name";
+          name.textContent = String(candidate.nodeName || candidate.displayText || candidate.insertText || "");
+          title.appendChild(name);
+
+          const id = document.createElement("span");
+          id.className = "console-autocomplete-node-id";
+          id.textContent = String(candidate.nodeId || candidate.displayText || candidate.insertText || "");
+          title.appendChild(id);
+          main.appendChild(title);
+
+          const meta = document.createElement("span");
+          meta.className = "console-autocomplete-node-meta";
+          meta.textContent = String(candidate.metaText || "");
+          main.appendChild(meta);
+          item.appendChild(main);
+        }} else {{
+          const name = document.createElement("span");
+          name.className = "console-autocomplete-item-name";
+          name.textContent = String(candidate.displayText || candidate.insertText || "");
+          item.appendChild(name);
+
+          const metaText = consoleAutocompleteCommandMeta(candidate);
+          if (metaText) {{
+            const meta = document.createElement("span");
+            meta.className = "console-autocomplete-item-meta";
+            meta.textContent = metaText;
+            item.appendChild(meta);
+          }}
+        }}
+        fragment.appendChild(item);
+      }}
+      menu.appendChild(fragment);
+      const selectedEl = menu.querySelector(".console-autocomplete-item.is-selected");
+      if (selectedEl instanceof HTMLElement) {{
+        selectedEl.scrollIntoView({{ block: "nearest" }});
+      }}
+    }}
+
+    function syncConsoleAutocompleteMenuSelection() {{
+      const menu = consoleAutocompleteMenuElement();
+      if (!(menu instanceof HTMLElement) || menu.hidden) return false;
+      const items = Array.from(menu.querySelectorAll(".console-autocomplete-item"))
+        .filter((item) => item instanceof HTMLElement);
+      if (!items.length) return false;
+      const selectedIndex = Math.max(
+        0,
+        Math.min(items.length - 1, Math.trunc(Number(consoleAutocompleteMenuSelectedIndex) || 0))
+      );
+      consoleAutocompleteMenuSelectedIndex = selectedIndex;
+      menu.dataset.consoleAutocompleteSelectedIndex = String(selectedIndex);
+      items.forEach((item, index) => {{
+        item.classList.toggle("is-selected", index === selectedIndex);
+        item.setAttribute("aria-selected", index === selectedIndex ? "true" : "false");
+      }});
+      const selectedEl = items[selectedIndex];
+      if (selectedEl instanceof HTMLElement) {{
+        selectedEl.scrollIntoView({{ block: "nearest" }});
+      }}
+      return true;
+    }}
+
+    function moveConsoleAutocompleteMenuSelection(delta) {{
+      const menu = consoleAutocompleteMenuElement();
+      if (!(menu instanceof HTMLElement) || menu.hidden) return false;
+      const count = menu.querySelectorAll(".console-autocomplete-item").length;
+      if (count < 1) return false;
+      const cleanDelta = Math.trunc(Number(delta) || 0);
+      if (!cleanDelta) return false;
+      const current = Math.max(0, Math.min(count - 1, Math.trunc(Number(consoleAutocompleteMenuSelectedIndex) || 0)));
+      consoleAutocompleteMenuSelectedIndex = (current + cleanDelta + count) % count;
+      return syncConsoleAutocompleteMenuSelection();
+    }}
+
+    function applyConsoleAutocompleteMenuSelection(inputEl = null, state = latestState) {{
+      const input = inputEl instanceof HTMLInputElement ? inputEl : consoleCommandInputElement();
+      if (!(input instanceof HTMLInputElement)) return false;
+      const payload = resolveConsoleAutocompleteMenuPayload(input, state);
+      if (!payload) return false;
+      const index = Math.max(
+        0,
+        Math.min(payload.candidates.length - 1, Math.trunc(Number(consoleAutocompleteMenuSelectedIndex) || 0))
+      );
+      const nextDraft = applyConsoleAutocompleteCandidate(
+        input,
+        payload.context,
+        payload.candidates[index],
+        {{ appendSpace: true }},
+      );
+      if (!nextDraft) return false;
+      resetConsoleAutocompleteState();
+      renderConsolePromptBuffer(false);
+      return true;
+    }}
+
     function handleConsolePasteEvent(ev) {{
       if (!ev || ev.defaultPrevented || activeLayoutView !== "console") return false;
       const target = ev.target;
@@ -392,7 +660,7 @@
       if (!(input instanceof HTMLInputElement)) return false;
       ev.preventDefault();
       ev.stopPropagation();
-      return insertTextIntoConsoleCommandInput(pastedText, input);
+      return handleConsolePastedText(pastedText, input);
     }}
 
     function selectionIntersectsElement(selection, element) {{

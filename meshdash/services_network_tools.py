@@ -7,6 +7,9 @@ from .api_input_network_tools import NetworkToolRequest
 from .helpers import to_int
 
 
+_DEFAULT_STORE_FORWARD_HISTORY_WINDOW_MINUTES = 240
+
+
 def _load_meshtastic_modules():
     try:
         from meshtastic.protobuf import channel_pb2, mesh_pb2, portnums_pb2  # type: ignore
@@ -17,6 +20,14 @@ def _load_meshtastic_modules():
     except Exception as exc:
         raise RuntimeError("Meshtastic protobuf support is unavailable") from exc
     return channel_pb2, mesh_pb2, portnums_pb2, telemetry_pb2
+
+
+def _load_storeforward_pb2():
+    try:
+        from meshtastic.protobuf import storeforward_pb2  # type: ignore
+    except Exception as exc:
+        raise RuntimeError("Store & Forward protobuf support is unavailable") from exc
+    return storeforward_pb2
 
 
 def _channel_is_enabled(iface: object, channel_index: int, channel_pb2_module: object) -> bool:
@@ -801,6 +812,100 @@ def _run_request_telemetry(
             "requested_type": telemetry_type,
             "response_type": response_type or None,
             "response": telemetry_payload if telemetry_payload else {},
+        },
+        "console_lines": [" | ".join(console_parts)],
+    }
+
+
+def _run_request_store_forward_history(
+    request: NetworkToolRequest,
+    *,
+    iface: object,
+    send_lock,
+    to_int_fn=to_int,
+) -> dict[str, object]:
+    destination = str(request.destination or "").strip()
+    if not destination:
+        raise ValueError("Missing destination")
+
+    try:
+        channel_pb2, _mesh_pb2, portnums_pb2, _telemetry_pb2 = _load_meshtastic_modules()
+        storeforward_pb2 = _load_storeforward_pb2()
+    except RuntimeError as exc:
+        return _error_response(
+            request,
+            summary_label="s&f",
+            detail=str(exc),
+        )
+
+    channel_index = request.channel_index if request.channel_index is not None else 0
+    if not _channel_is_enabled(iface, channel_index, channel_pb2):
+        return _error_response(
+            request,
+            summary_label="s&f",
+            detail=f"Channel {channel_index} is not enabled on the local node",
+        )
+
+    port_num = getattr(getattr(portnums_pb2, "PortNum", None), "STORE_FORWARD_APP", None)
+    if port_num is None:
+        return _error_response(
+            request,
+            summary_label="s&f",
+            detail="Store & Forward port support is unavailable",
+        )
+
+    window_minutes = (
+        request.history_window_minutes
+        if request.history_window_minutes is not None
+        else _DEFAULT_STORE_FORWARD_HISTORY_WINDOW_MINUTES
+    )
+    history_request = storeforward_pb2.StoreAndForward()
+    history_request.rr = storeforward_pb2.StoreAndForward.CLIENT_HISTORY
+    if window_minutes > 0:
+        history_request.history.window = int(window_minutes)
+
+    try:
+        sent_packet_id = _send_mesh_packet(
+            iface=iface,
+            send_lock=send_lock,
+            message=history_request,
+            destination=destination,
+            port_num=port_num,
+            channel_index=channel_index,
+            hop_limit=request.hop_limit,
+            to_int_fn=to_int_fn,
+        )
+    except ValueError as exc:
+        return _error_response(
+            request,
+            summary_label="s&f",
+            detail=str(exc),
+        )
+    except Exception as exc:
+        return _error_response(
+            request,
+            summary_label="s&f",
+            detail=f"Store & Forward history request failed: {exc}",
+        )
+
+    window_label = f"{window_minutes}m" if window_minutes > 0 else "server default"
+    console_parts = [
+        f"[s&f] {destination}",
+        "history request sent",
+        f"window={window_label}",
+        "returned texts will appear in chat",
+    ]
+    return {
+        "ok": True,
+        "command": "request_store_forward_history",
+        "destination": destination,
+        "channel_index": channel_index,
+        "hop_limit": request.hop_limit,
+        "sent_packet_id": sent_packet_id,
+        "history_window_minutes": window_minutes,
+        "result": {
+            "window_minutes": window_minutes,
+            "async_response": True,
         },
         "console_lines": [" | ".join(console_parts)],
     }
@@ -2013,6 +2118,13 @@ def run_network_tool(
         )
     if request.command == "request_telemetry":
         return _run_request_telemetry(
+            request,
+            iface=iface,
+            send_lock=send_lock,
+            to_int_fn=to_int_fn,
+        )
+    if request.command == "request_store_forward_history":
+        return _run_request_store_forward_history(
             request,
             iface=iface,
             send_lock=send_lock,

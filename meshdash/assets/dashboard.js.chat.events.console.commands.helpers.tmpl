@@ -5,14 +5,22 @@
         appendConsoleEventLine(`[console] unknown command: ${{parsed.command}} (try "help")`);
         return;
       }}
-      const parseVerbosityArgs = (rawArgs) => {{
+      const parseVerbosityArgs = (rawArgs, commandName = "") => {{
         const source = Array.isArray(rawArgs) ? rawArgs : [];
         const cleaned = [];
+        const cleanCommandName = String(commandName || "").trim().toLowerCase();
+        const stopAtLiveFilter = cleanCommandName === "live";
+        let insideLiveFilter = false;
         let verbosity = 0;
         for (const token of source) {{
           const text = String(token == null ? "" : token).trim();
+          if (stopAtLiveFilter && /^(grep|rg|filter|search|match)$/i.test(text)) {{
+            insideLiveFilter = true;
+            cleaned.push(token);
+            continue;
+          }}
           const match = text.match(/^-v{1,4}$/i);
-          if (match) {{
+          if (match && !insideLiveFilter) {{
             const level = Math.max(0, Math.min(4, text.length - 1));
             verbosity = Math.max(verbosity, level);
             continue;
@@ -26,7 +34,7 @@
       let commandArgs = parsedArgs;
       let commandVerbosity = 0;
       if (supportsVerbosity) {{
-        const parsedVerbosity = parseVerbosityArgs(parsedArgs);
+        const parsedVerbosity = parseVerbosityArgs(parsedArgs, parsed.command);
         commandArgs = parsedVerbosity.args;
         commandVerbosity = parsedVerbosity.verbosity;
       }} else {{
@@ -89,6 +97,7 @@
         usage: String(commandDef.usage || name).trim() || name,
         description: String(commandDef.description || "").trim(),
         supportsVerbosity: !!commandDef.supportsVerbosity,
+        hiddenFromHelp: name.startsWith("--") || commandDef.hiddenFromHelp === true,
         run,
       }});
     }}
@@ -129,6 +138,7 @@
       "set-time",
       "--set-time",
     ]);
+    const consoleSelfTargetMacro = "%self";
 
     function normalizeConsoleAutocompleteCandidate(candidate) {{
       const source = (candidate && typeof candidate === "object")
@@ -142,6 +152,7 @@
         source.displayText ?? source.label ?? insertText
       ).trim() || insertText;
       return {{
+        ...source,
         insertText,
         displayText,
       }};
@@ -158,19 +169,175 @@
         .replace(/"/g, '\\"')}}"`;
     }}
 
+    function consoleNodeAutocompleteEmoji(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      const nodeId = normalizeNodeId(safeRow.id || raw.id || raw.node_id || raw.nodeId || "");
+      const values = [];
+      if (nodeId && typeof nodeEmojiOverrideForNode === "function") {{
+        values.push(nodeEmojiOverrideForNode(nodeId));
+      }}
+      if (nodeId && typeof nodeTagEmojiForNode === "function") {{
+        values.push(nodeTagEmojiForNode(nodeId));
+      }}
+      if (nodeId && typeof nodeHistoryCapsEmojiForNode === "function") {{
+        values.push(nodeHistoryCapsEmojiForNode(nodeId, latestState));
+      }}
+      values.push(raw.node_emoji, raw.nodeEmoji, raw.emoji, raw.icon);
+      for (const value of values) {{
+        const clean = String(value == null ? "" : value).trim();
+        if (clean) return clean;
+      }}
+      return "";
+    }}
+
+    function consoleNodeAutocompleteTagLabel(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      const nodeId = normalizeNodeId(safeRow.id || raw.id || raw.node_id || raw.nodeId || "");
+      if (!nodeId || typeof nodeTagLabelForNode !== "function") return "";
+      return String(nodeTagLabelForNode(nodeId) || "").trim();
+    }}
+
+    function collectConsoleNodeTagLookupVariants(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      const nodeId = normalizeNodeId(safeRow.id || raw.id || raw.node_id || raw.nodeId || "");
+      const seen = new Set();
+      const values = [];
+      const push = (value) => {{
+        const clean = String(value == null ? "" : value).trim();
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        values.push(clean);
+      }};
+      if (nodeId && typeof nodeTagLabelForNode === "function") {{
+        push(nodeTagLabelForNode(nodeId));
+      }}
+      if (nodeId && typeof nodeTagEntryForNode === "function") {{
+        const tagEntry = nodeTagEntryForNode(nodeId);
+        if (tagEntry && typeof tagEntry === "object") {{
+          push(tagEntry.presetId);
+          const preset = (tagEntry.preset && typeof tagEntry.preset === "object") ? tagEntry.preset : null;
+          if (preset) {{
+            push(preset.name);
+            push(preset.id);
+            push(preset.emoji);
+          }}
+        }}
+      }}
+      push(raw.tag);
+      push(raw.tag_name);
+      push(raw.tagName);
+      push(raw.node_tag);
+      push(raw.nodeTag);
+      return values;
+    }}
+
+    function buildConsoleNodeAutocompleteCandidate(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      const nodeId = normalizeNodeId(safeRow.id || raw.id || raw.node_id || raw.nodeId || "");
+      if (!nodeId) return null;
+      const insertText = escapeConsoleCompletionToken(nodeId);
+      if (!insertText) return null;
+      const longName = String(raw.long_name || raw.longName || safeRow.name || "").trim();
+      const shortName = String(raw.short_name || raw.shortName || "").trim();
+      const nodeName = String(safeRow.name || longName || shortName || nodeId).trim() || nodeId;
+      const status = String(safeRow.status || "").trim();
+      const hopsRaw = Number(safeRow.hops);
+      const hops = Number.isFinite(hopsRaw) ? Math.trunc(hopsRaw) : null;
+      const nodeNum = consoleNodeRowNum(safeRow);
+      const lastSeen = String(safeRow.lastSeenLabel || "").trim();
+      const portsLabel = formatConsolePortSummary(safeRow.ports, 2);
+      const tagLabel = consoleNodeAutocompleteTagLabel(safeRow);
+      const metaParts = [];
+      if (shortName && shortName !== nodeName) metaParts.push(`short=${{shortName}}`);
+      if (tagLabel) metaParts.push(`tag=${{tagLabel}}`);
+      if (status) metaParts.push(`status=${{status}}`);
+      if (Number.isInteger(hops) && hops >= 0) metaParts.push(`hops=${{hops}}`);
+      if (safeRow.hasGps === true) metaParts.push("gps");
+      if (lastSeen) metaParts.push(`last=${{lastSeen}}`);
+      if (portsLabel && portsLabel !== "n/a") metaParts.push(`ports=${{portsLabel}}`);
+      if (Number.isInteger(nodeNum) && nodeNum >= 0) metaParts.push(`num=${{nodeNum}}`);
+      return {{
+        kind: "node",
+        insertText,
+        displayText: nodeId,
+        ghostText: nodeId,
+        nodeId,
+        nodeName,
+        nodeLongName: longName,
+        nodeShortName: shortName,
+        nodeEmoji: consoleNodeAutocompleteEmoji(safeRow),
+        nodeTagLabel: tagLabel,
+        nodeStatus: status,
+        nodeHops: hops,
+        nodeNum,
+        nodeLastSeen: lastSeen,
+        nodePorts: portsLabel,
+        nodeHasGps: safeRow.hasGps === true,
+        metaText: metaParts.join("  "),
+      }};
+    }}
+
+    function isConsoleSelfTargetMacro(rawTarget) {{
+      return String(rawTarget == null ? "" : rawTarget).trim().toLowerCase() === consoleSelfTargetMacro;
+    }}
+
+    function resolveConsoleSelfTargetId(state = latestState) {{
+      const localId = (typeof resolveLocalNodeId === "function")
+        ? normalizeNodeId(resolveLocalNodeId(state) || "")
+        : "";
+      return isCanonicalNodeId(localId) ? localId : "";
+    }}
+
+    function resolveConsoleSelfTargetRow(state = latestState) {{
+      const selfId = resolveConsoleSelfTargetId(state);
+      if (!selfId) return null;
+      const rows = collectConsoleNodeRows(state);
+      return rows.find((row) => normalizeNodeId(row && row.id) === selfId)
+        || resolveConsoleCachedNodeRow(selfId, state)
+        || null;
+    }}
+
+    function buildConsoleSelfMacroAutocompleteCandidate(state = latestState) {{
+      const selfId = resolveConsoleSelfTargetId(state);
+      if (!selfId) return null;
+      const selfRow = resolveConsoleSelfTargetRow(state);
+      const nodeCandidate = selfRow ? buildConsoleNodeAutocompleteCandidate(selfRow) : null;
+      const rowMeta = String(nodeCandidate && nodeCandidate.metaText || "").trim();
+      const metaParts = [`macro=${{selfId}}`];
+      if (rowMeta) metaParts.push(rowMeta);
+      return {{
+        kind: "node",
+        insertText: consoleSelfTargetMacro,
+        displayText: consoleSelfTargetMacro,
+        ghostText: consoleSelfTargetMacro,
+        nodeId: selfId,
+        nodeName: String(nodeCandidate && nodeCandidate.nodeName || "Local radio").trim() || "Local radio",
+        nodeLongName: String(nodeCandidate && nodeCandidate.nodeLongName || "").trim(),
+        nodeShortName: String(nodeCandidate && nodeCandidate.nodeShortName || "").trim(),
+        nodeEmoji: String(nodeCandidate && nodeCandidate.nodeEmoji || "").trim(),
+        nodeTagLabel: "macro",
+        nodeStatus: String(nodeCandidate && nodeCandidate.nodeStatus || "").trim(),
+        nodeHops: nodeCandidate ? nodeCandidate.nodeHops : null,
+        nodeNum: nodeCandidate ? nodeCandidate.nodeNum : null,
+        nodeLastSeen: String(nodeCandidate && nodeCandidate.nodeLastSeen || "").trim(),
+        nodePorts: String(nodeCandidate && nodeCandidate.nodePorts || "").trim(),
+        nodeHasGps: !!(nodeCandidate && nodeCandidate.nodeHasGps),
+        metaText: metaParts.join("  "),
+      }};
+    }}
+
     function resolveConsoleSelectedNodeAutocompleteCandidate(state = latestState) {{
       const selectedId = normalizeNodeId(selectedNodeId || "");
       if (!isCanonicalNodeId(selectedId)) return null;
       const rows = collectConsoleNodeRows(state);
-      if (!rows.some((row) => normalizeNodeId(row && row.id) === selectedId)) {{
-        return null;
-      }}
-      const insertText = escapeConsoleCompletionToken(selectedId);
-      if (!insertText) return null;
-      return {{
-        insertText,
-        displayText: selectedId,
-      }};
+      const selectedRow = rows.find((row) => normalizeNodeId(row && row.id) === selectedId);
+      return selectedRow ? buildConsoleNodeAutocompleteCandidate(selectedRow) : null;
     }}
 
     function resolveConsoleCommandCompletionCandidates(rawPrefix, options = null) {{
@@ -179,8 +346,11 @@
       const allowSearch = opts.allowSearch === true;
       const leadingSlash = opts.leadingSlash === true;
       const prefix = String(rawPrefix == null ? "" : rawPrefix).trim().toLowerCase();
-      const names = Array.from(consoleCommandRegistry.keys())
-        .map((name) => String(name == null ? "" : name).trim().toLowerCase())
+      const includeHidden = prefix.startsWith("--");
+      const names = Array.from(consoleCommandRegistry.values())
+        .filter((entry) => entry && typeof entry === "object")
+        .filter((entry) => includeHidden || !entry.hiddenFromHelp)
+        .map((entry) => String(entry.name == null ? "" : entry.name).trim().toLowerCase())
         .filter((name) => !!name);
       if (allowSearch) {{
         names.push("search");
@@ -205,33 +375,22 @@
       const selectedCandidate = preferSelected
         ? resolveConsoleSelectedNodeAutocompleteCandidate(state)
         : null;
-      if (!prefix) {{
-        return selectedCandidate ? [selectedCandidate] : [];
-      }}
       const clean = prefix.toLowerCase();
       const rows = collectConsoleNodeRows(state);
       const seen = new Set();
       const out = [];
-      const push = (insertValue, displayValue = insertValue) => {{
-        const insertText = escapeConsoleCompletionToken(insertValue);
-        const displayText = String(displayValue == null ? "" : displayValue).trim() || insertText;
-        if (!insertText) return;
-        const dedupeKey = insertText.toLowerCase();
+      const pushRow = (row) => {{
+        const candidate = buildConsoleNodeAutocompleteCandidate(row);
+        if (!candidate) return;
+        const dedupeKey = String(candidate.nodeId || candidate.insertText || "").toLowerCase();
         if (seen.has(dedupeKey)) return;
         seen.add(dedupeKey);
-        out.push({{
-          insertText,
-          displayText,
-        }});
+        out.push(candidate);
       }};
       const matchId = (value) => {{
         const nodeId = String(value == null ? "" : value).trim().toLowerCase();
         if (!nodeId) return false;
-        if (nodeId.startsWith(clean)) return true;
-        if (!clean.startsWith("!")) {{
-          return nodeId.replace(/^!/, "").startsWith(clean);
-        }}
-        return false;
+        return nodeId.startsWith(clean);
       }};
       const matchNum = (row) => {{
         const nodeNum = consoleNodeRowNum(row);
@@ -240,43 +399,56 @@
       }};
       const matchName = (value) => String(value == null ? "" : value).trim().toLowerCase().startsWith(clean);
 
+      if (clean.startsWith("%")) {{
+        const macroCandidate = buildConsoleSelfMacroAutocompleteCandidate(state);
+        return (macroCandidate && consoleSelfTargetMacro.startsWith(clean)) ? [macroCandidate] : [];
+      }}
+
+      if (!prefix) {{
+        if (selectedCandidate) {{
+          const selectedId = String(selectedCandidate.nodeId || selectedCandidate.insertText || "").toLowerCase();
+          if (selectedId) {{
+            seen.add(selectedId);
+            out.push(selectedCandidate);
+          }}
+        }}
+        for (const row of rows) {{
+          pushRow(row);
+        }}
+        return out;
+      }}
+
       if (/^\d+$/.test(prefix)) {{
         for (const row of rows) {{
           if (matchNum(row)) {{
-            push(String(consoleNodeRowNum(row)));
+            pushRow(row);
           }}
         }}
       }}
       if (clean.startsWith("!")) {{
         for (const row of rows) {{
           if (matchId(row && row.id)) {{
-            push(row.id);
+            pushRow(row);
           }}
         }}
-      }}
-      for (const row of rows) {{
-        for (const value of collectConsoleNodeLookupNameVariants(row)) {{
-          if (matchName(value)) {{
-            push(value, value);
-          }}
-        }}
-      }}
-      for (const row of rows) {{
-        if (matchId(row && row.id)) {{
-          push(row.id);
-        }}
-      }}
-      if (!clean.startsWith("!") && !/^\d+$/.test(prefix)) {{
+      }} else if (!/^\d+$/.test(prefix)) {{
         for (const row of rows) {{
-          if (matchNum(row)) {{
-            push(String(consoleNodeRowNum(row)));
+          const matchTerms = [
+            ...collectConsoleNodeLookupNameVariants(row),
+            ...collectConsoleNodeTagLookupVariants(row),
+          ];
+          for (const value of matchTerms) {{
+            if (matchName(value)) {{
+              pushRow(row);
+              break;
+            }}
           }}
         }}
       }}
       if (selectedCandidate && out.length > 1) {{
-        const selectedInsertText = String(selectedCandidate.insertText || "").toLowerCase();
+        const selectedInsertText = String(selectedCandidate.nodeId || selectedCandidate.insertText || "").toLowerCase();
         const selectedIdx = out.findIndex((candidate) => (
-          String(candidate && candidate.insertText || "").toLowerCase() === selectedInsertText
+          String(candidate && (candidate.nodeId || candidate.insertText) || "").toLowerCase() === selectedInsertText
         ));
         if (selectedIdx > 0) {{
           const [selectedFirst] = out.splice(selectedIdx, 1);
@@ -286,7 +458,14 @@
       return out;
     }}
 
+    function consoleAutocompleteSuppressedByRunningCommand() {{
+      return !!(consoleRunningCommand && String(consoleRunningCommand.name || "").trim());
+    }}
+
     function resolveConsoleAutocompleteCandidates(context, state = latestState) {{
+      if (consoleAutocompleteSuppressedByRunningCommand()) {{
+        return [];
+      }}
       const ctx = (context && typeof context === "object") ? context : {{}};
       const tokenIndex = Math.max(0, Math.trunc(Number(ctx.tokenIndex) || 0));
       const rawToken = String(ctx.tokenText == null ? "" : ctx.tokenText);
@@ -431,7 +610,7 @@
       return `${{head}} +${{list.length - cap}}`;
     }}
 
-    function collectConsoleNodeRows(state = latestState) {{
+    function buildConsoleNodeRowsFromState(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const portsByNodeId = collectConsoleNodePortMap(safeState);
@@ -458,6 +637,9 @@
           status,
           hops: Number.isFinite(hopsNum) ? Math.trunc(hopsNum) : null,
           lastSeenUnix: Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : null,
+          lastSeenLabel: typeof nodeLastHeardLabel === "function"
+            ? nodeLastHeardLabel(node, "n/a", nowUnix)
+            : String(node.last_heard || "").trim(),
           ports,
           hasGps,
           raw: node,
@@ -472,6 +654,104 @@
         return String(a.name || "").localeCompare(String(b.name || ""));
       }});
       return rows;
+    }}
+
+    function mergeConsoleNodeRowForCache(previous, next) {{
+      const prev = (previous && typeof previous === "object") ? previous : {{}};
+      const row = (next && typeof next === "object") ? next : {{}};
+      const prevRaw = (prev.raw && typeof prev.raw === "object") ? prev.raw : {{}};
+      const rowRaw = (row.raw && typeof row.raw === "object") ? row.raw : {{}};
+      const mergedRaw = {{ ...prevRaw, ...rowRaw }};
+      const prevPorts = Array.isArray(prev.ports) ? prev.ports : [];
+      const rowPorts = Array.isArray(row.ports) ? row.ports : [];
+      const ports = Array.from(new Set([...prevPorts, ...rowPorts]
+        .map((port) => String(port == null ? "" : port).trim())
+        .filter((port) => !!port)
+      )).sort((a, b) => a.localeCompare(b));
+      const prevLast = Number(prev.lastSeenUnix);
+      const rowLast = Number(row.lastSeenUnix);
+      const lastSeenUnix = Number.isFinite(rowLast) && rowLast > 0
+        ? Math.max(rowLast, Number.isFinite(prevLast) ? prevLast : 0)
+        : (Number.isFinite(prevLast) ? prevLast : row.lastSeenUnix);
+      return {{
+        ...prev,
+        ...row,
+        name: String(row.name || "").trim() || prev.name,
+        status: String(row.status || "").trim() || prev.status,
+        hops: row.hops == null ? prev.hops : row.hops,
+        lastSeenUnix,
+        lastSeenLabel: String(row.lastSeenLabel || "").trim() && String(row.lastSeenLabel || "").trim().toLowerCase() !== "n/a"
+          ? row.lastSeenLabel
+          : prev.lastSeenLabel,
+        ports,
+        hasGps: row.hasGps === true || prev.hasGps === true,
+        raw: mergedRaw,
+      }};
+    }}
+
+    function consoleNodeRowCacheSignature(row) {{
+      const safeRow = (row && typeof row === "object") ? row : {{}};
+      const raw = (safeRow.raw && typeof safeRow.raw === "object") ? safeRow.raw : {{}};
+      return [
+        normalizeNodeId(safeRow.id),
+        safeRow.name,
+        safeRow.status,
+        safeRow.hops,
+        safeRow.lastSeenUnix,
+        safeRow.lastSeenLabel,
+        Array.isArray(safeRow.ports) ? safeRow.ports.join(",") : "",
+        safeRow.hasGps === true ? "gps" : "nogps",
+        raw.long_name,
+        raw.short_name,
+        raw.lat,
+        raw.lon,
+        raw.altitude ?? raw.alt,
+        raw.battery_level ?? raw.batteryLevel,
+        raw.voltage,
+        raw.channel_utilization ?? raw.channelUtilization,
+        raw.air_util_tx ?? raw.airUtilTx,
+      ].map((value) => String(value == null ? "" : value)).join("|");
+    }}
+
+    function refreshConsoleNodeRowsCache(state = latestState) {{
+      const rows = buildConsoleNodeRowsFromState(state);
+      if (!Array.isArray(rows) || rows.length < 1) return rows;
+      let changed = false;
+      for (const row of rows) {{
+        const nodeId = normalizeNodeId(row && row.id);
+        if (!nodeId) continue;
+        const previous = consoleNodeRowsByIdCache.get(nodeId);
+        const merged = mergeConsoleNodeRowForCache(previous, row);
+        const signature = consoleNodeRowCacheSignature(merged);
+        if (!previous || previous._consoleCacheSignature !== signature) {{
+          merged._consoleCacheSignature = signature;
+          consoleNodeRowsByIdCache.set(nodeId, merged);
+          changed = true;
+        }}
+      }}
+      if (changed) {{
+        consoleNodeRowsCacheVersion += 1;
+        consoleRenderedLogCacheKey = "";
+      }}
+      return rows;
+    }}
+
+    function collectConsoleNodeRows(state = latestState) {{
+      return refreshConsoleNodeRowsCache(state);
+    }}
+
+    function resolveConsoleCachedNodeRow(rawNodeId, state = latestState) {{
+      const nodeId = normalizeNodeId(rawNodeId);
+      if (!nodeId) return null;
+      for (const candidateState of [state, latestRawState]) {{
+        const rows = buildConsoleNodeRowsFromState(candidateState);
+        const row = rows.find((entry) => normalizeNodeId(entry && entry.id) === nodeId);
+        if (row) {{
+          refreshConsoleNodeRowsCache(candidateState);
+          return consoleNodeRowsByIdCache.get(nodeId) || row;
+        }}
+      }}
+      return consoleNodeRowsByIdCache.get(nodeId) || null;
     }}
 
     function normalizeConsoleNodeListLabel(value = "nodes") {{
@@ -637,6 +917,16 @@
         }};
       }}
 
+      if (isConsoleSelfTargetMacro(target)) {{
+        const selfRow = resolveConsoleSelfTargetRow(state);
+        return {{
+          target,
+          rows,
+          matches: selfRow ? [selfRow] : [],
+          mode: selfRow ? "self-macro" : "missing-self",
+        }};
+      }}
+
       const normalizedId = normalizeNodeId(target);
       if (isCanonicalNodeId(normalizedId)) {{
         const exactIdMatches = rows.filter((row) => normalizeNodeId(row && row.id) === normalizedId);
@@ -749,6 +1039,15 @@
           rows,
           matches: [],
           mode: "missing",
+        }};
+      }}
+      if (isConsoleSelfTargetMacro(target)) {{
+        const selfRow = resolveConsoleSelfTargetRow(state);
+        return {{
+          target,
+          rows,
+          matches: selfRow ? [selfRow] : [],
+          mode: selfRow ? "self-macro" : "missing-self",
         }};
       }}
       const targetId = normalizeNodeId(target).toLowerCase();
@@ -900,6 +1199,17 @@
     }}
 
     function resolveConsoleNetworkCommandDestination(rawTarget, state, commandLabel) {{
+      if (isConsoleSelfTargetMacro(rawTarget)) {{
+        const selfDestination = resolveConsoleSelfTargetId(state);
+        if (isCanonicalNodeId(selfDestination)) {{
+          return {{ ok: true, destination: selfDestination }};
+        }}
+        return {{
+          ok: false,
+          lines: [`[${{commandLabel}}] %self is unavailable: local radio ID is not known yet.`],
+        }};
+      }}
+
       const normalizedDirectId = normalizeNodeId(rawTarget);
       if (isCanonicalNodeId(normalizedDirectId)) {{
         return {{ ok: true, destination: normalizedDirectId }};
@@ -1714,6 +2024,42 @@
       return consoleTelemetryTypeAliases[clean] || "";
     }}
 
+    function telemetryConsoleTypeLabel(telemetryType) {{
+      const clean = String(telemetryType || "").trim();
+      if (!clean) return "device";
+      return clean.replace(/_metrics$/i, "").replace(/_/g, "-");
+    }}
+
+    function startConsoleTelemetryWaitFeedback(ctx, destination, telemetryType, timeoutMs) {{
+      const append = ctx && typeof ctx.append === "function"
+        ? ctx.append
+        : (msg) => appendConsoleEventLine(msg);
+      const cleanDestination = String(destination || "").trim() || "unknown";
+      const cleanType = telemetryConsoleTypeLabel(telemetryType);
+      const cleanTimeoutMs = Math.max(1, Math.trunc(Number(timeoutMs) || 12000));
+      const timeoutSeconds = Math.max(1, Math.ceil(cleanTimeoutMs / 1000));
+      append(`[telemetry] ${{cleanDestination}} | type=${{cleanType}} | request sent`);
+      append(`[telemetry] ${{cleanDestination}} | waiting up to ${{timeoutSeconds}}s for response`);
+      let tick = 0;
+      let timeoutNoticeShown = false;
+      const intervalMs = 3000;
+      const timer = window.setInterval(() => {{
+        tick += 1;
+        const elapsedSeconds = Math.min(timeoutSeconds, Math.round((tick * intervalMs) / 1000));
+        if (elapsedSeconds >= timeoutSeconds) {{
+          if (!timeoutNoticeShown) {{
+            timeoutNoticeShown = true;
+            append(`[telemetry] ${{cleanDestination}} | still waiting (${{timeoutSeconds}}s timeout nearly reached)`);
+          }}
+          return;
+        }}
+        append(`[telemetry] ${{cleanDestination}} | still waiting (${{elapsedSeconds}}s elapsed)`);
+      }}, intervalMs);
+      return () => {{
+        window.clearInterval(timer);
+      }};
+    }}
+
     async function runConsoleRequestTelemetryCommand(ctx) {{
       const options = (ctx && ctx.options && typeof ctx.options === "object")
         ? ctx.options
@@ -1801,8 +2147,15 @@
         body.timeout_ms = timeoutParsed.value;
       }}
 
+      const stopWaitFeedback = startConsoleTelemetryWaitFeedback(
+        ctx,
+        destination,
+        telemetryType,
+        timeoutParsed.value != null ? timeoutParsed.value : 12000,
+      );
       try {{
         const payload = await postNetworkToolCommand(body);
+        stopWaitFeedback();
         const lines = Array.isArray(payload && payload.console_lines)
           ? payload.console_lines
               .map((line) => String(line == null ? "" : line).trimEnd())
@@ -1810,6 +2163,7 @@
           : [];
         return lines.length ? lines : [`[${{commandLabel}}] ${{destination}} | request completed`];
       }} catch (err) {{
+        stopWaitFeedback();
         const payload = (err && typeof err === "object") ? err.payload : null;
         const lines = Array.isArray(payload && payload.console_lines)
           ? payload.console_lines
@@ -1867,20 +2221,21 @@
     function parseConsoleLiveLayerSelection(ctx) {{
       const rawArgs = Array.isArray(ctx && ctx.args) ? ctx.args : [];
       const options = (ctx && ctx.options && typeof ctx.options === "object") ? ctx.options : {{}};
+      const state = (ctx && ctx.state && typeof ctx.state === "object") ? ctx.state : latestState;
       const selectedLayers = new Set();
+      const includeTerms = [];
+      const excludeTerms = [];
+      const fieldConditions = [];
+      const unresolvedMacros = [];
       const unknownArgs = [];
       const unknownOptions = [];
+      let filterRequested = false;
+      let pendingExclude = false;
+      let ignoreCase = true;
 
-      for (const arg of rawArgs) {{
-        const clean = String(arg == null ? "" : arg).trim();
-        if (!clean) continue;
-        const shortMatch = clean.match(/^-l([123])$/i);
-        if (shortMatch) {{
-          selectedLayers.add(Number(shortMatch[1]));
-          continue;
-        }}
-        unknownArgs.push(clean);
-      }}
+      const liveFilterOptionKeys = new Set(["filter", "grep", "rg", "search", "match", "q", "query"]);
+      const liveFilterArgKeys = new Set(["filter", "grep", "rg", "search", "match"]);
+      const liveFilterFieldKeys = new Set(["from", "to", "port", "portnum", "text", "channel", "ch", "id", "packet"]);
 
       const parseBoolLike = (rawValue) => {{
         if (rawValue === true) return true;
@@ -1895,6 +2250,122 @@
         const valueText = String(rawValue == null ? "" : rawValue).trim();
         unknownOptions.push(valueText ? `${{key}}=${{valueText}}` : key);
       }};
+
+      const resolveFilterValue = (rawValue) => {{
+        const display = String(rawValue == null ? "" : rawValue).trim();
+        if (!display) return {{ ok: false, missing: true, display, value: "" }};
+        if (isConsoleSelfTargetMacro(display)) {{
+          const selfId = resolveConsoleSelfTargetId(state);
+          if (!isCanonicalNodeId(selfId)) {{
+            return {{
+              ok: false,
+              missing: false,
+              display,
+              value: "",
+              error: "%self is unavailable: local radio ID is not known yet.",
+            }};
+          }}
+          return {{ ok: true, display, value: selfId, macro: consoleSelfTargetMacro }};
+        }}
+        return {{ ok: true, display, value: display }};
+      }};
+
+      const addIncludeTerm = (rawValue) => {{
+        const resolved = resolveFilterValue(rawValue);
+        if (resolved.error) unresolvedMacros.push(resolved.error);
+        if (!resolved.ok) return false;
+        includeTerms.push({{
+          value: resolved.value,
+          display: resolved.display,
+        }});
+        return true;
+      }};
+
+      const addExcludeTerm = (rawValue) => {{
+        const resolved = resolveFilterValue(rawValue);
+        if (resolved.error) unresolvedMacros.push(resolved.error);
+        if (!resolved.ok) return false;
+        excludeTerms.push({{
+          value: resolved.value,
+          display: resolved.display,
+        }});
+        return true;
+      }};
+
+      const addFieldCondition = (field, op, rawValue) => {{
+        const cleanField = String(field == null ? "" : field).trim().toLowerCase();
+        const cleanOp = String(op || "=").trim() || "=";
+        if (!liveFilterFieldKeys.has(cleanField) || !["=", "!="].includes(cleanOp)) return false;
+        const resolved = resolveFilterValue(rawValue);
+        if (resolved.error) unresolvedMacros.push(resolved.error);
+        if (!resolved.ok) return false;
+        fieldConditions.push({{
+          field: cleanField,
+          op: cleanOp,
+          value: resolved.value,
+          display: resolved.display,
+        }});
+        return true;
+      }};
+
+      const parseFieldConditionToken = (rawToken) => {{
+        const clean = String(rawToken == null ? "" : rawToken).trim();
+        const match = clean.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(!?=)(.+)$/);
+        if (!match) return false;
+        return addFieldCondition(match[1], match[2], match[3]);
+      }};
+
+      const pushFilterArg = (clean) => {{
+        if (!clean) return;
+        const lowered = clean.toLowerCase();
+        if (lowered === "-i" || lowered === "--ignore-case") {{
+          ignoreCase = true;
+          filterRequested = true;
+          return;
+        }}
+        if (lowered === "-v" || lowered === "--invert-match" || lowered === "--exclude") {{
+          pendingExclude = true;
+          filterRequested = true;
+          return;
+        }}
+        if (parseFieldConditionToken(clean)) {{
+          filterRequested = true;
+          pendingExclude = false;
+          return;
+        }}
+        if (clean.startsWith("-")) {{
+          unknownArgs.push(clean);
+          return;
+        }}
+        filterRequested = true;
+        if (pendingExclude) {{
+          addExcludeTerm(clean);
+          pendingExclude = false;
+          return;
+        }}
+        addIncludeTerm(clean);
+      }};
+
+      for (let i = 0; i < rawArgs.length; i += 1) {{
+        const arg = rawArgs[i];
+        const clean = String(arg == null ? "" : arg).trim();
+        if (!clean) continue;
+        const shortMatch = clean.match(/^-l([123])$/i);
+        if (shortMatch) {{
+          selectedLayers.add(Number(shortMatch[1]));
+          continue;
+        }}
+        const lowered = clean.toLowerCase();
+        if (liveFilterArgKeys.has(lowered) && !filterRequested) {{
+          filterRequested = true;
+          continue;
+        }}
+        if (!filterRequested && clean.startsWith("-")) {{
+          unknownArgs.push(clean);
+          continue;
+        }}
+        pushFilterArg(clean);
+      }}
 
       for (const [rawKey, rawValue] of Object.entries(options)) {{
         const key = String(rawKey == null ? "" : rawKey).trim().toLowerCase();
@@ -1921,11 +2392,90 @@
           }}
           continue;
         }}
+        if (key === "i" || key === "ignore-case") {{
+          const enabled = parseBoolLike(rawValue);
+          if (enabled == null) {{
+            addUnknownOption(key, rawValue);
+            continue;
+          }}
+          ignoreCase = enabled !== false;
+          filterRequested = true;
+          continue;
+        }}
+        if (key === "exclude" || key === "invert-match") {{
+          const valueText = String(rawValue == null ? "" : rawValue).trim();
+          const boolValue = parseBoolLike(rawValue);
+          filterRequested = true;
+          if (boolValue === true && /^(1|true|yes|on)?$/i.test(valueText)) {{
+            pendingExclude = true;
+            continue;
+          }}
+          if (valueText) {{
+            addExcludeTerm(valueText);
+            pendingExclude = false;
+            continue;
+          }}
+          pendingExclude = true;
+          continue;
+        }}
+        const fieldOptionMatch = key.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)(!)?$/);
+        if (fieldOptionMatch && liveFilterFieldKeys.has(fieldOptionMatch[1])) {{
+          const op = fieldOptionMatch[2] ? "!=" : "=";
+          if (addFieldCondition(fieldOptionMatch[1], op, rawValue)) {{
+            filterRequested = true;
+            pendingExclude = false;
+            continue;
+          }}
+        }}
+        if (liveFilterOptionKeys.has(key)) {{
+          const boolValue = parseBoolLike(rawValue);
+          const valueText = String(rawValue == null ? "" : rawValue).trim();
+          if (boolValue === false && /^(0|false|no|off)$/i.test(valueText)) {{
+            continue;
+          }}
+          filterRequested = true;
+          if (boolValue === true && /^(1|true|yes|on)?$/i.test(valueText)) {{
+            continue;
+          }}
+          if (valueText) {{
+            addIncludeTerm(valueText);
+          }}
+          continue;
+        }}
         addUnknownOption(key, rawValue);
       }}
 
+      const displayParts = [];
+      for (const term of includeTerms) {{
+        displayParts.push(term.display);
+      }}
+      for (const term of excludeTerms) {{
+        displayParts.push(`-v ${{term.display}}`);
+      }}
+      for (const condition of fieldConditions) {{
+        displayParts.push(`${{condition.field}}${{condition.op}}${{condition.display}}`);
+      }}
+      const filterText = displayParts
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 220);
+      const hasFilter = !!(includeTerms.length || excludeTerms.length || fieldConditions.length);
+      const filterSpec = {{
+        includeTerms,
+        excludeTerms,
+        fieldConditions,
+        ignoreCase,
+        text: filterText,
+      }};
+
       return {{
         layers: selectedLayers.size ? selectedLayers : null,
+        filterText,
+        filterSpec: hasFilter ? filterSpec : null,
+        filterRequested,
+        missingFilter: (filterRequested && !hasFilter) || pendingExclude,
+        unresolvedMacros: Array.from(new Set(unresolvedMacros)),
         unknownArgs,
         unknownOptions,
       }};
@@ -1937,4 +2487,147 @@
         .filter((layer) => layers.has(layer))
         .map((layer) => `l${{layer}}`);
       return ordered.length ? ` layers=${{ordered.join(",")}}` : "";
+    }}
+
+    function normalizeConsoleLiveFilterSpec(filterSpecOrText) {{
+      if (filterSpecOrText && typeof filterSpecOrText === "object") {{
+        const includeTerms = Array.isArray(filterSpecOrText.includeTerms)
+          ? filterSpecOrText.includeTerms
+              .map((term) => {{
+                const source = (term && typeof term === "object") ? term : {{ value: term, display: term }};
+                const value = String(source.value == null ? "" : source.value).trim();
+                const display = String(source.display == null ? value : source.display).trim() || value;
+                return value ? {{ value, display }} : null;
+              }})
+              .filter((term) => !!term)
+          : [];
+        const excludeTerms = Array.isArray(filterSpecOrText.excludeTerms)
+          ? filterSpecOrText.excludeTerms
+              .map((term) => {{
+                const source = (term && typeof term === "object") ? term : {{ value: term, display: term }};
+                const value = String(source.value == null ? "" : source.value).trim();
+                const display = String(source.display == null ? value : source.display).trim() || value;
+                return value ? {{ value, display }} : null;
+              }})
+              .filter((term) => !!term)
+          : [];
+        const fieldConditions = Array.isArray(filterSpecOrText.fieldConditions)
+          ? filterSpecOrText.fieldConditions
+              .map((condition) => {{
+                const source = (condition && typeof condition === "object") ? condition : {{}};
+                const field = String(source.field || "").trim().toLowerCase();
+                const op = String(source.op || "=").trim() === "!=" ? "!=" : "=";
+                const value = String(source.value == null ? "" : source.value).trim();
+                const display = String(source.display == null ? value : source.display).trim() || value;
+                return (field && value) ? {{ field, op, value, display }} : null;
+              }})
+              .filter((condition) => !!condition)
+          : [];
+        const text = String(filterSpecOrText.text || "").replace(/\s+/g, " ").trim();
+        return {{
+          includeTerms,
+          excludeTerms,
+          fieldConditions,
+          ignoreCase: filterSpecOrText.ignoreCase !== false,
+          text,
+        }};
+      }}
+      const clean = String(filterSpecOrText == null ? "" : filterSpecOrText).replace(/\s+/g, " ").trim();
+      return {{
+        includeTerms: clean ? [{{ value: clean, display: clean }}] : [],
+        excludeTerms: [],
+        fieldConditions: [],
+        ignoreCase: true,
+        text: clean,
+      }};
+    }}
+
+    function formatConsoleLiveFilterLabel(filterSpecOrText) {{
+      const spec = normalizeConsoleLiveFilterSpec(filterSpecOrText);
+      const clean = String(spec.text || "").replace(/\s+/g, " ").trim();
+      if (!clean) return "";
+      const preview = clean.length > 80 ? `${{clean.slice(0, 77)}}...` : clean;
+      return ` filter="${{preview.replace(/"/g, "'")}}"`;
+    }}
+
+    function consoleLiveLineListContainsTerm(lineList, rawNeedle, ignoreCase = true) {{
+      const needleRaw = String(rawNeedle == null ? "" : rawNeedle).trim();
+      if (!needleRaw) return false;
+      const needle = ignoreCase ? needleRaw.toLowerCase() : needleRaw;
+      const lines = Array.isArray(lineList) ? lineList : [lineList];
+      return lines.some((line) => {{
+        const haystackRaw = String(line == null ? "" : line);
+        const haystack = ignoreCase ? haystackRaw.toLowerCase() : haystackRaw;
+        return haystack.includes(needle);
+      }});
+    }}
+
+    function consoleLiveLineListMatchesFilter(lineList, filterSpecOrText) {{
+      const spec = normalizeConsoleLiveFilterSpec(filterSpecOrText);
+      for (const term of spec.includeTerms) {{
+        if (!consoleLiveLineListContainsTerm(lineList, term.value, spec.ignoreCase)) return false;
+      }}
+      for (const term of spec.excludeTerms) {{
+        if (consoleLiveLineListContainsTerm(lineList, term.value, spec.ignoreCase)) return false;
+      }}
+      return true;
+    }}
+
+    function consoleLivePacketFieldValue(entry, rawField) {{
+      const field = String(rawField == null ? "" : rawField).trim().toLowerCase();
+      const summary = (entry && entry.summary && typeof entry.summary === "object") ? entry.summary : {{}};
+      const packet = (entry && entry.packet && typeof entry.packet === "object") ? entry.packet : {{}};
+      const decoded = (packet && packet.decoded && typeof packet.decoded === "object") ? packet.decoded : {{}};
+      if (field === "from") {{
+        return normalizeNodeId(summary.from ?? summary.from_id ?? summary.fromId ?? packet.fromId ?? packet.from_id ?? packet.from ?? "");
+      }}
+      if (field === "to") {{
+        return normalizeNodeId(summary.to ?? summary.to_id ?? summary.toId ?? packet.toId ?? packet.to_id ?? packet.to ?? "");
+      }}
+      if (field === "port" || field === "portnum") {{
+        return String(summary.portnum ?? decoded.portnum ?? packet.portnum ?? "").trim();
+      }}
+      if (field === "text") {{
+        return String(summary.text ?? summary.decoded_text ?? summary.payload_text ?? packet.text ?? "").trim();
+      }}
+      if (field === "channel" || field === "ch") {{
+        return String(packet.channel ?? summary.channel ?? "").trim();
+      }}
+      if (field === "id" || field === "packet") {{
+        return String(packet.id ?? packet.packet_id ?? packet.message_id ?? summary.packet_id ?? "").trim();
+      }}
+      return "";
+    }}
+
+    function consoleLiveEntryMatchesFieldConditions(entry, filterSpecOrText) {{
+      const spec = normalizeConsoleLiveFilterSpec(filterSpecOrText);
+      for (const condition of spec.fieldConditions) {{
+        const fieldValueRaw = consoleLivePacketFieldValue(entry, condition.field);
+        const needleRaw = String(condition.value == null ? "" : condition.value).trim();
+        const fieldValue = spec.ignoreCase ? fieldValueRaw.toLowerCase() : fieldValueRaw;
+        const needle = spec.ignoreCase ? needleRaw.toLowerCase() : needleRaw;
+        const matched = fieldValue === needle;
+        if (condition.op === "!=" ? matched : !matched) {{
+          return false;
+        }}
+      }}
+      return true;
+    }}
+
+    function consoleLiveEntryMatchesFilter(entry, lineList, filterSpecOrText) {{
+      return consoleLiveEntryMatchesFieldConditions(entry, filterSpecOrText)
+        && consoleLiveLineListMatchesFilter(lineList, filterSpecOrText);
+    }}
+
+    function consoleLiveFilterSignature(filterSpecOrText) {{
+      const spec = normalizeConsoleLiveFilterSpec(filterSpecOrText);
+      if (!spec.includeTerms.length && !spec.excludeTerms.length && !spec.fieldConditions.length) return "nofilter";
+      const clean = [
+        spec.includeTerms.map((term) => `+${{term.value}}`).join("|"),
+        spec.excludeTerms.map((term) => `-${{term.value}}`).join("|"),
+        spec.fieldConditions.map((condition) => `${{condition.field}}${{condition.op}}${{condition.value}}`).join("|"),
+        spec.ignoreCase === false ? "case" : "icase",
+      ].join(" ");
+      const compact = clean.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
+      return `filter:${{compact || "text"}}:${{clean.length}}`;
     }}

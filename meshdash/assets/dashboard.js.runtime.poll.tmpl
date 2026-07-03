@@ -603,6 +603,10 @@
           (rawState && rawState.history_caps) || null
         );
         latestState = state;
+        if (typeof refreshConsoleNodeRowsCache === "function") {{
+          refreshConsoleNodeRowsCache(rawState);
+          refreshConsoleNodeRowsCache(state);
+        }}
         latestStatePollProfile = pollProfile;
         markPollPerfPhase(pollPerfRun, "state-normalize", {{
           rawNodes: Array.isArray(rawState && rawState.nodes) ? rawState.nodes.length : 0,
