@@ -187,6 +187,7 @@
         const presetId = normalizeNodeTagPresetId(rawPresetId, "");
         if (!isSelectableNodeId(nodeId)) continue;
         if (!presetId || !nodeTagPresetsById.has(presetId)) continue;
+        if (isMeshtasticFavoritePresetId(presetId) && shouldIgnoreMeshtasticFavoriteNodeId(nodeId)) continue;
         favoriteNodeIds.add(nodeId);
       }}
     }}
@@ -227,6 +228,7 @@
       if (!isSelectableNodeId(cleanNodeId)) return null;
       const presetId = normalizeNodeTagPresetId(nodeTagByNodeId.get(cleanNodeId), "");
       if (!presetId) return null;
+      if (isMeshtasticFavoritePresetId(presetId) && shouldIgnoreMeshtasticFavoriteNodeId(cleanNodeId)) return null;
       const preset = nodeTagPresetForId(presetId);
       if (!preset) return null;
       return {{
@@ -597,6 +599,7 @@
       if (opts.syncMeshtasticFavorite === false) return;
       const cleanNodeId = normalizeNodeId(nodeId);
       if (!isCanonicalNodeId(cleanNodeId)) return;
+      if (shouldIgnoreMeshtasticFavoriteNodeId(cleanNodeId)) return;
       const wasMeshtastic = isMeshtasticFavoritePresetId(beforePresetId);
       const isMeshtastic = isMeshtasticFavoritePresetId(afterPresetId);
       if (wasMeshtastic === isMeshtastic) return;
@@ -610,6 +613,7 @@
       if (!isSelectableNodeId(cleanNodeId)) return false;
       const cleanPresetId = normalizeNodeTagPresetId(presetId, "");
       if (!cleanPresetId || !nodeTagPresetsById.has(cleanPresetId)) return false;
+      if (isMeshtasticFavoritePresetId(cleanPresetId) && shouldIgnoreMeshtasticFavoriteNodeId(cleanNodeId)) return false;
       const beforePresetId = normalizeNodeTagPresetId(nodeTagByNodeId.get(cleanNodeId), "");
       nodeTagByNodeId.set(cleanNodeId, cleanPresetId);
       syncFavoriteNodeIdsFromTags();
@@ -856,6 +860,12 @@
       return clean === "1" || clean === "true" || clean === "yes" || clean === "on";
     }}
 
+    function shouldIgnoreMeshtasticFavoriteNodeId(nodeId, state = latestState) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return true;
+      return isSelfNodeId(cleanNodeId, state);
+    }}
+
     function meshtasticFavoriteNodeIdsFromState(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
@@ -864,6 +874,7 @@
         if (!(node && typeof node === "object")) continue;
         const nodeId = normalizeNodeId(node.id || node.node_id || node.nodeId || "");
         if (!isSelectableNodeId(nodeId)) continue;
+        if (shouldIgnoreMeshtasticFavoriteNodeId(nodeId, safeState)) continue;
         const favoriteValue = (
           Object.prototype.hasOwnProperty.call(node, "is_favorite")
             ? node.is_favorite
@@ -883,6 +894,7 @@
       for (const [rawNodeId, rawPresetId] of nodeTagByNodeId.entries()) {{
         const nodeId = normalizeNodeId(rawNodeId);
         if (!isSelectableNodeId(nodeId)) continue;
+        if (shouldIgnoreMeshtasticFavoriteNodeId(nodeId)) continue;
         if (!isMeshtasticFavoritePresetId(rawPresetId)) continue;
         ids.add(nodeId);
       }}
@@ -894,7 +906,7 @@
       const pendingTimeoutMs = 30000;
       for (const [rawNodeId, pendingRaw] of Array.from(meshtasticFavoritePendingDesiredByNodeId.entries())) {{
         const nodeId = normalizeNodeId(rawNodeId);
-        if (!isSelectableNodeId(nodeId)) {{
+        if (!isSelectableNodeId(nodeId) || shouldIgnoreMeshtasticFavoriteNodeId(nodeId, state)) {{
           meshtasticFavoritePendingDesiredByNodeId.delete(rawNodeId);
           continue;
         }}
@@ -1555,7 +1567,10 @@
         const selectedName = resolveNodeVisibilityEntryName(selectedId, nodesById);
         const selectedRule = nodeVisibilityRuleLabel(selectedId);
         const selectedIsMeshtasticFavorite = nodeIsMeshtasticFavorite(selectedId);
-        const selectedCanSyncMeshtasticFavorite = isCanonicalNodeId(selectedId);
+        const selectedCanSyncMeshtasticFavorite = (
+          isCanonicalNodeId(selectedId)
+          && !shouldIgnoreMeshtasticFavoriteNodeId(selectedId, safeState)
+        );
         const selectedFavoriteSyncInFlight = !!(
           selectedCanSyncMeshtasticFavorite
           && meshtasticFavoriteSyncInFlightNodeIds.has(selectedId)
@@ -1595,7 +1610,10 @@
           const cleanNodeId = normalizeNodeId(row && row.nodeId);
           const ruleLabel = nodeVisibilityRuleLabel(cleanNodeId);
           const isMeshtasticFavorite = nodeIsMeshtasticFavorite(cleanNodeId);
-          const canSyncMeshtasticFavorite = isCanonicalNodeId(cleanNodeId);
+          const canSyncMeshtasticFavorite = (
+            isCanonicalNodeId(cleanNodeId)
+            && !shouldIgnoreMeshtasticFavoriteNodeId(cleanNodeId, safeState)
+          );
           const favoriteSyncInFlight = !!(
             canSyncMeshtasticFavorite
             && meshtasticFavoriteSyncInFlightNodeIds.has(cleanNodeId)
@@ -1650,7 +1668,10 @@
         }}
         host.innerHTML = ids.map((nodeId) => {{
           const name = resolveNodeVisibilityEntryName(nodeId, nodesById);
-          const canSyncMeshtasticFavorite = isCanonicalNodeId(nodeId);
+          const canSyncMeshtasticFavorite = (
+            isCanonicalNodeId(nodeId)
+            && !shouldIgnoreMeshtasticFavoriteNodeId(nodeId, safeState)
+          );
           const favoriteSyncInFlight = !!(
             canSyncMeshtasticFavorite
             && meshtasticFavoriteSyncInFlightNodeIds.has(nodeId)

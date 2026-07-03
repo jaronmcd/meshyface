@@ -7,12 +7,18 @@
         supportsVerbosity: true,
         run: () => {{
           const defs = Array.from(consoleCommandRegistry.values())
+            .filter((def) => def && !def.hiddenFromHelp)
             .sort((a, b) => a.name.localeCompare(b.name));
           const lines = ["[help] commands:"];
           for (const def of defs) {{
             const details = def.description ? ` - ${{def.description}}` : "";
             lines.push(`  ${{def.usage}}${{details}}`);
           }}
+          lines.push("  autocomplete: type a command or node target to open suggestions; Tab accepts, Enter runs, ArrowUp/ArrowDown moves, ! narrows node IDs");
+          lines.push("  node suggestions: node targets show name, ID, emoji, tag, status, hops, GPS, last heard, ports, and node number; tag text narrows suggestions");
+          lines.push("  target macros: %self resolves to the radio ID connected to the server");
+          lines.push("  live grep [-i] [-v <text>] <text> [from!=%self] - stream matching live packet groups");
+          lines.push("  grep <text> or rg <text> - search retained packet/chat history with context windows");
           lines.push("  /search <text> - filter visible console output live from the prompt");
           lines.push("[help] Ctrl+C stops running commands. While live is running, q also stops it.");
           return lines;
@@ -51,14 +57,20 @@
       }});
       registerConsoleCommand({{
         name: "live",
-        usage: "live [-v|-vv|-vvv|-vvvv] [-l1] [-l2] [-l3] [--layer=1,2,3]",
-        description: "Stream live packet lines until Ctrl+C or q with optional verbosity and layer filters.",
+        usage: "live [-v|-vv|-vvv|-vvvv] [grep|rg [-i] [-v <text>] <text> [from!=%self]|filter=<text>] [-l1] [-l2] [-l3] [--layer=1,2,3]",
+        description: "Stream live packet lines until Ctrl+C or q with optional text, exclude, field, verbosity, and layer filters.",
         supportsVerbosity: true,
         run: (ctx) => {{
           const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
           const layerSelection = parseConsoleLiveLayerSelection(ctx);
           if (layerSelection.unknownArgs.length) {{
             return `[live] unknown argument(s): ${{layerSelection.unknownArgs.join(", ")}}`;
+          }}
+          if (layerSelection.missingFilter) {{
+            return '[live] missing filter text. Example: live grep -i "TEXT_MESSAGE_APP" from!=%self';
+          }}
+          if (layerSelection.unresolvedMacros.length) {{
+            return layerSelection.unresolvedMacros.map((line) => `[live] ${{line}}`);
           }}
           if (layerSelection.unknownOptions.length) {{
             const optionLabel = layerSelection.unknownOptions
@@ -77,11 +89,15 @@
           persistConsoleSessionState();
           consoleLiveVerbosity = verbosity;
           consoleLiveLayers = layerSelection.layers;
+          consoleLiveFilterText = String(layerSelection.filterText || "").trim();
+          consoleLiveFilterSpec = layerSelection.filterSpec || null;
           consoleLiveModeActive = true;
           startConsoleRunningCommand("live", (reason, emitStatus) => {{
             consoleLiveModeActive = false;
             consoleLiveVerbosity = 0;
             consoleLiveLayers = null;
+            consoleLiveFilterText = "";
+            consoleLiveFilterSpec = null;
             if (emitStatus) {{
               appendConsoleEventLine(`[live] stopped (${{String(reason || "done")}}).`);
             }}
@@ -90,7 +106,8 @@
           renderConsole((latestState && latestState.traffic) || {{}});
           const verbosityLabel = verbosity > 0 ? ` verbosity=-${{"v".repeat(verbosity)}}` : "";
           const layerLabel = formatConsoleLiveLayerLabel(layerSelection.layers);
-          return `[live] streaming packet traffic.${{verbosityLabel}}${{layerLabel}} Press Ctrl+C or q to stop.`;
+          const filterLabel = formatConsoleLiveFilterLabel(consoleLiveFilterSpec || consoleLiveFilterText);
+          return `[live] streaming packet traffic.${{verbosityLabel}}${{layerLabel}}${{filterLabel}} Press Ctrl+C or q to stop.`;
         }},
       }});
       registerConsoleCommand({{
@@ -318,6 +335,19 @@
           }}
           renderConsoleBuffer(true);
           return "";
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "rg",
+        usage: "rg <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [source=both|packet|chat] [scan=<n>]",
+        description: "Alias for grep.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const grepCommand = consoleCommandRegistry.get("grep");
+          if (!(grepCommand && typeof grepCommand.run === "function")) {{
+            return "[rg] grep command is unavailable.";
+          }}
+          return grepCommand.run(ctx);
         }},
       }});
       registerConsoleCommand({{

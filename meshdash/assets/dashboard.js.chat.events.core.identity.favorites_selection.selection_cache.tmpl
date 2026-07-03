@@ -809,6 +809,13 @@
     async function requestMeshtasticFavoriteTagSync(nodeId, targetActive) {{
       const normalized = normalizeNodeId(nodeId);
       if (!isCanonicalNodeId(normalized)) return false;
+      if (
+        typeof shouldIgnoreMeshtasticFavoriteNodeId === "function"
+        && shouldIgnoreMeshtasticFavoriteNodeId(normalized, latestState)
+      ) {{
+        setChatSendStatus("Self node is not managed as a Meshtastic favorite.");
+        return false;
+      }}
       if (meshtasticFavoriteSyncInFlightNodeIds.has(normalized)) {{
         setChatSendStatus(`Favorite sync already in progress for ${{normalized}}.`);
         return false;
@@ -881,6 +888,13 @@
     function toggleMeshtasticFavoriteNode(nodeId, forceActive = null) {{
       const normalized = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(normalized) || !isCanonicalNodeId(normalized)) return;
+      if (
+        typeof shouldIgnoreMeshtasticFavoriteNodeId === "function"
+        && shouldIgnoreMeshtasticFavoriteNodeId(normalized, latestState)
+      ) {{
+        setChatSendStatus("Self node is not managed as a Meshtastic favorite.");
+        return;
+      }}
       if (meshtasticFavoriteSyncInFlightNodeIds.has(normalized)) {{
         setChatSendStatus(`Favorite sync already in progress for ${{normalized}}.`);
         return;

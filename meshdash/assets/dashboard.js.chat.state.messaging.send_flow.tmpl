@@ -1603,23 +1603,31 @@
       return payload;
     }}
 
+    let networkToolCommandQueue = Promise.resolve();
+
     async function postNetworkToolCommand(body) {{
-      const resp = await fetch("/api/tools/network", {{
-        method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
-        body: JSON.stringify(body || {{}}),
-      }});
-      const payload = await resp.json().catch(() => ({{}}));
-      if (!resp.ok || !payload.ok) {{
-        const message = payload && payload.error ? payload.error : `network tool failed (${{resp.status}})`;
-        const err = new Error(message);
-        try {{
-          err.payload = payload;
-        }} catch (_err) {{
+      const requestBody = (body && typeof body === "object") ? {{ ...body }} : {{}};
+      const runRequest = async () => {{
+        const resp = await fetch("/api/tools/network", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(requestBody),
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || !payload.ok) {{
+          const message = payload && payload.error ? payload.error : `network tool failed (${{resp.status}})`;
+          const err = new Error(message);
+          try {{
+            err.payload = payload;
+          }} catch (_err) {{
+          }}
+          throw err;
         }}
-        throw err;
-      }}
-      return payload;
+        return payload;
+      }};
+      const queued = networkToolCommandQueue.catch(() => {{}}).then(runRequest);
+      networkToolCommandQueue = queued.catch(() => {{}});
+      return queued;
     }}
 
     function restoreChatInputFocus(input) {{

@@ -72,6 +72,19 @@ def test_parse_network_tool_request_normalizes_telemetry_command_alias() -> None
     assert request.destination == "!abcd1234"
 
 
+def test_parse_network_tool_request_normalizes_store_forward_history_command() -> None:
+    raw = (
+        b'{"command":"request-store-forward-history","destination":"!abcd1234",'
+        b'"window_minutes":"240"}'
+    )
+
+    request = parse_network_tool_request(raw, to_int_fn=to_int)
+
+    assert request.command == "request_store_forward_history"
+    assert request.destination == "!abcd1234"
+    assert request.history_window_minutes == 240
+
+
 def test_parse_network_tool_request_allows_nodes_without_destination() -> None:
     request = parse_network_tool_request(b'{"command":"--nodes"}', to_int_fn=to_int)
 

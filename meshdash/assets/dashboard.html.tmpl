@@ -4234,6 +4234,28 @@ Ready.
           <div id="console-scroll-status" class="console-scroll-status" hidden aria-hidden="true">
             <span class="console-scroll-status-line">[paused] scroll down for newest console output</span>
           </div>
+          <button
+            id="console-fullscreen-toggle-btn"
+            class="map-fullscreen-toggle-btn console-fullscreen-toggle-btn"
+            type="button"
+            title="Enter full screen console"
+            aria-label="Enter full screen console"
+            aria-pressed="false"
+            hidden
+          >
+            <svg class="map-fullscreen-toggle-icon map-fullscreen-toggle-icon-enter" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M6 2H2v4" />
+              <path d="M10 2h4v4" />
+              <path d="M2 10v4h4" />
+              <path d="M14 10v4h-4" />
+            </svg>
+            <svg class="map-fullscreen-toggle-icon map-fullscreen-toggle-icon-exit" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M6 6H2V2" />
+              <path d="M10 6h4V2" />
+              <path d="M6 10H2v4" />
+              <path d="M10 10h4v4" />
+            </svg>
+          </button>
           <input
             id="console-command-input"
             class="console-command-input-proxy"
@@ -4245,6 +4267,14 @@ Ready.
             tabindex="-1"
             aria-label="Console command input"
           />
+          <div
+            id="console-autocomplete-menu"
+            class="console-autocomplete-menu"
+            role="listbox"
+            hidden
+            aria-hidden="true"
+            aria-label="Console command suggestions"
+          ></div>
           <div id="console-context-menu" class="console-context-menu" role="menu" hidden aria-label="Console actions">
             <button
               id="console-context-menu-paste"

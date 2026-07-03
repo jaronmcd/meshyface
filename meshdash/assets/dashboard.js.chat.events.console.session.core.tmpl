@@ -28,6 +28,16 @@
       return input ? String(input.value || "") : "";
     }}
 
+    function resolveConsolePromptRunningHint() {{
+      const runningName = consoleRunningCommand && consoleRunningCommand.name
+        ? String(consoleRunningCommand.name).trim().toLowerCase()
+        : "";
+      if (!runningName) return "";
+      return runningName === "live"
+        ? " Ctrl+C or q to stop"
+        : " Ctrl+C to stop";
+    }}
+
     function formatConsolePromptInputLine(promptLabel, draftValue) {{
       const prompt = String(promptLabel == null ? "" : promptLabel).trim() || "$";
       const draft = String(draftValue == null ? "" : draftValue);
@@ -52,8 +62,13 @@
       const ghostSuffix = (typeof resolveConsoleAutocompleteGhostSuffix === "function")
         ? String(resolveConsoleAutocompleteGhostSuffix(input, latestState) || "")
         : "";
+      const runningHint = (!ghostSuffix && !draft)
+        ? resolveConsolePromptRunningHint()
+        : "";
       const ghostHtml = ghostSuffix
         ? `<span class="console-completion-ghost" aria-hidden="true">${{escAttr(ghostSuffix)}}</span>`
+        : runningHint
+          ? `<span class="console-running-hint console-completion-ghost" aria-hidden="true">${{escAttr(runningHint)}}</span>`
         : "";
       return `${{escAttr(`${{promptWithSeparator}}${{beforeCaret}}`)}}<span class="${{caretClass}}" aria-hidden="true"></span>${{ghostHtml}}${{escAttr(afterCaret)}}`;
     }}
@@ -273,6 +288,526 @@
       }};
     }}
 
+    function consoleSyntaxSpan(className, text) {{
+      const cls = String(className || "").trim();
+      const safeText = escAttr(String(text == null ? "" : text));
+      return cls ? `<span class="${{cls}}">${{safeText}}</span>` : safeText;
+    }}
+
+    function consoleSyntaxTagTone(tagText) {{
+      const tag = String(tagText == null ? "" : tagText).trim().toLowerCase();
+      if (!tag) return "neutral";
+      if (/(?:error|fail|failed|denied|nak|unknown)/.test(tag)) return "bad";
+      if (/(?:warn|timeout|timed|stale|suppressed)/.test(tag)) return "warn";
+      if (/(?:telemetry|ping|position|where|traceroute|node|nodes|route|channels|config|metadata)/.test(tag)) return "mesh";
+      if (/(?:batch|console|filter|grep|help|state|live|zork)/.test(tag)) return "meta";
+      return "neutral";
+    }}
+
+    function consoleSyntaxStatusTone(tokenText) {{
+      const token = String(tokenText == null ? "" : tokenText).trim().toLowerCase();
+      if (!token) return "";
+      if (/(?:error|failed|denied|unknown|parse error|unknown command|not enabled|not permitted|did not respond|timed out|timeout)/.test(token)) {{
+        return "bad";
+      }}
+      if (/(?:waiting|still waiting|running|stopped|ignored|suppressed|nearly reached)/.test(token)) {{
+        return "wait";
+      }}
+      if (/(?:ok|true|active|connected|completed|sent|request sent|response|cleared)/.test(token)) {{
+        return "ok";
+      }}
+      return "";
+    }}
+
+    function consoleSyntaxNodeTooltipText(rawNodeId) {{
+      const nodeId = (typeof normalizeNodeId === "function")
+        ? normalizeNodeId(rawNodeId)
+        : String(rawNodeId == null ? "" : rawNodeId).trim();
+      if (!nodeId) return "";
+      if (!(consoleSyntaxNodeTooltipCache instanceof Map)) {{
+        consoleSyntaxNodeTooltipCache = new Map();
+      }}
+      if (consoleSyntaxNodeTooltipCache.has(nodeId)) {{
+        return consoleSyntaxNodeTooltipCache.get(nodeId);
+      }}
+
+      let tooltip = nodeId;
+      try {{
+        const row = (typeof resolveConsoleCachedNodeRow === "function")
+          ? resolveConsoleCachedNodeRow(nodeId, latestState)
+          : null;
+        if (row && typeof formatConsoleNodeLookupDetails === "function") {{
+          tooltip = formatConsoleNodeLookupDetails(row, 2)
+            .map((line) => String(line == null ? "" : line).trimEnd())
+            .filter((line) => !!line)
+            .join("\n");
+        }} else if (row && typeof formatConsoleNodeLookupListLine === "function") {{
+          tooltip = formatConsoleNodeLookupListLine(row);
+        }} else {{
+          tooltip = `${{nodeId}}\nNode details are not in the current state.`;
+        }}
+      }} catch (_err) {{
+        tooltip = nodeId;
+      }}
+      consoleSyntaxNodeTooltipCache.set(nodeId, tooltip);
+      return tooltip;
+    }}
+
+    function consoleSyntaxEndpointKey(rawKey) {{
+      const clean = String(rawKey == null ? "" : rawKey)
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .toLowerCase()
+        .replace(/[-_\s]+/g, "");
+      return [
+        "from",
+        "to",
+        "fromid",
+        "toid",
+        "fromnode",
+        "tonode",
+      ].includes(clean);
+    }}
+
+    function consoleSyntaxNodeIdFromEndpointValue(rawValue) {{
+      const raw = String(rawValue == null ? "" : rawValue).trim().replace(/^["']|["']$/g, "");
+      if (!raw) return "";
+      const normalized = (typeof normalizeNodeId === "function") ? normalizeNodeId(raw) : raw;
+      if (normalized === "^all") return "^all";
+      if (typeof isCanonicalNodeId === "function" && isCanonicalNodeId(normalized)) return normalized;
+      if (/^\d+$/.test(raw)) {{
+        const numeric = Number(raw);
+        if (Number.isSafeInteger(numeric) && numeric >= 0 && numeric <= 0xffffffff) {{
+          if (numeric === 0xffffffff) return "^all";
+          return `!${{numeric.toString(16).padStart(8, "0").slice(-8)}}`;
+        }}
+      }}
+      return "";
+    }}
+
+    function consoleSyntaxBroadcastTooltipText(rawValue) {{
+      const label = String(rawValue == null ? "" : rawValue).trim() || "^all";
+      return `${{label}}\nBroadcast target: all nodes\nhex: !ffffffff\nuint32: 4294967295`;
+    }}
+
+    function consoleSyntaxBroadcastSpan(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const tooltip = consoleSyntaxBroadcastTooltipText(value);
+      const label = tooltip.replace(/\n+/g, " | ");
+      return `<span class="console-syntax-broadcast" title="${{escAttr(tooltip)}}" aria-label="${{escAttr(label)}}">${{escAttr(value)}}</span>`;
+    }}
+
+    function consoleSyntaxSelfNodeId(state = latestState) {{
+      try {{
+        if (typeof resolveLocalNodeId !== "function") return "";
+        const rawSelfId = resolveLocalNodeId(state || {{}});
+        const selfId = (typeof normalizeNodeId === "function")
+          ? normalizeNodeId(rawSelfId || "")
+          : String(rawSelfId == null ? "" : rawSelfId).trim();
+        if (typeof isCanonicalNodeId === "function" && !isCanonicalNodeId(selfId)) return "";
+        return selfId;
+      }} catch (_err) {{
+        return "";
+      }}
+    }}
+
+    function consoleSyntaxNodeTagEntry(nodeId) {{
+      try {{
+        if (typeof nodeTagEntryForNode !== "function") return null;
+        const cleanNodeId = (typeof normalizeNodeId === "function")
+          ? normalizeNodeId(nodeId || "")
+          : String(nodeId == null ? "" : nodeId).trim();
+        if (typeof isSelectableNodeId === "function" && !isSelectableNodeId(cleanNodeId)) return null;
+        const tagEntry = nodeTagEntryForNode(cleanNodeId);
+        return tagEntry && tagEntry.preset ? tagEntry : null;
+      }} catch (_err) {{
+        return null;
+      }}
+    }}
+
+    function consoleSyntaxNodeTagStyle(tagEntry) {{
+      if (!(tagEntry && tagEntry.preset)) return "";
+      try {{
+        if (typeof nodeTagStyleVars === "function") {{
+          return nodeTagStyleVars(tagEntry) || "";
+        }}
+        if (typeof normalizeNodeTagColor === "function") {{
+          return `--node-tag-color:${{normalizeNodeTagColor(tagEntry.preset.color)}};`;
+        }}
+      }} catch (_err) {{
+        return "";
+      }}
+      return "";
+    }}
+
+    function consoleSyntaxNodeSpan(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const nodeId = consoleSyntaxNodeIdFromEndpointValue(value)
+        || ((typeof normalizeNodeId === "function") ? normalizeNodeId(value) : value.trim());
+      const tooltip = consoleSyntaxNodeTooltipText(nodeId || value);
+      const label = tooltip.replace(/\n+/g, " | ");
+      const selfNodeId = consoleSyntaxSelfNodeId();
+      const classNames = ["console-syntax-node"];
+      if (nodeId && selfNodeId && nodeId === selfNodeId) classNames.push("console-syntax-node-self");
+      const tagEntry = consoleSyntaxNodeTagEntry(nodeId);
+      const tagStyle = consoleSyntaxNodeTagStyle(tagEntry);
+      if (tagEntry) classNames.push("console-syntax-node-tagged");
+      const className = classNames.join(" ");
+      const styleAttr = tagStyle ? ` style="${{escAttr(tagStyle)}}"` : "";
+      return `<span class="${{escAttr(className)}}"${{styleAttr}} data-node-id="${{escAttr(nodeId)}}" title="${{escAttr(tooltip)}}" aria-label="${{escAttr(label)}}">${{escAttr(value)}}</span>`;
+    }}
+
+    function consoleSyntaxEndpointValueHtml(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const parts = consoleSyntaxQuotedTokenParts(value);
+      if (parts) {{
+        const nodeId = consoleSyntaxNodeIdFromEndpointValue(parts.inner);
+        if (nodeId === "^all") {{
+          const quoteHtml = consoleSyntaxSpan("console-syntax-string", parts.quote);
+          return `${{quoteHtml}}${{consoleSyntaxBroadcastSpan(parts.inner)}}${{quoteHtml}}`;
+        }}
+        if (nodeId && typeof isCanonicalNodeId === "function" && isCanonicalNodeId(nodeId)) {{
+          const quoteHtml = consoleSyntaxSpan("console-syntax-string", parts.quote);
+          return `${{quoteHtml}}${{consoleSyntaxNodeSpan(parts.inner)}}${{quoteHtml}}`;
+        }}
+        return "";
+      }}
+      const nodeId = consoleSyntaxNodeIdFromEndpointValue(value);
+      if (nodeId === "^all") return consoleSyntaxBroadcastSpan(value);
+      if (nodeId && typeof isCanonicalNodeId === "function" && isCanonicalNodeId(nodeId)) {{
+        return consoleSyntaxNodeSpan(value);
+      }}
+      return "";
+    }}
+
+    function consoleSyntaxQuotedTokenParts(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      if (value.length < 2) return null;
+      const quote = value.charAt(0);
+      if ((quote !== '"' && quote !== "'") || value.charAt(value.length - 1) !== quote) {{
+        return null;
+      }}
+      return {{
+        quote,
+        inner: value.slice(1, -1),
+      }};
+    }}
+
+    function consoleSyntaxQuotedValueHtml(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const parts = consoleSyntaxQuotedTokenParts(value);
+      if (!parts) {{
+        return consoleSyntaxSpan("console-syntax-string", value);
+      }}
+      const endpointHtml = consoleSyntaxEndpointValueHtml(value);
+      if (endpointHtml) {{
+        return endpointHtml;
+      }}
+      if (/^![0-9a-f]{{8}}$/i.test(parts.inner)) {{
+        const quoteHtml = consoleSyntaxSpan("console-syntax-string", parts.quote);
+        return `${{quoteHtml}}${{consoleSyntaxNodeSpan(parts.inner)}}${{quoteHtml}}`;
+      }}
+      return consoleSyntaxSpan("console-syntax-string", value);
+    }}
+
+    function consoleSyntaxJsonKeyHtml(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const parts = consoleSyntaxQuotedTokenParts(value);
+      if (!parts) return consoleSyntaxSpan("console-syntax-json-key console-syntax-key", value);
+      const quoteHtml = consoleSyntaxSpan("console-syntax-string", parts.quote);
+      return `${{quoteHtml}}${{consoleSyntaxSpan("console-syntax-json-key console-syntax-key", parts.inner)}}${{quoteHtml}}`;
+    }}
+
+    function consoleSyntaxNodeTooltipStateSignature(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      let hash = 0;
+      const add = (value) => {{
+        const text = String(value == null ? "" : value);
+        for (let i = 0; i < text.length; i += 1) {{
+          hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+        }}
+      }};
+      for (const node of nodes) {{
+        if (!(node && typeof node === "object")) continue;
+        add(node.id ?? node.node_id ?? node.nodeId);
+        add(node.long_name ?? node.longName);
+        add(node.short_name ?? node.shortName);
+        add(node.last_heard ?? node.lastHeard);
+        add(node.hops_away ?? node.hopsAway);
+        add(node.lat);
+        add(node.lon);
+        add(node.altitude ?? node.alt);
+        add(node.battery_level ?? node.batteryLevel);
+        add(node.voltage);
+        add(node.channel_utilization ?? node.channelUtilization);
+        add(node.air_util_tx ?? node.airUtilTx);
+      }}
+      return `${{nodes.length}}:${{hash >>> 0}}:${{consoleNodeRowsCacheVersion}}`;
+    }}
+
+    function consoleSyntaxLooksLikeJsonSegment(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue).trim();
+      return /^(?:\{{|\[)/.test(value) || /^["'][^"']+["']\s*:/.test(value);
+    }}
+
+    function consoleSyntaxLooksLikeNestedKeyValue(rawValue) {{
+      const value = String(rawValue == null ? "" : rawValue).trim();
+      if (!value || /^["'\{{\[]/.test(value)) return false;
+      return /^[a-zA-Z_][a-zA-Z0-9_-]*=/.test(value);
+    }}
+
+    function consoleSyntaxJsonLikeSegmentHtml(segment, depth = 0) {{
+      const text = String(segment == null ? "" : segment);
+      if (!text) return "";
+      const tokenRe = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|![0-9a-f]{{8}}\b|\^all\b|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|[\{{\}}\[\]:,]/gi;
+      let out = "";
+      let lastIndex = 0;
+      let match;
+      let pendingJsonKey = "";
+      let jsonValueKey = "";
+      while ((match = tokenRe.exec(text)) !== null) {{
+        const index = match.index;
+        const token = String(match[0] || "");
+        if (index > lastIndex) {{
+          out += escAttr(text.slice(lastIndex, index));
+        }}
+        if (/^["']/.test(token) && /^\s*:/.test(text.slice(tokenRe.lastIndex))) {{
+          const parts = consoleSyntaxQuotedTokenParts(token);
+          pendingJsonKey = parts ? parts.inner : "";
+          out += consoleSyntaxJsonKeyHtml(token);
+        }} else if (/^["']/.test(token)) {{
+          out += consoleSyntaxValueHtml(token, depth + 1, jsonValueKey);
+          jsonValueKey = "";
+        }} else if (token === ":") {{
+          if (pendingJsonKey) {{
+            jsonValueKey = pendingJsonKey;
+            pendingJsonKey = "";
+          }}
+          out += consoleSyntaxSpan("console-syntax-json-colon", token);
+        }} else if (token === ",") {{
+          pendingJsonKey = "";
+          jsonValueKey = "";
+          out += consoleSyntaxSpan("console-syntax-comma", token);
+        }} else if (/^[\{{\}}\[\]]$/.test(token)) {{
+          pendingJsonKey = "";
+          jsonValueKey = "";
+          out += consoleSyntaxSpan("console-syntax-json-punct", token);
+        }} else {{
+          out += consoleSyntaxValueHtml(token, depth + 1, jsonValueKey);
+          jsonValueKey = "";
+        }}
+        lastIndex = index + token.length;
+      }}
+      if (lastIndex < text.length) {{
+        out += escAttr(text.slice(lastIndex));
+      }}
+      return out;
+    }}
+
+    function consoleSyntaxValueHtml(rawValue, depth = 0, keyContext = "") {{
+      const value = String(rawValue == null ? "" : rawValue);
+      const trimmed = value.trim();
+      if (!trimmed) return escAttr(value);
+      if (consoleSyntaxEndpointKey(keyContext)) {{
+        const endpointHtml = consoleSyntaxEndpointValueHtml(value);
+        if (endpointHtml) return endpointHtml;
+      }}
+      if (consoleSyntaxLooksLikeJsonSegment(trimmed)) {{
+        return consoleSyntaxJsonLikeSegmentHtml(value, depth + 1);
+      }}
+      if (/^["']/.test(trimmed)) {{
+        return consoleSyntaxQuotedValueHtml(value);
+      }}
+      if (depth < 3 && consoleSyntaxLooksLikeNestedKeyValue(trimmed)) {{
+        return consoleSyntaxKeyValueSegmentHtml(value, depth + 1);
+      }}
+      if (/^![0-9a-f]{{8}}$/i.test(trimmed)) {{
+        return consoleSyntaxNodeSpan(value);
+      }}
+      if (/^\^all$/i.test(trimmed)) {{
+        return consoleSyntaxBroadcastSpan(value);
+      }}
+      if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?:dBm|dB|ms|s|m|h|%)?$/i.test(trimmed)) {{
+        return consoleSyntaxSpan("console-syntax-number", value);
+      }}
+      if (/^(?:true|false|null|n\/a)$/i.test(trimmed)) {{
+        return consoleSyntaxSpan("console-syntax-literal", value);
+      }}
+      const statusTone = consoleSyntaxStatusTone(trimmed);
+      if (statusTone) {{
+        return consoleSyntaxSpan(`console-syntax-status console-syntax-status-${{statusTone}}`, value);
+      }}
+      return consoleSyntaxSpan("console-syntax-value", value);
+    }}
+
+    function consoleSyntaxPlainSegmentHtml(segment, depth = 0) {{
+      const text = String(segment == null ? "" : segment);
+      if (!text) return "";
+      if (consoleSyntaxLooksLikeJsonSegment(text)) {{
+        return consoleSyntaxJsonLikeSegmentHtml(text, depth + 1);
+      }}
+      const tokenRe = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|![0-9a-f]{{8}}\b|\^all\b|\b(?:request sent|still waiting|timed out|destination did not respond|unknown command|parse error|no matches|not enabled|not permitted|nearly reached)\b|\b(?:error|failed|denied|unknown|timeout|waiting|running|stopped|ignored|suppressed|ok|true|false|null|active|connected|completed|sent|response|cleared|n\/a)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?:dBm|dB|ms|s|m|h|%)?\b|[|=,]/gi;
+      let out = "";
+      let lastIndex = 0;
+      let match;
+      while ((match = tokenRe.exec(text)) !== null) {{
+        const index = match.index;
+        const token = String(match[0] || "");
+        if (index > lastIndex) {{
+          out += escAttr(text.slice(lastIndex, index));
+        }}
+        if (token === "|") {{
+          out += consoleSyntaxSpan("console-syntax-pipe", token);
+        }} else if (token === "=") {{
+          out += consoleSyntaxSpan("console-syntax-equals", token);
+        }} else if (token === ",") {{
+          out += consoleSyntaxSpan("console-syntax-comma", token);
+        }} else {{
+          out += consoleSyntaxValueHtml(token, depth + 1);
+        }}
+        lastIndex = index + token.length;
+      }}
+      if (lastIndex < text.length) {{
+        out += escAttr(text.slice(lastIndex));
+      }}
+      return out;
+    }}
+
+    function consoleSyntaxValueEndIndex(text, startIndex) {{
+      const start = Math.max(0, Math.trunc(Number(startIndex) || 0));
+      const first = text.charAt(start);
+      if (!first) return start;
+      if (first === '"' || first === "'") {{
+        let escaped = false;
+        for (let i = start + 1; i < text.length; i += 1) {{
+          const ch = text.charAt(i);
+          if (escaped) {{
+            escaped = false;
+          }} else if (ch === "\\") {{
+            escaped = true;
+          }} else if (ch === first) {{
+            return i + 1;
+          }}
+        }}
+        return text.length;
+      }}
+      if (first === "{{" || first === "[") {{
+        const closer = first === "{{" ? "}}" : "]";
+        const stack = [closer];
+        let quote = "";
+        let escaped = false;
+        for (let i = start + 1; i < text.length; i += 1) {{
+          const ch = text.charAt(i);
+          if (quote) {{
+            if (escaped) {{
+              escaped = false;
+            }} else if (ch === "\\") {{
+              escaped = true;
+            }} else if (ch === quote) {{
+              quote = "";
+            }}
+            continue;
+          }}
+          if (ch === '"' || ch === "'") {{
+            quote = ch;
+          }} else if (ch === "{{") {{
+            stack.push("}}");
+          }} else if (ch === "[") {{
+            stack.push("]");
+          }} else if (ch === stack[stack.length - 1]) {{
+            stack.pop();
+            if (stack.length < 1) return i + 1;
+          }}
+        }}
+        return text.length;
+      }}
+      let end = start;
+      while (end < text.length && !/[\s|,]/.test(text.charAt(end))) {{
+        end += 1;
+      }}
+      return end;
+    }}
+
+    function consoleSyntaxNextKeyValueMatch(text, startIndex = 0) {{
+      const keyRe = /[a-zA-Z_][a-zA-Z0-9_-]*=/g;
+      keyRe.lastIndex = Math.max(0, Math.trunc(Number(startIndex) || 0));
+      const match = keyRe.exec(text);
+      if (!match) return null;
+      const full = String(match[0] || "");
+      const key = full.slice(0, -1);
+      const equals = "=";
+      const valueStart = match.index + full.length;
+      const valueEnd = consoleSyntaxValueEndIndex(text, valueStart);
+      return {{
+        index: match.index,
+        key,
+        equals,
+        value: text.slice(valueStart, valueEnd),
+        end: valueEnd,
+      }};
+    }}
+
+    function consoleSyntaxKeyValueSegmentHtml(segment, depth = 0) {{
+      const text = String(segment == null ? "" : segment);
+      if (!text) return "";
+      let out = "";
+      let lastIndex = 0;
+      let match;
+      while ((match = consoleSyntaxNextKeyValueMatch(text, lastIndex)) !== null) {{
+        const index = match.index;
+        if (index > lastIndex) {{
+          out += consoleSyntaxPlainSegmentHtml(text.slice(lastIndex, index), depth + 1);
+        }}
+        out += consoleSyntaxSpan("console-syntax-key", match.key);
+        out += consoleSyntaxSpan("console-syntax-equals", match.equals);
+        out += consoleSyntaxValueHtml(match.value, depth + 1, match.key);
+        lastIndex = match.end;
+      }}
+      if (lastIndex < text.length) {{
+        out += consoleSyntaxPlainSegmentHtml(text.slice(lastIndex), depth + 1);
+      }}
+      return out;
+    }}
+
+    function consoleSyntaxCommandSegmentHtml(segment) {{
+      const text = String(segment == null ? "" : segment);
+      const match = text.match(/^(\s*)(--?[a-zA-Z][a-zA-Z0-9_-]*|[a-zA-Z][a-zA-Z0-9_-]*)(?=\s|$)/);
+      if (!match) return consoleSyntaxKeyValueSegmentHtml(text);
+      const leading = String(match[1] || "");
+      const command = String(match[2] || "");
+      const rest = text.slice(match[0].length);
+      return `${{escAttr(leading)}}${{consoleSyntaxSpan("console-syntax-command", command)}}${{consoleSyntaxKeyValueSegmentHtml(rest)}}`;
+    }}
+
+    function consoleSyntaxHighlightLineHtml(line) {{
+      const text = String(line == null ? "" : line);
+      if (!text) return "";
+      let rest = text;
+      let out = "";
+      const timestampMatch = rest.match(/^\[(\d{{2}}:\d{{2}}:\d{{2}})\]\s+/);
+      if (timestampMatch) {{
+        out += consoleSyntaxSpan("console-syntax-timestamp", `[${{timestampMatch[1]}}]`);
+        out += escAttr(rest.slice(timestampMatch[0].indexOf("]") + 1, timestampMatch[0].length));
+        rest = rest.slice(timestampMatch[0].length);
+      }}
+      const promptMatch = rest.match(/^(\[[^\]\n]{{1,64}}\]\$|[$>])\s*/);
+      if (promptMatch) {{
+        out += consoleSyntaxSpan("console-syntax-prompt", promptMatch[1]);
+        out += escAttr(promptMatch[0].slice(promptMatch[1].length));
+        rest = rest.slice(promptMatch[0].length);
+        return out + consoleSyntaxCommandSegmentHtml(rest);
+      }}
+      const tagMatch = rest.match(/^\[([^\]\n]{{1,48}})\]/);
+      if (tagMatch) {{
+        const tagText = String(tagMatch[1] || "");
+        const tone = consoleSyntaxTagTone(tagText);
+        out += consoleSyntaxSpan(`console-syntax-tag console-syntax-tag-${{tone}}`, tagMatch[0]);
+        rest = rest.slice(tagMatch[0].length);
+      }}
+      return out + consoleSyntaxKeyValueSegmentHtml(rest);
+    }}
+
     function resolveConsoleRenderedLogHtml(filteredResult, baseCacheKey = "") {{
       const filtered = (filteredResult && typeof filteredResult === "object")
         ? filteredResult
@@ -280,16 +815,18 @@
           lines: [],
           active: false,
           needle: "",
-        }};
+      }};
       const needle = String(filtered.needle == null ? "" : filtered.needle);
       const visibleLines = Array.isArray(filtered.lines) ? filtered.lines : [];
-      const logCacheKey = `${{baseCacheKey}}|${{filtered.active ? 1 : 0}}|${{needle}}|${{visibleLines.length}}`;
+      const nodeTooltipStateKey = consoleSyntaxNodeTooltipStateSignature(latestState);
+      const logCacheKey = `${{baseCacheKey}}|${{filtered.active ? 1 : 0}}|${{needle}}|${{visibleLines.length}}|${{nodeTooltipStateKey}}`;
       if (logCacheKey === consoleRenderedLogCacheKey) {{
         return consoleRenderedLogCacheHtml;
       }}
-      const rendered = visibleLines.map((line) => escAttr(String(line == null ? "" : line)));
+      consoleSyntaxNodeTooltipCache = new Map();
+      const rendered = visibleLines.map((line) => consoleSyntaxHighlightLineHtml(line));
       if (filtered.active && visibleLines.length < 1) {{
-        rendered.push(escAttr(`[filter] no matches for "${{needle}}"`));
+        rendered.push(consoleSyntaxHighlightLineHtml(`[filter] no matches for "${{needle}}"`));
       }}
       const joined = rendered.join("\n");
       const html = joined ? `${{joined}}\n` : "";
@@ -446,6 +983,9 @@
         consoleRenderedPromptHtml = promptHtml;
         consoleRenderedFrameCacheKey = "";
       }}
+      if (typeof renderConsoleAutocompleteMenu === "function") {{
+        renderConsoleAutocompleteMenu(consoleCommandInputElement(), latestState);
+      }}
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
       scheduleConsoleAnchorRefresh(pre, forceScroll);
@@ -473,6 +1013,9 @@
         consoleRenderedFrameCacheKey = frameCacheKey;
       }}
       consoleRenderedPromptHtml = promptHtml;
+      if (typeof renderConsoleAutocompleteMenu === "function") {{
+        renderConsoleAutocompleteMenu(consoleCommandInputElement(), latestState);
+      }}
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
       scheduleConsoleAnchorRefresh(pre, forceScroll);
