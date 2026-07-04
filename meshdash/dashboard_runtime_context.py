@@ -122,27 +122,23 @@ def build_dashboard_runtime_context(
     build_dashboard_runtime_loaders_with_dependencies_fn: BuildDashboardRuntimeLoadersWithDependenciesFn = build_dashboard_runtime_loaders_with_dependencies,
 ) -> DashboardRuntimeContext:
     target = mesh_target_label_fn(args)
-    print_fn(f"Connecting to {target} ...")
-    iface = open_mesh_interface_fn(args)
 
+    # Subscriptions must be registered before the radio interface is opened.
+    # meshtastic's SerialInterface/TCPInterface starts a background reader
+    # thread on construction and immediately replays any packets the radio
+    # buffered while no client was attached (e.g. messages received overnight
+    # while the dashboard wasn't running). It publishes those via pypubsub's
+    # "meshtastic.receive" topic, which is synchronous and does not replay
+    # for late subscribers — so subscribing after opening the interface
+    # silently drops that backlog. See issue #37.
     history_db_path = build_shared_history_db_path(
         resolve_history_db_path_fn(args.history_db)
-    )
-    history_local_node_id = resolve_history_local_node_id(
-        iface=iface,
-        get_local_node_id_fn=get_local_node_id_fn,
-        wait_for_id_seconds=2.0,
     )
     history_store: Optional[HistoryStoreLike] = open_optional_history_store_fn(
         args,
         history_store_cls=history_store_cls,
         history_db_path=history_db_path,
     )
-    if history_store is not None and history_local_node_id:
-        try:
-            setattr(history_store, "local_node_id", history_local_node_id)
-        except Exception:
-            pass
 
     tracker = dashboard_tracker_cls(packet_limit=args.packet_limit, history_store=history_store)
     send_lock = lock_factory()
@@ -153,6 +149,21 @@ def build_dashboard_runtime_context(
     on_connection_lost = getattr(tracker, "on_connection_lost", None)
     if callable(on_connection_lost):
         subscribe_fn(on_connection_lost, "meshtastic.connection.lost")
+
+    print_fn(f"Connecting to {target} ...")
+    iface = open_mesh_interface_fn(args)
+
+    history_local_node_id = resolve_history_local_node_id(
+        iface=iface,
+        get_local_node_id_fn=get_local_node_id_fn,
+        wait_for_id_seconds=2.0,
+    )
+    if history_store is not None and history_local_node_id:
+        try:
+            setattr(history_store, "local_node_id", history_local_node_id)
+        except Exception:
+            pass
+
     bootstrap_connection_state = getattr(tracker, "bootstrap_connection_state", None)
     if callable(bootstrap_connection_state):
         try:
