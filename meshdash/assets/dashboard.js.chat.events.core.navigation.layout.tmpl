@@ -11557,6 +11557,9 @@
       syncNetworkRoutesPrimaryControls(next, activeNetworkSubview);
       syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);
       syncEnvironmentMetricsDock(next, activeNetworkSubview);
+      if (typeof updateConsoleFullscreenControl === "function") {{
+        updateConsoleFullscreenControl(next);
+      }}
       if (typeof updateGamesFullscreenControl === "function") {{
         updateGamesFullscreenControl(next);
       }}

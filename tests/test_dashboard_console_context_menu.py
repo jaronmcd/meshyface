@@ -36,5 +36,7 @@ def test_render_html_includes_console_context_menu_markup() -> None:
     )
 
     assert 'id="console-context-menu"' in html
+    assert 'id="console-autocomplete-menu"' in html
+    assert 'class="console-autocomplete-menu"' in html
     assert 'id="console-context-menu-paste"' in html
     assert 'id="console-context-menu-copy"' in html

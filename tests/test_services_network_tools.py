@@ -22,6 +22,7 @@ class _FakeChannelPb2:
 class _FakePortNum:
     NODEINFO_APP = 4
     POSITION_APP = 3
+    STORE_FORWARD_APP = 65
     TELEMETRY_APP = 67
     TRACEROUTE_APP = 70
     ALERT_APP = 89
@@ -188,6 +189,26 @@ class _FakeTelemetryPb2:
     AirQualityMetrics = _FakeTelemetryMetrics
     PowerMetrics = _FakeTelemetryMetrics
     LocalStats = _FakeTelemetryMetrics
+
+
+class _FakeStoreForwardHistory:
+    def __init__(self) -> None:
+        self.window = 0
+
+
+class _FakeStoreAndForward:
+    CLIENT_HISTORY = 65
+
+    def __init__(self) -> None:
+        self.rr = 0
+        self.history = _FakeStoreForwardHistory()
+
+    def SerializeToString(self) -> bytes:
+        return b"store-forward-history-request"
+
+
+class _FakeStoreForwardPb2:
+    StoreAndForward = _FakeStoreAndForward
 
 
 class _FakeSentPacket:
@@ -504,6 +525,47 @@ def test_run_network_tool_request_telemetry_success(monkeypatch: pytest.MonkeyPa
     assert iface.send_calls[0]["portNum"] == _FakePortNum.TELEMETRY_APP
     assert iface.send_calls[0]["wantResponse"] is True
     assert iface.send_calls[0]["hopLimit"] == 4
+
+
+def test_run_network_tool_request_store_forward_history_sends_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "meshdash.services_network_tools._load_meshtastic_modules",
+        lambda: (_FakeChannelPb2, _FakeMeshPb2, _FakePortnumsPb2, _FakeTelemetryPb2),
+    )
+    monkeypatch.setattr(
+        "meshdash.services_network_tools._load_storeforward_pb2",
+        lambda: _FakeStoreForwardPb2,
+    )
+    iface = _FakeIface(None)
+
+    response = run_network_tool(
+        NetworkToolRequest(
+            command="request_store_forward_history",
+            destination="!abcd1234",
+            history_window_minutes=240,
+            hop_limit=3,
+        ),
+        iface=iface,
+        send_lock=threading.Lock(),
+    )
+
+    assert response["ok"] is True
+    assert response["command"] == "request_store_forward_history"
+    assert response["destination"] == "!abcd1234"
+    assert response["history_window_minutes"] == 240
+    assert response["sent_packet_id"] == 1234
+    assert response["console_lines"] == [
+        "[s&f] !abcd1234 | history request sent | window=240m | returned texts will appear in chat"
+    ]
+    sent = iface.send_calls[0]
+    assert sent["destinationId"] == "!abcd1234"
+    assert sent["portNum"] == _FakePortNum.STORE_FORWARD_APP
+    assert sent["wantResponse"] is False
+    assert sent["hopLimit"] == 3
+    assert sent["message"].rr == _FakeStoreAndForward.CLIENT_HISTORY
+    assert sent["message"].history.window == 240
 
 
 def test_run_network_tool_send_alert_success(monkeypatch: pytest.MonkeyPatch) -> None:

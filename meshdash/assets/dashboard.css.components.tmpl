@@ -1365,38 +1365,122 @@
       border: 1px solid var(--surface-tint-border-strong, #7ab18a);
       border-radius: 8px;
       background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.58), transparent 40%),
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.5), transparent 38%),
         radial-gradient(
           circle at 50% 120%,
-          color-mix(in srgb, var(--surface-tint-color) 18%, transparent),
-          transparent 46%
+          color-mix(in srgb, var(--surface-tint-color) 10%, transparent),
+          transparent 44%
         ),
         linear-gradient(
           180deg,
-          var(--surface-tint-bg-soft, #eef8f1) 0%,
-          var(--surface-tint-bg-alt, #dceddf) 58%,
-          var(--surface-tint-bg, #d1e6d8) 100%
+          color-mix(in srgb, var(--surface-tint-bg-soft, #eef8f1) 94%, white 6%) 0%,
+          color-mix(in srgb, var(--surface-tint-bg-alt, #dceddf) 90%, white 10%) 58%,
+          color-mix(in srgb, var(--surface-tint-bg, #d1e6d8) 88%, white 12%) 100%
         );
       box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-        inset 0 0 28px color-mix(in srgb, var(--surface-tint-color) 12%, transparent),
-        0 10px 20px color-mix(in srgb, var(--surface-tint-color) 16%, transparent);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.44),
+        inset 0 0 28px color-mix(in srgb, var(--surface-tint-color) 9%, transparent),
+        0 10px 20px color-mix(in srgb, var(--surface-tint-color) 10%, transparent);
       overflow: hidden;
     }}
     .console-terminal-screen::before {{
       content: "";
       position: absolute;
       inset: 0;
+      border-radius: inherit;
       background:
-        linear-gradient(
+        repeating-linear-gradient(
           180deg,
-          color-mix(in srgb, var(--surface-tint-border-strong) 24%, transparent) 0,
-          color-mix(in srgb, var(--surface-tint-border-strong) 24%, transparent) 1px,
-          transparent 1px,
-          transparent 4px
+          rgba(255, 255, 255, 0.1) 0,
+          rgba(255, 255, 255, 0.1) 1px,
+          rgba(0, 0, 0, 0.08) 1px,
+          rgba(0, 0, 0, 0.08) 2px,
+          transparent 2px,
+          transparent 6px
         );
-      opacity: 0.45;
+      opacity: 0.22;
+      z-index: 1;
+      mix-blend-mode: normal;
       pointer-events: none;
+    }}
+    .console-terminal-screen::after {{
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      border-radius: inherit;
+      background:
+        radial-gradient(
+          ellipse at center,
+          transparent 0%,
+          transparent 58%,
+          rgba(0, 0, 0, 0.12) 100%
+        ),
+        linear-gradient(
+          124deg,
+          rgba(255, 255, 255, 0.2) 0%,
+          rgba(255, 255, 255, 0.08) 10%,
+          transparent 28%,
+          transparent 72%,
+          rgba(255, 255, 255, 0.07) 100%
+        ),
+        radial-gradient(
+          circle at 22% 0%,
+          rgba(255, 255, 255, 0.18),
+          transparent 34%
+        );
+      opacity: 0.58;
+      mix-blend-mode: soft-light;
+      pointer-events: none;
+    }}
+    .console-terminal-screen:fullscreen {{
+      width: 100vw;
+      height: 100vh !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      border-radius: 0;
+      border: 0;
+    }}
+    .console-terminal-screen:-webkit-full-screen {{
+      width: 100vw;
+      height: 100vh !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      border-radius: 0;
+      border: 0;
+    }}
+    .console-terminal-screen.is-fullscreen {{
+      border-radius: 0;
+    }}
+    .console-fullscreen-toggle-btn {{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 8;
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      padding: 4px;
+      opacity: 0;
+      transform: scale(0.92);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      pointer-events: auto;
+      transition:
+        opacity 140ms ease,
+        transform 140ms ease,
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease;
+    }}
+    .console-fullscreen-toggle-btn:hover,
+    .console-fullscreen-toggle-btn:focus-visible {{
+      opacity: 1;
+      transform: scale(1);
+    }}
+    .console-fullscreen-toggle-btn[hidden] {{
+      display: none !important;
     }}
     .console-command-input-proxy {{
       position: absolute;
@@ -1409,6 +1493,127 @@
       padding: 0;
       margin: 0;
       pointer-events: none;
+    }}
+    .console-autocomplete-menu {{
+      position: absolute;
+      left: 12px;
+      bottom: 28px;
+      z-index: 5;
+      width: min(560px, calc(100% - 24px));
+      max-height: min(220px, 44%);
+      overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
+      padding: 5px;
+      border: 1px solid color-mix(in srgb, var(--surface-tint-border-strong) 60%, transparent);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--surface-tint-bg, #f7fcf7) 96%, white 4%);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.25;
+    }}
+    .console-autocomplete-menu[hidden] {{
+      display: none;
+    }}
+    .console-autocomplete-item {{
+      appearance: none;
+      width: 100%;
+      min-height: 28px;
+      display: grid;
+      grid-template-columns: minmax(120px, 0.36fr) minmax(0, 1fr);
+      column-gap: 10px;
+      align-items: center;
+      padding: 5px 7px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      text-align: left;
+      font: inherit;
+      cursor: pointer;
+    }}
+    .console-autocomplete-item:hover,
+    .console-autocomplete-item.is-selected {{
+      border-color: color-mix(in srgb, var(--surface-tint-border-strong) 64%, transparent);
+      background: color-mix(in srgb, var(--surface-tint-bg-hover, #e7f4ea) 86%, white 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 94%, var(--ink) 6%);
+    }}
+    .console-autocomplete-item-name,
+    .console-autocomplete-item-meta {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .console-autocomplete-item-name {{
+      font-weight: 800;
+      color: inherit;
+    }}
+    .console-autocomplete-item-meta {{
+      opacity: 0.78;
+    }}
+    .console-autocomplete-item.is-node {{
+      grid-template-columns: 30px minmax(0, 1fr);
+      min-height: 46px;
+      row-gap: 0;
+    }}
+    .console-autocomplete-node-icon {{
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--surface-tint-color) 14%, transparent);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ink) 12%);
+      font-size: 15px;
+      line-height: 1;
+      overflow: hidden;
+    }}
+    .console-autocomplete-node-icon:empty::after {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.64;
+    }}
+    .console-autocomplete-node-main {{
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }}
+    .console-autocomplete-node-title {{
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }}
+    .console-autocomplete-node-name,
+    .console-autocomplete-node-id,
+    .console-autocomplete-node-meta {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .console-autocomplete-node-name {{
+      font-weight: 800;
+      color: inherit;
+    }}
+    .console-autocomplete-node-id {{
+      flex: 0 1 auto;
+      color: color-mix(in srgb, var(--surface-tint-text) 66%, transparent);
+      font-size: 10px;
+    }}
+    .console-autocomplete-node-meta {{
+      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ink) 30%);
+      font-size: 10px;
     }}
     .console-context-menu {{
       position: absolute;
@@ -1706,7 +1911,11 @@
       overflow-wrap: normal;
       word-break: normal;
       cursor: text;
-      text-shadow: 0 0 4px color-mix(in srgb, var(--surface-tint-color) 12%, transparent);
+      position: relative;
+      z-index: 0;
+      text-shadow:
+        0 0 1px color-mix(in srgb, var(--surface-tint-color) 18%, transparent),
+        0 0 6px color-mix(in srgb, var(--surface-tint-color) 10%, transparent);
     }}
     #live-console.zork-word-wrap {{
       white-space: pre-wrap;
@@ -1745,6 +1954,91 @@
       text-shadow: none;
       pointer-events: none;
       user-select: none;
+    }}
+    #live-console .console-syntax-timestamp {{
+      color: #6b7280;
+    }}
+    #live-console .console-syntax-prompt {{
+      color: #7c3aed;
+      font-weight: 800;
+    }}
+    #live-console .console-syntax-command {{
+      color: #0f766e;
+      font-weight: 800;
+    }}
+    #live-console .console-syntax-tag {{
+      font-weight: 800;
+    }}
+    #live-console .console-syntax-tag-mesh {{
+      color: #a21caf;
+    }}
+    #live-console .console-syntax-tag-meta,
+    #live-console .console-syntax-tag-neutral {{
+      color: #475569;
+    }}
+    #live-console .console-syntax-tag-warn {{
+      color: #b45309;
+    }}
+    #live-console .console-syntax-tag-bad {{
+      color: #b91c1c;
+    }}
+    #live-console .console-syntax-node {{
+      color: #2563eb;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: underline dotted rgba(37, 99, 235, 0.55);
+      text-underline-offset: 2px;
+    }}
+    #live-console .console-syntax-node.console-syntax-node-self {{
+      color: #db2777;
+      text-decoration-color: rgba(219, 39, 119, 0.62);
+    }}
+    #live-console .console-syntax-node.console-syntax-node-tagged {{
+      color: var(--node-tag-color, #2aa85a);
+      text-decoration-color: color-mix(in srgb, var(--node-tag-color, #2aa85a) 70%, transparent);
+    }}
+    #live-console .console-syntax-broadcast {{
+      color: #0f766e;
+      font-weight: 800;
+      text-decoration: underline dotted rgba(15, 118, 110, 0.48);
+      text-underline-offset: 2px;
+    }}
+    #live-console .console-syntax-key {{
+      color: #92400e;
+      font-weight: 700;
+    }}
+    #live-console .console-syntax-value {{
+      color: #334155;
+    }}
+    #live-console .console-syntax-number {{
+      color: #047857;
+      font-weight: 700;
+    }}
+    #live-console .console-syntax-string {{
+      color: #9333ea;
+    }}
+    #live-console .console-syntax-literal {{
+      color: #0f766e;
+      font-weight: 700;
+    }}
+    #live-console .console-syntax-status {{
+      font-weight: 800;
+    }}
+    #live-console .console-syntax-status-ok {{
+      color: #15803d;
+    }}
+    #live-console .console-syntax-status-wait {{
+      color: #b45309;
+    }}
+    #live-console .console-syntax-status-bad {{
+      color: #c2410c;
+    }}
+    #live-console .console-syntax-pipe,
+    #live-console .console-syntax-equals,
+    #live-console .console-syntax-comma,
+    #live-console .console-syntax-json-punct,
+    #live-console .console-syntax-json-colon {{
+      color: #94a3b8;
     }}
     details {{
       border: 1px solid #d7e5d2;
@@ -3828,30 +4122,67 @@
     [data-theme="dark"] .console-terminal-screen {{
       border-color: var(--surface-tint-border);
       background:
-        radial-gradient(
-          circle at top,
-          color-mix(in srgb, var(--surface-tint-color) 22%, transparent) 0,
-          transparent 46%
-        ),
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--surface-tint-bg) 96%, black),
-          color-mix(in srgb, var(--surface-tint-bg-alt) 90%, black)
+          color-mix(in srgb, var(--surface-tint-bg) 46%, black 54%),
+          color-mix(in srgb, var(--surface-tint-bg-alt) 42%, black 58%)
         );
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--surface-tint-border) 62%, transparent),
-        inset 0 0 28px color-mix(in srgb, var(--surface-tint-color) 18%, transparent);
+        inset 0 0 0 1px color-mix(in srgb, var(--surface-tint-border) 48%, transparent),
+        inset 0 0 28px color-mix(in srgb, var(--surface-tint-color) 8%, transparent);
     }}
     [data-theme="dark"] .console-terminal-screen::before {{
       background:
-        linear-gradient(
+        repeating-linear-gradient(
           180deg,
-          color-mix(in srgb, var(--surface-tint-border) 16%, transparent) 0,
-          color-mix(in srgb, var(--surface-tint-border) 16%, transparent) 1px,
-          transparent 1px,
-          transparent 4px
+          rgba(255, 255, 255, 0.08) 0,
+          rgba(255, 255, 255, 0.08) 1px,
+          rgba(0, 0, 0, 0.16) 1px,
+          rgba(0, 0, 0, 0.16) 2px,
+          transparent 2px,
+          transparent 6px
         );
-      opacity: 0.28;
+      opacity: 0.24;
+    }}
+    [data-theme="dark"] .console-terminal-screen::after {{
+      background:
+        radial-gradient(
+          ellipse at center,
+          transparent 0%,
+          transparent 56%,
+          rgba(0, 0, 0, 0.32) 100%
+        ),
+        linear-gradient(
+          124deg,
+          rgba(255, 255, 255, 0.11) 0%,
+          rgba(255, 255, 255, 0.04) 12%,
+          transparent 30%,
+          transparent 72%,
+          rgba(255, 255, 255, 0.04) 100%
+        ),
+        radial-gradient(
+          circle at 24% 0%,
+          color-mix(in srgb, var(--surface-tint-color) 16%, transparent),
+          transparent 36%
+        );
+      opacity: 0.74;
+    }}
+    [data-theme="dark"] .console-fullscreen-toggle-btn {{
+      border-color: var(--workspace-shell-border);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-bg-elev) 16%);
+      color: var(--workspace-shell-text-soft);
+      box-shadow: var(--workspace-shell-shadow);
+    }}
+    [data-theme="dark"] .console-fullscreen-toggle-btn:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, var(--ui-bg-elev) 22%);
+      border-color: var(--workspace-shell-border-muted);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .console-fullscreen-toggle-btn.is-active {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 78%, var(--ui-accent-soft) 22%);
+      border-color: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);
+      color: var(--workspace-shell-active-text);
+      box-shadow: 0 6px 16px rgba(4, 14, 8, 0.42);
     }}
     [data-theme="dark"] .console-context-menu {{
       border-color: color-mix(in srgb, var(--surface-tint-border-strong) 56%, transparent);
@@ -4224,7 +4555,107 @@
       background: transparent;
       border-color: transparent !important;
       color: color-mix(in srgb, var(--surface-tint-text) 92%, var(--ui-text) 8%);
+      text-shadow:
+        0 0 1px color-mix(in srgb, var(--surface-tint-text) 36%, transparent),
+        0 0 7px color-mix(in srgb, var(--surface-tint-color) 24%, transparent),
+        0 0 16px color-mix(in srgb, var(--surface-tint-color) 12%, transparent);
+    }}
+    [data-theme="dark"] .console-completion-ghost {{
+      color: color-mix(in srgb, var(--surface-tint-text) 36%, transparent);
       text-shadow: none;
+    }}
+    [data-theme="dark"] .console-autocomplete-menu {{
+      border-color: color-mix(in srgb, var(--surface-tint-border-strong) 56%, transparent);
+      background: color-mix(in srgb, var(--surface-tint-bg) 92%, black 8%);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+    }}
+    [data-theme="dark"] .console-autocomplete-item {{
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ui-text) 12%);
+    }}
+    [data-theme="dark"] .console-autocomplete-item:hover,
+    [data-theme="dark"] .console-autocomplete-item.is-selected {{
+      border-color: color-mix(in srgb, var(--surface-tint-border-strong) 64%, transparent);
+      background: color-mix(in srgb, var(--surface-tint-bg-hover) 84%, black 16%);
+      color: color-mix(in srgb, var(--surface-tint-text) 96%, white 4%);
+    }}
+    [data-theme="dark"] .console-autocomplete-node-icon {{
+      background: color-mix(in srgb, var(--surface-tint-color) 22%, transparent);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, white 12%);
+    }}
+    [data-theme="dark"] .console-autocomplete-node-id {{
+      color: color-mix(in srgb, var(--surface-tint-text) 62%, transparent);
+    }}
+    [data-theme="dark"] .console-autocomplete-node-meta {{
+      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ui-text) 30%);
+    }}
+    [data-theme="dark"] #live-console .console-syntax-timestamp {{
+      color: #7f8ea3;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-prompt {{
+      color: #c084fc;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-command {{
+      color: #5eead4;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-tag-mesh {{
+      color: #f0abfc;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-tag-meta,
+    [data-theme="dark"] #live-console .console-syntax-tag-neutral {{
+      color: #cbd5e1;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-tag-warn {{
+      color: #fbbf24;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-tag-bad {{
+      color: #fb7185;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-node {{
+      color: #93c5fd;
+      text-decoration-color: rgba(147, 197, 253, 0.7);
+    }}
+    [data-theme="dark"] #live-console .console-syntax-node.console-syntax-node-self {{
+      color: #f9a8d4;
+      text-decoration-color: rgba(249, 168, 212, 0.74);
+    }}
+    [data-theme="dark"] #live-console .console-syntax-node.console-syntax-node-tagged {{
+      color: var(--node-tag-color, #3fb950);
+      text-decoration-color: color-mix(in srgb, var(--node-tag-color, #3fb950) 78%, transparent);
+    }}
+    [data-theme="dark"] #live-console .console-syntax-broadcast {{
+      color: #5eead4;
+      text-decoration-color: rgba(94, 234, 212, 0.68);
+    }}
+    [data-theme="dark"] #live-console .console-syntax-key {{
+      color: #fcd34d;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-value {{
+      color: #dbeafe;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-number {{
+      color: #86efac;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-string {{
+      color: #d8b4fe;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-literal {{
+      color: #99f6e4;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-status-ok {{
+      color: #86efac;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-status-wait {{
+      color: #fbbf24;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-status-bad {{
+      color: #fb923c;
+    }}
+    [data-theme="dark"] #live-console .console-syntax-pipe,
+    [data-theme="dark"] #live-console .console-syntax-equals,
+    [data-theme="dark"] #live-console .console-syntax-comma,
+    [data-theme="dark"] #live-console .console-syntax-json-punct,
+    [data-theme="dark"] #live-console .console-syntax-json-colon {{
+      color: #64748b;
     }}
     [data-theme="dark"] th {{
       background: #1d2733;

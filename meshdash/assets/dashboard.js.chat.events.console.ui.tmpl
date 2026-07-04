@@ -150,6 +150,7 @@
             name,
             usage,
             description,
+            hiddenFromHelp: entry.hiddenFromHelp === true,
             requiresArgs: /<[^>]+>/.test(usage),
             searchText: `${{name}} ${{usage}} ${{description}}`.toLowerCase(),
           }};
@@ -162,12 +163,16 @@
     function filterConsoleCommandPaletteEntries(query, entries = null) {{
       const source = Array.isArray(entries) ? entries : collectConsoleCommandPaletteEntries();
       const cleanQuery = String(query == null ? "" : query).trim().toLowerCase();
+      const includeHidden = cleanQuery.startsWith("--");
+      const visibleSource = includeHidden
+        ? source
+        : source.filter((entry) => entry && !entry.hiddenFromHelp);
       if (!cleanQuery) {{
-        return source.slice(0, 80);
+        return visibleSource.slice(0, 80);
       }}
       const terms = cleanQuery.split(/\s+/).filter(Boolean);
       const ranked = [];
-      for (const entry of source) {{
+      for (const entry of visibleSource) {{
         if (!entry || typeof entry !== "object") continue;
         const haystack = String(entry.searchText || "").toLowerCase();
         if (terms.some((term) => !haystack.includes(term))) continue;
@@ -552,7 +557,10 @@
       }}
       try {{
         const pastedText = String(await navigator.clipboard.readText() || "");
-        if (insertTextIntoConsoleCommandInput(pastedText, input)) {{
+        const handledPaste = typeof handleConsolePastedText === "function"
+          ? handleConsolePastedText(pastedText, input)
+          : insertTextIntoConsoleCommandInput(pastedText, input);
+        if (handledPaste) {{
           return true;
         }}
       }} catch (_err) {{
@@ -560,10 +568,191 @@
       return false;
     }}
 
+    function bindConsoleAutocompleteMenuControls() {{
+      const menu = consoleAutocompleteMenuElement();
+      if (!(menu instanceof HTMLElement) || menu.dataset.bound === "1") return;
+      menu.dataset.bound = "1";
+      menu.addEventListener("mousedown", (ev) => {{
+        const target = ev.target;
+        if (target instanceof Element && target.closest(".console-autocomplete-item")) {{
+          ev.preventDefault();
+        }}
+      }});
+      menu.addEventListener("click", (ev) => {{
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const item = target.closest(".console-autocomplete-item");
+        if (!(item instanceof HTMLElement)) return;
+        const index = Math.trunc(Number(item.dataset.consoleAutocompleteIndex));
+        if (Number.isFinite(index) && index >= 0) {{
+          consoleAutocompleteMenuSelectedIndex = index;
+        }}
+        ev.preventDefault();
+        ev.stopPropagation();
+        focusConsoleCommandInput(false);
+        applyConsoleAutocompleteMenuSelection(consoleCommandInputElement(), latestState);
+      }});
+    }}
+
+    function selectConsoleNodeFromSyntax(rawNodeId) {{
+      const nodeId = normalizeNodeId(rawNodeId || "");
+      if (!isSelectableNodeId(nodeId)) return false;
+      if (typeof selectNode === "function") {{
+        selectNode(nodeId, true, false);
+      }} else {{
+        selectedNodeId = nodeId;
+        persistSelection();
+        highlightNodeSelection("", nodeId);
+      }}
+      if (typeof renderChatNodeNavigatorList === "function" && latestState) {{
+        renderChatNodeNavigatorList(latestState);
+      }}
+      highlightNodeSelection("", nodeId);
+      window.requestAnimationFrame(() => {{
+        if (typeof chatNodeNavigatorFindRowForNodeId === "function") {{
+          const located = chatNodeNavigatorFindRowForNodeId(nodeId);
+          if (located && located.rowEl instanceof HTMLElement) {{
+            if (typeof noteChatNodeNavigatorProgrammaticScrollReset === "function") {{
+              noteChatNodeNavigatorProgrammaticScrollReset(420);
+            }}
+            located.rowEl.scrollIntoView({{ block: "nearest", inline: "nearest" }});
+            return;
+          }}
+        }}
+        if (typeof scrollSelectionIntoView === "function") {{
+          scrollSelectionIntoView();
+        }}
+      }});
+      return true;
+    }}
+
+    function getConsoleFullscreenTarget() {{
+      const target = document.getElementById("console-terminal-screen");
+      return target instanceof HTMLElement ? target : null;
+    }}
+
+    function getConsoleActiveFullscreenElement() {{
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }}
+
+    function isConsoleFullscreenActive(target = getConsoleFullscreenTarget()) {{
+      const fullscreenElement = getConsoleActiveFullscreenElement();
+      return !!(target instanceof HTMLElement && fullscreenElement === target);
+    }}
+
+    function consoleFullscreenSupported(target = getConsoleFullscreenTarget()) {{
+      if (!(target instanceof HTMLElement)) return false;
+      const canRequest = (
+        typeof target.requestFullscreen === "function"
+        || typeof target.webkitRequestFullscreen === "function"
+      );
+      const documentAllowsFullscreen = (
+        document.fullscreenEnabled !== false
+        && document.webkitFullscreenEnabled !== false
+      );
+      return canRequest && documentAllowsFullscreen;
+    }}
+
+    function updateConsoleFullscreenControl(viewName = activeLayoutView) {{
+      const btn = document.getElementById("console-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      const target = getConsoleFullscreenTarget();
+      const supported = consoleFullscreenSupported(target);
+      const active = isConsoleFullscreenActive(target);
+      const normalizedView = (typeof normalizeLayoutView === "function")
+        ? normalizeLayoutView(viewName)
+        : String(viewName || "").trim().toLowerCase();
+      const showControl = supported && (active || normalizedView === "console");
+      btn.hidden = !showControl;
+      btn.disabled = !supported;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      const label = active ? "Exit full screen console" : "Enter full screen console";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      if (target instanceof HTMLElement) {{
+        target.classList.toggle("is-fullscreen", active);
+      }}
+    }}
+
+    function requestConsoleFullscreenResize() {{
+      scheduleConsoleTerminalScreenFillHeight();
+      const pre = document.getElementById("live-console");
+      if (pre instanceof HTMLElement) {{
+        window.requestAnimationFrame(() => {{
+          if (typeof applyConsoleBottomAnchor === "function") {{
+            applyConsoleBottomAnchor(pre);
+          }}
+          if (typeof applyConsoleAutoscroll === "function") {{
+            applyConsoleAutoscroll(pre, false);
+          }}
+          if (typeof scheduleConsoleAnchorRefresh === "function") {{
+            scheduleConsoleAnchorRefresh(pre, false);
+          }}
+        }});
+      }}
+      if (typeof renderConsoleBuffer === "function") {{
+        renderConsoleBuffer(false);
+      }}
+      if (activeLayoutView === "console" && typeof focusConsoleCommandInput === "function") {{
+        focusConsoleCommandInput(false);
+      }}
+    }}
+
+    async function toggleConsoleFullscreen() {{
+      const target = getConsoleFullscreenTarget();
+      if (!(target instanceof HTMLElement) || !consoleFullscreenSupported(target)) return;
+      try {{
+        if (isConsoleFullscreenActive(target)) {{
+          if (typeof document.exitFullscreen === "function") {{
+            await document.exitFullscreen();
+          }} else if (typeof document.webkitExitFullscreen === "function") {{
+            await document.webkitExitFullscreen();
+          }}
+        }} else if (typeof target.requestFullscreen === "function") {{
+          await target.requestFullscreen();
+        }} else if (typeof target.webkitRequestFullscreen === "function") {{
+          await target.webkitRequestFullscreen();
+        }}
+      }} catch (reason) {{
+        console.warn("Unable to toggle console fullscreen", reason);
+      }} finally {{
+        updateConsoleFullscreenControl();
+        requestConsoleFullscreenResize();
+      }}
+    }}
+
+    function bindConsoleFullscreenControl() {{
+      const btn = document.getElementById("console-fullscreen-toggle-btn");
+      if (!(btn instanceof HTMLButtonElement)) return;
+      if (btn.dataset.bound !== "1") {{
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", (ev) => {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          void toggleConsoleFullscreen();
+        }});
+      }}
+      if (document.documentElement && document.documentElement.dataset.consoleFullscreenBound !== "1") {{
+        document.documentElement.dataset.consoleFullscreenBound = "1";
+        document.addEventListener("fullscreenchange", () => {{
+          updateConsoleFullscreenControl();
+          requestConsoleFullscreenResize();
+        }});
+        document.addEventListener("webkitfullscreenchange", () => {{
+          updateConsoleFullscreenControl();
+          requestConsoleFullscreenResize();
+        }});
+      }}
+      updateConsoleFullscreenControl();
+    }}
+
     function bindConsoleControls() {{
       ensureConsoleCommandsRegistered();
       bindConsoleDropdownHotkey();
+      bindConsoleFullscreenControl();
       bindConsoleCommandPaletteControls();
+      bindConsoleAutocompleteMenuControls();
       const pre = document.getElementById("live-console");
       if (pre instanceof HTMLElement && pre.dataset.scrollBound !== "1") {{
         pre.dataset.scrollBound = "1";
@@ -583,6 +772,18 @@
           if (consoleRenderDeferred) {{
             renderConsoleBuffer(false);
           }}
+        }});
+        pre.addEventListener("click", (ev) => {{
+          const target = ev.target;
+          if (!(target instanceof Element)) return;
+          const nodeHit = target.closest(".console-syntax-node[data-node-id]");
+          if (!(nodeHit instanceof HTMLElement) || !pre.contains(nodeHit)) return;
+          const selection = window.getSelection ? window.getSelection() : null;
+          if (String(selection ? selection.toString() : "").trim()) return;
+          const nodeId = normalizeNodeId(nodeHit.dataset.nodeId || nodeHit.textContent || "");
+          if (!selectConsoleNodeFromSyntax(nodeId)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
         }});
       }}
       if (
@@ -730,10 +931,48 @@
             resetInputAfterInterrupt();
             return;
           }}
+          if (ev.key === "Escape" && isConsoleAutocompleteMenuOpen()) {{
+            ev.preventDefault();
+            resetConsoleAutocompleteState();
+            renderConsolePromptBuffer(false);
+            return;
+          }}
+          if (ev.key === "ArrowDown" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isConsoleAutocompleteMenuOpen()) {{
+            ev.preventDefault();
+            moveConsoleAutocompleteMenuSelection(1);
+            return;
+          }}
+          if (ev.key === "ArrowUp" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isConsoleAutocompleteMenuOpen()) {{
+            ev.preventDefault();
+            moveConsoleAutocompleteMenuSelection(-1);
+            return;
+          }}
+          if (ev.key === "PageDown" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isConsoleAutocompleteMenuOpen()) {{
+            ev.preventDefault();
+            moveConsoleAutocompleteMenuSelection(6);
+            return;
+          }}
+          if (ev.key === "PageUp" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && isConsoleAutocompleteMenuOpen()) {{
+            ev.preventDefault();
+            moveConsoleAutocompleteMenuSelection(-6);
+            return;
+          }}
           if (ev.key === "Tab" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
             ev.preventDefault();
+            if (isConsoleAutocompleteMenuOpen() && applyConsoleAutocompleteMenuSelection(input, latestState)) {{
+              return;
+            }}
             handleConsoleTabAutocomplete(input, latestState, ev.shiftKey);
             return;
+          }}
+          if (ev.key === "ArrowRight" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+            const caret = Math.max(0, Math.trunc(Number(input.selectionStart) || 0));
+            const selectionEnd = Math.max(0, Math.trunc(Number(input.selectionEnd) || 0));
+            const valueLength = String(input.value || "").length;
+            if (caret === selectionEnd && caret === valueLength && acceptConsoleAutocompleteGhost(input, latestState)) {{
+              ev.preventDefault();
+              return;
+            }}
           }}
           if (ev.key === "Enter" && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
             ev.preventDefault();
@@ -848,10 +1087,13 @@
       if (consoleLiveModeActive) {{
         const packets = Array.isArray(traffic && traffic.recent_packets) ? traffic.recent_packets : [];
         const verbosityLevel = Math.max(0, Math.min(4, Number(consoleLiveVerbosity) || 0));
+        const filterText = String(consoleLiveFilterText || "").trim();
+        const filterSpec = consoleLiveFilterSpec || filterText;
         const layerSignature = formatConsoleLiveLayerLabel(consoleLiveLayers)
           .replace(/\s+/g, "")
           .toLowerCase();
-        const viewSignature = `v${{verbosityLevel}}|${{layerSignature || "legacy"}}`;
+        const filterSignature = consoleLiveFilterSignature(filterSpec);
+        const viewSignature = `v${{verbosityLevel}}|${{layerSignature || "legacy"}}|${{filterSignature}}`;
         for (const entry of packets) {{
           const key = packetConsoleKey(entry);
           const summary = entry && entry.summary && typeof entry.summary === "object" ? entry.summary : {{}};
@@ -861,6 +1103,9 @@
             : Date.now();
           const lines = formatConsoleLine(entry, consoleLiveVerbosity);
           const lineList = Array.isArray(lines) ? lines : [String(lines == null ? "" : lines)];
+          if (!consoleLiveEntryMatchesFilter(entry, lineList, filterSpec)) {{
+            continue;
+          }}
           lineList.forEach((line, index) => {{
             appendConsoleLine(`${{key}}|${{viewSignature}}|${{index}}`, line, packetMs);
           }});

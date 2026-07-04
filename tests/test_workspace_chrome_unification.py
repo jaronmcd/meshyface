@@ -1230,13 +1230,44 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
 
 
 def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
     css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
     body_section = css.split(".layout.view-console .console .body {", 1)[1].split("}", 1)[0]
     light_screen_section = css.split("\n    .console-terminal-screen {", 1)[1].split("}", 1)[0]
+    light_scanline_section = css.split(".console-terminal-screen::before {", 1)[1].split("}", 1)[0]
+    light_glass_section = css.split(".console-terminal-screen::after {", 1)[1].split("}", 1)[0]
+    live_console_section = css.split("\n    #live-console {", 1)[1].split("}", 1)[0]
+    fullscreen_section = css.split(".console-terminal-screen:fullscreen {", 1)[1].split("}", 1)[0]
+    console_fullscreen_btn_section = css.split(".console-fullscreen-toggle-btn {", 1)[1].split("}", 1)[0]
+    console_fullscreen_hover_section = css.split(
+        ".console-fullscreen-toggle-btn:hover,\n    .console-fullscreen-toggle-btn:focus-visible {",
+        1,
+    )[1].split("}", 1)[0]
     dark_screen_section = css.split("[data-theme=\"dark\"] .console-terminal-screen {", 1)[1].split("}", 1)[0]
-    dark_overlay_section = css.split("[data-theme=\"dark\"] .console-terminal-screen::before {", 1)[1].split("}", 1)[0]
+    dark_scanline_section = css.split("[data-theme=\"dark\"] .console-terminal-screen::before {", 1)[1].split("}", 1)[0]
+    dark_glass_section = css.split("[data-theme=\"dark\"] .console-terminal-screen::after {", 1)[1].split("}", 1)[0]
+    dark_fullscreen_btn_section = css.split("[data-theme=\"dark\"] .console-fullscreen-toggle-btn {", 1)[1].split("}", 1)[0]
     dark_live_console_section = css.split("[data-theme=\"dark\"] #live-console {", 1)[1].split("}", 1)[0]
 
+    assert 'id="console-fullscreen-toggle-btn"' in html
+    assert 'class="map-fullscreen-toggle-btn console-fullscreen-toggle-btn"' in html
+    assert 'aria-label="Enter full screen console"' in html
     assert ".layout.view-console .console .body {" in css
     assert "background: transparent;" in body_section
     assert "padding: 0;" in body_section
@@ -1247,13 +1278,61 @@ def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     assert "var(--surface-tint-bg-soft," in light_screen_section
     assert "var(--surface-tint-bg-alt," in light_screen_section
     assert "var(--surface-tint-bg," in light_screen_section
+    assert "rgba(255, 255, 255, 0.5)" in light_screen_section
+    assert "white 6%" in light_screen_section
+    assert "white 12%" in light_screen_section
+    assert "black 28%" not in light_screen_section
+    assert "black 36%" not in light_screen_section
+    assert "rgba(255, 255, 255, 0.58)" not in light_screen_section
+    assert "repeating-linear-gradient" in light_scanline_section
+    assert "rgba(255, 255, 255, 0.1)" in light_scanline_section
+    assert "rgba(0, 0, 0, 0.08)" in light_scanline_section
+    assert "transparent 6px" in light_scanline_section
+    assert "opacity: 0.22;" in light_scanline_section
+    assert "z-index: 1;" in light_scanline_section
+    assert "mix-blend-mode: normal;" in light_scanline_section
+    assert "ellipse at center" in light_glass_section
+    assert "linear-gradient(" in light_glass_section
+    assert "circle at 22% 0%" in light_glass_section
+    assert "z-index: 2;" in light_glass_section
+    assert "opacity: 0.58;" in light_glass_section
+    assert "mix-blend-mode: soft-light;" in light_glass_section
+    assert "position: relative;" in live_console_section
+    assert "z-index: 0;" in live_console_section
+    assert "text-shadow:" in live_console_section
+    assert "0 0 6px" in live_console_section
+    assert "height: 100vh !important;" in fullscreen_section
+    assert "border-radius: 0;" in fullscreen_section
+    assert "position: absolute;" in console_fullscreen_btn_section
+    assert "top: 10px;" in console_fullscreen_btn_section
+    assert "right: 10px;" in console_fullscreen_btn_section
+    assert "opacity: 0;" in console_fullscreen_btn_section
+    assert "opacity: 1;" in console_fullscreen_hover_section
     assert "var(--surface-tint-border)" in dark_screen_section
     assert "var(--surface-tint-bg)" in dark_screen_section
     assert "var(--surface-tint-bg-alt)" in dark_screen_section
     assert "var(--surface-tint-color)" in dark_screen_section
+    assert "black 54%" in dark_screen_section
+    assert "black 58%" in dark_screen_section
+    assert "var(--surface-tint-color) 8%" in dark_screen_section
     assert "rgba(83, 170, 112, 0.09)" not in dark_screen_section
-    assert "var(--surface-tint-border)" in dark_overlay_section
+    assert "repeating-linear-gradient" in dark_scanline_section
+    assert "rgba(255, 255, 255, 0.08)" in dark_scanline_section
+    assert "rgba(0, 0, 0, 0.16)" in dark_scanline_section
+    assert "transparent 6px" in dark_scanline_section
+    assert "opacity: 0.24;" in dark_scanline_section
+    assert "rgba(0, 0, 0, 0.32)" in dark_glass_section
+    assert "circle at 24% 0%" in dark_glass_section
+    assert "opacity: 0.74;" in dark_glass_section
+    assert "var(--workspace-shell-shadow)" in dark_fullscreen_btn_section
     assert "var(--surface-tint-text)" in dark_live_console_section
+    assert "text-shadow:" in dark_live_console_section
+    assert "0 0 16px" in dark_live_console_section
+    assert "function bindConsoleFullscreenControl()" in js
+    assert "function toggleConsoleFullscreen()" in js
+    assert 'document.getElementById("console-fullscreen-toggle-btn")' in js
+    assert 'document.documentElement.dataset.consoleFullscreenBound = "1";' in js
+    assert 'updateConsoleFullscreenControl(next);' in js
 
 
 def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
