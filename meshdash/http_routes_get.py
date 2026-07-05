@@ -35,6 +35,12 @@ from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardGetRouteDependencies
 from .http_responses import _gzip_if_accepted, _send_no_store_headers
 from .offline_atlas import load_offline_atlas_payload as _load_offline_atlas_payload_helper
+from .revision import (
+    build_revision_label as _build_revision_label_helper,
+    build_revision_ref as _build_revision_ref_helper,
+    build_revision_title as _build_revision_title_helper,
+    normalize_pr_number as _normalize_pr_number_helper,
+)
 from .helpers import to_int as _to_int_helper
 
 
@@ -271,16 +277,17 @@ def _build_version_payload(state_payload: object) -> dict[str, object]:
     revision_map = revision if isinstance(revision, Mapping) else {}
     version = str(revision_map.get("version") or "0.0.0")
     commit = str(revision_map.get("commit") or "nogit")
-    label = str(revision_map.get("label") or f"Rev: v{version} ({commit})")
-    title = str(
-        revision_map.get("title")
-        or f"Dashboard revision: version {version}, commit {commit}"
-    )
+    pr_number = _normalize_pr_number_helper(revision_map.get("pr_number"))
+    build_ref = str(revision_map.get("build_ref") or _build_revision_ref_helper(commit, pr_number))
+    label = str(revision_map.get("label") or _build_revision_label_helper(build_ref))
+    title = str(revision_map.get("title") or _build_revision_title_helper(version, commit, build_ref))
     deploy_payload_hash = str(os.environ.get("MESH_DASH_DEPLOY_PAYLOAD_HASH") or "").strip()
     return {
         "ok": True,
         "version": version,
         "commit": commit,
+        "build_ref": build_ref,
+        "pr_number": pr_number or None,
         "label": label,
         "title": title,
         "deploy_payload_hash": deploy_payload_hash or None,

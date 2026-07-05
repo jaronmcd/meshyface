@@ -213,6 +213,7 @@ def _revision_info() -> RevisionInfo:
         default_version=DEFAULT_APP_VERSION,
         unknown_git_commit=UNKNOWN_GIT_COMMIT,
         detect_commit=_detect_git_commit,
+        pr_number_raw=os.environ.get("MESH_DASH_PR_NUMBER", ""),
     )
 
 
