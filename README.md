@@ -633,6 +633,12 @@ Related environment variables:
 - `MESH_DASH_GAMES_ENABLE`
 - `MESH_DASH_VERSION`
 - `MESH_DASH_GIT_COMMIT`
+- `MESH_DASH_PR_NUMBER`
+
+Runtime revision labels are generated from the current git commit. Set
+`MESH_DASH_PR_NUMBER` in PR preview deployments to show labels like
+`Rev: PR #43 abc1234`; `MESH_DASH_VERSION` remains a release/package version
+override rather than a per-PR bump requirement.
 
 ### History and analytics
 

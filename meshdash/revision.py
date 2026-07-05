@@ -9,6 +9,8 @@ class RevisionInfo:
     commit: str
     label: str
     title: str
+    build_ref: str = ""
+    pr_number: str = ""
 
     def as_dict(self) -> dict[str, str]:
         return {
@@ -16,7 +18,44 @@ class RevisionInfo:
             "commit": self.commit,
             "label": self.label,
             "title": self.title,
+            "build_ref": self.build_ref,
+            "pr_number": self.pr_number,
         }
+
+
+def short_commit_token(commit: object, length: int = 7) -> str:
+    text = sanitize_revision_token(commit, "nogit")
+    if text == "nogit":
+        return text
+    clean_length = max(1, int(length or 7))
+    return text[:clean_length]
+
+
+def normalize_pr_number(raw: object) -> str:
+    text = str(raw or "").strip()
+    if text.startswith("#"):
+        text = text[1:].strip()
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return digits[:12]
+
+
+def build_revision_ref(commit: object, pr_number: object = "") -> str:
+    short_commit = short_commit_token(commit)
+    clean_pr = normalize_pr_number(pr_number)
+    if clean_pr:
+        return f"PR #{clean_pr} {short_commit}"
+    return short_commit
+
+
+def build_revision_label(build_ref: object) -> str:
+    return f"Rev: {str(build_ref or 'nogit')}"
+
+
+def build_revision_title(version: object, commit: object, build_ref: object) -> str:
+    clean_version = sanitize_revision_token(version, "0.0.0")
+    clean_commit = sanitize_revision_token(commit, "nogit")
+    clean_ref = str(build_ref or short_commit_token(clean_commit))
+    return f"Dashboard revision: {clean_ref}, version {clean_version}, commit {clean_commit}"
 
 
 def coerce_revision_info(value: RevisionInfo | Mapping[str, object]) -> RevisionInfo:
@@ -27,15 +66,17 @@ def coerce_revision_info(value: RevisionInfo | Mapping[str, object]) -> Revision
 
     version = str(value.get("version") or "0.0.0")
     commit = str(value.get("commit") or "nogit")
-    label = str(value.get("label") or f"Rev: v{version} ({commit})")
-    title = str(
-        value.get("title") or f"Dashboard revision: version {version}, commit {commit}"
-    )
+    pr_number = normalize_pr_number(value.get("pr_number") or value.get("pull_request"))
+    build_ref = str(value.get("build_ref") or build_revision_ref(commit, pr_number))
+    label = str(value.get("label") or build_revision_label(build_ref))
+    title = str(value.get("title") or build_revision_title(version, commit, build_ref))
     return RevisionInfo(
         version=version,
         commit=commit,
         label=label,
         title=title,
+        build_ref=build_ref,
+        pr_number=pr_number,
     )
 
 
@@ -86,6 +127,7 @@ def revision_info(
     default_version: str,
     unknown_git_commit: str,
     detect_commit: Callable[[], Optional[str]],
+    pr_number_raw: object = "",
     sanitize_token: Callable[[object, str], str] = sanitize_revision_token,
 ) -> RevisionInfo:
     version = sanitize_token(version_raw or default_version, "0.0.0")
@@ -93,12 +135,16 @@ def revision_info(
         version = version[1:] or "0.0.0"
 
     commit = detect_commit() or unknown_git_commit
-    label = f"Rev: v{version} ({commit})"
-    title = f"Dashboard revision: version {version}, commit {commit}"
+    pr_number = normalize_pr_number(pr_number_raw)
+    build_ref = build_revision_ref(commit, pr_number)
+    label = build_revision_label(build_ref)
+    title = build_revision_title(version, commit, build_ref)
 
     return RevisionInfo(
         version=version,
         commit=commit,
         label=label,
         title=title,
+        build_ref=build_ref,
+        pr_number=pr_number,
     )

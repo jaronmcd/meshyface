@@ -51,7 +51,9 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             "radio_connection": {"state": "connected"},
             "revision": {
                 "version": "1.2.3",
-                "commit": "abc123",
+                "commit": "abc123456789",
+                "build_ref": "PR #42 abc1234",
+                "pr_number": "42",
             },
         },
         "generated_at": 12345,
@@ -103,7 +105,10 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
     assert deps.recorder.html == [("<html>dashboard</html>", True)]
     assert deps.recorder.json[0][0] == 200
     assert deps.recorder.json[0][1]["version"] == "1.2.3"
-    assert deps.recorder.json[0][1]["commit"] == "abc123"
+    assert deps.recorder.json[0][1]["commit"] == "abc123456789"
+    assert deps.recorder.json[0][1]["build_ref"] == "PR #42 abc1234"
+    assert deps.recorder.json[0][1]["pr_number"] == "42"
+    assert deps.recorder.json[0][1]["label"] == "Rev: PR #42 abc1234"
     assert deps.recorder.json[1][0] == 200
     assert deps.recorder.json[1][1]["status"] == "ok"
     assert deps.recorder.json[1][1]["node_count"] == 3
@@ -126,6 +131,22 @@ def test_dashboard_get_reports_version_and_health_errors() -> None:
     assert "state unavailable" in deps.recorder.json[0][1]["error"]
     assert deps.recorder.json[1][0] == 503
     assert deps.recorder.json[1][1]["status"] == "error"
+
+
+def test_dashboard_get_version_falls_back_to_short_commit_ref() -> None:
+    deps = _make_deps()
+    deps.state_fn.payload["summary"]["revision"] = {  # type: ignore[index]
+        "version": "1.2.3",
+        "commit": "fedcba987654",
+        "pr_number": "#77",
+    }
+
+    handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
+
+    assert deps.recorder.json[0][0] == 200
+    assert deps.recorder.json[0][1]["build_ref"] == "PR #77 fedcba9"
+    assert deps.recorder.json[0][1]["pr_number"] == "77"
+    assert deps.recorder.json[0][1]["label"] == "Rev: PR #77 fedcba9"
 
 
 def test_dashboard_get_serves_system_update_status(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -7,10 +7,13 @@ from meshdash.helpers_disk import disk_space_info
 from meshdash.helpers_emoji import emoji_codepoint_from_any, emoji_from_codepoint, normalize_single_emoji
 from meshdash.revision import (
     RevisionInfo,
+    build_revision_ref,
     coerce_revision_info,
     detect_git_commit,
+    normalize_pr_number,
     revision_info,
     sanitize_revision_token,
+    short_commit_token,
 )
 from meshdash.runtime_lifecycle import (
     close_runtime_resources,
@@ -23,11 +26,25 @@ from meshdash.runtime_lifecycle import (
 def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
     info = RevisionInfo(version="1.2.3", commit="abc", label="label", title="title")
     assert coerce_revision_info(info) is info
-    assert info.as_dict() == {"version": "1.2.3", "commit": "abc", "label": "label", "title": "title"}
-    assert coerce_revision_info({"version": "2", "commit": "def"}).label == "Rev: v2 (def)"
+    assert info.as_dict() == {
+        "version": "1.2.3",
+        "commit": "abc",
+        "label": "label",
+        "title": "title",
+        "build_ref": "",
+        "pr_number": "",
+    }
+    coerced = coerce_revision_info({"version": "2", "commit": "def123456789"})
+    assert coerced.label == "Rev: def1234"
+    assert coerced.build_ref == "def1234"
+    assert coerced.pr_number == ""
     assert sanitize_revision_token("", "fallback") == "fallback"
     assert sanitize_revision_token(" bad token!* ", "fallback") == "badtoken"
     assert sanitize_revision_token(" !!! ", "fallback") == "fallback"
+    assert short_commit_token("abcdef123456") == "abcdef1"
+    assert normalize_pr_number("#42") == "42"
+    assert normalize_pr_number("pull/123abc") == "123"
+    assert build_revision_ref("abcdef123456", "42") == "PR #42 abcdef1"
     assert detect_git_commit(" explicit! ", "/repo", "/repo", "nogit") == "explicit"
 
     calls: list[str] = []
@@ -50,9 +67,19 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
     )
     assert detect_git_commit("", "/repo", "/repo", "nogit") is None
 
-    built = revision_info("v3.0", "0.0.0", "nogit", detect_commit=lambda: "abc123")
+    built = revision_info(
+        "v3.0",
+        "0.0.0",
+        "nogit",
+        detect_commit=lambda: "abc123456789",
+        pr_number_raw="#43",
+    )
     assert built.version == "3.0"
-    assert built.label == "Rev: v3.0 (abc123)"
+    assert built.commit == "abc123456789"
+    assert built.pr_number == "43"
+    assert built.build_ref == "PR #43 abc1234"
+    assert built.label == "Rev: PR #43 abc1234"
+    assert "version 3.0" in built.title
     try:
         coerce_revision_info("bad")  # type: ignore[arg-type]
     except TypeError as exc:
