@@ -16,7 +16,9 @@ def _normalize_session_id(value: object) -> str:
 
 
 def _session_peer_id(session_id: str) -> str:
-    digest = hashlib.sha1(str(session_id).encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(
+        str(session_id).encode("utf-8"), usedforsecurity=False
+    ).hexdigest()
     return f"!{digest[:_STANDALONE_ZORK_SESSION_PEER_HEX_CHARS]}"
 
 

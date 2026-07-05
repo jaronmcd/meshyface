@@ -370,7 +370,7 @@ def _queueable_history_messages(
 
 def _build_snapshot_transfer_id(request_token: object, board_id: object, host_id: object) -> str:
     seed = f"{request_token}|{board_id}|{host_id}|{time.time_ns()}"
-    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(seed.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"bbs{digest[:15]}"
 
 
