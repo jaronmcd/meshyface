@@ -11,7 +11,7 @@
           if (isCanonicalNodeId(localNodeId) && peerId === localNodeId) continue;
           const snapshot = resolveChatNodeFreshness(peerId);
           const node = snapshot.node;
-          const name = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+          const name = preferredChatNodeName(peerId, node, snapshot.historyCaps, peerId);
           const existing = participants.get(peerId);
           if (!existing) {{
             participants.set(peerId, {{
@@ -459,7 +459,13 @@
         }}
 
         const node = nodesById.get(peerId);
-        const peerName = preferredNodeName(node) || nodeNameCache.get(peerId) || peerId;
+        const peerSnapshot = resolveChatNodeFreshness(peerId);
+        const peerName = preferredChatNodeName(
+          peerId,
+          node,
+          peerSnapshot.historyCaps,
+          peerId
+        );
         const bucketRaw = directMessagesByPeer.get(peerId);
         const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
         const messages = bucket.length > chatFeedMaxEntries
