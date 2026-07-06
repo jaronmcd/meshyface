@@ -9442,6 +9442,112 @@
       flex: 0 0 auto;
       min-width: 0;
     }}
+    .settings-maps-pack-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }}
+    .settings-maps-pack-empty {{
+      font-size: 11px;
+      color: #53665a;
+    }}
+    .settings-maps-pack-card {{
+      border: 1px solid #c8d7c4;
+      border-radius: 10px;
+      background: #f8fbf7;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }}
+    .settings-maps-pack-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }}
+    .settings-maps-pack-name {{
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f2018;
+    }}
+    .settings-maps-pack-state {{
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #c8d7c4;
+      background: #eef5ec;
+      color: #53665a;
+      white-space: nowrap;
+    }}
+    .settings-maps-pack-state.is-installed {{
+      border-color: #8fbb96;
+      background: #e2f3e6;
+      color: #1f5c31;
+    }}
+    .settings-maps-pack-state.is-downloading,
+    .settings-maps-pack-state.is-installing {{
+      border-color: #d9b45f;
+      background: #fff8df;
+      color: #5d4100;
+    }}
+    .settings-maps-pack-state.is-error {{
+      border-color: #d58787;
+      background: #fff0ef;
+      color: #7b1f1f;
+    }}
+    .settings-maps-pack-desc {{
+      font-size: 11px;
+      line-height: 1.4;
+      color: #53665a;
+    }}
+    .settings-maps-pack-status {{
+      font-size: 11px;
+      color: #53665a;
+      overflow-wrap: anywhere;
+    }}
+    .settings-maps-pack-cmd {{
+      display: block;
+      font-size: 11px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #c8d4cc;
+      background: #f2f6f3;
+      color: #2e4038;
+      overflow-wrap: anywhere;
+      user-select: all;
+    }}
+    .settings-maps-pack-error {{
+      color: #7b1f1f;
+    }}
+    .settings-maps-progress {{
+      height: 6px;
+      border-radius: 4px;
+      background: rgba(83, 102, 90, 0.18);
+      overflow: hidden;
+    }}
+    .settings-maps-progress-fill {{
+      height: 100%;
+      width: 0;
+      border-radius: 4px;
+      background: #5f8cbc;
+      transition: width 0.3s ease;
+    }}
+    .settings-maps-pack-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .settings-maps-layers-title {{
+      margin: 10px 0 2px;
+      font-size: 12px;
+    }}
+    .settings-map-layer-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 4px 14px;
+    }}
     .settings-update-status {{
       min-height: 16px;
       color: #53665a;

@@ -152,6 +152,7 @@
         || key === "tickers"
         || key === "nodes"
         || key === "lists"
+        || key === "maps"
         || key === "appearance"
         || key === "update"
         || key === "database"
@@ -212,6 +213,9 @@
           source: readSettingsPositionSourceSelection(),
           recenter: activeLayoutView === "settings" && settingsFixedMapPanelVisible,
         }});
+      }} else if (next === "maps") {{
+        renderMapsLayerToggles();
+        void refreshMapsPackStatus();
       }} else if (next === "channels") {{
         if (latestState) {{
           renderChannelsView(latestState);

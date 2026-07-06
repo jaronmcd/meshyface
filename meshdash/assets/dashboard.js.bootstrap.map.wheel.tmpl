@@ -331,6 +331,7 @@
         syncSignalHeatmapLayer(nodes, activeLayoutView === "saved", {{ bypassFade: true }});
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();
+          syncMapPackLayers();
         }}
         endMapViewportInteraction();
       }});
@@ -341,6 +342,7 @@
         }}
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();
+          syncMapPackLayers();
         }}
         endMapViewportInteraction();
       }});

@@ -98,6 +98,9 @@
         description: String(commandDef.description || "").trim(),
         supportsVerbosity: !!commandDef.supportsVerbosity,
         hiddenFromHelp: name.startsWith("--") || commandDef.hiddenFromHelp === true,
+        paramGhost: typeof commandDef.paramGhost === "function"
+          ? commandDef.paramGhost
+          : null,
         run,
       }});
     }}
@@ -480,6 +483,31 @@
       }}
       if (tokenIndex === 1 && consoleNodeTargetAutocompleteCommands.has(commandName)) {{
         return resolveConsoleNodeCompletionCandidates(rawToken, state, {{ preferSelected: true }});
+      }}
+      if (tokenIndex >= 1 && !leadingSlash) {{
+        const def = consoleCommandRegistry.get(commandName);
+        if (def && typeof def.paramGhost === "function") {{
+          let suggestions = [];
+          try {{
+            const raw = def.paramGhost(state, ctx);
+            suggestions = Array.isArray(raw) ? raw : [raw];
+          }} catch (_err) {{
+            suggestions = [];
+          }}
+          const tokenLower = rawToken.toLowerCase();
+          const cleaned = suggestions
+            .map((item) => String(item == null ? "" : item).trim())
+            .filter(Boolean)
+            .filter((item) => !tokenLower || item.toLowerCase().startsWith(tokenLower));
+          if (cleaned.length) {{
+            return cleaned.map((item) => ({{
+              insertText: item,
+              displayText: item,
+              ghostText: item,
+              description: "suggested parameter",
+            }}));
+          }}
+        }}
       }}
       return [];
     }}

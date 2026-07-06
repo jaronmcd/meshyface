@@ -2500,6 +2500,50 @@
     [data-theme="dark"] .settings-update-status {{
       color: var(--workspace-shell-text-muted);
     }}
+    [data-theme="dark"] .settings-maps-pack-card {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, transparent);
+    }}
+    [data-theme="dark"] .settings-maps-pack-empty,
+    [data-theme="dark"] .settings-maps-pack-desc,
+    [data-theme="dark"] .settings-maps-pack-status {{
+      color: var(--workspace-shell-text-muted);
+    }}
+    [data-theme="dark"] .settings-maps-pack-name {{
+      color: var(--workspace-shell-text, #e6ebe7);
+    }}
+    [data-theme="dark"] .settings-maps-pack-state {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg) 80%, transparent);
+      color: var(--workspace-shell-text-muted);
+    }}
+    [data-theme="dark"] .settings-maps-pack-state.is-installed {{
+      border-color: #6fae7d;
+      background: #173521;
+      color: #a9e2b6;
+    }}
+    [data-theme="dark"] .settings-maps-pack-state.is-downloading,
+    [data-theme="dark"] .settings-maps-pack-state.is-installing {{
+      border-color: #e2be6b;
+      background: #46310b;
+      color: #ffe4a3;
+    }}
+    [data-theme="dark"] .settings-maps-pack-state.is-error {{
+      border-color: #db8a8a;
+      background: #4a1717;
+      color: #ffd0cd;
+    }}
+    [data-theme="dark"] .settings-maps-pack-error {{
+      color: #ffd0cd;
+    }}
+    [data-theme="dark"] .settings-maps-pack-cmd {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg) 80%, transparent);
+      color: var(--workspace-shell-text, #e6ebe7);
+    }}
+    [data-theme="dark"] .settings-maps-progress {{
+      background: rgba(255, 255, 255, 0.12);
+    }}
     [data-theme="dark"] .settings-update-actions #settings-update-reload.is-restart-required {{
       border-color: color-mix(in srgb, #e2be6b 78%, var(--workspace-shell-border-muted));
       background: color-mix(in srgb, #46310b 62%, var(--workspace-shell-bg-alt));

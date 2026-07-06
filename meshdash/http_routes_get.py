@@ -34,6 +34,11 @@ from .api_theme import (
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardGetRouteDependencies
 from .http_responses import _gzip_if_accepted, _send_no_store_headers
+from .map_packs import (
+    load_map_pack_manifest_payload as _load_map_pack_manifest_payload_helper,
+    map_pack_status_payload as _map_pack_status_payload_helper,
+    read_map_pack_chunk as _read_map_pack_chunk_helper,
+)
 from .offline_atlas import load_offline_atlas_payload as _load_offline_atlas_payload_helper
 from .revision import (
     build_revision_label as _build_revision_label_helper,
@@ -157,6 +162,24 @@ def _write_binary_download_response(
     handler.send_header("Content-Type", str(content_type or "application/octet-stream"))
     _send_no_store_headers(handler)
     handler.send_header("Content-Disposition", f'attachment; filename="{safe_filename}"')
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
+def _write_cacheable_json_bytes_response(
+    handler: DashboardHttpHandler,
+    *,
+    payload: bytes,
+) -> None:
+    payload, content_encoding = _gzip_if_accepted(handler, payload)
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    handler.send_header("Cache-Control", "public, max-age=604800")
+    if content_encoding:
+        handler.send_header("Content-Encoding", content_encoding)
+        handler.send_header("Vary", "Accept-Encoding")
     handler.send_header("X-Content-Type-Options", "nosniff")
     handler.send_header("Content-Length", str(len(payload)))
     handler.end_headers()
@@ -989,6 +1012,43 @@ def handle_dashboard_get(
             payload_obj=_load_offline_atlas_payload_helper(),
             no_store=False,
         )
+        return
+
+    if path == "/api/maps/packs":
+        deps.write_json_response_fn(
+            handler,
+            status_code=200,
+            payload_obj=_map_pack_status_payload_helper(),
+            no_store=True,
+        )
+        return
+
+    if path.startswith("/api/maps/pack/"):
+        remainder = path[len("/api/maps/pack/"):]
+        pack_id, _sep, resource = remainder.partition("/")
+        if resource == "manifest":
+            payload_obj = _load_map_pack_manifest_payload_helper(pack_id)
+            status_code = 200
+            if payload_obj.get("ok") is False:
+                try:
+                    status_code = int(payload_obj.pop("http_status", 404) or 404)
+                except (TypeError, ValueError):
+                    status_code = 404
+            deps.write_json_response_fn(
+                handler,
+                status_code=status_code,
+                payload_obj=payload_obj,
+                no_store=True,
+            )
+            return
+        if resource.startswith("chunks/"):
+            chunk_bytes = _read_map_pack_chunk_helper(pack_id, resource)
+            if chunk_bytes is None:
+                deps.write_text_response_fn(handler, status_code=404, text="Not Found")
+                return
+            _write_cacheable_json_bytes_response(handler, payload=chunk_bytes)
+            return
+        deps.write_text_response_fn(handler, status_code=404, text="Not Found")
         return
 
     if path == "/api/chat/emoji-catalog":

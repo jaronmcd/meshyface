@@ -136,6 +136,23 @@
     const mapOfflineLandmarkCoverageKm = 32;
     const mapOfflineLandmarkMinSpacingPx = 34;
     const mapOfflineLandmarkMaxSpacingPx = 110;
+    const mapPacksStatusEndpoint = "/api/maps/packs";
+    const mapPackBaseEndpoint = "/api/maps/pack";
+    const mapLayerPrefsStorageKey = "meshDashboardMapLayerPrefsV1";
+    const mapPackChunkBudget = 360;
+    const mapPackLayerPrefKeys = [
+      "coastline",
+      "borders",
+      "states",
+      "rivers",
+      "lakes",
+      "urban",
+      "roads",
+      "railroads",
+      "parks",
+      "peaks",
+      "cities",
+    ];
 
     function setMapOfflineAtlasAttributionVisible(active) {{
       const shouldShow = !!active;
