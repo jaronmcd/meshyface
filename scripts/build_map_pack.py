@@ -1350,7 +1350,7 @@ def main() -> int:
         peaks_countries=peaks_countries,
     )
     print(f"pack total: {manifest['total_bytes']} bytes across "
-          f"{sum(len(l['chunks']) for l in manifest['layers'].values())} chunks")
+          f"{sum(len(layer['chunks']) for layer in manifest['layers'].values())} chunks")
     if args.zip is not None:
         write_pack_zip(output_dir, args.zip)
         print(f"wrote {args.zip} ({args.zip.stat().st_size} bytes)")
