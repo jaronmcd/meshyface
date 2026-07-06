@@ -1,0 +1,707 @@
+    function mapLayerPrefDefaults() {{
+      const prefs = {{}};
+      for (const key of mapPackLayerPrefKeys) {{
+        prefs[key] = true;
+      }}
+      return prefs;
+    }}
+
+    function loadMapLayerPrefs() {{
+      if (mapLayerPrefs && typeof mapLayerPrefs === "object") {{
+        return mapLayerPrefs;
+      }}
+      const prefs = mapLayerPrefDefaults();
+      try {{
+        const raw = window.localStorage.getItem(mapLayerPrefsStorageKey);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && typeof parsed === "object") {{
+          for (const key of mapPackLayerPrefKeys) {{
+            if (typeof parsed[key] === "boolean") {{
+              prefs[key] = parsed[key];
+            }}
+          }}
+        }}
+      }} catch (_err) {{
+      }}
+      mapLayerPrefs = prefs;
+      return prefs;
+    }}
+
+    function persistMapLayerPrefs() {{
+      if (!mapLayerPrefs) return;
+      try {{
+        window.localStorage.setItem(mapLayerPrefsStorageKey, JSON.stringify(mapLayerPrefs));
+      }} catch (_err) {{
+      }}
+    }}
+
+    function mapLayerEnabled(key) {{
+      const prefs = loadMapLayerPrefs();
+      return prefs[key] !== false;
+    }}
+
+    function setMapLayerEnabled(key, enabled) {{
+      if (!mapPackLayerPrefKeys.includes(key)) return;
+      const prefs = loadMapLayerPrefs();
+      prefs[key] = !!enabled;
+      persistMapLayerPrefs();
+    }}
+
+    function packLayerStyleFor(layerName, feature) {{
+      if (layerName === "coastline") {{
+        return {{ color: "#5f8cbc", weight: 1.2, opacity: 0.7 }};
+      }}
+      if (layerName === "borders") {{
+        return {{ color: "#6f8fb2", weight: 0.95, opacity: 0.55, dashArray: "3 3" }};
+      }}
+      if (layerName === "states") {{
+        return {{ color: "#5b7da7", weight: 0.8, opacity: 0.6, dashArray: "2 3" }};
+      }}
+      if (layerName === "rivers") {{
+        return {{ color: "#6ca1d4", weight: 1.1, opacity: 0.7 }};
+      }}
+      if (layerName === "lakes") {{
+        return {{
+          color: "#7aa7d3",
+          weight: 0.8,
+          opacity: 0.82,
+          fillColor: "#90b8df",
+          fillOpacity: 0.2,
+        }};
+      }}
+      if (layerName === "urban") {{
+        return {{
+          color: "#4f6f94",
+          weight: 0.5,
+          opacity: 0.35,
+          fillColor: "#5f81aa",
+          fillOpacity: 0.08,
+        }};
+      }}
+      if (layerName === "roads") {{
+        const props = feature && feature.properties ? feature.properties : {{}};
+        if (Number(props.x) === 1) {{
+          return {{ color: "#b08a5a", weight: 1.5, opacity: 0.7 }};
+        }}
+        return {{ color: "#b08a5a", weight: 1.0, opacity: 0.5 }};
+      }}
+      if (layerName === "railroads") {{
+        return {{ color: "#8a93a6", weight: 0.8, opacity: 0.45, dashArray: "4 3" }};
+      }}
+      if (layerName === "parks") {{
+        return {{
+          color: "#5f9a6e",
+          weight: 0.7,
+          opacity: 0.5,
+          fillColor: "#5f9a6e",
+          fillOpacity: 0.14,
+        }};
+      }}
+      return {{ color: "#6f8fb2", weight: 0.9, opacity: 0.5 }};
+    }}
+
+    async function fetchMapPackManifests() {{
+      if (mapPackManifestChecked) {{
+        return mapPackManifests;
+      }}
+      if (mapPackManifestFetchPromise) {{
+        return mapPackManifestFetchPromise;
+      }}
+      mapPackManifestFetchPromise = (async () => {{
+        const manifests = new Map();
+        try {{
+          const statusResp = await fetch(mapPacksStatusEndpoint, {{ cache: "no-store" }});
+          if (!statusResp.ok) {{
+            throw new Error(`API ${{statusResp.status}}`);
+          }}
+          const statusPayload = await statusResp.json();
+          const packs = statusPayload && Array.isArray(statusPayload.packs)
+            ? statusPayload.packs
+            : [];
+          for (const pack of packs) {{
+            if (!pack || typeof pack !== "object" || !pack.installed) continue;
+            const packId = String(pack.id || "");
+            if (!packId) continue;
+            try {{
+              const resp = await fetch(
+                `${{mapPackBaseEndpoint}}/${{packId}}/manifest`,
+                {{ cache: "no-store" }}
+              );
+              if (resp.status === 404) continue;
+              if (!resp.ok) {{
+                throw new Error(`API ${{resp.status}}`);
+              }}
+              const payload = await resp.json();
+              if (!payload || typeof payload !== "object" || payload.ok === false
+                || !payload.layers || typeof payload.layers !== "object") {{
+                continue;
+              }}
+              manifests.set(packId, payload);
+            }} catch (err) {{
+              const msg = err instanceof Error ? err.message : String(err || "unknown error");
+              appendConsoleLine(
+                `map-pack|${{Date.now()}}|${{packId}}|${{msg}}`,
+                `[map pack] manifest ${{packId}} load failed: ${{msg}}`
+              );
+            }}
+          }}
+        }} catch (err) {{
+          const msg = err instanceof Error ? err.message : String(err || "unknown error");
+          appendConsoleLine(
+            `map-pack|${{Date.now()}}|${{msg}}`,
+            `[map pack] status load failed: ${{msg}}`
+          );
+        }} finally {{
+          mapPackManifests = manifests;
+          mapPackManifestChecked = true;
+          mapPackManifestFetchPromise = null;
+        }}
+        return mapPackManifests;
+      }})();
+      return mapPackManifestFetchPromise;
+    }}
+
+    function mapPackGridSpec(manifest) {{
+      const rawCellDeg = Number(manifest && manifest.cell_deg);
+      const cellDeg = Number.isFinite(rawCellDeg) && rawCellDeg > 0 ? rawCellDeg : 15;
+      const cols = Math.max(1, Math.round(360 / cellDeg));
+      const rows = Math.max(1, Math.round(180 / cellDeg));
+      return {{ cellDeg, cols, rows }};
+    }}
+
+    function mapPackViewportCells(spec, padCells) {{
+      const cells = new Set();
+      if (!map || typeof map.getBounds !== "function" || !spec) {{
+        return cells;
+      }}
+      const bounds = map.getBounds();
+      if (!bounds) {{
+        return cells;
+      }}
+      const pad = Number.isFinite(padCells) ? Math.max(0, Math.floor(padCells)) : 1;
+      let colStart = Math.floor((bounds.getWest() + 180) / spec.cellDeg) - pad;
+      let colEnd = Math.floor((bounds.getEast() + 180) / spec.cellDeg) + pad;
+      if (colEnd - colStart + 1 >= spec.cols) {{
+        colStart = 0;
+        colEnd = spec.cols - 1;
+      }}
+      const rowStart = Math.max(0, Math.floor((bounds.getSouth() + 90) / spec.cellDeg) - pad);
+      const rowEnd = Math.min(spec.rows - 1, Math.floor((bounds.getNorth() + 90) / spec.cellDeg) + pad);
+      for (let col = colStart; col <= colEnd; col += 1) {{
+        const wrappedCol = ((col % spec.cols) + spec.cols) % spec.cols;
+        for (let row = rowStart; row <= rowEnd; row += 1) {{
+          cells.add(`c${{wrappedCol}}r${{row}}`);
+        }}
+      }}
+      return cells;
+    }}
+
+    function packLayerZoomActive(layerName, zoom) {{
+      for (const manifest of mapPackManifests.values()) {{
+        const layers = manifest && manifest.layers ? manifest.layers : null;
+        const layer = layers && layers[layerName] ? layers[layerName] : null;
+        if (!layer || typeof layer !== "object") {{
+          continue;
+        }}
+        const minZoom = Number(layer.min_zoom);
+        if (zoom >= (Number.isFinite(minZoom) ? minZoom : 4)) {{
+          return true;
+        }}
+      }}
+      return false;
+    }}
+
+    function packLayerCurrentlyActive(layerName, zoom) {{
+      return !!(
+        mapPackManifests.size > 0
+        && shouldShowOfflineAtlas()
+        && packLayerZoomActive(layerName, zoom)
+        && mapLayerEnabled(layerName)
+      );
+    }}
+
+    function packLayerKind(layerName) {{
+      for (const manifest of mapPackManifests.values()) {{
+        const layers = manifest && manifest.layers ? manifest.layers : null;
+        const layer = layers && layers[layerName] ? layers[layerName] : null;
+        if (layer && typeof layer === "object" && layer.kind) {{
+          return String(layer.kind);
+        }}
+      }}
+      return "";
+    }}
+
+    function packPointLayerNames() {{
+      const names = [];
+      for (const manifest of mapPackManifests.values()) {{
+        const layers = manifest && manifest.layers ? manifest.layers : {{}};
+        for (const layerName of Object.keys(layers)) {{
+          const layer = layers[layerName];
+          if (layer && layer.kind === "point" && !names.includes(layerName)) {{
+            names.push(layerName);
+          }}
+        }}
+      }}
+      return names;
+    }}
+
+    function packAnyPointLayerActive(zoom) {{
+      return packPointLayerNames().some(
+        (layerName) => packLayerCurrentlyActive(layerName, zoom)
+      );
+    }}
+
+    function packPeakRankForElevation(elevation) {{
+      if (elevation >= 3000) return 3;
+      if (elevation >= 1500) return 4;
+      if (elevation >= 800) return 5;
+      if (elevation >= 400) return 6;
+      return 7;
+    }}
+
+    function packPointLabelRow(layerName, props, latlng, chunkKey) {{
+      const name = sanitizeOfflineLabel(props.name, "");
+      if (!name) return null;
+      if (layerName === "cities") {{
+        return {{
+          layerName,
+          name,
+          label: name,
+          rank: parseOfflineCityRank(props.scalerank, 9),
+          weight: parseOfflineCityWeight(props.population, 0),
+          latlng,
+          chunkKey,
+        }};
+      }}
+      const elevation = Math.max(0, Math.trunc(Number(props.elevation) || 0));
+      return {{
+        layerName,
+        name,
+        label: elevation > 0 ? `▲ ${{name}} ${{elevation}}m` : `▲ ${{name}}`,
+        rank: packPeakRankForElevation(elevation),
+        weight: elevation,
+        latlng,
+        chunkKey,
+      }};
+    }}
+
+    function ensureMapPackLayerGroup(layerName) {{
+      let group = mapPackLayerGroups[layerName];
+      if (!group) {{
+        group = L.layerGroup();
+        mapPackLayerGroups[layerName] = group;
+      }}
+      return group;
+    }}
+
+    function packCityMinZoom(rank) {{
+      if (rank <= 0) return 0;
+      if (rank <= 1) return 2;
+      if (rank <= 2) return 4;
+      if (rank <= 3) return 6;
+      if (rank <= 4) return 7;
+      if (rank <= 5) return 8;
+      if (rank <= 6) return 9;
+      return 10;
+    }}
+
+    async function loadMapPackChunk(packId, manifest, layerName, cellId, chunkEntry) {{
+      const key = `${{packId}}/${{layerName}}/${{cellId}}`;
+      if (mapPackLoadedChunks.has(key) || mapPackChunkFetchesInFlight.has(key)) {{
+        return;
+      }}
+      const relPath = chunkEntry && typeof chunkEntry.path === "string" ? chunkEntry.path : "";
+      if (!relPath) {{
+        return;
+      }}
+      mapPackChunkFetchesInFlight.add(key);
+      try {{
+        const version = Number(manifest && manifest.version) || 0;
+        const resp = await fetch(
+          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{version}}`,
+          {{ cache: "force-cache" }}
+        );
+        if (!resp.ok) {{
+          throw new Error(`API ${{resp.status}}`);
+        }}
+        const data = await resp.json();
+        if (!mapPackManifests.has(packId)) {{
+          return;
+        }}
+        const zoomNow = Number(map && typeof map.getZoom === "function" ? map.getZoom() : NaN);
+        if (!packLayerCurrentlyActive(layerName, Number.isFinite(zoomNow) ? zoomNow : 0)
+          || !mapPackViewportCells(mapPackGridSpec(manifest), 2).has(cellId)) {{
+          return;
+        }}
+        const collection = normalizeOfflineAtlasCollection(data);
+        if (packLayerKind(layerName) === "point") {{
+          for (const feature of collection.features) {{
+            if (!feature || typeof feature !== "object") continue;
+            const props = feature.properties && typeof feature.properties === "object"
+              ? feature.properties
+              : {{}};
+            const geometry = feature.geometry && typeof feature.geometry === "object"
+              ? feature.geometry
+              : null;
+            const coords = geometry && Array.isArray(geometry.coordinates)
+              ? geometry.coordinates
+              : null;
+            if (!coords || coords.length < 2) continue;
+            const lon = Number(coords[0]);
+            const lat = Number(coords[1]);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+            const row = packPointLabelRow(layerName, props, L.latLng(lat, lon), key);
+            if (row) {{
+              mapPackCityRows.push(row);
+            }}
+          }}
+          mapPackLoadedChunks.set(key, {{ packId, layerName, cellId }});
+          syncPackCityLabels();
+        }} else {{
+          const leafletLayer = L.geoJSON(collection, {{
+            pane: mapOfflineGridPaneName,
+            interactive: false,
+            style: (feature) => packLayerStyleFor(layerName, feature),
+          }});
+          ensureMapPackLayerGroup(layerName).addLayer(leafletLayer);
+          mapPackLoadedChunks.set(key, {{ packId, layerName, cellId, leafletLayer }});
+        }}
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        appendConsoleLine(
+          `map-pack|${{Date.now()}}|${{key}}|${{msg}}`,
+          `[map pack] chunk ${{key}} load failed: ${{msg}}`
+        );
+      }} finally {{
+        mapPackChunkFetchesInFlight.delete(key);
+      }}
+    }}
+
+    function queueVisiblePackChunks(layerName) {{
+      for (const [packId, manifest] of mapPackManifests) {{
+        const layers = manifest && manifest.layers ? manifest.layers : null;
+        const layer = layers && layers[layerName] ? layers[layerName] : null;
+        const chunks = layer && layer.chunks && typeof layer.chunks === "object" ? layer.chunks : null;
+        if (!chunks) {{
+          continue;
+        }}
+        for (const cellId of mapPackViewportCells(mapPackGridSpec(manifest), 1)) {{
+          const chunkEntry = chunks[cellId];
+          if (chunkEntry) {{
+            void loadMapPackChunk(packId, manifest, layerName, cellId, chunkEntry);
+          }}
+        }}
+      }}
+    }}
+
+    function ensureMapPackCityLayerGroup() {{
+      if (!mapPackCityLayerGroup) {{
+        mapPackCityLayerGroup = L.layerGroup();
+      }}
+      return mapPackCityLayerGroup;
+    }}
+
+    function packCityMarkerIcon(labelText) {{
+      return L.divIcon({{
+        className: "offline-landmark-icon",
+        html: `<span>${{escAttr(labelText)}}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      }});
+    }}
+
+    function hidePackCityMarkersFrom(startIndex) {{
+      for (let i = startIndex; i < mapPackCityMarkerPool.length; i += 1) {{
+        const marker = mapPackCityMarkerPool[i];
+        if (marker && typeof marker.setOpacity === "function") {{
+          marker.setOpacity(0);
+        }}
+      }}
+    }}
+
+    let mapPackCityLabelSyncScheduled = false;
+
+    function syncPackCityLabels() {{
+      if (mapPackCityLabelSyncScheduled) {{
+        return;
+      }}
+      mapPackCityLabelSyncScheduled = true;
+      window.requestAnimationFrame(() => {{
+        mapPackCityLabelSyncScheduled = false;
+        syncPackCityLabelsNow();
+      }});
+    }}
+
+    function syncPackCityLabelsNow() {{
+      const zoom = Number(map && typeof map.getZoom === "function" ? map.getZoom() : NaN);
+      const safeZoom = Number.isFinite(zoom) ? zoom : 0;
+      const active = packAnyPointLayerActive(safeZoom);
+      const group = ensureMapPackCityLayerGroup();
+      if (!active) {{
+        hidePackCityMarkersFrom(0);
+        if (map && map.hasLayer(group)) {{
+          map.removeLayer(group);
+        }}
+        return;
+      }}
+      if (!map.hasLayer(group)) {{
+        map.addLayer(group);
+      }}
+      const bounds = map.getBounds();
+      const paddedBounds = bounds && typeof bounds.pad === "function" ? bounds.pad(0.2) : null;
+      const minSpacingPx = offlineCityRangeSpacingPx(safeZoom);
+      const minSpacingSq = minSpacingPx * minSpacingPx;
+      const cellSize = Math.max(16, minSpacingPx);
+      const visibleBudget = offlineCityVisibilityBudget(safeZoom);
+      const candidates = [];
+      for (const row of mapPackCityRows) {{
+        if (!row || !row.latlng) continue;
+        if (!packLayerCurrentlyActive(row.layerName || "cities", safeZoom)) continue;
+        if (safeZoom < packCityMinZoom(row.rank)) continue;
+        if (paddedBounds && typeof paddedBounds.contains === "function"
+          && !paddedBounds.contains(row.latlng)) {{
+          continue;
+        }}
+        const point = map.latLngToContainerPoint(row.latlng);
+        candidates.push({{ row, point }});
+      }}
+
+      candidates.sort((a, b) => {{
+        if (a.row.rank !== b.row.rank) return a.row.rank - b.row.rank;
+        if (a.row.weight !== b.row.weight) return b.row.weight - a.row.weight;
+        if (a.point.y !== b.point.y) return a.point.y - b.point.y;
+        return a.point.x - b.point.x;
+      }});
+
+      const grid = new Map();
+      const selected = [];
+      const selectedLabelBoxes = [];
+
+      function cellKeyFor(cx, cy) {{
+        return `${{cx}}:${{cy}}`;
+      }}
+
+      function tooCloseToSelected(point) {{
+        const cx = Math.floor(point.x / cellSize);
+        const cy = Math.floor(point.y / cellSize);
+        for (let ox = -1; ox <= 1; ox += 1) {{
+          for (let oy = -1; oy <= 1; oy += 1) {{
+            const bucket = grid.get(cellKeyFor(cx + ox, cy + oy));
+            if (!bucket) continue;
+            for (const other of bucket) {{
+              const dx = point.x - other.x;
+              const dy = point.y - other.y;
+              if ((dx * dx) + (dy * dy) < minSpacingSq) {{
+                return true;
+              }}
+            }}
+          }}
+        }}
+        return false;
+      }}
+
+      function rememberSelectedPoint(point) {{
+        const cx = Math.floor(point.x / cellSize);
+        const cy = Math.floor(point.y / cellSize);
+        const bucketKey = cellKeyFor(cx, cy);
+        const bucket = grid.get(bucketKey);
+        if (bucket) {{
+          bucket.push(point);
+        }} else {{
+          grid.set(bucketKey, [point]);
+        }}
+      }}
+
+      function overlapsSelectedLabel(point) {{
+        const xBand = Math.max(34, minSpacingPx * 1.08);
+        const yBand = Math.max(14, minSpacingPx * 0.34);
+        for (const box of selectedLabelBoxes) {{
+          if (!box) continue;
+          const dx = Math.abs(point.x - box.x);
+          const dy = Math.abs(point.y - box.y);
+          if (dx < xBand && dy < yBand) {{
+            return true;
+          }}
+        }}
+        return false;
+      }}
+
+      const seenLabelKeys = new Set();
+      for (const candidate of candidates) {{
+        if (selected.length >= visibleBudget) {{
+          break;
+        }}
+        const labelKey = `${{candidate.row.label || candidate.row.name}}|${{candidate.row.latlng.lat.toFixed(3)}}|${{candidate.row.latlng.lng.toFixed(3)}}`;
+        if (seenLabelKeys.has(labelKey)) {{
+          continue;
+        }}
+        const forceInclude = candidate.row.rank <= 1 && safeZoom <= 4;
+        if (!forceInclude && tooCloseToSelected(candidate.point)) {{
+          continue;
+        }}
+        if (!forceInclude && overlapsSelectedLabel(candidate.point)) {{
+          continue;
+        }}
+        seenLabelKeys.add(labelKey);
+        selected.push(candidate);
+        rememberSelectedPoint(candidate.point);
+        selectedLabelBoxes.push({{ x: candidate.point.x, y: candidate.point.y }});
+      }}
+
+      for (let i = 0; i < selected.length; i += 1) {{
+        const row = selected[i].row;
+        const labelText = row.label || row.name;
+        let marker = mapPackCityMarkerPool[i];
+        if (!marker) {{
+          marker = L.marker(row.latlng, {{
+            interactive: false,
+            keyboard: false,
+            pane: mapOfflineGridPaneName,
+            icon: packCityMarkerIcon(labelText),
+          }});
+          marker._packLabel = labelText;
+          mapPackCityMarkerPool[i] = marker;
+          group.addLayer(marker);
+        }} else {{
+          marker.setLatLng(row.latlng);
+          if (marker._packLabel !== labelText) {{
+            marker.setIcon(packCityMarkerIcon(labelText));
+            marker._packLabel = labelText;
+          }}
+        }}
+        marker.setOpacity(1);
+      }}
+      hidePackCityMarkersFrom(selected.length);
+    }}
+
+    function syncOfflineBaseLayerVisibility() {{
+      if (!map) return;
+      const zoom = Number(map.getZoom());
+      const safeZoom = Number.isFinite(zoom) ? zoom : 0;
+      const offlineActive = shouldShowOfflineAtlas();
+      const bindings = [
+        {{ layer: mapOfflineCountriesLayer, pref: "borders", replacedBy: "coastline" }},
+        {{ layer: mapOfflineCoastlineLayer, pref: "coastline", replacedBy: "coastline" }},
+        {{ layer: mapOfflineBordersLayer, pref: "borders", replacedBy: "borders" }},
+        {{ layer: mapOfflineUrbanLayer, pref: "urban", replacedBy: "urban" }},
+        {{ layer: mapOfflineStatesLayer, pref: "states", replacedBy: "states" }},
+        {{ layer: mapOfflineRiversLayer, pref: "rivers", replacedBy: "rivers" }},
+        {{ layer: mapOfflineLakesLayer, pref: "lakes", replacedBy: "lakes" }},
+        {{ layer: mapOfflineCitiesLayer, pref: "cities", replacedBy: "cities" }},
+      ];
+      for (const binding of bindings) {{
+        const layer = binding.layer;
+        if (!layer) continue;
+        const shouldAttach = offlineActive
+          && mapLayerEnabled(binding.pref)
+          && !packLayerCurrentlyActive(binding.replacedBy, safeZoom);
+        if (shouldAttach && !map.hasLayer(layer)) {{
+          map.addLayer(layer);
+        }} else if (!shouldAttach && map.hasLayer(layer)) {{
+          map.removeLayer(layer);
+        }}
+      }}
+    }}
+
+    function evictDistantPackChunks() {{
+      if (mapPackLoadedChunks.size <= mapPackChunkBudget) {{
+        return;
+      }}
+      const keepCellsByPack = new Map();
+      for (const [packId, manifest] of mapPackManifests) {{
+        keepCellsByPack.set(packId, mapPackViewportCells(mapPackGridSpec(manifest), 2));
+      }}
+      let removedCityRows = false;
+      for (const [key, record] of Array.from(mapPackLoadedChunks.entries())) {{
+        const keepCells = record ? keepCellsByPack.get(record.packId) : null;
+        if (!record || (keepCells && keepCells.has(record.cellId))) {{
+          continue;
+        }}
+        if (record.leafletLayer) {{
+          const group = mapPackLayerGroups[record.layerName];
+          if (group) {{
+            group.removeLayer(record.leafletLayer);
+          }}
+        }}
+        if (!record.leafletLayer) {{
+          removedCityRows = true;
+        }}
+        mapPackLoadedChunks.delete(key);
+      }}
+      if (removedCityRows) {{
+        const keepKeys = new Set(mapPackLoadedChunks.keys());
+        mapPackCityRows = mapPackCityRows.filter((row) => row && keepKeys.has(row.chunkKey));
+        syncPackCityLabels();
+      }}
+    }}
+
+    function syncMapPackLayers() {{
+      if (!map) return;
+      const offlineActive = shouldShowOfflineAtlas();
+      if (offlineActive && !mapPackManifestChecked && !mapPackManifestFetchPromise) {{
+        void fetchMapPackManifests().then(() => {{
+          syncMapPackLayers();
+        }});
+      }}
+      const zoom = Number(map.getZoom());
+      const safeZoom = Number.isFinite(zoom) ? zoom : 0;
+      const layerNames = new Set();
+      for (const manifest of mapPackManifests.values()) {{
+        const layers = manifest && manifest.layers && typeof manifest.layers === "object"
+          ? manifest.layers
+          : {{}};
+        for (const layerName of Object.keys(layers)) {{
+          layerNames.add(layerName);
+        }}
+      }}
+      for (const layerName of layerNames) {{
+        if (packLayerKind(layerName) === "point") continue;
+        const group = ensureMapPackLayerGroup(layerName);
+        if (packLayerCurrentlyActive(layerName, safeZoom)) {{
+          if (!map.hasLayer(group)) {{
+            map.addLayer(group);
+          }}
+          queueVisiblePackChunks(layerName);
+        }} else if (map.hasLayer(group)) {{
+          map.removeLayer(group);
+        }}
+      }}
+      for (const layerName of packPointLayerNames()) {{
+        if (packLayerCurrentlyActive(layerName, safeZoom)) {{
+          queueVisiblePackChunks(layerName);
+        }}
+      }}
+      syncPackCityLabels();
+      syncOfflineBaseLayerVisibility();
+      evictDistantPackChunks();
+    }}
+
+    function resetMapPackRuntime() {{
+      for (const layerName of Object.keys(mapPackLayerGroups)) {{
+        const group = mapPackLayerGroups[layerName];
+        if (group) {{
+          group.clearLayers();
+          if (map && map.hasLayer(group)) {{
+            map.removeLayer(group);
+          }}
+        }}
+      }}
+      if (mapPackCityLayerGroup) {{
+        mapPackCityLayerGroup.clearLayers();
+        if (map && map.hasLayer(mapPackCityLayerGroup)) {{
+          map.removeLayer(mapPackCityLayerGroup);
+        }}
+      }}
+      mapPackCityMarkerPool = [];
+      mapPackCityRows = [];
+      mapPackLoadedChunks.clear();
+      mapPackChunkFetchesInFlight.clear();
+      mapPackManifests = new Map();
+      mapPackManifestChecked = false;
+      mapPackManifestFetchPromise = null;
+    }}
+
+    function refreshMapPackData() {{
+      resetMapPackRuntime();
+      syncMapPackLayers();
+    }}

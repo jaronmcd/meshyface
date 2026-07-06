@@ -1,0 +1,165 @@
+    function formatMapPackBytes(value) {{
+      const bytes = Number(value);
+      if (!Number.isFinite(bytes) || bytes <= 0) return "";
+      if (bytes >= 1024 * 1024 * 1024) {{
+        return `${{(bytes / (1024 * 1024 * 1024)).toFixed(1)}} GB`;
+      }}
+      if (bytes >= 1024 * 1024) {{
+        return `${{(bytes / (1024 * 1024)).toFixed(1)}} MB`;
+      }}
+      return `${{Math.max(1, Math.round(bytes / 1024))}} KB`;
+    }}
+
+    function mapsPackInstallCommand(pack, sideloadReady) {{
+      const provided = String(pack && pack.install_command || "").trim();
+      if (provided) return provided;
+      const packId = String(pack && pack.id || "");
+      const flag = sideloadReady ? "" : " --download";
+      return `python scripts/install_map_pack.py ${{packId}}${{flag}}`;
+    }}
+
+    function mapsPackStateLabel(pack) {{
+      const state = String(pack && pack.state || "");
+      if (state === "installed") {{
+        const version = pack.installed_pack && Number(pack.installed_pack.version);
+        return Number.isFinite(version) && version > 0 ? `Installed v${{version}}` : "Installed";
+      }}
+      if (state === "sideload_ready") return "Zip ready to install";
+      return "Not installed";
+    }}
+
+    function renderMapsPackList(payload) {{
+      const listEl = document.getElementById("settings-maps-pack-list");
+      if (!(listEl instanceof HTMLElement)) return;
+      const packs = payload && Array.isArray(payload.packs) ? payload.packs : [];
+      listEl.innerHTML = "";
+      if (!packs.length) {{
+        const emptyEl = document.createElement("div");
+        emptyEl.className = "settings-maps-pack-empty";
+        emptyEl.textContent = "No map packs are available.";
+        listEl.appendChild(emptyEl);
+        return;
+      }}
+      for (const pack of packs) {{
+        if (!pack || typeof pack !== "object") continue;
+        const packId = String(pack.id || "");
+        const state = String(pack.state || "not_installed");
+        const card = document.createElement("div");
+        card.className = "settings-maps-pack-card";
+        card.dataset.packId = packId;
+
+        const headEl = document.createElement("div");
+        headEl.className = "settings-maps-pack-head";
+        const nameEl = document.createElement("span");
+        nameEl.className = "settings-maps-pack-name";
+        nameEl.textContent = String(pack.label || packId);
+        headEl.appendChild(nameEl);
+        const stateEl = document.createElement("span");
+        stateEl.className = `settings-maps-pack-state is-${{state}}`;
+        stateEl.textContent = mapsPackStateLabel(pack);
+        headEl.appendChild(stateEl);
+        card.appendChild(headEl);
+
+        const descText = String(pack.description || "").trim();
+        if (descText) {{
+          const descEl = document.createElement("div");
+          descEl.className = "settings-maps-pack-desc";
+          descEl.textContent = descText;
+          card.appendChild(descEl);
+        }}
+
+        if (state === "installed" && pack.installed_pack) {{
+          const installed = pack.installed_pack;
+          const statusEl = document.createElement("div");
+          statusEl.className = "settings-maps-pack-status";
+          const sizeText = formatMapPackBytes(installed.total_bytes);
+          const layerCount = Array.isArray(installed.layers) ? installed.layers.length : 0;
+          statusEl.textContent = `${{sizeText ? `${{sizeText}} on disk. ` : ""}}${{layerCount}} layers stored locally; no internet needed.`;
+          card.appendChild(statusEl);
+        }} else {{
+          const statusEl = document.createElement("div");
+          statusEl.className = "settings-maps-pack-status";
+          if (state === "sideload_ready") {{
+            statusEl.textContent = "Pack zip found in the map packs folder. Install it from the dashboard computer:";
+          }} else {{
+            const estimate = formatMapPackBytes(pack.download_bytes_estimate);
+            statusEl.textContent = estimate
+              ? `Install from the dashboard computer (~${{estimate}} download):`
+              : "Install from the dashboard computer:";
+          }}
+          card.appendChild(statusEl);
+          const cmdEl = document.createElement("code");
+          cmdEl.className = "settings-maps-pack-cmd";
+          cmdEl.textContent = mapsPackInstallCommand(pack, state === "sideload_ready");
+          card.appendChild(cmdEl);
+        }}
+
+        listEl.appendChild(card);
+      }}
+    }}
+
+    async function refreshMapsPackStatus() {{
+      let payload = null;
+      try {{
+        const resp = await fetch(mapPacksStatusEndpoint, {{ cache: "no-store" }});
+        if (!resp.ok) {{
+          throw new Error(`API ${{resp.status}}`);
+        }}
+        payload = await resp.json();
+      }} catch (err) {{
+        const listEl = document.getElementById("settings-maps-pack-list");
+        if (listEl instanceof HTMLElement && !listEl.querySelector(".settings-maps-pack-card")) {{
+          listEl.innerHTML = "";
+          const errEl = document.createElement("div");
+          errEl.className = "settings-maps-pack-empty";
+          errEl.textContent = "Map pack status is unavailable.";
+          listEl.appendChild(errEl);
+        }}
+        return;
+      }}
+      renderMapsPackList(payload);
+      const packs = payload && Array.isArray(payload.packs) ? payload.packs : [];
+      const installedIds = new Set();
+      for (const pack of packs) {{
+        if (!pack || typeof pack !== "object") continue;
+        if (pack.installed) {{
+          installedIds.add(String(pack.id || ""));
+        }}
+      }}
+      let installsChanged = installedIds.size !== mapsPackInstalledIds.size;
+      if (!installsChanged) {{
+        for (const id of installedIds) {{
+          if (!mapsPackInstalledIds.has(id)) {{
+            installsChanged = true;
+            break;
+          }}
+        }}
+      }}
+      mapsPackInstalledIds = installedIds;
+      if (installsChanged) {{
+        refreshMapPackData();
+      }}
+    }}
+
+    function renderMapsLayerToggles() {{
+      for (const key of mapPackLayerPrefKeys) {{
+        const toggle = document.getElementById(`settings-map-layer-${{key}}`);
+        if (toggle instanceof HTMLInputElement) {{
+          toggle.checked = mapLayerEnabled(key);
+        }}
+      }}
+    }}
+
+    function bindMapsSettingsControls() {{
+      for (const key of mapPackLayerPrefKeys) {{
+        const toggle = document.getElementById(`settings-map-layer-${{key}}`);
+        if (!(toggle instanceof HTMLInputElement) || toggle.dataset.bound === "1") continue;
+        toggle.dataset.bound = "1";
+        toggle.addEventListener("change", () => {{
+          setMapLayerEnabled(key, toggle.checked);
+          syncMapPackLayers();
+          syncOfflineCityVisibility();
+        }});
+      }}
+      renderMapsLayerToggles();
+    }}

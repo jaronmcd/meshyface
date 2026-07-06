@@ -3,7 +3,8 @@
       if (!(settingsCard instanceof HTMLElement) || settingsCard.dataset.bound === "1") return;
       settingsCard.dataset.bound = "1";
       const isRuntimeOnlySettingsControl = (controlId) => (
-        controlId === "settings-time-sync-enabled"
+        String(controlId || "").startsWith("settings-map-layer-")
+        || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
         || controlId === "settings-appearance-unique-node-colors"
         || controlId === "settings-appearance-unique-chat-colors"
@@ -26,6 +27,7 @@
         }});
       }}
       setActiveSettingsTab(activeSettingsTab, false);
+      bindMapsSettingsControls();
 
       settingsCard.addEventListener("input", (ev) => {{
         const target = ev.target;

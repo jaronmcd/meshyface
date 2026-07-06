@@ -45,6 +45,17 @@
     let offlineAtlasCityRowsPromise = null;
     let mapOfflineFallbackActive = false;
     let mapOfflineAtlasAttributionVisible = false;
+    let mapPackManifests = new Map();
+    let mapPackManifestChecked = false;
+    let mapPackManifestFetchPromise = null;
+    let mapPackLayerGroups = {{}};
+    let mapPackLoadedChunks = new Map();
+    let mapPackChunkFetchesInFlight = new Set();
+    let mapPackCityRows = [];
+    let mapPackCityLayerGroup = null;
+    let mapPackCityMarkerPool = [];
+    let mapLayerPrefs = null;
+    let mapsPackInstalledIds = new Set();
     let mapTileLoadSession = 0;
     let mapTileLoadSuccesses = 0;
     let mapTileLoadErrors = 0;

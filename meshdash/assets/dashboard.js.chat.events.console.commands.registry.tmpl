@@ -55,6 +55,150 @@
           return `[download] saved visible console snapshot to ${{result.filename}} (${{lineLabel}}).`;
         }},
       }});
+      function consoleMappacksMeshSummary(state) {{
+        const toRad = (deg) => (deg * Math.PI) / 180;
+        const distKm = (aLat, aLon, bLat, bLon) => {{
+          const dLat = toRad(bLat - aLat);
+          const dLon = toRad(bLon - aLon);
+          const h = (Math.sin(dLat / 2) ** 2)
+            + (Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * (Math.sin(dLon / 2) ** 2));
+          return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+        }};
+        const nodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+        const points = [];
+        for (const node of nodes) {{
+          const lat = Number(node && node.lat);
+          const lon = Number(node && node.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+          if (lat === 0 && lon === 0) continue;
+          points.push([lat, lon]);
+        }}
+        if (points.length < 3) {{
+          return {{ pointCount: points.length, center: "", suggested: 0, distances: [] }};
+        }}
+        const lats = points.map((point) => point[0]).sort((a, b) => a - b);
+        const lons = points.map((point) => point[1]).sort((a, b) => a - b);
+        const centerLat = lats[Math.floor(lats.length / 2)];
+        const centerLon = lons[Math.floor(lons.length / 2)];
+        const distances = points
+          .map((point) => distKm(centerLat, centerLon, point[0], point[1]))
+          .sort((a, b) => a - b);
+        const p90 = distances[Math.floor(0.9 * (distances.length - 1))];
+        return {{
+          pointCount: points.length,
+          center: `${{centerLat.toFixed(4)}},${{centerLon.toFixed(4)}}`,
+          suggested: Math.max(10, Math.round(p90 * 1.15)),
+          distances,
+        }};
+      }}
+      registerConsoleCommand({{
+        name: "mappacks",
+        usage: "mappacks [layers=<a,b,c>] [radius=<km>]",
+        description: "Offline map pack commands sized to your mesh; layers/radius tailor the geofence.",
+        supportsVerbosity: false,
+        paramGhost: (state, ctx) => {{
+          const line = String(ctx && ctx.draft ? ctx.draft : "");
+          const suggestions = [];
+          if (!/\bradius=/.test(line)) {{
+            const mesh = consoleMappacksMeshSummary(state);
+            if (mesh.center) {{
+              suggestions.push(`radius=${{mesh.suggested}}`);
+            }}
+          }}
+          if (!/\blayers=/.test(line)) {{
+            suggestions.push(`layers=${{mapPackLayerPrefKeys.join(",")}}`);
+          }}
+          return suggestions;
+        }},
+        run: async (ctx) => {{
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const lines = [];
+          let layersArg = "";
+          const rawLayers = String(options.layers || "").trim();
+          if (rawLayers) {{
+            const requested = rawLayers.split(",").map((item) => item.trim()).filter(Boolean);
+            const invalid = requested.filter((name) => !mapPackLayerPrefKeys.includes(name));
+            if (invalid.length) {{
+              return [
+                `[mappacks] unknown layers: ${{invalid.join(", ")}}`,
+                `[mappacks] valid layers: ${{mapPackLayerPrefKeys.join(",")}}`,
+              ];
+            }}
+            layersArg = ` --layers ${{requested.join(",")}}`;
+          }}
+
+          let payload = null;
+          try {{
+            const resp = await fetch(mapPacksStatusEndpoint, {{ cache: "no-store" }});
+            if (resp.ok) {{
+              payload = await resp.json();
+            }}
+          }} catch (_err) {{
+          }}
+          const packs = payload && Array.isArray(payload.packs) ? payload.packs : [];
+          for (const pack of packs) {{
+            if (!pack || !pack.installed || !pack.installed_pack) continue;
+            const size = formatMapPackBytes(pack.installed_pack.total_bytes) || "?";
+            const layerCount = Array.isArray(pack.installed_pack.layers)
+              ? pack.installed_pack.layers.length
+              : 0;
+            lines.push(`[mappacks] installed: ${{pack.id}} (${{size}}, ${{layerCount}} layers)`);
+          }}
+          lines.push(`[mappacks] layers: ${{mapPackLayerPrefKeys.join(",")}}`);
+
+          const mesh = consoleMappacksMeshSummary(latestState);
+          const radiusOverride = Number(options.radius);
+          const hasOverride = Number.isFinite(radiusOverride) && radiusOverride > 0;
+          if (mesh.center) {{
+            const radius = hasOverride ? Math.round(radiusOverride) : mesh.suggested;
+            const covered = mesh.distances.filter((distance) => distance <= radius).length;
+            lines.push(
+              `[mappacks] your mesh right now: ${{mesh.pointCount}} nodes with GPS, `
+              + `center ${{mesh.center}}, radius ${{radius}} km covers ${{covered}} of them`
+              + (hasOverride ? "" : ` (suggested; pass radius=<km> for more or less map)`)
+            );
+            lines.push("[mappacks] build this pack on the dashboard computer (from the app directory):");
+            lines.push(
+              `  python scripts/build_map_pack.py --source-dir map_sources --download`
+              + ` --center ${{mesh.center}} --radius-km ${{radius}}${{layersArg}}`
+              + ` --pack-id mymesh --zip mymesh.zip`
+            );
+          }} else {{
+            lines.push(
+              `[mappacks] only ${{mesh.pointCount}} nodes with GPS in live state `
+              + "(if the dashboard just started, it may still be loading); "
+              + "derive the region from stored history instead:"
+            );
+            lines.push(
+              "  python scripts/build_map_pack.py --source-dir map_sources --download"
+              + ` --from-history${{layersArg}} --pack-id mymesh --zip mymesh.zip`
+            );
+          }}
+          lines.push("  # add --estimate to preview the size without building");
+          lines.push(
+            "  # if peaks country inference fails for a remote/rural geofence, "
+            + "add --peaks-countries CC or --exclude-layers peaks"
+          );
+
+          const prefix = (payload && typeof payload.install_command_prefix === "string"
+            && payload.install_command_prefix)
+            ? payload.install_command_prefix
+            : "python scripts/install_map_pack.py";
+          const packsDir = (payload && typeof payload.packs_dir_resolved === "string"
+            && payload.packs_dir_resolved)
+            ? ` --packs-dir ${{payload.packs_dir_resolved}}`
+            : "";
+          lines.push("[mappacks] then install it:");
+          lines.push(`  ${{prefix}} mymesh --zip mymesh.zip${{packsDir}}`);
+          lines.push(`  # list installed: ${{prefix}} --list`);
+          lines.push(`  # remove a pack: ${{prefix}} <pack_id> --delete`);
+          lines.push("[mappacks] pack status and per-pack install commands: Settings -> Maps.");
+          return lines;
+        }},
+      }});
       registerConsoleCommand({{
         name: "live",
         usage: "live [-v|-vv|-vvv|-vvvv] [grep|rg [-i] [-v <text>] <text> [from!=%self]|filter=<text>] [-l1] [-l2] [-l3] [--layer=1,2,3]",

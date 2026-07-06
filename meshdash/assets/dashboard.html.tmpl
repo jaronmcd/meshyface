@@ -741,6 +741,16 @@
               Location
             </button>
             <button
+              id="settings-tab-maps-btn"
+              class="settings-tab-btn workspace-pill-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-settings-tab="maps"
+            >
+              Maps
+            </button>
+            <button
               id="settings-tab-channels-btn"
               class="settings-tab-btn workspace-pill-btn"
               type="button"
@@ -1132,6 +1142,73 @@
               <div class="settings-row">
                 <button id="settings-set-fixed-position" class="btn btn-secondary" type="button">Set Fixed Position</button>
                 <button id="settings-clear-fixed-position" class="btn btn-secondary" type="button">Clear Fixed Position</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel settings-panel-wide" data-settings-tab-panel="maps" hidden>
+            <h3>Offline Maps</h3>
+            <div class="settings-fields">
+              <div class="settings-help-note">
+                Expansion packs add high-detail worldwide map layers to the offline basemap.
+                Packs are installed from the dashboard computer's command line and stored
+                locally, so the dashboard itself never downloads anything. Once installed,
+                packs never need internet again.
+              </div>
+              <div id="settings-maps-pack-list" class="settings-maps-pack-list" aria-live="polite">
+                <div class="settings-maps-pack-empty">Loading map pack status...</div>
+              </div>
+              <h4 class="settings-maps-layers-title">Offline map layers</h4>
+              <div class="settings-map-layer-grid">
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-coastline" type="checkbox" checked />
+                  <span>Coastline</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-borders" type="checkbox" checked />
+                  <span>Country borders</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-states" type="checkbox" checked />
+                  <span>State/province lines</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-rivers" type="checkbox" checked />
+                  <span>Rivers</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-lakes" type="checkbox" checked />
+                  <span>Lakes</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-urban" type="checkbox" checked />
+                  <span>Urban areas</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-roads" type="checkbox" checked />
+                  <span>Roads (pack)</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-railroads" type="checkbox" checked />
+                  <span>Railroads (pack)</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-parks" type="checkbox" checked />
+                  <span>Parks (pack)</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-peaks" type="checkbox" checked />
+                  <span>Peaks (pack)</span>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="settings-map-layer-cities" type="checkbox" checked />
+                  <span>City labels</span>
+                </label>
+              </div>
+              <div class="settings-help-note">
+                Layers apply to the offline basemap (forced offline mode or automatic
+                fallback when tiles are unreachable). Roads and railroads require an
+                installed expansion pack.
               </div>
             </div>
           </div>

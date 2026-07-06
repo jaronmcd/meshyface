@@ -116,22 +116,10 @@
     }}
 
     function addOfflineAtlasLayersToMap() {{
-      for (const layer of [
-        mapOfflineCountriesLayer,
-        mapOfflineCoastlineLayer,
-        mapOfflineBordersLayer,
-        mapOfflineUrbanLayer,
-        mapOfflineStatesLayer,
-        mapOfflineRiversLayer,
-        mapOfflineLakesLayer,
-        mapOfflineCitiesLayer,
-      ]) {{
-        if (layer && !map.hasLayer(layer)) {{
-          map.addLayer(layer);
-        }}
-      }}
+      syncOfflineBaseLayerVisibility();
       setMapOfflineAtlasAttributionVisible(true);
       syncOfflineCityVisibility();
+      syncMapPackLayers();
     }}
 
     function removeOfflineAtlasLayersFromMap() {{
@@ -151,6 +139,7 @@
       }}
       setMapOfflineAtlasAttributionVisible(false);
       mapOfflineCityMarkers = [];
+      syncMapPackLayers();
     }}
 
     function shouldShowOfflineAtlas() {{
