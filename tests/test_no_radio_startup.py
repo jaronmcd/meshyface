@@ -217,6 +217,114 @@ def test_startup_radio_watcher_reuses_detected_interface_for_live_session(tmp_pa
     assert iface.closed is True
 
 
+def test_startup_radio_watcher_buffers_preopened_backlog_until_live_context(
+    tmp_path,
+) -> None:
+    args = _dashboard_args(tmp_path)
+    args.no_history = False
+    events: list[str] = []
+    subscriptions: list[object] = []
+
+    class _Iface:
+        def close(self) -> None:
+            events.append("iface_close")
+
+    class _Store:
+        def __init__(self, **_kwargs) -> None:
+            self.local_node_id = ""
+
+        def close(self) -> None:
+            events.append("store_close")
+
+    class _Tracker:
+        radio_link_connected = None
+
+        def __init__(self, packet_limit: int, history_store: object) -> None:
+            del packet_limit
+            self.history_store = history_store
+
+        def on_receive(self, packet, interface) -> None:
+            del interface
+            events.append(
+                "receive:"
+                f"{getattr(self.history_store, 'local_node_id', '')}:"
+                f"{packet.get('id')}"
+            )
+
+        def stop_receiving(self) -> None:
+            events.append("stop_receiving")
+
+    class _Server:
+        count = 0
+
+        def __init__(self, address, handler_cls) -> None:
+            del handler_cls
+            type(self).count += 1
+            self.index = type(self).count
+            self.server_address = (address[0], 18080 + self.index)
+            self._shutdown = threading.Event()
+            events.append(f"server_init:{self.index}")
+
+        def serve_forever(self, poll_interval: float = 0.5) -> None:
+            del poll_interval
+            events.append(f"serve:{self.index}")
+            if self.index == 1:
+                self._shutdown.wait(timeout=3.0)
+
+        def shutdown(self) -> None:
+            events.append(f"shutdown:{self.index}")
+            self._shutdown.set()
+
+        def server_close(self) -> None:
+            events.append(f"server_close:{self.index}")
+
+    iface = _Iface()
+    open_count = 0
+
+    def _subscribe(callback, topic) -> None:
+        if topic == "meshtastic.receive":
+            subscriptions.append(callback)
+
+    def _open_mesh_interface(_args):
+        nonlocal open_count
+        open_count += 1
+        events.append(f"open:{open_count}")
+        for callback in list(subscriptions):
+            callback({"id": "backlog"}, iface)
+        return iface
+
+    run_dashboard_runtime(
+        args,
+        mesh_target_label_fn=lambda _args: "192.0.2.10:4403 (tcp)",
+        open_mesh_interface_fn=_open_mesh_interface,
+        history_store_cls=_Store,
+        dashboard_tracker_cls=lambda **kwargs: _Tracker(**kwargs),
+        subscribe_fn=_subscribe,
+        seed_tracker_fn=lambda _tracker, _iface: None,
+        revision_info_fn=_RevisionInfo,
+        build_state_fn=lambda **_kwargs: {},
+        build_node_history_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_online_activity_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_summary_metrics_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        send_chat_message_fn=lambda **_kwargs: {},
+        send_reaction_packet_fn=lambda **_kwargs: None,
+        get_local_node_id_fn=lambda _iface: "!12345678",
+        normalize_single_emoji_fn=lambda _value: (None, None),
+        to_int_fn=lambda _value: None,
+        utc_now_fn=lambda: "2026-04-23T00:00:00Z",
+        render_html_fn=lambda **_kwargs: "<html></html>",
+        make_http_handler_fn=lambda *_args, **_kwargs: object,
+        guess_lan_ipv4_fn=lambda: None,
+        default_chat_max_bytes=200,
+        threading_http_server_cls=_Server,
+    )
+
+    assert open_count == 1
+    assert events.count("receive:!12345678:backlog") == 1
+    assert events.index("open:1") < events.index("receive:!12345678:backlog")
+    assert "server_init:2" in events
+
+
 def test_offline_runtime_keeps_standalone_zork_disabled_by_default(tmp_path) -> None:
     args = _dashboard_args(tmp_path)
     context = _build_offline_runtime_context(

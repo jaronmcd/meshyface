@@ -1,6 +1,11 @@
+import threading
+import time
 from types import SimpleNamespace
 
-from meshdash.dashboard_runtime_context import build_dashboard_runtime_context
+from meshdash.dashboard_runtime_context import (
+    StartupReceiveBuffer,
+    build_dashboard_runtime_context,
+)
 from meshdash.dashboard_runtime_loaders import DashboardRuntimeLoaders
 
 
@@ -11,19 +16,10 @@ class _RevisionInfo:
     title = "Dashboard revision: test"
 
 
-class _Tracker:
-    def __init__(self, packet_limit: int, history_store: object) -> None:
-        self.packet_limit = packet_limit
-        self.history_store = history_store
-
-    def on_receive(self, *_args: object, **_kwargs: object) -> None:
-        return None
-
-
-def _args(tmp_path):
+def _args(tmp_path, *, no_history: bool = False):
     return SimpleNamespace(
         history_db=str(tmp_path / "history.sqlite3"),
-        no_history=True,
+        no_history=no_history,
         seed_from_node_db=False,
         history_max_rows=1000,
         history_retention_days=7,
@@ -56,29 +52,45 @@ def _loaders(**_kwargs: object) -> DashboardRuntimeLoaders:
     )
 
 
-def test_subscribes_to_meshtastic_receive_before_opening_interface(tmp_path) -> None:
-    # meshtastic's SerialInterface/TCPInterface replays any packets the radio
-    # buffered while no client was attached as soon as it's constructed, via
-    # pypubsub's "meshtastic.receive" topic. pypubsub does not replay for late
-    # subscribers, so subscribing after opening the interface silently drops
-    # that backlog -- e.g. messages received overnight while the dashboard
-    # wasn't running (issue #37).
-    events: list[str] = []
+def test_startup_receive_replay_waits_for_history_local_node_id(tmp_path) -> None:
+    events: list[tuple[str, object]] = []
+    subscriptions: list[object] = []
     iface = object()
 
-    def _open_mesh_interface(_args: object) -> object:
-        events.append("open_interface")
-        return iface
+    class _Store:
+        def __init__(self, **_kwargs: object) -> None:
+            self.local_node_id = ""
 
-    def _subscribe(_callback: object, topic: str) -> None:
+        def close(self) -> None:
+            events.append(("close_store", None))
+
+    class _Tracker:
+        def __init__(self, packet_limit: int, history_store: object) -> None:
+            del packet_limit
+            self.history_store = history_store
+
+        def on_receive(self, packet: object, interface: object) -> None:
+            del packet, interface
+            events.append(
+                ("receive_local_id", getattr(self.history_store, "local_node_id", ""))
+            )
+
+    def _subscribe(callback: object, topic: str) -> None:
         if topic == "meshtastic.receive":
-            events.append("subscribe_receive")
+            events.append(("subscribe", topic))
+            subscriptions.append(callback)
+
+    def _open_mesh_interface(_args: object) -> object:
+        events.append(("open_interface", None))
+        for callback in list(subscriptions):
+            callback({"id": "backlog"}, iface)  # type: ignore[operator]
+        return iface
 
     build_dashboard_runtime_context(
         _args(tmp_path),
         mesh_target_label_fn=lambda _args: "/dev/ttyUSB0 (serial)",
         open_mesh_interface_fn=_open_mesh_interface,
-        history_store_cls=lambda **_kwargs: object(),
+        history_store_cls=_Store,
         dashboard_tracker_cls=_Tracker,
         subscribe_fn=_subscribe,
         seed_tracker_fn=lambda _tracker, _iface: None,
@@ -99,4 +111,42 @@ def test_subscribes_to_meshtastic_receive_before_opening_interface(tmp_path) -> 
         build_dashboard_runtime_loaders_fn=_loaders,
     )
 
-    assert events == ["subscribe_receive", "open_interface"]
+    assert events.index(("subscribe", "meshtastic.receive")) < events.index(
+        ("open_interface", None)
+    )
+    assert ("receive_local_id", "!12345678") in events
+
+
+def test_startup_receive_buffer_preserves_order_during_activation() -> None:
+    receive_buffer = StartupReceiveBuffer()
+    iface = object()
+    events: list[str] = []
+    live_started = threading.Event()
+    live_delivered = threading.Event()
+
+    receive_buffer.on_receive({"id": "buffered"}, iface)
+
+    def _callback(packet: object, _interface: object) -> None:
+        packet_id = str(packet.get("id") if isinstance(packet, dict) else "")
+        events.append(f"{packet_id}:start")
+        if packet_id == "buffered":
+            def _send_live_packet() -> None:
+                live_started.set()
+                receive_buffer.on_receive({"id": "live"}, iface)
+                live_delivered.set()
+
+            thread = threading.Thread(target=_send_live_packet)
+            thread.start()
+            assert live_started.wait(timeout=1.0)
+            time.sleep(0.05)
+        events.append(f"{packet_id}:done")
+
+    receive_buffer.activate(_callback)
+
+    assert live_delivered.wait(timeout=1.0)
+    assert events == [
+        "buffered:start",
+        "buffered:done",
+        "live:start",
+        "live:done",
+    ]
