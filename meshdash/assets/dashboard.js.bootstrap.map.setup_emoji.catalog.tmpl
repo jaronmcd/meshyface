@@ -33,6 +33,31 @@
       return out;
     }
 
+    function chatEmojiKeywordsForEmoji(emoji) {
+      const direct = String(chatEmojiEmojiKeywordMap[emoji] || "");
+      if (direct) return direct;
+      // Skin tone variants are omitted from the catalog map to keep it small;
+      // the tone-stripped sequence carries their keywords.
+      const toneStripped = Array.from(emoji).filter((ch) => {
+        const cp = ch.codePointAt(0);
+        return !(cp >= 0x1f3fb && cp <= 0x1f3ff);
+      }).join("");
+      if (toneStripped === emoji) return "";
+      return String(chatEmojiEmojiKeywordMap[toneStripped] || "");
+    }
+
+    function sanitizeChatEmojiEmojiKeywordMap(rawMap) {
+      const out = {};
+      if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) return out;
+      for (const [rawKey, rawValue] of Object.entries(rawMap)) {
+        const key = String(rawKey || "").trim();
+        const keywords = String(rawValue || "").trim();
+        if (!key || !keywords) continue;
+        out[key] = keywords;
+      }
+      return out;
+    }
+
     function rebuildChatEmojiSearchIndex() {
       chatEmojiGroupsById = new Map(chatEmojiGroups.map((group) => [group.id, group]));
       chatEmojiAllChoices = chatEmojiGroups.flatMap((group) => group.emojis);
@@ -61,6 +86,9 @@
           const aliases = String(chatEmojiSearchAliases[emoji] || "");
           const aliasParts = tokenizeChatEmojiSearchQuery(aliases);
           const codepointAliasParts = collectChatEmojiCodepointAliasParts(emoji);
+          const emojiKeywordParts = tokenizeChatEmojiSearchQuery(
+            chatEmojiKeywordsForEmoji(emoji)
+          );
           const existing = chatEmojiSearchTokensByEmoji.get(emoji) || [];
           const nextSet = new Set(existing);
           for (const token of groupSearchParts) {
@@ -70,6 +98,9 @@
             nextSet.add(token);
           }
           for (const token of codepointAliasParts) {
+            nextSet.add(token);
+          }
+          for (const token of emojiKeywordParts) {
             nextSet.add(token);
           }
           const nextTokens = Array.from(nextSet);
@@ -86,6 +117,9 @@
       chatEmojiGroups = sanitizeChatEmojiCatalogGroups(safePayload.groups);
       chatEmojiCodepointKeywordMap = sanitizeChatEmojiCodepointKeywordMap(
         safePayload.codepoint_keyword_map || safePayload.codepointKeywordMap
+      );
+      chatEmojiEmojiKeywordMap = sanitizeChatEmojiEmojiKeywordMap(
+        safePayload.emoji_keyword_map || safePayload.emojiKeywordMap
       );
       rebuildChatEmojiSearchIndex();
       chatEmojiCatalogLoaded = chatEmojiTotalChoices > 0;
