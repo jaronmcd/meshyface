@@ -795,7 +795,7 @@ def _run_request_telemetry(
         console_parts.append(f"response={response_type}")
     if isinstance(response_metrics, dict):
         preview = []
-        for key, value in list(response_metrics.items())[:3]:
+        for key, value in response_metrics.items():
             preview.append(f"{key}={value}")
         if preview:
             console_parts.append(", ".join(preview))
