@@ -18,6 +18,7 @@ from .runtime_callbacks import (
 )
 from .dashboard_runtime_context import (
     DashboardRuntimeContext,
+    StartupReceiveBuffer,
     build_dashboard_runtime_context,
 )
 from .dashboard_setup import open_optional_history_store
@@ -518,6 +519,7 @@ def _build_runtime_context_once(
     to_int_fn: ToIntFn,
     utc_now_fn: UtcNowFn,
     default_chat_max_bytes: int,
+    startup_receive_buffer: StartupReceiveBuffer | None = None,
 ):
     return build_dashboard_runtime_context(
         args,
@@ -541,6 +543,7 @@ def _build_runtime_context_once(
         build_online_activity_loader_fn=build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader,
+        startup_receive_buffer=startup_receive_buffer,
     )
 
 
@@ -574,13 +577,18 @@ def run_dashboard_runtime(
     first_session = True
     offline_bootstrap_error: Optional[Exception] = None
     preopened_iface: object | None = None
+    preopened_receive_buffer: StartupReceiveBuffer | None = None
     preopened_iface_lock = threading.Lock()
 
     def _close_preopened_iface() -> None:
-        nonlocal preopened_iface
+        nonlocal preopened_iface, preopened_receive_buffer
         with preopened_iface_lock:
             iface = preopened_iface
+            receive_buffer = preopened_receive_buffer
             preopened_iface = None
+            preopened_receive_buffer = None
+        if receive_buffer is not None:
+            receive_buffer.close()
         if iface is None:
             return
         close_fn = getattr(iface, "close", None)
@@ -594,14 +602,19 @@ def run_dashboard_runtime(
         startup_offline = False
         startup_error: Optional[Exception] = None
         context_preopened_iface: object | None = None
+        context_preopened_receive_buffer: StartupReceiveBuffer | None = None
 
         def _open_mesh_interface_with_preopened(open_args: DashboardArgs) -> object:
-            nonlocal context_preopened_iface, preopened_iface
+            nonlocal context_preopened_iface, context_preopened_receive_buffer
+            nonlocal preopened_iface, preopened_receive_buffer
             with preopened_iface_lock:
                 if preopened_iface is not None:
                     iface = preopened_iface
+                    receive_buffer = preopened_receive_buffer
                     preopened_iface = None
+                    preopened_receive_buffer = None
                     context_preopened_iface = iface
+                    context_preopened_receive_buffer = receive_buffer
                     return iface
             return open_mesh_interface_fn(open_args)
 
@@ -631,6 +644,10 @@ def run_dashboard_runtime(
                 utc_now_fn=utc_now_fn,
             )
         elif auto_reconnect:
+            with preopened_iface_lock:
+                startup_receive_buffer = (
+                    preopened_receive_buffer if preopened_iface is not None else None
+                )
             try:
                 context = _build_runtime_context_once(
                     args,
@@ -652,9 +669,14 @@ def run_dashboard_runtime(
                     to_int_fn=to_int_fn,
                     utc_now_fn=utc_now_fn,
                     default_chat_max_bytes=default_chat_max_bytes,
+                    startup_receive_buffer=startup_receive_buffer,
                 )
                 context_preopened_iface = None
+                context_preopened_receive_buffer = None
             except Exception as exc:
+                if context_preopened_receive_buffer is not None:
+                    context_preopened_receive_buffer.close()
+                    context_preopened_receive_buffer = None
                 if context_preopened_iface is not None:
                     close_fn = getattr(context_preopened_iface, "close", None)
                     if callable(close_fn):
@@ -663,6 +685,7 @@ def run_dashboard_runtime(
                         except Exception:
                             pass
                     context_preopened_iface = None
+                _close_preopened_iface()
                 startup_offline = True
                 startup_error = exc
                 print(
@@ -752,14 +775,17 @@ def run_dashboard_runtime(
         if auto_reconnect and startup_offline:
 
             def _watch_startup_radio_connect() -> None:
-                nonlocal preopened_iface
+                nonlocal preopened_iface, preopened_receive_buffer
                 attempt = 0
                 delay_seconds = 0.5
                 while not stop_watcher.wait(delay_seconds):
                     attempt += 1
+                    receive_buffer = StartupReceiveBuffer()
+                    subscribe_fn(receive_buffer.on_receive, "meshtastic.receive")
                     try:
                         probe_iface = open_mesh_interface_fn(args)
                     except Exception as exc:
+                        receive_buffer.close()
                         delay_seconds = min(10.0, 1.0 + attempt)
                         if attempt == 1 or (attempt % 5) == 0:
                             print(
@@ -768,7 +794,19 @@ def run_dashboard_runtime(
                             )
                         continue
                     with preopened_iface_lock:
+                        previous_iface = preopened_iface
+                        previous_receive_buffer = preopened_receive_buffer
                         preopened_iface = probe_iface
+                        preopened_receive_buffer = receive_buffer
+                    if previous_receive_buffer is not None:
+                        previous_receive_buffer.close()
+                    if previous_iface is not None:
+                        close_fn = getattr(previous_iface, "close", None)
+                        if callable(close_fn):
+                            try:
+                                close_fn()
+                            except Exception:
+                                pass
                     restart_requested.set()
                     print("Radio link detected. Switching dashboard to live session...")
                     shutdown_fn = getattr(server, "shutdown", None)
@@ -829,6 +867,16 @@ def run_dashboard_runtime(
             if callable(stop_receiving):
                 try:
                     stop_receiving()
+                except Exception:
+                    pass
+            close_receive_buffer = getattr(
+                getattr(context.tracker, "_startup_receive_buffer", None),
+                "close",
+                None,
+            )
+            if callable(close_receive_buffer):
+                try:
+                    close_receive_buffer()
                 except Exception:
                     pass
             close_runtime_resources(

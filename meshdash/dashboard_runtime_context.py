@@ -86,6 +86,43 @@ class DashboardRuntimeContext:
     history_enabled: bool
 
 
+class StartupReceiveBuffer:
+    """Buffer startup packets until runtime state is ready to ingest them."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._packets: list[tuple[object, object]] = []
+        self._callback: Optional[Callable[[object, object], object]] = None
+        self._closed = False
+
+    def on_receive(self, packet: object, interface: object) -> None:
+        callback: Optional[Callable[[object, object], object]]
+        with self._lock:
+            if self._closed:
+                return
+            callback = self._callback
+            if callback is None:
+                self._packets.append((packet, interface))
+                return
+        callback(packet, interface)
+
+    def activate(self, callback: Callable[[object, object], object]) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            buffered_packets = list(self._packets)
+            self._packets.clear()
+            for packet, interface in buffered_packets:
+                callback(packet, interface)
+            self._callback = callback
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._packets.clear()
+            self._callback = None
+
+
 def build_dashboard_runtime_context(
     args: DashboardArgs,
     *,
@@ -117,26 +154,45 @@ def build_dashboard_runtime_context(
     ),
     open_optional_history_store_fn: OpenOptionalHistoryStoreFn = open_optional_history_store,
     seed_tracker_if_empty_fn: SeedTrackerIfEmptyFn = seed_tracker_if_empty,
+    startup_receive_buffer: Optional[StartupReceiveBuffer] = None,
     build_dashboard_runtime_loaders_fn: Optional[BuildDashboardRuntimeLoadersFn] = None,
     build_dashboard_runtime_loader_dependencies_from_legacy_args_fn: BuildDashboardRuntimeLoaderDependenciesFromLegacyArgsFn = build_dashboard_runtime_loader_dependencies_from_legacy_args,
     build_dashboard_runtime_loaders_with_dependencies_fn: BuildDashboardRuntimeLoadersWithDependenciesFn = build_dashboard_runtime_loaders_with_dependencies,
 ) -> DashboardRuntimeContext:
     target = mesh_target_label_fn(args)
-    print_fn(f"Connecting to {target} ...")
-    iface = open_mesh_interface_fn(args)
-
     history_db_path = build_shared_history_db_path(
         resolve_history_db_path_fn(args.history_db)
-    )
-    history_local_node_id = resolve_history_local_node_id(
-        iface=iface,
-        get_local_node_id_fn=get_local_node_id_fn,
-        wait_for_id_seconds=2.0,
     )
     history_store: Optional[HistoryStoreLike] = open_optional_history_store_fn(
         args,
         history_store_cls=history_store_cls,
         history_db_path=history_db_path,
+    )
+
+    tracker = dashboard_tracker_cls(packet_limit=args.packet_limit, history_store=history_store)
+    send_lock = lock_factory()
+
+    receive_buffer = startup_receive_buffer or StartupReceiveBuffer()
+    if startup_receive_buffer is None:
+        subscribe_fn(receive_buffer.on_receive, "meshtastic.receive")
+
+    print_fn(f"Connecting to {target} ...")
+    try:
+        iface = open_mesh_interface_fn(args)
+    except Exception:
+        receive_buffer.close()
+        close_history_store = getattr(history_store, "close", None)
+        if callable(close_history_store):
+            try:
+                close_history_store()
+            except Exception:
+                pass
+        raise
+
+    history_local_node_id = resolve_history_local_node_id(
+        iface=iface,
+        get_local_node_id_fn=get_local_node_id_fn,
+        wait_for_id_seconds=2.0,
     )
     if history_store is not None and history_local_node_id:
         try:
@@ -144,9 +200,12 @@ def build_dashboard_runtime_context(
         except Exception:
             pass
 
-    tracker = dashboard_tracker_cls(packet_limit=args.packet_limit, history_store=history_store)
-    send_lock = lock_factory()
-    subscribe_fn(tracker.on_receive, "meshtastic.receive")
+    receive_buffer.activate(tracker.on_receive)
+    try:
+        setattr(tracker, "_startup_receive_buffer", receive_buffer)
+    except Exception:
+        pass
+
     on_connection_established = getattr(tracker, "on_connection_established", None)
     if callable(on_connection_established):
         subscribe_fn(on_connection_established, "meshtastic.connection.established")
