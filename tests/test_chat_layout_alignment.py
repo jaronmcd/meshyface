@@ -795,12 +795,32 @@ def test_node_name_cache_rejects_generic_downgrades_and_accepts_history_caps() -
     src = read_template("meshdash/assets/dashboard.js.chat.events.core.identity.favorites_selection.topbar_map_title.tmpl")
 
     assert "function isGenericNodeCacheLabel(nameRaw, nodeIdRaw) {{" in src
-    assert "function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw) {{" in src
+    assert "function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw, options = null) {{" in src
+    assert "const preferCandidate = !!(options && options.preferCandidate);" in src
     assert "!isGenericNodeCacheLabel(current, nodeId)" in src
     assert "&& isGenericNodeCacheLabel(candidate, nodeId)" in src
     assert "function updateNodeNameCache(nodes, historyCaps = null) {{" in src
     assert "for (const [rawNodeId, caps] of Object.entries(historyCapsObj)) {{" in src
-    assert "for (const name of [caps.last_long_name, caps.last_short_name]) {{" in src
+    assert "rememberNodeNameCacheCandidate(nodeId, caps.last_short_name)" in src
+    assert "rememberNodeNameCacheCandidate(nodeId, caps.last_long_name, {{ preferCandidate: true }})" in src
+
+
+def test_chat_feed_labels_prefer_historical_long_names_before_cache() -> None:
+    src = read_template("meshdash/assets/dashboard.js.chat.render.identity_reactions.tmpl")
+    roster_src = read_template("meshdash/assets/dashboard.js.chat.render.roster_finalize.tmpl")
+
+    assert "updateNodeNameCache(nodes, historyCapsObj);" in src
+    assert "const preferredHistoryNodeName = (historyCaps, nodeIdRaw = \"\", cachedNameRaw = \"\") => {{" in src
+    assert "const longName = String(historyCaps.last_long_name || \"\").trim();" in src
+    assert "const shortName = String(historyCaps.last_short_name || \"\").trim();" in src
+    assert "&& !isGenericNodeCacheLabel(cachedName, nodeId)" in src
+    assert "&& isGenericNodeCacheLabel(candidate, nodeId)" in src
+    assert "const preferredChatNodeName = (nodeId, node, historyCaps, fallbackName = \"\") => {{" in src
+    assert "return preferredNodeName(node) || preferredHistoryNodeName(historyCaps, clean, cached) || cached || fallbackName;" in src
+    assert "const name = preferredChatNodeName(clean, node, snapshot.historyCaps, fallbackName);" in src
+    assert "const name = preferredChatNodeName(clean, node, snapshot.historyCaps, clean);" in src
+    assert "const name = preferredChatNodeName(peerId, node, snapshot.historyCaps, peerId);" in roster_src
+    assert "const peerName = preferredChatNodeName(" in roster_src
 
 
 def test_chat_node_list_can_collapse_into_compact_rail() -> None:

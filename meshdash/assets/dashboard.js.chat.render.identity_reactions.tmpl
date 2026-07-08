@@ -611,7 +611,7 @@
       const historyCapsObj = (state && state.history_caps && typeof state.history_caps === "object")
         ? state.history_caps
         : null;
-      updateNodeNameCache(nodes);
+      updateNodeNameCache(nodes, historyCapsObj);
       const nowUnix = Math.floor(Date.now() / 1000);
       const pollStructuralSignature = allowPollSkip
         ? buildChatPollStructuralSignature(state)
@@ -751,6 +751,31 @@
         return snapshot;
       }}
 
+      const preferredHistoryNodeName = (historyCaps, nodeIdRaw = "", cachedNameRaw = "") => {{
+        if (!historyCaps || typeof historyCaps !== "object") return "";
+        const nodeId = normalizeNodeId(nodeIdRaw || "");
+        const cachedName = String(cachedNameRaw || "").trim();
+        const longName = String(historyCaps.last_long_name || "").trim();
+        const shortName = String(historyCaps.last_short_name || "").trim();
+        const candidate = longName || shortName;
+        if (!candidate) return "";
+        if (
+          cachedName
+          && typeof isGenericNodeCacheLabel === "function"
+          && !isGenericNodeCacheLabel(cachedName, nodeId)
+          && isGenericNodeCacheLabel(candidate, nodeId)
+        ) {{
+          return "";
+        }}
+        return candidate;
+      }};
+
+      const preferredChatNodeName = (nodeId, node, historyCaps, fallbackName = "") => {{
+        const clean = normalizeNodeId(nodeId || "");
+        const cached = clean ? String(nodeNameCache.get(clean) || "").trim() : "";
+        return preferredNodeName(node) || preferredHistoryNodeName(historyCaps, clean, cached) || cached || fallbackName;
+      }};
+
       const nodeIdentityMeta = (nodeId, options = {{}}) => {{
         const showHops = !(options && options.showHops === false);
         const snapshot = resolveChatNodeFreshness(nodeId);
@@ -839,7 +864,7 @@
           const snapshot = resolveChatNodeFreshness(clean);
           const node = snapshot.node;
           const fallbackName = isCanonicalNodeId(clean) ? clean : "Unknown node";
-          const name = preferredNodeName(node) || nodeNameCache.get(clean) || fallbackName;
+          const name = preferredChatNodeName(clean, node, snapshot.historyCaps, fallbackName);
           const meta = nodeIdentityMeta(clean);
           endpoint = {{
             label: name,
@@ -907,7 +932,7 @@
         }}
         const snapshot = resolveChatNodeFreshness(clean);
         const node = snapshot.node;
-        const name = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
+        const name = preferredChatNodeName(clean, node, snapshot.historyCaps, clean);
         const messageUnix = parseDashboardTimeToUnix(msgTimeUnix);
         const existing = participants.get(clean);
         if (!existing) {{

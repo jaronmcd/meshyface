@@ -49,12 +49,13 @@
       return !!rawHex && (suffix === rawHex || suffix === shortHex);
     }}
 
-    function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw) {{
+    function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw, options = null) {{
       const nodeId = normalizeNodeId(nodeIdRaw || "");
       const candidate = String(candidateRaw || "").trim();
       if (!isSelectableNodeId(nodeId) || !candidate) return false;
       const current = String(nodeNameCache.get(nodeId) || "").trim();
       if (current && current === candidate) return false;
+      const preferCandidate = !!(options && options.preferCandidate);
       if (current) {{
         const currentEmoji = (typeof normalizeNodeTagEmoji === "function")
           ? normalizeNodeTagEmoji(current, "")
@@ -63,7 +64,7 @@
           ? normalizeNodeTagEmoji(candidate, "")
           : "";
         // Keep the richer label if it already carries an emoji and the replacement does not.
-        if (currentEmoji && !candidateEmoji) {{
+        if (currentEmoji && !candidateEmoji && !preferCandidate) {{
           return false;
         }}
       }}
@@ -83,14 +84,13 @@
       for (const node of (nodes || [])) {{
         const nodeId = normalizeNodeId(node.id || "");
         if (!isSelectableNodeId(nodeId)) continue;
-        for (const name of [
-          preferredNodeName(node),
-          node && node.long_name,
-          node && node.short_name,
-        ]) {{
-          if (rememberNodeNameCacheCandidate(nodeId, name)) {{
-            changed = true;
-          }}
+        const shortName = node && node.short_name;
+        const longName = node && node.long_name;
+        if (rememberNodeNameCacheCandidate(nodeId, shortName)) {{
+          changed = true;
+        }}
+        if (rememberNodeNameCacheCandidate(nodeId, longName, {{ preferCandidate: true }})) {{
+          changed = true;
         }}
       }}
       const historyCapsObj = historyCaps && typeof historyCaps === "object" ? historyCaps : null;
@@ -98,10 +98,11 @@
         for (const [rawNodeId, caps] of Object.entries(historyCapsObj)) {{
           const nodeId = normalizeNodeId(rawNodeId || "");
           if (!isSelectableNodeId(nodeId) || !(caps && typeof caps === "object")) continue;
-          for (const name of [caps.last_long_name, caps.last_short_name]) {{
-            if (rememberNodeNameCacheCandidate(nodeId, name)) {{
-              changed = true;
-            }}
+          if (rememberNodeNameCacheCandidate(nodeId, caps.last_short_name)) {{
+            changed = true;
+          }}
+          if (rememberNodeNameCacheCandidate(nodeId, caps.last_long_name, {{ preferCandidate: true }})) {{
+            changed = true;
           }}
         }}
       }}
