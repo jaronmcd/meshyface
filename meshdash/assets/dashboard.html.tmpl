@@ -41,7 +41,10 @@
   </style>
   <!-- mesh-dashboard-style:end -->
 </head>
-<body>
+<body{body_attrs}>
+  <div id="dashboard-image-bg" class="{dashboard_image_bg_class}" aria-hidden="true"{dashboard_image_bg_attrs}></div>
+  <div id="dashboard-particles-bg" class="{dashboard_particles_bg_class}" aria-hidden="true"{dashboard_particles_bg_attrs}></div>
+  <div id="dashboard-livemap-bg" class="{dashboard_livemap_bg_class}" aria-hidden="true"{dashboard_livemap_bg_attrs}></div>
   <div class="topbar">
     <div class="sub">
       <div id="topbar-update-ticker" class="topbar-update-ticker workspace-update-ticker" role="status" aria-live="polite" aria-label="Live update ticker" hidden>
@@ -200,7 +203,7 @@
 
   <div class="workspace-shell chat-panel-open">
     <aside id="chat-left-panel" class="chat-left-panel" aria-label="Global node selection and search">
-      <div class="chat-left-head-shell">
+      <div class="chat-left-head-shell workspace-stack-head-shell">
         <div class="chat-users-head">
           <button
             id="theme-toggle-inline-btn"
@@ -405,8 +408,8 @@
               aria-controls="chat-left-panel"
             >
               <svg id="chat-panel-collapse-glyph" class="chat-panel-collapse-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path class="chat-panel-collapse-glyph-collapse" d="M7 5V19M15 7L11 12L15 17" />
-                <path class="chat-panel-collapse-glyph-expand" d="M17 5V19M9 7L13 12L9 17" />
+                <polygon class="chat-panel-collapse-glyph-collapse" points="5,12 14.5,5.5 14.5,18.5" />
+                <polygon class="chat-panel-collapse-glyph-expand" points="17,12 7.5,5.5 7.5,18.5" />
               </svg>
             </button>
             <button id="chat-peer-add-toggle-btn" class="chat-peer-add-toggle-btn" type="button" title="Add a peer-to-peer user" hidden>Add</button>
@@ -428,7 +431,7 @@
           </div>
         </div>
       </div>
-      <div class="chat-left-section chat-users-section chat-left-roster-shell">
+      <div class="chat-left-section chat-users-section chat-left-roster-shell workspace-stack-list-shell">
         <div id="chat-room-unread-shell" class="chat-member-pinned-shell" hidden>
           <div class="chat-member-pinned-head">
             <span class="chat-member-pinned-title">Unread</span>
@@ -457,213 +460,9 @@
           title="Drag to resize user list and node details"
           hidden
         ></div>
-        <section id="chat-node-details-drawer" class="chat-node-details-drawer" hidden>
-          <div class="chat-node-details-head">
-            <div class="chat-node-details-head-main">
-              <button
-                id="chat-node-details-icon-btn"
-                class="chat-node-details-icon-btn"
-                type="button"
-                title="Set node icon"
-                aria-label="Set node icon"
-              ><span id="chat-node-details-icon-chip" class="chat-node-details-icon-chip is-empty" aria-hidden="true">+</span></button>
-              <input id="chat-node-details-head-icon-input" type="text" hidden aria-hidden="true" tabindex="-1" />
-              <button
-                id="chat-node-details-tab-tag"
-                class="chat-node-details-tab-btn chat-node-details-tab-tag-btn chat-node-details-head-tag-btn"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                data-drawer-tab="tag"
-                title="Add or edit node tag"
-                aria-label="Add or edit node tag"
-              ><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>
-              <button
-                id="chat-node-details-reset-btn"
-                class="chat-node-details-action-btn chat-node-details-reset-btn"
-                type="button"
-                title="Clear saved tag and custom icon"
-                aria-label="Clear saved tag and custom icon"
-                hidden
-              >Reset</button>
-              <div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>
-              <div class="chat-node-details-head-actions">
-                <button
-                  id="chat-node-details-pin-btn"
-                  class="pin-toggle-btn chat-node-details-action-btn chat-node-details-pin-btn"
-                  type="button"
-                  title="Pin this node to the top of the chat list"
-                  aria-label="Pin this node to the top of the chat list"
-                  aria-pressed="false"
-                  hidden
-                ><span class="chat-node-details-pin-label">Pin</span></button>
-                <button
-                  id="chat-node-details-mute-btn"
-                  class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn"
-                  type="button"
-                  title="Mute this user in chat feed"
-                  aria-pressed="false"
-                  hidden
-                ><span class="chat-node-details-mute-label">Mute</span></button>
-              </div>
-            </div>
-            <button
-              id="chat-node-details-close-btn"
-              class="chat-node-details-close-btn"
-              type="button"
-              title="Collapse node details"
-              aria-label="Collapse node details"
-            >&times;</button>
-          </div>
-          <div class="chat-node-details-tabs" role="tablist" aria-label="Selected node detail tabs">
-            <button
-              id="chat-node-details-tab-messages"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="messages"
-            >Messages</button>
-            <button
-              id="chat-node-details-tab-details"
-              class="chat-node-details-tab-btn is-active"
-              type="button"
-              role="tab"
-              aria-selected="true"
-              data-drawer-tab="details"
-            >Details</button>
-            <button
-              id="chat-node-details-tab-telemetry"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="telemetry"
-            >Telemetry</button>
-            <button
-              id="chat-node-details-tab-history"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="history"
-            >History</button>
-            <button
-              id="chat-node-details-tab-location"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="location"
-            >Location</button>
-            <button
-              id="chat-node-details-tab-chat"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="chat"
-            >Chat</button>
-            <button
-              id="chat-node-details-tab-links"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="links"
-            >Links</button>
-            <button
-              id="chat-node-details-tab-notes"
-              class="chat-node-details-tab-btn"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-drawer-tab="notes"
-            >Notes</button>
-          </div>
-          <div
-            id="chat-node-details-panel-details"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-details"
-          >
-            <div id="chat-node-details-content-host" class="chat-node-details-content-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-notes"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-notes"
-            hidden
-          >
-            <div id="chat-node-details-notes-host" class="chat-node-details-notes-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-messages"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-messages"
-            hidden
-          >
-            <div id="chat-node-details-messages-host" class="chat-node-details-messages-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-history"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-history"
-            hidden
-          >
-            <div id="chat-node-details-history-host" class="chat-node-details-history-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-location"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-location"
-            hidden
-          >
-            <div id="chat-node-details-location-host" class="chat-node-details-location-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-chat"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-chat"
-            hidden
-          >
-            <div id="chat-node-details-chat-host" class="chat-node-details-chat-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-links"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-links"
-            hidden
-          >
-            <div id="chat-node-details-links-host" class="chat-node-details-links-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-telemetry"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-telemetry"
-            hidden
-          >
-            <div id="chat-node-details-telemetry-host" class="chat-node-details-telemetry-host"></div>
-          </div>
-          <div
-            id="chat-node-details-panel-tag"
-            class="chat-node-details-panel"
-            role="tabpanel"
-            aria-labelledby="chat-node-details-tab-tag"
-            hidden
-          >
-            <div id="chat-node-details-tag-host" class="chat-node-details-tag-host"></div>
-          </div>
-        </section>
+        <div id="chat-node-details-inline-host" class="chat-node-details-inline-host"></div>
       </div>
-      <div class="chat-left-bottom-bar">
+      <div class="chat-left-bottom-bar workspace-stack-bottom-shell">
         <div class="chat-user-search-wrap">
           <input id="chat-user-search-input" class="list-search-input" type="search" placeholder="Search nodes by ID or name" autocomplete="off" />
         </div>
@@ -694,10 +493,13 @@
     </aside>
     <div id="chat-panel-splitter" class="chat-panel-splitter" title="Drag to resize chat workspace and node navigator" aria-hidden="true"></div>
     <main class="workspace-main">
-  <div id="dashboard-layout" class="layout view-chat">
+      <div id="chat-node-details-promoted-shell" class="chat-node-details-promoted-shell" hidden>
+        <div id="chat-node-details-promoted-host" class="chat-node-details-promoted-host"></div>
+      </div>
+      <div id="dashboard-layout" class="layout view-chat">
     <section class="card settings" aria-label="Settings">
       <div class="body">
-        <div class="settings-chrome workspace-chrome-bar">
+        <div class="settings-chrome workspace-chrome-bar workspace-stack-head-shell">
           <div class="settings-toolbar workspace-chrome-row">
             <div class="settings-tabbar workspace-pillbar" role="tablist" aria-label="Settings categories">
             <button
@@ -1099,7 +901,13 @@
                   <button id="settings-apply-position" class="btn btn-secondary" type="button">Apply Position</button>
                 </label>
               </div>
-              <div class="settings-help-note">Recommended: Smart Position OFF, Broadcast 43200+ sec (12h+), GPS update 3600+ sec (1h+).</div>
+              <div class="settings-help-note">
+                Quiet fixed-node suggestion: Smart Position OFF, Broadcast 43200+ sec (12h+), GPS update 3600+ sec (1h+).
+                See
+                <a href="https://meshtastic.org/docs/configuration/radio/position/" target="_blank" rel="noopener noreferrer">Meshtastic Position Configuration</a>
+                and
+                <a href="https://meshtastic.org/docs/overview/mesh-algo/" target="_blank" rel="noopener noreferrer">Mesh Broadcast Algorithm</a>.
+              </div>
               <div id="settings-fixed-controls" class="settings-fixed-controls">
                 <label class="settings-field">
                   <span class="settings-label">Fixed GPS position (lat, lon, alt m)</span>
@@ -1150,10 +958,8 @@
             <h3>Offline Maps</h3>
             <div class="settings-fields">
               <div class="settings-help-note">
-                Expansion packs add high-detail worldwide map layers to the offline basemap.
-                Packs are installed from the dashboard computer's command line and stored
-                locally, so the dashboard itself never downloads anything. Once installed,
-                packs never need internet again.
+                Map packs add optional detail to offline maps. Install packs from this dashboard computer;
+                once installed, the added layers stay local and work without internet.
               </div>
               <div id="settings-maps-pack-list" class="settings-maps-pack-list" aria-live="polite">
                 <div class="settings-maps-pack-empty">Loading map pack status...</div>
@@ -1206,9 +1012,7 @@
                 </label>
               </div>
               <div class="settings-help-note">
-                Layers apply to the offline basemap (forced offline mode or automatic
-                fallback when tiles are unreachable). Roads and railroads require an
-                installed expansion pack.
+                Layer toggles control the offline basemap. Layers marked "(pack)" require an installed map pack.
               </div>
             </div>
           </div>
@@ -1943,7 +1747,11 @@
                 </label>
               </div>
               <div class="settings-help-note">
-                Enable Neighbor Info if you want radios to advertise neighbor links. This is the radio-side data MeshFace can use to seed cold-start links.
+                Optional: Neighbor Info reports direct-neighbor link data and does not change mesh routing.
+                Enable Transmit over LoRa only if you want the radio to send that data on the primary channel.
+                MeshFace can use it to seed cold-start links.
+                See
+                <a href="https://meshtastic.org/docs/configuration/module/neighbor-info/" target="_blank" rel="noopener noreferrer">Meshtastic Neighbor Info Module</a>.
               </div>
             </div>
           </div>
@@ -2187,26 +1995,23 @@
           </div>
 
           <div class="settings-panel settings-panel-wide" data-settings-tab-panel="appearance" hidden>
-            <h3>Appearance</h3>
             <div class="settings-fields">
-              <label class="settings-field">
-                <span class="settings-label">Theme</span>
-                <button
-                  id="theme-toggle-btn"
-                  class="btn btn-secondary"
-                  type="button"
-                  data-theme-toggle="full"
-                  title="Toggle theme between dark and light"
-                >Theme: Dark</button>
-              </label>
-              <label class="settings-field" for="theme-preset-select">
-                <span class="settings-label">Preset</span>
-                <select id="theme-preset-select" class="settings-select" aria-label="Theme preset">
-                  <option value="custom">custom</option>
-                </select>
-              </label>
-              <div class="settings-help-note">
-                Fresh installs default to Meshyface blue with a neutral gray line and tint, and changing the controls below keeps the preset on <strong>custom</strong>.
+              <div class="settings-row settings-theme-preset-row">
+                <label class="settings-field" for="theme-preset-select">
+                  <span class="settings-label">Preset</span>
+                  <select id="theme-preset-select" class="settings-select" aria-label="Theme preset">
+                    <option value="custom">custom</option>
+                  </select>
+                </label>
+                <div class="settings-field settings-theme-preset-actions">
+                  <span class="settings-label">Manage</span>
+                  <div class="settings-inline-actions">
+                    <button id="theme-preset-save-btn" class="btn btn-secondary" type="button">Save as new theme</button>
+                    <button id="theme-preset-update-btn" class="btn btn-secondary" type="button" hidden>Update</button>
+                    <button id="theme-preset-rename-btn" class="btn btn-secondary" type="button" hidden>Rename</button>
+                    <button id="theme-preset-delete-btn" class="btn btn-danger" type="button" hidden>Delete</button>
+                  </div>
+                </div>
               </div>
               <div class="settings-row">
                 <label class="settings-field" for="theme-custom-base-color">
@@ -2215,7 +2020,7 @@
                     id="theme-custom-base-color"
                     class="settings-input settings-color-input"
                     type="color"
-                    value="#2563eb"
+                    value="#007bff"
                     aria-label="Custom theme base color"
                   />
                 </label>
@@ -2225,35 +2030,29 @@
                     id="theme-custom-line-color"
                     class="settings-input settings-color-input"
                     type="color"
-                    value="#9a9996"
+                    value="#0da6ff"
                     aria-label="Custom theme line color"
                   />
                 </label>
-                <label class="settings-field" for="theme-custom-tint-color">
-                  <span class="settings-label">Tint color</span>
+                <label class="settings-field" for="theme-custom-line-contrast-color">
+                  <span class="settings-label">Line contrast color</span>
                   <input
-                    id="theme-custom-tint-color"
+                    id="theme-custom-line-contrast-color"
                     class="settings-input settings-color-input"
                     type="color"
-                    value="#9a9996"
-                    aria-label="Custom theme tint color"
+                    value="#4f55ff"
+                    aria-label="Custom theme line contrast color"
                   />
                 </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-tint-intensity">
-                  <span class="settings-label">Tint intensity</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-tint-intensity"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value="50"
-                      aria-label="Custom theme tint intensity"
-                    />
-                    <output id="theme-custom-tint-intensity-value" for="theme-custom-tint-intensity">50%</output>
-                  </div>
+                <label class="settings-field" for="theme-custom-text-font">
+                  <span class="settings-label">Text font</span>
+                  <select id="theme-custom-text-font" class="settings-select" aria-label="Custom theme text font">
+                    <option value="system">System</option>
+                    <option value="compact">Compact</option>
+                    <option value="rounded">Rounded</option>
+                    <option value="mono">Mono</option>
+                    <option value="serif">Serif</option>
+                  </select>
                 </label>
                 <label class="settings-field settings-theme-depth-field" for="theme-custom-color-depth">
                   <span class="settings-label">Color depth</span>
@@ -2265,86 +2064,295 @@
                       min="0"
                       max="100"
                       step="1"
-                      value="50"
+                      value="44"
                       aria-label="Custom theme color depth"
                     />
-                    <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">50%</output>
+                    <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">44%</output>
+                  </div>
+                </label>
+                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-transparency">
+                  <span class="settings-label">Foreground transparency</span>
+                  <div class="settings-range-row">
+                    <input
+                      id="theme-custom-foreground-transparency"
+                      class="settings-range-input"
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="1"
+                      value="39"
+                      aria-label="Custom theme foreground transparency"
+                    />
+                    <output id="theme-custom-foreground-transparency-value" for="theme-custom-foreground-transparency">39%</output>
+                  </div>
+                </label>
+                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-blur">
+                  <span class="settings-label">Foreground blur</span>
+                  <div class="settings-range-row">
+                    <input
+                      id="theme-custom-foreground-blur"
+                      class="settings-range-input"
+                      type="range"
+                      min="0"
+                      max="40"
+                      step="1"
+                      value="0"
+                      aria-label="Custom theme foreground blur"
+                    />
+                    <output id="theme-custom-foreground-blur-value" for="theme-custom-foreground-blur">0px</output>
                   </div>
                 </label>
               </div>
-              <section id="theme-live-preview" class="theme-live-preview" aria-label="Live theme preview">
-                <div class="theme-live-preview-head">
-                  <div class="theme-live-preview-title-wrap">
-                    <strong>Live preview</strong>
-                    <span id="theme-live-preview-status">Updates while you drag.</span>
+              <div class="settings-row settings-gradient-row">
+                <fieldset class="settings-gradient-group settings-background-panel">
+                  <legend>Background</legend>
+                  <div class="settings-background-source-fields">
+                    <label class="settings-field" for="theme-custom-background-type">
+                      <span class="settings-label">Background source</span>
+                      <select id="theme-custom-background-type" class="settings-select" aria-label="Background type">
+                        <option value="particles">Particles</option>
+                        <option value="livemap">Live map</option>
+                        <option value="image">Image</option>
+                      </select>
+                    </label>
                   </div>
-                </div>
-                <div class="theme-live-preview-grid">
-                  <article class="theme-preview-card theme-preview-card-shell">
-                    <span class="theme-preview-kicker">Color depth</span>
-                    <strong class="theme-preview-title">Primary shell</strong>
-                    <div class="theme-preview-pill-row">
-                      <span class="theme-preview-pill theme-preview-pill-active">Active tab</span>
-                      <span class="theme-preview-pill">Panel edge</span>
+                  <div class="settings-background-image-fields" data-background-image-only hidden>
+                    <label class="settings-field" for="theme-custom-background-image-file">
+                      <span class="settings-label">Image</span>
+                      <input
+                        id="theme-custom-background-image-file"
+                        class="settings-input"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+                        aria-label="Background image"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-background-image-layout">
+                      <span class="settings-label">Layout</span>
+                      <select id="theme-custom-background-image-layout" class="settings-select" aria-label="Background image layout">
+                        <option value="cover">Fill</option>
+                        <option value="contain">Fit</option>
+                        <option value="stretch">Stretch</option>
+                        <option value="center">Center</option>
+                        <option value="tile">Tile</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="theme-custom-background-image-darken">
+                      <span class="settings-label">Darken</span>
+                      <input
+                        id="theme-custom-background-image-darken"
+                        class="settings-range"
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value="0"
+                      />
+                      <output id="theme-custom-background-image-darken-value" for="theme-custom-background-image-darken">0%</output>
+                    </label>
+                    <div class="settings-field settings-background-image-actions">
+                      <span class="settings-label">Image state</span>
+                      <div class="settings-inline-actions">
+                        <button id="theme-custom-background-image-clear" class="btn btn-secondary" type="button">Clear</button>
+                        <span id="theme-custom-background-image-status" class="settings-help-note">No image selected</span>
+                      </div>
                     </div>
-                    <div class="theme-preview-shell-stage">
-                      <span class="theme-preview-shell-line"></span>
-                      <span class="theme-preview-shell-meter">
-                        <span class="theme-preview-shell-meter-fill"></span>
-                      </span>
+                  </div>
+                  <div class="settings-livemap-layer-fields" data-background-livemap-only hidden>
+                    <span class="settings-label">Map layers</span>
+                    <div class="settings-livemap-layer-grid">
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-roads" type="checkbox" data-livemap-layer="roads" checked />
+                        <span>Roads</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-railroads" type="checkbox" data-livemap-layer="railroads" checked />
+                        <span>Rail</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-rivers" type="checkbox" data-livemap-layer="rivers" checked />
+                        <span>Rivers</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-lakes" type="checkbox" data-livemap-layer="lakes" checked />
+                        <span>Lakes</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-parks" type="checkbox" data-livemap-layer="parks" checked />
+                        <span>Parks</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-urban" type="checkbox" data-livemap-layer="urban" checked />
+                        <span>Urban</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-states" type="checkbox" data-livemap-layer="states" checked />
+                        <span>States</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-borders" type="checkbox" data-livemap-layer="borders" checked />
+                        <span>Borders</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-coastline" type="checkbox" data-livemap-layer="coastline" checked />
+                        <span>Coast</span>
+                      </label>
+                      <label class="settings-field settings-inline">
+                        <input id="theme-custom-livemap-layer-cities" type="checkbox" data-livemap-layer="cities" checked />
+                        <span>City labels</span>
+                      </label>
                     </div>
-                  </article>
-                  <article class="theme-preview-card theme-preview-card-tint">
-                    <span class="theme-preview-kicker">Tint intensity</span>
-                    <strong class="theme-preview-title">Shared tint surfaces</strong>
-                    <div class="theme-preview-note-pill">Help notes, pane heads, console chrome</div>
-                    <div class="theme-preview-swatch-row" aria-hidden="true">
-                      <span class="theme-preview-swatch theme-preview-swatch-soft"></span>
-                      <span class="theme-preview-swatch theme-preview-swatch-base"></span>
-                      <span class="theme-preview-swatch theme-preview-swatch-alt"></span>
+                  </div>
+                  <div data-background-particles>
+                    <div id="theme-custom-particles-legend" class="settings-sublegend">Particles</div>
+                    <div class="settings-particles-fields">
+                    <label class="settings-field settings-inline" data-particles-random-only>
+                      <input id="theme-custom-particles-enabled" type="checkbox" checked />
+                      <span>Enable particles</span>
+                    </label>
+                    <label class="settings-field settings-inline">
+                      <input id="theme-custom-particles-links" type="checkbox" checked />
+                      <span>Lines</span>
+                    </label>
+                    <label class="settings-field" for="theme-custom-particles-color">
+                      <span id="theme-custom-particles-color-label" class="settings-label">Particle color</span>
+                      <input
+                        id="theme-custom-particles-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#548dff"
+                        aria-label="Particle color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-particles-link-color">
+                      <span id="theme-custom-particles-link-color-label" class="settings-label">Line color</span>
+                      <input
+                        id="theme-custom-particles-link-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#4f55ff"
+                        aria-label="Particle line color"
+                      />
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-particles-count" data-particles-random-only>
+                      <span class="settings-label">Count</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-particles-count"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="240"
+                          step="1"
+                          value="50"
+                          aria-label="Particle count"
+                        />
+                        <output id="theme-custom-particles-count-value" for="theme-custom-particles-count">50</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-particles-speed" data-particles-random-only>
+                      <span class="settings-label">Speed</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-particles-speed"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="12"
+                          step="0.1"
+                          value="0.2"
+                          aria-label="Particle speed"
+                        />
+                        <output id="theme-custom-particles-speed-value" for="theme-custom-particles-speed">0.2</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-particles-size">
+                      <span class="settings-label">Size</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-particles-size"
+                          class="settings-range-input"
+                          type="range"
+                          min="1"
+                          max="8"
+                          step="1"
+                          value="2"
+                          aria-label="Particle size"
+                        />
+                        <output id="theme-custom-particles-size-value" for="theme-custom-particles-size">2</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-particles-opacity">
+                      <span class="settings-label">Opacity</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-particles-opacity"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="88"
+                          aria-label="Particle opacity"
+                        />
+                        <output id="theme-custom-particles-opacity-value" for="theme-custom-particles-opacity">88%</output>
+                      </div>
+                    </label>
                     </div>
-                  </article>
-                  <article class="theme-preview-card theme-preview-card-console">
-                    <span class="theme-preview-kicker">Console</span>
-                    <strong class="theme-preview-title">Tint-backed utility chrome</strong>
-                    <div class="theme-preview-console">
-                      <span class="theme-preview-console-line">$ tail -f mesh.log</span>
-                      <span class="theme-preview-console-line">[mesh] preview responds live</span>
+                  </div>
+                  <div>
+                    <div class="settings-sublegend">Background gradient</div>
+                    <div class="settings-gradient-fields">
+                    <label class="settings-field" for="theme-custom-gradient-primary-start-color">
+                      <span class="settings-label">Start color</span>
+                      <input
+                        id="theme-custom-gradient-primary-start-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#00356e"
+                        aria-label="Background gradient start color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-gradient-primary-end-color">
+                      <span class="settings-label">End color</span>
+                      <input
+                        id="theme-custom-gradient-primary-end-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#060d1f"
+                        aria-label="Background gradient end color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-gradient-primary-type">
+                      <span class="settings-label">Type</span>
+                      <select id="theme-custom-gradient-primary-type" class="settings-select" aria-label="Background gradient type">
+                        <option value="linear">Linear</option>
+                        <option value="radial">Radial</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="theme-custom-gradient-primary-direction">
+                      <span class="settings-label">Direction</span>
+                      <select id="theme-custom-gradient-primary-direction" class="settings-select" aria-label="Background gradient direction">
+                        <option value="right">Right</option>
+                        <option value="left">Left</option>
+                        <option value="down">Down</option>
+                        <option value="up">Up</option>
+                        <option value="down-right">Down right</option>
+                        <option value="down-left">Down left</option>
+                        <option value="up-right">Up right</option>
+                        <option value="up-left">Up left</option>
+                        <option value="center">Center</option>
+                      </select>
+                    </label>
                     </div>
-                  </article>
-                </div>
-              </section>
-              <div class="settings-help-note">
-                Tint color drives the shared shell tint used by help notes, console chrome, pane headers, and other shared secondary surfaces.
-              </div>
-              <div class="settings-help-note">
-                Tint intensity scales that shared tint from neutral up to a clearly visible wash. Color depth still tunes the broader shell palette and gradients.
-              </div>
-              <div class="settings-help-note">
-                Control node color styling for the node list and chat feed.
-              </div>
-              <label class="settings-field settings-inline">
-                <input id="settings-appearance-unique-node-colors" type="checkbox" />
-                <span>Use unique node colors in node list</span>
-              </label>
-              <label class="settings-field settings-inline">
-                <input id="settings-appearance-unique-chat-colors" type="checkbox" />
-                <span>Apply unique node colors to chat feed</span>
-              </label>
-              <div class="settings-help-note">
-                Off leaves untagged node and chat surfaces neutral. Tagged nodes still keep their explicit tag colors.
-              </div>
-              <div class="settings-help-note">
-                Dashboard display behavior for always-on monitoring.
+                  </div>
+                </fieldset>
               </div>
               <label class="settings-field settings-inline">
                 <input id="settings-appearance-keep-screen-on" type="checkbox" />
                 <span>Keep screen on while dashboard is open</span>
               </label>
               <div id="settings-wake-lock-status" class="settings-help-note settings-wake-lock-status" aria-live="polite"></div>
-              <div class="settings-help-note">
-                <strong>Console</strong> tuning for packet logs and command output.
-              </div>
               <div class="settings-row">
                 <label class="settings-field">
                   <span class="settings-label">Console text size</span>
@@ -2438,7 +2446,7 @@
     </section>
 
     <section class="card chat">
-      <div class="chat-card-head workspace-chrome-bar">
+      <div class="chat-card-head workspace-chrome-bar workspace-stack-head-shell">
         <div class="chat-card-head-controls workspace-chrome-row">
           <div class="chat-card-head-actions">
             <div
@@ -2474,10 +2482,10 @@
         </div>
         <div class="chat-shell">
           <div class="chat-main-pane">
-            <div class="scroll chat-log-scroll">
+            <div class="scroll chat-log-scroll workspace-stack-list-shell">
               <div id="chat-feed" class="chat-feed"></div>
             </div>
-            <div class="chat-compose-shell">
+            <div class="chat-compose-shell workspace-stack-bottom-shell">
               <div class="chat-composer">
                 <div class="chat-composer-top">
                   <div id="chat-reply-context" class="chat-reply-context" hidden>
@@ -2979,7 +2987,7 @@ Ready.
       <div class="body">
         <div id="games-shell-root" class="games-shell">
           <aside class="games-sidebar">
-            <div class="games-toolbar workspace-chrome-bar">
+            <div class="games-toolbar workspace-chrome-bar workspace-stack-head-shell">
               <label class="games-toolbar-picker" for="games-library-select">
                 <span class="games-library-label">Game</span>
                 <select id="games-library-select" class="games-peer-select" aria-label="Choose game">
@@ -3321,9 +3329,9 @@ Ready.
         <div class="map-frame">
           <div id="network-map-subviews" class="network-map-subviews" data-active-subview="map">
             <div id="network-map-chrome" class="network-map-chrome" aria-hidden="true">
-              <div class="network-map-subview-tabs" role="tablist" aria-label="Network subviews">
+              <div class="network-map-subview-tabs workspace-pillbar" role="tablist" aria-label="Network subviews">
                 <button
-                  class="network-map-subview-tab is-active"
+                  class="network-map-subview-tab workspace-pill-btn is-active"
                   type="button"
                   role="tab"
                   aria-selected="true"
@@ -3331,7 +3339,7 @@ Ready.
                   data-network-subview="map"
                 >Map</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3339,7 +3347,7 @@ Ready.
                   data-network-subview="overview"
                 >Overview</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3347,7 +3355,7 @@ Ready.
                   data-network-subview="graph"
                 >Links</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3355,7 +3363,7 @@ Ready.
                   data-network-subview="routes"
                 >Routes</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3363,7 +3371,7 @@ Ready.
                   data-network-subview="sensors"
                 >Sensors</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3371,7 +3379,7 @@ Ready.
                   data-network-subview="top10"
                 >Top 10</button>
                 <button
-                  class="network-map-subview-tab"
+                  class="network-map-subview-tab workspace-pill-btn"
                   type="button"
                   role="tab"
                   aria-selected="false"
@@ -3903,8 +3911,8 @@ Ready.
             </div>
             <div id="signal-timeline" class="signal-timeline" aria-label="Signal timeline"></div>
             <div class="signal-legend">
-              <span class="legend-chip is-primary">Avg SNR (dB)</span>
-              <span class="legend-chip is-compare">Avg RSSI (dBm)</span>
+              <span class="legend-chip is-primary" data-signal-legend-metric="avg_snr"><span class="legend-chip-label">Avg SNR (dB)</span><span class="quality-scale-label">Bad</span><span class="quality-scale-track" aria-hidden="true"></span><span class="quality-scale-label">Good</span></span>
+              <span class="legend-chip is-compare" data-signal-legend-metric="avg_rssi"><span class="legend-chip-label">Avg RSSI (dBm)</span><span class="quality-scale-label">Bad</span><span class="quality-scale-track" aria-hidden="true"></span><span class="quality-scale-label">Good</span></span>
             </div>
           </div>
           <div id="tab-panel-link" class="history-panel" hidden>
@@ -4413,6 +4421,7 @@ Ready.
 
   <script src="/assets/vendor/leaflet-1.9.4.js"></script>
   <script src="/assets/vendor/leaflet-heat-0.2.0.js"></script>
+  <script src="/assets/vendor/particles-2.0.0.min.js"></script>
   <!-- mesh-dashboard-app:start -->
   <script>
 {app_js}

@@ -485,10 +485,22 @@ def _build_render_html_fn_with_theme(
 
     def _render_html_with_theme(**kwargs):
         selected = settings.selected_preset_tokens()
+        settings_payload = settings.get_settings_payload()
+        selected_name = str(settings_payload.get("selected_preset") or "default")
+        preset_custom_settings = settings_payload.get("preset_custom_settings")
+        if not isinstance(preset_custom_settings, dict):
+            preset_custom_settings = {}
+        if selected_name == "custom":
+            initial_background_settings = settings_payload.get("custom_theme")
+        else:
+            initial_background_settings = preset_custom_settings.get(selected_name)
         return _render_html_helper(
             **kwargs,
             light_theme_vars=selected.get("light"),
             dark_theme_vars=selected.get("dark"),
+            initial_background_settings=(
+                initial_background_settings if isinstance(initial_background_settings, dict) else None
+            ),
             bbs_enabled=bbs_enabled,
             file_transfer_enabled=file_transfer_enabled,
             file_transfer_auto_accept=file_transfer_auto_accept,

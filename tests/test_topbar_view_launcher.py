@@ -135,6 +135,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'layout-view-menu-head-current' not in html
     assert 'class="chat-peer-add-toggle-btn chat-node-navigator-menu-btn chat-node-navigator-dock-btn"' in html
     assert 'class="chat-peer-add-toggle-btn chat-panel-collapse-btn chat-users-head-action-btn"' in html
+    assert '<polygon class="chat-panel-collapse-glyph-collapse" points="5,12 14.5,5.5 14.5,18.5" />' in html
+    assert '<polygon class="chat-panel-collapse-glyph-expand" points="17,12 7.5,5.5 7.5,18.5" />' in html
     assert 'class="chat-users-head-gear-icon"' in html
     assert '>View</button>' not in html
     assert '<aside class="teams-rail"' not in html
@@ -143,7 +145,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
         html,
     )
     assert re.search(
-        r'<div class="chat-left-bottom-bar"[\s\S]*id="chat-user-search-input"[\s\S]*id="chat-node-navigator-menu-btn"[\s\S]*id="chat-node-navigator-menu"',
+        r'<div class="chat-left-bottom-bar[^"]*"[\s\S]*id="chat-user-search-input"[\s\S]*id="chat-node-navigator-menu-btn"[\s\S]*id="chat-node-navigator-menu"',
         html,
     )
 
@@ -154,7 +156,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".chat-users-head-launcher-shell {" in css
     assert ".chat-users-head-theme-btn {" in css
     assert ".chat-users-head-theme-icon {" in css
-    assert '.chat-users-head-theme-btn[aria-pressed="true"] {' in css
+    assert '.chat-users-head-theme-btn[aria-pressed="true"] {' not in css
     assert ".chat-users-head-view-btn {" in css
     assert ".chat-users-head-action-btn {" in css
     assert ".chat-users-head-gear-icon {" in css
@@ -192,9 +194,13 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     topbar_ticker_section = css.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
     topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
     topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
+    workspace_shell_section = css.split(".workspace-shell {", 1)[1].split("}", 1)[0]
     assert "padding: 8px 8px 0;" in topbar_section
+    assert "background: transparent;" in topbar_section
     assert "box-shadow: none;" in topbar_section
     assert "padding: 0;" in topbar_sub_section
+    assert "background: transparent;" in topbar_sub_section
+    assert "background: transparent;" in workspace_shell_section
     assert "--summary-visible-ticker-count: 10;" in css
     assert "padding-right: 0;" in css
     assert "box-shadow: none;" in topbar_ticker_section
@@ -202,6 +208,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "box-shadow: none;" in topbar_launcher_section
     assert ".chat-panel-collapse-glyph-collapse {" in css
     assert ".chat-panel-collapse-glyph-expand {" in css
+    collapse_glyph_section = css.split(".chat-panel-collapse-glyph {", 1)[1].split("}", 1)[0]
+    assert "fill: currentColor;" in collapse_glyph_section
+    assert "stroke: none;" in collapse_glyph_section
     assert '.chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-collapse {' in css
     assert '.chat-panel-collapse-btn[aria-pressed="true"] .chat-panel-collapse-glyph-expand {' in css
     assert re.search(
@@ -246,7 +255,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert '[data-theme="dark"] .settings-update-pr-item.is-running {' in css
     assert '[data-theme="dark"] .settings-update-pr-item.is-recovery-required {' in css
     assert ".settings-update-pr-full {" in css
-    assert ".settings-select option {" not in css
+    assert ".settings-select option {" in css
+    assert "background: var(--settings-control-bg);" in css
+    assert ".settings-select option:checked {" in css
     assert ".settings-database-capacity {" in css
     assert ".settings-database-capacity-fill.warn {" in css
     assert ".settings-database-advanced > summary {" in css
@@ -395,6 +406,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'document.getElementById("layout-view-menu-btn")' in js
     assert 'document.querySelectorAll("[data-theme-toggle]")' in js
     assert 'btn.dataset.themeToggleBound = "1";' in js
+    assert 'runBootStep("bindThemeToggle", () => bindThemeToggle());' in js
+    assert "function bindThemeToggle" in js
+    assert "prefers-color-scheme" in js
     assert 'if (typeof syncLayoutViewLauncherButtonState === "function") {' in js
     assert 'syncLayoutViewLauncherButtonState(activeLayoutView);' in js
     assert 'document.getElementById("layout-view-menu-apps-current")' in js

@@ -1413,7 +1413,7 @@
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, true);
+        selectNode(nodeId, true, false);
         const selectedAfterClick = normalizeNodeId(selectedNodeId || "");
         if (
           unreadDirectCount > 0
@@ -2042,53 +2042,12 @@
           if (chips.length <= 0) return "";
           return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
         }})();
-        const tintSeedNode = (
-          nodesById instanceof Map
-            ? (
-              nodesById.get(normalizeNodeId(nodeId))
-              || nodesById.get(normalizeNodeId(item && item.id))
-              || null
-            )
-            : null
-        ) || (nodeProjection && nodeProjection.node) || node || null;
-        const shortNameSeedRaw = String(
-          (tintSeedNode && (tintSeedNode.short_name || tintSeedNode.shortName || (tintSeedNode.user && (tintSeedNode.user.short_name || tintSeedNode.user.shortName))))
-          || ""
-        ).trim();
-        const longNameSeedRaw = String(
-          (tintSeedNode && (tintSeedNode.long_name || tintSeedNode.longName || (tintSeedNode.user && (tintSeedNode.user.long_name || tintSeedNode.user.longName))))
-          || (item && item.name)
-          || ""
-        ).trim();
-        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(nodeId || (item && item.id) || "", (item && item.id) || nodeId || "unknown")
-          : String(nodeId || (item && item.id) || "unknown").trim();
-        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(shortNameSeedRaw, tintOutlineSeed)
-          : String(shortNameSeedRaw || tintOutlineSeed).trim();
-        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(longNameSeedRaw, (item && item.name) || tintStartSeed || tintOutlineSeed)
-          : String(longNameSeedRaw || (item && item.name) || tintStartSeed || tintOutlineSeed).trim();
-        const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 210) : 210;
-        const nodeHue = tagActive ? nodeTagTintHue(tagEntry, autoNodeHue) : autoNodeHue;
         const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
-        const memberTintOptions = {{
-          scope: "member",
-          fallbackHue: 210,
-          tagActive,
-          hue: nodeHue,
-          outlineSeed: tintOutlineSeed,
-          tintStartSeed,
-          tintEndSeed,
-        }};
-        if (tagActive) {{
-          memberTintOptions.tintStartHue = nodeHue;
-          memberTintOptions.tintEndHue = nodeHue;
-          memberTintOptions.outlineHue = nodeHue;
-        }}
-        const memberTintStyle = (typeof nodeTintStyleVars === "function")
-          ? `${{nodeTintStyleVars(nodeId, memberTintOptions)}}${{tagStyleVars}}`
-          : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || 145)))}};${{tagStyleVars}}`;
+        const tagTintStyleVars = tagActive && typeof nodeTagTintStyleVars === "function"
+          ? nodeTagTintStyleVars(tagEntry, "member", 145)
+          : "";
+        const memberStyleVars = `${{tagTintStyleVars}}${{tagStyleVars}}`;
+        const memberStyleAttr = memberStyleVars ? ` style="${{escAttr(memberStyleVars)}}"` : "";
         const tagClass = tagActive ? " tagged-node" : "";
         const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
@@ -2123,6 +2082,7 @@
         const autoNewStatusEntry = (typeof autoNodeTagEntryForNode === "function")
           ? autoNodeTagEntryForNode(nodeId)
           : null;
+        const autoNewClass = autoNewStatusEntry ? " auto-new-node" : "";
         const rawMemberDisplayName = String((item && item.name) || nodeId || "Unknown node").trim() || "Unknown node";
         const statusOverridesNodeVisualEmoji = !!autoNewStatusEntry;
         const memberDisplayName = (hasNodeVisualEmoji && showStatusDots && !statusOverridesNodeVisualEmoji && typeof stripNodeVisualEmojiFromLabel === "function")
@@ -2148,7 +2108,7 @@
         const actionRowHtml = removeBtn
           ? `<span class="chat-member-actions">${{removeBtn}}</span>`
           : '<span class="chat-member-actions"></span>';
-        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" style="${{escAttr(memberTintStyle)}}" title="${{escAttr(memberTitle)}}">
+        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{autoNewClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
           ${{statusMarkerHtml}}
           <span class="chat-member-main">
             <span class="chat-member-name-row">
@@ -2168,27 +2128,6 @@
       }} catch (err) {{
         const fallbackId = normalizeNodeId(item && item.id);
         const fallbackName = String((item && item.name) || fallbackId || "Unknown node");
-        const fallbackHue = (typeof nodeTintHue === "function") ? nodeTintHue(fallbackId || "unknown", 210) : 210;
-        const fallbackOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(fallbackId || "unknown", "unknown")
-          : String(fallbackId || "unknown").trim();
-        const fallbackStartSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText("", fallbackOutlineSeed)
-          : fallbackOutlineSeed;
-        const fallbackEndSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(fallbackName, fallbackStartSeed || fallbackOutlineSeed)
-          : String(fallbackName || fallbackStartSeed || fallbackOutlineSeed).trim();
-        const fallbackTintStyle = (typeof nodeTintStyleVars === "function")
-          ? nodeTintStyleVars(fallbackId || "unknown", {{
-            scope: "member",
-            fallbackHue: 210,
-            tagActive: false,
-            hue: fallbackHue,
-            outlineSeed: fallbackOutlineSeed,
-            tintStartSeed: fallbackStartSeed,
-            tintEndSeed: fallbackEndSeed,
-          }})
-          : `--chat-member-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(fallbackHue) || 145)))}};`;
         try {{
           if (typeof console !== "undefined" && typeof console.error === "function") {{
             console.error("Node navigator row render failed", fallbackId || item, err);
@@ -2219,7 +2158,7 @@
                 : {{ text: "Last Heard: n/a", title: "Last seen n/a", mode: "last_heard" }}
             )
           : null;
-        return `<div class="chat-member-item status-unknown${{fallbackStatusVisibilityClass}}${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" data-node-tint-outline-seed="${{escAttr(fallbackOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(fallbackStartSeed)}}" data-node-tint-end-seed="${{escAttr(fallbackEndSeed)}}" style="${{escAttr(fallbackTintStyle)}}" title="Node navigator fallback row">
+        return `<div class="chat-member-item status-unknown${{fallbackStatusVisibilityClass}}${{selectedNodeId === fallbackId ? " selected-node" : ""}}" data-node-id="${{escAttr(fallbackId)}}" aria-label="Node navigator fallback row">
           ${{fallbackStatusHtml}}
           <span class="chat-member-main">
             <span class="chat-member-name-row">
@@ -2301,6 +2240,13 @@
       const pinnedCountEl = document.getElementById("chat-room-pinned-count");
       const roomList = document.getElementById("chat-room-list");
       if (!(roomList instanceof HTMLElement)) return null;
+      const inlineHost = document.getElementById("chat-node-details-inline-host");
+      let forceRosterSectionRender = false;
+      if (inlineHost instanceof HTMLElement && inlineHost.closest(".chat-member-list, .chat-member-pinned-list")) {{
+        forceRosterSectionRender = true;
+        resetChatNodeDetailsInlineHost(inlineHost);
+        syncChatNodeDetailsInlineDockState(null);
+      }}
       if (!chatNodeNavigatorSearchBoundsResizeBound && typeof window !== "undefined" && typeof window.addEventListener === "function") {{
         chatNodeNavigatorSearchBoundsResizeBound = true;
         window.addEventListener("resize", scheduleChatNodeNavigatorSearchBoundsSync);
@@ -2477,7 +2423,7 @@
         const nextUnreadHtml = usePrioritySections && pinnedUnreadRows.length > 0
           ? pinnedUnreadRows.map((item) => buildChatNodeNavigatorMemberHtml(item, rowRenderContext)).join("")
           : "";
-        const previousUnreadHtml = (typeof unreadList.__meshLastInnerHtml_chat_room_unread_list === "string")
+        const previousUnreadHtml = !forceRosterSectionRender && (typeof unreadList.__meshLastInnerHtml_chat_room_unread_list === "string")
           ? unreadList.__meshLastInnerHtml_chat_room_unread_list
           : null;
         if (previousUnreadHtml !== nextUnreadHtml) {{
@@ -2501,7 +2447,7 @@
                 : '<div class="chat-member-empty">No Meshtastic favorites yet.</div>'
             )
           : "";
-        const previousMeshtasticHtml = (typeof meshtasticList.__meshLastInnerHtml_chat_room_meshtastic_list === "string")
+        const previousMeshtasticHtml = !forceRosterSectionRender && (typeof meshtasticList.__meshLastInnerHtml_chat_room_meshtastic_list === "string")
           ? meshtasticList.__meshLastInnerHtml_chat_room_meshtastic_list
           : null;
         if (previousMeshtasticHtml !== nextMeshtasticHtml) {{
@@ -2521,7 +2467,7 @@
         const nextPinnedHtml = usePrioritySections && pinnedManualRows.length > 0
           ? pinnedManualRows.map((item) => buildChatNodeNavigatorMemberHtml(item, rowRenderContext)).join("")
           : "";
-        const previousPinnedHtml = (typeof pinnedList.__meshLastInnerHtml_chat_room_pinned_list === "string")
+        const previousPinnedHtml = !forceRosterSectionRender && (typeof pinnedList.__meshLastInnerHtml_chat_room_pinned_list === "string")
           ? pinnedList.__meshLastInnerHtml_chat_room_pinned_list
           : null;
         if (previousPinnedHtml !== nextPinnedHtml) {{
@@ -2602,7 +2548,7 @@
                 ? '<div class="chat-member-empty">No users discovered yet.</div>'
                 : ""));
       const nextMarkup = String(nextRoomListHtml == null ? "" : nextRoomListHtml);
-      const previousMarkup = (typeof roomList.__meshLastInnerHtml_chat_room_list === "string")
+      const previousMarkup = !forceRosterSectionRender && (typeof roomList.__meshLastInnerHtml_chat_room_list === "string")
         ? roomList.__meshLastInnerHtml_chat_room_list
         : null;
       if (previousMarkup !== nextMarkup) {{
@@ -2622,6 +2568,15 @@
         resetChatNodeNavigatorViewport();
       }}
       keepTraceTargetNodeVisibleInNavigator();
+      if (
+        typeof syncChatNodeDetailsDrawer === "function"
+        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+      ) {{
+        syncChatNodeDetailsDrawer(safeState, {{
+          fetchHistory: false,
+        }});
+      }}
 
       const onlineCount = rosterAll.filter((item) => normalizeFreshnessKey(item && item.status) === "online").length;
       const warnCount = rosterAll.filter((item) => normalizeFreshnessKey(item && item.status) === "warn").length;
@@ -3510,6 +3465,140 @@
         && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "history";
     }}
 
+    function isChatNodeDetailsPromotedActive() {{
+      return !!chatNodeDetailsPromoted && isChatNodeDetailsDrawerExpanded();
+    }}
+
+    function syncChatNodeDetailsInlineDockState(activeList = null) {{
+      const activeListEl = activeList instanceof HTMLElement ? activeList : null;
+      for (const listId of [
+        "chat-room-unread-list",
+        "chat-room-meshtastic-list",
+        "chat-room-pinned-list",
+        "chat-room-list",
+      ]) {{
+        const listEl = document.getElementById(listId);
+        if (listEl instanceof HTMLElement) {{
+          listEl.classList.toggle("has-node-details-inline", listEl === activeListEl);
+        }}
+      }}
+      for (const shellId of [
+        "chat-room-unread-shell",
+        "chat-room-meshtastic-shell",
+        "chat-room-pinned-shell",
+      ]) {{
+        const shellEl = document.getElementById(shellId);
+        shellEl?.classList?.toggle(
+          "has-node-details-inline",
+          !!activeListEl && shellEl instanceof HTMLElement && shellEl.contains(activeListEl)
+        );
+      }}
+    }}
+
+    function resetChatNodeDetailsInlineHost(inlineHost) {{
+      if (!(inlineHost instanceof HTMLElement)) return;
+      delete inlineHost.dataset.dock;
+      const section = document.querySelector(".chat-left-section.chat-users-section");
+      if (!(section instanceof HTMLElement)) return;
+      const splitter = document.getElementById("chat-node-details-splitter");
+      const anchor = splitter instanceof HTMLElement && splitter.parentElement === section
+        ? splitter.nextSibling
+        : null;
+      if (inlineHost.parentElement !== section || inlineHost.previousElementSibling !== splitter) {{
+        section.insertBefore(inlineHost, anchor);
+      }}
+    }}
+
+    function ensureChatNodeDetailsDrawer() {{
+      const existing = document.getElementById("chat-node-details-drawer");
+      if (existing instanceof HTMLElement) return existing;
+      const inlineHost = document.getElementById("chat-node-details-inline-host");
+      if (!(inlineHost instanceof HTMLElement)) return null;
+      const drawer = document.createElement("section");
+      drawer.id = "chat-node-details-drawer";
+      drawer.className = "chat-node-details-drawer";
+      drawer.hidden = true;
+      drawer.innerHTML = [
+        '<div class="chat-node-details-head"><div class="chat-node-details-head-main">',
+        '<button id="chat-node-details-icon-btn" class="chat-node-details-icon-btn" type="button" title="Set node icon" aria-label="Set node icon"><span id="chat-node-details-icon-chip" class="chat-node-details-icon-chip is-empty" aria-hidden="true">+</span></button>',
+        '<input id="chat-node-details-head-icon-input" type="text" hidden aria-hidden="true" tabindex="-1" />',
+        '<button id="chat-node-details-tab-tag" class="chat-node-details-tab-btn chat-node-details-tab-tag-btn chat-node-details-head-tag-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="tag" title="Add or edit node tag" aria-label="Add or edit node tag"><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>',
+        '<span id="chat-node-details-status-chip" class="chat-node-details-status-chip" hidden></span>',
+        '<button id="chat-node-details-reset-btn" class="chat-node-details-action-btn chat-node-details-reset-btn" type="button" title="Clear saved tag and custom icon" aria-label="Clear saved tag and custom icon" hidden>Reset</button>',
+        '<div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>',
+        '</div>',
+        '<div class="chat-node-details-head-actions">',
+        '<button id="chat-node-details-pin-btn" class="pin-toggle-btn chat-node-details-action-btn chat-node-details-pin-btn" type="button" title="Pin this node to the top of the chat list" aria-label="Pin this node to the top of the chat list" aria-pressed="false" hidden><span class="chat-node-details-pin-label">Pin</span></button>',
+        '<button id="chat-node-details-mute-btn" class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn" type="button" title="Mute this user in chat feed" aria-pressed="false" hidden><span class="chat-node-details-mute-label">Mute</span></button>',
+        '<button id="chat-node-details-promote-btn" class="chat-node-details-action-btn chat-node-details-promote-btn" type="button" title="Expand node details over the workspace" aria-label="Expand node details over the workspace" aria-pressed="false" hidden><span class="chat-node-details-promote-label">Expand</span></button>',
+        '</div>',
+        '<button id="chat-node-details-close-btn" class="chat-node-details-close-btn" type="button" title="Collapse node details" aria-label="Collapse node details">&times;</button>',
+        '</div>',
+        '<div class="chat-node-details-tabs" role="tablist" aria-label="Selected node detail tabs">',
+        '<button id="chat-node-details-tab-messages" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="messages">Messages</button>',
+        '<button id="chat-node-details-tab-details" class="chat-node-details-tab-btn is-active" type="button" role="tab" aria-selected="true" data-drawer-tab="details">Details</button>',
+        '<button id="chat-node-details-tab-telemetry" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="telemetry">Telemetry</button>',
+        '<button id="chat-node-details-tab-history" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="history">History</button>',
+        '<button id="chat-node-details-tab-location" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="location">Location</button>',
+        '<button id="chat-node-details-tab-chat" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="chat">Chat</button>',
+        '<button id="chat-node-details-tab-links" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="links">Links</button>',
+        '<button id="chat-node-details-tab-notes" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="notes">Notes</button>',
+        '</div>',
+        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"></div></div>',
+        '<div id="chat-node-details-panel-notes" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-notes" hidden><div id="chat-node-details-notes-host" class="chat-node-details-notes-host"></div></div>',
+        '<div id="chat-node-details-panel-messages" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-messages" hidden><div id="chat-node-details-messages-host" class="chat-node-details-messages-host"></div></div>',
+        '<div id="chat-node-details-panel-history" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-history" hidden><div id="chat-node-details-history-host" class="chat-node-details-history-host"></div></div>',
+        '<div id="chat-node-details-panel-location" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-location" hidden><div id="chat-node-details-location-host" class="chat-node-details-location-host"></div></div>',
+        '<div id="chat-node-details-panel-chat" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-chat" hidden><div id="chat-node-details-chat-host" class="chat-node-details-chat-host"></div></div>',
+        '<div id="chat-node-details-panel-links" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-links" hidden><div id="chat-node-details-links-host" class="chat-node-details-links-host"></div></div>',
+        '<div id="chat-node-details-panel-telemetry" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-telemetry" hidden><div id="chat-node-details-telemetry-host" class="chat-node-details-telemetry-host"></div></div>',
+        '<div id="chat-node-details-panel-tag" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-tag" hidden><div id="chat-node-details-tag-host" class="chat-node-details-tag-host"></div></div>',
+      ].join("");
+      inlineHost.appendChild(drawer);
+      bindChatNodeDetailsDrawerControls({{ skipSync: true }});
+      return drawer;
+    }}
+
+    function syncChatNodeDetailsDrawerPlacement(drawer, promotedVisible) {{
+      if (!(drawer instanceof HTMLElement)) return false;
+      const inlineHost = document.getElementById("chat-node-details-inline-host");
+      const promotedShell = document.getElementById("chat-node-details-promoted-shell");
+      const promotedHost = document.getElementById("chat-node-details-promoted-host");
+      const usePromoted = !!promotedVisible && promotedHost instanceof HTMLElement;
+      if (inlineHost instanceof HTMLElement) {{
+        if (usePromoted) {{
+          resetChatNodeDetailsInlineHost(inlineHost);
+        }} else {{
+          const section = document.querySelector(".chat-left-section.chat-users-section");
+          const roomList = document.getElementById("chat-room-list");
+          if (section instanceof HTMLElement && roomList instanceof HTMLElement && roomList.parentElement === section) {{
+            if (inlineHost.parentElement !== section || inlineHost.nextElementSibling !== roomList) {{
+              section.insertBefore(inlineHost, roomList);
+            }}
+            inlineHost.dataset.dock = "shared";
+          }} else {{
+            resetChatNodeDetailsInlineHost(inlineHost);
+          }}
+        }}
+      }}
+      syncChatNodeDetailsInlineDockState(null);
+      const target = usePromoted && promotedHost instanceof HTMLElement
+        ? promotedHost
+        : inlineHost;
+      if (target instanceof HTMLElement && drawer.parentElement !== target) {{
+        target.appendChild(drawer);
+      }}
+      drawer.dataset.promoted = usePromoted ? "true" : "false";
+      if (promotedShell instanceof HTMLElement) {{
+        promotedShell.hidden = !usePromoted;
+      }}
+      const workspaceShell = document.querySelector(".workspace-shell");
+      if (workspaceShell instanceof HTMLElement) {{
+        workspaceShell.classList.toggle("has-promoted-node-details", usePromoted);
+      }}
+      return usePromoted;
+    }}
+
     function syncSavedNodeDetailsDock(forceToSaved = false) {{
       const detailsHost = document.getElementById("saved-node-details");
       if (!(detailsHost instanceof HTMLElement)) return;
@@ -3564,12 +3653,43 @@
         ? nodeSelectionPerfNow()
         : 0;
       const opts = options && typeof options === "object" ? options : {{}};
-      const drawer = document.getElementById("chat-node-details-drawer");
+      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
+      const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
+      const expanded = !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(selectedId);
+      const requestedPromoted = expanded && !!chatNodeDetailsPromoted;
+      const shouldMountDrawer = expanded && (!chatPanelCollapsed || requestedPromoted);
+      let drawer = document.getElementById("chat-node-details-drawer");
+      if (shouldMountDrawer) {{
+        drawer = ensureChatNodeDetailsDrawer();
+      }}
+      if (!(drawer instanceof HTMLElement)) {{
+        const usersSection = document.querySelector(".chat-left-section.chat-users-section");
+        if (usersSection instanceof HTMLElement) {{
+          usersSection.classList.remove("has-node-details", "history-focus");
+        }}
+        const promotedShell = document.getElementById("chat-node-details-promoted-shell");
+        if (promotedShell instanceof HTMLElement) {{
+          promotedShell.hidden = true;
+        }}
+        const workspaceShell = document.querySelector(".workspace-shell");
+        if (workspaceShell instanceof HTMLElement) {{
+          workspaceShell.classList.remove("has-promoted-node-details");
+        }}
+        syncChatNodeDetailsInlineDockState(null);
+        if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
+          markNodeSelectionPerf(perfToken, "selection.drawer_sync", perfStartMs, {{
+            visibleExpanded: false,
+            lazyMounted: false,
+          }});
+        }}
+        return;
+      }}
       const titleEl = document.getElementById("chat-node-details-title");
       const closeBtn = document.getElementById("chat-node-details-close-btn");
       const detailsSplitter = document.getElementById("chat-node-details-splitter");
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
+      const promoteBtn = document.getElementById("chat-node-details-promote-btn");
       const resetBtn = document.getElementById("chat-node-details-reset-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const locationTabBtn = document.getElementById("chat-node-details-tab-location");
@@ -3584,6 +3704,7 @@
       const iconChip = document.getElementById("chat-node-details-icon-chip");
       const iconInput = document.getElementById("chat-node-details-head-icon-input");
       const tagTabLabel = document.getElementById("chat-node-details-tab-tag-label");
+      const statusChip = document.getElementById("chat-node-details-status-chip");
       const detailsPanel = document.getElementById("chat-node-details-panel-details");
       const locationPanel = document.getElementById("chat-node-details-panel-location");
       const chatPanel = document.getElementById("chat-node-details-panel-chat");
@@ -3600,24 +3721,23 @@
       const notesHost = document.getElementById("chat-node-details-notes-host");
       const messagesHost = document.getElementById("chat-node-details-messages-host");
       const tagHost = document.getElementById("chat-node-details-tag-host");
-      if (!(drawer instanceof HTMLElement)) return;
 
-      const safeState = (state && typeof state === "object") ? state : (latestState || {{}});
-      const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
-      const expanded = !!chatNodeDetailsDrawerExpanded && isSelectableNodeId(selectedId);
-      const visibleExpanded = expanded && !chatPanelCollapsed;
+      let promotedVisible = requestedPromoted;
+      promotedVisible = syncChatNodeDetailsDrawerPlacement(drawer, promotedVisible);
+      const visibleExpanded = expanded && (!chatPanelCollapsed || promotedVisible);
+      const inlineVisible = visibleExpanded && !promotedVisible;
       chatNodeDetailsDrawerTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
-      const usersSection = drawer.closest(".chat-left-section.chat-users-section");
+      const usersSection = document.querySelector(".chat-left-section.chat-users-section");
       if (usersSection instanceof HTMLElement) {{
-        usersSection.classList.toggle("has-node-details", visibleExpanded);
+        usersSection.classList.toggle("has-node-details", inlineVisible);
         usersSection.classList.toggle(
           "history-focus",
-          visibleExpanded && chatNodeDetailsDrawerTab === "history"
+          inlineVisible && chatNodeDetailsDrawerTab === "history"
         );
       }}
       drawer.dataset.activeTab = visibleExpanded ? chatNodeDetailsDrawerTab : "";
       if (detailsSplitter instanceof HTMLElement) {{
-        detailsSplitter.hidden = !visibleExpanded;
+        detailsSplitter.hidden = true;
       }}
       if (typeof applyChatNodeListSplitState === "function") {{
         applyChatNodeListSplitState();
@@ -3633,6 +3753,12 @@
         }}
         if (tagTabLabel instanceof HTMLElement) {{
           setDrawerElementTextIfChanged(tagTabLabel, "+tag");
+        }}
+        if (statusChip instanceof HTMLElement) {{
+          statusChip.hidden = true;
+          statusChip.textContent = "";
+          statusChip.removeAttribute("title");
+          statusChip.removeAttribute("aria-label");
         }}
         if (iconChip instanceof HTMLElement) {{
           iconChip.className = "chat-node-details-icon-chip is-empty";
@@ -3653,6 +3779,13 @@
           muteBtn.classList.remove("active");
           muteBtn.setAttribute("aria-pressed", "false");
           setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), "Mute");
+        }}
+        if (promoteBtn instanceof HTMLButtonElement) {{
+          promoteBtn.hidden = true;
+          promoteBtn.disabled = true;
+          promoteBtn.classList.remove("active");
+          promoteBtn.setAttribute("aria-pressed", "false");
+          setDrawerElementTextIfChanged(promoteBtn.querySelector(".chat-node-details-promote-label"), "Expand");
         }}
         if (resetBtn instanceof HTMLButtonElement) {{
           resetBtn.hidden = true;
@@ -3677,6 +3810,11 @@
         setDrawerElementHtmlIfChanged(tagHost, "", "tag");
         syncSavedNodeDetailsDock(true);
         syncNodeHistoryDock();
+        const inlineHost = document.getElementById("chat-node-details-inline-host");
+        if (inlineHost instanceof HTMLElement) {{
+          resetChatNodeDetailsInlineHost(inlineHost);
+        }}
+        drawer.remove();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.drawer_sync", perfStartMs, {{
             visibleExpanded: false,
@@ -3705,7 +3843,13 @@
       syncDrawerPanelHiddenState(historyPanel, activeTab === "history");
       syncDrawerPanelHiddenState(tagPanel, activeTab === "tag");
 
-      const tagEntry = nodeTagEntryForNode(selectedId);
+      const manualTagEntry = (typeof manualNodeTagEntryForNode === "function")
+        ? manualNodeTagEntryForNode(selectedId)
+        : null;
+      const autoNewStatusEntry = (typeof autoNodeTagEntryForNode === "function")
+        ? autoNodeTagEntryForNode(selectedId, safeState)
+        : null;
+      const tagEntry = manualTagEntry;
       const tagPreset = tagEntry && tagEntry.preset ? tagEntry.preset : null;
       const hasTag = !!tagPreset;
       const selectedNode = Array.isArray(safeState && safeState.nodes)
@@ -3720,7 +3864,7 @@
         ? nodeEmojiOverrideForNode(selectedId)
         : "";
       const hasNodeEmojiOverride = !!nodeEmojiOverride;
-      const hasResettableVisualState = hasTag || hasNodeEmojiOverride;
+      const hasResettableVisualState = !!manualTagEntry || hasNodeEmojiOverride;
       const localVisualEmoji = (
         typeof localVisualEmojiForNode === "function"
         ? localVisualEmojiForNode(selectedId, selectedNode)
@@ -3743,6 +3887,23 @@
           : "Add or edit node tag";
         tagTabBtn.title = tagTitle;
         tagTabBtn.setAttribute("aria-label", tagTitle);
+      }}
+      if (statusChip instanceof HTMLElement) {{
+        if (autoNewStatusEntry && autoNewStatusEntry.preset) {{
+          const statusLabel = (typeof nodeTagDisplayLabel === "function")
+            ? nodeTagDisplayLabel(autoNewStatusEntry, "New")
+            : "New";
+          statusChip.hidden = false;
+          setDrawerElementTextIfChanged(statusChip, statusLabel);
+          const statusTitle = "New node: first seen in the last 24 hours";
+          statusChip.title = statusTitle;
+          statusChip.setAttribute("aria-label", statusTitle);
+        }} else {{
+          statusChip.hidden = true;
+          statusChip.textContent = "";
+          statusChip.removeAttribute("title");
+          statusChip.removeAttribute("aria-label");
+        }}
       }}
       if (resetBtn instanceof HTMLButtonElement) {{
         resetBtn.hidden = !hasResettableVisualState;
@@ -3843,10 +4004,7 @@
             vibrance: clampNodeTagVibrance(safePreset.vibrance, 70),
           }});
         }};
-        const manualTagEntry = typeof manualNodeTagEntryForNode === "function"
-          ? manualNodeTagEntryForNode(selectedId)
-          : null;
-        const editorTagEntry = manualTagEntry || tagEntry;
+        const editorTagEntry = manualTagEntry;
         const activeEditorPreset = nodeTagPresetForId(activeNodeTagPresetId)
           || nodeTagPresetForId("tag-default")
           || defaultNodeTagPreset();
@@ -3911,6 +4069,19 @@
           ? (active ? "Unmute this user in chat feed" : "Mute this user in chat feed")
           : "Mute unavailable for this node";
         setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), active ? "Muted" : "Mute");
+      }}
+      if (promoteBtn instanceof HTMLButtonElement) {{
+        promoteBtn.hidden = promotedVisible;
+        promoteBtn.disabled = promotedVisible;
+        promoteBtn.classList.remove("active");
+        promoteBtn.setAttribute("aria-pressed", "false");
+        const promoteTitle = `Expand ${{titleName}} details over the workspace`;
+        promoteBtn.title = promoteTitle;
+        promoteBtn.setAttribute("aria-label", promoteTitle);
+        setDrawerElementTextIfChanged(
+          promoteBtn.querySelector(".chat-node-details-promote-label"),
+          "Expand"
+        );
       }}
 
       syncSavedNodeDetailsDock(false);
@@ -3977,6 +4148,7 @@
       const currentTab = normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab);
       if (nextExpanded && !isSelectableNodeId(chatNodeDetailsDrawerTargetNodeId(selectedNodeId))) {{
         chatNodeDetailsDrawerExpanded = false;
+        chatNodeDetailsPromoted = false;
         chatNodeDetailsDrawerTab = nextTab;
         syncChatNodeDetailsDrawer(latestState, {{
           fetchHistory: false,
@@ -3985,6 +4157,9 @@
       }}
       const changed = currentExpanded !== nextExpanded || currentTab !== nextTab;
       chatNodeDetailsDrawerExpanded = nextExpanded;
+      if (!nextExpanded) {{
+        chatNodeDetailsPromoted = false;
+      }}
       chatNodeDetailsDrawerTab = nextTab;
       if (activeLayoutView === "network") {{
         const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
@@ -4004,6 +4179,23 @@
           fetchHistory: opts.fetchHistory !== false,
         }});
       }}
+      return changed;
+    }}
+
+    function setChatNodeDetailsPromoted(promoted, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const nextPromoted = !!promoted;
+      const selectedId = chatNodeDetailsDrawerTargetNodeId(selectedNodeId);
+      if (!isSelectableNodeId(selectedId)) return false;
+      const changed = chatNodeDetailsPromoted !== nextPromoted || !chatNodeDetailsDrawerExpanded;
+      chatNodeDetailsPromoted = nextPromoted;
+      if (nextPromoted) {{
+        chatNodeDetailsDrawerExpanded = true;
+        networkNodeInfoCollapsedNodeId = "";
+      }}
+      syncChatNodeDetailsDrawer(latestState, {{
+        fetchHistory: opts.fetchHistory !== false,
+      }});
       return changed;
     }}
 
@@ -4037,8 +4229,10 @@
       return true;
     }}
 
-    function bindChatNodeDetailsDrawerControls() {{
+    function bindChatNodeDetailsDrawerControls(options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
       const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const promoteBtn = document.getElementById("chat-node-details-promote-btn");
       const drawer = document.getElementById("chat-node-details-drawer");
       if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
         closeBtn.dataset.bound = "1";
@@ -4046,6 +4240,14 @@
           setChatNodeDetailsDrawerExpanded(false, {{
             fetchHistory: false,
             rerender: false,
+          }});
+        }});
+      }}
+      if (promoteBtn instanceof HTMLButtonElement && promoteBtn.dataset.bound !== "1") {{
+        promoteBtn.dataset.bound = "1";
+        promoteBtn.addEventListener("click", () => {{
+          setChatNodeDetailsPromoted(!chatNodeDetailsPromoted, {{
+            fetchHistory: true,
           }});
         }});
       }}
@@ -4060,6 +4262,7 @@
           }});
         }}
       }}
+      if (opts.skipSync === true) return;
       syncChatNodeDetailsDrawer(latestState, {{
         fetchHistory: false,
       }});

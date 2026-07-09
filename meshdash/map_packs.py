@@ -64,22 +64,63 @@ def _pack_sideload_zip(pack_id: str) -> Path:
     return map_packs_dir() / f"{pack_id}.zip"
 
 
-def _installer_script_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "scripts" / "install_map_pack.py"
+def _app_dir() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _path_for_command(path: Path) -> str:
+    if not path.is_absolute():
+        return path.as_posix()
+    for base in (Path.cwd(), _app_dir()):
+        try:
+            rel_path = path.resolve().relative_to(base.resolve())
+        except (OSError, ValueError):
+            continue
+        rel_text = rel_path.as_posix()
+        return rel_text or "."
+    return str(path)
+
+
+def _python_command_path() -> str:
+    app_dir = _app_dir()
+    for rel_path in (Path(".venv/bin/python"), Path(".venv/Scripts/python.exe")):
+        if (app_dir / rel_path).exists():
+            return rel_path.as_posix()
+    executable = str(sys.executable or "").strip()
+    if not executable:
+        return "python"
+    command_path = _path_for_command(Path(executable))
+    if Path(command_path).is_absolute():
+        return "python"
+    return command_path
+
+
+def _script_command_prefix(script_name: str) -> str:
+    args = (_python_command_path(), _path_for_command(_app_dir() / "scripts" / script_name))
+    return " ".join(shlex.quote(str(arg)) for arg in args)
+
+
+def _packs_dir_command_path() -> str:
+    return _path_for_command(map_packs_dir())
+
+
+def _packs_dir_command_arg() -> str:
+    return shlex.quote(_packs_dir_command_path())
 
 
 def _installer_command_prefix() -> str:
-    return " ".join(
-        shlex.quote(str(arg))
-        for arg in (sys.executable or "python", str(_installer_script_path()))
-    )
+    return _script_command_prefix("install_map_pack.py")
+
+
+def _build_command_prefix() -> str:
+    return _script_command_prefix("build_map_pack.py")
 
 
 def _installer_command(pack_id: str, *, sideload_ready: bool) -> str:
     args = [
         pack_id,
         "--packs-dir",
-        str(map_packs_dir().resolve()),
+        _packs_dir_command_path(),
     ]
     if not sideload_ready:
         args.append("--download")
@@ -408,7 +449,10 @@ def map_pack_status_payload() -> dict[str, Any]:
         "packs": packs,
         "packs_dir": str(packs_dir),
         "packs_dir_resolved": str(packs_dir.resolve()),
+        "packs_dir_command": _packs_dir_command_path(),
+        "packs_dir_command_arg": _packs_dir_command_arg(),
         "install_command_prefix": _installer_command_prefix(),
+        "build_command_prefix": _build_command_prefix(),
     }
 
 

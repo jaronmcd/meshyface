@@ -21,6 +21,15 @@ def _benchmark_enabled(config: pytest.Config) -> bool:
     return bool(config.getoption("--run-gui-benchmark")) or env_value in TRUE_VALUES
 
 
+def test_local_gui_benchmark_script_refuses_accidental_existing_server() -> None:
+    script = (REPO_ROOT / "scripts" / "run_gui_responsiveness_local.sh").read_text(encoding="utf-8")
+
+    assert 'curl -fsS "${URL}api/version"' in script
+    assert "already responds" in script
+    assert "MESH_GUI_BENCH_URL" in script
+    assert "MESH_GUI_BENCH_PORT" in script
+
+
 @pytest.mark.gui_benchmark
 def test_local_gui_responsiveness_stays_within_thresholds(
     request: pytest.FixtureRequest,

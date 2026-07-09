@@ -78,6 +78,7 @@ _VENDOR_ASSETS: Mapping[str, tuple[str, str]] = {
     "/assets/vendor/leaflet-1.9.4.css": ("leaflet-1.9.4.css", "text/css; charset=utf-8"),
     "/assets/vendor/leaflet-1.9.4.js": ("leaflet-1.9.4.js", "application/javascript; charset=utf-8"),
     "/assets/vendor/leaflet-heat-0.2.0.js": ("leaflet-heat-0.2.0.js", "application/javascript; charset=utf-8"),
+    "/assets/vendor/particles-2.0.0.min.js": ("particles-2.0.0.min.js", "application/javascript; charset=utf-8"),
     "/assets/vendor/images/layers.png": ("images/layers.png", "image/png"),
     "/assets/vendor/images/layers-2x.png": ("images/layers-2x.png", "image/png"),
     "/assets/vendor/images/marker-icon.png": ("images/marker-icon.png", "image/png"),

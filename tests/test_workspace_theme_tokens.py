@@ -4,65 +4,233 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.html_css import build_dashboard_css
-from meshdash.theme import DARK_THEME_VARS, build_theme_css
+from meshdash.theme import DARK_THEME_VARS, LIGHT_THEME_VARS, build_theme_css
 
 
-def test_dark_theme_exposes_shared_workspace_shell_tokens() -> None:
+def _css_rule(css: str, selector: str) -> str:
+    marker = f"{selector} {{"
+    assert marker in css
+    return css.split(marker, 1)[1].split("}", 1)[0]
+
+
+def test_theme_exposes_shared_workspace_shell_tokens() -> None:
     theme_css = build_theme_css(indent="")
 
-    assert DARK_THEME_VARS["--workspace-shell-bg"] == "#08120d"
-    assert DARK_THEME_VARS["--workspace-shell-bg-alt"] == "#07140d"
-    assert DARK_THEME_VARS["--workspace-shell-border"] == "#2d8f5d"
-    assert DARK_THEME_VARS["--workspace-shell-border-muted"] == "#236744"
-    assert DARK_THEME_VARS["--workspace-shell-border-strong"] == "#3f8f68"
-    assert DARK_THEME_VARS["--workspace-shell-active-bg"] == "#173126"
-    assert DARK_THEME_VARS["--workspace-shell-active-text"] == "#8ce7b4"
-    assert DARK_THEME_VARS["--surface-tint-bg"] == "#08120d"
-    assert DARK_THEME_VARS["--surface-tint-border"] == "#236744"
-    assert "--workspace-shell-bg: #08120d;" in theme_css
-    assert "--workspace-shell-bg-alt: #07140d;" in theme_css
-    assert "--workspace-shell-border: #2d8f5d;" in theme_css
-    assert "--workspace-shell-divider-bg: linear-gradient(90deg, #08140d, #0b1a11);" in theme_css
-    assert "--surface-tint-bg: #08120d;" in theme_css
-    assert "--surface-tint-border: #236744;" in theme_css
-    assert "--surface-tint-alpha-mult: 1;" in theme_css
+    assert LIGHT_THEME_VARS["--workspace-shell-bg"] == "#f4f8fe"
+    assert LIGHT_THEME_VARS["--workspace-shell-bg-alt"] == "#e9f0fc"
+    assert LIGHT_THEME_VARS["--workspace-shell-border"] == "#4266d0"
+    assert LIGHT_THEME_VARS["--theme-background-gradient"] == "linear-gradient(to bottom, #eff2f7, #eff2f7)"
+    assert LIGHT_THEME_VARS["--theme-gradient-primary"] == LIGHT_THEME_VARS["--theme-background-gradient"]
+    assert LIGHT_THEME_VARS["--workspace-shell-divider-bg"] == "linear-gradient(to right, #dee8fb, #c0d2f3)"
+    assert DARK_THEME_VARS["--workspace-shell-bg"] == "#253a63"
+    assert DARK_THEME_VARS["--workspace-shell-bg-alt"] == "#263b65"
+    assert DARK_THEME_VARS["--workspace-shell-border"] == "#4d65be"
+    assert DARK_THEME_VARS["--workspace-shell-border-muted"] == "#41569d"
+    assert DARK_THEME_VARS["--workspace-shell-border-strong"] == "#5266bb"
+    assert DARK_THEME_VARS["--workspace-shell-active-bg"] == "#375c9a"
+    assert DARK_THEME_VARS["--workspace-shell-active-text"] == "#bdd6fb"
+    assert DARK_THEME_VARS["--theme-background-gradient"] == "linear-gradient(to bottom, #0e121b, #171d2c)"
+    assert DARK_THEME_VARS["--theme-gradient-primary"] == "linear-gradient(to bottom, #0e121b, #171d2c)"
+    assert DARK_THEME_VARS["--theme-gradient-primary"] == DARK_THEME_VARS["--theme-background-gradient"]
+    assert DARK_THEME_VARS["--theme-gradient-secondary"] == DARK_THEME_VARS["--theme-gradient-primary"]
+    assert DARK_THEME_VARS["--workspace-shell-divider-bg"] == "linear-gradient(to right, #2a4270, #314875)"
+    assert DARK_THEME_VARS["--theme-foreground-transparency"] == "0"
+    assert DARK_THEME_VARS["--theme-foreground-blur"] == "none"
+    assert LIGHT_THEME_VARS["--theme-foreground-blur"] == "none"
+    assert DARK_THEME_VARS["--theme-font-family"] == "\"IBM Plex Sans\", \"Segoe UI\", sans-serif"
+    assert DARK_THEME_VARS["--theme-text-color"] == "#e6edf3"
+    assert DARK_THEME_VARS["--theme-text-color-strong"] == "#eaf0f5"
+    assert DARK_THEME_VARS["--theme-text-color-soft"] == "#bfc9d6"
+    assert DARK_THEME_VARS["--theme-text-color-muted"] == "#a1adbf"
+    assert DARK_THEME_VARS["--theme-text-color-accent"] == "#c4d6f3"
+    assert DARK_THEME_VARS["--theme-text-color-on-fill"] == "#0f172a"
+    assert DARK_THEME_VARS["--theme-text-color-code"] == "#d4e1f3"
+    assert DARK_THEME_VARS["--surface-tint-bg"] == "#253a63"
+    assert DARK_THEME_VARS["--surface-tint-border"] == "#41569d"
+    assert DARK_THEME_VARS["--surface-tint-vignette"].startswith("radial-gradient(")
+    assert "--theme-background-gradient: linear-gradient(to bottom, #eff2f7, #eff2f7);" in theme_css
+    assert "--workspace-shell-bg: #f4f8fe;" in theme_css
+    assert "--workspace-shell-bg-alt: #e9f0fc;" in theme_css
+    assert "--workspace-shell-bg: #253a63;" in theme_css
+    assert "--workspace-shell-bg-alt: #263b65;" in theme_css
+    assert "--workspace-shell-border: #4266d0;" in theme_css
+    assert "--workspace-shell-border: #4d65be;" in theme_css
+    assert "--workspace-shell-divider-bg: linear-gradient(to right, #2a4270, #314875);" in theme_css
+    assert "--surface-tint-bg: #253a63;" in theme_css
+    assert "--surface-tint-border: #41569d;" in theme_css
+    assert "--surface-tint-vignette: radial-gradient(" in theme_css
+
+
+def test_dashboard_background_layers_are_ordered_when_enabled() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    base_layer = _css_rule(
+        css,
+        ".dashboard-image-bg,\n    .dashboard-particles-bg,\n    .dashboard-livemap-bg",
+    )
+    image_enabled = _css_rule(css, "body.dashboard-image-enabled .dashboard-image-bg")
+    image_loaded = _css_rule(
+        css,
+        "body.dashboard-image-enabled .dashboard-image-bg.dashboard-image-background-loaded",
+    )
+    image_overlay = _css_rule(css, ".dashboard-image-bg::after")
+    particles_layer = _css_rule(css, ".dashboard-particles-bg")
+    non_image_over_image = _css_rule(
+        css,
+        "body.dashboard-particles-enabled .dashboard-image-bg,\n    body.dashboard-livemap-enabled .dashboard-image-bg",
+    )
+    particles_enabled = _css_rule(css, "body.dashboard-particles-enabled .dashboard-particles-bg")
+    particles_loaded = _css_rule(
+        css,
+        "body.dashboard-particles-enabled .dashboard-particles-bg.dashboard-particles-background-loaded",
+    )
+    livemap_enabled = _css_rule(css, "body.dashboard-livemap-enabled .dashboard-livemap-bg")
+    livemap_ready = _css_rule(css, "body.dashboard-livemap-enabled .dashboard-livemap-bg.dashboard-background-ready")
+    active_class = _css_rule(css, ".dashboard-background-active")
+
+    assert "dashboard-background-fade-in" not in css
+    assert "@keyframes dashboard-background-fade-in" not in css
+    assert "display: block;" in base_layer
+    assert "display: none;" not in base_layer
+    assert "opacity: 0;" in base_layer
+    assert "visibility: hidden;" in base_layer
+    assert "--dashboard-background-target-opacity: 0;" in image_enabled
+    assert "opacity: 0;" in image_enabled
+    assert "visibility: visible;" in image_enabled
+    assert "transition: opacity 1800ms ease;" in image_enabled
+    assert "--dashboard-background-target-opacity: 1;" in image_loaded
+    assert "opacity: var(--dashboard-background-target-opacity);" in image_loaded
+    assert 'content: "";' in image_overlay
+    assert "background: rgba(0, 0, 0, var(--dashboard-image-darken, 0));" in image_overlay
+    assert "opacity: 0;" in non_image_over_image
+    assert "visibility: hidden;" in non_image_over_image
+    assert "--dashboard-background-target-opacity: var(--dashboard-particles-opacity, 0.42);" in particles_layer
+    assert "opacity: 0;" in particles_enabled
+    assert "transition: opacity 1800ms ease;" in particles_enabled
+    assert "visibility: visible;" in particles_enabled
+    assert "opacity: var(--dashboard-background-target-opacity);" in particles_loaded
+    assert ".dashboard-livemap-bg {\n      transition: opacity 1400ms ease;\n    }" in css
+    assert "--dashboard-background-target-opacity: 1;" in livemap_enabled
+    assert "visibility: visible;" in livemap_enabled
+    assert "opacity: var(--dashboard-background-target-opacity);" in livemap_ready
+    assert "z-index: 1;" in active_class
 
 
 def test_workspace_views_reuse_shared_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
-    assert "--network-pane-head-bg: var(--workspace-shell-bg-alt);" in css
-    assert "--network-pane-body-bg: var(--workspace-shell-bg);" in css
-    assert "--network-pane-head-border: var(--workspace-shell-border);" in css
-    assert "--saved-pane-head-border: var(--workspace-shell-border);" in css
-    assert "--history-pane-head-border: var(--workspace-shell-border);" in css
-    assert "--network-pane-head-bg: var(--surface-tint-bg-alt, #edf6ec);" in css
-    assert "--history-pane-head-bg: var(--surface-tint-bg-alt, #edf6ec);" in css
-    assert "--saved-pane-head-bg: var(--surface-tint-bg-alt, #edf6ec);" in css
+    assert "--network-pane-head-bg: var(--workspace-shell-bg-alt);" not in css
+    assert "--network-pane-body-bg: var(--workspace-shell-bg);" not in css
+    assert "--network-pane-head-border: var(--workspace-shell-border);" not in css
+    assert "--saved-pane-head-border: var(--workspace-shell-border);" not in css
+    assert "--history-pane-head-border: var(--workspace-shell-border);" not in css
+    assert "--network-pane-head-border: var(--surface-tint-border);" in css
+    assert "--history-pane-head-border: var(--surface-tint-border);" in css
+    assert "--saved-pane-head-border: var(--surface-tint-border);" in css
+    assert "--network-pane-head-bg: transparent;" in css
+    assert "--network-pane-body-bg: transparent;" in css
+    assert "--network-pane-divider-bg: transparent;" in css
+    assert "--history-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);" in css
+    assert "--history-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);" in css
+    assert "--saved-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);" in css
+    assert "--saved-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);" in css
     assert ".settings-help-note {" in css
-    assert "background: var(--surface-tint-bg-soft, #f4faf3);" in css
-    assert ".theme-live-preview {" in css
-    assert ".theme-preview-card-shell {" in css
-    assert "color-mix(in srgb, var(--panel) 94%, var(--bg) 6%)" in css
-    assert "[data-theme=\"dark\"] .theme-preview-shell-meter-fill {" in css
-    dark_shell_meter_fill_section = css.split("[data-theme=\"dark\"] .theme-preview-shell-meter-fill {", 1)[1].split("}", 1)[0]
-    assert "var(--workspace-shell-border-strong)" in dark_shell_meter_fill_section
-    assert "var(--ui-accent)" in dark_shell_meter_fill_section
-    assert "var(--accent)" not in dark_shell_meter_fill_section
-    assert ".theme-preview-card-tint {" in css
-    assert "var(--surface-tint-bg-soft, #f4faf3)" in css
-    assert ".theme-preview-card-console {" in css
-    assert "var(--surface-tint-border-strong, #b8cab9)" in css
-    assert "[data-theme=\"dark\"] .theme-live-preview {" in css
-    assert "[data-theme=\"dark\"] .theme-preview-card-shell {" in css
+    assert "background: var(--surface-tint-bg-soft);" in css
+    help_note_link = _css_rule(css, ".settings-help-note a")
+    assert "color: var(--settings-text-accent);" in help_note_link
+    assert "text-decoration: underline;" in help_note_link
+    topbar = _css_rule(css, ".topbar")
+    topbar_sub = _css_rule(css, ".topbar .sub")
+    workspace_shell = _css_rule(css, ".workspace-shell")
+    workspace_main = _css_rule(css, ".workspace-main")
+    dark_topbar = css.rsplit("[data-theme=\"dark\"] .topbar {", 1)[1].split("}", 1)[0]
+    dark_workspace_stage = css.split(
+        "[data-theme=\"dark\"] .workspace-shell,\n    [data-theme=\"dark\"] .workspace-main {",
+        1,
+    )[1].split("}", 1)[0]
+    settings_view_panel = _css_rule(css, ".layout.view-settings .settings-panel")
+    dark_settings_view_panel = _css_rule(css, "[data-theme=\"dark\"] .layout.view-settings .settings-panel")
+    assert "background: transparent;" in topbar
+    assert "background: transparent;" in topbar_sub
+    assert "background: transparent;" in workspace_shell
+    assert "background: transparent;" in workspace_main
+    assert "background: transparent !important;" in dark_topbar
+    assert "background: transparent;" in dark_workspace_stage
+    assert "background: var(--workspace-shell-bg);" in settings_view_panel
+    assert "border-color: var(--workspace-shell-border);" in settings_view_panel
+    assert "border-radius: 10px;" in settings_view_panel
+    assert "box-shadow: none;" in settings_view_panel
+    assert "background: var(--workspace-shell-bg);" in dark_settings_view_panel
+    assert "border-color: var(--workspace-shell-border);" in dark_settings_view_panel
+    assert "border-radius: 10px;" in dark_settings_view_panel
+    assert "box-shadow: none;" in dark_settings_view_panel
+    assert "background: var(--floating-stage-bg);" not in topbar
+    assert "background: var(--floating-stage-bg);" not in topbar_sub
+    assert "background: var(--floating-stage-bg);" not in workspace_shell
+    assert "background: var(--floating-stage-bg" not in dark_workspace_stage
+    dark_body = _css_rule(css, "[data-theme=\"dark\"] body")
+    assert "background:" not in dark_body
+    assert "html[data-theme=\"dark\"] body" not in css
+    assert "background: var(--floating-stage-bg) !important;" not in css
+    assert "background: var(--ui-bg) !important;" not in css
+    assert "--bg: #0f1512;" not in css
+    assert "--bg: #000000;" not in css
+    assert "--panel: #040704;" not in css
+    assert "--accent: #33ff8f;" not in css
+    settings_panel = _css_rule(css, ".settings-panel")
+    assert "--settings-bg: var(--workspace-shell-bg, var(--panel));" in settings_panel
+    assert "--settings-bg-soft: var(--workspace-shell-bg-alt, color-mix(in srgb, var(--panel) 88%, var(--bg) 12%));" in settings_panel
+    assert "--settings-bg-muted: color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 70%, transparent);" in settings_panel
+    assert "--settings-bg-strong: color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 84%, transparent);" in settings_panel
+    assert "--settings-font-family: var(--theme-font-family, \"IBM Plex Sans\", \"Segoe UI\", sans-serif);" in settings_panel
+    assert "--settings-text: var(--theme-text-color, var(--workspace-shell-text, var(--ink)));" in settings_panel
+    assert "--settings-text-strong: var(--theme-text-color-strong, var(--settings-text));" in settings_panel
+    assert "--settings-text-soft: var(--theme-text-color-soft, var(--workspace-shell-text-soft, var(--muted)));" in settings_panel
+    assert "--settings-text-muted: var(--theme-text-color-muted, var(--settings-text-soft));" in settings_panel
+    assert "--settings-text-accent: var(--theme-text-color-accent, var(--workspace-shell-active-text, var(--accent-2)));" in settings_panel
+    assert "--settings-text-on-fill: var(--theme-text-color-on-fill, var(--settings-text));" in settings_panel
+    assert "--settings-text-code: var(--theme-text-color-code, var(--settings-text));" in settings_panel
+    assert "--settings-line: var(--workspace-shell-border, var(--line));" in css
+    assert "--settings-line-soft: var(--workspace-shell-border-muted, color-mix(in srgb, var(--settings-line) 72%, transparent));" in css
+    assert "--settings-line-strong: var(--workspace-shell-border-strong, color-mix(in srgb, var(--settings-line) 82%, var(--settings-text) 18%));" in css
+    assert "--settings-control-bg: color-mix(in srgb, var(--settings-bg-soft) 86%, transparent);" in css
+    assert "--settings-control-text: var(--settings-text);" in css
+    assert "--settings-control-border: var(--settings-line);" in css
+    assert "background: var(--settings-bg);" in settings_panel
+    assert "font-family: var(--settings-font-family);" in settings_panel
+    assert "color: var(--settings-text-muted);" in css
+    assert "color: var(--settings-control-text);" in css
+    assert "border: 1px solid var(--settings-line-soft);" in css
+    assert "--floating-stage-bg: var(--theme-background-gradient" in css
+    assert "background: var(--theme-background-gradient, var(--theme-gradient-primary, var(--bg)));" in css
+    gradient_group = _css_rule(css, ".settings-gradient-group")
+    assert "background: var(--settings-bg-muted);" in gradient_group
+    assert "theme-live-preview" not in css
+    assert "theme-preview" not in css
+    dark_color_picker = _css_rule(css, "[data-theme=\"dark\"] .dashboard-color-picker-popover")
+    color_picker = _css_rule(css, ".dashboard-color-picker-popover")
+    assert "backdrop-filter: blur(14px) saturate(120%);" in color_picker
+    assert "-webkit-backdrop-filter: blur(14px) saturate(120%);" in color_picker
+    assert "background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, transparent);" in dark_color_picker
+    assert "workspace-shell-bg" in dark_color_picker
+    dark_color_picker_inputs = _css_rule(
+        css,
+        "[data-theme=\"dark\"] .dashboard-color-picker-preview,\n    [data-theme=\"dark\"] .dashboard-color-picker-field-input",
+    )
+    assert "background: var(--workspace-shell-bg);" in dark_color_picker_inputs
+    assert "workspace-shell-bg" in dark_color_picker_inputs
+    assert "var(--surface-tint-bg-soft)" in css
+    assert "var(--surface-tint-border-strong)" in css
     assert ".chat-member-item {" in css
-    assert "--chat-member-node-bg: color-mix(in srgb, var(--panel) 94%, var(--bg) 6%);" in css
+    assert "--chat-member-node-bg: var(--workspace-shell-bg);" in css
+    assert "--chat-member-node-bg-hover: var(--workspace-shell-hover-bg);" in css
     assert "--chat-member-node-sat-mult: 0;" in css
+    assert "--chat-member-node-fg: var(--workspace-shell-text);" in css
     assert ".chat-feed-item {" in css
     assert "--chat-feed-node-bg: color-mix(in srgb, var(--panel) 94%, var(--bg) 6%);" in css
     assert "--chat-feed-node-sat-mult: 0;" in css
     assert ".chat-inline-emoji {" in css
-    assert "background: var(--workspace-shell-bg, #08110d);" in css
+    assert "background: var(--workspace-shell-bg);" in css
     assert "background: var(--workspace-shell-bg-alt);" in css
     assert "border-color: var(--workspace-shell-border);" in css
     assert "[data-theme=\"dark\"] .card.games {" in css
@@ -79,7 +247,25 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .chat-users-head-launcher-shell .topbar-view-menu-btn:hover," in css
     assert "[data-theme=\"dark\"] .settings-tab-btn {" in css
     assert "[data-theme=\"dark\"] .settings-panel {" in css
+    dark_settings_panel = _css_rule(css, "[data-theme=\"dark\"] .settings-panel")
+    assert "--settings-bg: var(--workspace-shell-bg);" in dark_settings_panel
+    assert "--settings-bg-soft: var(--workspace-shell-bg-alt);" in dark_settings_panel
+    assert "--settings-bg-muted: color-mix(in srgb, var(--workspace-shell-bg-alt) 70%, transparent);" in dark_settings_panel
+    assert "--settings-bg-strong: color-mix(in srgb, var(--workspace-shell-bg) 84%, transparent);" in dark_settings_panel
+    assert "--settings-font-family: var(--theme-font-family, \"IBM Plex Sans\", \"Segoe UI\", sans-serif);" in dark_settings_panel
+    assert "--settings-text: var(--theme-text-color, var(--workspace-shell-text));" in dark_settings_panel
+    assert "--settings-text-strong: var(--theme-text-color-strong, var(--settings-text));" in dark_settings_panel
+    assert "--settings-text-soft: var(--theme-text-color-soft, var(--workspace-shell-text-soft));" in dark_settings_panel
+    assert "--settings-text-muted: var(--theme-text-color-muted, var(--settings-text-soft));" in dark_settings_panel
+    assert "--settings-text-accent: var(--theme-text-color-accent, var(--workspace-shell-active-text));" in dark_settings_panel
+    assert "--settings-text-on-fill: var(--theme-text-color-on-fill, var(--settings-text));" in dark_settings_panel
+    assert "--settings-text-code: var(--theme-text-color-code, var(--settings-text));" in dark_settings_panel
+    assert "--settings-line: var(--workspace-shell-border);" in dark_settings_panel
+    assert "--settings-line-soft: var(--workspace-shell-border-muted);" in dark_settings_panel
+    assert "--settings-line-strong: var(--workspace-shell-border-strong);" in dark_settings_panel
+    assert "--settings-control-bg: color-mix(in srgb, var(--settings-bg-soft) 86%, transparent);" in dark_settings_panel
+    assert "--settings-control-text: var(--settings-text);" in dark_settings_panel
+    assert "background: var(--settings-bg);" in dark_settings_panel
     assert "[data-theme=\"dark\"] .settings-ticker-config {" in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings," in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings .body {" in css
-

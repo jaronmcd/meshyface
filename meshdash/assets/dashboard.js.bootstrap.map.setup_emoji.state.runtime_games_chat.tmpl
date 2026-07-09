@@ -62,7 +62,6 @@
       last_remote_control_ack_seq: 0,
       status: "Local hotseat mode.",
     }};
-    let pokerState = null;
     let gamesQuickChatSessionKey = "";
     let gamesQuickChatRows = [];
     let gamesQuickChatSeenKeys = new Set();
@@ -149,7 +148,16 @@
     let chatEmojiSearchQuery = "";
     let chatEmojiUsageCounts = new Map();
     let chatEmojiTopPinnedChoices = [];
+    let chatEmojiTopSuppressedChoices = [];
     let chatEmojiTopDragEmoji = "";
+    let chatEmojiTopPointerDrag = null;
+    let chatEmojiTopDragStartOrder = [];
+    let chatEmojiTopDragSourceInTop = false;
+    let chatEmojiTopDragPreviewActive = false;
+    let chatEmojiTopDragLastPreviewAt = 0;
+    let chatEmojiTopDragLastPreviewKey = "";
+    let chatEmojiTopDragGhost = null;
+    let chatEmojiTopSuppressClickUntilMs = 0;
     let chatReactionTargetId = null;
     let chatReactionPickerExpanded = false;
     let chatEmojiAnchorElement = null;
@@ -164,6 +172,8 @@
     let chatHopReplyAutocompleteSuffix = "";
     let chatReactionPopoverAnchor = null;
     let chatReactionPopoverHideTimer = null;
+    let chatReactionQuickPointerDrag = null;
+    let chatReactionQuickSuppressClickUntilMs = 0;
     let chatImmediatePollTimer = null;
     let nodesSearchQuery = "";
     let savedNodeSearchQuery = "";
@@ -181,11 +191,48 @@
     let themePreference = "auto";
     let tickerDensity = "compact";
     let themePresetSelected = "custom";
-    let themeCustomBaseColor = "#2563eb";
-    let themeCustomLineColor = "#9a9996";
-    let themeCustomTintColor = "#9a9996";
-    let themeCustomTintIntensity = 50;
-    let themeCustomColorDepth = 50;
+    let themePresetCustomSettingsCatalog = {{}};
+    let themeManagedPresetNames = new Set();
+    let themeCustomBaseColor = "#007bff";
+    let themeCustomLineColor = "#0da6ff";
+    let themeCustomLineContrastColor = "#4f55ff";
+    let themeCustomColorDepth = 44;
+    let themeCustomForegroundTransparency = 39;
+    let themeCustomForegroundBlur = 0;
+    let themeCustomTextFont = "system";
+    let themeCustomGradientPrimaryStartColor = "#00356e";
+    let themeCustomGradientPrimaryEndColor = "#060d1f";
+    let themeCustomGradientPrimaryType = "linear";
+    let themeCustomGradientPrimaryDirection = "right";
+    let themeCustomBackgroundType = "particles";
+    let themeCustomBackgroundImageData = "";
+    let themeCustomBackgroundImageLayout = "cover";
+    let themeCustomBackgroundImageDarken = 0;
+    let themeCustomParticlesEnabled = true;
+    let themeCustomParticlesColor = "#548dff";
+    let themeCustomParticlesLinkColor = "#4f55ff";
+    let themeCustomLivemapLinkColor = "#4f55ff";
+    let themeCustomParticlesCount = 50;
+    let themeCustomParticlesSpeed = 0.2;
+    let themeCustomParticlesSize = 2;
+    let themeCustomParticlesOpacity = 88;
+    let themeCustomParticlesLinks = true;
+    let themeCustomLivemapLayers = {{
+      roads: true,
+      railroads: true,
+      rivers: true,
+      lakes: true,
+      parks: true,
+      urban: true,
+      states: true,
+      borders: true,
+      coastline: true,
+      cities: true,
+    }};
+    let dashboardParticlesSignature = "";
+    let dashboardBackgroundActiveType = "";
+    let dashboardParticlesBackgroundLoadSerial = 0;
+    let dashboardImageBackgroundLoadSerial = 0;
     let weeklySummaryMetric = "packets";
     let weeklySummaryWindowHours = defaultSummaryWindowHours;
     let weeklySummaryNodeSeriesEnabled = {{ ...weeklySummaryNodeSeriesDefaults }};

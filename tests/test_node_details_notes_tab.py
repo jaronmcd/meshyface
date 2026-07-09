@@ -8,7 +8,21 @@ from meshdash.html_js import build_dashboard_js
 from meshdash.html_template import render_html
 
 
-def test_render_html_includes_chat_node_details_notes_tab() -> None:
+def test_dashboard_js_lazily_mounts_chat_node_details_notes_tab() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function ensureChatNodeDetailsDrawer() {" in js
+    assert 'id="chat-node-details-tab-notes"' in js
+    assert 'data-drawer-tab="notes"' in js
+    assert 'id="chat-node-details-panel-notes"' in js
+    assert 'id="chat-node-details-notes-host"' in js
+
+
+def test_render_html_defers_chat_node_details_drawer_until_needed() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -21,96 +35,95 @@ def test_render_html_includes_chat_node_details_notes_tab() -> None:
         revision_label="test",
         revision_title="test",
     )
+    initial_dom_html = html.split("<!-- mesh-dashboard-app:start -->", 1)[0]
 
-    assert 'id="chat-node-details-tab-notes"' in html
-    assert 'data-drawer-tab="notes"' in html
-    assert 'id="chat-node-details-panel-notes"' in html
-    assert 'id="chat-node-details-notes-host"' in html
+    assert 'id="chat-node-details-inline-host"' in initial_dom_html
+    assert 'id="chat-node-details-drawer"' not in initial_dom_html
+    assert 'id="chat-node-details-tab-notes"' not in initial_dom_html
 
 
-def test_render_html_uses_icon_only_close_button_for_node_details_drawer() -> None:
-    html = render_html(
+def test_dashboard_js_uses_icon_only_close_button_for_node_details_drawer() -> None:
+    js = build_dashboard_js(
         refresh_ms=1000,
-        packet_limit=200,
-        show_secrets=False,
-        history_enabled=True,
-        history_max_rows=200,
-        history_retention_days=7,
         node_history_hours=24,
         node_history_max_points=240,
-        revision_label="test",
-        revision_title="test",
     )
 
-    assert 'id="chat-node-details-close-btn"' in html
-    assert ">&times;</button>" in html
-    assert ">Collapse</button>" not in html
+    assert 'id="chat-node-details-close-btn"' in js
+    assert ">&times;</button>" in js
+    assert ">Collapse</button>" not in js
 
 
-def test_render_html_includes_chat_node_details_location_chat_and_links_tabs() -> None:
-    html = render_html(
+def test_dashboard_js_includes_chat_node_details_location_chat_and_links_tabs() -> None:
+    js = build_dashboard_js(
         refresh_ms=1000,
-        packet_limit=200,
-        show_secrets=False,
-        history_enabled=True,
-        history_max_rows=200,
-        history_retention_days=7,
         node_history_hours=24,
         node_history_max_points=240,
-        revision_label="test",
-        revision_title="test",
     )
 
-    assert 'id="chat-node-details-tab-location"' in html
-    assert 'data-drawer-tab="location"' in html
-    assert 'id="chat-node-details-panel-location"' in html
-    assert 'id="chat-node-details-location-host"' in html
-    assert 'id="chat-node-details-tab-chat"' in html
-    assert 'data-drawer-tab="chat"' in html
-    assert 'id="chat-node-details-panel-chat"' in html
-    assert 'id="chat-node-details-chat-host"' in html
-    assert 'id="chat-node-details-tab-links"' in html
-    assert 'data-drawer-tab="links"' in html
-    assert 'id="chat-node-details-panel-links"' in html
-    assert 'id="chat-node-details-links-host"' in html
-    assert 'id="chat-node-details-tab-messages"' in html
-    assert 'data-drawer-tab="messages"' in html
-    assert 'id="chat-node-details-panel-messages"' in html
-    assert 'id="chat-node-details-messages-host"' in html
-    assert 'id="chat-node-details-pin-btn"' in html
+    assert 'id="chat-node-details-tab-location"' in js
+    assert 'data-drawer-tab="location"' in js
+    assert 'id="chat-node-details-panel-location"' in js
+    assert 'id="chat-node-details-location-host"' in js
+    assert 'id="chat-node-details-tab-chat"' in js
+    assert 'data-drawer-tab="chat"' in js
+    assert 'id="chat-node-details-panel-chat"' in js
+    assert 'id="chat-node-details-chat-host"' in js
+    assert 'id="chat-node-details-tab-links"' in js
+    assert 'data-drawer-tab="links"' in js
+    assert 'id="chat-node-details-panel-links"' in js
+    assert 'id="chat-node-details-links-host"' in js
+    assert 'id="chat-node-details-tab-messages"' in js
+    assert 'data-drawer-tab="messages"' in js
+    assert 'id="chat-node-details-panel-messages"' in js
+    assert 'id="chat-node-details-messages-host"' in js
+    assert 'id="chat-node-details-pin-btn"' in js
 
 
-def test_render_html_places_messages_before_details_and_notes_in_drawer_tabs() -> None:
-    html = render_html(
+def test_dashboard_js_places_messages_before_details_and_notes_in_drawer_tabs() -> None:
+    js = build_dashboard_js(
         refresh_ms=1000,
-        packet_limit=200,
-        show_secrets=False,
-        history_enabled=True,
-        history_max_rows=200,
-        history_retention_days=7,
         node_history_hours=24,
         node_history_max_points=240,
-        revision_label="test",
-        revision_title="test",
     )
 
-    head_index = html.index('class="chat-node-details-head"')
-    tabs_index = html.index('class="chat-node-details-tabs"')
-    tag_index = html.index('id="chat-node-details-tab-tag"')
-    details_index = html.index('id="chat-node-details-tab-details"')
-    telemetry_index = html.index('id="chat-node-details-tab-telemetry"')
-    history_index = html.index('id="chat-node-details-tab-history"')
-    location_index = html.index('id="chat-node-details-tab-location"')
-    chat_index = html.index('id="chat-node-details-tab-chat"')
-    links_index = html.index('id="chat-node-details-tab-links"')
-    notes_index = html.index('id="chat-node-details-tab-notes"')
-    messages_index = html.index('id="chat-node-details-tab-messages"')
+    head_index = js.index('class="chat-node-details-head"')
+    tabs_index = js.index('class="chat-node-details-tabs"')
+    tag_index = js.index('id="chat-node-details-tab-tag"')
+    details_index = js.index('id="chat-node-details-tab-details"')
+    telemetry_index = js.index('id="chat-node-details-tab-telemetry"')
+    history_index = js.index('id="chat-node-details-tab-history"')
+    location_index = js.index('id="chat-node-details-tab-location"')
+    chat_index = js.index('id="chat-node-details-tab-chat"')
+    links_index = js.index('id="chat-node-details-tab-links"')
+    notes_index = js.index('id="chat-node-details-tab-notes"')
+    messages_index = js.index('id="chat-node-details-tab-messages"')
 
     assert head_index < tag_index < tabs_index
     assert messages_index < details_index < telemetry_index < history_index < location_index < chat_index < links_index < notes_index
 
 
-def test_render_html_places_tag_title_pin_and_mute_actions_in_drawer_header() -> None:
+def test_dashboard_js_places_tag_title_pin_and_mute_actions_in_drawer_header() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    head_index = js.index('class="chat-node-details-head"')
+    tag_index = js.index('id="chat-node-details-tab-tag"')
+    status_index = js.index('id="chat-node-details-status-chip"')
+    reset_index = js.index('id="chat-node-details-reset-btn"')
+    title_index = js.index('id="chat-node-details-title"')
+    pin_index = js.index('id="chat-node-details-pin-btn"')
+    mute_index = js.index('id="chat-node-details-mute-btn"')
+    tabs_index = js.index('class="chat-node-details-tabs"')
+
+    assert 'id="chat-node-details-dm-btn"' not in js
+    assert head_index < tag_index < status_index < reset_index < title_index < pin_index < mute_index < tabs_index
+
+
+def test_render_html_includes_promoted_node_details_host() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -123,17 +136,20 @@ def test_render_html_places_tag_title_pin_and_mute_actions_in_drawer_header() ->
         revision_label="test",
         revision_title="test",
     )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
 
-    head_index = html.index('class="chat-node-details-head"')
-    tag_index = html.index('id="chat-node-details-tab-tag"')
-    reset_index = html.index('id="chat-node-details-reset-btn"')
-    title_index = html.index('id="chat-node-details-title"')
-    pin_index = html.index('id="chat-node-details-pin-btn"')
-    mute_index = html.index('id="chat-node-details-mute-btn"')
-    tabs_index = html.index('class="chat-node-details-tabs"')
-
-    assert 'id="chat-node-details-dm-btn"' not in html
-    assert head_index < tag_index < reset_index < title_index < pin_index < mute_index < tabs_index
+    assert 'id="chat-node-details-inline-host"' in html
+    assert 'id="chat-node-details-drawer"' not in html
+    assert 'id="chat-node-details-promote-btn"' in js
+    assert 'class="chat-node-details-action-btn chat-node-details-promote-btn"' in js
+    assert 'id="chat-node-details-promoted-shell"' in html
+    assert 'id="chat-node-details-promoted-host"' in html
+    assert js.index('id="chat-node-details-promote-btn"') < js.index('id="chat-node-details-close-btn"')
+    assert html.index('class="workspace-main"') < html.index('id="chat-node-details-promoted-shell"')
 
 
 def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
@@ -216,6 +232,7 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'const iconBtn = document.getElementById("chat-node-details-icon-btn");' in js
     assert 'const iconChip = document.getElementById("chat-node-details-icon-chip");' in js
     assert 'const iconInput = document.getElementById("chat-node-details-head-icon-input");' in js
+    assert 'const statusChip = document.getElementById("chat-node-details-status-chip");' in js
     assert 'iconChip.className = "chat-node-details-icon-chip";' in js
     assert 'iconChip.innerHTML = `<span class="chat-node-details-icon-glyph" aria-hidden="true">${escAttr(effectiveEmoji)}</span>`;' in js
     assert 'let chatEmojiTagTargetInput = null;' in js
@@ -227,28 +244,132 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'if (target.closest("#chat-node-details-head-icon-input")) return;' in js
     assert 'openChatEmojiPanel("tag", null, emojiInput);' in js
     assert 'openChatEmojiPanel("tag", null, iconBtn, false, iconInput);' in js
-    assert 'const hasResettableVisualState = hasTag || hasNodeEmojiOverride;' in js
+    assert 'const manualTagEntry = (typeof manualNodeTagEntryForNode === "function")' in js
+    assert 'const autoNewStatusEntry = (typeof autoNodeTagEntryForNode === "function")' in js
+    assert 'const tagEntry = manualTagEntry;' in js
+    assert 'const hasResettableVisualState = !!manualTagEntry || hasNodeEmojiOverride;' in js
     assert 'resetBtn.hidden = !hasResettableVisualState;' in js
+    assert 'setDrawerElementTextIfChanged(statusChip, statusLabel);' in js
+    assert 'const statusTitle = "New node: first seen in the last 24 hours";' in js
     assert 'clearNodeTagAndEmojiForNode(nodeId, { persist: true });' in js
     assert 'target.closest("#settings-node-tag-emoji-input")' in js
     assert 'openChatEmojiPanel("tag", null, emojiInput);' in js
 
 
-def test_dashboard_html_places_messages_tab_first_in_node_drawer() -> None:
-    html = render_html(
+def test_dashboard_js_promotes_node_details_without_duplicate_drawer_state() -> None:
+    js = build_dashboard_js(
         refresh_ms=1000,
-        packet_limit=200,
-        show_secrets=False,
-        history_enabled=True,
-        history_max_rows=200,
-        history_retention_days=7,
         node_history_hours=24,
         node_history_max_points=240,
-        revision_label="test",
-        revision_title="test",
     )
 
-    assert html.index('id="chat-node-details-tab-messages"') < html.index('id="chat-node-details-tab-details"')
+    assert "let chatNodeDetailsPromoted = false;" in js
+    assert "function syncChatNodeDetailsDrawerPlacement(drawer, promotedVisible) {" in js
+    assert "function syncChatNodeDetailsInlineDockState(activeList = null) {" in js
+    assert "function resetChatNodeDetailsInlineHost(inlineHost) {" in js
+    assert 'inlineHost.closest(".chat-member-list, .chat-member-pinned-list")' in js
+    assert "let forceRosterSectionRender = false;" in js
+    assert "forceRosterSectionRender = true;" in js
+    assert "!forceRosterSectionRender && (typeof pinnedList.__meshLastInnerHtml_chat_room_pinned_list === \"string\")" in js
+    assert "!forceRosterSectionRender && (typeof roomList.__meshLastInnerHtml_chat_room_list === \"string\")" in js
+    assert "resetChatNodeDetailsInlineHost(inlineHost);" in js
+    assert "syncChatNodeDetailsDrawer(safeState, {" in js
+    assert 'const inlineHost = document.getElementById("chat-node-details-inline-host");' in js
+    assert 'const promotedShell = document.getElementById("chat-node-details-promoted-shell");' in js
+    assert 'const promotedHost = document.getElementById("chat-node-details-promoted-host");' in js
+    assert 'const roomList = document.getElementById("chat-room-list");' in js
+    assert "section.insertBefore(inlineHost, roomList);" in js
+    assert 'inlineHost.dataset.dock = "shared";' in js
+    assert "delete inlineHost.dataset.dock;" in js
+    assert 'listEl.classList.toggle("has-node-details-inline", listEl === activeListEl);' in js
+    assert "target.appendChild(drawer);" in js
+    assert 'drawer.dataset.promoted = usePromoted ? "true" : "false";' in js
+    assert 'workspaceShell.classList.toggle("has-promoted-node-details", usePromoted);' in js
+    assert "const requestedPromoted = expanded && !!chatNodeDetailsPromoted;" in js
+    assert "const shouldMountDrawer = expanded && (!chatPanelCollapsed || requestedPromoted);" in js
+    assert "drawer = ensureChatNodeDetailsDrawer();" in js
+    assert "let promotedVisible = requestedPromoted;" in js
+    assert "promotedVisible = syncChatNodeDetailsDrawerPlacement(drawer, promotedVisible);" in js
+    assert "const inlineVisible = visibleExpanded && !promotedVisible;" in js
+    assert 'usersSection.classList.toggle("has-node-details", inlineVisible);' in js
+    assert "promoteBtn.hidden = promotedVisible;" in js
+    assert "promoteBtn.disabled = promotedVisible;" in js
+    assert 'setDrawerElementTextIfChanged(\n          promoteBtn.querySelector(".chat-node-details-promote-label"),\n          "Expand"\n        );' in js
+    assert '"Dock"' not in js
+    assert "Return ${titleName} details to the left node list" not in js
+    assert "function setChatNodeDetailsPromoted(promoted, options = null) {" in js
+    assert "setChatNodeDetailsPromoted(!chatNodeDetailsPromoted, {" in js
+    assert "chatNodeDetailsPromoted = false;" in js
+    assert 'aria-label="${escAttr(memberTitle)}"' in js
+    assert 'title="${escAttr(memberTitle)}"' not in js
+
+
+def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert ".chat-node-details-promoted-shell {" in css
+    assert "position: absolute;" in css
+    assert "padding: 8px;" in css
+    assert "justify-content: center;" in css
+    assert "background: color-mix(in srgb, #020812 72%, transparent);" in css
+    assert ".chat-node-details-promoted-host {" in css
+    promoted_host_section = css.split(".chat-node-details-promoted-host {", 1)[1].split("}", 1)[0]
+    assert "width: 100%;" in promoted_host_section
+    assert "max-width: none;" in promoted_host_section
+    assert "min-width: 0;" in promoted_host_section
+    assert "var(--workspace-shell-bg, var(--panel))" in promoted_host_section
+    assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
+    assert "height: 100%;" in css
+    assert ".chat-node-details-head {" in css
+    head_section = css.split(".chat-node-details-head {", 1)[1].split("}", 1)[0]
+    assert "grid-template-columns: minmax(0, 1fr) auto auto;" in head_section
+    assert ".chat-node-details-head-main {" in css
+    head_main_section = css.split(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
+    assert "width: 100%;" in head_main_section
+    assert "grid-template-columns: auto auto auto auto minmax(0, 1fr);" in head_main_section
+    assert "justify-self: stretch;" in head_main_section
+    assert ".chat-node-details-promoted-host .chat-node-details-tag-host {" in css
+    assert '.chat-left-section.chat-users-section > .chat-node-details-inline-host[data-dock="shared"] {' in css
+    assert "padding: 6px 5px 6px 5px;" in css
+    assert '.chat-left-section.chat-users-section > .chat-node-details-inline-host[data-dock="shared"] .chat-node-details-drawer {' in css
+    shared_drawer_section = css.split(
+        '.chat-left-section.chat-users-section > .chat-node-details-inline-host[data-dock="shared"] .chat-node-details-drawer {',
+        1,
+    )[1].split("}", 1)[0]
+    assert "width: 100%;" in shared_drawer_section
+    assert "border-top-left-radius: 8px;" in shared_drawer_section
+    assert "border-top-right-radius: 8px;" in shared_drawer_section
+    assert ".chat-node-details-status-chip {" in css
+    assert ".chat-member-item.auto-new-node:not(.tagged-node) {" in css
+    assert '.chat-left-section.chat-users-section > .chat-node-details-inline-host[data-dock="priority"] {' not in css
+    assert ".chat-member-pinned-shell.has-node-details-inline {" not in css
+    assert ".chat-left-section.chat-users-section.has-node-details .chat-member-pinned-shell," in css
+    assert ".chat-left-section.chat-users-section.has-node-details .chat-member-list {" in css
+    assert "display: none !important;" in css
+    assert ".chat-left-section.chat-users-section.has-node-details .chat-node-details-inline-host {" in css
+    inline_host_section = css.split(
+        ".chat-left-section.chat-users-section.has-node-details .chat-node-details-inline-host {", 1
+    )[1].split("}", 1)[0]
+    assert "flex: 1 1 auto;" in inline_host_section
+    assert "height: 100%;" in inline_host_section
+    drawer_section = css.split(
+        ".chat-left-section.chat-users-section.has-node-details .chat-node-details-drawer {", 1
+    )[1].split("}", 1)[0]
+    assert "flex: 1 1 auto;" in drawer_section
+    assert "height: 100%;" in drawer_section
+    assert "max-height: none;" in drawer_section
+    assert ".workspace-shell.chat-panel-collapsed .chat-left-panel .chat-node-details-drawer {" in css
+    assert "[data-theme=\"dark\"] .chat-node-details-promote-btn.active {" in css
+
+
+def test_dashboard_js_places_messages_tab_first_in_node_drawer() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert js.index('id="chat-node-details-tab-messages"') < js.index('id="chat-node-details-tab-details"')
 
 
 def test_dashboard_js_avoids_rebuilding_saved_node_details_on_unchanged_polls() -> None:

@@ -1291,7 +1291,6 @@
       const resolvedTheme = normalized === "auto" ? systemPreferredTheme() : normalized;
       applyThemePresetTokens(resolvedTheme);
       document.documentElement.setAttribute("data-theme", resolvedTheme);
-      document.documentElement.setAttribute("data-theme-pref", normalized);
       applyMapTiles(resolvedTheme);
       applySettingsFixedMapTiles(resolvedTheme);
       updateThemeToggleLabel(resolvedTheme);

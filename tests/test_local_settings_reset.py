@@ -45,6 +45,67 @@ def test_render_html_includes_keep_screen_on_setting() -> None:
     assert 'id="settings-wake-lock-status"' in html
 
 
+def test_render_html_labels_position_interval_tip_as_local_suggestion() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "Quiet fixed-node suggestion: Smart Position OFF" in html
+    assert "Recommended: Smart Position OFF" not in html
+    assert "https://meshtastic.org/docs/configuration/radio/position/" in html
+    assert "https://meshtastic.org/docs/overview/mesh-algo/" in html
+
+
+def test_render_html_describes_neighbor_info_as_optional_module() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "Optional: Neighbor Info reports direct-neighbor link data" in html
+    assert "does not change mesh routing" in html
+    assert "Enable Neighbor Info if you want radios to advertise neighbor links" not in html
+    assert "https://meshtastic.org/docs/configuration/module/neighbor-info/" in html
+
+
+def test_render_html_uses_concise_offline_map_pack_notes() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "Map packs add optional detail to offline maps." in html
+    assert "once installed, the added layers stay local and work without internet." in html
+    assert 'Layers marked "(pack)" require an installed map pack.' in html
+    assert "Expansion packs add high-detail worldwide map layers" not in html
+    assert "forced offline mode or automatic" not in html
+
+
 def test_dashboard_js_includes_browser_local_reset_flow() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

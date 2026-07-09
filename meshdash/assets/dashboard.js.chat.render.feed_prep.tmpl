@@ -11,6 +11,7 @@
         : "";
       const rawPacketsLength = rawPackets.length;
       const activeChatChannelKey = String(activeChatChannel || "all").trim() || "all";
+      const activeMeshChannelKey = activeMeshChannelFilterIndex();
       const chatMainDirectModeActive = !!chatMainDirectModeEnabled;
       const computeMessageEndpoints = (msg) => {{
         const fromId = resolveMessageNodeId(
@@ -59,7 +60,7 @@
         && chatDerivedCache.historyCapsRef === historyCapsObj
         && chatDerivedCache.nodePacketTrendsRef === nodePacketTrends
         && chatDerivedCache.localNodeId === localNodeId
-        && chatDerivedCache.meshChannelIndex === normalizeMeshChannelIndex(activeMeshChannelIndex)
+        && chatDerivedCache.meshChannelIndex === activeMeshChannelKey
         && chatDerivedCache.activeChatChannel === activeChatChannelKey
         && chatDerivedCache.chatMainDirectModeEnabled === chatMainDirectModeActive
         && chatDerivedCache.chatHistoryRowsVersion === chatHistoryRowsVersion
@@ -410,7 +411,7 @@
           nodesRef: nodes,
           historyCapsRef: historyCapsObj,
           localNodeId,
-          meshChannelIndex: normalizeMeshChannelIndex(activeMeshChannelIndex),
+          meshChannelIndex: activeMeshChannelKey,
           activeChatChannel: activeChatChannelKey,
           chatMainDirectModeEnabled: chatMainDirectModeActive,
           chatHistoryRowsVersion,

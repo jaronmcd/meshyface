@@ -1,0 +1,1561 @@
+    // Live-map dashboard background: offgrid atlas outlines + the real mesh
+    // (nodes with GPS positions drawn as particles, link edges as lines).
+    let dashboardLivemapActive = false;
+    let dashboardLivemapCanvas = null;
+    let dashboardLivemapSettings = null;
+    let dashboardLivemapAtlasShapes = null;
+    let dashboardLivemapAtlasLoading = false;
+    let dashboardLivemapAtlasAttemptAt = 0;
+    let dashboardLivemapCityPoints = null;
+    let dashboardLivemapVisibleCities = [];
+    let dashboardLivemapAnimFrame = null;
+    let dashboardLivemapView = null;
+    let dashboardLivemapTargetView = null;
+    let dashboardLivemapGeometry = null;
+    let dashboardLivemapGeometryRefreshedAt = 0;
+    let dashboardLivemapLinkTransitions = new Map();
+    let dashboardLivemapLastDrawMs = 0;
+    let dashboardLivemapResizeBound = false;
+    let dashboardLivemapIntroPending = false;
+    let dashboardLivemapPendingNodeTarget = null;
+    let dashboardLivemapNodePanActive = false;
+    let dashboardLivemapMapFadeStartedAt = 0;
+    let dashboardLivemapMapLayerFadeStartedAt = new Map();
+    let dashboardLivemapFirstMapLayerFadeStartedAt = null;
+    let dashboardLivemapMeshFadeStartedAt = null;
+    let dashboardLivemapCachedNodeView = null;
+    let dashboardLivemapBestNodeView = null;
+
+    const dashboardLivemapGeometryRefreshMs = 5000;
+    const dashboardLivemapMinViewSpan = 0.004;
+    const dashboardLivemapViewEasing = 0.055;
+    const dashboardLivemapNodeDriftEasing = 0.00035;
+    const dashboardLivemapNodeDriftWanderRatio = 0.004;
+    const dashboardLivemapNodeDriftPeriodMs = 420000;
+    const dashboardLivemapViewSnapEpsilon = 0.000004;
+    const dashboardLivemapMapFadeMs = 1600;
+    const dashboardLivemapMeshFadeMs = 2800;
+    const dashboardLivemapLinkFadeInEasing = 0.025;
+    const dashboardLivemapLinkFadeOutEasing = 0.012;
+    const dashboardLivemapLinkPruneOpacity = 0.004;
+    const dashboardLivemapNodePanAfterMapDelayMs = 450;
+    const dashboardLivemapNodePanFallbackMapWaitMs = 2400;
+    const dashboardLivemapCachedViewStorageKey = "meshyface.dashboard.livemap.lastGpsView.v1";
+    const dashboardLivemapCachedViewMaxAgeMs = 24 * 60 * 60 * 1000;
+    const dashboardLivemapEstimatedRangeFallbackPreset = "LONG_FAST";
+    const dashboardLivemapEstimatedRangeByPreset = Object.freeze({{
+      SHORT_TURBO: {{ rangeKm: 6, strongKm: 2 }},
+      SHORT_FAST: {{ rangeKm: 10, strongKm: 3 }},
+      SHORT_SLOW: {{ rangeKm: 16, strongKm: 5 }},
+      MEDIUM_FAST: {{ rangeKm: 32, strongKm: 9 }},
+      MEDIUM_SLOW: {{ rangeKm: 42, strongKm: 12 }},
+      LONG_TURBO: {{ rangeKm: 26, strongKm: 8 }},
+      LONG_FAST: {{ rangeKm: 52, strongKm: 15 }},
+      LONG_MODERATE: {{ rangeKm: 68, strongKm: 20 }},
+      LONG_SLOW: {{ rangeKm: 82, strongKm: 25 }},
+      VERY_LONG_SLOW: {{ rangeKm: 110, strongKm: 34 }},
+    }});
+    const dashboardLivemapEstimatedRangeMaxLinks = 360;
+    const dashboardLivemapEstimatedRangeMaxLinksPerNode = 5;
+    const dashboardLivemapMaxMercatorLat = 85.05112878;
+
+    // Offline map expansion packs: the background reuses the map screen's
+    // manifest cache and chunk endpoints, but renders chunks as monochrome
+    // Path2D strokes in the livemap's unit-mercator space.
+    const dashboardLivemapPackChunkBudget = 240;
+    const dashboardLivemapPackDrawOrder = [
+      "urban",
+      "parks",
+      "lakes",
+      "rivers",
+      "railroads",
+      "roads",
+      "states",
+      "borders",
+      "coastline",
+    ];
+    const dashboardLivemapPackLayerStyles = {{
+      coastline: {{ alpha: 0.4, width: 1.1 }},
+      borders: {{ alpha: 0.3, width: 1.0 }},
+      states: {{ alpha: 0.2, width: 0.8 }},
+      lakes: {{ alpha: 0.28, width: 0.8 }},
+      rivers: {{ alpha: 0.22, width: 0.8 }},
+      urban: {{ alpha: 0.12, width: 0.6 }},
+      roads: {{ alpha: 0.16, width: 0.7 }},
+      roads_major: {{ alpha: 0.28, width: 1.0 }},
+      railroads: {{ alpha: 0.12, width: 0.6 }},
+      parks: {{ alpha: 0.14, width: 0.6 }},
+    }};
+    // Mirrors syncOfflineBaseLayerVisibility(): when a pack layer is drawn,
+    // hide the coarser base-atlas layer it supersedes.
+    const dashboardLivemapPackBaseReplacements = {{
+      coastline: "coastline",
+      countries: "coastline",
+      states: "states",
+      lakes: "lakes",
+    }};
+    let dashboardLivemapPackChunks = new Map();
+    let dashboardLivemapPackFetches = new Set();
+    let dashboardLivemapPackCityRows = [];
+    let dashboardLivemapActivePackLayers = new Set();
+
+    function dashboardLivemapHost() {{
+      const host = document.getElementById("dashboard-livemap-bg");
+      return host instanceof HTMLElement ? host : null;
+    }}
+
+    function dashboardLivemapLayerSettingKey(layerName) {{
+      const clean = String(layerName || "").trim().toLowerCase();
+      if (clean === "roads_major") return "roads";
+      if (clean === "countries") return "borders";
+      if (clean === "labels" || clean === "city_labels") return "cities";
+      return clean;
+    }}
+
+    function dashboardLivemapLayerEnabled(settings, layerName) {{
+      const key = dashboardLivemapLayerSettingKey(layerName);
+      if (!key) return true;
+      const layers = typeof normalizeThemeCustomLivemapLayers === "function"
+        ? normalizeThemeCustomLivemapLayers(settings && settings.livemap_layers)
+        : (settings && settings.livemap_layers);
+      if (!layers || typeof layers !== "object") return true;
+      return layers[key] !== false;
+    }}
+
+    function dashboardLivemapBackdropLayersEnabled(settings) {{
+      const layerKeys = ["roads", "railroads", "rivers", "lakes", "parks", "urban", "states", "borders", "coastline"];
+      return layerKeys.some((layerKey) => dashboardLivemapLayerEnabled(settings, layerKey));
+    }}
+
+    function dashboardLivemapPixelRatio() {{
+      const ratio = Number(window.devicePixelRatio) || 1;
+      return Math.max(1, Math.min(2, ratio));
+    }}
+
+    function dashboardLivemapProjectUnit(lat, lon) {{
+      const clampedLat = Math.max(
+        -dashboardLivemapMaxMercatorLat,
+        Math.min(dashboardLivemapMaxMercatorLat, Number(lat) || 0)
+      );
+      const clampedLon = Math.max(-180, Math.min(180, Number(lon) || 0));
+      const latRad = (clampedLat * Math.PI) / 180;
+      return {{
+        x: (clampedLon + 180) / 360,
+        y: (1 - (Math.log(Math.tan(latRad) + (1 / Math.cos(latRad))) / Math.PI)) / 2,
+      }};
+    }}
+
+    function dashboardLivemapValidCoord(lat, lon) {{
+      const latNum = Number(lat);
+      const lonNum = Number(lon);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return false;
+      if (Math.abs(latNum) > dashboardLivemapMaxMercatorLat || Math.abs(lonNum) > 180) return false;
+      if (latNum === 0 && lonNum === 0) return false;
+      return true;
+    }}
+
+    function dashboardLivemapNormalizeModemPreset(value) {{
+      const raw = String(value == null ? "" : value).trim().toUpperCase();
+      const enumMap = new Map([
+        ["0", "LONG_FAST"],
+        ["1", "LONG_SLOW"],
+        ["2", "VERY_LONG_SLOW"],
+        ["3", "MEDIUM_SLOW"],
+        ["4", "MEDIUM_FAST"],
+        ["5", "SHORT_SLOW"],
+        ["6", "SHORT_FAST"],
+        ["7", "LONG_MODERATE"],
+        ["8", "SHORT_TURBO"],
+        ["9", "LONG_TURBO"],
+      ]);
+      const preset = enumMap.get(raw) || raw.replace(/[\\s-]+/g, "_");
+      return Object.prototype.hasOwnProperty.call(dashboardLivemapEstimatedRangeByPreset, preset)
+        ? preset
+        : dashboardLivemapEstimatedRangeFallbackPreset;
+    }}
+
+    function dashboardLivemapModemPresetFromState(state) {{
+      const summary = state && state.summary && typeof state.summary === "object" ? state.summary : null;
+      const localState = state && state.local_state && typeof state.local_state === "object"
+        ? state.local_state
+        : null;
+      const localConfig = localState && localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const lora = localConfig && localConfig.lora && typeof localConfig.lora === "object"
+        ? localConfig.lora
+        : null;
+      return dashboardLivemapNormalizeModemPreset(
+        (summary && (summary.modem_preset ?? summary.modemPreset))
+        ?? (lora && (lora.modem_preset ?? lora.modemPreset))
+      );
+    }}
+
+    function dashboardLivemapEstimatedRangeProfile(state) {{
+      const preset = dashboardLivemapModemPresetFromState(state);
+      const profile = dashboardLivemapEstimatedRangeByPreset[preset]
+        || dashboardLivemapEstimatedRangeByPreset[dashboardLivemapEstimatedRangeFallbackPreset];
+      const rangeKm = Math.max(1, Number(profile && profile.rangeKm) || 1);
+      const strongKm = Math.max(0.5, Math.min(rangeKm, Number(profile && profile.strongKm) || rangeKm));
+      return {{ preset, rangeKm, strongKm }};
+    }}
+
+    function dashboardLivemapDistanceKm(a, b) {{
+      const latA = Number(a && a.lat);
+      const lonA = Number(a && a.lon);
+      const latB = Number(b && b.lat);
+      const lonB = Number(b && b.lon);
+      if (!dashboardLivemapValidCoord(latA, lonA) || !dashboardLivemapValidCoord(latB, lonB)) return Infinity;
+      const toRad = Math.PI / 180;
+      const phiA = latA * toRad;
+      const phiB = latB * toRad;
+      const deltaPhi = (latB - latA) * toRad;
+      const deltaLambda = (lonB - lonA) * toRad;
+      const sinPhi = Math.sin(deltaPhi / 2);
+      const sinLambda = Math.sin(deltaLambda / 2);
+      const h = (sinPhi * sinPhi) + (Math.cos(phiA) * Math.cos(phiB) * sinLambda * sinLambda);
+      return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+    }}
+
+    function dashboardLivemapPointRecencyFade(point, nowUnix) {{
+      const positionLastSeenUnix = Number(point && point.positionLastSeenUnix);
+      const lastHeardUnix = Number(point && point.lastHeardUnix);
+      const sourceUnix = Number.isFinite(positionLastSeenUnix) && positionLastSeenUnix > 0
+        ? positionLastSeenUnix
+        : lastHeardUnix;
+      if (!Number.isFinite(sourceUnix) || sourceUnix <= 0) return 0.45;
+      const ageSeconds = Math.max(0, nowUnix - sourceUnix);
+      if (ageSeconds <= 15 * 60) return 1;
+      if (ageSeconds >= 2 * 60 * 60) return 0.35;
+      return 1 - ((ageSeconds - (15 * 60)) / ((2 * 60 * 60) - (15 * 60)) * 0.65);
+    }}
+
+    function dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile = null) {{
+      if (!Array.isArray(points) || points.length < 2) return [];
+      const candidates = [];
+      const profile = rangeProfile || dashboardLivemapEstimatedRangeProfile(null);
+      const rangeKm = Math.max(1, Number(profile && profile.rangeKm) || 1);
+      const strongKm = Math.min(rangeKm, Math.max(0.5, Number(profile && profile.strongKm) || rangeKm));
+      const fadeSpanKm = Math.max(1, rangeKm - strongKm);
+      for (let index = 0; index < points.length - 1; index += 1) {{
+        const a = points[index];
+        if (!a || !a.key) continue;
+        for (let next = index + 1; next < points.length; next += 1) {{
+          const b = points[next];
+          if (!b || !b.key) continue;
+          const distanceKm = dashboardLivemapDistanceKm(a, b);
+          if (!Number.isFinite(distanceKm) || distanceKm > rangeKm) continue;
+          const rangeFade = distanceKm <= strongKm
+            ? 1
+            : Math.max(0, 1 - ((distanceKm - strongKm) / fadeSpanKm));
+          const recencyFade = Math.min(
+            dashboardLivemapPointRecencyFade(a, nowUnix),
+            dashboardLivemapPointRecencyFade(b, nowUnix)
+          );
+          const fade = Math.max(0.08, rangeFade * recencyFade);
+          if (fade <= 0.06) continue;
+          candidates.push({{
+            aKey: a.key,
+            bKey: b.key,
+            ax: a.x,
+            ay: a.y,
+            bx: b.x,
+            by: b.y,
+            distanceKm,
+            fade,
+          }});
+        }}
+      }}
+      candidates.sort((a, b) => (b.fade - a.fade) || (a.distanceKm - b.distanceKm));
+      const counts = new Map();
+      const selected = [];
+      for (const link of candidates) {{
+        if (selected.length >= dashboardLivemapEstimatedRangeMaxLinks) break;
+        const aCount = counts.get(link.aKey) || 0;
+        const bCount = counts.get(link.bKey) || 0;
+        if (
+          aCount >= dashboardLivemapEstimatedRangeMaxLinksPerNode ||
+          bCount >= dashboardLivemapEstimatedRangeMaxLinksPerNode
+        ) {{
+          continue;
+        }}
+        counts.set(link.aKey, aCount + 1);
+        counts.set(link.bKey, bCount + 1);
+        selected.push(link);
+      }}
+      return selected;
+    }}
+
+    function dashboardLivemapAppendGeoLine(paths, coords) {{
+      if (!Array.isArray(coords) || coords.length < 2) return;
+      let current = [];
+      let prevX = null;
+      for (const pair of coords) {{
+        if (!Array.isArray(pair) || pair.length < 2) continue;
+        const lon = Number(pair[0]);
+        const lat = Number(pair[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const point = dashboardLivemapProjectUnit(lat, lon);
+        // Break polylines that jump across the antimeridian so they do not
+        // draw a streak across the whole canvas.
+        if (prevX !== null && Math.abs(point.x - prevX) > 0.5) {{
+          if (current.length >= 2) paths.push(current);
+          current = [];
+        }}
+        current.push(point);
+        prevX = point.x;
+      }}
+      if (current.length >= 2) paths.push(current);
+    }}
+
+    function dashboardLivemapCollectGeoPaths(collection) {{
+      const paths = [];
+      const features = collection && typeof collection === "object" && Array.isArray(collection.features)
+        ? collection.features
+        : [];
+      for (const feature of features) {{
+        const geometry = feature && feature.geometry;
+        if (!geometry || typeof geometry !== "object") continue;
+        const type = String(geometry.type || "");
+        const coords = geometry.coordinates;
+        if (type === "LineString") {{
+          dashboardLivemapAppendGeoLine(paths, coords);
+        }} else if (type === "MultiLineString" || type === "Polygon") {{
+          for (const part of (Array.isArray(coords) ? coords : [])) {{
+            dashboardLivemapAppendGeoLine(paths, part);
+          }}
+        }} else if (type === "MultiPolygon") {{
+          for (const polygon of (Array.isArray(coords) ? coords : [])) {{
+            for (const ring of (Array.isArray(polygon) ? polygon : [])) {{
+              dashboardLivemapAppendGeoLine(paths, ring);
+            }}
+          }}
+        }}
+      }}
+      return paths;
+    }}
+
+    function dashboardLivemapBuildShape(collection, alpha, width) {{
+      if (typeof Path2D !== "function") return null;
+      const paths = dashboardLivemapCollectGeoPaths(collection);
+      if (!paths.length) return null;
+      const path = new Path2D();
+      for (const points of paths) {{
+        path.moveTo(points[0].x, points[0].y);
+        for (let index = 1; index < points.length; index += 1) {{
+          path.lineTo(points[index].x, points[index].y);
+        }}
+      }}
+      return {{ path, alpha, width }};
+    }}
+
+    function dashboardLivemapCollectCityPoints(collection) {{
+      const cities = [];
+      const features = collection && typeof collection === "object" && Array.isArray(collection.features)
+        ? collection.features
+        : [];
+      for (const feature of features) {{
+        const geometry = feature && feature.geometry;
+        if (!geometry || String(geometry.type || "") !== "Point") continue;
+        const coords = geometry.coordinates;
+        if (!Array.isArray(coords) || coords.length < 2) continue;
+        const lon = Number(coords[0]);
+        const lat = Number(coords[1]);
+        if (!dashboardLivemapValidCoord(lat, lon)) continue;
+        const props = feature.properties && typeof feature.properties === "object" ? feature.properties : {{}};
+        const name = String(props.name == null ? "" : props.name).trim().slice(0, 28);
+        if (!name) continue;
+        const rank = (typeof parseOfflineCityRank === "function")
+          ? parseOfflineCityRank(props.scalerank, 9)
+          : (Number.isFinite(Number(props.scalerank)) ? Number(props.scalerank) : 9);
+        const weight = (typeof parseOfflineCityWeight === "function")
+          ? parseOfflineCityWeight(props.population, 0)
+          : (Number.isFinite(Number(props.population)) ? Number(props.population) : 0);
+        const unit = dashboardLivemapProjectUnit(lat, lon);
+        cities.push({{ x: unit.x, y: unit.y, name, rank, weight }});
+      }}
+      cities.sort((a, b) => (a.rank - b.rank) || (b.weight - a.weight) || a.name.localeCompare(b.name));
+      return cities;
+    }}
+
+    function refreshDashboardLivemapCities() {{
+      const atlasCities = Array.isArray(dashboardLivemapCityPoints) ? dashboardLivemapCityPoints : [];
+      const packCities = dashboardLivemapVisiblePackCityRows();
+      let cities = atlasCities;
+      if (packCities.length) {{
+        cities = atlasCities.concat(packCities);
+        cities.sort((a, b) => (a.rank - b.rank) || (b.weight - a.weight) || a.name.localeCompare(b.name));
+      }}
+      const view = dashboardLivemapTargetView || dashboardLivemapView;
+      const canvas = dashboardLivemapCanvas;
+      if (!cities.length || !view || !(canvas instanceof HTMLCanvasElement)) {{
+        dashboardLivemapVisibleCities = [];
+        return;
+      }}
+      const spanX = Math.max(view.maxX - view.minX, 0.000001);
+      const spanY = Math.max(view.maxY - view.minY, 0.000001);
+      const scale = Math.min(canvas.width / spanX, canvas.height / spanY);
+      const marginX = spanX * 0.05;
+      const marginY = spanY * 0.05;
+      const ratio = dashboardLivemapPixelRatio();
+      const minSpacing = 96 * ratio;
+      const minSpacingSq = minSpacing * minSpacing;
+      const budget = 18;
+      const accepted = [];
+      for (const city of cities) {{
+        if (city.x < view.minX - marginX || city.x > view.maxX + marginX) continue;
+        if (city.y < view.minY - marginY || city.y > view.maxY + marginY) continue;
+        const px = city.x * scale;
+        const py = city.y * scale;
+        let crowded = false;
+        for (const other of accepted) {{
+          const dx = px - other.px;
+          const dy = py - other.py;
+          if ((dx * dx) + (dy * dy) < minSpacingSq) {{
+            crowded = true;
+            break;
+          }}
+        }}
+        if (crowded) continue;
+        accepted.push({{ city, px, py }});
+        if (accepted.length >= budget) break;
+      }}
+      dashboardLivemapVisibleCities = accepted.map((entry) => entry.city);
+    }}
+
+    function ensureDashboardLivemapAtlas() {{
+      if (dashboardLivemapAtlasShapes || dashboardLivemapAtlasLoading) return;
+      if (typeof fetchOfflineAtlasPayload !== "function") return;
+      const now = Date.now();
+      if ((now - dashboardLivemapAtlasAttemptAt) < 30000) return;
+      dashboardLivemapAtlasAttemptAt = now;
+      dashboardLivemapAtlasLoading = true;
+      Promise.resolve()
+        .then(() => fetchOfflineAtlasPayload())
+        .then((payload) => {{
+          const layers = payload && typeof payload === "object" && payload.layers && typeof payload.layers === "object"
+            ? payload.layers
+            : null;
+          if (!layers) return;
+          const shapes = [];
+          const layerSpecs = [
+            ["coastline", 0.4, 1.1],
+            ["countries", 0.3, 1.0],
+            ["states", 0.2, 0.8],
+            ["lakes", 0.28, 0.8],
+          ];
+          for (const [layerName, alpha, width] of layerSpecs) {{
+            const shape = dashboardLivemapBuildShape(layers[layerName], alpha, width);
+            if (shape) {{
+              shape.layer = layerName;
+              shapes.push(shape);
+            }}
+          }}
+          if (shapes.length) {{
+            dashboardLivemapAtlasShapes = shapes;
+          }}
+          dashboardLivemapCityPoints = dashboardLivemapCollectCityPoints(layers.cities);
+          refreshDashboardLivemapCities();
+        }})
+        .catch(() => {{}})
+        .then(() => {{
+          dashboardLivemapAtlasLoading = false;
+        }});
+    }}
+
+    function dashboardLivemapUnitToLat(y) {{
+      const clamped = Math.max(0, Math.min(1, Number(y) || 0));
+      return (Math.atan(Math.sinh(Math.PI * (1 - (2 * clamped)))) * 180) / Math.PI;
+    }}
+
+    function dashboardLivemapVisibleUnitBounds() {{
+      const canvas = dashboardLivemapCanvas;
+      const view = dashboardLivemapTargetView || dashboardLivemapView;
+      if (!(canvas instanceof HTMLCanvasElement) || !view) return null;
+      const spanX = Math.max(view.maxX - view.minX, 0.000001);
+      const spanY = Math.max(view.maxY - view.minY, 0.000001);
+      const scale = Math.min(canvas.width / spanX, canvas.height / spanY);
+      if (!Number.isFinite(scale) || scale <= 0) return null;
+      // The canvas letterboxes the view, so the visible area can be wider
+      // than the view rectangle itself.
+      const halfX = (canvas.width / scale) / 2;
+      const halfY = (canvas.height / scale) / 2;
+      const centerX = (view.minX + view.maxX) / 2;
+      const centerY = (view.minY + view.maxY) / 2;
+      return {{
+        minX: centerX - halfX,
+        maxX: centerX + halfX,
+        minY: Math.max(0, centerY - halfY),
+        maxY: Math.min(1, centerY + halfY),
+      }};
+    }}
+
+    function dashboardLivemapEffectiveZoom() {{
+      const canvas = dashboardLivemapCanvas;
+      const view = dashboardLivemapTargetView || dashboardLivemapView;
+      if (!(canvas instanceof HTMLCanvasElement) || !view) return 0;
+      const spanX = Math.max(view.maxX - view.minX, 0.000001);
+      const spanY = Math.max(view.maxY - view.minY, 0.000001);
+      const scale = Math.min(canvas.width / spanX, canvas.height / spanY);
+      const cssScale = scale / dashboardLivemapPixelRatio();
+      if (!Number.isFinite(cssScale) || cssScale <= 0) return 0;
+      // Leaflet-equivalent zoom: the world is 256 CSS px wide at zoom 0.
+      const zoom = Math.log2(cssScale / 256);
+      return Math.max(0, Math.min(19, zoom));
+    }}
+
+    function dashboardLivemapPackViewportCells(spec, padCells) {{
+      const cells = new Set();
+      const bounds = dashboardLivemapVisibleUnitBounds();
+      if (!bounds || !spec) return cells;
+      const pad = Number.isFinite(padCells) ? Math.max(0, Math.floor(padCells)) : 1;
+      const west = (bounds.minX * 360) - 180;
+      const east = (bounds.maxX * 360) - 180;
+      const north = dashboardLivemapUnitToLat(bounds.minY);
+      const south = dashboardLivemapUnitToLat(bounds.maxY);
+      let colStart = Math.floor((west + 180) / spec.cellDeg) - pad;
+      let colEnd = Math.floor((east + 180) / spec.cellDeg) + pad;
+      if (colEnd - colStart + 1 >= spec.cols) {{
+        colStart = 0;
+        colEnd = spec.cols - 1;
+      }}
+      const rowStart = Math.max(0, Math.floor((south + 90) / spec.cellDeg) - pad);
+      const rowEnd = Math.min(spec.rows - 1, Math.floor((north + 90) / spec.cellDeg) + pad);
+      for (let col = colStart; col <= colEnd; col += 1) {{
+        const wrappedCol = ((col % spec.cols) + spec.cols) % spec.cols;
+        for (let row = rowStart; row <= rowEnd; row += 1) {{
+          cells.add(`c${{wrappedCol}}r${{row}}`);
+        }}
+      }}
+      return cells;
+    }}
+
+    function dashboardLivemapPackStyle(layerName) {{
+      return dashboardLivemapPackLayerStyles[layerName] || {{ alpha: 0.2, width: 0.8 }};
+    }}
+
+    function dashboardLivemapPackPointRow(layerName, feature) {{
+      if (!feature || typeof feature !== "object") return null;
+      const geometry = feature.geometry && typeof feature.geometry === "object" ? feature.geometry : null;
+      const coords = geometry && Array.isArray(geometry.coordinates) ? geometry.coordinates : null;
+      if (!coords || coords.length < 2) return null;
+      const lon = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (!dashboardLivemapValidCoord(lat, lon)) return null;
+      const props = feature.properties && typeof feature.properties === "object" ? feature.properties : {{}};
+      const rawName = String(props.name == null ? "" : props.name).trim().slice(0, 28);
+      if (!rawName) return null;
+      const unit = dashboardLivemapProjectUnit(lat, lon);
+      if (layerName === "cities") {{
+        const rank = (typeof parseOfflineCityRank === "function")
+          ? parseOfflineCityRank(props.scalerank, 9)
+          : (Number.isFinite(Number(props.scalerank)) ? Number(props.scalerank) : 9);
+        const weight = (typeof parseOfflineCityWeight === "function")
+          ? parseOfflineCityWeight(props.population, 0)
+          : (Number.isFinite(Number(props.population)) ? Number(props.population) : 0);
+        return {{ x: unit.x, y: unit.y, name: rawName, rank, weight, layerName }};
+      }}
+      const elevation = Math.max(0, Math.trunc(Number(props.elevation) || 0));
+      const rank = (typeof packPeakRankForElevation === "function")
+        ? packPeakRankForElevation(elevation)
+        : 6;
+      const name = elevation > 0 ? `▲ ${{rawName}} ${{elevation}}m` : `▲ ${{rawName}}`;
+      return {{ x: unit.x, y: unit.y, name, rank, weight: elevation, layerName }};
+    }}
+
+    function rebuildDashboardLivemapPackCityRows() {{
+      const rows = [];
+      for (const record of dashboardLivemapPackChunks.values()) {{
+        if (!record || !Array.isArray(record.cityRows)) continue;
+        for (const row of record.cityRows) {{
+          rows.push(row);
+        }}
+      }}
+      rows.sort((a, b) => (a.rank - b.rank) || (b.weight - a.weight) || a.name.localeCompare(b.name));
+      dashboardLivemapPackCityRows = rows;
+    }}
+
+    function dashboardLivemapVisiblePackCityRows() {{
+      const rows = dashboardLivemapPackCityRows;
+      if (!Array.isArray(rows) || !rows.length) return [];
+      const zoom = dashboardLivemapEffectiveZoom();
+      const visible = [];
+      for (const row of rows) {{
+        if (!dashboardLivemapActivePackLayers.has(row.layerName)) continue;
+        if (typeof packCityMinZoom === "function" && zoom < packCityMinZoom(row.rank)) continue;
+        visible.push(row);
+      }}
+      return visible;
+    }}
+
+    async function dashboardLivemapLoadPackChunk(packId, manifest, layerName, cellId, chunkEntry) {{
+      const key = `${{packId}}/${{layerName}}/${{cellId}}`;
+      if (dashboardLivemapPackChunks.has(key) || dashboardLivemapPackFetches.has(key)) {{
+        return;
+      }}
+      const relPath = chunkEntry && typeof chunkEntry.path === "string" ? chunkEntry.path : "";
+      if (!relPath) return;
+      dashboardLivemapPackFetches.add(key);
+      try {{
+        const version = Number(manifest && manifest.version) || 0;
+        const resp = await fetch(
+          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{version}}`,
+          {{ cache: "force-cache" }}
+        );
+        if (!resp.ok) {{
+          throw new Error(`API ${{resp.status}}`);
+        }}
+        const data = await resp.json();
+        if (!mapPackManifests.has(packId)) {{
+          return;
+        }}
+        const collection = normalizeOfflineAtlasCollection(data);
+        const layerMeta = manifest && manifest.layers ? manifest.layers[layerName] : null;
+        const kind = layerMeta && layerMeta.kind ? String(layerMeta.kind) : "";
+        const record = {{ packId, layerName, cellId, shapes: [], cityRows: [] }};
+        if (kind === "point") {{
+          for (const feature of collection.features) {{
+            const row = dashboardLivemapPackPointRow(layerName, feature);
+            if (row) record.cityRows.push(row);
+          }}
+        }} else if (layerName === "roads") {{
+          // Keep the map screen's major/minor road split so highways read
+          // stronger than local streets.
+          const majorFeatures = [];
+          const minorFeatures = [];
+          for (const feature of collection.features) {{
+            const props = feature && feature.properties ? feature.properties : {{}};
+            (Number(props.x) === 1 ? majorFeatures : minorFeatures).push(feature);
+          }}
+          const minorStyle = dashboardLivemapPackStyle("roads");
+          const majorStyle = dashboardLivemapPackStyle("roads_major");
+          const minorShape = dashboardLivemapBuildShape(
+            {{ features: minorFeatures }}, minorStyle.alpha, minorStyle.width
+          );
+          const majorShape = dashboardLivemapBuildShape(
+            {{ features: majorFeatures }}, majorStyle.alpha, majorStyle.width
+          );
+          if (minorShape) record.shapes.push(minorShape);
+          if (majorShape) record.shapes.push(majorShape);
+        }} else {{
+          const style = dashboardLivemapPackStyle(layerName);
+          const shape = dashboardLivemapBuildShape(collection, style.alpha, style.width);
+          if (shape) record.shapes.push(shape);
+        }}
+        dashboardLivemapPackChunks.set(key, record);
+        if (record.cityRows.length) {{
+          rebuildDashboardLivemapPackCityRows();
+          refreshDashboardLivemapCities();
+        }}
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        appendConsoleLine(
+          `livemap-pack|${{Date.now()}}|${{key}}|${{msg}}`,
+          `[live map] pack chunk ${{key}} load failed: ${{msg}}`
+        );
+      }} finally {{
+        dashboardLivemapPackFetches.delete(key);
+      }}
+    }}
+
+    function evictDashboardLivemapPackChunks() {{
+      let removedCityRows = false;
+      const overBudget = dashboardLivemapPackChunks.size > dashboardLivemapPackChunkBudget;
+      const keepCellsByPack = new Map();
+      if (overBudget) {{
+        for (const [packId, manifest] of mapPackManifests) {{
+          keepCellsByPack.set(packId, dashboardLivemapPackViewportCells(mapPackGridSpec(manifest), 2));
+        }}
+      }}
+      for (const [key, record] of Array.from(dashboardLivemapPackChunks.entries())) {{
+        let keep = !!(record && mapPackManifests.has(record.packId));
+        if (keep && overBudget) {{
+          const keepCells = keepCellsByPack.get(record.packId);
+          keep = !!(keepCells && keepCells.has(record.cellId));
+        }}
+        if (keep) continue;
+        if (record && record.cityRows.length) removedCityRows = true;
+        dashboardLivemapPackChunks.delete(key);
+      }}
+      if (removedCityRows) {{
+        rebuildDashboardLivemapPackCityRows();
+        refreshDashboardLivemapCities();
+      }}
+    }}
+
+    function ensureDashboardLivemapPacks() {{
+      if (typeof fetchMapPackManifests !== "function") return;
+      if (!mapPackManifestChecked) {{
+        Promise.resolve()
+          .then(() => fetchMapPackManifests())
+          .then(() => {{
+            if (dashboardLivemapActive) requestDashboardLivemapRefit();
+          }})
+          .catch(() => {{}});
+        return;
+      }}
+      const zoom = dashboardLivemapEffectiveZoom();
+      const active = new Set();
+      for (const [packId, manifest] of mapPackManifests) {{
+        const layers = manifest && manifest.layers && typeof manifest.layers === "object"
+          ? manifest.layers
+          : null;
+        if (!layers) continue;
+        const cells = dashboardLivemapPackViewportCells(mapPackGridSpec(manifest), 1);
+        if (!cells.size) continue;
+        for (const layerName of Object.keys(layers)) {{
+          const layer = layers[layerName];
+          if (!layer || typeof layer !== "object") continue;
+          const minZoom = Number(layer.min_zoom);
+          if (zoom < (Number.isFinite(minZoom) ? minZoom : 4)) continue;
+          if (typeof mapLayerEnabled === "function" && !mapLayerEnabled(layerName)) continue;
+          active.add(layerName);
+          const chunks = layer.chunks && typeof layer.chunks === "object" ? layer.chunks : null;
+          if (!chunks) continue;
+          for (const cellId of cells) {{
+            const chunkEntry = chunks[cellId];
+            if (chunkEntry) {{
+              void dashboardLivemapLoadPackChunk(packId, manifest, layerName, cellId, chunkEntry);
+            }}
+          }}
+        }}
+      }}
+      dashboardLivemapActivePackLayers = active;
+      evictDashboardLivemapPackChunks();
+    }}
+
+    function dashboardLivemapCollectPackShapes() {{
+      const byLayer = new Map();
+      for (const record of dashboardLivemapPackChunks.values()) {{
+        if (!record || !Array.isArray(record.shapes) || !record.shapes.length) continue;
+        if (!dashboardLivemapActivePackLayers.has(record.layerName)) continue;
+        let bucket = byLayer.get(record.layerName);
+        if (!bucket) {{
+          bucket = [];
+          byLayer.set(record.layerName, bucket);
+        }}
+        for (const shape of record.shapes) {{
+          bucket.push(shape);
+        }}
+      }}
+      return byLayer;
+    }}
+
+    function dashboardLivemapPackDrawLayerOrder(byLayer) {{
+      const order = [];
+      for (const layerName of dashboardLivemapPackDrawOrder) {{
+        if (byLayer.has(layerName)) order.push(layerName);
+      }}
+      const extras = [];
+      for (const layerName of byLayer.keys()) {{
+        if (!dashboardLivemapPackDrawOrder.includes(layerName)) extras.push(layerName);
+      }}
+      extras.sort();
+      return order.concat(extras);
+    }}
+
+    function dashboardLivemapNodeKey(value) {{
+      if (typeof normalizeNodeId === "function") {{
+        return normalizeNodeId(value);
+      }}
+      return String(value == null ? "" : value).trim().toLowerCase();
+    }}
+
+    function dashboardLivemapEdgeFade(edge, nowUnix) {{
+      let lastSeenUnix = null;
+      if (typeof parseEdgeLastSeenUnix === "function") {{
+        lastSeenUnix = parseEdgeLastSeenUnix(edge);
+      }} else {{
+        const direct = Number(edge && (edge.last_rx_unix ?? edge.last_seen_unix ?? edge.last_unix));
+        lastSeenUnix = Number.isFinite(direct) && direct > 0 ? Math.floor(direct) : null;
+      }}
+      if (typeof packetLineRecencyFade === "function") {{
+        return packetLineRecencyFade(lastSeenUnix, nowUnix);
+      }}
+      return 1;
+    }}
+
+    function dashboardLivemapEndpointPairKey(aKey, bKey) {{
+      const left = String(aKey == null ? "" : aKey).trim();
+      const right = String(bKey == null ? "" : bKey).trim();
+      if (!left || !right || left === right) return "";
+      return left < right ? `${{left}}|${{right}}` : `${{right}}|${{left}}`;
+    }}
+
+    function dashboardLivemapTransitionKey(type, link) {{
+      const pairKey = dashboardLivemapEndpointPairKey(link && link.aKey, link && link.bKey);
+      return pairKey ? `${{type}}:${{pairKey}}` : "";
+    }}
+
+    function dashboardLivemapNowMs() {{
+      return (typeof performance !== "undefined" && typeof performance.now === "function")
+        ? performance.now()
+        : Date.now();
+    }}
+
+    function dashboardLivemapUpsertLinkTransition(type, link, nowMs) {{
+      const transitionKey = dashboardLivemapTransitionKey(type, link);
+      if (!transitionKey) return;
+      const cleanFade = Math.max(0, Math.min(1, Number(link && link.fade) || 0));
+      const nowRaw = Number(nowMs);
+      const now = nowMs != null && Number.isFinite(nowRaw) ? nowRaw : dashboardLivemapNowMs();
+      let state = dashboardLivemapLinkTransitions.get(transitionKey);
+      if (!state) {{
+        state = {{
+          key: transitionKey,
+          type,
+          opacity: 0,
+          targetOpacity: 1,
+          fade: cleanFade,
+          fadeTarget: cleanFade,
+          link: {{ ...link, fade: cleanFade }},
+          lastSeenMs: now,
+        }};
+        dashboardLivemapLinkTransitions.set(transitionKey, state);
+        return;
+      }}
+      state.type = type;
+      state.targetOpacity = 1;
+      state.fadeTarget = cleanFade;
+      state.link = {{ ...state.link, ...link, fade: cleanFade }};
+      state.lastSeenMs = now;
+    }}
+
+    function dashboardLivemapSyncLinkTransitions(geometry, nowMs = null) {{
+      for (const state of dashboardLivemapLinkTransitions.values()) {{
+        state.targetOpacity = 0;
+      }}
+      const nowRaw = Number(nowMs);
+      const now = nowMs != null && Number.isFinite(nowRaw) ? nowRaw : dashboardLivemapNowMs();
+      const estimatedLinks = Array.isArray(geometry && geometry.estimatedRangeLinks)
+        ? geometry.estimatedRangeLinks
+        : [];
+      for (const link of estimatedLinks) {{
+        dashboardLivemapUpsertLinkTransition("estimated", link, now);
+      }}
+      const observedLinks = Array.isArray(geometry && geometry.links) ? geometry.links : [];
+      for (const link of observedLinks) {{
+        dashboardLivemapUpsertLinkTransition("observed", link, now);
+      }}
+    }}
+
+    function dashboardLivemapEaseLinkTransitions() {{
+      for (const [key, state] of Array.from(dashboardLivemapLinkTransitions.entries())) {{
+        const target = Number(state && state.targetOpacity) > 0 ? 1 : 0;
+        const current = Math.max(0, Math.min(1, Number(state && state.opacity) || 0));
+        const easing = target > current ? dashboardLivemapLinkFadeInEasing : dashboardLivemapLinkFadeOutEasing;
+        state.opacity = current + ((target - current) * easing);
+        const fade = Math.max(0, Math.min(1, Number(state.fade) || 0));
+        const fadeTarget = Math.max(0, Math.min(1, Number(state.fadeTarget) || 0));
+        state.fade = fade + ((fadeTarget - fade) * dashboardLivemapLinkFadeInEasing);
+        if (target <= 0 && state.opacity <= dashboardLivemapLinkPruneOpacity) {{
+          dashboardLivemapLinkTransitions.delete(key);
+        }}
+      }}
+    }}
+
+    function dashboardLivemapTransitionLinks(type) {{
+      const cleanType = String(type || "");
+      const links = [];
+      for (const state of dashboardLivemapLinkTransitions.values()) {{
+        if (!state || state.type !== cleanType) continue;
+        const opacity = Math.max(0, Math.min(1, Number(state.opacity) || 0));
+        if (opacity <= dashboardLivemapLinkPruneOpacity) continue;
+        links.push({{
+          ...(state.link || {{}}),
+          fade: Math.max(0, Math.min(1, Number(state.fade) || 0)),
+          transitionOpacity: opacity,
+        }});
+      }}
+      return links;
+    }}
+
+    function dashboardLivemapLinkTransitionOpacity(link) {{
+      const opacity = Number(link && link.transitionOpacity);
+      return Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+    }}
+
+    function dashboardLivemapTrimmedBounds(points) {{
+      if (!Array.isArray(points) || points.length === 0) return null;
+      const count = points.length;
+      // Match the map screen's "Reset view" framing (computeTrimmedBounds):
+      // trim the most extreme 5% of coordinates when enough nodes exist so a
+      // few far-flung outliers do not zoom the whole background out.
+      const trimFrac = count >= 14 ? 0.05 : 0;
+      const trimCount = Math.max(0, Math.floor(count * trimFrac));
+      const lo = Math.min(trimCount, Math.floor((count - 1) / 2));
+      const hi = count - 1 - lo;
+      const xs = points.map((point) => point.x).sort((a, b) => a - b);
+      const ys = points.map((point) => point.y).sort((a, b) => a - b);
+      return {{ minX: xs[lo], maxX: xs[hi], minY: ys[lo], maxY: ys[hi] }};
+    }}
+
+    function dashboardLivemapClampView(view) {{
+      const clean = view && typeof view === "object" ? view : null;
+      if (!clean) return null;
+      let minX = Number(clean.minX);
+      let maxX = Number(clean.maxX);
+      let minY = Number(clean.minY);
+      let maxY = Number(clean.maxY);
+      if (![minX, maxX, minY, maxY].every(Number.isFinite)) return null;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const spanX = Math.max(dashboardLivemapMinViewSpan, Math.min(1, Math.abs(maxX - minX)));
+      const spanY = Math.max(dashboardLivemapMinViewSpan * 0.75, Math.min(1, Math.abs(maxY - minY)));
+      const clampedCenterX = Math.max(spanX / 2, Math.min(1 - (spanX / 2), centerX));
+      const clampedCenterY = Math.max(spanY / 2, Math.min(1 - (spanY / 2), centerY));
+      return {{
+        minX: clampedCenterX - (spanX / 2),
+        maxX: clampedCenterX + (spanX / 2),
+        minY: clampedCenterY - (spanY / 2),
+        maxY: clampedCenterY + (spanY / 2),
+      }};
+    }}
+
+    function dashboardLivemapDriftViewForTarget(target, nowMs) {{
+      const cleanTarget = dashboardLivemapClampView(target);
+      if (!cleanTarget) return null;
+      const spanX = Math.max(dashboardLivemapMinViewSpan, cleanTarget.maxX - cleanTarget.minX);
+      const spanY = Math.max(dashboardLivemapMinViewSpan * 0.75, cleanTarget.maxY - cleanTarget.minY);
+      const centerX = (cleanTarget.minX + cleanTarget.maxX) / 2;
+      const centerY = (cleanTarget.minY + cleanTarget.maxY) / 2;
+      const phase = ((Number(nowMs) || 0) / dashboardLivemapNodeDriftPeriodMs) * Math.PI * 2;
+      const driftX = (
+        Math.sin(phase) + (Math.sin((phase * 0.37) + 1.3) * 0.35)
+      ) * spanX * dashboardLivemapNodeDriftWanderRatio;
+      const driftY = (
+        Math.cos((phase * 0.83) + 0.6) + (Math.sin((phase * 0.29) + 2.1) * 0.3)
+      ) * spanY * dashboardLivemapNodeDriftWanderRatio;
+      return dashboardLivemapClampView({{
+        minX: centerX + driftX - (spanX / 2),
+        maxX: centerX + driftX + (spanX / 2),
+        minY: centerY + driftY - (spanY / 2),
+        maxY: centerY + driftY + (spanY / 2),
+      }});
+    }}
+
+    function dashboardLivemapStorage() {{
+      try {{
+        return window.localStorage || null;
+      }} catch (err) {{
+        return null;
+      }}
+    }}
+
+    function loadDashboardLivemapCachedNodeView() {{
+      const storage = dashboardLivemapStorage();
+      if (!storage) return null;
+      try {{
+        const raw = storage.getItem(dashboardLivemapCachedViewStorageKey);
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        const savedAt = Number(payload && payload.savedAt);
+        if (!Number.isFinite(savedAt) || (Date.now() - savedAt) > dashboardLivemapCachedViewMaxAgeMs) {{
+          storage.removeItem(dashboardLivemapCachedViewStorageKey);
+          return null;
+        }}
+        const cachedView = dashboardLivemapClampView(payload && payload.view);
+        if (!cachedView) {{
+          storage.removeItem(dashboardLivemapCachedViewStorageKey);
+          return null;
+        }}
+        return cachedView;
+      }} catch (err) {{
+        try {{
+          storage.removeItem(dashboardLivemapCachedViewStorageKey);
+        }} catch (removeErr) {{}}
+        return null;
+      }}
+    }}
+
+    function storeDashboardLivemapCachedNodeView(view) {{
+      const cachedView = dashboardLivemapClampView(view);
+      if (!cachedView) return;
+      dashboardLivemapCachedNodeView = {{ ...cachedView }};
+      const storage = dashboardLivemapStorage();
+      if (!storage) return;
+      try {{
+        storage.setItem(
+          dashboardLivemapCachedViewStorageKey,
+          JSON.stringify({{ savedAt: Date.now(), view: cachedView }})
+        );
+      }} catch (err) {{}}
+    }}
+
+    function refreshDashboardLivemapGeometry() {{
+      const state = (typeof latestState !== "undefined" && latestState && typeof latestState === "object")
+        ? latestState
+        : null;
+      const rawNodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+      const traffic = state && state.traffic && typeof state.traffic === "object" ? state.traffic : null;
+      const rawEdges = traffic && Array.isArray(traffic.edges) ? traffic.edges : [];
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const points = [];
+      const byId = Object.create(null);
+      for (const node of rawNodes) {{
+        if (!node || typeof node !== "object") continue;
+        const lat = Number(node.lat);
+        const lon = Number(node.lon);
+        if (!dashboardLivemapValidCoord(lat, lon)) continue;
+        const unit = dashboardLivemapProjectUnit(lat, lon);
+        const lastHeardUnix = Number(node.last_heard_unix ?? node.last_heard_epoch ?? 0) || 0;
+        const positionLastSeenUnix = Number(
+          node.position_last_seen_unix ?? node.position_last_seen_epoch ?? 0
+        ) || 0;
+        const key = dashboardLivemapNodeKey(node.id);
+        const point = {{ x: unit.x, y: unit.y, lat, lon, lastHeardUnix, positionLastSeenUnix, key }};
+        points.push(point);
+        if (key) byId[key] = point;
+      }}
+      const links = [];
+      for (const edge of rawEdges) {{
+        if (!edge || typeof edge !== "object") continue;
+        const srcKey = dashboardLivemapNodeKey(edge.from);
+        const dstKey = dashboardLivemapNodeKey(edge.to);
+        const src = byId[srcKey];
+        const dst = byId[dstKey];
+        if (!src || !dst || src === dst) continue;
+        const fade = dashboardLivemapEdgeFade(edge, nowUnix);
+        if (fade <= 0.02) continue;
+        links.push({{
+          aKey: srcKey,
+          bKey: dstKey,
+          ax: src.x,
+          ay: src.y,
+          bx: dst.x,
+          by: dst.y,
+          fade,
+          real: !!edge.is_real,
+        }});
+      }}
+      const rangeProfile = dashboardLivemapEstimatedRangeProfile(state);
+      const estimatedRangeLinks = dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile);
+      dashboardLivemapGeometry = {{ points, links, estimatedRangeLinks, rangeProfile, nowUnix }};
+      dashboardLivemapSyncLinkTransitions(dashboardLivemapGeometry, dashboardLivemapNowMs());
+      const hasLivePoints = points.length > 0;
+
+      if (!dashboardLivemapCachedNodeView) {{
+        dashboardLivemapCachedNodeView = loadDashboardLivemapCachedNodeView();
+      }}
+      const cachedNodeView = dashboardLivemapCachedNodeView;
+      let nodeTargetView = null;
+      const bounds = dashboardLivemapTrimmedBounds(points);
+      if (bounds) {{
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        const centerY = (bounds.minY + bounds.maxY) / 2;
+        const spanX = Math.max((bounds.maxX - bounds.minX) * 1.36, dashboardLivemapMinViewSpan);
+        const spanY = Math.max((bounds.maxY - bounds.minY) * 1.36, dashboardLivemapMinViewSpan * 0.75);
+        nodeTargetView = dashboardLivemapClampView({{
+          minX: centerX - (spanX / 2),
+          maxX: centerX + (spanX / 2),
+          minY: centerY - (spanY / 2),
+          maxY: centerY + (spanY / 2),
+        }});
+      }}
+      const lockedToNodeLocation = hasLivePoints && !!nodeTargetView;
+      if (lockedToNodeLocation) {{
+        dashboardLivemapBestNodeView = {{ ...nodeTargetView }};
+        storeDashboardLivemapCachedNodeView(nodeTargetView);
+        if (!dashboardLivemapView && cachedNodeView) {{
+          dashboardLivemapView = {{ ...cachedNodeView }};
+        }}
+        if (!dashboardLivemapView) {{
+          dashboardLivemapView = {{ ...nodeTargetView }};
+          dashboardLivemapTargetView = {{ ...nodeTargetView }};
+          dashboardLivemapPendingNodeTarget = null;
+          dashboardLivemapIntroPending = false;
+        }} else if (dashboardLivemapIntroPending) {{
+          dashboardLivemapPendingNodeTarget = {{ ...nodeTargetView }};
+          dashboardLivemapTargetView = {{ ...dashboardLivemapView }};
+        }} else {{
+          dashboardLivemapPendingNodeTarget = null;
+          dashboardLivemapTargetView = {{ ...nodeTargetView }};
+          dashboardLivemapNodePanActive = true;
+        }}
+      }} else {{
+        dashboardLivemapBestNodeView = null;
+        dashboardLivemapPendingNodeTarget = null;
+        dashboardLivemapNodePanActive = false;
+        if (!dashboardLivemapView) {{
+          dashboardLivemapView = cachedNodeView ? {{ ...cachedNodeView }} : null;
+        }}
+        dashboardLivemapTargetView = dashboardLivemapView ? {{ ...dashboardLivemapView }} : null;
+      }}
+      refreshDashboardLivemapCities();
+    }}
+
+    function dashboardLivemapProgress(startMs, durationMs, nowMs) {{
+      const start = Number(startMs);
+      const duration = Math.max(1, Number(durationMs) || 1);
+      if (!Number.isFinite(start) || start <= 0) return 1;
+      return Math.max(0, Math.min(1, (nowMs - start) / duration));
+    }}
+
+    function dashboardLivemapMapLayerOpacity(layerKey, nowMs) {{
+      const key = String(layerKey || "");
+      if (!key) return 0;
+      if (!dashboardLivemapMapLayerFadeStartedAt.has(key)) {{
+        dashboardLivemapMapLayerFadeStartedAt.set(key, nowMs);
+        if (dashboardLivemapFirstMapLayerFadeStartedAt === null) {{
+          dashboardLivemapFirstMapLayerFadeStartedAt = nowMs;
+        }}
+      }}
+      return dashboardLivemapProgress(
+        dashboardLivemapMapLayerFadeStartedAt.get(key),
+        dashboardLivemapMapFadeMs,
+        nowMs
+      );
+    }}
+
+    function dashboardLivemapMeshOpacity(nowMs, hasMeshPoints) {{
+      if (!hasMeshPoints) {{
+        dashboardLivemapMeshFadeStartedAt = null;
+        return 0;
+      }}
+      if (dashboardLivemapMeshFadeStartedAt === null) {{
+        dashboardLivemapMeshFadeStartedAt = nowMs;
+      }}
+      return dashboardLivemapProgress(
+        dashboardLivemapMeshFadeStartedAt,
+        dashboardLivemapMeshFadeMs,
+        nowMs
+      );
+    }}
+
+    function dashboardLivemapMapReadyForNodePan(nowMs) {{
+      const shapeFadeStartedAt = Number(dashboardLivemapFirstMapLayerFadeStartedAt);
+      if (Number.isFinite(shapeFadeStartedAt) && shapeFadeStartedAt > 0) {{
+        return nowMs >= (
+          shapeFadeStartedAt + dashboardLivemapMapFadeMs + dashboardLivemapNodePanAfterMapDelayMs
+        );
+      }}
+      const mapFadeStartedAt = Number(dashboardLivemapMapFadeStartedAt);
+      if (!Number.isFinite(mapFadeStartedAt) || mapFadeStartedAt <= 0) return true;
+      return nowMs >= (mapFadeStartedAt + dashboardLivemapNodePanFallbackMapWaitMs);
+    }}
+
+    function maybeStartDashboardLivemapNodePan(nowMs) {{
+      if (!dashboardLivemapIntroPending || !dashboardLivemapPendingNodeTarget) return;
+      if (!dashboardLivemapMapReadyForNodePan(nowMs)) return;
+      dashboardLivemapTargetView = {{ ...dashboardLivemapPendingNodeTarget }};
+      dashboardLivemapPendingNodeTarget = null;
+      dashboardLivemapIntroPending = false;
+      dashboardLivemapNodePanActive = true;
+    }}
+
+    function updateDashboardLivemapDriftTarget(nowMs) {{
+      if (dashboardLivemapIntroPending || dashboardLivemapPendingNodeTarget) return;
+      const bestNodeView = dashboardLivemapClampView(dashboardLivemapBestNodeView);
+      if (!bestNodeView) return;
+      const driftView = dashboardLivemapDriftViewForTarget(bestNodeView, nowMs);
+      if (driftView) {{
+        dashboardLivemapTargetView = driftView;
+      }}
+    }}
+
+    function easeDashboardLivemapView() {{
+      const target = dashboardLivemapTargetView;
+      if (!target) return;
+      if (!dashboardLivemapView) {{
+        dashboardLivemapView = {{ ...target }};
+        return;
+      }}
+      const view = dashboardLivemapView;
+      const delta = Math.max(
+        Math.abs(target.minX - view.minX),
+        Math.abs(target.maxX - view.maxX),
+        Math.abs(target.minY - view.minY),
+        Math.abs(target.maxY - view.maxY)
+      );
+      if (delta <= dashboardLivemapViewSnapEpsilon) {{
+        dashboardLivemapView = {{ ...target }};
+        dashboardLivemapNodePanActive = false;
+        return;
+      }}
+      const easing = dashboardLivemapBestNodeView
+        ? dashboardLivemapNodeDriftEasing
+        : dashboardLivemapViewEasing;
+      view.minX += (target.minX - view.minX) * easing;
+      view.maxX += (target.maxX - view.maxX) * easing;
+      view.minY += (target.minY - view.minY) * easing;
+      view.maxY += (target.maxY - view.maxY) * easing;
+    }}
+
+    function resizeDashboardLivemapCanvas() {{
+      const host = dashboardLivemapHost();
+      const canvas = dashboardLivemapCanvas;
+      if (!host || !(canvas instanceof HTMLCanvasElement)) return;
+      const ratio = dashboardLivemapPixelRatio();
+      const width = Math.max(1, Math.round((host.clientWidth || window.innerWidth || 1) * ratio));
+      const height = Math.max(1, Math.round((host.clientHeight || window.innerHeight || 1) * ratio));
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      refreshDashboardLivemapCities();
+    }}
+
+    function drawDashboardLivemap(nowMs) {{
+      const canvas = dashboardLivemapCanvas;
+      if (!(canvas instanceof HTMLCanvasElement)) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const settings = dashboardLivemapSettings || normalizeThemeCustomSettings(currentThemeCustomSettings());
+      const color = normalizeThemeCustomParticlesColor(settings.particles_color);
+      const mapColor = normalizeThemeCustomLineColor(settings.line_color, color);
+      const linkColor = normalizeThemeCustomParticlesColor(
+        settings.livemap_link_color,
+        settings.particles_link_color || settings.line_contrast_color || color
+      );
+      const linkGlowColor = normalizeThemeCustomLineContrastColor(linkColor, color);
+      const masterOpacity = normalizeThemeCustomParticlesOpacity(settings.particles_opacity) / 100;
+      const dotSize = normalizeThemeCustomParticlesSize(settings.particles_size);
+      const linksEnabled = normalizeThemeCustomParticlesEnabled(settings.particles_links, true);
+      const ratio = dashboardLivemapPixelRatio();
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      const view = dashboardLivemapView;
+      if (!view) return;
+      const spanX = Math.max(view.maxX - view.minX, 0.000001);
+      const spanY = Math.max(view.maxY - view.minY, 0.000001);
+      const scale = Math.min(width / spanX, height / spanY);
+      const offsetX = (width / 2) - (((view.minX + view.maxX) / 2) * scale);
+      const offsetY = (height / 2) - (((view.minY + view.maxY) / 2) * scale);
+
+      const atlasAlpha = Math.max(0.3, masterOpacity);
+      const packShapesByLayer = dashboardLivemapCollectPackShapes();
+      const hasAtlasShapes = Array.isArray(dashboardLivemapAtlasShapes) && dashboardLivemapAtlasShapes.length > 0;
+      const hasEnabledMapBackdrop = dashboardLivemapBackdropLayersEnabled(settings);
+      const mapLayerOpacities = new Map();
+      const mapLayerOpacity = (layerKey) => {{
+        const cleanKey = String(layerKey || "");
+        if (!cleanKey) return 0;
+        const parts = cleanKey.split(":");
+        const settingLayer = parts.length > 1 ? parts[1] : parts[0];
+        if (!dashboardLivemapLayerEnabled(settings, settingLayer)) return 0;
+        if (!mapLayerOpacities.has(cleanKey)) {{
+          mapLayerOpacities.set(cleanKey, dashboardLivemapMapLayerOpacity(cleanKey, nowMs));
+        }}
+        return mapLayerOpacities.get(cleanKey);
+      }};
+      if (hasAtlasShapes) {{
+        for (const shape of dashboardLivemapAtlasShapes) {{
+          if (!dashboardLivemapLayerEnabled(settings, shape.layer || "base")) continue;
+          mapLayerOpacity(`atlas:${{shape.layer || "base"}}`);
+        }}
+      }}
+      for (const layerName of dashboardLivemapPackDrawLayerOrder(packShapesByLayer)) {{
+        if (!dashboardLivemapLayerEnabled(settings, layerName)) continue;
+        mapLayerOpacity(`pack:${{layerName}}`);
+      }}
+      const hasVisibleCities = (
+        dashboardLivemapLayerEnabled(settings, "cities") &&
+        Array.isArray(dashboardLivemapVisibleCities) &&
+        dashboardLivemapVisibleCities.length
+      );
+      if (hasVisibleCities) {{
+        mapLayerOpacity("labels:cities");
+      }}
+      const maxMapLayerAlpha = Math.max(0, ...mapLayerOpacities.values());
+      const fallbackGridAlpha = hasEnabledMapBackdrop
+        ? (mapLayerOpacities.size ? Math.max(0, 1 - maxMapLayerAlpha) : 1)
+        : 0;
+      if (fallbackGridAlpha > 0.001) {{
+        ctx.save();
+        ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+        ctx.strokeStyle = mapColor;
+        ctx.globalAlpha = Math.min(0.18, atlasAlpha * 0.18) * fallbackGridAlpha;
+        ctx.lineWidth = (0.7 * ratio) / scale;
+        for (let lon = -180; lon <= 180; lon += 30) {{
+          const x = (lon + 180) / 360;
+          ctx.beginPath();
+          ctx.moveTo(x, 0.12);
+          ctx.lineTo(x, 0.88);
+          ctx.stroke();
+        }}
+        for (let lat = -60; lat <= 60; lat += 20) {{
+          const y = dashboardLivemapProjectUnit(lat, 0).y;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(1, y);
+          ctx.stroke();
+        }}
+        ctx.restore();
+      }}
+      if (hasAtlasShapes) {{
+        ctx.save();
+        ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+        ctx.strokeStyle = mapColor;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        for (const shape of dashboardLivemapAtlasShapes) {{
+          if (!dashboardLivemapLayerEnabled(settings, shape.layer || "base")) continue;
+          const replacement = dashboardLivemapPackBaseReplacements[shape.layer];
+          if (
+            replacement &&
+            packShapesByLayer.has(replacement) &&
+            dashboardLivemapLayerEnabled(settings, replacement)
+          ) continue;
+          const layerAlpha = mapLayerOpacity(`atlas:${{shape.layer || "base"}}`);
+          if (layerAlpha <= 0.001) continue;
+          ctx.globalAlpha = Math.min(1, shape.alpha * atlasAlpha) * layerAlpha;
+          ctx.lineWidth = (shape.width * ratio) / scale;
+          ctx.stroke(shape.path);
+        }}
+        ctx.restore();
+      }}
+
+      if (packShapesByLayer.size) {{
+        ctx.save();
+        ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+        ctx.strokeStyle = mapColor;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        for (const layerName of dashboardLivemapPackDrawLayerOrder(packShapesByLayer)) {{
+          if (!dashboardLivemapLayerEnabled(settings, layerName)) continue;
+          const bucket = packShapesByLayer.get(layerName);
+          if (!bucket) continue;
+          const layerAlpha = mapLayerOpacity(`pack:${{layerName}}`);
+          if (layerAlpha <= 0.001) continue;
+          for (const shape of bucket) {{
+            ctx.globalAlpha = Math.min(1, shape.alpha * atlasAlpha) * layerAlpha;
+            ctx.lineWidth = (shape.width * ratio) / scale;
+            ctx.stroke(shape.path);
+          }}
+        }}
+        ctx.restore();
+      }}
+
+      const toX = (x) => (x * scale) + offsetX;
+      const toY = (y) => (y * scale) + offsetY;
+
+      const cityLayerAlpha = hasVisibleCities ? mapLayerOpacity("labels:cities") : 0;
+      if (hasVisibleCities && cityLayerAlpha > 0.001) {{
+        // Ghosted city landmarks: faint marker dot + name, kept well below the
+        // node mesh so they read as background texture.
+        ctx.save();
+        ctx.globalAlpha = Math.min(0.4, 0.3 * Math.max(0.45, masterOpacity)) * cityLayerAlpha;
+        ctx.fillStyle = mapColor;
+        const cityFontPx = Math.round(10 * ratio);
+        ctx.font = `${{cityFontPx}}px "IBM Plex Sans", "Segoe UI", sans-serif`;
+        ctx.textBaseline = "middle";
+        for (const city of dashboardLivemapVisibleCities) {{
+          const cityX = toX(city.x);
+          const cityY = toY(city.y);
+          if (cityX < -60 || cityX > width + 60 || cityY < -20 || cityY > height + 20) continue;
+          ctx.beginPath();
+          ctx.arc(cityX, cityY, 1.6 * ratio, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillText(city.name, cityX + (5 * ratio), cityY);
+        }}
+        ctx.restore();
+      }}
+
+      const geometry = dashboardLivemapGeometry;
+      if (!geometry) return;
+      const meshPoints = Array.isArray(geometry.points) ? geometry.points : [];
+      const meshAlpha = dashboardLivemapMeshOpacity(nowMs, meshPoints.length > 0);
+      if (meshAlpha <= 0.001) return;
+      dashboardLivemapEaseLinkTransitions();
+      const estimatedRangeLinks = dashboardLivemapTransitionLinks("estimated");
+      const observedLinks = dashboardLivemapTransitionLinks("observed");
+
+      if (
+        linksEnabled &&
+        estimatedRangeLinks.length
+      ) {{
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = linkGlowColor;
+        ctx.lineWidth = Math.max(1.7 * ratio, 1.1);
+        ctx.shadowColor = linkGlowColor;
+        ctx.shadowBlur = 5 * ratio;
+        for (const link of estimatedRangeLinks) {{
+          const transitionOpacity = dashboardLivemapLinkTransitionOpacity(link);
+          const glowAlpha = Math.min(0.15, Math.max(0.025, masterOpacity * 0.12 * link.fade));
+          ctx.globalAlpha = glowAlpha * meshAlpha * transitionOpacity;
+          ctx.beginPath();
+          ctx.moveTo(toX(link.ax), toY(link.ay));
+          ctx.lineTo(toX(link.bx), toY(link.by));
+          ctx.stroke();
+        }}
+        ctx.restore();
+
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = linkColor;
+        ctx.lineWidth = Math.max(0.45 * ratio, 0.45);
+        for (const link of estimatedRangeLinks) {{
+          const transitionOpacity = dashboardLivemapLinkTransitionOpacity(link);
+          const linkAlpha = Math.min(0.2, Math.max(0.03, masterOpacity * 0.18 * link.fade));
+          ctx.globalAlpha = linkAlpha * meshAlpha * transitionOpacity;
+          ctx.beginPath();
+          ctx.moveTo(toX(link.ax), toY(link.ay));
+          ctx.lineTo(toX(link.bx), toY(link.by));
+          ctx.stroke();
+        }}
+        ctx.restore();
+      }}
+
+      if (linksEnabled && observedLinks.length) {{
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = linkGlowColor;
+        ctx.lineWidth = Math.max(2.2 * ratio, 1.4);
+        ctx.shadowColor = linkGlowColor;
+        ctx.shadowBlur = 7 * ratio;
+        for (const link of observedLinks) {{
+          const transitionOpacity = dashboardLivemapLinkTransitionOpacity(link);
+          const glowAlpha = Math.min(0.36, Math.max(0.05, masterOpacity * 0.34 * link.fade))
+            * (link.real ? 1 : 0.62);
+          ctx.globalAlpha = glowAlpha * meshAlpha * transitionOpacity;
+          ctx.beginPath();
+          ctx.moveTo(toX(link.ax), toY(link.ay));
+          ctx.lineTo(toX(link.bx), toY(link.by));
+          ctx.stroke();
+        }}
+        ctx.restore();
+
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = linkColor;
+        ctx.lineWidth = ratio;
+        for (const link of observedLinks) {{
+          const transitionOpacity = dashboardLivemapLinkTransitionOpacity(link);
+          const linkAlpha = Math.min(0.72, Math.max(0.05, masterOpacity * 0.74 * link.fade))
+            * (link.real ? 1 : 0.55);
+          ctx.globalAlpha = linkAlpha * meshAlpha * transitionOpacity;
+          ctx.beginPath();
+          ctx.moveTo(toX(link.ax), toY(link.ay));
+          ctx.lineTo(toX(link.bx), toY(link.by));
+          ctx.stroke();
+        }}
+        ctx.restore();
+      }}
+
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const dotRadius = ((dotSize * 1.6) + 1) * ratio;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      for (const point of meshPoints) {{
+        const x = toX(point.x);
+        const y = toY(point.y);
+        let nodeFade = 0.35;
+        if (point.lastHeardUnix > 0) {{
+          const recency = (typeof packetLineRecencyFade === "function")
+            ? packetLineRecencyFade(point.lastHeardUnix, nowUnix)
+            : 1;
+          nodeFade = Math.max(0.35, recency);
+        }}
+        ctx.globalAlpha = Math.min(1, masterOpacity * nodeFade) * meshAlpha;
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 6 * ratio;
+        ctx.beginPath();
+        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        const ageSeconds = point.lastHeardUnix > 0 ? Math.max(0, nowUnix - point.lastHeardUnix) : Infinity;
+        if (ageSeconds <= 120) {{
+          const phase = (((nowMs / 1600) + (point.x * 7) + (point.y * 13)) % 1 + 1) % 1;
+          ctx.globalAlpha = Math.min(1, (1 - phase) * 0.5 * masterOpacity) * meshAlpha;
+          ctx.lineWidth = ratio;
+          ctx.beginPath();
+          ctx.arc(x, y, dotRadius * (1 + (phase * 2.4)), 0, Math.PI * 2);
+          ctx.stroke();
+        }}
+      }}
+      ctx.globalAlpha = 1;
+    }}
+
+    function dashboardLivemapFrame(frameMs) {{
+      dashboardLivemapAnimFrame = null;
+      if (!dashboardLivemapActive) return;
+      const now = Number.isFinite(frameMs) ? frameMs : performance.now();
+      if ((now - dashboardLivemapGeometryRefreshedAt) >= dashboardLivemapGeometryRefreshMs) {{
+        dashboardLivemapGeometryRefreshedAt = now;
+        refreshDashboardLivemapGeometry();
+        ensureDashboardLivemapAtlas();
+        ensureDashboardLivemapPacks();
+      }}
+      maybeStartDashboardLivemapNodePan(now);
+      updateDashboardLivemapDriftTarget(now);
+      easeDashboardLivemapView();
+      if ((now - dashboardLivemapLastDrawMs) >= 33) {{
+        dashboardLivemapLastDrawMs = now;
+        drawDashboardLivemap(now);
+      }}
+      dashboardLivemapAnimFrame = window.requestAnimationFrame(dashboardLivemapFrame);
+    }}
+
+    function requestDashboardLivemapRefit() {{
+      if (!dashboardLivemapActive) return;
+      dashboardLivemapGeometryRefreshedAt = 0;
+    }}
+
+    function applyDashboardLivemap(rawSettings = null) {{
+      const host = dashboardLivemapHost();
+      if (!host || !document.body) return false;
+      const wasActive = dashboardLivemapActive;
+      dashboardLivemapSettings = normalizeThemeCustomSettings(rawSettings || currentThemeCustomSettings());
+      if (!(dashboardLivemapCanvas instanceof HTMLCanvasElement) || dashboardLivemapCanvas.parentNode !== host) {{
+        while (host.firstChild) {{
+          host.removeChild(host.firstChild);
+        }}
+        dashboardLivemapCanvas = document.createElement("canvas");
+        host.appendChild(dashboardLivemapCanvas);
+      }}
+      if (!dashboardLivemapResizeBound) {{
+        dashboardLivemapResizeBound = true;
+        window.addEventListener("resize", () => {{
+          if (dashboardLivemapActive) resizeDashboardLivemapCanvas();
+        }});
+      }}
+      resizeDashboardLivemapCanvas();
+      const now = performance.now();
+      if (!wasActive) {{
+        dashboardLivemapIntroPending = true;
+        dashboardLivemapPendingNodeTarget = null;
+        dashboardLivemapNodePanActive = false;
+        dashboardLivemapMapFadeStartedAt = now;
+        dashboardLivemapMapLayerFadeStartedAt = new Map();
+        dashboardLivemapFirstMapLayerFadeStartedAt = null;
+        dashboardLivemapMeshFadeStartedAt = null;
+        dashboardLivemapCachedNodeView = loadDashboardLivemapCachedNodeView();
+        dashboardLivemapBestNodeView = null;
+        dashboardLivemapView = null;
+        dashboardLivemapLinkTransitions = new Map();
+      }}
+      dashboardLivemapActive = true;
+      refreshDashboardLivemapGeometry();
+      dashboardLivemapGeometryRefreshedAt = now;
+      ensureDashboardLivemapAtlas();
+      ensureDashboardLivemapPacks();
+      dashboardLivemapLastDrawMs = now;
+      drawDashboardLivemap(now);
+      if (dashboardLivemapAnimFrame === null) {{
+        dashboardLivemapAnimFrame = window.requestAnimationFrame(dashboardLivemapFrame);
+      }}
+      return true;
+    }}
+
+    function disableDashboardLivemap() {{
+      dashboardLivemapActive = false;
+      dashboardLivemapIntroPending = false;
+      dashboardLivemapPendingNodeTarget = null;
+      dashboardLivemapNodePanActive = false;
+      dashboardLivemapMeshFadeStartedAt = null;
+      dashboardLivemapBestNodeView = null;
+      dashboardLivemapLinkTransitions = new Map();
+      if (dashboardLivemapAnimFrame !== null) {{
+        window.cancelAnimationFrame(dashboardLivemapAnimFrame);
+        dashboardLivemapAnimFrame = null;
+      }}
+      if (dashboardLivemapCanvas instanceof HTMLCanvasElement) {{
+        const ctx = dashboardLivemapCanvas.getContext("2d");
+        if (ctx) {{
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, dashboardLivemapCanvas.width, dashboardLivemapCanvas.height);
+        }}
+      }}
+    }}

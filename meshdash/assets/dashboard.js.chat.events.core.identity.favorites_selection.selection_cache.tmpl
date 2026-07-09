@@ -489,51 +489,69 @@
         : [];
       const showTagBadge = Array.isArray(visibleMetaFieldIds)
         && visibleMetaFieldIds.includes("favorite");
+      const nodeSurfaceTintSuffixes = [
+        "hue",
+        "tint-start-hue",
+        "tint-end-hue",
+        "sat-mult",
+        "light-shift",
+        "dark-sat-mult",
+        "dark-light-shift",
+        "outline-hue",
+        "outline-sat-mult",
+        "outline-light-shift",
+        "outline-dark-sat-mult",
+        "outline-dark-light-shift",
+      ];
+      function nodeSurfaceTintScope(scope = "member") {{
+        return String(scope || "member").trim().toLowerCase() === "feed" ? "feed" : "member";
+      }}
+      function clearNodeSurfaceTintStyle(target, scope = "member") {{
+        if (!(target instanceof HTMLElement)) return;
+        const cleanScope = nodeSurfaceTintScope(scope);
+        const prefix = cleanScope === "feed" ? "--chat-feed-node-" : "--chat-member-node-";
+        for (const suffix of nodeSurfaceTintSuffixes) {{
+          target.style.removeProperty(`${{prefix}}${{suffix}}`);
+        }}
+        target.style.removeProperty("--node-tag-color");
+        target.style.removeProperty("--node-tag-vibrance");
+      }}
+      function applyNodeTagSurfaceStyle(target, tagEntry, scope = "member", fallbackHue = 145) {{
+        if (!(target instanceof HTMLElement)) return false;
+        const entry = tagEntry && typeof tagEntry === "object" && tagEntry.preset
+          ? tagEntry
+          : null;
+        const cleanScope = nodeSurfaceTintScope(scope);
+        clearNodeSurfaceTintStyle(target, cleanScope);
+        if (!entry) return false;
+        const prefix = cleanScope === "feed" ? "--chat-feed-node-" : "--chat-member-node-";
+        const hueRaw = typeof nodeTagTintHue === "function"
+          ? nodeTagTintHue(entry, fallbackHue)
+          : fallbackHue;
+        const hue = Math.max(0, Math.min(359, Math.trunc(Number(hueRaw) || fallbackHue)));
+        target.style.setProperty(`${{prefix}}hue`, String(hue));
+        target.style.setProperty(`${{prefix}}tint-start-hue`, String(hue));
+        target.style.setProperty(`${{prefix}}tint-end-hue`, String(hue));
+        target.style.setProperty(`${{prefix}}outline-hue`, String(hue));
+        target.style.setProperty("--node-tag-color", normalizeNodeTagColor(entry.preset.color, "#2aa85a"));
+        target.style.setProperty("--node-tag-vibrance", (clampNodeTagVibrance(entry.preset.vibrance, 70) / 100).toFixed(3));
+        return true;
+      }}
       for (const member of document.querySelectorAll("#chat-room-unread-list .chat-member-item, #chat-room-meshtastic-list .chat-member-item, #chat-room-pinned-list .chat-member-item, #chat-room-list .chat-member-item")) {{
         if (!(member instanceof HTMLElement)) continue;
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
-        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(member.dataset.nodeTintOutlineSeed, nodeId || "unknown")
-          : String(member.dataset.nodeTintOutlineSeed || nodeId || "unknown").trim();
-        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(member.dataset.nodeTintStartSeed, tintOutlineSeed)
-          : String(member.dataset.nodeTintStartSeed || tintOutlineSeed).trim();
-        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(member.dataset.nodeTintEndSeed, tintStartSeed || tintOutlineSeed)
-          : String(member.dataset.nodeTintEndSeed || tintStartSeed || tintOutlineSeed).trim();
         const tagEntry = nodeTagEntryForNode(nodeId);
         const active = !!tagEntry;
-        const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(nodeId, 145) : 145;
         member.classList.toggle("tagged-node", active);
         const nameLeft = member.querySelector(".chat-member-name-left");
         const existingChip = nameLeft instanceof HTMLElement
           ? nameLeft.querySelector(".chat-member-tag-chip")
           : null;
         if (active && tagEntry && tagEntry.preset) {{
-          const color = normalizeNodeTagColor(tagEntry.preset.color, "#2aa85a");
-          const vibranceRatio = (clampNodeTagVibrance(tagEntry.preset.vibrance, 70) / 100).toFixed(3);
-          const tintHue = nodeTagTintHue(tagEntry, autoNodeHue);
           const tagLabel = normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged");
           const tagDisplayLabel = nodeTagDisplayLabel(tagEntry, "Tagged");
           const tagStyleVars = nodeTagStyleVars(tagEntry);
-          if (typeof applyNodeTintStyleVars === "function") {{
-            applyNodeTintStyleVars(member, nodeId, {{
-              scope: "member",
-              fallbackHue: 145,
-              tagActive: true,
-              hue: tintHue,
-              tintStartHue: tintHue,
-              tintEndHue: tintHue,
-              outlineHue: tintHue,
-              outlineSeed: tintOutlineSeed,
-              tintStartSeed,
-              tintEndSeed,
-            }});
-          }} else {{
-            member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(tintHue) || autoNodeHue)))));
-          }}
-          member.style.setProperty("--node-tag-color", color);
-          member.style.setProperty("--node-tag-vibrance", vibranceRatio);
+          applyNodeTagSurfaceStyle(member, tagEntry, "member", 145);
           if (showTagBadge) {{
             if (existingChip instanceof HTMLElement) {{
               existingChip.textContent = tagDisplayLabel;
@@ -557,25 +575,7 @@
             existingChip.remove();
           }}
         }} else {{
-          if (typeof applyNodeTintStyleVars === "function") {{
-            applyNodeTintStyleVars(member, nodeId, {{
-              scope: "member",
-              fallbackHue: 145,
-              tagActive: false,
-              hue: autoNodeHue,
-              outlineSeed: tintOutlineSeed,
-              tintStartSeed,
-              tintEndSeed,
-            }});
-          }} else {{
-            if (typeof shouldUseUniqueNodeColors !== "function" || shouldUseUniqueNodeColors(false)) {{
-              member.style.setProperty("--chat-member-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(autoNodeHue) || 145)))));
-            }} else {{
-              member.style.removeProperty("--chat-member-node-hue");
-            }}
-          }}
-          member.style.removeProperty("--node-tag-color");
-          member.style.removeProperty("--node-tag-vibrance");
+          clearNodeSurfaceTintStyle(member, "member");
           if (existingChip instanceof HTMLElement) {{
             existingChip.remove();
           }}
@@ -604,62 +604,12 @@
           }}
         }}
         if (!isSelectableNodeId(rowNodeId)) continue;
-        const outlineSeedRaw = String(row.dataset.nodeTintOutlineSeed || "").trim();
-        const outlineSeedCandidate = (outlineSeedRaw && outlineSeedRaw.toLowerCase() !== "unknown")
-          ? outlineSeedRaw
-          : "";
-        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(
-            outlineSeedCandidate,
-            rowNodeId || row.dataset.fromNodeId || row.dataset.replyName || "unknown"
-          )
-          : String(outlineSeedCandidate || rowNodeId || row.dataset.fromNodeId || row.dataset.replyName || "unknown").trim();
-        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(row.dataset.nodeTintStartSeed, row.dataset.replyName || tintOutlineSeed)
-          : String(row.dataset.nodeTintStartSeed || row.dataset.replyName || tintOutlineSeed).trim();
-        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(row.dataset.nodeTintEndSeed, tintStartSeed || tintOutlineSeed)
-          : String(row.dataset.nodeTintEndSeed || tintStartSeed || tintOutlineSeed).trim();
         const active = !!(tagEntry && tagEntry.preset);
-        const autoNodeHue = (typeof nodeTintHue === "function") ? nodeTintHue(rowNodeId, 210) : 210;
-        const nodeHue = active
-          ? nodeTagTintHue(tagEntry, autoNodeHue)
-          : autoNodeHue;
         row.classList.toggle("tagged-node", active);
-        if (typeof applyNodeTintStyleVars === "function") {{
-          const feedTintOptions = {{
-            scope: "feed",
-            fallbackHue: 210,
-            tagActive: active,
-            hue: nodeHue,
-            outlineSeed: tintOutlineSeed,
-            tintStartSeed,
-            tintEndSeed,
-          }};
-          if (active) {{
-            feedTintOptions.tintStartHue = nodeHue;
-            feedTintOptions.tintEndHue = nodeHue;
-            feedTintOptions.outlineHue = nodeHue;
-          }}
-          applyNodeTintStyleVars(row, rowNodeId, feedTintOptions);
+        if (active) {{
+          applyNodeTagSurfaceStyle(row, tagEntry, "feed", 210);
         }} else {{
-          const uniqueFeedColorsEnabled = (typeof shouldUseUniqueNodeColorsForScope === "function")
-            ? shouldUseUniqueNodeColorsForScope("feed", active)
-            : (typeof shouldUseUniqueNodeColors !== "function" || shouldUseUniqueNodeColors(active));
-          if (uniqueFeedColorsEnabled) {{
-            row.style.setProperty("--chat-feed-node-hue", String(Math.max(0, Math.min(359, Math.trunc(Number(nodeHue) || autoNodeHue)))));
-          }} else {{
-            row.style.removeProperty("--chat-feed-node-hue");
-          }}
-        }}
-        if (active && tagEntry && tagEntry.preset) {{
-          const color = normalizeNodeTagColor(tagEntry.preset.color, "#2aa85a");
-          const vibranceRatio = (clampNodeTagVibrance(tagEntry.preset.vibrance, 70) / 100).toFixed(3);
-          row.style.setProperty("--node-tag-color", color);
-          row.style.setProperty("--node-tag-vibrance", vibranceRatio);
-        }} else {{
-          row.style.removeProperty("--node-tag-color");
-          row.style.removeProperty("--node-tag-vibrance");
+          clearNodeSurfaceTintStyle(row, "feed");
         }}
       }}
       syncMapTitleFavoriteToggle();

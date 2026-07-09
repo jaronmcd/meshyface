@@ -131,15 +131,10 @@
       return `<span class="${{escAttr(classNames.join(" "))}}" style="${{styleAttr}}"${{titleAttr}}>${{escAttr(text)}}</span>`;
     }}
 
-    function meshChannelTintStyle(rawIndex, {{ allowAll = false }} = {{}}) {{
+    function meshChannelEdgeStyle(rawIndex, {{ allowAll = false }} = {{}}) {{
       const idx = normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
       const meta = meshChannelColorMeta(idx, {{ allowAll }});
-      return `--chat-feed-channel-fill: ${{meta.fill}}; --chat-feed-channel-rgb: ${{hexColorRgbTriplet(meta.fill)}};`;
-    }}
-
-    function meshChannelEdgeClass(rawIndex, {{ allowAll = false }} = {{}}) {{
-      normalizeMeshChannelIndex(rawIndex, {{ allowAll }});
-      return "channel-edge-dotted";
+      return `--chat-feed-channel-fill: ${{meta.fill}};`;
     }}
 
     function meshChannelViewMenuLabel(rawIndex) {{
@@ -193,7 +188,14 @@
       meshChannelPillsRenderSignature = renderSignature;
       const pillsHtml = rows.map((row) => {{
         const active = activeViewIdx === row.index;
-        const dotClass = row.all ? "channel-color-dot is-all" : "channel-color-dot";
+        const tabClass = row.all ? "channel-bookmark-tab is-all" : "channel-bookmark-tab";
+        const edgeFill = row.all
+          ? "var(--mesh-channel-all-edge-fill, color-mix(in srgb, var(--workspace-shell-border-strong, var(--surface-tint-border-strong)) 72%, var(--theme-text-color-on-fill, #ffffff) 28%))"
+          : row.meta.fill;
+        const edgeRgb = row.all ? "141, 163, 177" : hexColorRgbTriplet(row.meta.fill);
+        const pillStyle = row.all
+          ? `--mesh-channel-edge-fill: ${{edgeFill}}; --mesh-channel-edge-rgb: ${{edgeRgb}};`
+          : `--mesh-channel-edge-fill: ${{edgeFill}}; --mesh-channel-edge-rgb: ${{edgeRgb}}; --channel-tab-fill: ${{row.meta.fill}};`;
         const unreadLabel = row.unread > 99 ? "99+" : String(row.unread || "");
         const primaryBadge = row.all ? "" : meshChannelPrimaryBadgeHtml(row.index);
         return `<button
@@ -202,9 +204,10 @@
           role="tab"
           aria-selected="${{active ? "true" : "false"}}"
           data-mesh-channel-index="${{escAttr(row.index)}}"
+          style="${{escAttr(pillStyle)}}"
           title="${{escAttr(row.meta.title === row.label ? row.meta.title : `${{row.meta.title}} • ${{row.label}}`)}}"
         >
-          <span class="${{dotClass}}" style="${{row.all ? "" : `--channel-dot-fill: ${{row.meta.fill}};`}}" aria-hidden="true"></span>
+          <span class="${{tabClass}}" style="${{row.all ? "" : `--channel-tab-fill: ${{row.meta.fill}};`}}" aria-hidden="true"></span>
           <span class="mesh-channel-pill-label">${{escAttr(row.label)}}</span>
           ${{primaryBadge}}
           ${{

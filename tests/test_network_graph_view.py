@@ -568,7 +568,7 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'function nodeFirstDiscoveredUnix(nodeId, state = latestState) {' in js
     assert 'function nodeIsAutoNewByFirstDiscovery(nodeId, state = latestState, nowUnix = Math.floor(Date.now() / 1000)) {' in js
     assert 'function autoNodeTagEntryForNode(nodeId, state = latestState) {' in js
-    assert 'return manualNodeTagEntryForNode(nodeId) || autoNodeTagEntryForNode(nodeId);' in js
+    assert 'return manualNodeTagEntryForNode(nodeId);' in js
     assert 'selectedTagRouteKey: "",' in js
     assert 'function resolveNetworkGraphShortestPathEdgeKeys(edges, fromNodeId, toNodeId) {' in js
     assert 'function networkGraphSelfPathIsVisible() {' in js
@@ -721,7 +721,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert "rgba(249, 253, 249, 0.94)" in route_css
     route_hop_css_start = css.index(".network-route-hop {")
     route_hop_css = css[route_hop_css_start:css.index(".network-route-hop.is-local {", route_hop_css_start)]
-    assert "rgba(255, 255, 255, 0.72)" in route_hop_css
+    assert "background: var(--surface-tint-bg-soft);" in route_hop_css
     assert '[data-theme="dark"] .network-routes-card {' in css
     assert '[data-theme="dark"] .network-route-scope {' in css
     assert '[data-theme="dark"] .network-route-scope-reset-btn {' in css
@@ -769,25 +769,25 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-swatch.is-local {" in css
     assert ".network-graph-edge.is-local-path {" in css
     assert ".network-graph-edge.is-spread-link {" not in css
-    assert "stroke: var(--theme-base-color, var(--accent, #2f855a));" in css
+    assert "stroke: var(--theme-base-color, var(--accent));" in css
     assert ".network-graph-tag-routes {" in css
     assert ".network-graph-tag-route {" in css
-    assert "stroke: var(--network-graph-tag-route-color, var(--node-tag-color, #2aa85a));" in css
+    assert "stroke: var(--network-graph-tag-route-color, var(--node-tag-color, var(--accent)));" in css
     assert "pointer-events: stroke;" in css
     assert "cursor: pointer;" in css
     assert ".network-graph-tag-route.is-muted-by-selection {" in css
     assert ".network-graph-tag-route.is-selected {" in css
     assert "opacity: 0.08;" in css
     assert "stroke-width: 6.4 !important;" in css
-    assert "drop-shadow(0 0 9px var(--network-graph-tag-route-color, #2aa85a));" in css
+    assert "drop-shadow(0 0 9px var(--network-graph-tag-route-color, var(--accent)));" in css
     assert ".network-graph-self-path {" in css
     assert ".network-graph-self-path-segment {" in css
     assert ".network-graph-self-path-segment.is-halo {" in css
     assert ".network-graph-tag-filter-input {" in css
     assert ".network-graph-tag-filter.is-empty {" in css
     assert "appearance: none;" in css
-    assert "border: 2px solid var(--network-graph-tag-route-color, #2aa85a);" in css
-    assert "accent-color: var(--network-graph-tag-route-color, #2aa85a);" in css
+    assert "border: 2px solid var(--network-graph-tag-route-color, var(--accent));" in css
+    assert "accent-color: var(--network-graph-tag-route-color, var(--accent));" in css
     assert ".network-graph-tag-filter-input:checked {" in css
     assert ".network-graph-tag-filter-input:disabled {" in css
     assert ".network-graph-tag-filter-icon {" in css
@@ -804,7 +804,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-node.is-tagged .network-graph-node-core {" in css
     assert ".network-graph-node.is-spread-actual" not in css
     assert ".network-graph-node.is-spread-estimated" not in css
-    assert "stroke: var(--node-tag-color, #2aa85a);" in css
+    assert "stroke: var(--node-tag-color, var(--accent));" in css
     assert "[data-theme=\"dark\"] .network-graph-node.is-tagged .network-graph-node-core {" in css
     assert "[data-theme=\"dark\"] .network-graph-node.is-spread-estimated" not in css
     assert "stroke: var(--node-tag-color, #3fb950);" in css

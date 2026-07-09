@@ -30,33 +30,9 @@
       }}
     }}
 
-    function shouldUseUniqueNodeColorsForScope(scope = "member", tagActive = false) {{
-      if (tagActive) return true;
-      const cleanScope = String(scope || "member").trim().toLowerCase() === "feed"
-        ? "feed"
-        : "member";
-      return cleanScope === "feed"
-        ? !!settingsUniqueChatColorsEnabled
-        : !!settingsUniqueNodeColorsEnabled;
-    }}
-
-    function shouldUseUniqueNodeColors(tagActive = false) {{
-      return shouldUseUniqueNodeColorsForScope("member", tagActive);
-    }}
-
     function loadSettingsAppearancePreferences() {{
-      settingsUniqueNodeColorsEnabled = false;
-      settingsUniqueChatColorsEnabled = false;
       settingsScreenWakeLockEnabled = true;
       try {{
-        settingsUniqueNodeColorsEnabled = parseBoolToken(
-          window.localStorage.getItem(settingsUniqueNodeColorsStorageKey),
-          false
-        );
-        settingsUniqueChatColorsEnabled = parseBoolToken(
-          window.localStorage.getItem(settingsUniqueChatColorsStorageKey),
-          settingsUniqueNodeColorsEnabled
-        );
         settingsScreenWakeLockEnabled = parseBoolToken(
           window.localStorage.getItem(settingsScreenWakeLockStorageKey),
           true
@@ -67,14 +43,6 @@
 
     function persistSettingsAppearancePreferences() {{
       try {{
-        window.localStorage.setItem(
-          settingsUniqueNodeColorsStorageKey,
-          settingsUniqueNodeColorsEnabled ? "1" : "0"
-        );
-        window.localStorage.setItem(
-          settingsUniqueChatColorsStorageKey,
-          settingsUniqueChatColorsEnabled ? "1" : "0"
-        );
         window.localStorage.setItem(
           settingsScreenWakeLockStorageKey,
           settingsScreenWakeLockEnabled ? "1" : "0"
@@ -115,15 +83,15 @@
       }}
       if (document.visibilityState && document.visibilityState !== "visible") {{
         return {{
-          text: "Screen wake lock resumes when this tab is visible.",
+          text: "",
           error: false,
         }};
       }}
       if (screenWakeLockSentinel) {{
-        return {{ text: "Screen wake lock active.", error: false }};
+        return {{ text: "", error: false }};
       }}
       if (screenWakeLockRequestInFlight) {{
-        return {{ text: "Requesting screen wake lock.", error: false }};
+        return {{ text: "", error: false }};
       }}
       if (screenWakeLockLastError) {{
         return {{
@@ -131,7 +99,7 @@
           error: true,
         }};
       }}
-      return {{ text: "Screen wake lock pending.", error: false }};
+      return {{ text: "", error: false }};
     }}
 
     function syncSettingsScreenWakeLockControls() {{
@@ -142,7 +110,7 @@
       const statusEl = document.getElementById("settings-wake-lock-status");
       if (statusEl instanceof HTMLElement) {{
         const status = screenWakeLockStatus();
-        statusEl.textContent = status.text;
+        statusEl.textContent = status.error ? status.text : "";
         statusEl.classList.toggle("error", !!status.error);
       }}
     }}
@@ -249,14 +217,6 @@
     }}
 
     function syncSettingsAppearanceControls() {{
-      const toggle = document.getElementById("settings-appearance-unique-node-colors");
-      if (toggle instanceof HTMLInputElement) {{
-        toggle.checked = !!settingsUniqueNodeColorsEnabled;
-      }}
-      const chatToggle = document.getElementById("settings-appearance-unique-chat-colors");
-      if (chatToggle instanceof HTMLInputElement) {{
-        chatToggle.checked = !!settingsUniqueChatColorsEnabled;
-      }}
       const consoleTimestampsToggle = document.getElementById("console-timestamps");
       if (consoleTimestampsToggle instanceof HTMLInputElement) {{
         consoleTimestampsToggle.checked = !!consoleShowTimestamps;
@@ -271,54 +231,6 @@
       }}
       if (typeof syncThemeCustomControls === "function") {{
         syncThemeCustomControls();
-      }}
-    }}
-
-    function setSettingsUniqueNodeColorsEnabled(enabled, options = null) {{
-      const opts = options && typeof options === "object" ? options : {{}};
-      const normalized = !!enabled;
-      const changed = settingsUniqueNodeColorsEnabled !== normalized;
-      settingsUniqueNodeColorsEnabled = normalized;
-      if (opts.persist !== false) {{
-        persistSettingsAppearancePreferences();
-      }}
-      syncSettingsAppearanceControls();
-      if (opts.announce && typeof setSettingsStatusText === "function") {{
-        setSettingsStatusText(
-          settingsUniqueNodeColorsEnabled
-            ? "Unique node colors enabled for node list."
-            : "Unique node colors disabled for node list. Untagged nodes use the shared theme tint."
-        );
-      }}
-      if (changed && opts.rerender !== false && latestState) {{
-        renderChat(latestState);
-        if (activeLayoutView === "chatlabs") {{
-          renderChatLabsView(latestState);
-        }}
-      }}
-    }}
-
-    function setSettingsUniqueChatColorsEnabled(enabled, options = null) {{
-      const opts = options && typeof options === "object" ? options : {{}};
-      const normalized = !!enabled;
-      const changed = settingsUniqueChatColorsEnabled !== normalized;
-      settingsUniqueChatColorsEnabled = normalized;
-      if (opts.persist !== false) {{
-        persistSettingsAppearancePreferences();
-      }}
-      syncSettingsAppearanceControls();
-      if (opts.announce && typeof setSettingsStatusText === "function") {{
-        setSettingsStatusText(
-          settingsUniqueChatColorsEnabled
-            ? "Unique node colors enabled for chat feed."
-            : "Unique node colors disabled for chat feed. Untagged messages use the shared theme tint."
-        );
-      }}
-      if (changed && opts.rerender !== false && latestState) {{
-        renderChat(latestState);
-        if (activeLayoutView === "chatlabs") {{
-          renderChatLabsView(latestState);
-        }}
       }}
     }}
 

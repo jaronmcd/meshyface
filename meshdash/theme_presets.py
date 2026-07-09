@@ -2,34 +2,78 @@ import json
 from pathlib import Path
 from typing import Callable, Optional
 
-from .theme import (
-    DARK_THEME_VARS,
-    DEV_THEME_BASE_COLOR,
-    DEFAULT_THEME_COLOR_DEPTH,
-    LIGHT_THEME_VARS,
-    build_palette_theme_preset,
-)
+from .theme import build_palette_theme_preset
 
 
 ThemeTokens = dict[str, str]
 ThemePreset = dict[str, ThemeTokens]
 ThemePresetMap = dict[str, ThemePreset]
+ThemePresetCustomSettingsMap = dict[str, dict[str, object]]
 
-
-def _copy_theme_tokens(tokens: ThemeTokens) -> ThemeTokens:
-    return {str(key): str(value) for key, value in tokens.items()}
+_DEFAULT_THEME_SETTINGS: dict[str, object] = {
+    "base_color": "#003a73",
+    "line_color": "#2f8cff",
+    "line_contrast_color": "#d8ecff",
+    "text_font": "system",
+    "color_depth": 32,
+    "foreground_transparency": 0,
+    "foreground_blur": 0,
+    "gradient_primary_start_color": "#003a73",
+    "gradient_primary_end_color": "#060d1f",
+    "gradient_primary_type": "linear",
+    "gradient_primary_direction": "right",
+    "background_type": "particles",
+    "background_image_data": "",
+    "background_image_layout": "cover",
+    "background_image_darken": 0,
+    "particles_enabled": False,
+    "particles_color": "#d8ecff",
+    "particles_link_color": "#d8ecff",
+    "livemap_link_color": "#d8ecff",
+    "particles_count": 72,
+    "particles_speed": 2,
+    "particles_size": 2,
+    "particles_opacity": 42,
+    "particles_links": False,
+    "livemap_layers": {
+        "roads": True,
+        "railroads": True,
+        "rivers": True,
+        "lakes": True,
+        "parks": True,
+        "urban": True,
+        "states": True,
+        "borders": True,
+        "coastline": True,
+        "cities": True,
+    },
+}
 
 
 def default_theme_presets() -> ThemePresetMap:
     return {
-        "default": {
-            "light": _copy_theme_tokens(LIGHT_THEME_VARS),
-            "dark": _copy_theme_tokens(DARK_THEME_VARS),
-        },
-        "blue": build_palette_theme_preset(
-            DEV_THEME_BASE_COLOR,
-            color_depth=DEFAULT_THEME_COLOR_DEPTH,
+        "default": build_palette_theme_preset(
+            _DEFAULT_THEME_SETTINGS["base_color"],
+            line_color=_DEFAULT_THEME_SETTINGS["line_color"],
+            line_contrast_color=_DEFAULT_THEME_SETTINGS["line_contrast_color"],
+            text_font=_DEFAULT_THEME_SETTINGS["text_font"],
+            color_depth=int(_DEFAULT_THEME_SETTINGS["color_depth"]),
+            foreground_transparency=int(_DEFAULT_THEME_SETTINGS["foreground_transparency"]),
+            foreground_blur=int(_DEFAULT_THEME_SETTINGS["foreground_blur"]),
+            gradient_primary_start_color=_DEFAULT_THEME_SETTINGS["gradient_primary_start_color"],
+            gradient_primary_end_color=_DEFAULT_THEME_SETTINGS["gradient_primary_end_color"],
+            gradient_primary_type=_DEFAULT_THEME_SETTINGS["gradient_primary_type"],
+            gradient_primary_direction=_DEFAULT_THEME_SETTINGS["gradient_primary_direction"],
         ),
+    }
+
+
+def default_theme_preset_custom_settings() -> ThemePresetCustomSettingsMap:
+    return {
+        "default": {
+            key: dict(value) if isinstance(value, dict) else value
+            for key, value in _DEFAULT_THEME_SETTINGS.items()
+        }
     }
 
 

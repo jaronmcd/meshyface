@@ -863,7 +863,7 @@
         }} else {{
           const snapshot = resolveChatNodeFreshness(clean);
           const node = snapshot.node;
-          const fallbackName = isCanonicalNodeId(clean) ? clean : "Unknown node";
+          const fallbackName = isCanonicalNodeId(clean) ? `Meshtastic ${{clean.slice(-4)}}` : "Unknown node";
           const name = preferredChatNodeName(clean, node, snapshot.historyCaps, fallbackName);
           const meta = nodeIdentityMeta(clean);
           endpoint = {{

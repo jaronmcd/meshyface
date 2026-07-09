@@ -661,7 +661,7 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "const mapTraceResultFlashById = new Map();" in js
     assert "const mapEstimatedCorridorActivityPathsByKey = new Map();" in js
     assert "const mapNodeTransmitPulseRings = new Set();" in js
-    assert "const mapNodeTransmitPulseMaxRings = 72;" in js
+    assert "const mapNodeTransmitPulseMaxRings = 96;" in js
     assert "let mapTraceProgressTimer = null;" in js
     assert 'const mapNodeMarkerPaneName = "mapNodeMarkerPane";' in js
     assert 'const mapTransmitPulsePaneName = "mapTransmitPulsePane";' in js
@@ -685,10 +685,13 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "function mapPacketActivityNodeIds(packetEntry)" in js
     assert "function mapPacketActivityTransmitNodeId(packetEntry)" in js
     assert "function mapPacketActivitySignalLevel(packetEntry)" in js
-    assert "function mapTransmitPulseRadiusScale(signalLevel = 0.55)" in js
+    assert "function mapTransmitPulseRadioRangeProfile(state = latestState)" in js
+    assert "dashboardLivemapEstimatedRangeProfile(state)" in js
+    assert "function mapTransmitPulseRadiusScale(signalLevel = 0.55, state = latestState)" in js
     assert "summary.rx_snr" in js
     assert "summary.rx_rssi" in js
-    assert "return 0.65 + (level * 0.9);" in js
+    assert "const baseReachKm = Math.max(1.2, Math.min(rangeKm * 0.48, strongKm * 1.35));" in js
+    assert "return baseReachKm * (0.82 + (level * 0.28));" in js
     assert "function snapshotNetworkMapPacketActivityTokens(state = latestState)" in js
     assert "function seedNetworkMapPacketActivityTokens(state = latestState)" in js
     assert "function ensureMapTransmitPulsePane()" in js
@@ -740,6 +743,7 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "startMapLiveTracerouteOverlay(targetId, safePayload, {" in js
     assert "const endpoints = mapPacketActivityEndpointIds(packetEntry);" in js
     assert "const signalLevel = mapPacketActivitySignalLevel(packetEntry);" in js
+    assert "const transmitNodeId = mapPacketActivityTransmitNodeId(packetEntry);" in js
     assert "nodesToRipple.set(" in js
     assert "Math.max(Number(prevSignalLevel), signalLevel)" in js
     assert "directionsToAnimate.push({ fromId: endpoints.fromId, toId: endpoints.toId, signalLevel });" in js
@@ -758,8 +762,9 @@ def test_dashboard_js_flashes_network_map_nodes_on_new_packet_activity() -> None
     assert "startMapNodeTransmitRipple(nodeId, safeState, signalLevel);" in js
     assert "startMapPacketDirectionAnimation(direction.fromId, direction.toId, safeState, direction.signalLevel);" in js
     assert "pane: mapTransmitPulsePaneName," in js
-    assert "const radiusScale = mapTransmitPulseRadiusScale(signalLevel);" in js
-    assert "const endRadius = (22 + (idx * 7)) * radiusScale;" in js
+    assert "const radiusReachMeters = mapTransmitPulseRadiusScale(signalLevel, state) * 1000;" in js
+    assert "const ringFractions = [0.16, 0.34, 0.62, 1];" in js
+    assert "const layer = L.circle(position, {" in js
     assert "layer.setRadius(easedRadius);" in js
     assert "scheduleMapNodeActivityFlashUpdate();" in js
     assert "mapLiveActivityEnabled\n          && typeof isNetworkMapActivityFlashVisible === \"function\"" in js

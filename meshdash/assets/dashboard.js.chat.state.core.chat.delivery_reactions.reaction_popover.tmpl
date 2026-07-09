@@ -101,10 +101,6 @@
         out.push(emoji);
       }};
 
-      for (const group of (Array.isArray(groups) ? groups : [])) {{
-        pushChoice(group && group.emoji);
-      }}
-
       if (typeof chatEmojiTopChoices === "function") {{
         try {{
           const preferred = chatEmojiTopChoices();
@@ -115,11 +111,165 @@
         }}
       }}
 
+      for (const group of (Array.isArray(groups) ? groups : [])) {{
+        pushChoice(group && group.emoji);
+      }}
+
       for (const emoji of ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "✅"]) {{
         pushChoice(emoji);
       }}
 
       return out.slice(0, 6);
+    }}
+
+    function reactionQuickButtons(row) {{
+      if (!(row instanceof HTMLElement)) return [];
+      return Array.from(row.querySelectorAll(".chat-reaction-popover-quick-btn"))
+        .filter((node) => node instanceof HTMLButtonElement);
+    }}
+
+    function reactionQuickCurrentOrder(row) {{
+      return reactionQuickButtons(row)
+        .map((node) => String(node.dataset.emoji || "").trim())
+        .filter(Boolean);
+    }}
+
+    function reactionQuickInsertionIndex(row, clientX, draggedEmoji = "") {{
+      let index = 0;
+      const source = String(draggedEmoji || "").trim();
+      for (const item of reactionQuickButtons(row)) {{
+        if (String(item.dataset.emoji || "").trim() === source) continue;
+        const rect = item.getBoundingClientRect();
+        if (rect.width <= 0) continue;
+        if (Number(clientX) > rect.left + (rect.width / 2)) {{
+          index += 1;
+        }}
+      }}
+      return index;
+    }}
+
+    function reactionQuickNextOrder(sourceEmoji, insertionIndex, currentOrder = []) {{
+      const source = String(sourceEmoji || "").trim();
+      if (!source) return [];
+      const visible = normalizeChatEmojiPinnedChoices(currentOrder, 6);
+      const working = visible.filter((emoji) => emoji !== source);
+      const sourceInVisible = working.length !== visible.length;
+      let insertAt = Math.max(0, Math.min(working.length, Math.trunc(Number(insertionIndex) || 0)));
+      if (!sourceInVisible && insertAt >= 6) {{
+        insertAt = 5;
+      }}
+      working.splice(insertAt, 0, source);
+      const next = working.slice(0, 6);
+      return chatEmojiTopOrdersEqual(next, visible) ? [] : next;
+    }}
+
+    function applyReactionQuickPreviewOrder(row, nextOrder) {{
+      if (!(row instanceof HTMLElement) || !Array.isArray(nextOrder) || !nextOrder.length) {{
+        return false;
+      }}
+      const currentOrder = reactionQuickCurrentOrder(row);
+      if (chatEmojiTopOrdersEqual(currentOrder, nextOrder)) {{
+        return false;
+      }}
+      const nodesByEmoji = new Map();
+      for (const node of reactionQuickButtons(row)) {{
+        const emoji = String(node.dataset.emoji || "").trim();
+        if (emoji && !nodesByEmoji.has(emoji)) {{
+          nodesByEmoji.set(emoji, node);
+        }}
+      }}
+      const moreBtn = row.querySelector(".chat-reaction-popover-more-btn");
+      const fragment = document.createDocumentFragment();
+      for (const emoji of nextOrder) {{
+        const node = nodesByEmoji.get(emoji);
+        if (node) {{
+          fragment.appendChild(node);
+        }}
+      }}
+      row.insertBefore(fragment, moreBtn instanceof HTMLElement ? moreBtn : null);
+      return true;
+    }}
+
+    function reactionQuickCommitOrder(visibleOrder) {{
+      const nextVisible = normalizeChatEmojiPinnedChoices(visibleOrder, 6);
+      if (!nextVisible.length) return false;
+      const currentTop = typeof chatEmojiTopChoices === "function" ? chatEmojiTopChoices() : [];
+      const next = [];
+      const used = new Set();
+      const push = (value) => {{
+        const emoji = String(value || "").trim();
+        if (!emoji || used.has(emoji) || !chatEmojiChoiceSet.has(emoji)) return;
+        if (typeof isReactionCompatibleEmoji === "function" && !isReactionCompatibleEmoji(emoji)) return;
+        used.add(emoji);
+        next.push(emoji);
+      }};
+      for (const emoji of nextVisible) push(emoji);
+      for (const emoji of (Array.isArray(currentTop) ? currentTop : [])) push(emoji);
+      for (const emoji of chatEmojiPopularDefaults) push(emoji);
+      return setChatEmojiTopPinnedChoices(next.slice(0, chatEmojiTopUsageCount), true);
+    }}
+
+    function finishReactionQuickPointerDrag(ev, commit = false) {{
+      const drag = chatReactionQuickPointerDrag;
+      if (drag && drag.source instanceof HTMLElement) {{
+        try {{
+          if (drag.source.hasPointerCapture && drag.source.hasPointerCapture(drag.pointerId)) {{
+            drag.source.releasePointerCapture(drag.pointerId);
+          }}
+        }} catch (err) {{}}
+      }}
+      const wasActive = !!(drag && drag.active);
+      let changed = false;
+      if (wasActive && drag && drag.row instanceof HTMLElement) {{
+        const row = drag.row;
+        const rect = row.getBoundingClientRect();
+        const droppedOnRow = !!(
+          commit
+          && Number(ev.clientX) >= rect.left - 10
+          && Number(ev.clientX) <= rect.right + 10
+          && Number(ev.clientY) >= rect.top - 10
+          && Number(ev.clientY) <= rect.bottom + 10
+        );
+        if (droppedOnRow) {{
+          const insertionIndex = reactionQuickInsertionIndex(row, ev.clientX, drag.emoji);
+          const next = reactionQuickNextOrder(drag.emoji, insertionIndex, reactionQuickCurrentOrder(row));
+          if (next.length) {{
+            applyReactionQuickPreviewOrder(row, next);
+          }}
+          changed = reactionQuickCommitOrder(reactionQuickCurrentOrder(row));
+        }} else if (Array.isArray(drag.startOrder) && drag.startOrder.length) {{
+          applyReactionQuickPreviewOrder(row, drag.startOrder);
+        }}
+      }}
+      if (wasActive) {{
+        chatReactionQuickSuppressClickUntilMs = Date.now() + 260;
+        if (typeof dismissChatEmojiDragGhost === "function") {{
+          dismissChatEmojiDragGhost(null);
+        }}
+      }}
+      if (drag && drag.source instanceof HTMLElement) {{
+        drag.source.classList.remove("dragging");
+      }}
+      const popover = reactionPopoverElement();
+      if (popover instanceof HTMLElement) {{
+        popover.classList.remove("is-emoji-dragging");
+        for (const item of popover.querySelectorAll(".chat-reaction-popover-quick-btn.dragging")) {{
+          if (item instanceof HTMLElement) item.classList.remove("dragging");
+        }}
+      }}
+      chatReactionQuickPointerDrag = null;
+      if (changed) {{
+        if (chatReactionPopoverAnchor instanceof HTMLButtonElement) {{
+          openReactionPopoverForSummary(chatReactionPopoverAnchor);
+        }}
+        if (typeof renderChatEmojiTopRow === "function") {{
+          renderChatEmojiTopRow();
+        }}
+        if (typeof setChatSendStatus === "function") {{
+          setChatSendStatus("Updated quick reaction shortcuts.", false);
+        }}
+      }}
+      return changed;
     }}
 
     function buildReactionQuickRowHtml(targetMessageId, groups) {{
@@ -240,6 +390,9 @@
       const popover = reactionPopoverElement();
       if (!(popover instanceof HTMLElement)) return;
       if (!force && popover.hidden) return;
+      if (chatReactionQuickPointerDrag) {{
+        finishReactionQuickPointerDrag({{ clientX: -9999, clientY: -9999, pointerId: chatReactionQuickPointerDrag.pointerId }}, false);
+      }}
       clearReactionPopoverHideTimer();
       popover.hidden = true;
       popover.innerHTML = "";
@@ -255,9 +408,94 @@
         clearReactionPopoverHideTimer();
       }});
       popover.addEventListener("pointerleave", () => {{
+        if (chatReactionQuickPointerDrag && chatReactionQuickPointerDrag.active) return;
         scheduleReactionPopoverHide(120);
       }});
+      popover.addEventListener("pointerdown", (ev) => {{
+        if (ev.button !== 0) return;
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const quickBtn = target.closest(".chat-reaction-popover-quick-btn");
+        if (!(quickBtn instanceof HTMLButtonElement) || !popover.contains(quickBtn)) return;
+        const row = quickBtn.closest(".chat-reaction-popover-quick-row");
+        if (!(row instanceof HTMLElement) || reactionQuickButtons(row).length < 2) return;
+        const emoji = String(quickBtn.dataset.emoji || "").trim();
+        if (!emoji) return;
+        chatReactionQuickPointerDrag = {{
+          active: false,
+          emoji,
+          pointerId: ev.pointerId,
+          row,
+          source: quickBtn,
+          startOrder: reactionQuickCurrentOrder(row),
+          startX: ev.clientX,
+          startY: ev.clientY,
+        }};
+        try {{
+          quickBtn.setPointerCapture(ev.pointerId);
+        }} catch (err) {{}}
+      }});
+      popover.addEventListener("pointermove", (ev) => {{
+        const drag = chatReactionQuickPointerDrag;
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        const row = drag.row instanceof HTMLElement ? drag.row : null;
+        if (!(row instanceof HTMLElement)) {{
+          finishReactionQuickPointerDrag(ev, false);
+          return;
+        }}
+        const distance = Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY);
+        if (!drag.active && distance < 5) return;
+        if (!drag.active) {{
+          drag.active = true;
+          clearReactionPopoverHideTimer();
+          const quickBtn = drag.source instanceof HTMLElement ? drag.source : null;
+          if (quickBtn instanceof HTMLElement) quickBtn.classList.add("dragging");
+          popover.classList.add("is-emoji-dragging");
+          if (typeof createChatEmojiDragGhost === "function") {{
+            createChatEmojiDragGhost(drag.emoji);
+          }}
+        }}
+        ev.preventDefault();
+        if (typeof moveChatEmojiDragGhost === "function") {{
+          moveChatEmojiDragGhost(ev.clientX, ev.clientY);
+        }}
+        const rect = row.getBoundingClientRect();
+        const overRow = (
+          Number(ev.clientX) >= rect.left - 10
+          && Number(ev.clientX) <= rect.right + 10
+          && Number(ev.clientY) >= rect.top - 10
+          && Number(ev.clientY) <= rect.bottom + 10
+        );
+        if (overRow) {{
+          const insertionIndex = reactionQuickInsertionIndex(row, ev.clientX, drag.emoji);
+          const next = reactionQuickNextOrder(drag.emoji, insertionIndex, reactionQuickCurrentOrder(row));
+          if (next.length) {{
+            applyReactionQuickPreviewOrder(row, next);
+          }}
+        }} else if (Array.isArray(drag.startOrder) && drag.startOrder.length) {{
+          applyReactionQuickPreviewOrder(row, drag.startOrder);
+        }}
+      }});
+      popover.addEventListener("pointerup", (ev) => {{
+        const drag = chatReactionQuickPointerDrag;
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        if (drag.active) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+        }}
+        finishReactionQuickPointerDrag(ev, true);
+      }});
+      popover.addEventListener("pointercancel", (ev) => {{
+        const drag = chatReactionQuickPointerDrag;
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        finishReactionQuickPointerDrag(ev, false);
+      }});
       popover.addEventListener("click", (ev) => {{
+        if (chatReactionQuickSuppressClickUntilMs && Date.now() < chatReactionQuickSuppressClickUntilMs) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }}
         const target = ev.target;
         if (!(target instanceof Element)) return;
         const quickBtn = target.closest(".chat-reaction-popover-quick-btn");

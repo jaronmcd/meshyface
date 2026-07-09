@@ -19,8 +19,6 @@
     let settingsFixedMapResizeTimers = [];
     let settingsFixedMapAutoCenteredOnce = false;
     let settingsPositionSourcePref = "gps";
-    let settingsUniqueNodeColorsEnabled = false;
-    let settingsUniqueChatColorsEnabled = false;
     let settingsTimeSyncEnabledPref = true;
     let settingsTimeSyncTimezonePref = "local";
     let settingsTimeSyncTimezoneOptionsCache = null;
@@ -92,6 +90,7 @@
     let chatNodeNavigatorShowPacketDirection = false;
     let chatNodeNavigatorMenuOpen = false;
     let chatNodeDetailsDrawerExpanded = false;
+    let chatNodeDetailsPromoted = false;
     let chatNodeDetailsDrawerTab = "details";
     const chatUnreadByChannel = {{ all: 0, direct: 0 }};
     const chatUnreadByMeshChannel = {{ all: Object.create(null), direct: Object.create(null) }};

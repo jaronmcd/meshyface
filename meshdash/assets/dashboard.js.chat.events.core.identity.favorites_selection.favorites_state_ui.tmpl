@@ -303,7 +303,7 @@
     }}
 
     function nodeTagEntryForNode(nodeId) {{
-      return manualNodeTagEntryForNode(nodeId) || autoNodeTagEntryForNode(nodeId);
+      return manualNodeTagEntryForNode(nodeId);
     }}
 
     function nodeEmojiOverrideForNode(nodeId) {{
@@ -457,6 +457,19 @@
       const vibrance = clampNodeTagVibrance(preset.vibrance, 70);
       const vibranceRatio = Math.max(0, Math.min(1, vibrance / 100));
       return `--node-tag-color:${{color}};--node-tag-vibrance:${{vibranceRatio.toFixed(3)}};`;
+    }}
+
+    function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{
+      const preset = tagEntry && typeof tagEntry === "object" && tagEntry.preset
+        ? tagEntry.preset
+        : null;
+      if (!preset) return "";
+      const cleanScope = String(scope || "member").trim().toLowerCase() === "feed"
+        ? "feed"
+        : "member";
+      const prefix = cleanScope === "feed" ? "--chat-feed-node-" : "--chat-member-node-";
+      const hue = nodeTagTintHue(tagEntry, fallbackHue);
+      return `${{prefix}}hue:${{hue}};${{prefix}}tint-start-hue:${{hue}};${{prefix}}tint-end-hue:${{hue}};${{prefix}}sat-mult:1;${{prefix}}light-shift:0%;${{prefix}}dark-sat-mult:1;${{prefix}}dark-light-shift:0%;${{prefix}}outline-hue:${{hue}};${{prefix}}outline-sat-mult:1;${{prefix}}outline-light-shift:-3%;${{prefix}}outline-dark-sat-mult:1;${{prefix}}outline-dark-light-shift:4%;`;
     }}
 
     function nodeTagStyleAttrForNode(nodeId) {{

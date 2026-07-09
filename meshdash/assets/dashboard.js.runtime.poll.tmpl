@@ -608,6 +608,9 @@
           refreshConsoleNodeRowsCache(state);
         }}
         latestStatePollProfile = pollProfile;
+        if (typeof requestDashboardLivemapRefit === "function") {{
+          requestDashboardLivemapRefit();
+        }}
         markPollPerfPhase(pollPerfRun, "state-normalize", {{
           rawNodes: Array.isArray(rawState && rawState.nodes) ? rawState.nodes.length : 0,
           nodes: Array.isArray(state && state.nodes) ? state.nodes.length : 0,

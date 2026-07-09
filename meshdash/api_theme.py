@@ -7,6 +7,10 @@ from .http_route_contracts import (
     ValidateContentLengthFn,
     WriteJsonResponseFn,
 )
+from .theme import MAX_THEME_BACKGROUND_IMAGE_DATA_LENGTH
+
+
+_MAX_THEME_SETTINGS_POST_BYTES = MAX_THEME_BACKGROUND_IMAGE_DATA_LENGTH + (256 * 1024)
 
 
 def handle_theme_settings_get(
@@ -59,7 +63,11 @@ def handle_theme_settings_post(
         return
 
     try:
-        content_length = validate_content_length_fn(handler.headers, to_int_fn=to_int_fn)
+        content_length = validate_content_length_fn(
+            handler.headers,
+            to_int_fn=to_int_fn,
+            max_bytes=_MAX_THEME_SETTINGS_POST_BYTES,
+        )
     except ValueError:
         write_json_response_fn(
             handler,

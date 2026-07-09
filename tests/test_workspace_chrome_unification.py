@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -37,19 +38,20 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert 'id="bbs-terminal-log"' in html
     assert html.index('class="bbs-config-strip"') < html.index('id="bbs-terminal-title"')
     assert html.index('class="bbs-config-strip"') < html.index('class="bbs-panel bbs-directory-panel"')
-    assert 'class="settings-chrome workspace-chrome-bar"' in html
+    assert 'class="settings-chrome workspace-chrome-bar workspace-stack-head-shell"' in html
     assert 'class="settings-toolbar workspace-chrome-row"' in html
     assert 'class="settings-tabbar workspace-pillbar"' in html
     assert 'class="settings-tab-btn workspace-pill-btn is-active"' in html
     assert 'class="btn workspace-action-chip"' in html
-    assert 'class="chat-card-head workspace-chrome-bar"' in html
-    assert 'class="games-toolbar workspace-chrome-bar"' in html
+    assert 'class="chat-card-head workspace-chrome-bar workspace-stack-head-shell"' in html
+    assert 'class="games-toolbar workspace-chrome-bar workspace-stack-head-shell"' in html
     assert 'id="games-library-select"' in html
     assert 'class="history-tabs workspace-pillbar"' in html
     assert 'class="history-tab-btn workspace-pill-btn is-active"' in html
     assert "<h2>Files</h2>" not in html
     assert 'id="network-map-chrome" class="network-map-chrome"' in html
-    assert 'class="network-map-subview-tabs"' in html
+    assert 'class="network-map-subview-tabs workspace-pillbar"' in html
+    assert 'class="network-map-subview-tab workspace-pill-btn is-active"' in html
     assert 'id="network-overview-primary-controls"' in html
     assert 'id="apps-tabs-bar"' not in html
 
@@ -71,13 +73,99 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert ".settings-status.settings-status-top:empty {" in css
     assert ".apps-tabs-bar.workspace-chrome-bar {" not in css
     workspace_status_section = css.split(".workspace-chrome-status {", 1)[1].split("}", 1)[0]
+    dark_settings_toolbar_section = css.split(
+        '[data-theme="dark"] .settings-chrome .settings-toolbar.workspace-chrome-row {', 1
+    )[1].split("}", 1)[0]
     assert "position: absolute;" in workspace_status_section
     assert "clip-path: inset(50%);" in workspace_status_section
     assert "white-space: nowrap;" in workspace_status_section
+    assert "border: 0;" in dark_settings_toolbar_section
+    assert "background: transparent;" in dark_settings_toolbar_section
     assert ".layout.view-settings .settings-toolbar.workspace-chrome-row {" in css
     assert ".layout.view-settings .settings-actions.settings-actions-top .workspace-action-chip {" in css
-    assert "[data-theme=\"dark\"] .settings-chrome.workspace-chrome-bar," in css
+    assert "[data-theme=\"dark\"] .workspace-stack-head-shell," in css
     assert "[data-theme=\"dark\"] .network-map-subview-tab,\n    [data-theme=\"dark\"] .workspace-pill-btn {" in css
+    assert (
+        '[data-theme="dark"] .teams-rail,\n'
+        '    [data-theme="dark"] .chat-panel-splitter,\n'
+        '    [data-theme="dark"] .chat-left-panel,\n'
+        '    [data-theme="dark"] .card,\n'
+        '    [data-theme="dark"] .rail-btn,'
+    ) not in css
+    for legacy_dark_value in (
+        "background: #213229;",
+        "border-color: #3a5346;",
+        "background: #1b2b22;",
+        "border-color: #33483c;",
+        "background: #060d08;",
+        "color: #c6ffda;",
+    ):
+        assert legacy_dark_value not in css
+    duplicate_declaration = re.search(
+        r"(?m)^\s*(?P<prop>background|border(?:-[\w-]+)?-color|color|outline-color): "
+        r"(?P<value>[^;\n]+);\n\s*(?P=prop): (?P=value);",
+        css,
+    )
+    assert duplicate_declaration is None
+
+
+def test_dark_workspace_css_drops_superseded_legacy_blocks() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    for legacy_value in (
+        "#4a3b1f",
+        "#8c7240",
+        "#f4dd9f",
+        "#1f2f27",
+        "#4f7562",
+        "#c8e2d5",
+        "#1e3d2d",
+        "#4c8b6a",
+        "#bde9d0",
+        "#4a2525",
+        "#8f4b4b",
+        "#355041",
+        "#d8eae0",
+        "#07120d",
+        "#bff0d5",
+        "#101814",
+        "#010503",
+        "#bfffd4",
+        "#9df4be",
+        "#253140",
+        "#43556b",
+    ):
+        assert legacy_value not in css
+
+    assert css.count('[data-theme="dark"] .chat-delivery-pill.state-pending {') == 1
+    assert css.count('[data-theme="dark"] .leaflet-container {') == 1
+    assert css.count('[data-theme="dark"] .activity-legend-nodes {') == 1
+    dark_surface_blanket = css.split(
+        '[data-theme="dark"] .pill,\n'
+        '    [data-theme="dark"] .selection-btn,\n'
+        '    [data-theme="dark"] .starred-node-wrap,\n'
+        '    [data-theme="dark"] .theme-btn,',
+        1,
+    )[1].split("{", 1)[0]
+    dark_hover_blanket = css.split('[data-theme="dark"] .theme-btn:hover,', 1)[1].split("{", 1)[0]
+    for superseded_selector in (
+        ".chat-reaction-popover",
+        ".chat-send-channel-wrap",
+        "#chat-send-btn",
+        "#chat-unicode-btn",
+        "#chat-emoji-btn",
+        ".chat-emoji-panel",
+        ".chat-emoji-filter",
+        ".chat-emoji-item",
+    ):
+        assert superseded_selector not in dark_surface_blanket
+    for superseded_hover_selector in (
+        "#chat-send-btn:hover",
+        "#chat-unicode-btn:hover",
+        "#chat-emoji-btn:hover",
+        ".chat-emoji-item:hover",
+    ):
+        assert superseded_hover_selector not in dark_hover_blanket
 
 
 def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
@@ -142,6 +230,7 @@ def test_workspace_main_gap_stays_uniform_and_lets_apps_views_use_full_width() -
     apps_layout_section = css.split('.workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,', 1)[1].split("}", 1)[0]
     assert "gap: 8px;" in workspace_main_section
     assert "gap: 0;" not in workspace_main_section
+    assert "background: transparent;" in workspace_main_section
     assert "grid-template-columns: minmax(0, 1fr);" in apps_workspace_main_section
     assert "grid-template-rows: minmax(0, 1fr);" in apps_workspace_main_section
     assert '.workspace-shell[data-layout-view="games"] .workspace-main::before,' not in css
@@ -242,7 +331,7 @@ def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
     assert "background: transparent;" in body_section
     assert "padding: 0;" in body_section
     assert "border-top: 1px solid var(--network-pane-head-border);" in frame_section
-    assert "background: #08110d;" in frame_section
+    assert "background: transparent;" in frame_section
     assert "padding: 1px;" in frame_section
 
 
@@ -409,18 +498,22 @@ def test_network_subviews_follow_workspace_theme_tokens(extract_css_block) -> No
     graph_edge_section = extract_css_block(css, '[data-theme="dark"] .network-graph-edge')
     graph_root_section = extract_css_block(css, '[data-theme="dark"] .network-graph-node.is-root .network-graph-node-core')
 
-    assert "var(--workspace-shell-bg-alt)" in overview_panel_section
-    assert "var(--workspace-shell-active-bg)" in overview_panel_section
+    assert "background: transparent;" in overview_panel_section
+    assert "radial-gradient" not in overview_panel_section
     assert "var(--workspace-shell-border-muted)" in overview_control_section
     assert "var(--workspace-shell-active-bg)" in overview_control_section
     assert "var(--workspace-shell-active-bg)" in overview_primary_control_section
     assert "var(--workspace-shell-border)" in overview_chart_section
-    assert "var(--workspace-shell-bg-alt)" in overview_chart_section
+    assert "background: transparent;" in overview_chart_section
+    assert "box-shadow: none;" in overview_chart_section
     assert "var(--workspace-shell-active-bg)" in overview_stat_section
     assert "var(--workspace-shell-border)" in sensors_panel_section
-    assert "var(--workspace-shell-bg-alt)" in sensors_panel_section
+    assert "background: transparent;" in sensors_panel_section
+    assert "box-shadow: none;" in sensors_panel_section
     assert "var(--workspace-shell-border)" in sensors_control_section
     assert "var(--workspace-shell-border)" in sensors_chart_section
+    assert "background: transparent;" in sensors_chart_section
+    assert "box-shadow: none;" in sensors_chart_section
     assert '[data-theme="dark"] .network-routes-primary-controls .history-metric-wrap' in css
     assert '[data-theme="dark"] .network-routes-primary-controls .history-metric-select' in css
     assert '[data-theme="dark"] .network-top-nodes-primary-controls .history-metric-wrap' in css
@@ -435,6 +528,8 @@ def test_network_subviews_follow_workspace_theme_tokens(extract_css_block) -> No
     assert "var(--workspace-shell-bg)" in diagnostics_payload_section
     assert "var(--workspace-shell-bg-alt)" in graph_chip_section
     assert "var(--workspace-shell-border)" in graph_stage_section
+    assert "background: transparent;" in graph_stage_section
+    assert "box-shadow: none;" in graph_stage_section
     assert "var(--ui-accent)" in graph_edge_section
     assert "var(--workspace-shell-border-strong)" in graph_root_section
 
@@ -488,7 +583,7 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
         '<div id="network-map-controls-host"',
         1,
     )[0]
-    network_tabs_section = html.split('<div class="network-map-subview-tabs"', 1)[1].split(
+    network_tabs_section = html.split('<div class="network-map-subview-tabs workspace-pillbar"', 1)[1].split(
         '</div>',
         1,
     )[0]
@@ -698,14 +793,14 @@ def test_network_sensors_top_level_explorer_reuses_light_shell() -> None:
     assert "padding: 14px;" in explorer_section
     assert "gap: 8px;" in explorer_section
 
-    assert "border-color: #d7e5d2;" in chart_section
-    assert "linear-gradient(180deg, #fbfffc 0%, #eef8f1 100%)" in chart_section
+    assert "border-color: var(--surface-tint-border);" in chart_section
+    assert "linear-gradient(180deg, var(--panel) 0%, var(--surface-tint-bg-soft) 100%)" in chart_section
     assert "padding: 0;" in chart_section
     assert "rgba(18, 29, 39, 0.98)" not in chart_section
 
-    assert "border: 1px solid color-mix(in srgb, var(--node-color, #d7e5d2) 70%, #d7e5d2 30%);" in legend_section
+    assert "border: 1px solid color-mix(in srgb, var(--node-color, var(--surface-tint-border)) 70%, var(--surface-tint-border) 30%);" in legend_section
     assert "border-left: 4px solid var(--node-color, #7aa38a);" in legend_section
-    assert "color-mix(in srgb, var(--node-color, #7aa38a) 22%, #f9fdf9 78%)" in legend_section
+    assert "color-mix(in srgb, var(--node-color, #7aa38a) 22%, var(--surface-tint-bg-soft) 78%)" in legend_section
     assert "color: #193a28;" in legend_section
     assert "background: var(--node-color, #7aa38a);" in legend_dot_section
 
@@ -760,17 +855,17 @@ def test_games_boards_follow_runtime_theme_tokens(extract_css_block) -> None:
     dark_reversi_board_section = extract_css_block(css, '[data-theme="dark"] .reversi-board')
     dark_classic_board_section = extract_css_block(css, '[data-theme="dark"] .checkers-board')
 
-    assert "var(--ui-accent-soft, var(--accent, #2f855a))" in board_wrap_section
+    assert "var(--ui-accent-soft, var(--accent))" in board_wrap_section
     assert "var(--games-board-frame)" in board_wrap_section
-    assert "var(--surface-tint-bg-soft, #f4faf3)" in board_wrap_section
-    assert "var(--surface-tint-bg, #edf6ec)" in board_wrap_section
+    assert "var(--surface-tint-bg-soft)" in board_wrap_section
+    assert "var(--surface-tint-bg)" in board_wrap_section
     assert "var(--reversi-board-accent)" in reversi_board_section
     assert "var(--reversi-board-cell)" in reversi_cell_section
-    assert "var(--surface-tint-bg-soft, #f4faf3)" in reversi_board_section
-    assert "var(--surface-tint-border-strong, #b8cab9)" in reversi_board_section
+    assert "var(--surface-tint-bg-soft)" in reversi_board_section
+    assert "var(--surface-tint-border-strong)" in reversi_board_section
     assert "var(--classic-board-accent)" in classic_board_section
-    assert "var(--surface-tint-bg, #edf6ec)" in classic_board_section
-    assert "var(--surface-tint-border-strong, #b8cab9)" in classic_board_section
+    assert "var(--surface-tint-bg)" in classic_board_section
+    assert "var(--surface-tint-border-strong)" in classic_board_section
     assert "var(--workspace-shell-bg-alt)" in dark_board_wrap_section
     assert "var(--workspace-shell-border)" in dark_board_wrap_section
     assert "var(--ui-accent)" in dark_reversi_board_section
@@ -893,8 +988,8 @@ def test_chat_header_pills_follow_workspace_shell_tab_tokens() -> None:
 
     toggle_section = css.split("[data-theme=\"dark\"] .chat-peer-add-toggle-btn {", 1)[1].split("}", 1)[0]
     toggle_active_section = css.split("[data-theme=\"dark\"] .chat-peer-add-toggle-btn[aria-expanded=\"true\"],", 1)[1].split("}", 1)[0]
-    collapse_section = css.split("[data-theme=\"dark\"] .chat-panel-collapse-btn {", 1)[1].split("}", 1)[0]
-    collapse_active_section = css.split("[data-theme=\"dark\"] .chat-panel-collapse-btn[aria-pressed=\"true\"] {", 1)[1].split("}", 1)[0]
+    header_toggle_section = css.split("[data-theme=\"dark\"] .chat-users-head .chat-peer-add-toggle-btn,", 1)[1].split("}", 1)[0]
+    header_toggle_hover_section = css.split("[data-theme=\"dark\"] .chat-users-head .chat-peer-add-toggle-btn:hover {", 1)[1].split("}", 1)[0]
     channel_pill_section = css.split("[data-theme=\"dark\"] .mesh-channel-pill {", 1)[1].split("}", 1)[0]
     channel_pill_active_section = css.split("[data-theme=\"dark\"] .mesh-channel-pill.active {", 1)[1].split("}", 1)[0]
 
@@ -903,9 +998,10 @@ def test_chat_header_pills_follow_workspace_shell_tab_tokens() -> None:
     assert "var(--workspace-shell-text-soft)" in toggle_section
     assert "var(--workspace-shell-active-bg)" in toggle_active_section
     assert "var(--workspace-shell-active-text)" in toggle_active_section
-    assert "var(--workspace-shell-border-muted)" in collapse_section
-    assert "var(--workspace-shell-bg-alt)" in collapse_section
-    assert "var(--workspace-shell-active-bg)" in collapse_active_section
+    assert "var(--workspace-shell-border-strong)" in header_toggle_section
+    assert "var(--workspace-shell-bg-alt)" in header_toggle_section
+    assert "var(--workspace-shell-text)" in header_toggle_section
+    assert "var(--workspace-shell-hover-bg)" in header_toggle_hover_section
     assert "var(--workspace-shell-text-soft)" in channel_pill_section
     assert "var(--workspace-shell-border-muted)" in channel_pill_section
     assert "var(--workspace-shell-active-bg)" in channel_pill_active_section
@@ -1005,7 +1101,7 @@ def test_history_chart_surfaces_follow_workspace_shell_tokens() -> None:
 def test_dark_history_legends_reuse_network_plot_palette() -> None:
     css = build_dashboard_css(theme_css="")
 
-    primary_section = css.split("[data-theme=\"dark\"] .signal-legend .legend-chip.is-primary,", 1)[1].split("}", 1)[0]
+    primary_section = css.split("[data-theme=\"dark\"] .signal-legend .legend-chip.is-primary {", 1)[1].split("}", 1)[0]
     compare_section = css.split("[data-theme=\"dark\"] .signal-legend .legend-chip.is-compare {", 1)[1].split("}", 1)[0]
 
     assert "#009E73" in primary_section
@@ -1079,13 +1175,9 @@ def test_saved_node_notes_and_tag_editor_follow_theme_tokens() -> None:
     assert "#15281f" not in tag_editor_section
 
 
-def test_peer_dm_menu_and_popout_follow_workspace_shell_tokens() -> None:
+def test_peer_dm_popout_follows_workspace_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
-    menu_section = css.split("[data-theme=\"dark\"] .peer-dm-menu {", 1)[1].split("}", 1)[0]
-    menu_list_section = css.split("[data-theme=\"dark\"] .peer-dm-menu-list {", 1)[1].split("}", 1)[0]
-    empty_section = css.split("[data-theme=\"dark\"] .peer-dm-menu-empty {", 1)[1].split("}", 1)[0]
-    item_hover_section = css.split("[data-theme=\"dark\"] .peer-dm-menu-item:hover {", 1)[1].split("}", 1)[0]
     popout_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-window {", 1)[1].split("}", 1)[0]
     head_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-head {", 1)[1].split("}", 1)[0]
     msg_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-msg {", 1)[1].split("}", 1)[0]
@@ -1093,13 +1185,6 @@ def test_peer_dm_menu_and_popout_follow_workspace_shell_tokens() -> None:
     input_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-input {", 1)[1].split("}", 1)[0]
     send_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-send-btn {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-bg-alt)" in menu_section
-    assert "var(--workspace-shell-border)" in menu_section
-    assert "var(--workspace-shell-bg)" in menu_list_section
-    assert "var(--workspace-shell-text-soft)" in empty_section
-    assert "var(--workspace-shell-border-muted)" in empty_section
-    assert "var(--workspace-shell-hover-bg)" in item_hover_section
-    assert "var(--workspace-shell-border-strong)" in item_hover_section
     assert "var(--workspace-shell-border)" in popout_section
     assert "var(--workspace-shell-bg-alt)" in popout_section
     assert "var(--workspace-shell-bg)" in popout_section
@@ -1111,7 +1196,6 @@ def test_peer_dm_menu_and_popout_follow_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-text)" in input_section
     assert "var(--ui-accent, var(--accent))" in send_section
     assert "black 76%" in send_section
-    assert "#13241b" not in menu_list_section
     assert "#152633" not in input_section
 
 
@@ -1147,12 +1231,32 @@ def test_lists_and_about_panels_follow_workspace_shell_tokens() -> None:
 def test_settings_checkboxes_follow_runtime_accent() -> None:
     css = build_dashboard_css(theme_css="")
 
+    time_sync_controls_section = css.split(".settings-time-sync-controls {", 1)[1].split("}", 1)[0]
     settings_checkbox_section = css.split(".settings-panel input[type=\"checkbox\"] {", 1)[1].split("}", 1)[0]
+    settings_checkbox_checked_section = css.split(".settings-panel input[type=\"checkbox\"]:checked {", 1)[1].split("}", 1)[0]
+    settings_number_input_section = css.split(".settings-input[type=\"number\"] {", 1)[1].split("}", 1)[0]
+    settings_number_spinner_section = css.split(
+        ".settings-input[type=\"number\"]::-webkit-inner-spin-button,",
+        1,
+    )[1].split("}", 1)[0]
     time_sync_checkbox_section = css.split(".settings-time-sync-toggle input[type=\"checkbox\"] {", 1)[1].split("}", 1)[0]
+    time_sync_label_section = css.split(".settings-time-sync-toggle span {", 1)[1].split("}", 1)[0]
 
+    assert "color: var(--settings-text);" in time_sync_controls_section
+    assert "color: var(--settings-text);" in time_sync_label_section
+    assert "-webkit-appearance: none;" in settings_checkbox_section
+    assert "appearance: none;" in settings_checkbox_section
+    assert "border: 1px solid var(--settings-control-border);" in settings_checkbox_section
+    assert "background-color: var(--settings-control-bg);" in settings_checkbox_section
     assert "accent-color: var(--ui-accent, var(--accent));" in settings_checkbox_section
     assert "accent-color: var(--ui-accent, var(--accent));" in time_sync_checkbox_section
+    assert "background-color: var(--ui-accent, var(--accent));" in settings_checkbox_checked_section
+    assert "background-image: url(\"data:image/svg+xml" in settings_checkbox_checked_section
+    assert "-moz-appearance: textfield;" in settings_number_input_section
+    assert "appearance: textfield;" in settings_number_input_section
+    assert "-webkit-appearance: none;" in settings_number_spinner_section
     assert "width: 14px;" in settings_checkbox_section
+    assert "color: var(--ink);" not in time_sync_label_section
     assert "#2f855a" not in time_sync_checkbox_section
 
 
@@ -1171,20 +1275,27 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     chart_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .metric-ticker-chart path {", 1)[1].split("}", 1)[0]
     radio_status_section = css.split("[data-theme=\"dark\"] .topbar .summary-ticker-item .radio-ticker-status {", 1)[1].split("}", 1)[0]
 
-    assert "var(--floating-stage-bg)" in topbar_section
+    assert "background: transparent !important;" in topbar_section
+    assert "var(--floating-stage-bg)" not in topbar_section
     assert "border-bottom: 0;" in topbar_section
     assert "box-shadow: none;" in topbar_section
     assert "#121a25" not in topbar_section
     assert "border-color: var(--workspace-shell-border);" in ticker_section
     assert "var(--workspace-shell-border-strong)" in ticker_section
     assert "var(--workspace-shell-active-text)" in ticker_section
-    assert "var(--ui-panel)" in ticker_section
-    assert "var(--ui-text)" in ticker_section
+    assert "background: var(--workspace-shell-bg);" in ticker_section
+    assert "color: var(--workspace-shell-text);" in ticker_section
+    assert "var(--ui-panel)" not in ticker_section
+    assert "var(--ui-text)" not in ticker_section
     assert "box-shadow: none;" in ticker_section
     assert "border-color: var(--workspace-shell-border-strong);" in hover_section
+    assert "var(--workspace-shell-bg-alt)" in hover_section
     assert "var(--workspace-shell-hover-bg)" in hover_section
+    assert "var(--ui-panel)" not in hover_section
     assert "border-color: var(--workspace-shell-border-strong);" in expanded_hover_section
+    assert "var(--workspace-shell-bg-alt)" in expanded_hover_section
     assert "var(--workspace-shell-hover-bg)" in expanded_hover_section
+    assert "var(--ui-panel)" not in expanded_hover_section
     assert "var(--panel)" not in expanded_hover_section
     assert "var(--line)" not in expanded_hover_section
     assert "var(--workspace-shell-text-soft)" in neutral_section
@@ -1272,12 +1383,12 @@ def test_console_view_removes_body_shell_and_keeps_terminal_frame() -> None:
     assert "background: transparent;" in body_section
     assert "padding: 0;" in body_section
     assert ".console-terminal-screen {" in css
-    assert "border: 1px solid var(--surface-tint-border-strong, #7ab18a);" in light_screen_section
+    assert "border: 1px solid var(--surface-tint-border-strong);" in light_screen_section
     assert "border-radius: 8px;" in css
     assert "var(--surface-tint-color)" in light_screen_section
-    assert "var(--surface-tint-bg-soft," in light_screen_section
-    assert "var(--surface-tint-bg-alt," in light_screen_section
-    assert "var(--surface-tint-bg," in light_screen_section
+    assert "var(--surface-tint-bg-soft)" in light_screen_section
+    assert "var(--surface-tint-bg-alt)" in light_screen_section
+    assert "var(--surface-tint-bg)" in light_screen_section
     assert "rgba(255, 255, 255, 0.5)" in light_screen_section
     assert "white 6%" in light_screen_section
     assert "white 12%" in light_screen_section
@@ -1339,13 +1450,22 @@ def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None
     css = build_dashboard_css(theme_css="")
     settings_section = css.split(".layout.view-settings .settings {", 1)[1].split("}", 1)[0]
     body_section = css.split(".layout.view-settings .settings .body {", 1)[1].split("}", 1)[0]
+    grid_section = css.split(".layout.view-settings .settings-grid {", 1)[1].split("}", 1)[0]
+    grid_panel_section = css.split(".layout.view-settings .settings-grid > .settings-panel {", 1)[1].split("}", 1)[0]
 
+    assert ".workspace-main > .layout.view-chat,\n    .workspace-main > .layout.view-console,\n    .workspace-main > .layout.view-settings {" in css
     assert "background: transparent;" in settings_section
     assert "border: 0;" in settings_section
     assert "box-shadow: none;" in settings_section
+    assert "backdrop-filter: none;" in settings_section
+    assert "-webkit-backdrop-filter: none;" in settings_section
     assert "overflow: visible;" in settings_section
     assert "background: transparent;" in body_section
     assert "padding: 0;" in body_section
+    assert "overflow: hidden;" in body_section
+    assert "overflow-y: auto;" in grid_section
+    assert "overflow-x: hidden;" in grid_section
+    assert "flex: 0 0 auto;" in grid_panel_section
     assert ".settings-chrome {" in css
     assert ".settings-panel {" in css
 

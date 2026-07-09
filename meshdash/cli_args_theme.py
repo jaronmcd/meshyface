@@ -22,7 +22,7 @@ def add_theme_args(
         default=resolved_theme_preset,
         help=(
             "Theme preset name from --theme-presets (or built-ins). "
-            f"Built-ins include default, blue, and custom (default: {resolved_theme_preset})."
+            f"Built-ins include default and custom (default: {resolved_theme_preset})."
         ),
     )
     parser.add_argument(

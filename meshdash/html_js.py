@@ -25,6 +25,7 @@ _DASHBOARD_JS_TEMPLATE_PARTS = (
     "dashboard.js.bootstrap.tickers.metrics.core.tmpl",
     "dashboard.js.bootstrap.tickers.metrics.runtime_time.tmpl",
     "dashboard.js.bootstrap.tickers.metrics.theme.tmpl",
+    "dashboard.js.bootstrap.tickers.metrics.livemap.tmpl",
     "dashboard.js.bootstrap.tickers.preferences.tmpl",
     "dashboard.js.bootstrap.tickers.controls.settings_ui.tmpl",
     "dashboard.js.bootstrap.tickers.controls.bindings_metric.tmpl",
