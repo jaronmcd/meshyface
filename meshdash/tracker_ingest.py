@@ -10,6 +10,7 @@ from .runtime_types import (
     TrackerPacket,
     TrackerParsedPacket,
 )
+from .helpers_node_names import extract_user_names_from_packet as _extract_user_names_from_packet
 from .tracker_neighbor_info import extract_neighbor_info_edges as _extract_neighbor_info_edges_helper
 from .helpers_packet_meta import extract_reaction_emoji as _extract_reaction_emoji
 
@@ -28,6 +29,62 @@ def _normalize_packet_node_id(value: object) -> object:
     if len(text) == 8 and all(ch in "0123456789abcdefABCDEF" for ch in text):
         return f"!{text.lower()}"
     return text
+
+
+def _clean_node_name(value: object) -> str:
+    return str(value or "").replace("\x00", "").strip()
+
+
+def _extract_sender_names_from_node_entry(node: object, sender_id: object = "") -> tuple[str, str]:
+    if not isinstance(node, dict):
+        return "", ""
+    clean_sender = str(_normalize_packet_node_id(sender_id) or "").strip()
+    candidates: list[dict[str, object]] = []
+    user = node.get("user")
+    if isinstance(user, dict):
+        candidates.append(user)
+    candidates.append(node)
+
+    short_name = ""
+    long_name = ""
+    for candidate in candidates:
+        candidate_id = str(_normalize_packet_node_id(candidate.get("id") or candidate.get("node_id")) or "").strip()
+        if candidate_id and clean_sender and candidate_id != clean_sender:
+            continue
+        if not short_name:
+            short_name = _clean_node_name(candidate.get("shortName") or candidate.get("short_name"))
+        if not long_name:
+            long_name = _clean_node_name(candidate.get("longName") or candidate.get("long_name"))
+        if short_name and long_name:
+            break
+    return short_name, long_name
+
+
+def _extract_sender_names_from_interface(
+    interface: object,
+    *,
+    sender_id: object,
+    sender_num: object,
+    to_int_fn: ToIntFn,
+) -> tuple[str, str]:
+    nodes_by_num = getattr(interface, "nodesByNum", None) or {}
+    if not isinstance(nodes_by_num, dict):
+        return "", ""
+
+    node = None
+    sender_num_int = to_int_fn(sender_num)
+    if sender_num_int is not None:
+        node = nodes_by_num.get(sender_num_int)
+
+    clean_sender = str(_normalize_packet_node_id(sender_id) or "").strip()
+    if not isinstance(node, dict) and clean_sender:
+        for candidate in nodes_by_num.values():
+            short_name, long_name = _extract_sender_names_from_node_entry(candidate, clean_sender)
+            if short_name or long_name:
+                return short_name, long_name
+        return "", ""
+
+    return _extract_sender_names_from_node_entry(node, clean_sender)
 
 
 def parse_tracker_packet(
@@ -72,10 +129,23 @@ def parse_tracker_packet(
         interface=interface,
         get_node_id_from_num_fn=get_node_id_from_num_fn,
     )
+    short_name, long_name = _extract_user_names_from_packet(
+        {"from": from_id, "from_num": packet.get("from")},
+        packet,
+    )
+    if not short_name and not long_name:
+        short_name, long_name = _extract_sender_names_from_interface(
+            interface,
+            sender_id=from_id,
+            sender_num=packet.get("from"),
+            to_int_fn=to_int_fn,
+        )
 
     return {
         "from_id": from_id,
         "to_id": to_id,
+        "from_short_name": short_name,
+        "from_long_name": long_name,
         "rx_time": rx_time,
         "rx_snr": packet.get("rxSnr"),
         "rx_rssi": packet.get("rxRssi"),

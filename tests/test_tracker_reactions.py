@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from meshdash.helpers_emoji import emoji_from_codepoint
 from meshdash.helpers_packet_meta import extract_emoji_codepoint, extract_reply_id
 from meshdash.tracker_entries import build_chat_entry_from_packet
+from meshdash.tracker_packet_artifacts import build_tracker_packet_artifacts
 from meshdash.tracker_ingest import parse_tracker_packet
 
 
@@ -122,6 +123,64 @@ def test_parse_tracker_packet_keeps_short_ascii_reply_text_as_plain_message() ->
     assert parsed["emoji_glyph"] is None
     assert parsed["emoji_codepoint"] is None
     assert parsed["is_reaction"] is False
+
+
+def test_parse_tracker_packet_hydrates_sender_names_from_interface_node_db() -> None:
+    class _Interface:
+        nodesByNum = {
+            101: {
+                "user": {
+                    "id": "!00000065",
+                    "shortName": "RLY",
+                    "longName": "Replay Relay",
+                }
+            }
+        }
+
+    packet = {
+        "id": 560,
+        "from": 101,
+        "to": 4294967295,
+        "rxTime": 1239,
+        "decoded": {
+            "portnum": "TEXT_MESSAGE_APP",
+            "text": "replayed hello",
+        },
+    }
+    parsed = parse_tracker_packet(
+        packet,
+        _Interface(),
+        get_node_id_from_num_fn=_node_id_from_num,
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        calculate_hops_fn=lambda _start, _limit: None,
+        extract_packet_position_fn=lambda _packet: None,
+        extract_packet_battery_level_fn=lambda _packet: None,
+        extract_reply_id_fn=extract_reply_id,
+        extract_emoji_codepoint_fn=extract_emoji_codepoint,
+        emoji_from_codepoint_fn=emoji_from_codepoint,
+    )
+
+    packet_entry, chat_entry = build_tracker_packet_artifacts(
+        packet=packet,
+        parsed=parsed,
+        include_live_count=True,
+        build_packet_summary_fn=__import__("meshdash.tracker_entries", fromlist=["build_packet_summary"]).build_packet_summary,
+        build_chat_entry_from_packet_fn=build_chat_entry_from_packet,
+        utc_now_fn=lambda: "2026-07-09T18:00:00Z",
+        format_epoch_fn=lambda value: str(value),
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        to_jsonable_fn=lambda value: value,
+    )
+
+    assert parsed["from_short_name"] == "RLY"
+    assert parsed["from_long_name"] == "Replay Relay"
+    assert packet_entry["summary"]["from_short_name"] == "RLY"
+    assert packet_entry["summary"]["from_long_name"] == "Replay Relay"
+    assert packet_entry["summary"]["from_name"] == "Replay Relay"
+    assert chat_entry is not None
+    assert chat_entry["from_short_name"] == "RLY"
+    assert chat_entry["from_long_name"] == "Replay Relay"
+    assert chat_entry["from_name"] == "Replay Relay"
 
 
 def test_build_chat_entry_from_alert_payload_bytes() -> None:
