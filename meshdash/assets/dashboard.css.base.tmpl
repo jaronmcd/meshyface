@@ -2335,14 +2335,15 @@
       right: 0;
       min-width: 224px;
       max-width: min(320px, 86vw);
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      background: var(--surface-tint-bg-alt);
-      padding: 6px;
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, #b8d3c2);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--accent-2) 38%, #07140f);
+      padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      box-shadow: 0 10px 28px color-mix(in srgb, var(--line) 24%, transparent);
+      box-shadow: 0 16px 34px color-mix(in srgb, var(--accent-2) 24%, rgba(4, 12, 8, 0.42));
+      backdrop-filter: blur(14px);
       z-index: 45;
     }}
     .mesh-channel-menu[hidden] {{
@@ -2357,12 +2358,10 @@
         transparent 4px
       );
       width: 100%;
-      border: 1px solid color-mix(in srgb, var(--surface-tint-border) 76%, var(--mesh-channel-edge-fill) 24%);
-      border-radius: 8px;
-      background:
-        var(--mesh-channel-edge-bg),
-        var(--surface-tint-bg-soft);
-      color: var(--surface-tint-text);
+      border: 1px solid color-mix(in srgb, var(--mesh-channel-edge-fill) 30%, transparent);
+      border-radius: 10px;
+      background: var(--mesh-channel-edge-bg);
+      color: #f2fff7;
       padding: 6px 7px 6px 14px;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -2376,14 +2375,14 @@
     .mesh-channel-menu-item:hover {{
       background:
         var(--mesh-channel-edge-bg),
-        var(--surface-tint-bg-hover);
-      border-color: color-mix(in srgb, var(--surface-tint-border-strong) 70%, var(--mesh-channel-edge-fill) 30%);
+        color-mix(in srgb, var(--accent) 16%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 44%, var(--mesh-channel-edge-fill) 30%);
     }}
     .mesh-channel-menu-item.active {{
       background:
         var(--mesh-channel-edge-bg),
-        color-mix(in srgb, var(--surface-tint-bg-hover) 84%, var(--mesh-channel-edge-fill) 16%);
-      border-color: color-mix(in srgb, var(--surface-tint-border-strong) 58%, var(--mesh-channel-edge-fill) 42%);
+        color-mix(in srgb, var(--accent) 24%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 48%, var(--mesh-channel-edge-fill) 38%);
       box-shadow: none;
     }}
     .mesh-channel-menu-item-all {{
@@ -2392,7 +2391,7 @@
     .mesh-channel-menu-item-all:hover {{
       background:
         var(--mesh-channel-edge-bg),
-        var(--surface-tint-bg-hover);
+        color-mix(in srgb, var(--accent) 16%, transparent);
     }}
     .mesh-channel-menu-item-main {{
       min-width: 0;
@@ -2416,7 +2415,7 @@
       vertical-align: middle;
     }}
     .mesh-channel-menu-item-meta {{
-      color: #5d7668;
+      color: color-mix(in srgb, white 70%, var(--accent) 30%);
       font-size: 9px;
     }}
     .workspace-shell {{
@@ -8715,20 +8714,21 @@
       left: 0;
       right: 0;
       z-index: 8;
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--surface-tint-bg-alt) 92%, transparent);
-      box-shadow: 0 8px 24px rgba(15, 32, 24, 0.2);
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, #b8d3c2);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--accent-2) 38%, #07140f);
+      box-shadow: 0 16px 34px color-mix(in srgb, var(--accent-2) 24%, rgba(4, 12, 8, 0.42));
+      backdrop-filter: blur(14px);
       max-height: 260px;
       overflow: auto;
-      padding: 4px;
+      padding: 8px;
     }}
     .node-search-item {{
       border: 1px solid transparent;
-      border-radius: 6px;
+      border-radius: 10px;
       background: transparent;
-      color: var(--surface-tint-text);
-      padding: 6px 7px;
+      color: #f2fff7;
+      padding: 6px 8px;
       width: 100%;
       text-align: left;
       align-items: center;
@@ -8741,15 +8741,15 @@
     }}
     .node-search-item:hover,
     .node-search-item.active {{
-      border-color: var(--surface-tint-border-strong);
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
+      border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      color: #f2fff7;
     }}
     .node-search-item.selected-node {{
-      border-color: var(--surface-tint-border-strong);
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
-      box-shadow: inset 2px 0 0 var(--surface-tint-border-strong);
+      border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
+      color: #f2fff7;
+      box-shadow: inset 2px 0 0 var(--accent);
     }}
     .node-search-name {{
       overflow: hidden;
@@ -8759,13 +8759,13 @@
       font-weight: 600;
     }}
     .node-search-id {{
-      color: #5d7566;
+      color: color-mix(in srgb, white 70%, var(--accent) 30%);
       white-space: nowrap;
       flex: 0 0 auto;
     }}
     .node-search-empty {{
       padding: 7px 8px;
-      color: #5d7566;
+      color: color-mix(in srgb, white 70%, var(--accent) 30%);
       font-size: 11px;
       line-height: 1.25;
     }}
@@ -9695,26 +9695,27 @@
       right: 0;
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      max-height: 220px;
+      gap: 4px;
+      max-height: 240px;
       overflow: auto;
-      padding: 4px;
-      border: 1px solid #aebdae;
-      border-radius: 8px;
-      background: #f8fbf7;
-      box-shadow: 0 10px 24px rgba(15, 32, 24, 0.2);
+      padding: 8px;
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, #b8d3c2);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--accent-2) 38%, #07140f);
+      box-shadow: 0 16px 34px color-mix(in srgb, var(--accent-2) 24%, rgba(4, 12, 8, 0.42));
+      backdrop-filter: blur(14px);
     }}
     .settings-update-branch-options[hidden] {{
       display: none !important;
     }}
     .settings-update-branch-option {{
       width: 100%;
-      min-height: 28px;
-      padding: 6px 8px;
-      border: 0;
-      border-radius: 6px;
+      min-height: 30px;
+      padding: 7px 10px;
+      border: 1px solid transparent;
+      border-radius: 10px;
       background: transparent;
-      color: #0f2018;
+      color: #f2fff7;
       font: inherit;
       font-size: 12px;
       line-height: 1.25;
@@ -9723,16 +9724,19 @@
     }}
     .settings-update-branch-option:hover,
     .settings-update-branch-option:focus-visible {{
-      background: color-mix(in srgb, var(--accent) 14%, var(--panel) 86%);
+      border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
       outline: none;
     }}
     .settings-update-branch-option[aria-selected="true"] {{
-      background: color-mix(in srgb, var(--panel) 74%, var(--accent) 26%);
-      color: #0f2018;
+      border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
+      color: #f2fff7;
       font-weight: 700;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
     }}
     .settings-update-branch-option:disabled {{
-      color: var(--muted);
+      color: color-mix(in srgb, white 70%, var(--accent) 30%);
       cursor: default;
     }}
     .settings-update-history-panel {{
