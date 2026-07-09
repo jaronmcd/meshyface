@@ -41,7 +41,8 @@
       const rawHex = nodeId.startsWith("!") ? nodeId.slice(1).toLowerCase() : "";
       const shortHex = rawHex ? rawHex.slice(-4) : "";
       const lower = name.toLowerCase();
-      if (rawHex && (lower === rawHex || lower === shortHex)) return true;
+      const normalizedName = normalizeNodeId(name);
+      if (rawHex && (normalizedName === nodeId || lower === rawHex || lower === shortHex)) return true;
       const match = lower.match(/^meshtastic(?:[\s_-]+([0-9a-f]{4,8}))?$/i);
       if (!match) return false;
       const suffix = String((match && match[1]) || "").trim().toLowerCase();

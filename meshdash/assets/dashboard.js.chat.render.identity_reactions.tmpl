@@ -773,7 +773,11 @@
       const preferredChatNodeName = (nodeId, node, historyCaps, fallbackName = "") => {{
         const clean = normalizeNodeId(nodeId || "");
         const cached = clean ? String(nodeNameCache.get(clean) || "").trim() : "";
-        return preferredNodeName(node) || preferredHistoryNodeName(historyCaps, clean, cached) || cached || fallbackName;
+        const usefulCached = (
+          cached
+          && !(typeof isGenericNodeCacheLabel === "function" && isGenericNodeCacheLabel(cached, clean))
+        ) ? cached : "";
+        return preferredNodeName(node) || preferredHistoryNodeName(historyCaps, clean, cached) || usefulCached || fallbackName;
       }};
 
       const nodeIdentityMeta = (nodeId, options = {{}}) => {{

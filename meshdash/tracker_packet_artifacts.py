@@ -11,6 +11,19 @@ from .runtime_types import (
     UtcNowFn,
 )
 
+
+def _copy_sender_names(target: dict[str, object], parsed: TrackerParsedPacket) -> None:
+    short_name = str(parsed.get("from_short_name") or "").strip()
+    long_name = str(parsed.get("from_long_name") or "").strip()
+    if short_name:
+        target["from_short_name"] = short_name
+    if long_name:
+        target["from_long_name"] = long_name
+    display_name = long_name or short_name
+    if display_name:
+        target["from_name"] = display_name
+
+
 def build_tracker_packet_artifacts(
     *,
     packet: TrackerPacket,
@@ -41,6 +54,7 @@ def build_tracker_packet_artifacts(
         format_epoch_fn=format_epoch_fn,
         to_int_fn=to_int_fn,
     )
+    _copy_sender_names(packet_summary, parsed)
     packet_summary["live"] = include_live_count
 
     packet_entry = {
@@ -62,4 +76,6 @@ def build_tracker_packet_artifacts(
         utc_now_fn=utc_now_fn,
         format_epoch_fn=format_epoch_fn,
     )
+    if chat_entry is not None:
+        _copy_sender_names(chat_entry, parsed)
     return packet_entry, chat_entry
