@@ -119,7 +119,7 @@
         pushChoice(emoji);
       }}
 
-      return out.slice(0, 6);
+      return out.slice(0, chatEmojiTopUsageCount);
     }}
 
     function reactionQuickButtons(row) {{
@@ -151,15 +151,15 @@
     function reactionQuickNextOrder(sourceEmoji, insertionIndex, currentOrder = []) {{
       const source = String(sourceEmoji || "").trim();
       if (!source) return [];
-      const visible = normalizeChatEmojiPinnedChoices(currentOrder, 6);
+      const visible = normalizeChatEmojiPinnedChoices(currentOrder, chatEmojiTopUsageCount);
       const working = visible.filter((emoji) => emoji !== source);
       const sourceInVisible = working.length !== visible.length;
       let insertAt = Math.max(0, Math.min(working.length, Math.trunc(Number(insertionIndex) || 0)));
-      if (!sourceInVisible && insertAt >= 6) {{
-        insertAt = 5;
+      if (!sourceInVisible && insertAt >= chatEmojiTopUsageCount) {{
+        insertAt = chatEmojiTopUsageCount - 1;
       }}
       working.splice(insertAt, 0, source);
-      const next = working.slice(0, 6);
+      const next = working.slice(0, chatEmojiTopUsageCount);
       return chatEmojiTopOrdersEqual(next, visible) ? [] : next;
     }}
 
@@ -191,7 +191,7 @@
     }}
 
     function reactionQuickCommitOrder(visibleOrder) {{
-      const nextVisible = normalizeChatEmojiPinnedChoices(visibleOrder, 6);
+      const nextVisible = normalizeChatEmojiPinnedChoices(visibleOrder, chatEmojiTopUsageCount);
       if (!nextVisible.length) return false;
       const currentTop = typeof chatEmojiTopChoices === "function" ? chatEmojiTopChoices() : [];
       const next = [];

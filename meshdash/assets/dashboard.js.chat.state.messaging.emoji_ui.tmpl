@@ -580,8 +580,8 @@
 
     function decorateChatEmojiTopItemNode(node, emoji) {{
       if (!(node instanceof HTMLElement)) return;
-      node.title = `${{emoji}}. Drag to rearrange or remove from your top 8.`;
-      node.setAttribute("aria-label", `${{emoji}}. Drag to rearrange or remove from your top 8.`);
+      node.title = `${{emoji}}. Drag to rearrange or remove from your top ${{chatEmojiTopUsageCount}}.`;
+      node.setAttribute("aria-label", `${{emoji}}. Drag to rearrange or remove from your top ${{chatEmojiTopUsageCount}}.`);
     }}
 
     function applyChatEmojiTopPreviewOrder(topGrid, nextOrder) {{
@@ -932,7 +932,7 @@
             : "No quick matches found.")
           : (chatEmojiMode === "react"
             ? "No compatible reaction emojis in your top list yet."
-            : "Use emojis and your top 8 will appear here.");
+            : `Use emojis and your top ${{chatEmojiTopUsageCount}} will appear here.`);
         topGrid.replaceChildren(empty);
         topGrid.dataset.signature = signature;
         return;

@@ -797,6 +797,7 @@
       date: "2025-08-04, 20:55:31 GMT",
       groups: [],
       codepoint_keyword_map: {},
+      emoji_keyword_map: {},
     });
     let chatEmojiDataVersion = String(chatEmojiCatalogFallback.version || "unknown");
     let chatEmojiDataDate = String(chatEmojiCatalogFallback.date || "");
@@ -808,9 +809,9 @@
     let chatEmojiDefaultGroup = "all";
     const chatEmojiPickerStateStorageKey = "meshDashboardEmojiPickerStateV2";
     const chatEmojiUsageStorageKey = "meshDashboardEmojiUsageV1";
-    const chatEmojiTopUsageCount = 8;
+    const chatEmojiTopUsageCount = 10;
     const chatEmojiUsagePersistMax = 128;
-    const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊"];
+    const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊", "🔥", "👏"];
     const chatEmojiNodesByGroup = new Map();
     const chatEmojiSearchCache = new Map();
     const chatEmojiSearchMetaByEmoji = new Map();
@@ -849,6 +850,7 @@
       "celebration": "party celebrate confetti",
     }};
     let chatEmojiCodepointKeywordMap = {};
+    let chatEmojiEmojiKeywordMap = {};
     const chatEmojiSearchAliases = {{
       "👍": "thumb thumbs up thumbsup thumbs-up like approve yes ok",
       "👎": "thumbs down thumbsdown thumbs-down dislike no reject",
@@ -879,6 +881,25 @@
       "⭐": "star favorite fav",
       "💪": "muscle strong strength",
       "✌️": "peace victory",
+      "🫩": "bags under eyes tired sleepy exhausted weary drowsy",
+      "🫪": "distorted face warped dizzy woozy weird",
+      "🫯": "fight cloud brawl scuffle wrestling dust punch",
+      "🫈": "hairy creature bigfoot sasquatch yeti cryptid monster furry",
+      "🫆": "fingerprint identity biometric print forensics detective",
+      "🫍": "orca killer whale ocean sea",
+      "🪾": "leafless tree bare branches dead winter drought",
+      "🫜": "root vegetable turnip beet radish garden harvest",
+      "🛘": "landslide rockslide mudslide avalanche falling rocks",
+      "🪊": "trombone brass instrument music jazz band",
+      "🪉": "harp instrument music strings orchestra angel",
+      "🪎": "treasure chest pirate gold loot booty riches",
+      "🪏": "shovel dig spade garden snow tool",
+      "🫟": "splatter splash spill stain paint ink mess",
+      "🇺🇸": "usa us america american stars stripes",
+      "🇬🇧": "uk britain british great britain",
+      "🇦🇪": "uae emirates",
+      "🇳🇱": "holland dutch",
+      "🇨🇭": "swiss",
     }};
     let chatEmojiCatalogLoaded = false;
     let chatEmojiCatalogLoadPromise = null;

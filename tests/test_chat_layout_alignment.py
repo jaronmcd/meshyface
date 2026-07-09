@@ -898,6 +898,14 @@ def test_chat_emoji_picker_follows_workspace_view_menu_chrome() -> None:
         ".chat-reaction-popover-quick-btn {",
         1,
     )[1].split("}", 1)[0]
+    collapsed_reaction_panel_section = css.split(
+        ".chat-emoji-panel.chat-emoji-panel-react-collapsed {",
+        1,
+    )[1].split("}", 1)[0]
+    expanded_reaction_panel_section = css.split(
+        ".chat-emoji-panel.chat-emoji-panel-react-expanded {",
+        1,
+    )[1].split("}", 1)[0]
     collapsed_reaction_toggle_row_section = css.split(
         ".chat-emoji-panel.chat-emoji-panel-react-collapsed .chat-emoji-react-toggle-row {",
         1,
@@ -998,12 +1006,15 @@ def test_chat_emoji_picker_follows_workspace_view_menu_chrome() -> None:
     assert "cursor: grab;" in emoji_top_sortable_section
     assert "border-radius: 8px;" in reaction_popover_section
     assert "var(--workspace-shell-bg" in reaction_popover_section
+    assert "max-width: min(420px, calc(100vw - 16px));" in reaction_popover_section
     assert "backdrop-filter: blur(14px) saturate(138%);" in reaction_popover_section
     assert "border-radius: 8px;" in reaction_button_section
     assert "height: 30px;" in reaction_button_section
     assert "border: 1px solid transparent;" in reaction_button_section
     assert "cursor: grab;" in reaction_quick_button_section
     assert "touch-action: none;" in reaction_quick_button_section
+    assert "width: min(420px, 96vw);" in collapsed_reaction_panel_section
+    assert "width: min(420px, 96vw);" in expanded_reaction_panel_section
     assert ".chat-reaction-popover.is-emoji-dragging," in css
     assert ".chat-reaction-popover-quick-btn.dragging {" in css
     assert "justify-content: flex-end;" in css
@@ -1072,9 +1083,11 @@ def test_chat_emoji_picker_follows_workspace_view_menu_chrome() -> None:
     assert "let chatEmojiTopSuppressClickUntilMs = 0;" in js
     assert "let chatReactionQuickPointerDrag = null;" in js
     assert "let chatReactionQuickSuppressClickUntilMs = 0;" in js
+    assert "const chatEmojiTopUsageCount = 10;" in js
+    assert 'const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊", "🔥", "👏"];' in js
     assert "function normalizeChatEmojiTopSuppressedChoices(rawChoices)" in js
     assert "function removeChatEmojiTopChoice(rawEmoji)" in js
-    assert "Drag to rearrange or remove from your top 8." in js
+    assert "Drag to rearrange or remove from your top ${chatEmojiTopUsageCount}." in js
     assert 'top_suppressed_choices: normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices),' in js
     assert "parsed.top_suppressed_choices || parsed.topSuppressedChoices || []" in js
     assert "function chatEmojiTopNextOrder(sourceEmoji, insertionIndex, currentOrder = [])" in js
@@ -1088,6 +1101,12 @@ def test_chat_emoji_picker_follows_workspace_view_menu_chrome() -> None:
     assert "function dismissChatEmojiDragGhost(targetRect = null)" in js
     assert "function revertChatEmojiTopPreview(topGrid)" in js
     assert "function reactionQuickNextOrder(sourceEmoji, insertionIndex, currentOrder = [])" in js
+    assert "return out.slice(0, chatEmojiTopUsageCount);" in js
+    assert "const visible = normalizeChatEmojiPinnedChoices(currentOrder, chatEmojiTopUsageCount);" in js
+    assert "if (!sourceInVisible && insertAt >= chatEmojiTopUsageCount) {" in js
+    assert "insertAt = chatEmojiTopUsageCount - 1;" in js
+    assert "const next = working.slice(0, chatEmojiTopUsageCount);" in js
+    assert "const nextVisible = normalizeChatEmojiPinnedChoices(visibleOrder, chatEmojiTopUsageCount);" in js
     assert "function finishReactionQuickPointerDrag(ev, commit = false)" in js
     assert "const droppedBackFromTop = !!(" in js
     assert "changed = removeChatEmojiTopChoice(draggedEmoji);" in js
