@@ -4,11 +4,42 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${MESH_GUI_BENCH_PORT:-8877}"
 URL="${MESH_GUI_BENCH_URL:-http://127.0.0.1:${PORT}/}"
+DEFAULT_LOCAL_URL="http://127.0.0.1:8877/"
 OUTPUT="${MESH_GUI_BENCH_OUTPUT:-${ROOT_DIR}/benchmarks/gui_responsiveness/results/local-gui-responsiveness.json}"
 THRESHOLDS="${MESH_GUI_BENCH_THRESHOLDS:-${ROOT_DIR}/benchmarks/gui_responsiveness/local_thresholds.json}"
 SERVER_LOG="${MESH_GUI_BENCH_SERVER_LOG:-${TMPDIR:-/tmp}/mesh_gui_bench_local_server.log}"
 HISTORY_DB="${MESH_GUI_BENCH_HISTORY_DB:-${TMPDIR:-/tmp}/mesh_gui_bench_history.sqlite3}"
 SERVER_PID=""
+
+refuse_if_local_server_responds() {
+  local probe_url="$1"
+  if curl -sS --max-time 2 -o /dev/null "${probe_url}" >/dev/null 2>&1; then
+    {
+      echo "Existing local server detected at ${probe_url}."
+      echo "Refusing to run the local GUI benchmark while another server is active."
+      echo "Stop the local server first, then rerun the benchmark."
+    } >&2
+    exit 2
+  fi
+}
+
+is_local_url() {
+  case "$1" in
+    http://127.*|https://127.*|http://localhost*|https://localhost*|http://[[]::1[]]*|https://[[]::1[]]*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+require_no_existing_local_server() {
+  refuse_if_local_server_responds "${DEFAULT_LOCAL_URL}"
+  if [[ "${URL}" != "${DEFAULT_LOCAL_URL}" ]] && is_local_url "${URL}"; then
+    refuse_if_local_server_responds "${URL}"
+  fi
+}
 
 cleanup() {
   if [[ -n "${SERVER_PID}" ]] && kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
@@ -17,6 +48,8 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+require_no_existing_local_server
 
 if [[ -z "${MESH_GUI_BENCH_URL:-}" ]]; then
   python "${ROOT_DIR}/mesh_dashboard.py" \

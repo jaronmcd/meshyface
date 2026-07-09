@@ -162,6 +162,20 @@ class _FakeTelemetry:
             self.power_metrics.ch1_voltage = 12.3
             self.power_metrics.ch1_current = 1.1
             return
+        if payload == b"good-telemetry-power-many":
+            self.power_metrics.ch1_voltage = 0.008
+            self.power_metrics.ch1_current = 0.0
+            self.power_metrics.ch2_voltage = 2.584
+            self.power_metrics.ch2_current = 0.0
+            self.power_metrics.ch3_voltage = 0.0
+            self.power_metrics.ch3_current = 0.0
+            return
+        if payload == b"good-telemetry-environment":
+            self.environment_metrics.temperature = 23.359701
+            self.environment_metrics.relative_humidity = 40.619434
+            self.environment_metrics.barometric_pressure = 1000.00977
+            self.environment_metrics.gas_resistance = 12345.0
+            return
         if payload == b"bad-telemetry":
             raise ValueError("bad telemetry payload")
 
@@ -525,6 +539,79 @@ def test_run_network_tool_request_telemetry_success(monkeypatch: pytest.MonkeyPa
     assert iface.send_calls[0]["portNum"] == _FakePortNum.TELEMETRY_APP
     assert iface.send_calls[0]["wantResponse"] is True
     assert iface.send_calls[0]["hopLimit"] == 4
+
+
+def test_run_network_tool_request_telemetry_console_includes_all_power_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "meshdash.services_network_tools._load_meshtastic_modules",
+        lambda: (_FakeChannelPb2, _FakeMeshPb2, _FakePortnumsPb2, _FakeTelemetryPb2),
+    )
+    iface = _FakeIface(
+        {
+            "decoded": {
+                "portnum": "TELEMETRY_APP",
+                "payload": b"good-telemetry-power-many",
+            }
+        }
+    )
+
+    response = run_network_tool(
+        NetworkToolRequest(
+            command="request_telemetry",
+            destination="!abcd1234",
+            telemetry_type="power_metrics",
+        ),
+        iface=iface,
+        send_lock=threading.Lock(),
+    )
+
+    assert response["ok"] is True
+    assert response["result"]["response_type"] == "power_metrics"
+    assert response["result"]["response"]["power_metrics"]["ch2_current"] == 0.0
+    assert response["result"]["response"]["power_metrics"]["ch3_current"] == 0.0
+    assert response["console_lines"] == [
+        "[telemetry] !abcd1234 | type=power_metrics | response=power_metrics | "
+        "ch1_voltage=0.008, ch1_current=0.0, ch2_voltage=2.584, "
+        "ch2_current=0.0, ch3_voltage=0.0, ch3_current=0.0"
+    ]
+
+
+def test_run_network_tool_request_telemetry_console_includes_environment_gas_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "meshdash.services_network_tools._load_meshtastic_modules",
+        lambda: (_FakeChannelPb2, _FakeMeshPb2, _FakePortnumsPb2, _FakeTelemetryPb2),
+    )
+    iface = _FakeIface(
+        {
+            "decoded": {
+                "portnum": "TELEMETRY_APP",
+                "payload": b"good-telemetry-environment",
+            }
+        }
+    )
+
+    response = run_network_tool(
+        NetworkToolRequest(
+            command="request_telemetry",
+            destination="!abcd1234",
+            telemetry_type="environment_metrics",
+        ),
+        iface=iface,
+        send_lock=threading.Lock(),
+    )
+
+    assert response["ok"] is True
+    assert response["result"]["response_type"] == "environment_metrics"
+    assert response["result"]["response"]["environment_metrics"]["gas_resistance"] == 12345.0
+    assert response["console_lines"] == [
+        "[telemetry] !abcd1234 | type=environment_metrics | response=environment_metrics | "
+        "temperature=23.359701, relative_humidity=40.619434, "
+        "barometric_pressure=1000.00977, gas_resistance=12345.0"
+    ]
 
 
 def test_run_network_tool_request_store_forward_history_sends_request(
