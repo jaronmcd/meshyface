@@ -34,7 +34,6 @@ from meshdash.theme import (
     DEFAULT_CUSTOM_THEME_PARTICLES_SIZE,
     DEFAULT_CUSTOM_THEME_PARTICLES_SPEED,
     DEFAULT_CUSTOM_THEME_TEXT_FONT,
-    LIGHT_THEME_VARS,
     build_palette_theme_preset,
     normalize_theme_background_image_data,
     normalize_theme_background_image_darken,
