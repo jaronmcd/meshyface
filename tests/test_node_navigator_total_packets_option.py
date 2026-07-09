@@ -389,6 +389,7 @@ def test_dashboard_js_supports_status_dot_toggle_in_node_navigator() -> None:
     assert 'const isLocalNode = (typeof isSelfNodeId === "function")' not in js
     assert 'const hasNodeVisualEmoji = !!cleanNodeVisualEmoji;' in js
     assert 'const autoNewStatusEntry = (typeof autoNodeTagEntryForNode === "function")' in js
+    assert 'const autoNewClass = autoNewStatusEntry ? " auto-new-node" : "";' in js
     assert "function stripNodeVisualEmojiFromLabel(value, emoji) {" in js
     assert "const statusOverridesNodeVisualEmoji = !!autoNewStatusEntry;" in js
     assert "hasNodeVisualEmoji && showStatusDots && !statusOverridesNodeVisualEmoji && typeof stripNodeVisualEmojiFromLabel === \"function\"" in js
@@ -396,6 +397,7 @@ def test_dashboard_js_supports_status_dot_toggle_in_node_navigator() -> None:
     assert 'nodeTagIconSvgHtml(tagEntry, "chat-member-tag-chip-icon")' not in js
     assert 'nodeTagIconSvgHtml(autoNewStatusEntry, "chat-member-status-new-icon")' not in js
     assert 'const statusMarkerHtml = autoNewStatusEntry' in js
+    assert '${autoNewClass}' in js
     assert '<span class="chat-member-status chat-member-status-new status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}><span class="chat-member-status-new-text" aria-hidden="true">N</span></span>' in js
     assert '<span class="chat-member-status chat-member-status-emoji status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}>' in js
     assert '<span class="chat-member-status chat-member-status-dot status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}>●</span>' in js

@@ -103,3 +103,27 @@ def test_dashboard_asset_route_serves_fingerprinted_asset_with_cache_headers() -
     assert headers["Vary"] == "Accept-Encoding"
     assert int(headers["Content-Length"]) == len(handler.wfile.getvalue())
     assert gzip.decompress(handler.wfile.getvalue()).decode("utf-8") == css.rstrip("\n")
+
+
+def test_vendor_particles_asset_route_serves_bundled_script() -> None:
+    deps = build_get_route_dependencies(
+        html_text=_dashboard_html(),
+        state_fn=lambda: {},
+        node_history_fn=None,
+        online_activity_fn=None,
+        default_node_history_hours=24,
+    )
+    handler = _Handler()
+
+    handle_dashboard_get(handler, path="/assets/vendor/particles-2.0.0.min.js", query="", deps=deps)
+
+    headers = handler.header_dict()
+    payload = handler.wfile.getvalue()
+    assert handler.status_code == 200
+    assert handler.ended is True
+    assert headers["Content-Type"] == "application/javascript; charset=utf-8"
+    assert headers["Cache-Control"] == "public, max-age=86400"
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert int(headers["Content-Length"]) == len(payload)
+    assert b"Vincent Garreau" in payload
+    assert b"particlesJS" in payload

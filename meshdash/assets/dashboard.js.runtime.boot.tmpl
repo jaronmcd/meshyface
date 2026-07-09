@@ -71,11 +71,6 @@
     runBootStep("startNewCheckersGame", () => startNewCheckersGame());
     runBootStep("startNewChessGame", () => startNewChessGame());
     runBootStep("startNewWallChessGame", () => startNewWallChessGame());
-    runBootStep("startNewPokerGame", () => {{
-      if (typeof startNewPokerGame === "function") {{
-        startNewPokerGame();
-      }}
-    }});
     runBootStep("loadLayoutView", () => loadLayoutView());
     runBootStep("loadManualDirectPeers", () => loadManualDirectPeers());
     runBootStep("loadChatNodeNavigatorPreferences", () => loadChatNodeNavigatorPreferences());
@@ -178,6 +173,7 @@
     runBootStep("bindNetworkOverviewPacketSeriesControls", () => bindNetworkOverviewPacketSeriesControls());
     runBootStep("bindNodePacketSeriesControls", () => bindNodePacketSeriesControls());
     runBootStep("bindThemePresetSelector", () => bindThemePresetSelector());
+    runBootStep("bindThemePresetActionButtons", () => bindThemePresetActionButtons());
     runBootStep("bindThemeCustomControls", () => bindThemeCustomControls());
     runBootStep("bindMeshChannelControl", () => bindMeshChannelControl());
     runBootStep("bindMeshChannelMenuControl", () => bindMeshChannelMenuControl());
@@ -290,6 +286,10 @@
     let lastScheduledPollMs = 0;
     setInterval(() => {{
       const nowMs = Date.now();
+      if (window.__meshDashboardGuiBenchmarkActive) {{
+        lastScheduledPollMs = nowMs;
+        return;
+      }}
       if (document.hidden && (nowMs - lastScheduledPollMs) < hiddenRefreshMs) {{
         return;
       }}

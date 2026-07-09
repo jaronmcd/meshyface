@@ -121,18 +121,17 @@ def test_dashboard_js_defaults_live_update_ticker_to_disabled() -> None:
     assert "Ticker preferences reset to defaults." not in js
 
 
-def test_dashboard_js_defaults_unique_node_colors_to_off() -> None:
+def test_dashboard_js_removes_unique_node_color_settings() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert "let settingsUniqueNodeColorsEnabled = false;" in js
-    assert re.search(
-        r"settingsUniqueNodeColorsEnabled = parseBoolToken\(\s*window\.localStorage\.getItem\(settingsUniqueNodeColorsStorageKey\),\s*false\s*\);",
-        js,
-    )
+    assert "settingsUniqueNodeColors" not in js
+    assert "settingsUniqueChatColors" not in js
+    assert "settings-appearance-unique-node-colors" not in js
+    assert "settings-appearance-unique-chat-colors" not in js
 
 
 def test_dashboard_js_uses_semantic_ticker_state_profiles() -> None:
@@ -339,7 +338,7 @@ def test_compact_tickers_expand_selected_card_below_fixed_row() -> None:
     assert "box-shadow: none;" in css
     assert '[data-theme="dark"] .topbar:not(.ticker-expanded) .summary-ticker-item[data-ticker-id]:not([data-ticker-id="self"]):hover,' in css
     assert '[data-theme="dark"] .topbar:not(.ticker-expanded) .summary-ticker-item[data-ticker-id]:not([data-ticker-id="self"]):focus-visible {' in css
-    assert "background: color-mix(in srgb, var(--ui-panel-alt) 88%, var(--workspace-shell-hover-bg) 12%);" in css
+    assert "background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, var(--workspace-shell-hover-bg) 12%);" in css
     assert "border-color: var(--workspace-shell-border-strong);" in css
     assert '[data-theme="dark"] .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item.is-compact-detail-open:hover,' in css
     assert '[data-theme="dark"] .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item.is-compact-detail-open:focus-visible {' in css
@@ -449,13 +448,19 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     assert "flex-grow: 0;" in html
     assert ".topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value {" in html
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
+    ticker_item_section = html.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
+    assert "--ticker-text: var(--theme-text-color, var(--ink));" in ticker_item_section
+    assert "--ticker-text-strong: var(--theme-text-color-strong, var(--ticker-text));" in ticker_item_section
+    assert "--ticker-text-soft: var(--theme-text-color-soft, var(--muted));" in ticker_item_section
+    assert "--ticker-text-muted: var(--theme-text-color-muted, var(--ticker-text-soft));" in ticker_item_section
+    assert "color: var(--ticker-text);" in ticker_item_section
     assert re.search(
-        r"\.topbar \.summary-ticker-item \{\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ink\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
+        r"\.topbar \.summary-ticker-item \{\s*--ticker-text: var\(--theme-text-color, var\(--ink\)\);\s*--ticker-text-strong: var\(--theme-text-color-strong, var\(--ticker-text\)\);\s*--ticker-text-soft: var\(--theme-text-color-soft, var\(--muted\)\);\s*--ticker-text-muted: var\(--theme-text-color-muted, var\(--ticker-text-soft\)\);\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ticker-text\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
         html,
     )
     assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .label {" in html
     assert "bottom: 2px;" in html
-    assert "color: color-mix(in srgb, var(--muted) 7%, transparent);" in html
+    assert "color: color-mix(in srgb, var(--ticker-text-muted) 12%, transparent);" in html
     assert "font-size: clamp(6px, 0.42vw, 7px);" in html
     assert "text-align: right;" in html
     assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .value," in html
@@ -697,7 +702,7 @@ def test_self_ticker_id_uses_muted_light_mode_text() -> None:
         1,
     )[1].split("}", 1)[0]
 
-    assert "color-mix(in srgb, var(--muted) 84%, var(--ink) 16%)" in target_id_section
+    assert "color-mix(in srgb, var(--ticker-text-muted) 84%, var(--ticker-text-strong) 16%)" in target_id_section
     assert "rgba(230, 248, 237, 0.84)" not in target_id_section
 
 
@@ -709,8 +714,8 @@ def test_self_ticker_id_is_inline_in_compact_mode_and_stacked_when_expanded() ->
     )[1].split("}", 1)[0]
     compact_section = css.split(
         ".topbar .summary-ticker-item-self .value.self-node-value,",
-        2,
-    )[2].split("}", 1)[0]
+        1,
+    )[1].split("}", 1)[0]
     expanded_section = css.split(
         ".topbar.ticker-expanded .summary-ticker-item-self .value.self-node-value,",
         2,

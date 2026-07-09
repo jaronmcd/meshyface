@@ -3,6 +3,13 @@
       return themeAcceptedModes.has(clean) ? clean : "auto";
     }}
 
+    function systemPreferredTheme() {{
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {{
+        return "dark";
+      }}
+      return "light";
+    }}
+
     function normalizeThemeTokens(rawTokens) {{
       if (!rawTokens || typeof rawTokens !== "object" || Array.isArray(rawTokens)) {{
         return null;
@@ -81,10 +88,21 @@
       return ordered;
     }}
 
+    function normalizeThemeManagedPresetNames(rawNames) {{
+      const names = new Set();
+      if (Array.isArray(rawNames)) {{
+        for (const name of rawNames) {{
+          const clean = String(name || "").trim();
+          if (clean) names.add(clean);
+        }}
+      }}
+      return names;
+    }}
+
     function formatThemePresetLabel(name) {{
       const clean = String(name || "").trim();
       if (clean === "default") {{
-        return "green";
+        return "default";
       }}
       return clean || "default";
     }}
@@ -97,31 +115,247 @@
       if (/^#[0-9a-f]{3}$/.test(clean)) {{
         return `#${{clean[1]}}${{clean[1]}}${{clean[2]}}${{clean[2]}}${{clean[3]}}${{clean[3]}}`;
       }}
-      return "#2563eb";
+      return "#007bff";
     }}
 
-    function normalizeThemeCustomLineColor(raw, fallback = "#9a9996") {{
+    function normalizeThemeCustomLineColor(raw, fallback = "#0da6ff") {{
       return normalizeThemeCustomBaseColor(raw || fallback);
     }}
 
-    function normalizeThemeCustomTintColor(raw, fallback = "#9a9996") {{
+    function normalizeThemeCustomLineContrastColor(raw, fallback = "#4f55ff") {{
       return normalizeThemeCustomBaseColor(raw || fallback);
     }}
 
-    function normalizeThemeCustomTintIntensity(raw) {{
-      const parsed = Number.parseInt(String(raw ?? ""), 10);
-      if (!Number.isFinite(parsed)) {{
-        return 50;
+    const themeCustomTextFonts = new Set(["system", "compact", "rounded", "mono", "serif"]);
+
+    function normalizeThemeCustomTextFont(raw, fallback = "system") {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (themeCustomTextFonts.has(clean)) {{
+        return clean;
       }}
-      return Math.max(0, Math.min(100, parsed));
+      const fallbackClean = String(fallback || "").trim().toLowerCase();
+      return themeCustomTextFonts.has(fallbackClean) ? fallbackClean : "system";
+    }}
+
+    const themeCustomGradientTypes = new Set(["linear", "radial"]);
+    const themeCustomGradientDirections = new Set([
+      "right",
+      "left",
+      "down",
+      "up",
+      "down-right",
+      "down-left",
+      "up-right",
+      "up-left",
+      "center",
+    ]);
+
+    function normalizeThemeCustomGradientColor(raw, fallback = "#00356e") {{
+      return normalizeThemeCustomBaseColor(raw || fallback);
+    }}
+
+    function normalizeThemeCustomGradientType(raw, fallback = "linear") {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (themeCustomGradientTypes.has(clean)) {{
+        return clean;
+      }}
+      const fallbackClean = String(fallback || "").trim().toLowerCase();
+      return themeCustomGradientTypes.has(fallbackClean) ? fallbackClean : "linear";
+    }}
+
+    function normalizeThemeCustomGradientDirection(raw, fallback = "right") {{
+      const clean = String(raw || "").trim().toLowerCase();
+      if (themeCustomGradientDirections.has(clean)) {{
+        return clean;
+      }}
+      const fallbackClean = String(fallback || "").trim().toLowerCase();
+      return themeCustomGradientDirections.has(fallbackClean) ? fallbackClean : "right";
     }}
 
     function normalizeThemeCustomColorDepth(raw) {{
       const parsed = Number.parseInt(String(raw ?? ""), 10);
       if (!Number.isFinite(parsed)) {{
-        return 50;
+        return 44;
       }}
       return Math.max(0, Math.min(100, parsed));
+    }}
+
+    function normalizeThemeCustomForegroundTransparency(raw) {{
+      const parsed = Number.parseInt(String(raw ?? ""), 10);
+      if (!Number.isFinite(parsed)) {{
+        return 39;
+      }}
+      return Math.max(0, Math.min(90, parsed));
+    }}
+
+    function normalizeThemeCustomForegroundBlur(raw) {{
+      const parsed = Number.parseInt(String(raw ?? ""), 10);
+      if (!Number.isFinite(parsed)) {{
+        return 0;
+      }}
+      return Math.max(0, Math.min(40, parsed));
+    }}
+
+    const themeCustomBackgroundTypes = new Set(["particles", "livemap", "image"]);
+    const themeCustomBackgroundImageLayouts = new Set(["cover", "contain", "stretch", "center", "tile"]);
+    const themeCustomBackgroundImageDataMaxLength = 4000000;
+    const themeCustomLivemapLayerDefaults = Object.freeze({{
+      roads: true,
+      railroads: true,
+      rivers: true,
+      lakes: true,
+      parks: true,
+      urban: true,
+      states: true,
+      borders: true,
+      coastline: true,
+      cities: true,
+    }});
+    const themeCustomLivemapLayerAliases = Object.freeze({{
+      labels: "cities",
+      city_labels: "cities",
+      towns: "cities",
+      boundaries: "borders",
+      countries: "borders",
+      roads_major: "roads",
+      water: "lakes",
+      rails: "railroads",
+    }});
+
+    function normalizeThemeCustomBackgroundType(raw, fallback = "particles") {{
+      let clean = String(raw ?? "").trim().toLowerCase();
+      if (["live-map", "live_map", "map"].includes(clean)) {{
+        clean = "livemap";
+      }}
+      if (themeCustomBackgroundTypes.has(clean)) {{
+        return clean;
+      }}
+      const fallbackClean = String(fallback || "").trim().toLowerCase();
+      return themeCustomBackgroundTypes.has(fallbackClean) ? fallbackClean : "particles";
+    }}
+
+    function normalizeThemeCustomBackgroundImageData(raw, fallback = "") {{
+      const clean = String(raw ?? "").trim();
+      const fallbackClean = String(fallback ?? "").trim();
+      const validDataUrl = /^data:image\/(?:png|jpeg|gif|webp|avif);base64,[A-Za-z0-9+/=]+$/;
+      if (!clean) {{
+        return validDataUrl.test(fallbackClean) ? fallbackClean : "";
+      }}
+      if (clean.length > themeCustomBackgroundImageDataMaxLength) {{
+        return validDataUrl.test(fallbackClean) ? fallbackClean : "";
+      }}
+      if (validDataUrl.test(clean)) {{
+        return clean;
+      }}
+      return validDataUrl.test(fallbackClean) ? fallbackClean : "";
+    }}
+
+    function normalizeThemeCustomBackgroundImageLayout(raw, fallback = "cover") {{
+      const aliases = {{
+        fill: "cover",
+        fit: "contain",
+        "fit-screen": "contain",
+        fit_screen: "contain",
+        full: "stretch",
+        stretched: "stretch",
+        repeat: "tile",
+        tiled: "tile",
+        centered: "center",
+      }};
+      let clean = String(raw ?? "").trim().toLowerCase();
+      clean = aliases[clean] || clean;
+      if (themeCustomBackgroundImageLayouts.has(clean)) {{
+        return clean;
+      }}
+      let fallbackClean = String(fallback || "").trim().toLowerCase();
+      fallbackClean = aliases[fallbackClean] || fallbackClean;
+      return themeCustomBackgroundImageLayouts.has(fallbackClean) ? fallbackClean : "cover";
+    }}
+
+    function normalizeThemeCustomBackgroundImageDarken(raw, fallback = 0) {{
+      const parsed = Number.parseInt(String(raw ?? ""), 10);
+      if (Number.isFinite(parsed)) {{
+        return Math.max(0, Math.min(100, parsed));
+      }}
+      const fallbackParsed = Number.parseInt(String(fallback ?? ""), 10);
+      return Number.isFinite(fallbackParsed) ? Math.max(0, Math.min(100, fallbackParsed)) : 0;
+    }}
+
+    function normalizeThemeCustomLivemapLayers(raw, fallback = null) {{
+      const fallbackLayers = fallback && typeof fallback === "object" && !Array.isArray(fallback)
+        ? fallback
+        : themeCustomLivemapLayerDefaults;
+      const payload = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {{}};
+      const normalized = {{}};
+      for (const key of Object.keys(themeCustomLivemapLayerDefaults)) {{
+        normalized[key] = normalizeThemeCustomParticlesEnabled(
+          payload[key],
+          normalizeThemeCustomParticlesEnabled(
+            fallbackLayers[key],
+            themeCustomLivemapLayerDefaults[key]
+          )
+        );
+      }}
+      for (const [alias, key] of Object.entries(themeCustomLivemapLayerAliases)) {{
+        if (!Object.prototype.hasOwnProperty.call(payload, alias) || !(key in normalized)) continue;
+        normalized[key] = normalizeThemeCustomParticlesEnabled(payload[alias], normalized[key]);
+      }}
+      return normalized;
+    }}
+
+    function normalizeThemeCustomParticlesEnabled(raw, fallback = true) {{
+      if (typeof raw === "boolean") {{
+        return raw;
+      }}
+      const clean = String(raw ?? "").trim().toLowerCase();
+      if (["1", "true", "yes", "on", "enabled"].includes(clean)) {{
+        return true;
+      }}
+      if (["0", "false", "no", "off", "disabled"].includes(clean)) {{
+        return false;
+      }}
+      return Boolean(fallback);
+    }}
+
+    function normalizeThemeCustomParticlesColor(raw, fallback = "#548dff") {{
+      return normalizeThemeCustomBaseColor(raw || fallback);
+    }}
+
+    function normalizeThemeCustomParticlesInt(raw, fallback, min, max) {{
+      const parsed = Number.parseInt(String(raw ?? ""), 10);
+      const value = Number.isFinite(parsed) ? parsed : fallback;
+      return Math.max(min, Math.min(max, value));
+    }}
+
+    function normalizeThemeCustomParticlesFloat(raw, fallback, min, max) {{
+      const parsed = Number.parseFloat(String(raw ?? ""));
+      const value = Number.isFinite(parsed) ? parsed : fallback;
+      const clamped = Math.max(min, Math.min(max, value));
+      return Math.round(clamped * 10) / 10;
+    }}
+
+    function normalizeThemeCustomParticlesCount(raw) {{
+      return normalizeThemeCustomParticlesInt(raw, 50, 0, 240);
+    }}
+
+    function normalizeThemeCustomParticlesSpeed(raw) {{
+      return normalizeThemeCustomParticlesFloat(raw, 0.2, 0, 12);
+    }}
+
+    function normalizeThemeCustomParticlesSize(raw) {{
+      return normalizeThemeCustomParticlesInt(raw, 2, 1, 8);
+    }}
+
+    function normalizeThemeCustomParticlesOpacity(raw) {{
+      return normalizeThemeCustomParticlesInt(raw, 88, 0, 100);
+    }}
+
+    function themeCustomColorInputHasCompleteHex(input) {{
+      if (!(input instanceof HTMLInputElement)) return false;
+      let text = String(input.value == null ? "" : input.value).trim();
+      if (!text) return false;
+      if (text[0] !== "#") text = "#" + text;
+      return /^#[0-9a-f]{3}$/i.test(text) || /^#[0-9a-f]{6}$/i.test(text);
     }}
 
     function normalizeThemeCustomSettings(rawSettings) {{
@@ -133,20 +367,164 @@
         payload.line_color,
         normalizedBaseColor
       );
+      const normalizedLineContrastColor = normalizeThemeCustomLineContrastColor(
+        payload.line_contrast_color
+      );
+      const normalizedParticlesColor = normalizeThemeCustomParticlesColor(
+        payload.particles_color,
+        normalizedLineContrastColor
+      );
+      const normalizedParticlesLinkColor = normalizeThemeCustomParticlesColor(
+        payload.particles_link_color,
+        normalizedLineContrastColor
+      );
+      const normalizedLivemapLinkColor = normalizeThemeCustomParticlesColor(
+        payload.livemap_link_color,
+        normalizedParticlesLinkColor
+      );
       return {{
         base_color: normalizedBaseColor,
         line_color: normalizedLineColor,
-        tint_color: normalizeThemeCustomTintColor(
-          payload.tint_color,
-          normalizedLineColor
-        ),
-        tint_intensity: normalizeThemeCustomTintIntensity(payload.tint_intensity),
+        line_contrast_color: normalizedLineContrastColor,
         color_depth: normalizeThemeCustomColorDepth(payload.color_depth),
+        foreground_transparency: normalizeThemeCustomForegroundTransparency(payload.foreground_transparency),
+        foreground_blur: normalizeThemeCustomForegroundBlur(payload.foreground_blur),
+        text_font: normalizeThemeCustomTextFont(payload.text_font),
+        gradient_primary_start_color: normalizeThemeCustomGradientColor(
+          payload.gradient_primary_start_color,
+          normalizedBaseColor
+        ),
+        gradient_primary_end_color: normalizeThemeCustomGradientColor(
+          payload.gradient_primary_end_color,
+          "#060d1f"
+        ),
+        gradient_primary_type: normalizeThemeCustomGradientType(payload.gradient_primary_type),
+        gradient_primary_direction: normalizeThemeCustomGradientDirection(payload.gradient_primary_direction),
+        background_type: normalizeThemeCustomBackgroundType(payload.background_type),
+        background_image_data: normalizeThemeCustomBackgroundImageData(payload.background_image_data),
+        background_image_layout: normalizeThemeCustomBackgroundImageLayout(payload.background_image_layout),
+        background_image_darken: normalizeThemeCustomBackgroundImageDarken(payload.background_image_darken),
+        particles_enabled: normalizeThemeCustomParticlesEnabled(payload.particles_enabled),
+        particles_color: normalizedParticlesColor,
+        particles_link_color: normalizedParticlesLinkColor,
+        livemap_link_color: normalizedLivemapLinkColor,
+        particles_count: normalizeThemeCustomParticlesCount(payload.particles_count),
+        particles_speed: normalizeThemeCustomParticlesSpeed(payload.particles_speed),
+        particles_size: normalizeThemeCustomParticlesSize(payload.particles_size),
+        particles_opacity: normalizeThemeCustomParticlesOpacity(payload.particles_opacity),
+        particles_links: normalizeThemeCustomParticlesEnabled(payload.particles_links, true),
+        livemap_layers: normalizeThemeCustomLivemapLayers(payload.livemap_layers),
       }};
     }}
 
+    function normalizeThemePresetCustomSettingsCatalog(rawCatalog) {{
+      const normalized = {{}};
+      if (!rawCatalog || typeof rawCatalog !== "object" || Array.isArray(rawCatalog)) {{
+        return normalized;
+      }}
+      for (const [name, rawSettings] of Object.entries(rawCatalog)) {{
+        const cleanName = String(name || "").trim();
+        if (!cleanName) continue;
+        normalized[cleanName] = normalizeThemeCustomSettings(rawSettings);
+      }}
+      return normalized;
+    }}
+
+    function currentThemeCustomSettings() {{
+      return {{
+        base_color: themeCustomBaseColor,
+        line_color: themeCustomLineColor,
+        line_contrast_color: themeCustomLineContrastColor,
+        color_depth: themeCustomColorDepth,
+        foreground_transparency: themeCustomForegroundTransparency,
+        foreground_blur: themeCustomForegroundBlur,
+        text_font: themeCustomTextFont,
+        gradient_primary_start_color: themeCustomGradientPrimaryStartColor,
+        gradient_primary_end_color: themeCustomGradientPrimaryEndColor,
+        gradient_primary_type: themeCustomGradientPrimaryType,
+        gradient_primary_direction: themeCustomGradientPrimaryDirection,
+        background_type: themeCustomBackgroundType,
+        background_image_data: themeCustomBackgroundImageData,
+        background_image_layout: themeCustomBackgroundImageLayout,
+        background_image_darken: themeCustomBackgroundImageDarken,
+        particles_enabled: themeCustomParticlesEnabled,
+        particles_color: themeCustomParticlesColor,
+        particles_link_color: themeCustomParticlesLinkColor,
+        livemap_link_color: themeCustomLivemapLinkColor,
+        particles_count: themeCustomParticlesCount,
+        particles_speed: themeCustomParticlesSpeed,
+        particles_size: themeCustomParticlesSize,
+        particles_opacity: themeCustomParticlesOpacity,
+        particles_links: themeCustomParticlesLinks,
+        livemap_layers: normalizeThemeCustomLivemapLayers(themeCustomLivemapLayers),
+      }};
+    }}
+
+    function applyThemeCustomSettings(rawSettings) {{
+      const normalized = normalizeThemeCustomSettings(rawSettings);
+      themeCustomBaseColor = normalized.base_color;
+      themeCustomLineColor = normalized.line_color;
+      themeCustomLineContrastColor = normalized.line_contrast_color;
+      themeCustomColorDepth = normalized.color_depth;
+      themeCustomForegroundTransparency = normalized.foreground_transparency;
+      themeCustomForegroundBlur = normalized.foreground_blur;
+      themeCustomTextFont = normalized.text_font;
+      themeCustomGradientPrimaryStartColor = normalized.gradient_primary_start_color;
+      themeCustomGradientPrimaryEndColor = normalized.gradient_primary_end_color;
+      themeCustomGradientPrimaryType = normalized.gradient_primary_type;
+      themeCustomGradientPrimaryDirection = normalized.gradient_primary_direction;
+      themeCustomBackgroundType = normalized.background_type;
+      themeCustomBackgroundImageData = normalized.background_image_data;
+      themeCustomBackgroundImageLayout = normalized.background_image_layout;
+      themeCustomBackgroundImageDarken = normalized.background_image_darken;
+      themeCustomParticlesEnabled = normalized.particles_enabled;
+      themeCustomParticlesColor = normalized.particles_color;
+      themeCustomParticlesLinkColor = normalized.particles_link_color;
+      themeCustomLivemapLinkColor = normalized.livemap_link_color;
+      themeCustomParticlesCount = normalized.particles_count;
+      themeCustomParticlesSpeed = normalized.particles_speed;
+      themeCustomParticlesSize = normalized.particles_size;
+      themeCustomParticlesOpacity = normalized.particles_opacity;
+      themeCustomParticlesLinks = normalized.particles_links;
+      themeCustomLivemapLayers = normalizeThemeCustomLivemapLayers(normalized.livemap_layers);
+      return normalized;
+    }}
+
+    function defaultThemeEditableSettings() {{
+      return normalizeThemeCustomSettings({{
+        particles_enabled: false,
+        particles_links: false,
+        particles_count: 0,
+      }});
+    }}
+
+    function themeEditableSettingsForPreset(presetName = null) {{
+      const selected = normalizeThemePresetName(
+        presetName == null ? themePresetSelected : presetName,
+        themePresetCatalog
+      );
+      if (selected === "custom") {{
+        return currentThemeCustomSettings();
+      }}
+      if (
+        Object.prototype.hasOwnProperty.call(themePresetCustomSettingsCatalog, selected)
+      ) {{
+        return themePresetCustomSettingsCatalog[selected];
+      }}
+      return defaultThemeEditableSettings();
+    }}
+
+    function beginThemeCustomEditFromSelectedPreset() {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      if (selected === "custom") {{
+        return;
+      }}
+      applyThemeCustomSettings(themeEditableSettingsForPreset(selected));
+      themePresetSelected = "custom";
+      syncThemePresetControlValue();
+    }}
+
     let themeSettingsSaveDebounceTimer = null;
-    let themeSettingsStatusResetTimer = null;
     let themeSettingsRequestSerial = 0;
     let themeSettingsAppliedSerial = 0;
     let themeSettingsAbortController = null;
@@ -162,33 +540,35 @@
       }}
     }}
 
-    function setThemeLivePreviewStatus(message = "Updates while you drag.", resetDelayMs = 0) {{
-      const status = document.getElementById("theme-live-preview-status");
-      if (!(status instanceof HTMLElement)) {{
-        return;
-      }}
-      if (themeSettingsStatusResetTimer !== null) {{
-        window.clearTimeout(themeSettingsStatusResetTimer);
-        themeSettingsStatusResetTimer = null;
-      }}
-      status.textContent = String(message || "Updates while you drag.");
-      if (resetDelayMs > 0) {{
-        themeSettingsStatusResetTimer = window.setTimeout(() => {{
-          themeSettingsStatusResetTimer = null;
-          status.textContent = "Updates while you drag.";
-        }}, resetDelayMs);
-      }}
-    }}
-
     function buildCurrentThemeCustomOptions(extraOptions = null) {{
       const opts = extraOptions && typeof extraOptions === "object" ? extraOptions : {{}};
       return {{
         presetName: opts.presetName == null ? "custom" : opts.presetName,
         baseColor: opts.baseColor == null ? themeCustomBaseColor : opts.baseColor,
         lineColor: opts.lineColor == null ? themeCustomLineColor : opts.lineColor,
-        tintColor: opts.tintColor == null ? themeCustomTintColor : opts.tintColor,
-        tintIntensity: opts.tintIntensity == null ? themeCustomTintIntensity : opts.tintIntensity,
+        lineContrastColor: opts.lineContrastColor == null ? themeCustomLineContrastColor : opts.lineContrastColor,
         colorDepth: opts.colorDepth == null ? themeCustomColorDepth : opts.colorDepth,
+        foregroundTransparency: opts.foregroundTransparency == null ? themeCustomForegroundTransparency : opts.foregroundTransparency,
+        foregroundBlur: opts.foregroundBlur == null ? themeCustomForegroundBlur : opts.foregroundBlur,
+        textFont: opts.textFont == null ? themeCustomTextFont : opts.textFont,
+        gradientPrimaryStartColor: opts.gradientPrimaryStartColor == null ? themeCustomGradientPrimaryStartColor : opts.gradientPrimaryStartColor,
+        gradientPrimaryEndColor: opts.gradientPrimaryEndColor == null ? themeCustomGradientPrimaryEndColor : opts.gradientPrimaryEndColor,
+        gradientPrimaryType: opts.gradientPrimaryType == null ? themeCustomGradientPrimaryType : opts.gradientPrimaryType,
+        gradientPrimaryDirection: opts.gradientPrimaryDirection == null ? themeCustomGradientPrimaryDirection : opts.gradientPrimaryDirection,
+        backgroundType: opts.backgroundType == null ? themeCustomBackgroundType : opts.backgroundType,
+        backgroundImageData: opts.backgroundImageData == null ? themeCustomBackgroundImageData : opts.backgroundImageData,
+        backgroundImageLayout: opts.backgroundImageLayout == null ? themeCustomBackgroundImageLayout : opts.backgroundImageLayout,
+        backgroundImageDarken: opts.backgroundImageDarken == null ? themeCustomBackgroundImageDarken : opts.backgroundImageDarken,
+        particlesEnabled: opts.particlesEnabled == null ? themeCustomParticlesEnabled : opts.particlesEnabled,
+        particlesColor: opts.particlesColor == null ? themeCustomParticlesColor : opts.particlesColor,
+        particlesLinkColor: opts.particlesLinkColor == null ? themeCustomParticlesLinkColor : opts.particlesLinkColor,
+        livemapLinkColor: opts.livemapLinkColor == null ? themeCustomLivemapLinkColor : opts.livemapLinkColor,
+        particlesCount: opts.particlesCount == null ? themeCustomParticlesCount : opts.particlesCount,
+        particlesSpeed: opts.particlesSpeed == null ? themeCustomParticlesSpeed : opts.particlesSpeed,
+        particlesSize: opts.particlesSize == null ? themeCustomParticlesSize : opts.particlesSize,
+        particlesOpacity: opts.particlesOpacity == null ? themeCustomParticlesOpacity : opts.particlesOpacity,
+        particlesLinks: opts.particlesLinks == null ? themeCustomParticlesLinks : opts.particlesLinks,
+        livemapLayers: opts.livemapLayers == null ? themeCustomLivemapLayers : opts.livemapLayers,
         previewOnly: Boolean(opts.previewOnly),
       }};
     }}
@@ -200,34 +580,736 @@
       }}
     }}
 
+    function dashboardParticlesHost() {{
+      const host = document.getElementById("dashboard-particles-bg");
+      return host instanceof HTMLElement ? host : null;
+    }}
+
+    function resetDashboardParticlesRevealState(host = null) {{
+      dashboardParticlesBackgroundLoadSerial += 1;
+      const particlesHost = host instanceof HTMLElement ? host : dashboardParticlesHost();
+      if (particlesHost) {{
+        particlesHost.classList.remove("dashboard-particles-background-loaded");
+      }}
+    }}
+
+    function revealDashboardParticlesBackground(host, signature, serial) {{
+      if (!(host instanceof HTMLElement)) return false;
+      if (serial !== dashboardParticlesBackgroundLoadSerial) return false;
+      if (dashboardBackgroundActiveType !== "particles") return false;
+      if (!document.body || !document.body.classList.contains("dashboard-particles-enabled")) return false;
+      if (host.dataset.dashboardBackgroundSignature !== signature) return false;
+      if (!host.querySelector("canvas")) return false;
+      host.classList.add("dashboard-particles-background-loaded");
+      return true;
+    }}
+
+    function scheduleDashboardParticlesReveal(host, signature, serial, attempts = 0) {{
+      if (!(host instanceof HTMLElement)) return;
+      if (serial !== dashboardParticlesBackgroundLoadSerial) return;
+      if (dashboardBackgroundActiveType !== "particles") return;
+      if (!document.body || !document.body.classList.contains("dashboard-particles-enabled")) return;
+      if (host.dataset.dashboardBackgroundSignature !== signature) return;
+      if (attempts > 12) return;
+      if (revealDashboardParticlesBackground(host, signature, serial)) return;
+      window.requestAnimationFrame(() => {{
+        scheduleDashboardParticlesReveal(host, signature, serial, attempts + 1);
+      }});
+    }}
+
+    function removeDashboardParticlesCanvas() {{
+      const host = dashboardParticlesHost();
+      if (!host) return;
+      while (host.firstChild) {{
+        host.removeChild(host.firstChild);
+      }}
+    }}
+
+    function destroyDashboardParticles() {{
+      dashboardParticlesSignature = "";
+      if (Array.isArray(window.pJSDom)) {{
+        for (let index = window.pJSDom.length - 1; index >= 0; index -= 1) {{
+          const instance = window.pJSDom[index];
+          const canvas = instance && instance.pJS && instance.pJS.canvas
+            ? instance.pJS.canvas.el
+            : null;
+          const parent = canvas && canvas.parentNode;
+          if (parent instanceof HTMLElement && parent.id === "dashboard-particles-bg") {{
+            try {{
+              if (typeof cancelRequestAnimFrame === "function" && instance.pJS && instance.pJS.fn) {{
+                cancelRequestAnimFrame(instance.pJS.fn.drawAnimFrame);
+                cancelRequestAnimFrame(instance.pJS.fn.checkAnimFrame);
+              }}
+            }} catch (err) {{}}
+            if (canvas && canvas.parentNode) {{
+              canvas.parentNode.removeChild(canvas);
+            }}
+            window.pJSDom.splice(index, 1);
+          }}
+        }}
+      }}
+      if (!Array.isArray(window.pJSDom)) {{
+        window.pJSDom = [];
+      }}
+      removeDashboardParticlesCanvas();
+    }}
+
+    function disableDashboardParticles() {{
+      if (dashboardBackgroundActiveType === "particles") {{
+        dashboardBackgroundActiveType = "";
+      }}
+      if (document.body) {{
+        document.body.classList.remove("dashboard-particles-enabled");
+      }}
+      const host = dashboardParticlesHost();
+      resetDashboardParticlesRevealState(host);
+      resetDashboardBackgroundActiveState(host);
+      destroyDashboardParticles();
+    }}
+
+    function dashboardImageHost() {{
+      const host = document.getElementById("dashboard-image-bg");
+      return host instanceof HTMLElement ? host : null;
+    }}
+
+    function dashboardBackgroundHostForType(type) {{
+      if (type === "image") {{
+        return dashboardImageHost();
+      }}
+      if (type === "particles") {{
+        return dashboardParticlesHost();
+      }}
+      if (type === "livemap") {{
+        const host = document.getElementById("dashboard-livemap-bg");
+        return host instanceof HTMLElement ? host : null;
+      }}
+      return null;
+    }}
+
+    function dashboardBackgroundBodyClass(type) {{
+      if (type === "image") return "dashboard-image-enabled";
+      if (type === "particles") return "dashboard-particles-enabled";
+      if (type === "livemap") return "dashboard-livemap-enabled";
+      return "";
+    }}
+
+    function deactivateDashboardBackgroundType(type) {{
+      const cleanType = String(type || "");
+      if (!cleanType || cleanType === dashboardBackgroundActiveType) {{
+        return;
+      }}
+      const bodyClass = dashboardBackgroundBodyClass(cleanType);
+      const handler = dashboardBackgroundHandlers[cleanType];
+      if (!handler || typeof handler.disable !== "function") {{
+        return;
+      }}
+      if (!document.body || !bodyClass || !document.body.classList.contains(bodyClass)) {{
+        handler.disable();
+        return;
+      }}
+      const host = dashboardBackgroundHostForType(cleanType);
+      if (host) {{
+        host.classList.remove("dashboard-background-active");
+      }}
+      handler.disable();
+    }}
+
+    function deactivateInactiveDashboardBackgrounds(activeType) {{
+      for (const type of Object.keys(dashboardBackgroundHandlers)) {{
+        if (type !== activeType) {{
+          deactivateDashboardBackgroundType(type);
+        }}
+      }}
+    }}
+
+    function disableAllDashboardBackgrounds() {{
+      dashboardBackgroundActiveType = "";
+      for (const [type, handler] of Object.entries(dashboardBackgroundHandlers)) {{
+        if (handler && typeof handler.disable === "function") {{
+          handler.disable();
+        }}
+      }}
+    }}
+
+    function markDashboardBackgroundActive(host, signature = "") {{
+      if (!(host instanceof HTMLElement)) return;
+      const cleanSignature = String(signature || "");
+      host.dataset.dashboardBackgroundSignature = cleanSignature;
+      host.classList.add("dashboard-background-ready");
+      host.classList.add("dashboard-background-active");
+    }}
+
+    function resetDashboardBackgroundActiveState(host) {{
+      if (!(host instanceof HTMLElement)) return;
+      host.classList.remove("dashboard-background-ready");
+      host.classList.remove("dashboard-background-active");
+      delete host.dataset.dashboardBackgroundSignature;
+    }}
+
+    function dashboardImageLayoutStyles(layout) {{
+      const clean = normalizeThemeCustomBackgroundImageLayout(layout);
+      if (clean === "contain") {{
+        return {{ size: "contain", repeat: "no-repeat", position: "center center" }};
+      }}
+      if (clean === "stretch") {{
+        return {{ size: "100% 100%", repeat: "no-repeat", position: "center center" }};
+      }}
+      if (clean === "center") {{
+        return {{ size: "auto", repeat: "no-repeat", position: "center center" }};
+      }}
+      if (clean === "tile") {{
+        return {{ size: "auto", repeat: "repeat", position: "center center" }};
+      }}
+      return {{ size: "cover", repeat: "no-repeat", position: "center center" }};
+    }}
+
+    function resetDashboardImageRevealState(host = null) {{
+      dashboardImageBackgroundLoadSerial += 1;
+      const imageHost = host instanceof HTMLElement ? host : dashboardImageHost();
+      if (imageHost) {{
+        imageHost.classList.remove("dashboard-image-background-loaded");
+      }}
+    }}
+
+    function revealDashboardImageBackground(host, signature, serial) {{
+      if (!(host instanceof HTMLElement)) return;
+      if (serial !== dashboardImageBackgroundLoadSerial) return;
+      if (dashboardBackgroundActiveType !== "image") return;
+      if (!document.body || !document.body.classList.contains("dashboard-image-enabled")) return;
+      if (host.dataset.dashboardBackgroundSignature !== signature) return;
+      window.requestAnimationFrame(() => {{
+        if (serial !== dashboardImageBackgroundLoadSerial) return;
+        if (dashboardBackgroundActiveType !== "image") return;
+        if (!document.body || !document.body.classList.contains("dashboard-image-enabled")) return;
+        if (host.dataset.dashboardBackgroundSignature !== signature) return;
+        host.classList.add("dashboard-image-background-loaded");
+      }});
+    }}
+
+    function preloadDashboardImageBackground(imageData, host, signature, serial) {{
+      const preload = new Image();
+      const reveal = () => revealDashboardImageBackground(host, signature, serial);
+      preload.onload = reveal;
+      preload.onerror = reveal;
+      preload.src = imageData;
+      if (preload.complete) {{
+        reveal();
+      }}
+    }}
+
+    function disableDashboardImage() {{
+      if (dashboardBackgroundActiveType === "image") {{
+        dashboardBackgroundActiveType = "";
+      }}
+      const host = dashboardImageHost();
+      if (document.body) {{
+        document.body.classList.remove("dashboard-image-enabled");
+      }}
+      if (!host) return;
+      resetDashboardImageRevealState(host);
+      resetDashboardBackgroundActiveState(host);
+      host.style.removeProperty("background-image");
+      host.style.removeProperty("background-size");
+      host.style.removeProperty("background-repeat");
+      host.style.removeProperty("background-position");
+      host.style.removeProperty("--dashboard-image-darken");
+    }}
+
+    function applyDashboardImage(rawSettings = null) {{
+      const host = dashboardImageHost();
+      if (!host || !document.body) {{
+        return false;
+      }}
+      const settings = normalizeThemeCustomSettings(rawSettings || currentThemeCustomSettings());
+      const imageData = normalizeThemeCustomBackgroundImageData(settings.background_image_data);
+      if (!imageData) {{
+        disableDashboardImage();
+        return false;
+      }}
+      const layoutKey = normalizeThemeCustomBackgroundImageLayout(settings.background_image_layout);
+      const layout = dashboardImageLayoutStyles(settings.background_image_layout);
+      const signature = `image:${{layoutKey}}:${{imageData}}`;
+      const preserveLoadedImage =
+        host.dataset.dashboardBackgroundSignature === signature &&
+        host.classList.contains("dashboard-image-background-loaded");
+      if (!preserveLoadedImage) {{
+        resetDashboardImageRevealState(host);
+      }}
+      host.style.backgroundImage = `url("${{imageData}}")`;
+      host.style.backgroundSize = layout.size;
+      host.style.backgroundRepeat = layout.repeat;
+      host.style.backgroundPosition = layout.position;
+      host.style.setProperty(
+        "--dashboard-image-darken",
+        String(normalizeThemeCustomBackgroundImageDarken(settings.background_image_darken) / 100)
+      );
+      document.body.classList.add("dashboard-image-enabled");
+      dashboardBackgroundActiveType = "image";
+      markDashboardBackgroundActive(host, signature);
+      if (preserveLoadedImage) {{
+        host.classList.add("dashboard-image-background-loaded");
+      }} else {{
+        preloadDashboardImageBackground(imageData, host, signature, dashboardImageBackgroundLoadSerial);
+      }}
+      return true;
+    }}
+
+    function buildDashboardParticlesConfig(settings) {{
+      const color = normalizeThemeCustomParticlesColor(settings.particles_color);
+      const linkColor = normalizeThemeCustomParticlesColor(settings.particles_link_color, color);
+      const opacity = normalizeThemeCustomParticlesOpacity(settings.particles_opacity) / 100;
+      const count = normalizeThemeCustomParticlesCount(settings.particles_count);
+      const linksEnabled = normalizeThemeCustomParticlesEnabled(settings.particles_links, true) && count > 0;
+      return {{
+        particles: {{
+          number: {{
+            value: count,
+            density: {{
+              enable: true,
+              value_area: 900,
+            }},
+          }},
+          color: {{
+            value: color,
+          }},
+          shape: {{
+            type: "circle",
+            stroke: {{
+              width: 0,
+              color: color,
+            }},
+          }},
+          opacity: {{
+            value: opacity,
+            random: false,
+            anim: {{
+              enable: false,
+              speed: 1,
+              opacity_min: 0.1,
+              sync: false,
+            }},
+          }},
+          size: {{
+            value: normalizeThemeCustomParticlesSize(settings.particles_size),
+            random: true,
+            anim: {{
+              enable: false,
+              speed: 4,
+              size_min: 0.3,
+              sync: false,
+            }},
+          }},
+          line_linked: {{
+            enable: linksEnabled,
+            distance: 145,
+            color: linkColor,
+            opacity: Math.min(0.72, Math.max(0.08, opacity * 0.74)),
+            width: 1,
+          }},
+          move: {{
+            enable: true,
+            speed: normalizeThemeCustomParticlesSpeed(settings.particles_speed),
+            direction: "none",
+            random: false,
+            straight: false,
+            out_mode: "out",
+            bounce: false,
+            attract: {{
+              enable: false,
+              rotateX: 600,
+              rotateY: 1200,
+            }},
+          }},
+        }},
+        interactivity: {{
+          detect_on: "canvas",
+          events: {{
+            onhover: {{
+              enable: false,
+              mode: "grab",
+            }},
+            onclick: {{
+              enable: false,
+              mode: "push",
+            }},
+            resize: true,
+          }},
+        }},
+        retina_detect: true,
+      }};
+    }}
+
+    function applyDashboardParticles(rawSettings = null) {{
+      const host = dashboardParticlesHost();
+      if (!host || !document.body) {{
+        return false;
+      }}
+      const settings = normalizeThemeCustomSettings(rawSettings || currentThemeCustomSettings());
+      const enabled = normalizeThemeCustomParticlesEnabled(settings.particles_enabled);
+      const opacity = normalizeThemeCustomParticlesOpacity(settings.particles_opacity);
+      host.style.setProperty("--dashboard-particles-opacity", String(opacity / 100));
+      if (!enabled) {{
+        document.body.classList.remove("dashboard-particles-enabled");
+        if (dashboardBackgroundActiveType === "particles") {{
+          dashboardBackgroundActiveType = "";
+        }}
+        resetDashboardParticlesRevealState(host);
+        resetDashboardBackgroundActiveState(host);
+        destroyDashboardParticles();
+        return false;
+      }}
+      if (typeof window.particlesJS !== "function") {{
+        document.body.classList.remove("dashboard-particles-enabled");
+        if (dashboardBackgroundActiveType === "particles") {{
+          dashboardBackgroundActiveType = "";
+        }}
+        resetDashboardParticlesRevealState(host);
+        resetDashboardBackgroundActiveState(host);
+        removeDashboardParticlesCanvas();
+        return false;
+      }}
+      const signature = JSON.stringify({{
+        color: settings.particles_color,
+        linkColor: settings.particles_link_color,
+        count: settings.particles_count,
+        speed: settings.particles_speed,
+        size: settings.particles_size,
+        opacity: settings.particles_opacity,
+        links: settings.particles_links,
+      }});
+      const backgroundSignature = `particles:${{signature}}`;
+      if (dashboardParticlesSignature === signature && host.querySelector("canvas")) {{
+        const preserveLoadedParticles =
+          host.dataset.dashboardBackgroundSignature === backgroundSignature &&
+          host.classList.contains("dashboard-particles-background-loaded");
+        document.body.classList.add("dashboard-particles-enabled");
+        dashboardBackgroundActiveType = "particles";
+        markDashboardBackgroundActive(host, backgroundSignature);
+        if (preserveLoadedParticles) {{
+          host.classList.add("dashboard-particles-background-loaded");
+        }} else {{
+          void host.offsetWidth;
+          if (!revealDashboardParticlesBackground(host, backgroundSignature, dashboardParticlesBackgroundLoadSerial)) {{
+            scheduleDashboardParticlesReveal(host, backgroundSignature, dashboardParticlesBackgroundLoadSerial);
+          }}
+        }}
+        return true;
+      }}
+      resetDashboardParticlesRevealState(host);
+      destroyDashboardParticles();
+      dashboardParticlesSignature = signature;
+      document.body.classList.add("dashboard-particles-enabled");
+      dashboardBackgroundActiveType = "particles";
+      markDashboardBackgroundActive(host, backgroundSignature);
+      void host.offsetWidth;
+      window.particlesJS("dashboard-particles-bg", buildDashboardParticlesConfig(settings));
+      if (!revealDashboardParticlesBackground(host, backgroundSignature, dashboardParticlesBackgroundLoadSerial)) {{
+        scheduleDashboardParticlesReveal(host, backgroundSignature, dashboardParticlesBackgroundLoadSerial);
+      }}
+      return true;
+    }}
+
+    function disableDashboardLivemapBackground() {{
+      if (dashboardBackgroundActiveType === "livemap") {{
+        dashboardBackgroundActiveType = "";
+      }}
+      if (document.body) {{
+        document.body.classList.remove("dashboard-livemap-enabled");
+      }}
+      const host = document.getElementById("dashboard-livemap-bg");
+      resetDashboardBackgroundActiveState(host instanceof HTMLElement ? host : null);
+      if (typeof disableDashboardLivemap === "function") {{
+        disableDashboardLivemap();
+      }}
+    }}
+
+    function applyDashboardLivemapBackground(rawSettings = null) {{
+      if (!document.body) {{
+        return false;
+      }}
+      let applied = false;
+      if (typeof applyDashboardLivemap === "function") {{
+        applied = !!applyDashboardLivemap(rawSettings);
+      }}
+      if (applied) {{
+        const host = document.getElementById("dashboard-livemap-bg");
+        document.body.classList.add("dashboard-livemap-enabled");
+        dashboardBackgroundActiveType = "livemap";
+        markDashboardBackgroundActive(host instanceof HTMLElement ? host : null, "livemap");
+      }} else {{
+        const host = document.getElementById("dashboard-livemap-bg");
+        document.body.classList.remove("dashboard-livemap-enabled");
+        if (dashboardBackgroundActiveType === "livemap") {{
+          dashboardBackgroundActiveType = "";
+        }}
+        resetDashboardBackgroundActiveState(host instanceof HTMLElement ? host : null);
+      }}
+      return applied;
+    }}
+
+    const dashboardBackgroundHandlers = {{
+      particles: {{
+        apply: applyDashboardParticles,
+        disable: disableDashboardParticles,
+      }},
+      livemap: {{
+        apply: applyDashboardLivemapBackground,
+        disable: disableDashboardLivemapBackground,
+      }},
+      image: {{
+        apply: applyDashboardImage,
+        disable: disableDashboardImage,
+      }},
+    }};
+
+    function applyDashboardBackground(rawSettings = null) {{
+      if (!document.body) {{
+        return false;
+      }}
+      const settings = normalizeThemeCustomSettings(rawSettings || currentThemeCustomSettings());
+      const backgroundType = normalizeThemeCustomBackgroundType(settings.background_type);
+      const handler = dashboardBackgroundHandlers[backgroundType] || dashboardBackgroundHandlers.particles;
+      if (backgroundType !== "image") {{
+        disableDashboardImage();
+      }}
+      const applied = handler.apply(settings);
+      if (applied) {{
+        dashboardBackgroundActiveType = backgroundType;
+        deactivateInactiveDashboardBackgrounds(backgroundType);
+        return true;
+      }}
+      disableAllDashboardBackgrounds();
+      return false;
+    }}
+
     function syncThemeCustomControls() {{
+      const editableSettings = themeEditableSettingsForPreset();
+      const displayBaseColor = editableSettings.base_color;
+      const displayLineColor = editableSettings.line_color;
+      const displayLineContrastColor = editableSettings.line_contrast_color;
+      const displayColorDepth = editableSettings.color_depth;
+      const displayForegroundTransparency = editableSettings.foreground_transparency;
+      const displayForegroundBlur = editableSettings.foreground_blur;
+      const displayTextFont = editableSettings.text_font;
+      const displayGradientPrimaryStartColor = editableSettings.gradient_primary_start_color;
+      const displayGradientPrimaryEndColor = editableSettings.gradient_primary_end_color;
+      const displayGradientPrimaryType = editableSettings.gradient_primary_type;
+      const displayGradientPrimaryDirection = editableSettings.gradient_primary_direction;
+      const displayBackgroundImageData = editableSettings.background_image_data;
+      const displayBackgroundImageLayout = editableSettings.background_image_layout;
+      const displayBackgroundImageDarken = editableSettings.background_image_darken;
+      const displayParticlesEnabled = editableSettings.particles_enabled;
+      const displayParticlesColor = editableSettings.particles_color;
+      const displayParticlesLinkColor = editableSettings.particles_link_color;
+      const displayLivemapLinkColor = editableSettings.livemap_link_color;
+      const displayParticlesCount = editableSettings.particles_count;
+      const displayParticlesSpeed = editableSettings.particles_speed;
+      const displayParticlesSize = editableSettings.particles_size;
+      const displayParticlesOpacity = editableSettings.particles_opacity;
+      const displayParticlesLinks = editableSettings.particles_links;
+      const displayLivemapLayers = normalizeThemeCustomLivemapLayers(editableSettings.livemap_layers);
       const colorInput = document.getElementById("theme-custom-base-color");
       if (colorInput instanceof HTMLInputElement) {{
-        colorInput.value = normalizeThemeCustomBaseColor(themeCustomBaseColor);
+        colorInput.value = normalizeThemeCustomBaseColor(displayBaseColor);
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(colorInput, {{ fallback: "#007bff" }});
+        }}
       }}
       const lineColorInput = document.getElementById("theme-custom-line-color");
       if (lineColorInput instanceof HTMLInputElement) {{
-        lineColorInput.value = normalizeThemeCustomLineColor(themeCustomLineColor, themeCustomBaseColor);
+        lineColorInput.value = normalizeThemeCustomLineColor(displayLineColor, displayBaseColor);
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(lineColorInput, {{ fallback: displayBaseColor || "#0da6ff" }});
+        }}
       }}
-      const tintColorInput = document.getElementById("theme-custom-tint-color");
-      if (tintColorInput instanceof HTMLInputElement) {{
-        tintColorInput.value = normalizeThemeCustomTintColor(themeCustomTintColor, themeCustomLineColor);
+      const lineContrastColorInput = document.getElementById("theme-custom-line-contrast-color");
+      if (lineContrastColorInput instanceof HTMLInputElement) {{
+        lineContrastColorInput.value = normalizeThemeCustomLineContrastColor(displayLineContrastColor);
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(lineContrastColorInput, {{ fallback: "#4f55ff" }});
+        }}
       }}
-      const tintIntensityInput = document.getElementById("theme-custom-tint-intensity");
-      if (tintIntensityInput instanceof HTMLInputElement) {{
-        tintIntensityInput.value = String(normalizeThemeCustomTintIntensity(themeCustomTintIntensity));
+      const textFontSelect = document.getElementById("theme-custom-text-font");
+      if (textFontSelect instanceof HTMLSelectElement) {{
+        textFontSelect.value = normalizeThemeCustomTextFont(displayTextFont);
       }}
-      const tintIntensityValue = document.getElementById("theme-custom-tint-intensity-value");
-      if (tintIntensityValue instanceof HTMLOutputElement || tintIntensityValue instanceof HTMLElement) {{
-        tintIntensityValue.textContent = `${{normalizeThemeCustomTintIntensity(themeCustomTintIntensity)}}%`;
+      const gradientPrimaryStartInput = document.getElementById("theme-custom-gradient-primary-start-color");
+      if (gradientPrimaryStartInput instanceof HTMLInputElement) {{
+        gradientPrimaryStartInput.value = normalizeThemeCustomGradientColor(
+          displayGradientPrimaryStartColor,
+          displayBaseColor
+        );
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(gradientPrimaryStartInput, {{ fallback: displayBaseColor || "#00356e" }});
+        }}
+      }}
+      const gradientPrimaryEndInput = document.getElementById("theme-custom-gradient-primary-end-color");
+      if (gradientPrimaryEndInput instanceof HTMLInputElement) {{
+        gradientPrimaryEndInput.value = normalizeThemeCustomGradientColor(
+          displayGradientPrimaryEndColor,
+          "#060d1f"
+        );
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(gradientPrimaryEndInput, {{ fallback: "#060d1f" }});
+        }}
+      }}
+      const gradientPrimaryTypeSelect = document.getElementById("theme-custom-gradient-primary-type");
+      if (gradientPrimaryTypeSelect instanceof HTMLSelectElement) {{
+        gradientPrimaryTypeSelect.value = normalizeThemeCustomGradientType(displayGradientPrimaryType);
+      }}
+      const gradientPrimaryDirectionSelect = document.getElementById("theme-custom-gradient-primary-direction");
+      if (gradientPrimaryDirectionSelect instanceof HTMLSelectElement) {{
+        gradientPrimaryDirectionSelect.value = normalizeThemeCustomGradientDirection(displayGradientPrimaryDirection);
       }}
       const depthInput = document.getElementById("theme-custom-color-depth");
       if (depthInput instanceof HTMLInputElement) {{
-        depthInput.value = String(normalizeThemeCustomColorDepth(themeCustomColorDepth));
+        depthInput.value = String(normalizeThemeCustomColorDepth(displayColorDepth));
       }}
       const depthValue = document.getElementById("theme-custom-color-depth-value");
       if (depthValue instanceof HTMLOutputElement || depthValue instanceof HTMLElement) {{
-        depthValue.textContent = `${{normalizeThemeCustomColorDepth(themeCustomColorDepth)}}%`;
+        depthValue.textContent = `${{normalizeThemeCustomColorDepth(displayColorDepth)}}%`;
+      }}
+      const foregroundTransparencyInput = document.getElementById("theme-custom-foreground-transparency");
+      if (foregroundTransparencyInput instanceof HTMLInputElement) {{
+        foregroundTransparencyInput.value = String(
+          normalizeThemeCustomForegroundTransparency(displayForegroundTransparency)
+        );
+      }}
+      const foregroundTransparencyValue = document.getElementById("theme-custom-foreground-transparency-value");
+      if (foregroundTransparencyValue instanceof HTMLOutputElement || foregroundTransparencyValue instanceof HTMLElement) {{
+        foregroundTransparencyValue.textContent = `${{normalizeThemeCustomForegroundTransparency(displayForegroundTransparency)}}%`;
+      }}
+      const foregroundBlurInput = document.getElementById("theme-custom-foreground-blur");
+      if (foregroundBlurInput instanceof HTMLInputElement) {{
+        foregroundBlurInput.value = String(
+          normalizeThemeCustomForegroundBlur(displayForegroundBlur)
+        );
+      }}
+      const foregroundBlurValue = document.getElementById("theme-custom-foreground-blur-value");
+      if (foregroundBlurValue instanceof HTMLOutputElement || foregroundBlurValue instanceof HTMLElement) {{
+        foregroundBlurValue.textContent = `${{normalizeThemeCustomForegroundBlur(displayForegroundBlur)}}px`;
+      }}
+      const displayBackgroundType = normalizeThemeCustomBackgroundType(editableSettings.background_type);
+      const backgroundTypeSelect = document.getElementById("theme-custom-background-type");
+      if (backgroundTypeSelect instanceof HTMLSelectElement) {{
+        backgroundTypeSelect.value = displayBackgroundType;
+      }}
+      const livemapMode = displayBackgroundType === "livemap";
+      const imageMode = displayBackgroundType === "image";
+      for (const particlesField of document.querySelectorAll("[data-background-particles]")) {{
+        if (particlesField instanceof HTMLElement) {{
+          particlesField.hidden = imageMode;
+        }}
+      }}
+      for (const imageField of document.querySelectorAll("[data-background-image-only]")) {{
+        if (imageField instanceof HTMLElement) {{
+          imageField.hidden = !imageMode;
+        }}
+      }}
+      for (const livemapField of document.querySelectorAll("[data-background-livemap-only]")) {{
+        if (livemapField instanceof HTMLElement) {{
+          livemapField.hidden = !livemapMode;
+        }}
+      }}
+      for (const randomOnlyField of document.querySelectorAll("[data-particles-random-only]")) {{
+        if (randomOnlyField instanceof HTMLElement) {{
+          randomOnlyField.hidden = livemapMode || imageMode;
+        }}
+      }}
+      const particlesLegend = document.getElementById("theme-custom-particles-legend");
+      if (particlesLegend instanceof HTMLElement) {{
+        particlesLegend.textContent = livemapMode ? "Node particles" : "Particles";
+      }}
+      const particlesColorLabel = document.getElementById("theme-custom-particles-color-label");
+      if (particlesColorLabel instanceof HTMLElement) {{
+        particlesColorLabel.textContent = livemapMode ? "Node color" : "Particle color";
+      }}
+      const particlesLinkColorLabel = document.getElementById("theme-custom-particles-link-color-label");
+      if (particlesLinkColorLabel instanceof HTMLElement) {{
+        particlesLinkColorLabel.textContent = livemapMode ? "Link color" : "Line color";
+      }}
+      const imageLayoutSelect = document.getElementById("theme-custom-background-image-layout");
+      if (imageLayoutSelect instanceof HTMLSelectElement) {{
+        imageLayoutSelect.value = normalizeThemeCustomBackgroundImageLayout(displayBackgroundImageLayout);
+      }}
+      const imageDarkenInput = document.getElementById("theme-custom-background-image-darken");
+      if (imageDarkenInput instanceof HTMLInputElement) {{
+        imageDarkenInput.value = String(normalizeThemeCustomBackgroundImageDarken(displayBackgroundImageDarken));
+      }}
+      const imageDarkenValue = document.getElementById("theme-custom-background-image-darken-value");
+      if (imageDarkenValue instanceof HTMLOutputElement || imageDarkenValue instanceof HTMLElement) {{
+        imageDarkenValue.textContent = `${{normalizeThemeCustomBackgroundImageDarken(displayBackgroundImageDarken)}}%`;
+      }}
+      const imageStatus = document.getElementById("theme-custom-background-image-status");
+      if (imageStatus instanceof HTMLElement) {{
+        imageStatus.textContent = normalizeThemeCustomBackgroundImageData(displayBackgroundImageData)
+          ? "Image selected"
+          : "No image selected";
+      }}
+      const particlesEnabledInput = document.getElementById("theme-custom-particles-enabled");
+      if (particlesEnabledInput instanceof HTMLInputElement) {{
+        particlesEnabledInput.checked = normalizeThemeCustomParticlesEnabled(displayParticlesEnabled);
+      }}
+      const particlesColorInput = document.getElementById("theme-custom-particles-color");
+      if (particlesColorInput instanceof HTMLInputElement) {{
+        particlesColorInput.value = normalizeThemeCustomParticlesColor(displayParticlesColor, displayLineContrastColor);
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(particlesColorInput, {{ fallback: displayLineContrastColor || "#548dff" }});
+        }}
+      }}
+      const particlesLinkColorInput = document.getElementById("theme-custom-particles-link-color");
+      if (particlesLinkColorInput instanceof HTMLInputElement) {{
+        particlesLinkColorInput.value = normalizeThemeCustomParticlesColor(
+          livemapMode ? displayLivemapLinkColor : displayParticlesLinkColor,
+          displayLineContrastColor || displayParticlesColor
+        );
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(particlesLinkColorInput, {{ fallback: displayLineContrastColor || displayParticlesColor || "#4f55ff" }});
+        }}
+      }}
+      const particlesCountInput = document.getElementById("theme-custom-particles-count");
+      if (particlesCountInput instanceof HTMLInputElement) {{
+        particlesCountInput.value = String(normalizeThemeCustomParticlesCount(displayParticlesCount));
+      }}
+      const particlesCountValue = document.getElementById("theme-custom-particles-count-value");
+      if (particlesCountValue instanceof HTMLOutputElement || particlesCountValue instanceof HTMLElement) {{
+        particlesCountValue.textContent = String(normalizeThemeCustomParticlesCount(displayParticlesCount));
+      }}
+      const particlesSpeedInput = document.getElementById("theme-custom-particles-speed");
+      if (particlesSpeedInput instanceof HTMLInputElement) {{
+        particlesSpeedInput.value = String(normalizeThemeCustomParticlesSpeed(displayParticlesSpeed));
+      }}
+      const particlesSpeedValue = document.getElementById("theme-custom-particles-speed-value");
+      if (particlesSpeedValue instanceof HTMLOutputElement || particlesSpeedValue instanceof HTMLElement) {{
+        particlesSpeedValue.textContent = String(normalizeThemeCustomParticlesSpeed(displayParticlesSpeed));
+      }}
+      const particlesSizeInput = document.getElementById("theme-custom-particles-size");
+      if (particlesSizeInput instanceof HTMLInputElement) {{
+        particlesSizeInput.value = String(normalizeThemeCustomParticlesSize(displayParticlesSize));
+      }}
+      const particlesSizeValue = document.getElementById("theme-custom-particles-size-value");
+      if (particlesSizeValue instanceof HTMLOutputElement || particlesSizeValue instanceof HTMLElement) {{
+        particlesSizeValue.textContent = String(normalizeThemeCustomParticlesSize(displayParticlesSize));
+      }}
+      const particlesOpacityInput = document.getElementById("theme-custom-particles-opacity");
+      if (particlesOpacityInput instanceof HTMLInputElement) {{
+        particlesOpacityInput.value = String(normalizeThemeCustomParticlesOpacity(displayParticlesOpacity));
+      }}
+      const particlesOpacityValue = document.getElementById("theme-custom-particles-opacity-value");
+      if (particlesOpacityValue instanceof HTMLOutputElement || particlesOpacityValue instanceof HTMLElement) {{
+        particlesOpacityValue.textContent = `${{normalizeThemeCustomParticlesOpacity(displayParticlesOpacity)}}%`;
+      }}
+      const particlesLinksInput = document.getElementById("theme-custom-particles-links");
+      if (particlesLinksInput instanceof HTMLInputElement) {{
+        particlesLinksInput.checked = normalizeThemeCustomParticlesEnabled(displayParticlesLinks, true);
+      }}
+      for (const input of document.querySelectorAll("[data-livemap-layer]")) {{
+        if (!(input instanceof HTMLInputElement)) continue;
+        const layerKey = String(input.dataset.livemapLayer || "").trim();
+        input.checked = normalizeThemeCustomParticlesEnabled(
+          displayLivemapLayers[layerKey],
+          themeCustomLivemapLayerDefaults[layerKey] !== false
+        );
       }}
     }}
 
@@ -273,6 +1355,24 @@
         ? "Select runtime color preset"
         : "Only one preset is available";
       syncThemeCustomControls();
+      syncThemePresetActionButtons();
+    }}
+
+    function syncThemePresetActionButtons() {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      const manageable = themeManagedPresetNames.has(selected);
+      const updateBtn = document.getElementById("theme-preset-update-btn");
+      const renameBtn = document.getElementById("theme-preset-rename-btn");
+      const deleteBtn = document.getElementById("theme-preset-delete-btn");
+      if (updateBtn instanceof HTMLButtonElement) {{
+        updateBtn.hidden = !manageable;
+      }}
+      if (renameBtn instanceof HTMLButtonElement) {{
+        renameBtn.hidden = !manageable;
+      }}
+      if (deleteBtn instanceof HTMLButtonElement) {{
+        deleteBtn.hidden = !manageable;
+      }}
     }}
 
     function applyThemeSettingsPayload(payload, options = null) {{
@@ -283,19 +1383,19 @@
       const normalizedCatalog = normalizeThemePresetCatalog(payload.presets);
       const normalizedCustomTheme = normalizeThemeCustomSettings(payload.custom_theme);
       themePresetCatalog = normalizedCatalog;
+      themePresetCustomSettingsCatalog = normalizeThemePresetCustomSettingsCatalog(payload.preset_custom_settings);
+      themeManagedPresetNames = normalizeThemeManagedPresetNames(payload.custom_preset_names);
       themePresetSelected = normalizeThemePresetName(payload.selected_preset, normalizedCatalog);
-      themeCustomBaseColor = normalizedCustomTheme.base_color;
-      themeCustomLineColor = normalizedCustomTheme.line_color;
-      themeCustomTintColor = normalizedCustomTheme.tint_color;
-      themeCustomTintIntensity = normalizedCustomTheme.tint_intensity;
-      themeCustomColorDepth = normalizedCustomTheme.color_depth;
+      applyThemeCustomSettings(normalizedCustomTheme);
       if (opts.refreshControls === false) {{
         syncThemePresetControlValue();
         syncThemeCustomControls();
+        syncThemePresetActionButtons();
       }} else {{
         updateThemePresetControl(payload.available_presets);
       }}
       applyThemePreference(themePreference, false);
+      applyDashboardBackground(themeEditableSettingsForPreset(themePresetSelected));
       return true;
     }}
 
@@ -332,21 +1432,93 @@
         opts.lineColor == null ? themeCustomLineColor : opts.lineColor,
         normalizedBaseColor
       );
+      const normalizedLineContrastColor = normalizeThemeCustomLineContrastColor(
+        opts.lineContrastColor == null ? themeCustomLineContrastColor : opts.lineContrastColor
+      );
       return {{
         preset_name: cleanPreset || "default",
         preview_only: Boolean(opts.previewOnly),
         custom_theme: {{
           base_color: normalizedBaseColor,
           line_color: normalizedLineColor,
-          tint_color: normalizeThemeCustomTintColor(
-            opts.tintColor == null ? themeCustomTintColor : opts.tintColor,
-            normalizedLineColor
-          ),
-          tint_intensity: normalizeThemeCustomTintIntensity(
-            opts.tintIntensity == null ? themeCustomTintIntensity : opts.tintIntensity
-          ),
+          line_contrast_color: normalizedLineContrastColor,
           color_depth: normalizeThemeCustomColorDepth(
             opts.colorDepth == null ? themeCustomColorDepth : opts.colorDepth
+          ),
+          foreground_transparency: normalizeThemeCustomForegroundTransparency(
+            opts.foregroundTransparency == null
+              ? themeCustomForegroundTransparency
+              : opts.foregroundTransparency
+          ),
+          foreground_blur: normalizeThemeCustomForegroundBlur(
+            opts.foregroundBlur == null
+              ? themeCustomForegroundBlur
+              : opts.foregroundBlur
+          ),
+          text_font: normalizeThemeCustomTextFont(
+            opts.textFont == null ? themeCustomTextFont : opts.textFont
+          ),
+          gradient_primary_start_color: normalizeThemeCustomGradientColor(
+            opts.gradientPrimaryStartColor == null
+              ? themeCustomGradientPrimaryStartColor
+              : opts.gradientPrimaryStartColor,
+            normalizedBaseColor
+          ),
+          gradient_primary_end_color: normalizeThemeCustomGradientColor(
+            opts.gradientPrimaryEndColor == null ? themeCustomGradientPrimaryEndColor : opts.gradientPrimaryEndColor,
+            "#060d1f"
+          ),
+          gradient_primary_type: normalizeThemeCustomGradientType(
+            opts.gradientPrimaryType == null ? themeCustomGradientPrimaryType : opts.gradientPrimaryType
+          ),
+          gradient_primary_direction: normalizeThemeCustomGradientDirection(
+            opts.gradientPrimaryDirection == null ? themeCustomGradientPrimaryDirection : opts.gradientPrimaryDirection
+          ),
+          background_type: normalizeThemeCustomBackgroundType(
+            opts.backgroundType == null ? themeCustomBackgroundType : opts.backgroundType
+          ),
+          background_image_data: normalizeThemeCustomBackgroundImageData(
+            opts.backgroundImageData == null ? themeCustomBackgroundImageData : opts.backgroundImageData
+          ),
+          background_image_layout: normalizeThemeCustomBackgroundImageLayout(
+            opts.backgroundImageLayout == null ? themeCustomBackgroundImageLayout : opts.backgroundImageLayout
+          ),
+          background_image_darken: normalizeThemeCustomBackgroundImageDarken(
+            opts.backgroundImageDarken == null ? themeCustomBackgroundImageDarken : opts.backgroundImageDarken
+          ),
+          particles_enabled: normalizeThemeCustomParticlesEnabled(
+            opts.particlesEnabled == null ? themeCustomParticlesEnabled : opts.particlesEnabled
+          ),
+          particles_color: normalizeThemeCustomParticlesColor(
+            opts.particlesColor == null ? themeCustomParticlesColor : opts.particlesColor,
+            normalizedLineContrastColor
+          ),
+          particles_link_color: normalizeThemeCustomParticlesColor(
+            opts.particlesLinkColor == null ? themeCustomParticlesLinkColor : opts.particlesLinkColor,
+            normalizedLineContrastColor
+          ),
+          livemap_link_color: normalizeThemeCustomParticlesColor(
+            opts.livemapLinkColor == null ? themeCustomLivemapLinkColor : opts.livemapLinkColor,
+            opts.particlesLinkColor == null ? themeCustomParticlesLinkColor : opts.particlesLinkColor
+          ),
+          particles_count: normalizeThemeCustomParticlesCount(
+            opts.particlesCount == null ? themeCustomParticlesCount : opts.particlesCount
+          ),
+          particles_speed: normalizeThemeCustomParticlesSpeed(
+            opts.particlesSpeed == null ? themeCustomParticlesSpeed : opts.particlesSpeed
+          ),
+          particles_size: normalizeThemeCustomParticlesSize(
+            opts.particlesSize == null ? themeCustomParticlesSize : opts.particlesSize
+          ),
+          particles_opacity: normalizeThemeCustomParticlesOpacity(
+            opts.particlesOpacity == null ? themeCustomParticlesOpacity : opts.particlesOpacity
+          ),
+          particles_links: normalizeThemeCustomParticlesEnabled(
+            opts.particlesLinks == null ? themeCustomParticlesLinks : opts.particlesLinks,
+            true
+          ),
+          livemap_layers: normalizeThemeCustomLivemapLayers(
+            opts.livemapLayers == null ? themeCustomLivemapLayers : opts.livemapLayers
           ),
         }},
       }};
@@ -410,7 +1582,7 @@
 
     function queueLiveThemePreview() {{
       clearThemeSettingsPreviewTimer();
-      setThemeLivePreviewStatus("Previewing live...");
+      applyDashboardBackground(currentThemeCustomSettings());
       themeSettingsSaveDebounceTimer = window.setTimeout(() => {{
         themeSettingsSaveDebounceTimer = null;
         void saveThemeSettings(
@@ -425,7 +1597,6 @@
 
     async function persistThemeCustomControls() {{
       clearThemeSettingsPreviewTimer();
-      setThemeLivePreviewStatus("Saving...");
       const saved = await saveThemeSettings(
         buildCurrentThemeCustomOptions(),
         {{
@@ -433,7 +1604,6 @@
         }},
       );
       updateThemePresetControl();
-      setThemeLivePreviewStatus(saved ? "Saved." : "Live preview paused.", saved ? 1000 : 1600);
       return saved;
     }}
 
@@ -454,23 +1624,263 @@
           return;
         }}
         select.disabled = true;
-        setThemeLivePreviewStatus("Saving...");
         await saveThemeSettings({{ presetName: selected }});
         updateThemePresetControl();
-        setThemeLivePreviewStatus("Saved.", 1000);
+      }});
+    }}
+
+    async function postThemeManagementAction(payload) {{
+      try {{
+        const resp = await fetch(themeSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(payload),
+        }});
+        const body = await resp.json().catch(() => ({{ ok: false, error: `API ${{resp.status}}` }}));
+        if (!resp.ok || !body || body.ok === false) {{
+          const message = body && body.error ? body.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        applyThemeSettingsPayload(body, {{ refreshControls: true }});
+        return true;
+      }} catch (err) {{
+        const msg = err instanceof Error ? err.message : String(err || "unknown error");
+        appendConsoleLine(`theme-settings-manage|${{Date.now()}}|${{msg}}`, `[theme settings] ${{msg}}`);
+        window.alert(msg);
+        return false;
+      }}
+    }}
+
+    async function saveCurrentThemeAsNewPreset(name) {{
+      const cleanName = String(name || "").trim();
+      if (!cleanName) return false;
+      const payload = buildThemeSettingsSavePayload({{ presetName: cleanName }});
+      payload.action = "save";
+      return postThemeManagementAction(payload);
+    }}
+
+    async function updateSelectedThemePreset() {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      if (!themeManagedPresetNames.has(selected)) return false;
+      const payload = buildThemeSettingsSavePayload({{ presetName: selected }});
+      payload.action = "save";
+      return postThemeManagementAction(payload);
+    }}
+
+    async function renameSelectedThemePreset() {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      if (!themeManagedPresetNames.has(selected)) return false;
+      const nextName = window.prompt("Rename theme:", selected);
+      if (nextName == null) return false;
+      const cleanNext = String(nextName || "").trim();
+      if (!cleanNext || cleanNext === selected) return false;
+      return postThemeManagementAction({{
+        action: "rename",
+        preset_name: selected,
+        new_preset_label: cleanNext,
+      }});
+    }}
+
+    async function deleteSelectedThemePreset() {{
+      const selected = normalizeThemePresetName(themePresetSelected, themePresetCatalog);
+      if (!themeManagedPresetNames.has(selected)) return false;
+      const confirmed = window.confirm(`Delete theme "${{selected}}"? This cannot be undone.`);
+      if (!confirmed) return false;
+      return postThemeManagementAction({{ action: "delete", preset_name: selected }});
+    }}
+
+    function bindThemePresetActionButtons() {{
+      const saveBtn = document.getElementById("theme-preset-save-btn");
+      if (saveBtn instanceof HTMLButtonElement && saveBtn.dataset.bound !== "1") {{
+        saveBtn.dataset.bound = "1";
+        saveBtn.addEventListener("click", async () => {{
+          const name = window.prompt("Save current theme as:", "");
+          if (name == null) return;
+          saveBtn.disabled = true;
+          try {{
+            await saveCurrentThemeAsNewPreset(name);
+          }} finally {{
+            saveBtn.disabled = false;
+          }}
+        }});
+      }}
+
+      const updateBtn = document.getElementById("theme-preset-update-btn");
+      if (updateBtn instanceof HTMLButtonElement && updateBtn.dataset.bound !== "1") {{
+        updateBtn.dataset.bound = "1";
+        updateBtn.addEventListener("click", async () => {{
+          updateBtn.disabled = true;
+          try {{
+            await updateSelectedThemePreset();
+          }} finally {{
+            updateBtn.disabled = false;
+          }}
+        }});
+      }}
+
+      const renameBtn = document.getElementById("theme-preset-rename-btn");
+      if (renameBtn instanceof HTMLButtonElement && renameBtn.dataset.bound !== "1") {{
+        renameBtn.dataset.bound = "1";
+        renameBtn.addEventListener("click", async () => {{
+          renameBtn.disabled = true;
+          try {{
+            await renameSelectedThemePreset();
+          }} finally {{
+            renameBtn.disabled = false;
+          }}
+        }});
+      }}
+
+      const deleteBtn = document.getElementById("theme-preset-delete-btn");
+      if (deleteBtn instanceof HTMLButtonElement && deleteBtn.dataset.bound !== "1") {{
+        deleteBtn.dataset.bound = "1";
+        deleteBtn.addEventListener("click", async () => {{
+          deleteBtn.disabled = true;
+          try {{
+            await deleteSelectedThemePreset();
+          }} finally {{
+            deleteBtn.disabled = false;
+          }}
+        }});
+      }}
+    }}
+
+    const themeCustomBackgroundImageMimeTypes = new Set([
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp",
+      "image/avif",
+    ]);
+
+    function setThemeCustomBackgroundImageStatus(message) {{
+      const status = document.getElementById("theme-custom-background-image-status");
+      if (status instanceof HTMLElement) {{
+        status.textContent = String(message || "");
+      }}
+    }}
+
+    function readThemeCustomBackgroundImageFile(file) {{
+      return new Promise((resolve, reject) => {{
+        if (!(file instanceof File)) {{
+          reject(new Error("No image selected"));
+          return;
+        }}
+        if (!themeCustomBackgroundImageMimeTypes.has(String(file.type || "").toLowerCase())) {{
+          reject(new Error("Unsupported image type"));
+          return;
+        }}
+        const estimatedDataLength = Math.ceil(Number(file.size || 0) * 1.38) + 64;
+        if (estimatedDataLength > themeCustomBackgroundImageDataMaxLength) {{
+          reject(new Error("Image is too large"));
+          return;
+        }}
+        if (typeof FileReader !== "function") {{
+          reject(new Error("Image picker is unavailable"));
+          return;
+        }}
+        const reader = new FileReader();
+        reader.addEventListener("load", () => resolve(String(reader.result || "")));
+        reader.addEventListener("error", () => reject(new Error("Image could not be read")));
+        reader.readAsDataURL(file);
       }});
     }}
 
     function bindThemeCustomControls() {{
+      const bindGradientColorInput = (controlId, options) => {{
+        const input = document.getElementById(controlId);
+        if (!(input instanceof HTMLInputElement) || input.dataset.bound === "1") {{
+          return;
+        }}
+        const opts = options && typeof options === "object" ? options : {{}};
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(input, {{
+            fallback: opts.fallback,
+            label: opts.label,
+            buttonLabel: opts.buttonLabel,
+          }});
+        }}
+        input.dataset.bound = "1";
+        input.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(input)) return;
+          beginThemeCustomEditFromSelectedPreset();
+          opts.setValue(normalizeThemeCustomGradientColor(input.value, opts.fallback));
+          syncThemeCustomControls();
+          queueLiveThemePreview();
+        }});
+        input.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(input)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
+          opts.setValue(normalizeThemeCustomGradientColor(input.value, opts.fallback));
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }};
+
+      const bindGradientSelect = (controlId, options) => {{
+        const select = document.getElementById(controlId);
+        if (!(select instanceof HTMLSelectElement) || select.dataset.bound === "1") {{
+          return;
+        }}
+        const opts = options && typeof options === "object" ? options : {{}};
+        const normalize = opts.normalize;
+        select.dataset.bound = "1";
+        select.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          opts.setValue(normalize(select.value, opts.fallback));
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }};
+
+      const bindParticleRangeInput = (controlId, options) => {{
+        const input = document.getElementById(controlId);
+        if (!(input instanceof HTMLInputElement) || input.dataset.bound === "1") {{
+          return;
+        }}
+        const opts = options && typeof options === "object" ? options : {{}};
+        const normalize = opts.normalize;
+        input.dataset.bound = "1";
+        input.addEventListener("input", () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          opts.setValue(normalize(input.value));
+          syncThemeCustomControls();
+          queueLiveThemePreview();
+        }});
+        input.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          opts.setValue(normalize(input.value));
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }};
+
       const colorInput = document.getElementById("theme-custom-base-color");
       if (colorInput instanceof HTMLInputElement && colorInput.dataset.bound !== "1") {{
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(colorInput, {{
+            fallback: "#007bff",
+            label: "Base color",
+            buttonLabel: "Pick base color",
+          }});
+        }}
         colorInput.dataset.bound = "1";
         colorInput.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(colorInput)) return;
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomBaseColor = normalizeThemeCustomBaseColor(colorInput.value);
           syncThemeCustomControls();
           queueLiveThemePreview();
         }});
         colorInput.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(colorInput)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomBaseColor = normalizeThemeCustomBaseColor(colorInput.value);
           syncThemeCustomControls();
           await persistThemeCustomControls();
@@ -479,45 +1889,337 @@
 
       const lineColorInput = document.getElementById("theme-custom-line-color");
       if (lineColorInput instanceof HTMLInputElement && lineColorInput.dataset.bound !== "1") {{
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(lineColorInput, {{
+            fallback: themeCustomBaseColor || "#0da6ff",
+            label: "Line color",
+            buttonLabel: "Pick line color",
+          }});
+        }}
         lineColorInput.dataset.bound = "1";
         lineColorInput.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(lineColorInput)) return;
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomLineColor = normalizeThemeCustomLineColor(lineColorInput.value, themeCustomBaseColor);
           syncThemeCustomControls();
           queueLiveThemePreview();
         }});
         lineColorInput.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(lineColorInput)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomLineColor = normalizeThemeCustomLineColor(lineColorInput.value, themeCustomBaseColor);
           syncThemeCustomControls();
           await persistThemeCustomControls();
         }});
       }}
 
-      const tintColorInput = document.getElementById("theme-custom-tint-color");
-      if (tintColorInput instanceof HTMLInputElement && tintColorInput.dataset.bound !== "1") {{
-        tintColorInput.dataset.bound = "1";
-        tintColorInput.addEventListener("input", () => {{
-          themeCustomTintColor = normalizeThemeCustomTintColor(tintColorInput.value, themeCustomLineColor);
+      const lineContrastColorInput = document.getElementById("theme-custom-line-contrast-color");
+      if (lineContrastColorInput instanceof HTMLInputElement && lineContrastColorInput.dataset.bound !== "1") {{
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(lineContrastColorInput, {{
+            fallback: "#4f55ff",
+            label: "Line contrast color",
+            buttonLabel: "Pick line contrast color",
+          }});
+        }}
+        lineContrastColorInput.dataset.bound = "1";
+        lineContrastColorInput.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(lineContrastColorInput)) return;
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomLineContrastColor = normalizeThemeCustomLineContrastColor(lineContrastColorInput.value);
           syncThemeCustomControls();
           queueLiveThemePreview();
         }});
-        tintColorInput.addEventListener("change", async () => {{
-          themeCustomTintColor = normalizeThemeCustomTintColor(tintColorInput.value, themeCustomLineColor);
+        lineContrastColorInput.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(lineContrastColorInput)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomLineContrastColor = normalizeThemeCustomLineContrastColor(lineContrastColorInput.value);
           syncThemeCustomControls();
           await persistThemeCustomControls();
         }});
       }}
 
-      const tintIntensityInput = document.getElementById("theme-custom-tint-intensity");
-      if (tintIntensityInput instanceof HTMLInputElement && tintIntensityInput.dataset.bound !== "1") {{
-        tintIntensityInput.dataset.bound = "1";
-        tintIntensityInput.addEventListener("input", () => {{
-          themeCustomTintIntensity = normalizeThemeCustomTintIntensity(tintIntensityInput.value);
+      const textFontSelect = document.getElementById("theme-custom-text-font");
+      if (textFontSelect instanceof HTMLSelectElement && textFontSelect.dataset.bound !== "1") {{
+        textFontSelect.dataset.bound = "1";
+        textFontSelect.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomTextFont = normalizeThemeCustomTextFont(textFontSelect.value);
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      bindGradientColorInput("theme-custom-gradient-primary-start-color", {{
+        fallback: themeCustomBaseColor || "#00356e",
+        label: "Background gradient start",
+        buttonLabel: "Pick background gradient start color",
+        setValue: (value) => {{
+          themeCustomGradientPrimaryStartColor = value;
+        }},
+      }});
+      bindGradientColorInput("theme-custom-gradient-primary-end-color", {{
+        fallback: "#060d1f",
+        label: "Background gradient end",
+        buttonLabel: "Pick background gradient end color",
+        setValue: (value) => {{
+          themeCustomGradientPrimaryEndColor = value;
+        }},
+      }});
+      bindGradientSelect("theme-custom-gradient-primary-type", {{
+        fallback: "linear",
+        normalize: normalizeThemeCustomGradientType,
+        setValue: (value) => {{
+          themeCustomGradientPrimaryType = value;
+        }},
+      }});
+      bindGradientSelect("theme-custom-gradient-primary-direction", {{
+        fallback: "right",
+        normalize: normalizeThemeCustomGradientDirection,
+        setValue: (value) => {{
+          themeCustomGradientPrimaryDirection = value;
+        }},
+      }});
+
+      const backgroundTypeSelect = document.getElementById("theme-custom-background-type");
+      if (backgroundTypeSelect instanceof HTMLSelectElement && backgroundTypeSelect.dataset.bound !== "1") {{
+        backgroundTypeSelect.dataset.bound = "1";
+        backgroundTypeSelect.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomBackgroundType = normalizeThemeCustomBackgroundType(backgroundTypeSelect.value);
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const backgroundImageLayoutSelect = document.getElementById("theme-custom-background-image-layout");
+      if (backgroundImageLayoutSelect instanceof HTMLSelectElement && backgroundImageLayoutSelect.dataset.bound !== "1") {{
+        backgroundImageLayoutSelect.dataset.bound = "1";
+        backgroundImageLayoutSelect.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomBackgroundType = "image";
+          themeCustomBackgroundImageLayout = normalizeThemeCustomBackgroundImageLayout(backgroundImageLayoutSelect.value);
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const backgroundImageDarkenInput = document.getElementById("theme-custom-background-image-darken");
+      if (backgroundImageDarkenInput instanceof HTMLInputElement && backgroundImageDarkenInput.dataset.bound !== "1") {{
+        backgroundImageDarkenInput.dataset.bound = "1";
+        backgroundImageDarkenInput.addEventListener("input", () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomBackgroundType = "image";
+          themeCustomBackgroundImageDarken = normalizeThemeCustomBackgroundImageDarken(backgroundImageDarkenInput.value);
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          queueLiveThemePreview();
+        }});
+        backgroundImageDarkenInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomBackgroundType = "image";
+          themeCustomBackgroundImageDarken = normalizeThemeCustomBackgroundImageDarken(backgroundImageDarkenInput.value);
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const backgroundImageFileInput = document.getElementById("theme-custom-background-image-file");
+      if (backgroundImageFileInput instanceof HTMLInputElement && backgroundImageFileInput.dataset.bound !== "1") {{
+        backgroundImageFileInput.dataset.bound = "1";
+        backgroundImageFileInput.addEventListener("change", async () => {{
+          const file = backgroundImageFileInput.files && backgroundImageFileInput.files.length
+            ? backgroundImageFileInput.files[0]
+            : null;
+          if (!file) return;
+          backgroundImageFileInput.disabled = true;
+          try {{
+            setThemeCustomBackgroundImageStatus("Loading image");
+            const imageData = normalizeThemeCustomBackgroundImageData(
+              await readThemeCustomBackgroundImageFile(file)
+            );
+            if (!imageData) {{
+              throw new Error("Unsupported image data");
+            }}
+            beginThemeCustomEditFromSelectedPreset();
+            themeCustomBackgroundType = "image";
+            themeCustomBackgroundImageData = imageData;
+            syncThemeCustomControls();
+            applyDashboardBackground(currentThemeCustomSettings());
+            await persistThemeCustomControls();
+          }} catch (err) {{
+            const msg = err instanceof Error ? err.message : String(err || "Image could not be read");
+            syncThemeCustomControls();
+            setThemeCustomBackgroundImageStatus(msg);
+            appendConsoleLine(`theme-background-image|${{Date.now()}}|${{msg}}`, `[theme background] ${{msg}}`);
+          }} finally {{
+            backgroundImageFileInput.value = "";
+            backgroundImageFileInput.disabled = false;
+          }}
+        }});
+      }}
+
+      const backgroundImageClearBtn = document.getElementById("theme-custom-background-image-clear");
+      if (backgroundImageClearBtn instanceof HTMLButtonElement && backgroundImageClearBtn.dataset.bound !== "1") {{
+        backgroundImageClearBtn.dataset.bound = "1";
+        backgroundImageClearBtn.addEventListener("click", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomBackgroundType = "image";
+          themeCustomBackgroundImageData = "";
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const particlesEnabledInput = document.getElementById("theme-custom-particles-enabled");
+      if (particlesEnabledInput instanceof HTMLInputElement && particlesEnabledInput.dataset.bound !== "1") {{
+        particlesEnabledInput.dataset.bound = "1";
+        particlesEnabledInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomParticlesEnabled = !!particlesEnabledInput.checked;
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const particlesColorInput = document.getElementById("theme-custom-particles-color");
+      if (particlesColorInput instanceof HTMLInputElement && particlesColorInput.dataset.bound !== "1") {{
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(particlesColorInput, {{
+            fallback: themeCustomLineContrastColor || "#548dff",
+            label: "Particle color",
+            buttonLabel: "Pick particle color",
+          }});
+        }}
+        particlesColorInput.dataset.bound = "1";
+        particlesColorInput.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(particlesColorInput)) return;
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomParticlesColor = normalizeThemeCustomParticlesColor(
+            particlesColorInput.value,
+            themeCustomLineContrastColor
+          );
           syncThemeCustomControls();
           queueLiveThemePreview();
         }});
-        tintIntensityInput.addEventListener("change", async () => {{
-          themeCustomTintIntensity = normalizeThemeCustomTintIntensity(tintIntensityInput.value);
+        particlesColorInput.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(particlesColorInput)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomParticlesColor = normalizeThemeCustomParticlesColor(
+            particlesColorInput.value,
+            themeCustomLineContrastColor
+          );
           syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      const particlesLinkColorInput = document.getElementById("theme-custom-particles-link-color");
+      if (particlesLinkColorInput instanceof HTMLInputElement && particlesLinkColorInput.dataset.bound !== "1") {{
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(particlesLinkColorInput, {{
+            fallback: themeCustomLineContrastColor || themeCustomParticlesColor || "#4f55ff",
+            label: "Line or link color",
+            buttonLabel: "Pick line or link color",
+          }});
+        }}
+        const setActiveBackgroundLinkColor = () => {{
+          const nextColor = normalizeThemeCustomParticlesColor(
+            particlesLinkColorInput.value,
+            themeCustomLineContrastColor || themeCustomParticlesColor
+          );
+          if (normalizeThemeCustomBackgroundType(themeCustomBackgroundType) === "livemap") {{
+            themeCustomLivemapLinkColor = nextColor;
+          }} else {{
+            themeCustomParticlesLinkColor = nextColor;
+          }}
+        }};
+        particlesLinkColorInput.dataset.bound = "1";
+        particlesLinkColorInput.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(particlesLinkColorInput)) return;
+          beginThemeCustomEditFromSelectedPreset();
+          setActiveBackgroundLinkColor();
+          syncThemeCustomControls();
+          queueLiveThemePreview();
+        }});
+        particlesLinkColorInput.addEventListener("change", async () => {{
+          if (!themeCustomColorInputHasCompleteHex(particlesLinkColorInput)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
+          setActiveBackgroundLinkColor();
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      bindParticleRangeInput("theme-custom-particles-count", {{
+        normalize: normalizeThemeCustomParticlesCount,
+        setValue: (value) => {{
+          themeCustomParticlesCount = value;
+        }},
+      }});
+      bindParticleRangeInput("theme-custom-particles-speed", {{
+        normalize: normalizeThemeCustomParticlesSpeed,
+        setValue: (value) => {{
+          themeCustomParticlesSpeed = value;
+        }},
+      }});
+      bindParticleRangeInput("theme-custom-particles-size", {{
+        normalize: normalizeThemeCustomParticlesSize,
+        setValue: (value) => {{
+          themeCustomParticlesSize = value;
+        }},
+      }});
+      bindParticleRangeInput("theme-custom-particles-opacity", {{
+        normalize: normalizeThemeCustomParticlesOpacity,
+        setValue: (value) => {{
+          themeCustomParticlesOpacity = value;
+        }},
+      }});
+
+      const particlesLinksInput = document.getElementById("theme-custom-particles-links");
+      if (particlesLinksInput instanceof HTMLInputElement && particlesLinksInput.dataset.bound !== "1") {{
+        particlesLinksInput.dataset.bound = "1";
+        particlesLinksInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomParticlesLinks = !!particlesLinksInput.checked;
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      for (const input of document.querySelectorAll("[data-livemap-layer]")) {{
+        if (!(input instanceof HTMLInputElement) || input.dataset.bound === "1") continue;
+        input.dataset.bound = "1";
+        input.addEventListener("change", async () => {{
+          const layerKey = String(input.dataset.livemapLayer || "").trim();
+          if (!Object.prototype.hasOwnProperty.call(themeCustomLivemapLayerDefaults, layerKey)) {{
+            syncThemeCustomControls();
+            return;
+          }}
+          beginThemeCustomEditFromSelectedPreset();
+          const nextLayers = normalizeThemeCustomLivemapLayers(themeCustomLivemapLayers);
+          nextLayers[layerKey] = !!input.checked;
+          themeCustomLivemapLayers = nextLayers;
+          syncThemeCustomControls();
+          applyDashboardBackground(currentThemeCustomSettings());
           await persistThemeCustomControls();
         }});
       }}
@@ -526,24 +2228,52 @@
       if (depthInput instanceof HTMLInputElement && depthInput.dataset.bound !== "1") {{
         depthInput.dataset.bound = "1";
         depthInput.addEventListener("input", () => {{
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomColorDepth = normalizeThemeCustomColorDepth(depthInput.value);
           syncThemeCustomControls();
           queueLiveThemePreview();
         }});
         depthInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
           themeCustomColorDepth = normalizeThemeCustomColorDepth(depthInput.value);
           syncThemeCustomControls();
           await persistThemeCustomControls();
         }});
       }}
 
-      syncThemeCustomControls();
-      setThemeLivePreviewStatus();
-    }}
-
-    function systemPreferredTheme() {{
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {{
-        return "dark";
+      const foregroundTransparencyInput = document.getElementById("theme-custom-foreground-transparency");
+      if (foregroundTransparencyInput instanceof HTMLInputElement && foregroundTransparencyInput.dataset.bound !== "1") {{
+        foregroundTransparencyInput.dataset.bound = "1";
+        foregroundTransparencyInput.addEventListener("input", () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomForegroundTransparency = normalizeThemeCustomForegroundTransparency(foregroundTransparencyInput.value);
+          syncThemeCustomControls();
+          queueLiveThemePreview();
+        }});
+        foregroundTransparencyInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomForegroundTransparency = normalizeThemeCustomForegroundTransparency(foregroundTransparencyInput.value);
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
       }}
-      return "light";
+
+      const foregroundBlurInput = document.getElementById("theme-custom-foreground-blur");
+      if (foregroundBlurInput instanceof HTMLInputElement && foregroundBlurInput.dataset.bound !== "1") {{
+        foregroundBlurInput.dataset.bound = "1";
+        foregroundBlurInput.addEventListener("input", () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomForegroundBlur = normalizeThemeCustomForegroundBlur(foregroundBlurInput.value);
+          syncThemeCustomControls();
+          queueLiveThemePreview();
+        }});
+        foregroundBlurInput.addEventListener("change", async () => {{
+          beginThemeCustomEditFromSelectedPreset();
+          themeCustomForegroundBlur = normalizeThemeCustomForegroundBlur(foregroundBlurInput.value);
+          syncThemeCustomControls();
+          await persistThemeCustomControls();
+        }});
+      }}
+
+      syncThemeCustomControls();
     }}

@@ -135,11 +135,11 @@
           }}
           return messageMeshChannelIndex(msg);
         }})();
-        const hasMeshTint = Number.isInteger(meshIdx) && meshIdx > 0;
-        const meshTintClass = hasMeshTint ? " channel-tinted" : "";
-        const meshEdgeClass = (hasMeshTint && typeof meshChannelEdgeClass === "function")
-          ? ` ${{meshChannelEdgeClass(meshIdx, {{ allowAll: false }})}}`
-          : "";
+        const hasMeshChannel = Number.isInteger(meshIdx) && meshIdx >= 0;
+        const showMessageChannelTab = hasMeshChannel
+          && typeof shouldShowChatFeedChannelTab === "function"
+          && shouldShowChatFeedChannelTab();
+        const messageChannelClass = showMessageChannelTab ? " has-channel-tab" : "";
         const tagMatch = resolveNodeTagEntryForCandidates([
           sourceNodeRaw,
           sourceNodeResolved,
@@ -157,66 +157,19 @@
         const tagStyleVars = (tagActive && typeof nodeTagStyleVars === "function")
           ? nodeTagStyleVars(tintTagEntry)
           : "";
-        const tintSeedNode = (
+        const tagTintStyleVars = (tagActive && typeof nodeTagTintStyleVars === "function")
+          ? nodeTagTintStyleVars(tintTagEntry, "feed", 210)
+          : "";
+        const nodeVisualSeedNode = (
           nodesById.get(normalizeNodeId(tintNodeId))
           || nodesById.get(normalizeNodeId(sourceNode))
           || nodesById.get(normalizeNodeId(nodeId))
           || null
         );
-        const feedShortNameSeedRaw = String(
-          (tintSeedNode && (tintSeedNode.short_name || tintSeedNode.shortName || (tintSeedNode.user && (tintSeedNode.user.short_name || tintSeedNode.user.shortName))))
-          || ""
-        ).trim();
-        const feedLongNameSeedRaw = String(
-          (tintSeedNode && (tintSeedNode.long_name || tintSeedNode.longName || (tintSeedNode.user && (tintSeedNode.user.long_name || tintSeedNode.user.longName))))
-          || fromMeta.label
-          || ""
-        ).trim();
-        const tintIdentitySeedRaw = String(
-          tintNodeId
-          || sourceNode
-          || nodeId
-          || sourceNodeRaw
-          || fromMeta.idTag
-          || fromMeta.label
-          || ""
-        ).trim();
-        const tintOutlineSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(tintIdentitySeedRaw, fromMeta.label || "unknown")
-          : String(tintIdentitySeedRaw || fromMeta.label || "unknown").trim();
-        const tintStartSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(feedShortNameSeedRaw, fromMeta.idTag || fromMeta.label || tintOutlineSeed)
-          : String(feedShortNameSeedRaw || fromMeta.idTag || fromMeta.label || tintOutlineSeed).trim();
-        const tintEndSeed = (typeof normalizeNodeTintSeedText === "function")
-          ? normalizeNodeTintSeedText(feedLongNameSeedRaw, fromMeta.label || tintStartSeed || tintOutlineSeed)
-          : String(feedLongNameSeedRaw || fromMeta.label || tintStartSeed || tintOutlineSeed).trim();
-        const autoNodeTintHue = (typeof nodeTintHue === "function")
-          ? nodeTintHue(tintNodeId, 210)
-          : 210;
-        const nodeTintHueValue = (tintTagEntry && typeof nodeTagTintHue === "function")
-          ? nodeTagTintHue(tintTagEntry, autoNodeTintHue)
-          : autoNodeTintHue;
-        const nodeTintOptions = {{
-          scope: "feed",
-          fallbackHue: 210,
-          tagActive,
-          hue: nodeTintHueValue,
-          outlineSeed: tintOutlineSeed,
-          tintStartSeed,
-          tintEndSeed,
-        }};
-        if (tagActive) {{
-          nodeTintOptions.tintStartHue = nodeTintHueValue;
-          nodeTintOptions.tintEndHue = nodeTintHueValue;
-          nodeTintOptions.outlineHue = nodeTintHueValue;
-        }}
-        const nodeTintStyle = (typeof nodeTintStyleVars === "function")
-          ? nodeTintStyleVars(tintNodeId, nodeTintOptions)
-          : `--chat-feed-node-hue:${{Math.max(0, Math.min(359, Math.trunc(Number(nodeTintHueValue) || 210)))}};`;
         const nodeVisualEmoji = (typeof nodeVisualWatermarkForNode === "function")
-          ? String(nodeVisualWatermarkForNode(tintNodeId || sourceNode || nodeId, tintTagEntry, tintSeedNode) || "").trim()
+          ? String(nodeVisualWatermarkForNode(tintNodeId || sourceNode || nodeId, tintTagEntry, nodeVisualSeedNode) || "").trim()
           : ((typeof nodeVisualEmojiForNode === "function")
-            ? String(nodeVisualEmojiForNode(tintNodeId || sourceNode || nodeId, tintTagEntry, tintSeedNode) || "").trim()
+            ? String(nodeVisualEmojiForNode(tintNodeId || sourceNode || nodeId, tintTagEntry, nodeVisualSeedNode) || "").trim()
             : "");
         const nodeWatermarkTextClass = (
           nodeVisualEmoji
@@ -229,18 +182,22 @@
         const nodeEmojiAttr = nodeVisualEmoji
           ? ` data-node-emoji="${{escAttr(nodeVisualEmoji)}}"`
           : "";
-        const rowTintStyleParts = [];
-        if (hasMeshTint) {{
-          rowTintStyleParts.push(meshChannelTintStyle(meshIdx, {{ allowAll: false }}));
+        const rowStyleParts = [];
+        if (showMessageChannelTab && typeof meshChannelEdgeStyle === "function") {{
+          rowStyleParts.push(meshChannelEdgeStyle(meshIdx, {{ allowAll: false }}));
         }}
-        rowTintStyleParts.push(nodeTintStyle);
+        if (tagTintStyleVars) {{
+          rowStyleParts.push(tagTintStyleVars);
+        }}
         if (tagStyleVars) {{
-          rowTintStyleParts.push(tagStyleVars);
+          rowStyleParts.push(tagStyleVars);
         }}
-        const combinedRowTintStyle = rowTintStyleParts
+        const combinedRowStyle = rowStyleParts
           .filter((value) => !!value)
           .join(" ");
-        const rowTintStyleAttr = ` style="${{escAttr(combinedRowTintStyle)}}"`;
+        const rowStyleAttr = combinedRowStyle
+          ? ` style="${{escAttr(combinedRowStyle)}}"`
+          : "";
         const hopStart = firstFiniteNestedNumber(
           [msg, packetSummary, packetRaw],
           [
@@ -455,6 +412,9 @@
         const statusBadge = isStatusMessage
           ? '<span class="chat-feed-status-pill" title="Status update">Status</span>'
           : "";
+        const messageChannelTab = showMessageChannelTab
+          ? `<span class="chat-feed-channel-tab channel-bookmark-tab" style="--channel-tab-fill: var(--chat-feed-channel-fill);" title="${{escAttr(meshChannelLabelForIndex(meshIdx, {{ verbose: true, allowAll: false }}))}}" aria-hidden="true"></span>`
+          : "";
         const messageTooltipParts = [
           `From: ${{fromMeta.label}}${{fromMeta.idTag ? ` (${{fromMeta.idTag}})` : ""}}`,
           `To: ${{toMeta.label}}${{toMeta.idTag ? ` (${{toMeta.idTag}})` : ""}}`,
@@ -534,8 +494,8 @@
             ? '<span class="chat-monitor-alert-tag" title="Alert packet">[!]</span>'
             : "";
           const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
-          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{statusClass}}${{alertClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}`;
-          return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{statusClass}}${{alertClass}}${{monitorViewClass}}`;
+          return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
             <span class="chat-entry-msg">
               ${{monitorPrefix}}
               ${{monitorNetworkTag}}
@@ -568,7 +528,8 @@
           ? `<span class="chat-feed-side">${{sideParts.join("")}}</span>`
           : "";
         const extraRows = monitorMode ? "" : reactionRow;
-        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-node-tint-outline-seed="${{escAttr(tintOutlineSeed)}}" data-node-tint-start-seed="${{escAttr(tintStartSeed)}}" data-node-tint-end-seed="${{escAttr(tintEndSeed)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{nodeEmojiClass}}${{meshTintClass}}${{meshEdgeClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowTintStyleAttr}} title="${{escAttr(messageTooltip)}}">
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{nodeEmojiClass}}${{messageChannelClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
+          ${{messageChannelTab}}
           <div class="chat-feed-line">
             <div class="chat-feed-summary">
               ${{changeBadge}}

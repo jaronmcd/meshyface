@@ -23,6 +23,8 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             '"/api/state?lite=1&profile=console"',
             'function statePollProfile() {',
             'latestStatePollProfile = pollProfile;',
+            'if (typeof requestDashboardLivemapRefit === "function") {',
+            "requestDashboardLivemapRefit();",
             'let stateEtagProfile = "";',
             "const previousStateEtagProfile = String(stateEtagProfile || \"\");",
             "&& previousStateEtagProfile === pollProfile",

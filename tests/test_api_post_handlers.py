@@ -769,6 +769,38 @@ def test_theme_settings_get_and_post_handlers_cover_success_and_failures() -> No
     assert calls[6]["payload"]["error"] == "Theme settings update failed: write failed"  # type: ignore[index]
 
 
+def test_theme_settings_post_allows_image_background_payload_size() -> None:
+    body = (
+        b'{"preset_name":"custom","custom_theme":{"background_type":"image",'
+        b'"background_image_data":"data:image/png;base64,'
+        + (b"A" * 9000)
+        + b'="}}'
+    )
+    calls: list[dict[str, object]] = []
+    max_bytes_seen: list[int] = []
+
+    def validate_content_length(headers: object, *, to_int_fn, max_bytes: int = 0) -> int:
+        max_bytes_seen.append(max_bytes)
+        length = to_int_fn(headers.get("Content-Length"))  # type: ignore[attr-defined]
+        if length is None or length > max_bytes:
+            raise ValueError("bad length")
+        return length
+
+    handle_theme_settings_post(
+        _Handler(body),
+        set_theme_preset_fn=lambda request: {"ok": True, "request": request},
+        to_int_fn=to_int,
+        validate_content_length_fn=validate_content_length,
+        parse_theme_settings_request_fn=lambda raw: {"raw_length": len(raw)},
+        write_json_response_fn=_writer(calls),
+    )
+
+    assert calls[0]["status"] == 200
+    assert calls[0]["payload"] == {"ok": True, "request": {"raw_length": len(body)}}
+    assert max_bytes_seen and max_bytes_seen[0] > 8192
+    assert max_bytes_seen[0] >= len(body)
+
+
 def test_custom_telemetry_handlers_cover_read_write_and_validation_paths() -> None:
     calls: list[dict[str, object]] = []
 

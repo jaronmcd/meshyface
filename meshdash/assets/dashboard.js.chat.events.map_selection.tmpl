@@ -1097,6 +1097,7 @@
       selfTickerAlternateNodeId = "";
       networkNodeInfoCollapsedNodeId = "";
       chatNodeDetailsDrawerExpanded = false;
+      chatNodeDetailsPromoted = false;
       pendingMapHistoryFocus = false;
       abortNodeHistoryFetch();
       resetSignalChartZoom("");
@@ -1209,12 +1210,16 @@
       return false;
     }}
 
-    function visibleNodeDirectionalEntriesFrom(containerSelector, itemSelector) {{
+    function nodeDirectionalEntriesFrom(containerSelector, itemSelector, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const requireVisible = opts.requireVisible !== false;
       const container = document.querySelector(containerSelector);
-      if (!(container instanceof HTMLElement) || !isVisibleForSelectionScroll(container)) return [];
+      if (!(container instanceof HTMLElement)) return [];
+      if (requireVisible && !isVisibleForSelectionScroll(container)) return [];
       const entries = [];
       for (const item of container.querySelectorAll(itemSelector)) {{
-        if (!(item instanceof HTMLElement) || !isVisibleForSelectionScroll(item)) continue;
+        if (!(item instanceof HTMLElement)) continue;
+        if (requireVisible && !isVisibleForSelectionScroll(item)) continue;
         const nodeId = normalizeNodeId(item.dataset.nodeId || "");
         if (!isSelectableNodeId(nodeId)) continue;
         entries.push({{
@@ -1225,8 +1230,47 @@
       return entries;
     }}
 
+    function visibleNodeDirectionalEntriesFrom(containerSelector, itemSelector) {{
+      return nodeDirectionalEntriesFrom(containerSelector, itemSelector, {{
+        requireVisible: true,
+      }});
+    }}
+
+    function chatRosterDirectionalEntries({{ requireVisible = true }} = {{}}) {{
+      const defs = [
+        ["#chat-room-unread-list", ".chat-member-item[data-node-id]"],
+        ["#chat-room-meshtastic-list", ".chat-member-item[data-node-id]"],
+        ["#chat-room-pinned-list", ".chat-member-item[data-node-id]"],
+        ["#chat-room-list", ".chat-member-item[data-node-id]"],
+      ];
+      const entries = [];
+      const seen = new Set();
+      for (const [containerSelector, itemSelector] of defs) {{
+        for (const entry of nodeDirectionalEntriesFrom(containerSelector, itemSelector, {{ requireVisible }})) {{
+          if (seen.has(entry.id)) continue;
+          seen.add(entry.id);
+          entries.push(entry);
+        }}
+      }}
+      return entries;
+    }}
+
     function resolveDirectionalNodeEntries() {{
       const selectedId = normalizeNodeId(selectedNodeId || "");
+      if (
+        isChatWorkspaceLayoutView(activeLayoutView)
+        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+        && !(
+          typeof isChatNodeDetailsPromotedActive === "function"
+          && isChatNodeDetailsPromotedActive()
+        )
+      ) {{
+        const rosterEntries = chatRosterDirectionalEntries({{ requireVisible: false }});
+        if (rosterEntries.some((entry) => entry.id === selectedId)) {{
+          return rosterEntries;
+        }}
+      }}
       const defs = isChatWorkspaceLayoutView(activeLayoutView)
         ? [
             ["#chat-room-list", ".chat-member-item[data-node-id]"],

@@ -31,6 +31,8 @@ def test_dashboard_js_includes_gui_responsiveness_benchmark(
         dashboard_js,
         (
             "window.__meshDashboardBenchmark",
+            "window.__meshDashboardGuiBenchmarkActive",
+            "lastScheduledPollMs = nowMs;",
             'meshGuiBenchmarkBoolQuery("mesh_gui_bench")',
             "meshGuiBenchmarkForcePoll",
             "meshGuiBenchmarkFetchJson",
@@ -52,6 +54,9 @@ def test_dashboard_js_includes_gui_responsiveness_benchmark(
             "meshGuiBenchmarkClickChatReply",
             "meshGuiBenchmarkOpenReactionPopover",
             "openReactionPopoverForSummary(button)",
+            "meshGuiBenchmarkShouldWaitForFrames",
+            'meshGuiBenchmarkBoolQuery("mesh_gui_bench_wait_frames")',
+            "if (!meshGuiBenchmarkShouldWaitForFrames()) {",
             '"interact:chat-type"',
             '"interact:roster-search"',
             "`poll-cached:${suffix}`",

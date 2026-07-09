@@ -29,6 +29,7 @@ def render_html(
     file_transfer_auto_accept: bool = False,
     games_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
+    initial_background_settings: dict | None = None,
 ) -> str:
     render_context = _build_html_render_context_helper(
         show_secrets=show_secrets,
@@ -91,4 +92,5 @@ def render_html(
         games_enabled=games_enabled,
         network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
         network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
+        initial_background_settings=initial_background_settings,
     )

@@ -338,14 +338,162 @@
       return matches;
     }}
 
+    const chatEmojiGlyphFontStack = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    const chatEmojiGlyphCssSize = 22;
+    const chatEmojiGlyphFontPx = 16;
+    const chatEmojiGlyphInkCache = new Map();
+    const chatEmojiGlyphBitmapCache = new Map();
+    let chatEmojiGlyphBitmapDpr = 0;
+    let chatEmojiGlyphMeasureCanvas = null;
+    let chatEmojiGlyphObserver = null;
+
+    function chatEmojiGlyphDevicePixelRatio() {{
+      const dpr = Number(window.devicePixelRatio) || 1;
+      return Math.max(1, Math.min(3, dpr));
+    }}
+
+    function chatEmojiGlyphInkMetrics(emoji) {{
+      const cached = chatEmojiGlyphInkCache.get(emoji);
+      if (cached) return cached;
+      const pad = Math.ceil(chatEmojiGlyphFontPx * 0.75);
+      const side = chatEmojiGlyphFontPx + (pad * 2);
+      if (!(chatEmojiGlyphMeasureCanvas instanceof HTMLCanvasElement)) {{
+        chatEmojiGlyphMeasureCanvas = document.createElement("canvas");
+      }}
+      const canvas = chatEmojiGlyphMeasureCanvas;
+      canvas.width = side;
+      canvas.height = side;
+      const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
+      let metrics = null;
+      if (ctx) {{
+        ctx.clearRect(0, 0, side, side);
+        ctx.font = `${{chatEmojiGlyphFontPx}}px ${{chatEmojiGlyphFontStack}}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(emoji, side / 2, side / 2);
+        try {{
+          const data = ctx.getImageData(0, 0, side, side).data;
+          let minX = side;
+          let minY = side;
+          let maxX = -1;
+          let maxY = -1;
+          for (let y = 0; y < side; y += 1) {{
+            const rowStart = y * side * 4;
+            for (let x = 0; x < side; x += 1) {{
+              if (data[rowStart + (x * 4) + 3] > 8) {{
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }}
+            }}
+          }}
+          if (maxX >= minX && maxY >= minY) {{
+            metrics = {{
+              dx: ((minX + maxX + 1) / 2) - (side / 2),
+              dy: ((minY + maxY + 1) / 2) - (side / 2),
+              inkWidth: maxX - minX + 1,
+              inkHeight: maxY - minY + 1,
+            }};
+          }}
+        }} catch (_err) {{
+        }}
+      }}
+      if (!metrics) {{
+        metrics = {{ dx: 0, dy: 0, inkWidth: chatEmojiGlyphFontPx, inkHeight: chatEmojiGlyphFontPx }};
+      }}
+      chatEmojiGlyphInkCache.set(emoji, metrics);
+      return metrics;
+    }}
+
+    function chatEmojiGlyphBitmap(emoji) {{
+      const dpr = chatEmojiGlyphDevicePixelRatio();
+      if (chatEmojiGlyphBitmapDpr !== dpr) {{
+        chatEmojiGlyphBitmapCache.clear();
+        chatEmojiGlyphBitmapDpr = dpr;
+      }}
+      const cached = chatEmojiGlyphBitmapCache.get(emoji);
+      if (cached) return cached;
+      const metrics = chatEmojiGlyphInkMetrics(emoji);
+      const side = Math.round(chatEmojiGlyphCssSize * dpr);
+      const canvas = document.createElement("canvas");
+      canvas.width = side;
+      canvas.height = side;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {{
+        const maxInk = Math.max(metrics.inkWidth, metrics.inkHeight) * dpr;
+        const fit = maxInk > side ? side / maxInk : 1;
+        ctx.font = `${{Math.round(chatEmojiGlyphFontPx * dpr * fit)}}px ${{chatEmojiGlyphFontStack}}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(
+          emoji,
+          (side / 2) - (metrics.dx * dpr * fit),
+          (side / 2) - (metrics.dy * dpr * fit),
+        );
+      }}
+      chatEmojiGlyphBitmapCache.set(emoji, canvas);
+      return canvas;
+    }}
+
+    function drawChatEmojiGlyph(canvas) {{
+      if (!(canvas instanceof HTMLCanvasElement) || canvas.dataset.drawn === "1") return;
+      const emoji = String(canvas.dataset.emoji || "").trim();
+      if (!emoji) return;
+      const bitmap = chatEmojiGlyphBitmap(emoji);
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(bitmap, 0, 0);
+      canvas.dataset.drawn = "1";
+    }}
+
+    function chatEmojiGlyphLazyObserver() {{
+      if (chatEmojiGlyphObserver || typeof IntersectionObserver !== "function") {{
+        return chatEmojiGlyphObserver;
+      }}
+      chatEmojiGlyphObserver = new IntersectionObserver((entries, observer) => {{
+        for (const entry of entries) {{
+          if (!entry.isIntersecting) continue;
+          observer.unobserve(entry.target);
+          if (entry.target instanceof HTMLCanvasElement) {{
+            drawChatEmojiGlyph(entry.target);
+          }}
+        }}
+      }}, {{ rootMargin: "96px" }});
+      return chatEmojiGlyphObserver;
+    }}
+
+    // Picker glyphs must stay canvas-drawn: text-rendered emoji paint their ink
+    // off-center in some headed browsers in ways no headless repro shows, and a
+    // canvas is the only surface where the measured ink is the displayed ink.
+    // Ink is measured once per emoji and cached, so do not "simplify" this back
+    // to a text span for performance.
+    function buildChatEmojiGlyphElement(emoji) {{
+      const glyph = document.createElement("canvas");
+      glyph.className = "chat-emoji-glyph";
+      glyph.setAttribute("aria-hidden", "true");
+      glyph.dataset.emoji = emoji;
+      glyph.width = 0;
+      glyph.height = 0;
+      const observer = chatEmojiGlyphLazyObserver();
+      if (observer) {{
+        observer.observe(glyph);
+      }} else {{
+        drawChatEmojiGlyph(glyph);
+      }}
+      return glyph;
+    }}
+
     function buildChatEmojiNode(emoji, extraClass = "") {{
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = extraClass ? `chat-emoji-item ${{extraClass}}` : "chat-emoji-item";
       btn.setAttribute("data-emoji", emoji);
-      btn.setAttribute("draggable", "true");
       btn.setAttribute("title", emoji);
-      btn.textContent = emoji;
+      btn.setAttribute("aria-label", emoji);
+      btn.replaceChildren(buildChatEmojiGlyphElement(emoji));
       return btn;
     }}
 
@@ -378,28 +526,69 @@
       return normalizeChatEmojiPinnedChoices(rawChoices, chatEmojiTopUsageCount);
     }}
 
+    function normalizeChatEmojiTopSuppressedChoices(rawChoices) {{
+      return normalizeChatEmojiPinnedChoices(rawChoices, chatEmojiUsagePersistMax);
+    }}
+
     function setChatEmojiTopPinnedChoices(rawChoices, shouldPersist = true) {{
       const next = normalizeChatEmojiTopPinnedChoices(rawChoices);
       const prev = normalizeChatEmojiTopPinnedChoices(chatEmojiTopPinnedChoices);
+      const prevSuppressed = normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices);
+      const nextSet = new Set(next);
+      const nextSuppressed = prevSuppressed.filter((emoji) => !nextSet.has(emoji));
       const changed = (
         next.length !== prev.length
         || next.some((emoji, index) => emoji !== prev[index])
       );
+      const suppressedChanged = (
+        nextSuppressed.length !== prevSuppressed.length
+        || nextSuppressed.some((emoji, index) => emoji !== prevSuppressed[index])
+      );
       chatEmojiTopPinnedChoices = next;
-      if (changed && shouldPersist) {{
+      chatEmojiTopSuppressedChoices = nextSuppressed;
+      if ((changed || suppressedChanged) && shouldPersist) {{
         persistChatEmojiPickerState();
       }}
-      return changed;
+      return changed || suppressedChanged;
+    }}
+
+    function removeChatEmojiTopChoice(rawEmoji) {{
+      const emoji = String(rawEmoji || "").trim();
+      if (!emoji || !chatEmojiChoiceSet.has(emoji)) return false;
+      const prevPinned = normalizeChatEmojiTopPinnedChoices(chatEmojiTopPinnedChoices);
+      const prevSuppressed = normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices);
+      const nextPinned = normalizeChatEmojiTopPinnedChoices(
+        chatEmojiTopChoices().filter((choice) => choice !== emoji)
+      );
+      const nextSuppressed = normalizeChatEmojiTopSuppressedChoices([
+        ...prevSuppressed.filter((choice) => choice !== emoji),
+        emoji,
+      ]);
+      const pinnedChanged = (
+        nextPinned.length !== prevPinned.length
+        || nextPinned.some((choice, index) => choice !== prevPinned[index])
+      );
+      const suppressedChanged = (
+        nextSuppressed.length !== prevSuppressed.length
+        || nextSuppressed.some((choice, index) => choice !== prevSuppressed[index])
+      );
+      chatEmojiTopPinnedChoices = nextPinned;
+      chatEmojiTopSuppressedChoices = nextSuppressed;
+      if (pinnedChanged || suppressedChanged) {{
+        persistChatEmojiPickerState();
+      }}
+      return pinnedChanged || suppressedChanged;
     }}
 
     function applyChatEmojiTopPinnedChoices(choices) {{
       const base = Array.isArray(choices) ? choices : [];
       const pinned = normalizeChatEmojiTopPinnedChoices(chatEmojiTopPinnedChoices);
+      const suppressed = new Set(normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices));
       const next = [];
       const used = new Set();
 
       for (const emoji of pinned) {{
-        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji)) continue;
+        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji) || suppressed.has(emoji)) continue;
         used.add(emoji);
         next.push(emoji);
         if (next.length >= chatEmojiTopUsageCount) {{
@@ -408,7 +597,7 @@
       }}
 
       for (const emoji of base) {{
-        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji)) continue;
+        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji) || suppressed.has(emoji)) continue;
         used.add(emoji);
         next.push(emoji);
         if (next.length >= chatEmojiTopUsageCount) {{
@@ -417,7 +606,7 @@
       }}
 
       for (const emoji of chatEmojiPopularDefaults) {{
-        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji)) continue;
+        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji) || suppressed.has(emoji)) continue;
         used.add(emoji);
         next.push(emoji);
         if (next.length >= chatEmojiTopUsageCount) {{
@@ -431,8 +620,9 @@
     function chatEmojiTopChoices() {{
       const picked = [];
       const used = new Set();
+      const suppressed = new Set(normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices));
       for (const [emoji] of chatEmojiUsageEntries()) {{
-        if (used.has(emoji)) continue;
+        if (used.has(emoji) || suppressed.has(emoji)) continue;
         used.add(emoji);
         picked.push(emoji);
         if (picked.length >= chatEmojiTopUsageCount) {{
@@ -440,7 +630,7 @@
         }}
       }}
       for (const emoji of chatEmojiPopularDefaults) {{
-        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji)) continue;
+        if (!chatEmojiChoiceSet.has(emoji) || used.has(emoji) || suppressed.has(emoji)) continue;
         used.add(emoji);
         picked.push(emoji);
         if (picked.length >= chatEmojiTopUsageCount) {{
@@ -501,6 +691,7 @@
           JSON.stringify({{
             group: chatEmojiPickerGroup,
             top_pinned_choices: normalizeChatEmojiTopPinnedChoices(chatEmojiTopPinnedChoices),
+            top_suppressed_choices: normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices),
           }})
         );
       }} catch (_err) {{
@@ -510,6 +701,7 @@
     function loadChatEmojiPickerState() {{
       let preferredGroup = chatEmojiDefaultGroup;
       let preferredTopPinnedChoices = [];
+      let preferredTopSuppressedChoices = [];
       try {{
         const raw = window.localStorage.getItem(chatEmojiPickerStateStorageKey);
         if (raw) {{
@@ -529,6 +721,9 @@
             preferredTopPinnedChoices = normalizeChatEmojiTopPinnedChoices(
               parsed.top_pinned_choices || parsed.topPinnedChoices || []
             );
+            preferredTopSuppressedChoices = normalizeChatEmojiTopSuppressedChoices(
+              parsed.top_suppressed_choices || parsed.topSuppressedChoices || []
+            );
             if (!preferredTopPinnedChoices.length) {{
               const legacyTopTail = String(
                 parsed.top_tail_emoji || parsed.topTailEmoji || ""
@@ -543,4 +738,7 @@
       }}
       chatEmojiPickerGroup = preferredGroup;
       chatEmojiTopPinnedChoices = preferredTopPinnedChoices;
+      const pinnedSet = new Set(preferredTopPinnedChoices);
+      chatEmojiTopSuppressedChoices = preferredTopSuppressedChoices
+        .filter((emoji) => !pinnedSet.has(emoji));
     }}

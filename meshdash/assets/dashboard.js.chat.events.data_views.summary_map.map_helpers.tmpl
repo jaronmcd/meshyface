@@ -283,6 +283,9 @@
       if (!map) return false;
       map.closePopup();
       pendingMapHistoryFocus = false;
+      if (typeof requestDashboardLivemapRefit === "function") {{
+        requestDashboardLivemapRefit();
+      }}
       if (!latestState) {{
         requestMapResize();
         return false;
@@ -1709,9 +1712,20 @@
       return clampMapLinkValue(weight > 0 ? (total / weight) : 0.55, 0, 1);
     }}
 
-    function mapTransmitPulseRadiusScale(signalLevel = 0.55) {{
+    function mapTransmitPulseRadioRangeProfile(state = latestState) {{
+      if (typeof dashboardLivemapEstimatedRangeProfile === "function") {{
+        return dashboardLivemapEstimatedRangeProfile(state);
+      }}
+      return {{ preset: "LONG_FAST", rangeKm: 52, strongKm: 15 }};
+    }}
+
+    function mapTransmitPulseRadiusScale(signalLevel = 0.55, state = latestState) {{
       const level = clampMapLinkValue(Number(signalLevel), 0, 1);
-      return 0.65 + (level * 0.9);
+      const profile = mapTransmitPulseRadioRangeProfile(state);
+      const rangeKm = Math.max(1, Number(profile && profile.rangeKm) || 52);
+      const strongKm = Math.max(0.5, Math.min(rangeKm, Number(profile && profile.strongKm) || 15));
+      const baseReachKm = Math.max(1.2, Math.min(rangeKm * 0.48, strongKm * 1.35));
+      return baseReachKm * (0.82 + (level * 0.28));
     }}
 
     function snapshotNetworkMapPacketActivityTokens(state = latestState) {{
@@ -2419,10 +2433,10 @@
         const progress = clampMapLinkValue(ageMs / durationMs, 0, 1);
         const radiusStart = Number(record.startRadius) || 5;
         const radiusEnd = Number(record.endRadius) || 30;
-        const easedRadius = radiusStart + ((radiusEnd - radiusStart) * (1 - Math.pow(1 - progress, 2)));
-        const fade = Math.pow(1 - progress, 1.35);
-        const opacity = clampMapLinkValue((Number(record.baseOpacity) || 0.62) * fade, 0, 0.72);
-        const weight = Math.max(0.7, (Number(record.baseWeight) || 2) * (1 - (progress * 0.28)));
+        const easedRadius = radiusStart + ((radiusEnd - radiusStart) * Math.sin(progress * Math.PI * 0.5));
+        const fade = Math.pow(1 - progress, 1.85);
+        const opacity = clampMapLinkValue((Number(record.baseOpacity) || 0.62) * fade, 0, 0.68);
+        const weight = Math.max(0.45, (Number(record.baseWeight) || 2) * (1 - (progress * 0.62)));
         layer.setRadius(easedRadius);
         layer.setStyle({{
           opacity,
@@ -2441,15 +2455,17 @@
       if (!ensureMapTransmitPulsePane()) return false;
       const color = mapNodeTransmitPulseColor(normalizedId, state);
       const nowMs = Date.now();
-      const radiusScale = mapTransmitPulseRadiusScale(signalLevel);
-      for (let idx = 0; idx < 3; idx += 1) {{
-        const endRadius = (22 + (idx * 7)) * radiusScale;
-        const layer = L.circleMarker(position, {{
+      const radiusReachMeters = mapTransmitPulseRadiusScale(signalLevel, state) * 1000;
+      const ringFractions = [0.16, 0.34, 0.62, 1];
+      for (let idx = 0; idx < ringFractions.length; idx += 1) {{
+        const startRadius = Math.max(120, radiusReachMeters * 0.018);
+        const endRadius = Math.max(startRadius * 1.8, radiusReachMeters * ringFractions[idx]);
+        const layer = L.circle(position, {{
           pane: mapTransmitPulsePaneName,
-          radius: 5,
+          radius: startRadius,
           color,
           opacity: 0,
-          weight: idx === 0 ? 2.4 : 1.8,
+          weight: Math.max(0.85, 2.4 - (idx * 0.32)),
           fill: false,
           fillOpacity: 0,
           interactive: false,
@@ -2460,12 +2476,12 @@
           layer,
           nodeId: normalizedId,
           startedAtMs: nowMs,
-          delayMs: idx * 170,
-          durationMs: 1250,
-          startRadius: 5,
+          delayMs: idx * 260,
+          durationMs: 1900 + (idx * 320),
+          startRadius,
           endRadius,
-          baseOpacity: idx === 0 ? 0.72 : 0.58,
-          baseWeight: idx === 0 ? 2.4 : 1.8,
+          baseOpacity: Math.max(0.32, 0.68 - (idx * 0.1)),
+          baseWeight: Math.max(0.85, 2.4 - (idx * 0.32)),
         }});
       }}
       while (mapNodeTransmitPulseRings.size > mapNodeTransmitPulseMaxRings) {{
@@ -3505,9 +3521,12 @@
         const nodeIds = mapPacketActivityNodeIds(packetEntry);
         for (const nodeId of nodeIds) {{
           nodesToFlash.add(nodeId);
-          const prevSignalLevel = nodesToRipple.get(nodeId);
+        }}
+        const transmitNodeId = mapPacketActivityTransmitNodeId(packetEntry);
+        if (transmitNodeId) {{
+          const prevSignalLevel = nodesToRipple.get(transmitNodeId);
           nodesToRipple.set(
-            nodeId,
+            transmitNodeId,
             Number.isFinite(Number(prevSignalLevel))
               ? Math.max(Number(prevSignalLevel), signalLevel)
               : signalLevel

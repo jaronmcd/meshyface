@@ -148,6 +148,10 @@
             lines.push(`[mappacks] installed: ${{pack.id}} (${{size}}, ${{layerCount}} layers)`);
           }}
           lines.push(`[mappacks] layers: ${{mapPackLayerPrefKeys.join(",")}}`);
+          const buildPrefix = (payload && typeof payload.build_command_prefix === "string"
+            && payload.build_command_prefix)
+            ? payload.build_command_prefix
+            : "python scripts/build_map_pack.py";
 
           const mesh = consoleMappacksMeshSummary(latestState);
           const radiusOverride = Number(options.radius);
@@ -162,7 +166,7 @@
             );
             lines.push("[mappacks] build this pack on the dashboard computer (from the app directory):");
             lines.push(
-              `  python scripts/build_map_pack.py --source-dir map_sources --download`
+              `  ${{buildPrefix}} --source-dir map_sources --download`
               + ` --center ${{mesh.center}} --radius-km ${{radius}}${{layersArg}}`
               + ` --pack-id mymesh --zip mymesh.zip`
             );
@@ -173,7 +177,7 @@
               + "derive the region from stored history instead:"
             );
             lines.push(
-              "  python scripts/build_map_pack.py --source-dir map_sources --download"
+              `  ${{buildPrefix}} --source-dir map_sources --download`
               + ` --from-history${{layersArg}} --pack-id mymesh --zip mymesh.zip`
             );
           }}
@@ -187,9 +191,9 @@
             && payload.install_command_prefix)
             ? payload.install_command_prefix
             : "python scripts/install_map_pack.py";
-          const packsDir = (payload && typeof payload.packs_dir_resolved === "string"
-            && payload.packs_dir_resolved)
-            ? ` --packs-dir ${{payload.packs_dir_resolved}}`
+          const packsDir = (payload && typeof payload.packs_dir_command_arg === "string"
+            && payload.packs_dir_command_arg)
+            ? ` --packs-dir ${{payload.packs_dir_command_arg}}`
             : "";
           lines.push("[mappacks] then install it:");
           lines.push(`  ${{prefix}} mymesh --zip mymesh.zip${{packsDir}}`);

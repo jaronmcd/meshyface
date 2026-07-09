@@ -6,15 +6,31 @@
         String(controlId || "").startsWith("settings-map-layer-")
         || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
-        || controlId === "settings-appearance-unique-node-colors"
-        || controlId === "settings-appearance-unique-chat-colors"
         || controlId === "settings-appearance-keep-screen-on"
         || controlId === "settings-raw-packet-capture-enabled"
         || controlId === "theme-custom-base-color"
         || controlId === "theme-custom-line-color"
-        || controlId === "theme-custom-tint-color"
-        || controlId === "theme-custom-tint-intensity"
+        || controlId === "theme-custom-line-contrast-color"
+        || controlId === "theme-custom-text-font"
         || controlId === "theme-custom-color-depth"
+        || controlId === "theme-custom-foreground-transparency"
+        || controlId === "theme-custom-foreground-blur"
+        || controlId === "theme-custom-gradient-primary-start-color"
+        || controlId === "theme-custom-gradient-primary-end-color"
+        || controlId === "theme-custom-gradient-primary-type"
+        || controlId === "theme-custom-gradient-primary-direction"
+        || controlId === "theme-custom-background-type"
+        || controlId === "theme-custom-background-image-file"
+        || controlId === "theme-custom-background-image-layout"
+        || controlId === "theme-custom-background-image-darken"
+        || controlId === "theme-custom-particles-enabled"
+        || controlId === "theme-custom-particles-color"
+        || controlId === "theme-custom-particles-link-color"
+        || controlId === "theme-custom-particles-count"
+        || controlId === "theme-custom-particles-speed"
+        || controlId === "theme-custom-particles-size"
+        || controlId === "theme-custom-particles-opacity"
+        || controlId === "theme-custom-particles-links"
         || controlId === "console-timestamps"
         || controlId === "console-font-size-select"
         || controlId === "settings-update-branch"
@@ -82,20 +98,6 @@
               ? "Time sync timezone set to browser local."
               : `Time sync timezone set to ${{settingsTimeSyncTimezonePref}}.`
           );
-        }}
-        if (target instanceof HTMLInputElement && target.id === "settings-appearance-unique-node-colors") {{
-          setSettingsUniqueNodeColorsEnabled(!!target.checked, {{
-            persist: true,
-            rerender: true,
-            announce: true,
-          }});
-        }}
-        if (target instanceof HTMLInputElement && target.id === "settings-appearance-unique-chat-colors") {{
-          setSettingsUniqueChatColorsEnabled(!!target.checked, {{
-            persist: true,
-            rerender: true,
-            announce: true,
-          }});
         }}
         if (target instanceof HTMLInputElement && target.id === "settings-appearance-keep-screen-on") {{
           setSettingsScreenWakeLockEnabled(!!target.checked, {{

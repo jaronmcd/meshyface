@@ -448,100 +448,449 @@
       }}
     }}
 
-    function clearChatEmojiTopDragState(topGrid) {{
-      chatEmojiTopDragEmoji = "";
+    function chatEmojiTopOrdersEqual(a, b) {{
+      const left = Array.isArray(a) ? a : [];
+      const right = Array.isArray(b) ? b : [];
+      return left.length === right.length && left.every((emoji, index) => emoji === right[index]);
+    }}
+
+    function chatEmojiTopItems(topGrid) {{
+      if (!(topGrid instanceof HTMLElement)) return [];
+      return Array.from(topGrid.querySelectorAll(".chat-emoji-top-item:not(.drag-evicted)"))
+        .filter((node) => node instanceof HTMLElement);
+    }}
+
+    function chatEmojiTopCurrentOrder(topGrid) {{
+      return chatEmojiTopItems(topGrid)
+        .map((node) => String(node.getAttribute("data-emoji") || "").trim())
+        .filter(Boolean);
+    }}
+
+    function chatEmojiTopItemEmoji(item) {{
+      if (!(item instanceof HTMLElement)) return "";
+      return String(item.dataset.emoji || item.getAttribute("data-emoji") || "").trim();
+    }}
+
+    function chatEmojiTopNodeForEmoji(topGrid, emoji) {{
+      const target = String(emoji || "").trim();
+      if (!target) return null;
+      for (const node of chatEmojiTopItems(topGrid)) {{
+        if (chatEmojiTopItemEmoji(node) === target) return node;
+      }}
+      return null;
+    }}
+
+    function isChatEmojiPointInTopGrid(topGrid, clientX, clientY, margin = 0) {{
+      if (!(topGrid instanceof HTMLElement)) return false;
+      const rect = topGrid.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      return (
+        Number(clientX) >= rect.left - margin
+        && Number(clientX) <= rect.right + margin
+        && Number(clientY) >= rect.top - margin
+        && Number(clientY) <= rect.bottom + margin
+      );
+    }}
+
+    function isChatEmojiPointInPickerBody(topGrid, clientX, clientY) {{
+      const panel = chatEmojiPanelElement();
+      if (!(panel instanceof HTMLElement) || panel.hidden) return false;
+      const rect = panel.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      return (
+        Number(clientX) >= rect.left
+        && Number(clientX) <= rect.right
+        && Number(clientY) >= rect.top
+        && Number(clientY) <= rect.bottom
+        && !isChatEmojiPointInTopGrid(topGrid, clientX, clientY, 14)
+      );
+    }}
+
+    function chatEmojiTopInsertionIndex(topGrid, clientX) {{
+      let index = 0;
+      for (const item of chatEmojiTopItems(topGrid)) {{
+        if (chatEmojiTopItemEmoji(item) === chatEmojiTopDragEmoji) continue;
+        const rect = item.getBoundingClientRect();
+        if (rect.width <= 0) continue;
+        if (Number(clientX) > rect.left + (rect.width / 2)) {{
+          index += 1;
+        }}
+      }}
+      return index;
+    }}
+
+    function chatEmojiTopNextOrder(sourceEmoji, insertionIndex, currentOrder = []) {{
+      const source = String(sourceEmoji || "").trim();
+      if (!source) return [];
+      const visible = normalizeChatEmojiPinnedChoices(currentOrder, chatEmojiTopUsageCount);
+      const working = visible.filter((emoji) => emoji !== source);
+      const sourceInVisible = working.length !== visible.length;
+      let insertAt = Math.max(0, Math.min(working.length, Math.trunc(Number(insertionIndex) || 0)));
+      if (!sourceInVisible && insertAt >= chatEmojiTopUsageCount) {{
+        insertAt = chatEmojiTopUsageCount - 1;
+      }}
+      working.splice(insertAt, 0, source);
+      const next = working.slice(0, chatEmojiTopUsageCount);
+      return chatEmojiTopOrdersEqual(next, visible) ? [] : next;
+    }}
+
+    function chatEmojiTopCaptureRects(topGrid) {{
+      const rects = new Map();
+      for (const node of chatEmojiTopItems(topGrid)) {{
+        const emoji = chatEmojiTopItemEmoji(node);
+        if (emoji && !rects.has(emoji)) {{
+          rects.set(emoji, node.getBoundingClientRect());
+        }}
+      }}
+      return rects;
+    }}
+
+    function animateChatEmojiTopLayout(topGrid, previousRects) {{
+      if (
+        !(topGrid instanceof HTMLElement)
+        || !(previousRects instanceof Map)
+        || prefersReducedChatEmojiMotion()
+      ) {{
+        return;
+      }}
+      for (const node of chatEmojiTopItems(topGrid)) {{
+        if (typeof node.animate !== "function") continue;
+        const emoji = chatEmojiTopItemEmoji(node);
+        const previous = previousRects.get(emoji);
+        if (!previous) continue;
+        const next = node.getBoundingClientRect();
+        const dx = previous.left - next.left;
+        const dy = previous.top - next.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+        if (typeof node.getAnimations === "function") {{
+          for (const animation of node.getAnimations()) {{
+            animation.cancel();
+          }}
+        }}
+        const placeholderScale = node.classList.contains("dragging") ? " scale(0.9)" : "";
+        node.animate(
+          [
+            {{ transform: `translate(${{dx}}px, ${{dy}}px)${{placeholderScale}}` }},
+            {{ transform: `translate(0px, 0px)${{placeholderScale}}` }},
+          ],
+          {{ duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }},
+        );
+      }}
+    }}
+
+    function decorateChatEmojiTopItemNode(node, emoji) {{
+      if (!(node instanceof HTMLElement)) return;
+      node.title = `${{emoji}}. Drag to rearrange or remove from your top 8.`;
+      node.setAttribute("aria-label", `${{emoji}}. Drag to rearrange or remove from your top 8.`);
+    }}
+
+    function applyChatEmojiTopPreviewOrder(topGrid, nextOrder) {{
+      if (!(topGrid instanceof HTMLElement) || !Array.isArray(nextOrder) || !nextOrder.length) {{
+        return false;
+      }}
+      const currentOrder = chatEmojiTopCurrentOrder(topGrid);
+      if (chatEmojiTopOrdersEqual(currentOrder, nextOrder)) {{
+        return false;
+      }}
+      const reduceMotion = prefersReducedChatEmojiMotion();
+      const previousRects = chatEmojiTopCaptureRects(topGrid);
+      const nodesByEmoji = new Map();
+      for (const node of chatEmojiTopItems(topGrid)) {{
+        const emoji = chatEmojiTopItemEmoji(node);
+        if (emoji && !nodesByEmoji.has(emoji)) {{
+          nodesByEmoji.set(emoji, node);
+        }}
+      }}
+      for (const empty of topGrid.querySelectorAll(".chat-emoji-top-empty")) {{
+        empty.remove();
+      }}
+      const keep = new Set(nextOrder);
+      const gridRect = topGrid.getBoundingClientRect();
+      for (const [emoji, node] of nodesByEmoji) {{
+        if (keep.has(emoji)) continue;
+        const rect = previousRects.get(emoji);
+        if (reduceMotion || !rect || typeof node.animate !== "function") {{
+          node.remove();
+          continue;
+        }}
+        node.classList.add("drag-evicted");
+        node.style.left = `${{Math.round(rect.left - gridRect.left)}}px`;
+        node.style.top = `${{Math.round(rect.top - gridRect.top)}}px`;
+        const exit = node.animate([
+          {{ opacity: 1, transform: "scale(1)" }},
+          {{ opacity: 0, transform: "translateY(7px) scale(0.55)" }},
+        ], {{ duration: 170, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }});
+        exit.finished.catch(() => {{}}).finally(() => {{
+          node.remove();
+        }});
+      }}
+      const fragment = document.createDocumentFragment();
+      for (const emoji of nextOrder) {{
+        let node = nodesByEmoji.get(emoji);
+        if (!node) {{
+          node = buildChatEmojiNode(emoji, "chat-emoji-top-item");
+          decorateChatEmojiTopItemNode(node, emoji);
+          if (emoji === chatEmojiTopDragEmoji) {{
+            node.classList.add("dragging");
+          }} else if (!reduceMotion && typeof node.animate === "function") {{
+            node.animate([
+              {{ opacity: 0, transform: "scale(0.4)" }},
+              {{ opacity: 1, transform: "scale(1)" }},
+            ], {{ duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }});
+          }}
+        }}
+        fragment.appendChild(node);
+      }}
+      topGrid.insertBefore(fragment, topGrid.firstChild);
+      topGrid.dataset.signature = "";
+      chatEmojiTopDragPreviewActive = true;
+      animateChatEmojiTopLayout(topGrid, previousRects);
+      return true;
+    }}
+
+    function revertChatEmojiTopPreview(topGrid) {{
+      if (!chatEmojiTopDragPreviewActive) return true;
+      if (!(topGrid instanceof HTMLElement)) return false;
+      if (!Array.isArray(chatEmojiTopDragStartOrder) || !chatEmojiTopDragStartOrder.length) {{
+        return false;
+      }}
+      if (chatEmojiTopOrdersEqual(chatEmojiTopCurrentOrder(topGrid), chatEmojiTopDragStartOrder)) {{
+        chatEmojiTopDragPreviewActive = false;
+        return true;
+      }}
+      const reverted = applyChatEmojiTopPreviewOrder(topGrid, chatEmojiTopDragStartOrder);
+      if (reverted) {{
+        chatEmojiTopDragPreviewActive = false;
+        chatEmojiTopDragLastPreviewAt = 0;
+        chatEmojiTopDragLastPreviewKey = "";
+      }}
+      return reverted;
+    }}
+
+    function previewChatEmojiTopDragOver(topGrid, pointer, options = null) {{
+      if (
+        !(topGrid instanceof HTMLElement)
+        || !pointer
+        || !chatEmojiTopDragEmoji
+        || topGrid.dataset.sortable !== "1"
+      ) {{
+        return false;
+      }}
+      const insertionIndex = chatEmojiTopInsertionIndex(topGrid, Number(pointer.clientX));
+      const next = chatEmojiTopNextOrder(
+        chatEmojiTopDragEmoji,
+        insertionIndex,
+        chatEmojiTopCurrentOrder(topGrid),
+      );
+      if (!next.length) return false;
+      if (!(options && options.force)) {{
+        const nowMs = Date.now();
+        const previewKey = next.join("\u0000");
+        if (
+          previewKey === chatEmojiTopDragLastPreviewKey
+          && (nowMs - chatEmojiTopDragLastPreviewAt) < 90
+        ) {{
+          return false;
+        }}
+        chatEmojiTopDragLastPreviewKey = previewKey;
+        chatEmojiTopDragLastPreviewAt = nowMs;
+      }}
+      return applyChatEmojiTopPreviewOrder(topGrid, next);
+    }}
+
+    function removeChatEmojiDragGhost() {{
+      const ghost = chatEmojiTopDragGhost;
+      chatEmojiTopDragGhost = null;
+      if (ghost instanceof HTMLElement) {{
+        ghost.remove();
+      }}
+    }}
+
+    function createChatEmojiDragGhost(emoji) {{
+      removeChatEmojiDragGhost();
+      const clean = String(emoji || "").trim();
+      if (!clean) return null;
+      const ghost = document.createElement("div");
+      ghost.className = "chat-emoji-drag-ghost";
+      ghost.setAttribute("aria-hidden", "true");
+      const glyph = document.createElement("canvas");
+      glyph.className = "chat-emoji-glyph";
+      glyph.dataset.emoji = clean;
+      drawChatEmojiGlyph(glyph);
+      ghost.appendChild(glyph);
+      ghost.style.transform = "translate3d(-200px, -200px, 0)";
+      document.body.appendChild(ghost);
+      chatEmojiTopDragGhost = ghost;
+      return ghost;
+    }}
+
+    function moveChatEmojiDragGhost(clientX, clientY) {{
+      const ghost = chatEmojiTopDragGhost;
+      if (!(ghost instanceof HTMLElement)) return;
+      const x = Math.round((Number(clientX) || 0) - 17);
+      const y = Math.round((Number(clientY) || 0) - 19);
+      ghost.style.transform = `translate3d(${{x}}px, ${{y}}px, 0) scale(1.16)`;
+    }}
+
+    function dismissChatEmojiDragGhost(targetRect = null) {{
+      const ghost = chatEmojiTopDragGhost;
+      chatEmojiTopDragGhost = null;
+      if (!(ghost instanceof HTMLElement)) return;
+      if (
+        prefersReducedChatEmojiMotion()
+        || typeof ghost.animate !== "function"
+        || !targetRect
+        || !(Number(targetRect.width) > 0)
+      ) {{
+        ghost.remove();
+        return;
+      }}
+      const toX = Math.round(targetRect.left + ((targetRect.width - 34) / 2));
+      const toY = Math.round(targetRect.top + ((targetRect.height - 32) / 2));
+      const animation = ghost.animate([
+        {{ transform: ghost.style.transform || "translate3d(0px, 0px, 0)", opacity: 1 }},
+        {{ transform: `translate3d(${{toX}}px, ${{toY}}px, 0) scale(1)`, opacity: 0.2 }},
+      ], {{ duration: 170, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }});
+      animation.finished.catch(() => {{}}).finally(() => {{
+        ghost.remove();
+      }});
+    }}
+
+    function beginChatEmojiTopDrag(emoji, sourceItem = null) {{
+      const topGrid = document.getElementById("chat-emoji-top-grid");
+      const panel = chatEmojiPanelElement();
+      chatEmojiTopDragEmoji = String(emoji || "").trim();
+      chatEmojiTopDragStartOrder = chatEmojiTopCurrentOrder(topGrid);
+      chatEmojiTopDragPreviewActive = false;
+      chatEmojiTopDragLastPreviewAt = 0;
+      chatEmojiTopDragLastPreviewKey = "";
+      chatEmojiTopDragSourceInTop = !!(
+        sourceItem instanceof HTMLElement
+        && topGrid instanceof HTMLElement
+        && sourceItem.classList.contains("chat-emoji-top-item")
+        && topGrid.contains(sourceItem)
+      );
+      if (sourceItem instanceof HTMLElement) {{
+        sourceItem.classList.add("dragging");
+      }}
+      if (topGrid instanceof HTMLElement) {{
+        topGrid.classList.add("dragging");
+      }}
+      if (panel instanceof HTMLElement) {{
+        panel.classList.add("is-emoji-dragging");
+      }}
+      createChatEmojiDragGhost(chatEmojiTopDragEmoji);
+    }}
+
+    function clearChatEmojiTopDragState(topGrid, options = null) {{
+      const keepPreview = !!(options && options.keepPreview);
+      const shouldRestorePreview = chatEmojiTopDragPreviewActive && !keepPreview;
       const panel = chatEmojiPanelElement();
       const activeTopGrid = topGrid instanceof HTMLElement
         ? topGrid
         : (document.getElementById("chat-emoji-top-grid") instanceof HTMLElement
           ? document.getElementById("chat-emoji-top-grid")
           : null);
+
+      chatEmojiTopDragEmoji = "";
+      chatEmojiTopPointerDrag = null;
+      chatEmojiTopDragStartOrder = [];
+      chatEmojiTopDragSourceInTop = false;
+      chatEmojiTopDragPreviewActive = false;
+      chatEmojiTopDragLastPreviewAt = 0;
+      chatEmojiTopDragLastPreviewKey = "";
+      removeChatEmojiDragGhost();
+
       if (activeTopGrid instanceof HTMLElement) {{
         activeTopGrid.classList.remove("dragging");
       }}
+      if (panel instanceof HTMLElement) {{
+        panel.classList.remove("is-emoji-dragging");
+      }}
       const root = panel instanceof HTMLElement ? panel : activeTopGrid;
-      if (!(root instanceof HTMLElement)) return;
-      for (const item of root.querySelectorAll(".chat-emoji-item.dragging, .chat-emoji-top-item.drag-over")) {{
-        if (!(item instanceof HTMLElement)) continue;
-        item.classList.remove("dragging");
-        item.classList.remove("drag-over");
+      if (root instanceof HTMLElement) {{
+        for (const item of root.querySelectorAll(".chat-emoji-item.dragging")) {{
+          if (!(item instanceof HTMLElement)) continue;
+          item.classList.remove("dragging");
+        }}
+      }}
+      if (shouldRestorePreview && activeTopGrid instanceof HTMLElement) {{
+        activeTopGrid.dataset.signature = "";
+        renderChatEmojiTopRow();
       }}
     }}
 
-    function reorderChatEmojiTopChoices(sourceEmoji, targetEmoji, currentOrder = []) {{
-      const source = String(sourceEmoji || "").trim();
-      const target = String(targetEmoji || "").trim();
-      if (!source || !target) return false;
-      const visibleChoices = normalizeChatEmojiPinnedChoices(currentOrder, chatEmojiTopUsageCount);
-      const toIndex = visibleChoices.indexOf(target);
-      if (toIndex < 0) return false;
-      const fromIndex = visibleChoices.indexOf(source);
-      if (fromIndex === toIndex) return false;
-      const next = visibleChoices.slice();
-      if (fromIndex >= 0) {{
-        next.splice(fromIndex, 1);
-        const targetIndex = fromIndex < toIndex ? (toIndex - 1) : toIndex;
-        next.splice(targetIndex, 0, source);
-      }} else {{
-        next.splice(toIndex, 1, source);
+    function chatEmojiTopDragLandingRect(topGrid, drag, emoji, droppedOnTop) {{
+      if (droppedOnTop) {{
+        const node = chatEmojiTopNodeForEmoji(topGrid, emoji);
+        if (node) return node.getBoundingClientRect();
       }}
-      return setChatEmojiTopPinnedChoices(next, true);
+      if (drag && drag.source instanceof HTMLElement && drag.source.isConnected) {{
+        return drag.source.getBoundingClientRect();
+      }}
+      const node = chatEmojiTopNodeForEmoji(topGrid, emoji);
+      return node ? node.getBoundingClientRect() : null;
     }}
 
-    function bindChatEmojiTopRowDragAndDrop() {{
+    function finishChatEmojiTopPointerDrag(ev, commit = false) {{
+      const drag = chatEmojiTopPointerDrag;
       const topGrid = document.getElementById("chat-emoji-top-grid");
-      if (!(topGrid instanceof HTMLElement) || topGrid.dataset.dragBound === "1") return;
-      topGrid.dataset.dragBound = "1";
-
-      topGrid.addEventListener("dragover", (ev) => {{
-        if (topGrid.dataset.sortable !== "1" || !chatEmojiTopDragEmoji) return;
-        const target = ev.target;
-        if (!(target instanceof Element)) return;
-        const item = target.closest(".chat-emoji-top-item");
-        if (!(item instanceof HTMLElement)) return;
-        ev.preventDefault();
-        for (const node of topGrid.querySelectorAll(".chat-emoji-top-item.drag-over")) {{
-          if (!(node instanceof HTMLElement) || node === item) continue;
-          node.classList.remove("drag-over");
-        }}
-        item.classList.add("drag-over");
-      }});
-
-      topGrid.addEventListener("dragleave", (ev) => {{
-        const target = ev.target;
-        if (!(target instanceof Element)) return;
-        const item = target.closest(".chat-emoji-top-item");
-        if (!(item instanceof HTMLElement)) return;
-        item.classList.remove("drag-over");
-      }});
-
-      topGrid.addEventListener("drop", (ev) => {{
-        if (topGrid.dataset.sortable !== "1" || !chatEmojiTopDragEmoji) {{
-          clearChatEmojiTopDragState(topGrid);
-          return;
-        }}
-        const target = ev.target;
-        if (!(target instanceof Element)) {{
-          clearChatEmojiTopDragState(topGrid);
-          return;
-        }}
-        const item = target.closest(".chat-emoji-top-item");
-        if (!(item instanceof HTMLElement)) {{
-          clearChatEmojiTopDragState(topGrid);
-          return;
-        }}
-        ev.preventDefault();
-        const targetEmoji = String(item.dataset.emoji || item.getAttribute("data-emoji") || "").trim();
-        const currentOrder = Array.from(topGrid.querySelectorAll(".chat-emoji-top-item"))
-          .map((node) => String(node.getAttribute("data-emoji") || "").trim())
-          .filter(Boolean);
-        const changed = reorderChatEmojiTopChoices(chatEmojiTopDragEmoji, targetEmoji, currentOrder);
-        clearChatEmojiTopDragState(topGrid);
-        if (changed) {{
-          renderChatEmojiPickerPanel();
-          setChatSendStatus("Updated top emoji shortcuts.", false);
-        }}
-      }});
+      if (drag && drag.source instanceof HTMLElement) {{
+        try {{
+          if (drag.source.hasPointerCapture && drag.source.hasPointerCapture(drag.pointerId)) {{
+            drag.source.releasePointerCapture(drag.pointerId);
+          }}
+        }} catch (err) {{}}
+      }}
+      const wasActive = !!(drag && drag.active);
+      const draggedEmoji = chatEmojiTopDragEmoji;
+      const droppedOnTop = !!(
+        commit
+        && wasActive
+        && topGrid instanceof HTMLElement
+        && topGrid.dataset.sortable === "1"
+        && isChatEmojiPointInTopGrid(topGrid, ev.clientX, ev.clientY, 14)
+      );
+      const droppedBackFromTop = !!(
+        commit
+        && wasActive
+        && chatEmojiTopDragSourceInTop
+        && topGrid instanceof HTMLElement
+        && topGrid.dataset.sortable === "1"
+        && !droppedOnTop
+        && isChatEmojiPointInPickerBody(topGrid, ev.clientX, ev.clientY)
+      );
+      let changed = false;
+      if (droppedOnTop) {{
+        previewChatEmojiTopDragOver(topGrid, ev, {{ force: true }});
+        const nextOrder = chatEmojiTopCurrentOrder(topGrid);
+        changed = !chatEmojiTopOrdersEqual(nextOrder, chatEmojiTopDragStartOrder)
+          && setChatEmojiTopPinnedChoices(nextOrder, true);
+      }} else if (droppedBackFromTop) {{
+        revertChatEmojiTopPreview(topGrid);
+        changed = removeChatEmojiTopChoice(draggedEmoji);
+      }}
+      let reverted = false;
+      if (wasActive && !droppedOnTop && !droppedBackFromTop) {{
+        reverted = revertChatEmojiTopPreview(topGrid);
+      }}
+      if (wasActive) {{
+        chatEmojiTopSuppressClickUntilMs = Date.now() + 260;
+        dismissChatEmojiDragGhost(
+          droppedBackFromTop
+            ? null
+            : chatEmojiTopDragLandingRect(topGrid, drag, draggedEmoji, droppedOnTop)
+        );
+      }}
+      clearChatEmojiTopDragState(topGrid, {{ keepPreview: changed || reverted }});
+      if (changed) {{
+        renderChatEmojiPickerPanel();
+        setChatSendStatus(
+          droppedBackFromTop ? "Removed top emoji shortcut." : "Updated top emoji shortcuts.",
+          false,
+        );
+      }}
+      return changed;
     }}
 
     function renderChatEmojiTopRow(options = null) {{
@@ -555,14 +904,14 @@
       );
       const usePreferredChoices = preferredChoices.length > 0;
       const sourceChoices = usePreferredChoices ? preferredChoices : chatEmojiTopChoices();
-      const canManageOrder = !usePreferredChoices && chatEmojiMode !== "react";
+      const canManageOrder = !usePreferredChoices;
       const labelText = usePreferredChoices
         ? String((options && options.label) || "Top matches").trim() || "Top matches"
-        : "Top used (drag from below to replace)";
+        : "Top used (drag from below to add)";
       const choices = chatEmojiMode === "react"
         ? reactionCompatibleEmojiChoices(sourceChoices)
         : sourceChoices;
-      const signature = `${{chatEmojiMode}}:${{labelText}}:${{choices.join("\u0000")}}`;
+      const signature = `${{chatEmojiMode}}:${{canManageOrder ? "manage" : "static"}}:${{labelText}}:${{choices.join("\u0000")}}`;
       if ((topGrid.dataset.signature || "") === signature) {{
         return;
       }}
@@ -591,9 +940,7 @@
       const nodes = choices.map((emoji) => {{
         const node = buildChatEmojiNode(emoji, "chat-emoji-top-item");
         if (canManageOrder) {{
-          node.setAttribute("draggable", "true");
-          node.title = `${{emoji}}. Drag to reorder, or drop another emoji here to replace this slot.`;
-          node.setAttribute("aria-label", `${{emoji}}. Drag to reorder or replace this top slot.`);
+          decorateChatEmojiTopItemNode(node, emoji);
         }}
         return node;
       }});
@@ -633,13 +980,13 @@
         currentReactionsShell.hidden = currentReactionsShell.hidden || chatEmojiMode !== "react";
       }}
       if (reactToggleRow instanceof HTMLElement) {{
-        reactToggleRow.hidden = true;
+        reactToggleRow.hidden = chatEmojiMode !== "react" || chatReactionPickerExpanded;
       }}
       if (topLabel instanceof HTMLElement) {{
         topLabel.hidden = chatEmojiMode === "react";
       }}
       if (reactToggleBtn instanceof HTMLButtonElement) {{
-        reactToggleBtn.textContent = reactionCollapsed ? "More reactions" : "Less reactions";
+        reactToggleBtn.textContent = reactionCollapsed ? "More" : "Less reactions";
         reactToggleBtn.setAttribute("aria-expanded", reactionCollapsed ? "false" : "true");
       }}
       if (searchRow instanceof HTMLElement) {{
@@ -1011,7 +1358,7 @@
         <div id="chat-emoji-top-label" class="chat-emoji-top-label">Top used</div>
         <div id="chat-emoji-top-grid" class="chat-emoji-top-grid" aria-label="Top used"></div>
           <div id="chat-emoji-react-toggle-row" class="chat-emoji-react-toggle-row" hidden>
-            <button id="chat-emoji-react-toggle" class="chat-emoji-react-toggle-btn" type="button" aria-expanded="false">More reactions ▸</button>
+            <button id="chat-emoji-react-toggle" class="chat-emoji-react-toggle-btn" type="button" aria-expanded="false">More</button>
           </div>
         <div id="chat-emoji-controls-row" class="chat-emoji-toolbar">
           <select id="chat-emoji-group-select" class="chat-emoji-filter" aria-label="Emoji group">
@@ -1033,7 +1380,6 @@
         </div>
         <div id="chat-emoji-grid" class="chat-emoji-grid"></div>`;
         panel.dataset.init = "1";
-        bindChatEmojiTopRowDragAndDrop();
 
         const groupSelect = document.getElementById("chat-emoji-group-select");
         if (groupSelect instanceof HTMLSelectElement && groupSelect.dataset.bound !== "1") {{
@@ -1093,7 +1439,8 @@
             scheduleChatReactionPickerHide(260);
           }}
         }});
-        panel.addEventListener("dragstart", (ev) => {{
+        panel.addEventListener("pointerdown", (ev) => {{
+          if (ev.button !== 0) return;
           const target = ev.target;
           if (!(target instanceof Element)) return;
           const emojiBtn = target.closest(".chat-emoji-item");
@@ -1102,26 +1449,61 @@
           if (!(topGrid instanceof HTMLElement) || topGrid.dataset.sortable !== "1") return;
           const emoji = String(emojiBtn.getAttribute("data-emoji") || emojiBtn.textContent || "").trim();
           if (!emoji) return;
-          clearChatReactionPickerHideTimer();
-          chatEmojiTopDragEmoji = emoji;
-          emojiBtn.classList.add("dragging");
-          topGrid.classList.add("dragging");
-          if (ev.dataTransfer) {{
-            ev.dataTransfer.effectAllowed = "move";
-            ev.dataTransfer.setData("text/plain", emoji);
+          chatEmojiTopPointerDrag = {{
+            active: false,
+            emoji,
+            pointerId: ev.pointerId,
+            source: emojiBtn,
+            startX: ev.clientX,
+            startY: ev.clientY,
+          }};
+          try {{
+            emojiBtn.setPointerCapture(ev.pointerId);
+          }} catch (err) {{}}
+        }});
+        panel.addEventListener("pointermove", (ev) => {{
+          const drag = chatEmojiTopPointerDrag;
+          if (!drag || drag.pointerId !== ev.pointerId) return;
+          const topGrid = document.getElementById("chat-emoji-top-grid");
+          if (!(topGrid instanceof HTMLElement) || topGrid.dataset.sortable !== "1") {{
+            finishChatEmojiTopPointerDrag(ev, false);
+            return;
+          }}
+          const distance = Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY);
+          if (!drag.active && distance < 5) return;
+          if (!drag.active) {{
+            drag.active = true;
+            clearChatReactionPickerHideTimer();
+            beginChatEmojiTopDrag(drag.emoji, drag.source);
+          }}
+          ev.preventDefault();
+          moveChatEmojiDragGhost(ev.clientX, ev.clientY);
+          if (isChatEmojiPointInTopGrid(topGrid, ev.clientX, ev.clientY, 14)) {{
+            previewChatEmojiTopDragOver(topGrid, ev);
+          }} else {{
+            revertChatEmojiTopPreview(topGrid);
           }}
         }});
-        panel.addEventListener("dragend", () => {{
-          clearChatEmojiTopDragState(document.getElementById("chat-emoji-top-grid"));
-          if (
-            chatEmojiMode === "react"
-            && !chatReactionPickerExpanded
-            && !isChatReactionPickerHoverActive()
-          ) {{
-            scheduleChatReactionPickerHide(160);
+        panel.addEventListener("pointerup", (ev) => {{
+          const drag = chatEmojiTopPointerDrag;
+          if (!drag || drag.pointerId !== ev.pointerId) return;
+          if (drag.active) {{
+            ev.preventDefault();
+            ev.stopPropagation();
           }}
+          finishChatEmojiTopPointerDrag(ev, true);
+        }});
+        panel.addEventListener("pointercancel", (ev) => {{
+          const drag = chatEmojiTopPointerDrag;
+          if (!drag || drag.pointerId !== ev.pointerId) return;
+          finishChatEmojiTopPointerDrag(ev, false);
         }});
         panel.addEventListener("click", (ev) => {{
+          if (chatEmojiTopSuppressClickUntilMs && Date.now() < chatEmojiTopSuppressClickUntilMs) {{
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }}
           const target = ev.target;
           if (!(target instanceof Element)) return;
           const reactionChip = target.closest(".chat-emoji-current-reaction-chip");
@@ -1188,6 +1570,14 @@
         }});
         document.addEventListener("keydown", (ev) => {{
           if (ev.key === "Escape") {{
+            const drag = chatEmojiTopPointerDrag;
+            if (drag && drag.active) {{
+              finishChatEmojiTopPointerDrag(
+                {{ clientX: -9999, clientY: -9999, pointerId: drag.pointerId }},
+                false,
+              );
+              return;
+            }}
             closeChatEmojiPanel();
             return;
           }}

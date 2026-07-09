@@ -173,12 +173,12 @@ def test_console_output_uses_syntax_highlighting() -> None:
     assert "#a21caf" in mesh_tag_style
     assert "#2563eb" in node_style
     assert "#db2777" in self_node_style
-    assert "var(--node-tag-color, #2aa85a)" in tagged_node_style
+    assert "var(--node-tag-color, var(--accent))" in tagged_node_style
     assert "#0f766e" in broadcast_style
     assert "#f0abfc" in dark_mesh_tag_style
     assert "#93c5fd" in dark_node_style
     assert "#f9a8d4" in dark_self_node_style
-    assert "var(--node-tag-color, #3fb950)" in dark_tagged_node_style
+    assert "var(--node-tag-color, var(--ui-accent))" in dark_tagged_node_style
     assert "#5eead4" in dark_broadcast_style
     assert "#2563eb" not in mesh_tag_style
     assert "#93c5fd" not in dark_mesh_tag_style

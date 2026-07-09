@@ -37,10 +37,28 @@
       return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
     }}
 
-    function meshGuiBenchmarkNextFrame() {{
+    function meshGuiBenchmarkShouldWaitForFrames() {{
+      return meshGuiBenchmarkBoolQuery("mesh_gui_bench_wait_frames");
+    }}
+
+    function meshGuiBenchmarkNextFrame(timeoutMs = 120) {{
+      if (!meshGuiBenchmarkShouldWaitForFrames()) {{
+        return Promise.resolve();
+      }}
       return new Promise((resolve) => {{
+        let settled = false;
+        let timerId = null;
+        const finish = () => {{
+          if (settled) return;
+          settled = true;
+          if (timerId !== null) {{
+            window.clearTimeout(timerId);
+          }}
+          resolve();
+        }};
+        timerId = window.setTimeout(finish, Math.max(16, Number(timeoutMs) || 120));
         window.requestAnimationFrame(() => {{
-          window.requestAnimationFrame(() => resolve());
+          window.requestAnimationFrame(finish);
         }});
       }});
     }}

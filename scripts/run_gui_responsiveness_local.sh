@@ -52,6 +52,15 @@ trap cleanup EXIT
 require_no_existing_local_server
 
 if [[ -z "${MESH_GUI_BENCH_URL:-}" ]]; then
+  if curl -fsS "${URL}api/version" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+Refusing to start GUI benchmark: ${URL}api/version already responds.
+Set MESH_GUI_BENCH_URL=${URL} to intentionally benchmark that running server,
+or set MESH_GUI_BENCH_PORT to a free port for an isolated benchmark server.
+EOF
+    exit 1
+  fi
+
   python "${ROOT_DIR}/mesh_dashboard.py" \
     --mesh-host 127.0.0.1 \
     --mesh-tcp-port 1 \

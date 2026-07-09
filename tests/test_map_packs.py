@@ -195,7 +195,11 @@ def test_status_payload_tracks_available_sideload_and_installed(packs_dir: Path)
     assert "--packs-dir" in entries["global_detail"]["install_command"]
     assert "--download" in entries["global_detail"]["install_command"]
     assert "install_map_pack.py" in payload["install_command_prefix"]
+    assert "build_map_pack.py" in payload["build_command_prefix"]
+    assert not Path(shlex.split(payload["install_command_prefix"])[0]).is_absolute()
+    assert not Path(shlex.split(payload["install_command_prefix"])[1]).is_absolute()
     assert payload["packs_dir_resolved"] == str(packs_dir.resolve())
+    assert payload["packs_dir_command"] == str(packs_dir)
     assert entries["global_detail"]["install_command"].startswith(
         payload["install_command_prefix"]
     )
@@ -218,21 +222,22 @@ def test_status_payload_tracks_available_sideload_and_installed(packs_dir: Path)
     assert entry["installed_pack"]["chunk_count"] == 1
 
 
-def test_status_payload_install_command_uses_absolute_default_packs_dir(
+def test_status_payload_install_command_uses_portable_default_packs_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("MESH_DASHBOARD_MAP_PACKS_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    entry = next(
-        p for p in map_packs.map_pack_status_payload()["packs"]
-        if p["id"] == "global_detail"
-    )
+    payload = map_packs.map_pack_status_payload()
+    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
     command = shlex.split(entry["install_command"])
     packs_dir = command[command.index("--packs-dir") + 1]
 
-    assert packs_dir == str((tmp_path / "map_packs").resolve())
-    assert Path(packs_dir).is_absolute()
+    assert packs_dir == "map_packs"
+    assert not Path(packs_dir).is_absolute()
+    assert payload["packs_dir_command"] == "map_packs"
+    assert payload["packs_dir_command_arg"] == "map_packs"
+    assert payload["packs_dir_resolved"] == str((tmp_path / "map_packs").resolve())
 
 
 def test_remove_installed_pack(packs_dir: Path) -> None:

@@ -101,7 +101,7 @@ def build_dashboard_parser(
     resolved_gateway_host = str(env_gateway_host or default_gateway_host)
     resolved_history_db = str(env_history_db or default_history_db)
     resolved_theme_presets = str(env_theme_presets) if env_theme_presets else None
-    resolved_theme_preset = str(env_theme_preset or "custom")
+    resolved_theme_preset = str(env_theme_preset or "default")
     resolved_theme_settings_file = str(env_theme_settings_file or "mesh_dashboard_theme_settings.json")
     resolved_private_mode = parse_env_bool(env_private_mode, False)
     resolved_api_token = str(env_api_token or "").strip() or None

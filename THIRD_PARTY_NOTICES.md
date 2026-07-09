@@ -29,6 +29,17 @@ Included text:
 - `third_party/licenses/leaflet-heat-BSD-2-Clause.txt`
 - `third_party/licenses/simpleheat-BSD-2-Clause.txt`
 
+### particles.js 2.0.0
+
+File:
+- `meshdash/assets/vendor/particles-2.0.0.min.js`
+
+License:
+- MIT License.
+
+Included text:
+- `third_party/licenses/particles-js-MIT.txt`
+
 ## Bundled Data
 
 ### Material Design Icons / @mdi/js
