@@ -11,15 +11,15 @@ ThemePresetMap = dict[str, ThemePreset]
 ThemePresetCustomSettingsMap = dict[str, dict[str, object]]
 
 _DEFAULT_THEME_SETTINGS: dict[str, object] = {
-    "base_color": "#007aff",
-    "line_color": "#0a84ff",
+    "base_color": "#003a73",
+    "line_color": "#2f8cff",
     "line_contrast_color": "#d8ecff",
     "text_font": "system",
-    "color_depth": 44,
+    "color_depth": 32,
     "foreground_transparency": 0,
     "foreground_blur": 0,
-    "gradient_primary_start_color": "#007aff",
-    "gradient_primary_end_color": "#64d2ff",
+    "gradient_primary_start_color": "#003a73",
+    "gradient_primary_end_color": "#060d1f",
     "gradient_primary_type": "linear",
     "gradient_primary_direction": "right",
     "background_type": "particles",

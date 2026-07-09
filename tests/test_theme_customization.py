@@ -179,11 +179,12 @@ def test_builtin_default_theme_is_fixed_safe_mode_with_particles_disabled() -> N
     default_settings = default_theme_preset_custom_settings()["default"]
 
     assert "blue" not in presets
-    assert presets["default"]["dark"]["--theme-base-color"] == "#007aff"
-    assert default_settings["base_color"] == "#007aff"
-    assert default_settings["line_color"] == "#0a84ff"
+    assert presets["default"]["dark"]["--theme-base-color"] == "#003a73"
+    assert default_settings["base_color"] == "#003a73"
+    assert default_settings["line_color"] == "#2f8cff"
     assert default_settings["line_contrast_color"] == "#d8ecff"
-    assert default_settings["gradient_primary_end_color"] == "#64d2ff"
+    assert default_settings["gradient_primary_start_color"] == "#003a73"
+    assert default_settings["gradient_primary_end_color"] == "#060d1f"
     assert default_settings["background_image_darken"] == 0
     assert default_settings["particles_enabled"] is False
     assert default_settings["particles_link_color"] == "#d8ecff"
