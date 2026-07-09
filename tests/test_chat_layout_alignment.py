@@ -1072,9 +1072,11 @@ def test_chat_emoji_picker_follows_workspace_view_menu_chrome() -> None:
     assert "let chatEmojiTopSuppressClickUntilMs = 0;" in js
     assert "let chatReactionQuickPointerDrag = null;" in js
     assert "let chatReactionQuickSuppressClickUntilMs = 0;" in js
+    assert "const chatEmojiTopUsageCount = 10;" in js
+    assert 'const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊", "🔥", "👏"];' in js
     assert "function normalizeChatEmojiTopSuppressedChoices(rawChoices)" in js
     assert "function removeChatEmojiTopChoice(rawEmoji)" in js
-    assert "Drag to rearrange or remove from your top 8." in js
+    assert "Drag to rearrange or remove from your top ${chatEmojiTopUsageCount}." in js
     assert 'top_suppressed_choices: normalizeChatEmojiTopSuppressedChoices(chatEmojiTopSuppressedChoices),' in js
     assert "parsed.top_suppressed_choices || parsed.topSuppressedChoices || []" in js
     assert "function chatEmojiTopNextOrder(sourceEmoji, insertionIndex, currentOrder = [])" in js
