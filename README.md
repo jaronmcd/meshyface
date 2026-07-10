@@ -44,8 +44,6 @@ history search, and mesh utility commands.
 
 ## Screenshots
 
-Network workspace views from a live Meshtastic session.
-
 ### Live network map
 
 ![Live network map.](docs/screenshots/network-map.png)
@@ -82,6 +80,17 @@ Telemetry chart comparing sensor history across multiple nodes.
 
 Top cards for radio activity, node counts, packets, links, battery, and channel
 use.
+
+### Theme customization
+
+Themes can reshape the full dashboard with custom colors, gradients,
+transparency, blur, fonts, particles, or a live-map background. These example
+palettes are custom themes; select any preview to open its full-resolution
+screenshot.
+
+| Signal Green | Neon Magenta | Aurora Relay |
+| --- | --- | --- |
+| [![Signal Green theme with a deep green live-map palette.](docs/screenshots/theme-signal-green.png)](docs/screenshots/theme-signal-green.png) | [![Neon Magenta theme with translucent purple panels and particles.](docs/screenshots/theme-neon-magenta.png)](docs/screenshots/theme-neon-magenta.png) | [![Aurora theme with teal glass, a navy-plum gradient, and amber links.](docs/screenshots/theme-aurora-relay.png)](docs/screenshots/theme-aurora-relay.png) |
 
 ## System Architecture
 
