@@ -230,6 +230,14 @@
         }}
         payload = await resp.json();
       }} catch (err) {{
+        const buildEl = document.getElementById("settings-maps-build-command");
+        if (buildEl instanceof HTMLElement) {{
+          buildEl.innerHTML = "";
+          const buildErrEl = document.createElement("div");
+          buildErrEl.className = "settings-maps-pack-empty";
+          buildErrEl.textContent = "Map pack build command is unavailable.";
+          buildEl.appendChild(buildErrEl);
+        }}
         const listEl = document.getElementById("settings-maps-pack-list");
         if (listEl instanceof HTMLElement && !listEl.querySelector(".settings-maps-pack-card")) {{
           listEl.innerHTML = "";

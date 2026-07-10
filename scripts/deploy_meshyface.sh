@@ -155,6 +155,7 @@ ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER
 DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
 DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
 MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
+MAP_PACKS_DIR=""
 BBS_ENABLE_SET=0
 GAMES_ENABLE_SET=0
 FILE_TRANSFER_ENABLE_SET=0
@@ -443,7 +444,7 @@ hard_reboot_remote_target() {
 
 read_existing_dashboard_env_value() {
   local key="$1"
-  ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { print substr(\$0, length(key) + 2); exit }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
+  ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { value = substr(\$0, length(key) + 2); found = 1 } END { if (found) print value }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
 read_remote_identity() {
@@ -755,6 +756,11 @@ if [[ "${WIPE_REMOTE_ROOT}" -eq 1 && "${BOOTSTRAP}" -eq 0 ]]; then
   BOOTSTRAP=1
 fi
 
+MAP_PACKS_DIR="$(read_existing_dashboard_env_value "MESH_DASHBOARD_MAP_PACKS_DIR")"
+if [[ -z "${MAP_PACKS_DIR}" ]]; then
+  MAP_PACKS_DIR="${REMOTE_ROOT}/map_packs"
+fi
+
 if [[ -z "${MESH_HOST}" ]]; then
   MESH_HOST="$(
     ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= '/^MESH_HOST=/{print \$2; exit}' '${CONFIG_DIR}/dashboard.env'; fi" \
@@ -982,6 +988,7 @@ DASH_HOST=${DASH_HOST}
 DASH_PORT=${DASH_PORT}
 REFRESH_MS=${REFRESH_MS}
 MESH_DASH_HISTORY_DB=${HISTORY_DB}
+MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}
 MESH_DASH_BBS_ENABLE=${BBS_ENABLE}
 MESH_DASH_GAMES_ENABLE=${GAMES_ENABLE}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
@@ -1056,9 +1063,69 @@ if [[ -n "${MAP_PACK_ZIP}" ]]; then
   scp_cmd "${MAP_PACK_ZIP}" "${TARGET}:${remote_map_pack_zip}"
   echo "[deploy] installing map pack zip on ${TARGET}"
   ssh_cmd "${TARGET}" "\
-cd '${REMOTE_ROOT}' && \
-'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' --zip '${remote_map_pack_zip}' --yes && \
-rm -f '${remote_map_pack_zip}'"
+REMOTE_ROOT='${REMOTE_ROOT}' \
+REMOTE_PYTHON='${REMOTE_PYTHON}' \
+INSTALL_SCRIPT='${APP_DIR}/scripts/install_map_pack.py' \
+UPLOAD_ZIP='${remote_map_pack_zip}' \
+DASH_PORT='${DASH_PORT}' \
+bash -s" <<'REMOTE'
+set -uo pipefail
+
+cleanup_upload() {
+  rm -f -- "${UPLOAD_ZIP}"
+}
+trap cleanup_upload EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+install_map_pack_upload() {
+  local map_packs_dir
+  map_packs_dir="$(
+    "${REMOTE_PYTHON}" - "${DASH_PORT}" <<'PY'
+import json
+import sys
+import urllib.request
+
+port = str(sys.argv[1]).strip() or "8877"
+url = f"http://127.0.0.1:{port}/api/maps/packs"
+try:
+    with urllib.request.urlopen(url, timeout=4) as response:
+        payload = json.loads(response.read().decode("utf-8", "replace"))
+except Exception as exc:
+    print(f"map pack directory lookup failed: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+if not isinstance(payload, dict) or not payload.get("ok"):
+    print("map pack directory lookup returned an invalid payload", file=sys.stderr)
+    raise SystemExit(1)
+packs_dir = str(payload.get("packs_dir_resolved") or "").strip()
+if not packs_dir:
+    print("map pack directory lookup returned no directory", file=sys.stderr)
+    raise SystemExit(1)
+print(packs_dir)
+PY
+  )" || return $?
+  (
+    cd "${REMOTE_ROOT}" || exit $?
+    "${REMOTE_PYTHON}" "${INSTALL_SCRIPT}" \
+      --zip "${UPLOAD_ZIP}" \
+      --packs-dir "${map_packs_dir}" \
+      --yes
+  )
+}
+
+install_status=0
+install_map_pack_upload || install_status=$?
+
+cleanup_status=0
+cleanup_upload || cleanup_status=$?
+trap - EXIT HUP INT TERM
+if [[ "${install_status}" -ne 0 ]]; then
+  exit "${install_status}"
+fi
+exit "${cleanup_status}"
+REMOTE
 fi
 
 target_host="${TARGET#*@}"

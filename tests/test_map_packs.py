@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shlex
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -815,6 +817,133 @@ def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
     assert "const installCommand = `${installPrefix} --zip mymesh.zip${packsDir}`;" in js
     assert "appendSettingsMapsCommandRow(card, \"Build\", buildCommand);" in js
     assert "appendSettingsMapsCommandRow(card, \"Install\", installCommand);" in js
+
+
+def test_dashboard_js_replaces_map_pack_build_placeholder_on_status_error() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    refresh_start = js.index("async function refreshMapsPackStatus()")
+    catch_start = js.index("} catch (err) {", refresh_start)
+    catch_end = js.index("\n        return;", catch_start)
+    catch_block = js[catch_start:catch_end]
+
+    assert 'document.getElementById("settings-maps-build-command")' in catch_block
+    assert "if (buildEl instanceof HTMLElement)" in catch_block
+    assert "buildEl.querySelector" not in catch_block
+    assert 'buildErrEl.className = "settings-maps-pack-empty";' in catch_block
+    assert (
+        'buildErrEl.textContent = "Map pack build command is unavailable.";'
+        in catch_block
+    )
+    assert "buildEl.appendChild(buildErrEl);" in catch_block
+
+
+@pytest.mark.parametrize(
+    ("query_exit", "installer_exit", "expected_exit"),
+    [(0, 0, 0), (0, 7, 7), (9, 0, 9)],
+)
+def test_push_deploy_uses_configured_map_pack_dir_and_always_cleans_upload(
+    tmp_path: Path, query_exit: int, installer_exit: int, expected_exit: int
+) -> None:
+    deploy = (REPO_ROOT / "scripts" / "deploy_meshyface.sh").read_text(
+        encoding="utf-8"
+    )
+    block_start = deploy.index('if [[ -n "${MAP_PACK_ZIP}" ]]')
+    block_end = deploy.index("\ntarget_host=", block_start)
+    install_block = deploy[block_start:block_end]
+
+    assert "/api/maps/packs" in install_block
+    assert 'payload.get("packs_dir_resolved")' in install_block
+    assert '--packs-dir "${map_packs_dir}"' in install_block
+    assert "install_map_pack_upload || install_status=$?" in install_block
+    assert "trap cleanup_upload EXIT" in install_block
+    assert "cleanup_upload || cleanup_status=$?" in install_block
+    assert install_block.index(
+        "install_map_pack_upload || install_status=$?"
+    ) < install_block.index("cleanup_upload || cleanup_status=$?")
+    assert 'exit "${install_status}"' in install_block
+
+    preserve_read = (
+        'MAP_PACKS_DIR="$(read_existing_dashboard_env_value '
+        '"MESH_DASHBOARD_MAP_PACKS_DIR")"'
+    )
+    env_write = "MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}"
+    assert preserve_read in deploy
+    assert env_write in deploy
+    assert deploy.index(preserve_read) < deploy.index(env_write) < block_start
+
+    script_marker = "<<'REMOTE'\n"
+    script_start = install_block.index(script_marker) + len(script_marker)
+    script_end = install_block.rindex("\nREMOTE")
+    remote_script = install_block[script_start:script_end]
+
+    remote_root = tmp_path / "remote root"
+    configured_packs_dir = tmp_path / "configured packs"
+    upload_zip = remote_root / ".meshyface-map-pack-upload.zip"
+    installer = tmp_path / "fake_installer.py"
+    python_wrapper = tmp_path / "fake-python"
+    args_output = tmp_path / "installer-args.json"
+    remote_root.mkdir()
+    upload_zip.write_bytes(b"map pack")
+    installer.write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['ARGS_OUTPUT']).write_text(json.dumps(sys.argv[1:]))\n"
+        "raise SystemExit(int(os.environ['INSTALLER_EXIT']))\n",
+        encoding="utf-8",
+    )
+    python_wrapper.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [[ "${1:-}" == "-" ]]; then\n'
+        "  cat >/dev/null\n"
+        "  printf '%s\\n' \"${PACKS_DIR_RESPONSE}\"\n"
+        "  exit \"${QUERY_EXIT:-0}\"\n"
+        "fi\n"
+        'exec "${REAL_PYTHON}" "$@"\n',
+        encoding="utf-8",
+    )
+    python_wrapper.chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "REMOTE_ROOT": str(remote_root),
+            "REMOTE_PYTHON": str(python_wrapper),
+            "INSTALL_SCRIPT": str(installer),
+            "UPLOAD_ZIP": str(upload_zip),
+            "DASH_PORT": "8877",
+            "ARGS_OUTPUT": str(args_output),
+            "INSTALLER_EXIT": str(installer_exit),
+            "PACKS_DIR_RESPONSE": str(configured_packs_dir),
+            "QUERY_EXIT": str(query_exit),
+            "REAL_PYTHON": sys.executable,
+        }
+    )
+
+    proc = subprocess.run(
+        ["bash", "-s"],
+        input=remote_script,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert proc.returncode == expected_exit, proc.stderr
+    assert not upload_zip.exists()
+    if query_exit == 0:
+        assert json.loads(args_output.read_text(encoding="utf-8")) == [
+            "--zip",
+            str(upload_zip),
+            "--packs-dir",
+            str(configured_packs_dir),
+            "--yes",
+        ]
+    else:
+        assert not args_output.exists()
 
 
 def test_validate_manifest_obj_reports_each_defect() -> None:
