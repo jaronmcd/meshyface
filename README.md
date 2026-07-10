@@ -234,10 +234,11 @@ Related environment variables:
 - `MESH_DASH_GIT_COMMIT`
 - `MESH_DASH_PR_NUMBER`
 
-Runtime revision labels are generated from the current git commit. Set
-`MESH_DASH_PR_NUMBER` in PR preview deployments to show labels like
-`Rev: PR #43 abc1234`; `MESH_DASH_VERSION` remains a release/package version
-override rather than a per-PR bump requirement.
+Runtime revision labels and the Software panel version are generated from the
+current git commit. Set `MESH_DASH_PR_NUMBER` in PR preview deployments to show
+labels like `Rev: PR #43 abc1234`. The `/api/version` `version` field reports
+that build ref; `MESH_DASH_VERSION` remains release/package metadata only and is
+reported as `package_version`.
 
 ### History and analytics
 

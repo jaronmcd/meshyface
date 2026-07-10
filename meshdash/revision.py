@@ -52,10 +52,9 @@ def build_revision_label(build_ref: object) -> str:
 
 
 def build_revision_title(version: object, commit: object, build_ref: object) -> str:
-    clean_version = sanitize_revision_token(version, "0.0.0")
     clean_commit = sanitize_revision_token(commit, "nogit")
     clean_ref = str(build_ref or short_commit_token(clean_commit))
-    return f"Dashboard revision: {clean_ref}, version {clean_version}, commit {clean_commit}"
+    return f"Dashboard revision: {clean_ref}, commit {clean_commit}"
 
 
 def coerce_revision_info(value: RevisionInfo | Mapping[str, object]) -> RevisionInfo:

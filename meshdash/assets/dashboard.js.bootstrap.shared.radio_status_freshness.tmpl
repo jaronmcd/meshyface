@@ -513,90 +513,6 @@
       favoriteFreshnessHydrated = true;
     }}
 
-    function syncTopbarNodeOnlineTickerNotices(
-      state = latestState,
-      nodesById = null,
-      capsById = null,
-      latestChatTouchByNode = null,
-      nowUnix = Math.floor(Date.now() / 1000)
-    ) {{
-      const oneShotEnabled = (
-        typeof topbarOneshotNodeOnlineEnabled === "function"
-        ? topbarOneshotNodeOnlineEnabled()
-        : false
-      );
-      if (!oneShotEnabled) {{
-        topbarNodeFreshnessByNodeId.clear();
-        topbarNodeFreshnessHydrated = false;
-        return;
-      }}
-      const favoritesOnly = (
-        typeof topbarOneshotNodeOnlineFavoritesOnly === "function"
-        ? topbarOneshotNodeOnlineFavoritesOnly()
-        : true
-      );
-      const safeState = state && typeof state === "object" ? state : {{}};
-      const nodeMap = nodesById instanceof Map
-        ? nodesById
-        : new Map(
-            (Array.isArray(safeState.nodes) ? safeState.nodes : [])
-              .map((node) => [normalizeNodeId(node && node.id), node])
-          );
-      const capsMap = capsById instanceof Map
-        ? capsById
-        : new Map(
-            Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
-              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
-              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
-          );
-      const chatTouchMap = latestChatTouchByNode instanceof Map
-        ? latestChatTouchByNode
-        : mapLatestChatTouchInfo(
-            Array.isArray(safeState.traffic && safeState.traffic.recent_chat)
-              ? safeState.traffic.recent_chat
-              : []
-          );
-      const eligibleNodeIds = favoritesOnly
-        ? visibleFavoriteNodeIds().map((rawId) => normalizeNodeId(rawId)).filter(isSelectableNodeId)
-        : Array.from(nodeMap.keys()).map((rawId) => normalizeNodeId(rawId)).filter(isSelectableNodeId);
-      const eligibleSet = new Set(eligibleNodeIds);
-      for (const nodeId of Array.from(topbarNodeFreshnessByNodeId.keys())) {{
-        if (!eligibleSet.has(nodeId)) {{
-          topbarNodeFreshnessByNodeId.delete(nodeId);
-        }}
-      }}
-      const bootstrap = !topbarNodeFreshnessHydrated;
-      for (const nodeId of eligibleNodeIds) {{
-        const node = nodeMap.get(nodeId);
-        const caps = capsMap.get(nodeId);
-        const chatTouch = chatTouchMap.get(nodeId) || null;
-        const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-        const status = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, nowUnix));
-        const previousStatus = topbarNodeFreshnessByNodeId.has(nodeId)
-          ? String(topbarNodeFreshnessByNodeId.get(nodeId) || "")
-          : "";
-        topbarNodeFreshnessByNodeId.set(nodeId, status);
-        if (bootstrap || !previousStatus || previousStatus === "online" || status !== "online") {{
-          continue;
-        }}
-        if (typeof publishTopbarUpdateTickerEvent !== "function") {{
-          continue;
-        }}
-        const displayName = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
-        const whenText = Number.isFinite(lastSeenUnix)
-          ? savedDetailAge(lastSeenUnix, nowUnix)
-          : "just now";
-        const noticeKeyUnix = Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : Math.trunc(nowUnix);
-        const scopeText = favoritesOnly ? "tagged node" : "node";
-        publishTopbarUpdateTickerEvent(
-          `${{displayName}} is online (${{scopeText}}, seen ${{whenText}})`,
-          `oneshot:node_online:${{nodeId}}:${{noticeKeyUnix}}`,
-          {{ mode: "oneshot" }}
-        );
-      }}
-      topbarNodeFreshnessHydrated = true;
-    }}
-
     function tickFreshnessUI(state = latestState) {{
       if (!state || typeof state !== "object") return;
       const nodes = Array.isArray(state.nodes) ? state.nodes : [];
@@ -614,7 +530,6 @@
 
       const nowUnix = Math.floor(Date.now() / 1000);
       syncFavoriteOnlineNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
-      syncTopbarNodeOnlineTickerNotices(state, nodesById, capsById, latestChatTouchByNode, nowUnix);
       const freshnessByNodeId = new Map();
       const freshnessForNode = (nodeIdRaw) => {{
         const nodeId = normalizeNodeId(nodeIdRaw || "");

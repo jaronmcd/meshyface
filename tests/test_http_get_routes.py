@@ -104,7 +104,8 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
 
     assert deps.recorder.html == [("<html>dashboard</html>", True)]
     assert deps.recorder.json[0][0] == 200
-    assert deps.recorder.json[0][1]["version"] == "1.2.3"
+    assert deps.recorder.json[0][1]["version"] == "PR #42 abc1234"
+    assert deps.recorder.json[0][1]["package_version"] == "1.2.3"
     assert deps.recorder.json[0][1]["commit"] == "abc123456789"
     assert deps.recorder.json[0][1]["build_ref"] == "PR #42 abc1234"
     assert deps.recorder.json[0][1]["pr_number"] == "42"
@@ -144,6 +145,8 @@ def test_dashboard_get_version_falls_back_to_short_commit_ref() -> None:
     handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
 
     assert deps.recorder.json[0][0] == 200
+    assert deps.recorder.json[0][1]["version"] == "PR #77 fedcba9"
+    assert deps.recorder.json[0][1]["package_version"] == "1.2.3"
     assert deps.recorder.json[0][1]["build_ref"] == "PR #77 fedcba9"
     assert deps.recorder.json[0][1]["pr_number"] == "77"
     assert deps.recorder.json[0][1]["label"] == "Rev: PR #77 fedcba9"

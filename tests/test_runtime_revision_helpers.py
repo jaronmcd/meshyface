@@ -79,7 +79,9 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
     assert built.pr_number == "43"
     assert built.build_ref == "PR #43 abc1234"
     assert built.label == "Rev: PR #43 abc1234"
-    assert "version 3.0" in built.title
+    assert "Dashboard revision: PR #43 abc1234" in built.title
+    assert "commit abc123456789" in built.title
+    assert "version 3.0" not in built.title
     try:
         coerce_revision_info("bad")  # type: ignore[arg-type]
     except TypeError as exc:

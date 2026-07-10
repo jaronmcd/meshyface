@@ -299,16 +299,17 @@ def _build_version_payload(state_payload: object) -> dict[str, object]:
     summary = _summary_from_state_payload(state_payload)
     revision = summary.get("revision") if isinstance(summary, Mapping) else None
     revision_map = revision if isinstance(revision, Mapping) else {}
-    version = str(revision_map.get("version") or "0.0.0")
+    package_version = str(revision_map.get("version") or "0.0.0")
     commit = str(revision_map.get("commit") or "nogit")
     pr_number = _normalize_pr_number_helper(revision_map.get("pr_number"))
     build_ref = str(revision_map.get("build_ref") or _build_revision_ref_helper(commit, pr_number))
     label = str(revision_map.get("label") or _build_revision_label_helper(build_ref))
-    title = str(revision_map.get("title") or _build_revision_title_helper(version, commit, build_ref))
+    title = str(revision_map.get("title") or _build_revision_title_helper(package_version, commit, build_ref))
     deploy_payload_hash = str(os.environ.get("MESH_DASH_DEPLOY_PAYLOAD_HASH") or "").strip()
     return {
         "ok": True,
-        "version": version,
+        "version": build_ref,
+        "package_version": package_version,
         "commit": commit,
         "build_ref": build_ref,
         "pr_number": pr_number or None,

@@ -1309,8 +1309,6 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
 
     launcher_section = css.split("[data-theme=\"dark\"] .topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
     launcher_hover_section = css.split("[data-theme=\"dark\"] .topbar-view-menu-btn:hover,", 1)[1].split("}", 1)[0]
-    update_section = css.split("[data-theme=\"dark\"] .topbar-update-ticker {", 1)[1].split("}", 1)[0]
-    update_text_section = css.split("[data-theme=\"dark\"] .topbar-update-text,", 1)[1].split("}", 1)[0]
     icon_section = css.split("[data-theme=\"dark\"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn,", 1)[1].split("}", 1)[0]
     icon_hover_section = css.split("[data-theme=\"dark\"] .topbar-chat-change-menu-wrap .chat-change-toggle-btn:hover,", 1)[1].split("}", 1)[0]
     self_profile_section = css.split("[data-theme=\"dark\"] .topbar-self-profile {", 1)[1].split("}", 1)[0]
@@ -1322,12 +1320,8 @@ def test_topbar_controls_share_workspace_shell_tokens() -> None:
     assert ".topbar-view-menu-btn-mark" not in css
     assert "accent-2" not in launcher_section
     assert "box-shadow: none;" in launcher_section
-    assert "var(--workspace-shell-border)" in update_section
-    assert "var(--workspace-shell-bg-alt)" in update_section
-    assert "var(--workspace-shell-bg)" in update_section
-    assert "var(--workspace-shell-text)" in update_section
-    assert "box-shadow: none;" in update_section
-    assert "var(--workspace-shell-text-soft)" in update_text_section
+    assert "[data-theme=\"dark\"] .topbar-update-ticker" not in css
+    assert "[data-theme=\"dark\"] .topbar-update-text" not in css
     assert "var(--workspace-shell-border)" in icon_section
     assert "var(--workspace-shell-bg-alt)" in icon_section
     assert "var(--workspace-shell-bg)" in icon_section

@@ -83,11 +83,6 @@
         listEl.appendChild(btn);
       }});
 
-      const liveUpdateToggle = document.getElementById("settings-ticker-live-update-enabled");
-      if (liveUpdateToggle instanceof HTMLInputElement) {{
-        liveUpdateToggle.checked = topbarUpdateTickerEnabled();
-      }}
-
       const emptyEl = document.getElementById("settings-ticker-config-empty");
       const formEl = document.getElementById("settings-ticker-config-form");
       if (!(emptyEl instanceof HTMLElement) || !(formEl instanceof HTMLElement)) return;

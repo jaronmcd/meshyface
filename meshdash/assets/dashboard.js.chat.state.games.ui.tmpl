@@ -281,29 +281,6 @@
       return true;
     }}
 
-    function gamesQuickChatGameLabel(gameId = "") {{
-      const normalized = normalizeActiveGameId(gameId);
-      if (normalized === "checkers") return "Checkers";
-      if (normalized === "chess") return "Chess";
-      if (normalized === "wallchess") return "Wall Chess";
-      return "Reversi";
-    }}
-
-    function publishGamesQuickChatTopbarRow(row = {{}}) {{
-      if (typeof publishTopbarUpdateTickerEvent !== "function") return;
-      const keySeed = String(row && row.key ? row.key : "").trim();
-      const sender = String(row && row.sender ? row.sender : "").trim() || "Player";
-      const text = gamesQuickChatTrimText(row && row.text ? row.text : "", 120);
-      if (!text) return;
-      const gameLabel = gamesQuickChatGameLabel(row && row.game_id ? row.game_id : "");
-      const safeKeySeed = keySeed.replace(/[^a-z0-9:_-]/gi, "").slice(0, 96) || `${{Date.now().toString(36)}}`;
-      publishTopbarUpdateTickerEvent(
-        `${{gameLabel}} chat • ${{sender}}: ${{text}}`,
-        `oneshot:public:games:${{safeKeySeed}}`,
-        {{ mode: "oneshot" }}
-      );
-    }}
-
     function gamesQuickChatPushRow(row = {{}}, state = latestState) {{
       const safeState = state && typeof state === "object" ? state : latestState;
       const fromId = normalizeNodeId(row.from_id || row.fromId || "");
@@ -324,10 +301,6 @@
       }});
       if (gamesQuickChatRows.length > 24) {{
         gamesQuickChatRows = gamesQuickChatRows.slice(-24);
-      }}
-      const latestRow = gamesQuickChatRows[gamesQuickChatRows.length - 1] || null;
-      if (latestRow) {{
-        publishGamesQuickChatTopbarRow(latestRow);
       }}
     }}
 

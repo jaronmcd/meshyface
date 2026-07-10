@@ -286,37 +286,6 @@
     .topbar .topbar-main-spacer {{
       display: none;
     }}
-    .topbar-update-ticker {{
-      --topbar-update-start: 0px;
-      --topbar-update-shift: 420px;
-      --topbar-update-duration: 42s;
-      flex: none;
-      width: 100%;
-      min-width: 0;
-      max-width: none;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      align-items: center;
-      gap: 6px;
-      border: 1px solid rgba(236, 251, 243, 0.72);
-      border-radius: 999px;
-      background: linear-gradient(90deg, rgba(7, 24, 18, 0.6), rgba(10, 36, 27, 0.38));
-      color: #f3fff8;
-      padding: 3px 10px;
-      min-height: 30px;
-      opacity: 1;
-      transition: opacity 220ms ease;
-      overflow: hidden;
-      box-shadow: none;
-    }}
-    .workspace-update-ticker {{
-      flex: 1 1 auto;
-      align-self: stretch;
-      min-width: 0;
-      min-height: 30px;
-      margin: 0;
-      padding: 0;
-    }}
     .topbar .sub {{
       margin-top: 0;
       font-size: 11px;
@@ -388,97 +357,6 @@
       position: relative;
       --summary-visible-ticker-count: 10;
       padding-right: 0;
-    }}
-    .topbar-update-ticker.is-fading {{
-      opacity: 0;
-    }}
-    .topbar-update-ticker-label {{
-      display: inline-flex;
-      align-items: center;
-      font-size: 10px;
-      line-height: 1;
-      text-transform: uppercase;
-      letter-spacing: 0.22em;
-      color: rgba(222, 248, 233, 0.82);
-      white-space: nowrap;
-      user-select: none;
-      flex: 0 0 auto;
-    }}
-    .topbar-update-viewport {{
-      width: 100%;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      overflow: hidden;
-      mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
-    }}
-    .topbar-update-track {{
-      position: relative;
-      display: block;
-      width: 100%;
-      min-width: 0;
-      min-height: 1.2em;
-      animation: none;
-      transform: none;
-      overflow: visible;
-    }}
-    .topbar-update-text {{
-      display: none;
-      align-items: center;
-      font-size: 14px;
-      line-height: 1.2;
-      letter-spacing: 0.12px;
-      color: rgba(244, 255, 249, 0.96);
-      white-space: nowrap;
-      text-shadow: 0 0 8px rgba(101, 217, 160, 0.16);
-    }}
-    .topbar-update-item {{
-      position: absolute;
-      left: 0;
-      top: 50%;
-      display: inline-flex;
-      align-items: center;
-      font-size: 13px;
-      line-height: 1.2;
-      letter-spacing: 0.12px;
-      color: rgba(244, 255, 249, 0.96);
-      white-space: nowrap;
-      text-shadow: 0 0 8px rgba(101, 217, 160, 0.16);
-      will-change: transform;
-      pointer-events: none;
-      transform: translate3d(0, -50%, 0);
-    }}
-    .topbar-update-item.is-oneshot {{
-      color: rgba(220, 245, 231, 0.95);
-    }}
-    .topbar-update-ticker.is-static .topbar-update-track {{
-      animation: none;
-      transform: translateX(0);
-    }}
-    .topbar-update-ticker.is-static #topbar-update-text-secondary {{
-      display: none;
-    }}
-    .topbar-update-ticker:hover .topbar-update-track,
-    .topbar-update-ticker:focus-within .topbar-update-track {{
-      animation-play-state: paused;
-    }}
-    @keyframes topbarUpdateScroll {{
-      from {{
-        transform: translateX(var(--topbar-update-start, 0px));
-      }}
-      to {{
-        transform: translateX(calc(var(--topbar-update-start, 0px) - var(--topbar-update-shift, 420px)));
-      }}
-    }}
-    @media (prefers-reduced-motion: reduce) {{
-      .topbar-update-track {{
-        animation: none !important;
-        transform: translateX(0);
-      }}
-      #topbar-update-text-secondary {{
-        display: none;
-      }}
     }}
     .topbar .sub .summary-ticker-row {{
       display: grid;
@@ -552,9 +430,6 @@
     }}
     .topbar.has-compact-ticker-detail:not(.ticker-expanded) .summary-ticker-item-radio.is-compact-detail-open {{
       grid-template-rows: auto auto auto auto;
-    }}
-    .topbar-update-ticker[hidden] {{
-      display: none !important;
     }}
     .workspace-launcher-row {{
       grid-column: 1 / -1;
@@ -2460,9 +2335,6 @@
       overflow: hidden;
       position: relative;
       z-index: 1;
-    }}
-    .workspace-shell.has-topbar-update-ticker {{
-      row-gap: 8px;
     }}
     .workspace-shell.chat-panel-open {{
       grid-template-columns:

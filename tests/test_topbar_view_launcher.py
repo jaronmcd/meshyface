@@ -37,7 +37,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-btn-label"' in html
     assert 'id="layout-view-menu-btn-label-text"' in html
     assert 'class="topbar-view-menu-btn-label-text">Chat<' in html
-    assert 'class="topbar-update-ticker workspace-update-ticker"' in html
+    assert 'class="topbar-update-ticker workspace-update-ticker"' not in html
     assert 'workspace-peer-dm-menu-wrap' not in html
     assert 'id="peer-dm-toggle-btn"' not in html
     assert 'class="topbar-view-menu-head"' not in html
@@ -150,7 +150,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     )
 
     assert ".workspace-launcher-row {" in css
-    assert ".topbar-update-ticker[hidden] {" in css
     assert "z-index: 500;" in css
     assert ".workspace-launcher-shell {" in css
     assert ".chat-users-head-launcher-shell {" in css
@@ -163,9 +162,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".chat-node-navigator-dock-btn {" in css
     assert ".chat-node-navigator-menu-docked {" in css
     assert "min-height: 38px;" in css
-    assert ".topbar-update-ticker {" in css
-    assert ".workspace-update-ticker {" in css
-    assert "flex: 1 1 auto;" in css
+    assert ".topbar-update-ticker" not in css
+    assert ".workspace-update-ticker" not in css
     assert "--topbar-corner-reserve: 36px;" in css
     assert "padding-right: var(--topbar-right-inset);" in css
     assert ".topbar-view-menu-btn {" in css
@@ -192,7 +190,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
     _topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
     topbar_ticker_section = css.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
-    topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
     topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
     workspace_shell_section = css.split(".workspace-shell {", 1)[1].split("}", 1)[0]
     shared_blur_index = css.find(".card,\n    .topbar .summary-ticker-item,")
@@ -211,7 +208,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "--summary-visible-ticker-count: 10;" in css
     assert "padding-right: 0;" in css
     assert "box-shadow: none;" in topbar_ticker_section
-    assert "box-shadow: none;" in topbar_update_section
     assert "box-shadow: none;" in topbar_launcher_section
     assert ".chat-panel-collapse-glyph-collapse {" in css
     assert ".chat-panel-collapse-glyph-expand {" in css
@@ -224,7 +220,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
         r"\.workspace-shell \{\s*--chat-panel-width: 250px;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*column-gap: 8px;[\s\S]*row-gap: 0;",
         css,
     )
-    assert ".workspace-shell.has-topbar-update-ticker {" in css
+    assert ".workspace-shell.has-topbar-update-ticker {" not in css
     assert ".settings-device-info-grid {" in css
     assert "grid-template-columns: repeat(4, minmax(160px, 1fr));" in css
     assert "[data-theme=\"dark\"] .settings-device-info-item {" in css
@@ -275,15 +271,17 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     )
 
     assert "function syncLayoutViewLauncherButtonState(viewName = activeLayoutView) {" in js
-    assert "function setTopbarUpdateTickerVisibility(tickerEl, visible) {" in js
-    assert 'const launcherRow = tickerEl.closest(".workspace-launcher-row");' in js
-    assert "launcherRow.hidden = !visible;" in js
-    assert 'workspaceShell.classList.toggle("has-topbar-update-ticker", !!visible);' in js
+    assert "TopbarUpdateTicker" not in js
+    assert "topbarUpdateTicker" not in js
+    assert "topbar-update-ticker" not in js
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
     assert 'document.getElementById("settings-about-version")' not in js
     assert 'document.getElementById("settings-about-commit")' not in js
     assert 'document.getElementById("settings-software-version")' in js
     assert 'document.getElementById("settings-software-commit")' in js
+    assert 'const buildRef = String(revision.build_ref || "").trim();' in js
+    assert 'const version = String(revision.version || "").trim();' not in js
+    assert "`v${version}`" not in js
     assert '|| key === "update"' in js
     assert '|| key === "database"' in js
     assert "function renderSettingsUpdateStatus(payload = settingsUpdateStatusCache) {" in js

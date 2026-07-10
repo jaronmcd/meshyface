@@ -204,23 +204,6 @@
       const latestSenderByChannel = {{ all: "", direct: "" }};
       for (const entry of keyedMessages) {{
         if (!rememberSeenChatMessage(entry.key)) continue;
-        if (
-          entry.countsUnread !== false
-          && entry.channel === "all"
-          && !isChatWorkspaceLayoutView(activeLayoutView)
-          && typeof publishTopbarUpdateTickerEvent === "function"
-        ) {{
-          const sender = String(entry.sender || "").trim() || "Unknown node";
-          const preview = String(entry.preview || "").replace(/\s+/g, " ").trim();
-          const tickerText = preview
-            ? `${{sender}}: ${{preview}}`
-            : `${{sender}}`;
-          publishTopbarUpdateTickerEvent(
-            tickerText,
-            `oneshot:public:${{String(entry.key || "").trim()}}`,
-            {{ mode: "oneshot" }}
-          );
-        }}
         const key = entry.channel === "direct" ? "direct" : "all";
         const entryVisible = isChatEntryVisibleInCurrentContext(entry);
         const shouldNotify = catchupNoticeArmed || tabInactive || !entryVisible;

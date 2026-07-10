@@ -14,16 +14,6 @@
         }});
       }}
 
-      const liveUpdateToggle = document.getElementById("settings-ticker-live-update-enabled");
-      if (liveUpdateToggle instanceof HTMLInputElement && liveUpdateToggle.dataset.bound !== "1") {{
-        liveUpdateToggle.dataset.bound = "1";
-        liveUpdateToggle.addEventListener("change", () => {{
-          const prefs = currentTickerPreferences();
-          prefs.update_ticker_enabled = !!liveUpdateToggle.checked;
-          saveTickerPreferences();
-        }});
-      }}
-
       const enabledToggle = document.getElementById("settings-ticker-enabled");
       if (enabledToggle instanceof HTMLInputElement && enabledToggle.dataset.bound !== "1") {{
         enabledToggle.dataset.bound = "1";
