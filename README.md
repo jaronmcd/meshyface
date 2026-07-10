@@ -243,11 +243,18 @@ Related environment variables:
 - `MESH_DASH_GIT_COMMIT`
 - `MESH_DASH_PR_NUMBER`
 
-Runtime revision labels and the Software panel version are generated from the
-current git commit. Set `MESH_DASH_PR_NUMBER` in PR preview deployments to show
-labels like `Rev: PR #43 abc1234`. The `/api/version` `version` field reports
-that build ref; `MESH_DASH_VERSION` remains release/package metadata only and is
-reported as `package_version`.
+Runtime identity comes from the 12-character git commit, followed by an
+optional pull-request number, for example `abc123456789 · PR #43`. The Software
+panel displays this single revision instead of a package version. GitHub
+merge/squash commit subjects are detected automatically; unmerged preview
+deployments can set `MESH_DASH_PR_NUMBER` explicitly.
+
+`/api/revision` is the canonical identity endpoint. Its `revision` and
+`build_ref` fields report the runtime revision, while `commit` and `pr_number`
+remain available as structured fields. `/api/version` remains as a legacy
+endpoint, and its `version` field retains release/package metadata.
+`MESH_DASH_VERSION` is likewise reserved for explicit release packaging and is
+not shown in the dashboard.
 
 ### History and analytics
 

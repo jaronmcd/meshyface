@@ -16,8 +16,14 @@ docker exec <container> python scripts/install_map_pack.py --zip /data/mymesh.zi
 ## Build Image
 
 ```bash
-docker build -t meshyface:local .
+docker build \
+  --build-arg MESH_DASH_GIT_COMMIT="$(git rev-parse --short=12 HEAD)" \
+  -t meshyface:local .
 ```
+
+For an unmerged PR preview, also pass
+`--build-arg MESH_DASH_PR_NUMBER=<number>`. Compose accepts the same
+`MESH_DASH_GIT_COMMIT` and `MESH_DASH_PR_NUMBER` environment variables.
 
 ## Run With Wi-Fi/TCP Radio
 
@@ -52,13 +58,17 @@ container path.
 For a TCP radio:
 
 ```bash
-MESH_GATEWAY_HOST=meshtastic-radio.local docker compose --profile tcp up -d --build
+MESH_DASH_GIT_COMMIT="$(git rev-parse --short=12 HEAD)" \
+  MESH_GATEWAY_HOST=meshtastic-radio.local \
+  docker compose --profile tcp up -d --build
 ```
 
 For a USB serial radio:
 
 ```bash
-MESH_DASH_MESH_PORT=/dev/ttyACM0 docker compose --profile serial up -d --build
+MESH_DASH_GIT_COMMIT="$(git rev-parse --short=12 HEAD)" \
+  MESH_DASH_MESH_PORT=/dev/ttyACM0 \
+  docker compose --profile serial up -d --build
 ```
 
 The Compose file publishes `8877`, uses the named volume `meshyface-data`, and

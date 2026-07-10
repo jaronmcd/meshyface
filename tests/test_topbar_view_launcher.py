@@ -57,8 +57,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' not in html
     assert 'id="settings-about-commit"' not in html
-    assert 'id="settings-software-version"' in html
-    assert 'id="settings-software-commit"' in html
+    assert 'id="settings-software-revision"' in html
+    assert 'id="settings-software-version"' not in html
+    assert 'id="settings-software-commit"' not in html
     assert 'id="settings-tab-update-btn"' in html
     assert re.search(r'id="settings-tab-update-btn"[\s\S]*>\s*Software\s*</button>', html)
     assert 'data-settings-tab="update"' in html
@@ -275,8 +276,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
     assert 'document.getElementById("settings-about-version")' not in js
     assert 'document.getElementById("settings-about-commit")' not in js
-    assert 'document.getElementById("settings-software-version")' in js
-    assert 'document.getElementById("settings-software-commit")' in js
+    assert 'document.getElementById("settings-software-revision")' in js
+    assert 'document.getElementById("settings-software-version")' not in js
+    assert 'document.getElementById("settings-software-commit")' not in js
     assert 'const buildRef = String(revision.build_ref || "").trim();' in js
     assert 'const version = String(revision.version || "").trim();' not in js
     assert "`v${version}`" not in js
@@ -302,9 +304,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "full.scrollTop = restoreScroll.top;" in js
     assert "window.requestAnimationFrame(restoreFullScroll);" in js
     assert 'const timelineLabel = String(row.timeline_label || (rowRunning ? "Running" : "")).trim();' in js
-    assert 'const versionText = String(row.version_label || row.version || "").trim();' in js
     assert "if (timelineLabel) metaParts.push(timelineLabel);" in js
-    assert 'if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${versionText}`);' in js
+    assert "versionText" not in js
+    assert "/api/revision?reload=" in js
     assert 'const messageText = String(row.message || row.body || row.subject || row.title || "").trim();' in js
     assert 'rollbackBtn.className = "settings-update-pr-action";' in js
     assert "rollback_commit: commit" in js

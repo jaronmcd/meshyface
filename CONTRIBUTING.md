@@ -43,8 +43,9 @@ docker run --rm meshyface:ci --help
 3. Make your changes and ensure all tests pass locally.
 4. Do not bump `meshdash.__version__` for routine pull requests. Runtime
    builds identify themselves by git commit, and PR previews may set
-   `MESH_DASH_PR_NUMBER` so `/api/version` reports `PR #<number> <hash>`.
-   Reserve package version bumps for explicit release/versioning work.
+   `MESH_DASH_PR_NUMBER` so `/api/revision` reports
+   `<12-char-hash> · PR #<number>`. Reserve package version bumps for explicit
+   release/versioning work.
 5. Open a pull request — CI (tests on Python 3.11–3.13, Docker smoke test, coverage) must be green before merge.
 
 ## Reporting security vulnerabilities

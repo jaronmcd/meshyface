@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 import meshdash.helpers_disk as helpers_disk
 import meshdash.helpers_emoji as helpers_emoji
@@ -10,6 +11,7 @@ from meshdash.revision import (
     build_revision_ref,
     coerce_revision_info,
     detect_git_commit,
+    detect_git_pr_number,
     normalize_pr_number,
     revision_info,
     sanitize_revision_token,
@@ -28,6 +30,7 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
     assert coerce_revision_info(info) is info
     assert info.as_dict() == {
         "version": "1.2.3",
+        "package_version": "1.2.3",
         "commit": "abc",
         "label": "label",
         "title": "title",
@@ -35,16 +38,16 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
         "pr_number": "",
     }
     coerced = coerce_revision_info({"version": "2", "commit": "def123456789"})
-    assert coerced.label == "Rev: def1234"
-    assert coerced.build_ref == "def1234"
+    assert coerced.label == "Rev: def123456789"
+    assert coerced.build_ref == "def123456789"
     assert coerced.pr_number == ""
     assert sanitize_revision_token("", "fallback") == "fallback"
     assert sanitize_revision_token(" bad token!* ", "fallback") == "badtoken"
     assert sanitize_revision_token(" !!! ", "fallback") == "fallback"
-    assert short_commit_token("abcdef123456") == "abcdef1"
+    assert short_commit_token("abcdef123456") == "abcdef123456"
     assert normalize_pr_number("#42") == "42"
     assert normalize_pr_number("pull/123abc") == "123"
-    assert build_revision_ref("abcdef123456", "42") == "PR #42 abcdef1"
+    assert build_revision_ref("abcdef123456", "42") == "abcdef123456 · PR #42"
     assert detect_git_commit(" explicit! ", "/repo", "/repo", "nogit") == "explicit"
 
     calls: list[str] = []
@@ -77,9 +80,9 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
     assert built.version == "3.0"
     assert built.commit == "abc123456789"
     assert built.pr_number == "43"
-    assert built.build_ref == "PR #43 abc1234"
-    assert built.label == "Rev: PR #43 abc1234"
-    assert "Dashboard revision: PR #43 abc1234" in built.title
+    assert built.build_ref == "abc123456789 · PR #43"
+    assert built.label == "Rev: abc123456789 · PR #43"
+    assert "Dashboard revision: abc123456789 · PR #43" in built.title
     assert "commit abc123456789" in built.title
     assert "version 3.0" not in built.title
     try:
@@ -88,6 +91,57 @@ def test_revision_info_coercion_sanitizing_and_detection(monkeypatch) -> None:
         assert "Expected RevisionInfo or mapping" in str(exc)
     else:
         raise AssertionError("coerce_revision_info should reject non-mapping values")
+
+
+def test_git_pr_detection_and_revision_info_fallback(monkeypatch) -> None:
+    assert detect_git_pr_number("#91", "/repo", "/repo") == "91"
+
+    subjects = iter(
+        [
+            SimpleNamespace(returncode=1, stdout=""),
+            SimpleNamespace(returncode=0, stdout="Fix the thing (#52)\n"),
+        ]
+    )
+    monkeypatch.setattr(revision.subprocess, "run", lambda *args, **kwargs: next(subjects))
+    assert detect_git_pr_number("", "/repo1", "/repo2") == "52"
+
+    monkeypatch.setattr(
+        revision.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout="Merge pull request #77 from example/topic\n",
+        ),
+    )
+    assert detect_git_pr_number("", "/repo", "/repo") == "77"
+
+    built = revision_info(
+        None,
+        "1.2.3",
+        "nogit",
+        detect_commit=lambda: "fedcba987654",
+        detect_pr_number=lambda: "88",
+    )
+    assert built.build_ref == "fedcba987654 · PR #88"
+
+
+def test_container_and_push_deploy_propagate_revision_identity() -> None:
+    root = Path(__file__).resolve().parents[1]
+    dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+    compose = (root / "compose.yaml").read_text(encoding="utf-8")
+    deploy = (root / "scripts" / "deploy_meshyface.sh").read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "ARG MESH_DASH_VERSION=" in dockerfile
+    assert "ARG MESH_DASH_GIT_COMMIT=nogit" in dockerfile
+    assert "ARG MESH_DASH_PR_NUMBER=" in dockerfile
+    assert "MESH_DASH_VERSION: ${MESH_DASH_VERSION:-}" in compose
+    assert "MESH_DASH_PR_NUMBER: ${MESH_DASH_PR_NUMBER:-}" in compose
+    assert "--pr-number <number>" in deploy
+    assert "MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}" in deploy
+    assert "MESH_DASH_PR_NUMBER=${DEPLOY_PR_NUMBER}" in deploy
+    assert '--build-arg MESH_DASH_GIT_COMMIT="${GITHUB_SHA:0:12}"' in workflow
+    assert '--build-arg MESH_DASH_PR_NUMBER="${PR_NUMBER}"' in workflow
 
 
 def test_guess_lan_ipv4_uses_udp_then_hostname_fallback() -> None:
@@ -199,6 +253,8 @@ def test_emit_startup_status_serve_and_close_runtime_resources() -> None:
     assert "Open: http://127.0.0.1:8878" in lines
     assert "Open from Wi-Fi devices: http://<this-computer-ip>:8879" in lines
     assert "History DB: disabled" in lines
+    assert "Rev: abc" in lines
+    assert not any(line.startswith("Revision: Rev:") for line in lines)
 
     server = SimpleNamespace(
         serve_forever=lambda poll_interval: (_ for _ in ()).throw(KeyboardInterrupt()),

@@ -51,6 +51,11 @@ sudo chown root:dialout /etc/meshyface/dashboard.env
 sudo chmod 0640 /etc/meshyface/dashboard.env
 ```
 
+Git checkouts detect their commit automatically. For an unmerged PR preview,
+add `MESH_DASH_PR_NUMBER=<number>` to `dashboard.env`; remove that line when the
+host returns to a normal branch. Do not pin `MESH_DASH_GIT_COMMIT` on this
+mutable checkout because updates should detect the new `HEAD` automatically.
+
 For a USB serial radio, use this `dashboard.env` instead:
 
 ```bash

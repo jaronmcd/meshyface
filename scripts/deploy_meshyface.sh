@@ -60,6 +60,7 @@ Options:
                            Acknowledge mesh airtime/congestion risk when enabling BBS/files.
   --no-accept-file-transfer-traffic-disclaimer
                            Clear disclaimer acceptance in dashboard.env.
+  --pr-number <number>     Associate this build with a pull request.
   --map-pack-zip <path>    Copy and install a locally built map pack zip after deploy.
   --service <name>         Systemd service name (default: meshtastic-dashboard).
   --service-user <name>    Systemd service user on target (default: remote SSH user).
@@ -100,6 +101,8 @@ Env overrides:
   MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
   MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER
+  MESH_DASH_DEPLOY_GIT_COMMIT
+  MESH_DASH_DEPLOY_PR_NUMBER
   MESH_DASH_DEPLOY_MAP_PACK_ZIP
 EOF
 }
@@ -149,6 +152,8 @@ FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
+DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
+DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
 MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
 BBS_ENABLE_SET=0
 GAMES_ENABLE_SET=0
@@ -200,7 +205,7 @@ verify_remote_runtime_payload_hash() {
     echo "runtime verification failed: expected hash is empty" >&2
     return 1
   fi
-  echo "[deploy] verifying runtime payload hash via /api/version"
+  echo "[deploy] verifying runtime payload hash via /api/revision"
   ssh_cmd "${TARGET}" "\
 EXPECTED_HASH='${expected_hash}' \
 DASH_PORT='${DASH_PORT}' \
@@ -260,7 +265,7 @@ import urllib.error
 import urllib.request
 
 port = str(sys.argv[1]).strip() or "8877"
-url = f"http://127.0.0.1:{port}/api/version?cb={int(time.time() * 1000)}"
+url = f"http://127.0.0.1:{port}/api/revision?cb={int(time.time() * 1000)}"
 try:
     with urllib.request.urlopen(url, timeout=4) as response:
         payload = json.loads(response.read().decode("utf-8", "replace"))
@@ -286,9 +291,9 @@ PY
     exit 0
   fi
   if [[ "${observed_hash}" == __NOT_READY__:* ]]; then
-    echo "[deploy] waiting for /api/version (${attempt}/${MAX_ATTEMPTS}): warming up (${observed_hash#__NOT_READY__:})" >&2
+    echo "[deploy] waiting for /api/revision (${attempt}/${MAX_ATTEMPTS}): warming up (${observed_hash#__NOT_READY__:})" >&2
   elif [[ "${observed_hash}" == __ERROR__:* ]]; then
-    echo "[deploy] waiting for /api/version (${attempt}/${MAX_ATTEMPTS}): ${observed_hash#__ERROR__:}" >&2
+    echo "[deploy] waiting for /api/revision (${attempt}/${MAX_ATTEMPTS}): ${observed_hash#__ERROR__:}" >&2
   else
     observed_display="${observed_hash:-<empty>}"
     echo "[deploy] waiting for runtime hash (${attempt}/${MAX_ATTEMPTS}): observed=${observed_display} expected=${EXPECTED_HASH}" >&2
@@ -296,7 +301,7 @@ PY
   attempt=$((attempt + 1))
   sleep "${SLEEP_SECONDS}"
 done
-echo "runtime verification failed: /api/version did not report expected deploy_payload_hash=${EXPECTED_HASH}" >&2
+echo "runtime verification failed: /api/revision did not report expected deploy_payload_hash=${EXPECTED_HASH}" >&2
 exit 1
 REMOTE
 }
@@ -573,6 +578,11 @@ while [[ $# -gt 0 ]]; do
       ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
       shift
       ;;
+    --pr-number)
+      require_arg "$1" "${2:-}"
+      DEPLOY_PR_NUMBER="$2"
+      shift 2
+      ;;
     --map-pack)
       echo "--map-pack release downloads were removed; build a local pack zip and pass --map-pack-zip <path>" >&2
       exit 2
@@ -674,6 +684,27 @@ for local_required in mesh_dashboard.py mesh_connection.py meshdash; do
     exit 1
   fi
 done
+if [[ -z "${DEPLOY_GIT_COMMIT}" ]]; then
+  DEPLOY_GIT_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD 2>/dev/null || true)"
+fi
+DEPLOY_GIT_COMMIT="${DEPLOY_GIT_COMMIT:-nogit}"
+if [[ ! "${DEPLOY_GIT_COMMIT}" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+  echo "invalid deploy git commit token: ${DEPLOY_GIT_COMMIT}" >&2
+  exit 2
+fi
+if [[ -z "${DEPLOY_PR_NUMBER}" ]]; then
+  deploy_git_subject="$(git -C "${ROOT_DIR}" log -1 --pretty=%s 2>/dev/null || true)"
+  if [[ "${deploy_git_subject}" =~ \(#([0-9]{1,12})\)$ ]]; then
+    DEPLOY_PR_NUMBER="${BASH_REMATCH[1]}"
+  elif [[ "${deploy_git_subject}" =~ [Pp]ull[[:space:]]request[[:space:]]#([0-9]{1,12}) ]]; then
+    DEPLOY_PR_NUMBER="${BASH_REMATCH[1]}"
+  fi
+fi
+DEPLOY_PR_NUMBER="${DEPLOY_PR_NUMBER#\#}"
+if [[ -n "${DEPLOY_PR_NUMBER}" && ! "${DEPLOY_PR_NUMBER}" =~ ^[0-9]{1,12}$ ]]; then
+  echo "--pr-number must contain 1-12 digits" >&2
+  exit 2
+fi
 if [[ -n "${MESH_DASH_DEPLOY_MAP_PACK:-}" && -z "${MAP_PACK_ZIP}" ]]; then
   echo "MESH_DASH_DEPLOY_MAP_PACK release downloads were removed; build a local pack zip and set MESH_DASH_DEPLOY_MAP_PACK_ZIP" >&2
   exit 2
@@ -813,6 +844,11 @@ fi
 echo "[deploy] bbs_enable=${BBS_ENABLE}"
 echo "[deploy] games_enable=${GAMES_ENABLE}"
 echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_auto_accept=${FILE_TRANSFER_AUTO_ACCEPT} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
+if [[ -n "${DEPLOY_PR_NUMBER}" ]]; then
+  echo "[deploy] revision=${DEPLOY_GIT_COMMIT} · PR #${DEPLOY_PR_NUMBER}"
+else
+  echo "[deploy] revision=${DEPLOY_GIT_COMMIT}"
+fi
 
 if [[ "${UNINSTALL}" -eq 1 ]]; then
   uninstall_remote_meshyface
@@ -952,15 +988,27 @@ MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
 MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}
 MESH_DASH_FILE_TRANSFER_MAX_BYTES=${FILE_TRANSFER_MAX_BYTES}
 MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}
+MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}
+MESH_DASH_PR_NUMBER=${DEPLOY_PR_NUMBER}
 MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}
 PYTHONUNBUFFERED=${PYTHON_UNBUFFERED}
 EOF"
 else
-  echo "[deploy] updating deploy payload hash in existing ${CONFIG_DIR}/dashboard.env"
+  echo "[deploy] updating revision identity and deploy payload hash in existing ${CONFIG_DIR}/dashboard.env"
   ssh_cmd "${TARGET}" "\
 if [[ ! -f '${CONFIG_DIR}/dashboard.env' ]]; then \
   echo 'dashboard.env not found at ${CONFIG_DIR}/dashboard.env; rerun with --bootstrap or provide --mesh-host/--serial-path' >&2; \
   exit 1; \
+fi && \
+if grep -q '^MESH_DASH_GIT_COMMIT=' '${CONFIG_DIR}/dashboard.env'; then \
+  sed -i \"s/^MESH_DASH_GIT_COMMIT=.*/MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}/\" '${CONFIG_DIR}/dashboard.env'; \
+else \
+  printf '\nMESH_DASH_GIT_COMMIT=%s\n' '${DEPLOY_GIT_COMMIT}' >> '${CONFIG_DIR}/dashboard.env'; \
+fi && \
+if grep -q '^MESH_DASH_PR_NUMBER=' '${CONFIG_DIR}/dashboard.env'; then \
+  sed -i \"s/^MESH_DASH_PR_NUMBER=.*/MESH_DASH_PR_NUMBER=${DEPLOY_PR_NUMBER}/\" '${CONFIG_DIR}/dashboard.env'; \
+else \
+  printf '\nMESH_DASH_PR_NUMBER=%s\n' '${DEPLOY_PR_NUMBER}' >> '${CONFIG_DIR}/dashboard.env'; \
 fi && \
 if grep -q '^MESH_DASH_DEPLOY_PAYLOAD_HASH=' '${CONFIG_DIR}/dashboard.env'; then \
   sed -i \"s/^MESH_DASH_DEPLOY_PAYLOAD_HASH=.*/MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}/\" '${CONFIG_DIR}/dashboard.env'; \

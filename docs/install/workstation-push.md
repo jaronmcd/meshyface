@@ -33,7 +33,10 @@ From this repo:
 ```
 
 This installs the runtime, deploys app files from your local checkout, writes
-`dashboard.env`, and restarts the service.
+`dashboard.env`, and restarts the service. The helper records the local git
+commit as the deployed revision. Add `--pr-number <number>` for an unmerged PR
+preview. Without an explicit number, the helper clears stale preview metadata
+unless the checked-out merge or squash commit identifies its PR automatically.
 
 Bootstrap assumptions:
 

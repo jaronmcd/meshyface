@@ -1202,11 +1202,9 @@
 
         const metaParts = [];
         const timelineLabel = String(row.timeline_label || (rowRunning ? "Running" : "")).trim();
-        const versionText = String(row.version_label || row.version || "").trim();
         const dateText = String(row.date || "").trim();
         const commitText = String(row.commit_short || "").trim();
         if (timelineLabel) metaParts.push(timelineLabel);
-        if (versionText) metaParts.push(versionText.startsWith("v") ? versionText : `v${{versionText}}`);
         if (dateText) metaParts.push(dateText);
         if (commitText) metaParts.push(commitText);
         if (metaParts.length) {{
@@ -1671,7 +1669,7 @@
       while (Date.now() < deadlineMs) {{
         await new Promise((resolve) => window.setTimeout(resolve, 700));
         try {{
-          const resp = await fetch(`/api/version?reload=${{Date.now()}}`, {{ cache: "no-store" }});
+          const resp = await fetch(`/api/revision?reload=${{Date.now()}}`, {{ cache: "no-store" }});
           if (resp.ok) {{
             backendReady = true;
             const state = await fetchSettingsBackendReloadState();

@@ -1499,27 +1499,19 @@
       refreshCompactTickerDetailTray();
 
       const revision = s.revision || {{}};
-      const settingsSoftwareVersion = document.getElementById("settings-software-version");
-      const settingsSoftwareCommit = document.getElementById("settings-software-commit");
-      if (
-        settingsSoftwareVersion instanceof HTMLElement
-        || settingsSoftwareCommit instanceof HTMLElement
-      ) {{
+      const settingsSoftwareRevision = document.getElementById("settings-software-revision");
+      if (settingsSoftwareRevision instanceof HTMLElement) {{
         const buildRef = String(revision.build_ref || "").trim();
         const fallbackLabel = String(revision.label || "").trim();
         const cleanFallbackLabel = fallbackLabel.replace(/^Rev:\s*/i, "").trim();
         const commit = String(revision.commit || "").trim();
+        const prNumber = String(revision.pr_number || "").replace(/[^0-9]/g, "").slice(0, 12);
         const title = String(revision.title || "").trim();
-        const versionText = buildRef || cleanFallbackLabel || commit || "n/a";
-        const commitText = commit || "n/a";
-        if (settingsSoftwareVersion instanceof HTMLElement) {{
-          settingsSoftwareVersion.textContent = versionText;
-          settingsSoftwareVersion.title = title || `Dashboard revision ${{versionText}}`;
-        }}
-        if (settingsSoftwareCommit instanceof HTMLElement) {{
-          settingsSoftwareCommit.textContent = commitText;
-          settingsSoftwareCommit.title = commit ? `Git commit ${{commitText}}` : `Dashboard git revision ${{commitText}}`;
-        }}
+        const shortCommit = commit && commit.toLowerCase() !== "nogit" ? commit.slice(0, 12) : commit;
+        const derivedRef = shortCommit ? `${{shortCommit}}${{prNumber ? ` · PR #${{prNumber}}` : ""}}` : "";
+        const revisionText = buildRef || derivedRef || cleanFallbackLabel || "n/a";
+        settingsSoftwareRevision.textContent = revisionText;
+        settingsSoftwareRevision.title = title || `Dashboard revision ${{revisionText}}`;
       }}
 
       const disk = s.disk || {{}};

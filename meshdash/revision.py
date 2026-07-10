@@ -1,3 +1,4 @@
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Callable, Mapping, Optional
@@ -15,6 +16,7 @@ class RevisionInfo:
     def as_dict(self) -> dict[str, str]:
         return {
             "version": self.version,
+            "package_version": self.version,
             "commit": self.commit,
             "label": self.label,
             "title": self.title,
@@ -23,11 +25,11 @@ class RevisionInfo:
         }
 
 
-def short_commit_token(commit: object, length: int = 7) -> str:
+def short_commit_token(commit: object, length: int = 12) -> str:
     text = sanitize_revision_token(commit, "nogit")
     if text == "nogit":
         return text
-    clean_length = max(1, int(length or 7))
+    clean_length = max(1, int(length or 12))
     return text[:clean_length]
 
 
@@ -43,7 +45,7 @@ def build_revision_ref(commit: object, pr_number: object = "") -> str:
     short_commit = short_commit_token(commit)
     clean_pr = normalize_pr_number(pr_number)
     if clean_pr:
-        return f"PR #{clean_pr} {short_commit}"
+        return f"{short_commit} · PR #{clean_pr}"
     return short_commit
 
 
@@ -52,6 +54,7 @@ def build_revision_label(build_ref: object) -> str:
 
 
 def build_revision_title(version: object, commit: object, build_ref: object) -> str:
+    del version  # Kept for compatibility; package versions are not runtime identity.
     clean_commit = sanitize_revision_token(commit, "nogit")
     clean_ref = str(build_ref or short_commit_token(clean_commit))
     return f"Dashboard revision: {clean_ref}, commit {clean_commit}"
@@ -63,7 +66,7 @@ def coerce_revision_info(value: RevisionInfo | Mapping[str, object]) -> Revision
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected RevisionInfo or mapping, got {type(value)!r}")
 
-    version = str(value.get("version") or "0.0.0")
+    version = str(value.get("package_version") or value.get("version") or "0.0.0")
     commit = str(value.get("commit") or "nogit")
     pr_number = normalize_pr_number(value.get("pr_number") or value.get("pull_request"))
     build_ref = str(value.get("build_ref") or build_revision_ref(commit, pr_number))
@@ -121,6 +124,48 @@ def detect_git_commit(
     return None
 
 
+_SQUASH_PR_SUBJECT_RE = re.compile(r"\(#(?P<number>[0-9]{1,12})\)\s*$")
+_MERGE_PR_SUBJECT_RE = re.compile(
+    r"\bpull request #(?P<number>[0-9]{1,12})\b",
+    re.IGNORECASE,
+)
+
+
+def detect_git_pr_number(
+    explicit_pr_number: object,
+    script_dir: str,
+    cwd: str,
+) -> Optional[str]:
+    explicit = normalize_pr_number(explicit_pr_number)
+    if explicit:
+        return explicit
+
+    search_roots: list[str] = []
+    for root in (script_dir, cwd):
+        if root and root not in search_roots:
+            search_roots.append(root)
+
+    for root in search_roots:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", root, "log", "-1", "--pretty=%s"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+        except Exception:
+            continue
+        if proc.returncode != 0:
+            continue
+        subject = str(proc.stdout or "").strip()
+        for pattern in (_SQUASH_PR_SUBJECT_RE, _MERGE_PR_SUBJECT_RE):
+            match = pattern.search(subject)
+            if match:
+                return normalize_pr_number(match.group("number")) or None
+    return None
+
+
 def revision_info(
     version_raw: object,
     default_version: str,
@@ -128,6 +173,7 @@ def revision_info(
     detect_commit: Callable[[], Optional[str]],
     pr_number_raw: object = "",
     sanitize_token: Callable[[object, str], str] = sanitize_revision_token,
+    detect_pr_number: Optional[Callable[[], Optional[str]]] = None,
 ) -> RevisionInfo:
     version = sanitize_token(version_raw or default_version, "0.0.0")
     if version.lower().startswith("v"):
@@ -135,6 +181,11 @@ def revision_info(
 
     commit = detect_commit() or unknown_git_commit
     pr_number = normalize_pr_number(pr_number_raw)
+    if not pr_number and detect_pr_number is not None:
+        try:
+            pr_number = normalize_pr_number(detect_pr_number())
+        except Exception:
+            pr_number = ""
     build_ref = build_revision_ref(commit, pr_number)
     label = build_revision_label(build_ref)
     title = build_revision_title(version, commit, build_ref)
