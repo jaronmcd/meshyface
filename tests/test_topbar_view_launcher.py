@@ -195,12 +195,19 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     topbar_update_section = css.split(".topbar-update-ticker {", 1)[1].split("}", 1)[0]
     topbar_launcher_section = css.split(".topbar-view-menu-btn {", 1)[1].split("}", 1)[0]
     workspace_shell_section = css.split(".workspace-shell {", 1)[1].split("}", 1)[0]
+    shared_blur_index = css.find(".card,\n    .topbar .summary-ticker-item,")
+    chat_left_head_index = css.find(".chat-left-head-shell {", shared_blur_index)
+    assert shared_blur_index >= 0
+    assert chat_left_head_index > shared_blur_index
+    chat_left_head_section = css[chat_left_head_index:].split("{", 1)[1].split("}", 1)[0]
     assert "padding: 8px 8px 0;" in topbar_section
     assert "background: transparent;" in topbar_section
     assert "box-shadow: none;" in topbar_section
     assert "padding: 0;" in topbar_sub_section
     assert "background: transparent;" in topbar_sub_section
     assert "background: transparent;" in workspace_shell_section
+    assert "backdrop-filter: none;" in chat_left_head_section
+    assert "-webkit-backdrop-filter: none;" in chat_left_head_section
     assert "--summary-visible-ticker-count: 10;" in css
     assert "padding-right: 0;" in css
     assert "box-shadow: none;" in topbar_ticker_section
