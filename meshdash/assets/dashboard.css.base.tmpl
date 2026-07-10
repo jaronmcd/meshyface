@@ -3339,7 +3339,8 @@
       border-radius: 10px;
       background: var(--workspace-shell-bg-alt);
       box-shadow: none;
-      backdrop-filter: none;
+      backdrop-filter: var(--theme-foreground-blur, none);
+      -webkit-backdrop-filter: var(--theme-foreground-blur, none);
       padding: 6px 8px;
       margin: 0;
     }}
@@ -9234,7 +9235,8 @@
       border-radius: 10px;
       background: var(--surface-tint-bg-alt);
       box-shadow: none;
-      backdrop-filter: none;
+      backdrop-filter: var(--theme-foreground-blur, none);
+      -webkit-backdrop-filter: var(--theme-foreground-blur, none);
     }}
     .network-map-subview-tab,
     .workspace-pill-btn {{
