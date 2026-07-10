@@ -9,6 +9,7 @@ from .http_route_contracts import (
     OnlineActivityFn,
     SummaryMetricsHistoryFn,
     SendChatFn,
+    SendMeshyfaceProfileFn,
     SetThemePresetFn,
     StateFn,
     ToIntFn,
@@ -22,6 +23,7 @@ def make_http_handler(
     online_activity_fn: OnlineActivityFn | None = None,
     summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
     send_chat_fn: SendChatFn | None = None,
+    send_meshyface_profile_fn: SendMeshyfaceProfileFn | None = None,
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
     api_token: str | None = None,
@@ -32,6 +34,7 @@ def make_http_handler(
     api_metrics = DashboardApiMetrics()
     apply_radio_settings_fn = getattr(state_fn, "apply_radio_settings_fn", None)
     apply_channel_settings_fn = getattr(state_fn, "apply_channel_settings_fn", None)
+    state_meshyface_profile_fn = getattr(state_fn, "send_meshyface_profile_fn", None)
     get_bbs_settings_fn = getattr(state_fn, "get_bbs_settings_fn", None)
     get_bbs_host_runtime_fn = getattr(state_fn, "get_bbs_host_runtime_fn", None)
     set_bbs_settings_fn = getattr(state_fn, "set_bbs_settings_fn", None)
@@ -66,6 +69,15 @@ def make_http_handler(
     )
     post_deps = build_post_route_dependencies(
         send_chat_fn=send_chat_fn,
+        send_meshyface_profile_fn=(
+            send_meshyface_profile_fn
+            if callable(send_meshyface_profile_fn)
+            else (
+                state_meshyface_profile_fn
+                if callable(state_meshyface_profile_fn)
+                else None
+            )
+        ),
         set_theme_preset_fn=set_theme_preset_fn,
         set_bbs_settings_fn=set_bbs_settings_fn,
         set_zork_bot_enabled_fn=set_zork_bot_enabled_fn,

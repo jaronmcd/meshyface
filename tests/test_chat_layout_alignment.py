@@ -774,7 +774,7 @@ def test_clear_node_selection_hides_drawer_before_optional_map_redraw() -> None:
     assert clear_block.index("syncChatNodeDetailsDrawer(latestState") < clear_block.index("renderMap(")
 
 
-def test_chat_surfaces_keep_channel_edge_and_tag_tint_without_generated_node_tint() -> None:
+def test_chat_surfaces_keep_channel_edge_and_effective_appearance_tint_without_generated_node_tint() -> None:
     identity_src = read_template("meshdash/assets/dashboard.js.chat.events.core.identity.node_self.tmpl")
     selection_src = read_template(
         "meshdash/assets/dashboard.js.chat.events.core.identity.favorites_selection.selection_cache.tmpl"
@@ -784,19 +784,19 @@ def test_chat_surfaces_keep_channel_edge_and_tag_tint_without_generated_node_tin
 
     combined_src = "\n".join([identity_src, selection_src, peers_src, feed_src])
     channel_edge_push = "rowStyleParts.push(meshChannelEdgeStyle(meshIdx, {{ allowAll: false }}));"
-    tag_tint_push = "rowStyleParts.push(tagTintStyleVars);"
+    appearance_tint_push = "rowStyleParts.push(appearanceTintStyleVars);"
 
     assert "nodeTint" not in combined_src
     assert "data-node-tint" not in combined_src
     assert "settingsUniqueNodeColors" not in combined_src
-    assert "nodeTagTintStyleVars(tagEntry, \"member\", 145)" in peers_src
-    assert "nodeTagTintStyleVars(tintTagEntry, \"feed\", 210)" in feed_src
+    assert "nodeTagTintStyleVars(appearanceEntry, \"member\", 145)" in peers_src
+    assert "nodeTagTintStyleVars(appearanceEntry, \"feed\", 210)" in feed_src
     assert "meshChannelTintStyle" not in combined_src
     assert "meshChannelEdgeClass" not in combined_src
     assert "channel-edge-dotted" not in combined_src
     assert channel_edge_push in feed_src
-    assert tag_tint_push in feed_src
-    assert feed_src.index(channel_edge_push) < feed_src.index(tag_tint_push)
+    assert appearance_tint_push in feed_src
+    assert feed_src.index(channel_edge_push) < feed_src.index(appearance_tint_push)
     assert 'style="--channel-tab-fill: var(--chat-feed-channel-fill);"' in feed_src
     assert "return messageMeshChannelIndex(msg);" in feed_src
 

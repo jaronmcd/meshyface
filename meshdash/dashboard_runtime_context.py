@@ -514,6 +514,45 @@ def build_dashboard_runtime_context(
 
         setattr(loaders.state_fn, "run_network_tool_fn", _run_network_tool_fn)
 
+    # Attach the Meshyface profile broadcaster to the state loader so HTTP
+    # wiring can discover it without adding another server-wide dependency.
+    try:
+        from .services_meshyface_profile import (
+            send_meshyface_profile_color as _send_meshyface_profile_color,
+        )
+    except Exception:
+        _send_meshyface_profile_color = None
+
+    if _send_meshyface_profile_color is not None:
+        def _send_meshyface_profile_fn(  # type: ignore[no-redef]
+            *,
+            color,
+            channel_index=0,
+        ):
+            return _send_meshyface_profile_color(
+                color=color,
+                channel_index=channel_index,
+                iface=iface,
+                send_lock=send_lock,
+                local_node_id_fn=lambda: get_local_node_id_fn(iface),
+            )
+
+        setattr(
+            loaders.state_fn,
+            "send_meshyface_profile_fn",
+            _send_meshyface_profile_fn,
+        )
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(
+                    state_lite_fn,
+                    "send_meshyface_profile_fn",
+                    _send_meshyface_profile_fn,
+                )
+            except Exception:
+                pass
+
     # Optional: expose custom telemetry extraction rules persisted in history DB.
     if history_store is not None:
         database_stats_fn = getattr(history_store, "database_stats", None)

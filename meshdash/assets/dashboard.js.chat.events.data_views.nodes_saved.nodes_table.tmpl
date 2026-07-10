@@ -46,8 +46,11 @@
         const nodeId = projection.nodeId;
         const name = projection.name;
         if (!matchesIdOrNameQuery(nodeId, name, query, {{ node }})) continue;
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(nodeId)
+          : null;
 
-        entries.push({{ node, nodeId, name, projection }});
+        entries.push({{ node, nodeId, name, projection, appearanceEntry }});
 
         h = hashMixStr(h, nodeId);
         h = hashMixStr(h, name);
@@ -58,6 +61,8 @@
         h = hashMixInt(h, projection.fields.hops.sort);
         h = hashMixInt(h, projection.fields.battery.sort);
         h = hashMixInt(h, projection.fields.saved.sort);
+        h = hashMixStr(h, appearanceEntry && appearanceEntry.source || "manual-tag");
+        h = hashMixStr(h, appearanceEntry && appearanceEntry.preset && appearanceEntry.preset.color || "");
         const latSort = Number(projection.fields.pos.sort);
         h = hashMixInt(h, Number.isFinite(latSort) ? Math.round(latSort * 1e4) : 0);
       }}
@@ -164,6 +169,16 @@
           const name = projection.name;
           const selectable = isSelectableNodeId(nodeId);
           const selectedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
+          const appearanceEntry = entry.appearanceEntry && entry.appearanceEntry.preset
+            ? entry.appearanceEntry
+            : null;
+          const appearanceClass = appearanceEntry ? " profiled-node" : "";
+          const appearanceStyleVars = appearanceEntry && typeof nodeAppearanceStyleVars === "function"
+            ? nodeAppearanceStyleVars(appearanceEntry)
+            : "";
+          const appearanceStyleAttr = appearanceStyleVars
+            ? ` style="${{escAttr(appearanceStyleVars)}}"`
+            : "";
           const status = projection.status || "unknown";
           const statusClass = ` status-${{status || "unknown"}}`;
           const pos = projection.fields.pos.text;
@@ -176,7 +191,7 @@
             : "No saved history yet";
           const lastHeardText = projection.fields.last_heard.text;
           const lastSort = Number(projection.fields.last_heard.sort) || 0;
-          rows.push(`<tr data-node-id="${{escAttr(nodeId)}}" class="${{selectable ? "node-selectable" : ""}}${{selectedClass}}${{statusClass}}">
+          rows.push(`<tr data-node-id="${{escAttr(nodeId)}}" class="${{selectable ? "node-selectable" : ""}}${{selectedClass}}${{statusClass}}${{appearanceClass}}"${{appearanceStyleAttr}}>
           <td data-sort="${{escAttr(lastSort)}}" title="${{escAttr(lastHeardText)}}"><span class="node-status-dot status-${{escAttr(status || "unknown")}}">●</span>${{lastHeardText}}</td>
           <td class="mono" data-sort="${{escAttr(projection.fields.id.sort)}}" title="${{escAttr(projection.fields.id.title)}}">${{projection.fields.id.text || "n/a"}}</td>
           <td data-sort="${{escAttr(name)}}">

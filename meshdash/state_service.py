@@ -9,6 +9,10 @@ from .helpers import (
     to_jsonable as _to_jsonable,
 )
 from .history_node_names import build_name_change_chat_entries as _build_name_change_chat_entries_helper
+from .meshyface_profile import (
+    normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
+    normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
+)
 from .nodes_identity import get_local_node_id as _get_local_node_id_helper
 from .nodes import (
     parse_utc_text_to_unix as _parse_utc_text_to_unix_helper,
@@ -231,6 +235,41 @@ def _load_tracker_node_packet_trends_safe(
     if not isinstance(payload, Mapping):
         return {}
     return dict(payload)
+
+
+def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object]]:
+    load_fn = getattr(tracker, "meshyface_profiles_snapshot", None)
+    try:
+        raw = (
+            load_fn()
+            if callable(load_fn)
+            else getattr(tracker, "meshyface_profiles_by_node_id", {})
+        )
+    except Exception:
+        return {}
+    if not isinstance(raw, Mapping):
+        return {}
+
+    profiles: dict[str, dict[str, object]] = {}
+    for raw_node_id, raw_profile in raw.items():
+        node_id = _normalize_meshyface_profile_node_id(raw_node_id)
+        if not node_id or not isinstance(raw_profile, Mapping):
+            continue
+        color = _normalize_meshyface_profile_color(raw_profile.get("color"))
+        if not color:
+            continue
+        updated_unix = _to_int(raw_profile.get("updated_unix"))
+        if updated_unix is None or updated_unix <= 0:
+            continue
+        received_unix = _to_int(raw_profile.get("received_unix"))
+        profiles[node_id] = {
+            "node_id": node_id,
+            "color": color,
+            "updated_unix": int(updated_unix),
+            "received_unix": max(0, int(received_unix or 0)),
+            "source": "mesh",
+        }
+    return profiles
 
 
 def _chat_entry_sort_unix(entry: object) -> Optional[int]:
@@ -1332,6 +1371,7 @@ def build_dashboard_state_typed(
         tracker,
         local_node_id=local_node_id,
     )
+    meshyface_profiles = _load_meshyface_profiles_safe(tracker)
     traffic_payload = StateTrafficPayload(
         edges=tracker_data.edges,
         port_counts=tracker_data.port_counts,
@@ -1358,6 +1398,7 @@ def build_dashboard_state_typed(
         nodes_full=nodes.full,
         traffic=traffic_payload,
         local_node_id=local_node_id,
+        meshyface_profiles=meshyface_profiles,
     )
     return state_payload
 
@@ -1564,6 +1605,7 @@ def build_dashboard_state_lite(
         nodes_full=state_payload.nodes_full,
         traffic=slim_traffic,
         local_node_id=state_payload.local_node_id,
+        meshyface_profiles=state_payload.meshyface_profiles,
     ).as_dict()
 
     if show_secrets:

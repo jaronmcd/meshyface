@@ -31,8 +31,18 @@
     }}
 
     function loadSettingsAppearancePreferences() {{
+      settingsMeshyfaceProfileColor = "#2aa85a";
+      settingsMeshyfaceProfileAcceptRemoteEnabled = true;
       settingsScreenWakeLockEnabled = true;
       try {{
+        settingsMeshyfaceProfileColor = normalizeMeshyfaceProfileColor(
+          window.localStorage.getItem(settingsMeshyfaceProfileColorStorageKey),
+          settingsMeshyfaceProfileColor
+        );
+        settingsMeshyfaceProfileAcceptRemoteEnabled = parseBoolToken(
+          window.localStorage.getItem(settingsMeshyfaceProfileAcceptRemoteStorageKey),
+          true
+        );
         settingsScreenWakeLockEnabled = parseBoolToken(
           window.localStorage.getItem(settingsScreenWakeLockStorageKey),
           true
@@ -43,6 +53,14 @@
 
     function persistSettingsAppearancePreferences() {{
       try {{
+        window.localStorage.setItem(
+          settingsMeshyfaceProfileColorStorageKey,
+          normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "#2aa85a")
+        );
+        window.localStorage.setItem(
+          settingsMeshyfaceProfileAcceptRemoteStorageKey,
+          settingsMeshyfaceProfileAcceptRemoteEnabled ? "1" : "0"
+        );
         window.localStorage.setItem(
           settingsScreenWakeLockStorageKey,
           settingsScreenWakeLockEnabled ? "1" : "0"
@@ -217,6 +235,18 @@
     }}
 
     function syncSettingsAppearanceControls() {{
+      const profileColorInput = document.getElementById("settings-meshyface-profile-color");
+      if (profileColorInput instanceof HTMLInputElement) {{
+        profileColorInput.value = normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "#2aa85a");
+      }}
+      const acceptRemoteToggle = document.getElementById("settings-meshyface-profile-accept-remote");
+      if (acceptRemoteToggle instanceof HTMLInputElement) {{
+        acceptRemoteToggle.checked = !!settingsMeshyfaceProfileAcceptRemoteEnabled;
+      }}
+      const broadcastBtn = document.getElementById("settings-meshyface-profile-broadcast");
+      if (broadcastBtn instanceof HTMLButtonElement) {{
+        broadcastBtn.disabled = !!meshyfaceProfileBroadcastInFlight;
+      }}
       const consoleTimestampsToggle = document.getElementById("console-timestamps");
       if (consoleTimestampsToggle instanceof HTMLInputElement) {{
         consoleTimestampsToggle.checked = !!consoleShowTimestamps;
@@ -231,6 +261,125 @@
       }}
       if (typeof syncThemeCustomControls === "function") {{
         syncThemeCustomControls();
+      }}
+    }}
+
+    function setMeshyfaceProfileStatusText(message, error = false) {{
+      const el = document.getElementById("settings-meshyface-profile-status");
+      if (!(el instanceof HTMLElement)) return;
+      el.textContent = String(message || "");
+      el.classList.toggle("error", !!error);
+    }}
+
+    function rerenderMeshyfaceProfileAppearance() {{
+      if (!latestState || typeof latestState !== "object") return;
+      if (typeof renderChat === "function") {{
+        renderChat(latestState);
+      }}
+      if (activeLayoutView === "chatlabs" && typeof renderChatLabsView === "function") {{
+        renderChatLabsView(latestState);
+      }}
+      if (activeLayoutView === "network") {{
+        if (typeof renderChatNodeNavigatorList === "function") {{
+          renderChatNodeNavigatorList(latestState);
+        }}
+        if (typeof renderNodes === "function") {{
+          renderNodes(latestState.nodes || []);
+        }}
+        if (activeNetworkSubview === "graph" && typeof renderNetworkGraphView === "function") {{
+          renderNetworkGraphView(latestState);
+        }}
+      }}
+      if (activeLayoutView === "saved" && typeof renderFavorites === "function") {{
+        renderFavorites(latestState, null);
+      }}
+    }}
+
+    function setMeshyfaceProfileColor(value, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const color = normalizeMeshyfaceProfileColor(
+        value,
+        settingsMeshyfaceProfileColor || "#2aa85a"
+      );
+      const changed = settingsMeshyfaceProfileColor !== color;
+      settingsMeshyfaceProfileColor = color;
+      if (opts.persist !== false) {{
+        persistSettingsAppearancePreferences();
+      }}
+      syncSettingsAppearanceControls();
+      if (changed && opts.rerender !== false) {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
+      if (opts.announce) {{
+        setMeshyfaceProfileStatusText("Meshyface color saved locally. Press Broadcast now to share it.");
+      }}
+    }}
+
+    function setMeshyfaceProfileAcceptRemoteEnabled(enabled, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const next = !!enabled;
+      const changed = settingsMeshyfaceProfileAcceptRemoteEnabled !== next;
+      settingsMeshyfaceProfileAcceptRemoteEnabled = next;
+      if (opts.persist !== false) {{
+        persistSettingsAppearancePreferences();
+      }}
+      syncSettingsAppearanceControls();
+      if (changed && opts.rerender !== false) {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
+      if (opts.announce) {{
+        setMeshyfaceProfileStatusText(
+          next
+            ? "Received Meshyface profile colors are enabled."
+            : "Received Meshyface profile colors are hidden."
+        );
+      }}
+    }}
+
+    async function broadcastMeshyfaceProfileColor() {{
+      const color = normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "");
+      if (!color) {{
+        setMeshyfaceProfileStatusText("Choose a valid Meshyface color first.", true);
+        return null;
+      }}
+      if (meshyfaceProfileBroadcastInFlight) return null;
+      const channelIndex = normalizeMeshChannelIndex(
+        meshChannelEffectiveSendIndexForApp("profiles")
+      );
+      meshyfaceProfileBroadcastInFlight = true;
+      syncSettingsAppearanceControls();
+      setMeshyfaceProfileStatusText("Broadcasting experimental Meshyface profile color...");
+      try {{
+        const resp = await fetch(meshyfaceProfileColorEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            color,
+            channel_index: channelIndex,
+          }}),
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || (payload && payload.ok === false)) {{
+          const message = payload && payload.error ? payload.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        const sentChannel = normalizeMeshChannelIndex(
+          payload && payload.channel_index != null ? payload.channel_index : channelIndex
+        );
+        setMeshyfaceProfileStatusText(
+          `Experimental Meshyface color broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
+        );
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        return payload;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "unknown error");
+        setMeshyfaceProfileStatusText(`Meshyface color broadcast failed: ${{message}}`, true);
+        return null;
+      }} finally {{
+        meshyfaceProfileBroadcastInFlight = false;
+        syncSettingsAppearanceControls();
       }}
     }}
 

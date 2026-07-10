@@ -1936,6 +1936,10 @@
           ? nodeTagEntryForNode(nodeId)
           : null;
         const tagActive = !!(tagEntry && tagEntry.preset);
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(nodeId)
+          : tagEntry;
+        const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
         const tagLabel = tagActive
           ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
           : "";
@@ -2043,12 +2047,16 @@
           return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
         }})();
         const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
-        const tagTintStyleVars = tagActive && typeof nodeTagTintStyleVars === "function"
-          ? nodeTagTintStyleVars(tagEntry, "member", 145)
+        const appearanceStyleVars = appearanceActive && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(appearanceEntry)
+          : (appearanceActive ? nodeTagStyleVars(appearanceEntry) : "");
+        const appearanceTintStyleVars = appearanceActive && typeof nodeTagTintStyleVars === "function"
+          ? nodeTagTintStyleVars(appearanceEntry, "member", 145)
           : "";
-        const memberStyleVars = `${{tagTintStyleVars}}${{tagStyleVars}}`;
+        const memberStyleVars = `${{appearanceTintStyleVars}}${{appearanceStyleVars}}`;
         const memberStyleAttr = memberStyleVars ? ` style="${{escAttr(memberStyleVars)}}"` : "";
         const tagClass = tagActive ? " tagged-node" : "";
+        const profileClass = appearanceActive && !tagActive ? " profiled-node" : "";
         const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
           ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
@@ -2108,7 +2116,7 @@
         const actionRowHtml = removeBtn
           ? `<span class="chat-member-actions">${{removeBtn}}</span>`
           : '<span class="chat-member-actions"></span>';
-        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{autoNewClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
+        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{profileClass}}${{autoNewClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
           ${{statusMarkerHtml}}
           <span class="chat-member-main">
             <span class="chat-member-name-row">

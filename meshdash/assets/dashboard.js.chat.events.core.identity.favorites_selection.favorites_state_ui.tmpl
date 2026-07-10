@@ -280,6 +280,112 @@
       }};
     }}
 
+    function normalizeMeshyfaceProfileColor(value, fallback = "") {{
+      const text = String(value == null ? "" : value).trim().toLowerCase();
+      if (/^#[0-9a-f]{{6}}$/.test(text)) return text;
+      const cleanFallback = String(fallback == null ? "" : fallback).trim().toLowerCase();
+      if (/^#[0-9a-f]{{6}}$/.test(cleanFallback)) return cleanFallback;
+      return "";
+    }}
+
+    function meshyfaceProfileAppearancePreset(color) {{
+      return {{
+        id: "meshyface-profile",
+        name: "Meshyface profile",
+        emoji: "",
+        color: normalizeMeshyfaceProfileColor(color, "#2aa85a"),
+        vibrance: 74,
+      }};
+    }}
+
+    function meshyfaceProfileAppearanceForNode(nodeId, state = latestState) {{
+      const cleanNodeId = normalizeNodeId(nodeId);
+      if (!isSelectableNodeId(cleanNodeId)) return null;
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const localNodeId = normalizeNodeId(
+        (typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : "")
+        || resolvedLocalNodeId
+        || ""
+      );
+      if (localNodeId && cleanNodeId === localNodeId) {{
+        const color = normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "#2aa85a");
+        const preset = meshyfaceProfileAppearancePreset(color);
+        return {{
+          nodeId: cleanNodeId,
+          source: "local-profile",
+          color,
+          presetId: preset.id,
+          preset,
+          profileAppearance: true,
+          localProfile: true,
+        }};
+      }}
+      if (!settingsMeshyfaceProfileAcceptRemoteEnabled) return null;
+      const profile = remoteMeshyfaceProfilesByNodeId.get(cleanNodeId);
+      if (!profile || typeof profile !== "object") return null;
+      const color = normalizeMeshyfaceProfileColor(profile.color, "");
+      if (!color) return null;
+      const preset = meshyfaceProfileAppearancePreset(color);
+      return {{
+        nodeId: cleanNodeId,
+        source: "remote-profile",
+        color,
+        presetId: preset.id,
+        preset,
+        profileAppearance: true,
+        remoteProfile: true,
+        updatedUnix: Math.max(0, Math.trunc(Number(profile.updated_unix) || 0)),
+      }};
+    }}
+
+    function effectiveNodeAppearanceForNode(nodeId, state = latestState) {{
+      return manualNodeTagEntryForNode(nodeId) || meshyfaceProfileAppearanceForNode(nodeId, state);
+    }}
+
+    function meshyfaceProfilesCacheSignature() {{
+      return JSON.stringify(Array.from(remoteMeshyfaceProfilesByNodeId.entries()).sort());
+    }}
+
+    function syncMeshyfaceProfilesFromState(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      if (!Object.prototype.hasOwnProperty.call(safeState, "meshyface_profiles")) return false;
+      const rawProfiles = safeState.meshyface_profiles;
+      const rows = Array.isArray(rawProfiles)
+        ? rawProfiles.map((profile, index) => [String(index), profile])
+        : ((rawProfiles && typeof rawProfiles === "object") ? Object.entries(rawProfiles) : []);
+      const next = new Map();
+      for (const [rawNodeId, rawProfile] of rows) {{
+        const profile = (rawProfile && typeof rawProfile === "object") ? rawProfile : {{}};
+        const nodeId = normalizeNodeId(profile.node_id || profile.nodeId || rawNodeId);
+        if (!isSelectableNodeId(nodeId)) continue;
+        const color = normalizeMeshyfaceProfileColor(profile.color, "");
+        const updatedUnix = Math.max(
+          0,
+          Math.trunc(Number(profile.updated_unix ?? profile.updatedUnix ?? profile.updated) || 0)
+        );
+        if (!color || updatedUnix <= 0) continue;
+        const previous = next.get(nodeId);
+        if (previous && Number(previous.updated_unix) > updatedUnix) continue;
+        next.set(nodeId, {{
+          node_id: nodeId,
+          color,
+          updated_unix: updatedUnix,
+          received_unix: Math.max(
+            0,
+            Math.trunc(Number(profile.received_unix ?? profile.receivedUnix) || 0)
+          ),
+        }});
+      }}
+      const beforeSignature = meshyfaceProfilesCacheSignature();
+      const afterSignature = JSON.stringify(Array.from(next.entries()).sort());
+      if (beforeSignature === afterSignature) return false;
+      remoteMeshyfaceProfilesByNodeId.clear();
+      for (const [nodeId, profile] of next.entries()) {{
+        remoteMeshyfaceProfilesByNodeId.set(nodeId, profile);
+      }}
+      return true;
+    }}
+
     function countAutoNewNodes(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const nodeIds = new Set();
@@ -459,6 +565,16 @@
       return `--node-tag-color:${{color}};--node-tag-vibrance:${{vibranceRatio.toFixed(3)}};`;
     }}
 
+    function nodeAppearanceStyleVars(appearanceEntry) {{
+      const preset = appearanceEntry && typeof appearanceEntry === "object" && appearanceEntry.preset
+        ? appearanceEntry.preset
+        : null;
+      if (!preset) return "";
+      const color = normalizeNodeTagColor(preset.color, "#2aa85a");
+      const tagVars = nodeTagStyleVars(appearanceEntry);
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);`;
+    }}
+
     function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{
       const preset = tagEntry && typeof tagEntry === "object" && tagEntry.preset
         ? tagEntry.preset
@@ -473,9 +589,9 @@
     }}
 
     function nodeTagStyleAttrForNode(nodeId) {{
-      const entry = nodeTagEntryForNode(nodeId);
+      const entry = effectiveNodeAppearanceForNode(nodeId);
       if (!entry) return "";
-      return nodeTagStyleVars(entry);
+      return nodeAppearanceStyleVars(entry);
     }}
 
     function persistNodeTagPresets() {{

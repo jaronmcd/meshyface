@@ -1,0 +1,525 @@
+import io
+import json
+import re
+import threading
+import time
+from dataclasses import replace
+
+import pytest
+from google.protobuf.json_format import MessageToDict
+from meshtastic.protobuf import mesh_pb2, portnums_pb2
+
+import meshdash.tracker_runtime_impl as tracker_runtime_impl
+from meshdash.api_input_meshyface_profile import parse_meshyface_profile_color_request
+from meshdash.helpers import to_int
+from meshdash.html_js import build_dashboard_js
+from meshdash.html_template import render_html
+from meshdash.http_api import make_http_handler
+from meshdash.http_api_post import build_post_route_dependencies
+from meshdash.http_routes_post import handle_dashboard_post
+from meshdash.meshyface_profile import (
+    DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+    build_meshyface_profile_payload,
+    parse_meshyface_profile_packet,
+)
+from meshdash.revision import RevisionInfo
+from meshdash.services_meshyface_profile import send_meshyface_profile_color
+from meshdash.state_node_contracts import CollectedNodes
+from meshdash.state_service import build_dashboard_state_lite, build_dashboard_state_typed
+from meshdash.tracker_runtime_impl import DashboardTracker
+from meshdash.tracker_snapshot_contracts import empty_tracker_snapshot
+
+
+class _FakeHandler:
+    def __init__(self, body: bytes = b"", *, headers: dict[str, object] | None = None) -> None:
+        self.path = "/api/meshyface/profile/color"
+        self.headers = headers or {}
+        self.rfile = io.BytesIO(body)
+        self.wfile = io.BytesIO()
+
+    def send_response(self, code: int) -> None:
+        self._last_code = code
+
+    def send_header(self, key: str, value: str) -> None:
+        pass
+
+    def end_headers(self) -> None:
+        pass
+
+
+class _SentPacket:
+    id = 1234
+
+
+class _SendDataIface:
+    def __init__(self) -> None:
+        self.calls: list[tuple[bytes, dict[str, object]]] = []
+
+    def sendData(self, data: bytes, **kwargs: object) -> _SentPacket:
+        self.calls.append((data, kwargs))
+        return _SentPacket()
+
+
+class _StateTracker:
+    radio_link_connected = None
+    radio_link_changed_unix = None
+    radio_link_error = None
+
+    def snapshot(self, by_id: dict[str, dict[str, object]]) -> object:
+        return empty_tracker_snapshot()
+
+    def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
+        return {}
+
+    def load_node_position_counts(self) -> dict[str, dict[str, object]]:
+        return {}
+
+    def load_node_capabilities(self) -> dict[str, dict[str, object]]:
+        return {}
+
+    def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
+        return {
+            "!335d8354": {
+                "node_id": "!335d8354",
+                "color": "#DB2777",
+                "updated_unix": 1_788_300_000,
+                "received_unix": 1_788_300_010,
+                "source": "mesh",
+            },
+            "!bad": {"color": "#22c55e", "updated_unix": 1_788_300_000},
+            "!11111111": {"color": "22c55e", "updated_unix": 1_788_300_000},
+        }
+
+
+def _profile_packet(
+    *,
+    node_id: str = "!335d8354",
+    sender_id: str | None = "!335d8354",
+    color: str = "#db2777",
+    updated_unix: int = 1_770_000_000,
+    portnum: object = DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+) -> dict[str, object]:
+    packet: dict[str, object] = {
+        "decoded": {
+            "portnum": portnum,
+            "payload": build_meshyface_profile_payload(
+                node_id=node_id,
+                color=color,
+                updated_unix=updated_unix,
+            ),
+        }
+    }
+    if sender_id is not None:
+        packet["fromId"] = sender_id
+    return packet
+
+
+def _revision() -> RevisionInfo:
+    return RevisionInfo(version="0.0.0", commit="test", label="test", title="test")
+
+
+def _state_kwargs(tracker: object) -> dict[str, object]:
+    return {
+        "iface": object(),
+        "tracker": tracker,
+        "target": "test",
+        "started_at": 1_800_000_000,
+        "storage_probe_path": None,
+        "revision_info": _revision(),
+        "collect_nodes_fn": lambda iface: CollectedNodes(
+            rows=[],
+            full=[],
+            by_id={},
+            with_position_count=0,
+        ),
+        "collect_local_state_safe_fn": lambda iface, *, collect_local_state_fn: ({}, None),
+        "get_radio_connection_status_fn": lambda iface: None,
+    }
+
+
+def test_meshyface_profile_uses_exact_private_app_port() -> None:
+    assert DEFAULT_MESHYFACE_PROFILE_PORTNUM == 256
+    assert DEFAULT_MESHYFACE_PROFILE_PORTNUM == portnums_pb2.PortNum.PRIVATE_APP
+    assert portnums_pb2.PortNum.ATAK_FORWARDER == 257
+
+
+def test_build_and_parse_meshyface_profile_packet() -> None:
+    payload = build_meshyface_profile_payload(
+        node_id="335D8354",
+        color="#DB2777",
+        updated_unix=1_788_300_000,
+    )
+
+    assert json.loads(payload) == {
+        "type": "meshyface.profile",
+        "v": 1,
+        "node": "!335d8354",
+        "color": "#db2777",
+        "updated": 1_788_300_000,
+    }
+    assert len(payload) <= mesh_pb2.Constants.DATA_PAYLOAD_LEN
+    assert parse_meshyface_profile_packet(
+        {
+            "fromId": "!335d8354",
+            "decoded": {"portnum": 256, "payload": payload},
+        },
+        now_unix_fn=lambda: 1_788_300_010,
+    ) == {
+        "node_id": "!335d8354",
+        "color": "#db2777",
+        "updated_unix": 1_788_300_000,
+        "received_unix": 1_788_300_010,
+        "source": "mesh",
+    }
+
+
+def test_parse_accepts_real_meshtastic_message_to_dict_receive_shape() -> None:
+    payload = build_meshyface_profile_payload(
+        node_id="!335d8354",
+        color="#db2777",
+        updated_unix=1_788_300_000,
+    )
+    mesh_packet = mesh_pb2.MeshPacket()
+    setattr(mesh_packet, "from", 0x335D8354)
+    mesh_packet.decoded.portnum = portnums_pb2.PortNum.PRIVATE_APP
+    mesh_packet.decoded.payload = payload
+
+    packet = MessageToDict(mesh_packet)
+
+    assert packet["decoded"]["portnum"] == "PRIVATE_APP"
+    assert isinstance(packet["decoded"]["payload"], str)
+    # Meshtastic's receive path replaces MessageToDict's base64 value with the
+    # original bytes before publishing the packet to subscribers.
+    packet["decoded"]["payload"] = mesh_packet.decoded.payload
+    packet["fromId"] = "!335d8354"
+
+    parsed = parse_meshyface_profile_packet(packet, now_unix_fn=lambda: 1_788_300_010)
+
+    assert parsed is not None
+    assert parsed["node_id"] == "!335d8354"
+    assert parsed["color"] == "#db2777"
+
+
+@pytest.mark.parametrize("portnum", [257, "ATAK_FORWARDER", 300, "PRIVATE_APP_300"])
+def test_parse_rejects_every_port_except_private_app_256(portnum: object) -> None:
+    assert parse_meshyface_profile_packet(_profile_packet(portnum=portnum)) is None
+
+
+def test_parse_requires_sender_and_rejects_mismatched_sender() -> None:
+    assert parse_meshyface_profile_packet(_profile_packet(sender_id=None)) is None
+    assert (
+        parse_meshyface_profile_packet(
+            _profile_packet(sender_id="!11111111"),
+        )
+        is None
+    )
+
+
+def test_profile_validation_rejects_invalid_color_and_far_future_timestamp() -> None:
+    with pytest.raises(ValueError, match="#rrggbb"):
+        build_meshyface_profile_payload(
+            node_id="!335d8354",
+            color="db2777",
+            updated_unix=1_788_300_000,
+        )
+
+    now_unix = 1_800_000_000
+    accepted_boundary = _profile_packet(updated_unix=now_unix + (24 * 60 * 60))
+    rejected_future = _profile_packet(updated_unix=now_unix + (24 * 60 * 60) + 1)
+
+    assert parse_meshyface_profile_packet(accepted_boundary, now_unix_fn=lambda: now_unix)
+    assert parse_meshyface_profile_packet(rejected_future, now_unix_fn=lambda: now_unix) is None
+
+
+def test_parse_rejects_invalid_color_from_wire() -> None:
+    payload = json.dumps(
+        {
+            "type": "meshyface.profile",
+            "v": 1,
+            "node": "!335d8354",
+            "color": "db2777",
+            "updated": 1_770_000_000,
+        }
+    ).encode()
+    packet = {
+        "fromId": "!335d8354",
+        "decoded": {"portnum": "PRIVATE_APP", "payload": payload},
+    }
+
+    assert parse_meshyface_profile_packet(packet) is None
+
+
+def test_parse_meshyface_profile_color_request_validates_color_and_channel() -> None:
+    body = json.dumps({"color": "#DB2777", "channel_index": 2}).encode()
+
+    request = parse_meshyface_profile_color_request(body, to_int_fn=to_int)
+
+    assert request.color == "#db2777"
+    assert request.channel_index == 2
+    with pytest.raises(ValueError, match="#rrggbb"):
+        parse_meshyface_profile_color_request(b'{"color":"db2777"}', to_int_fn=to_int)
+
+
+def test_send_meshyface_profile_color_uses_public_send_data_api() -> None:
+    iface = _SendDataIface()
+
+    response = send_meshyface_profile_color(
+        color="#DB2777",
+        iface=iface,
+        send_lock=threading.Lock(),
+        local_node_id_fn=lambda: "!335d8354",
+        channel_index=3,
+        now_unix_fn=lambda: 1_788_300_000,
+    )
+
+    assert response == {
+        "ok": True,
+        "sent": True,
+        "type": "meshyface.profile",
+        "node": "!335d8354",
+        "color": "#db2777",
+        "updated": 1_788_300_000,
+        "destination": "^all",
+        "channel_index": 3,
+        "portnum": 256,
+        "packet_id": 1234,
+    }
+    assert len(iface.calls) == 1
+    payload, kwargs = iface.calls[0]
+    assert json.loads(payload)["color"] == "#db2777"
+    assert kwargs == {
+        "destinationId": "^all",
+        "portNum": 256,
+        "wantAck": False,
+        "wantResponse": False,
+        "channelIndex": 3,
+    }
+
+
+def test_tracker_accepts_only_strictly_newer_profile_updates() -> None:
+    tracker = DashboardTracker(packet_limit=8)
+    updated = int(time.time()) - 10
+
+    tracker.seed_packet(_profile_packet(color="#db2777", updated_unix=updated), interface=object())
+    tracker.seed_packet(_profile_packet(color="#22c55e", updated_unix=updated), interface=object())
+    tracker.seed_packet(_profile_packet(color="#0ea5e9", updated_unix=updated - 1), interface=object())
+
+    assert tracker.meshyface_profiles_snapshot()["!335d8354"]["color"] == "#db2777"
+
+    tracker.seed_packet(_profile_packet(color="#a855f7", updated_unix=updated + 1), interface=object())
+
+    assert tracker.meshyface_profiles_snapshot()["!335d8354"]["color"] == "#a855f7"
+    assert list(tracker.recent_chat) == []
+
+
+def test_tracker_profile_cache_is_bounded_and_evicts_oldest_received(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tracker_runtime_impl, "MESHYFACE_PROFILE_CACHE_LIMIT", 2)
+
+    received_times = {
+        "!00000001": 100,
+        "!00000002": 200,
+        "!00000003": 300,
+    }
+
+    def _parse(packet: object) -> dict[str, object] | None:
+        if not isinstance(packet, dict):
+            return None
+        node_id = str(packet.get("fromId") or "")
+        return {
+            "node_id": node_id,
+            "color": "#db2777",
+            "updated_unix": received_times[node_id],
+            "received_unix": received_times[node_id],
+            "source": "mesh",
+        }
+
+    monkeypatch.setattr(tracker_runtime_impl, "_parse_meshyface_profile_packet", _parse)
+    tracker = DashboardTracker(packet_limit=8)
+
+    for node_id in received_times:
+        tracker.seed_packet({"fromId": node_id}, interface=object())
+
+    profiles = tracker.meshyface_profiles_snapshot()
+    assert len(profiles) == 2
+    assert set(profiles) == {"!00000002", "!00000003"}
+
+
+def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
+    tracker = _StateTracker()
+    expected = {
+        "!335d8354": {
+            "node_id": "!335d8354",
+            "color": "#db2777",
+            "updated_unix": 1_788_300_000,
+            "received_unix": 1_788_300_010,
+            "source": "mesh",
+        }
+    }
+
+    full = build_dashboard_state_typed(**_state_kwargs(tracker))
+    lite = build_dashboard_state_lite(
+        **_state_kwargs(tracker),
+        show_secrets=True,
+        sensitive_field_names=set(),
+        profile="chat",
+    )
+
+    assert full.as_dict()["meshyface_profiles"] == expected
+    assert lite["meshyface_profiles"] == expected
+    assert "meshyface_profiles" not in full.as_dict()["traffic"]
+
+
+def test_handle_dashboard_post_dispatches_profile_color() -> None:
+    body = json.dumps({"color": "#db2777", "channel_index": 4}).encode()
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Authorization": "Bearer secret",
+        },
+    )
+    responses: list[tuple[int, object]] = []
+    received: list[dict[str, object]] = []
+
+    def _send_profile(**kwargs: object) -> dict[str, object]:
+        received.append(kwargs)
+        return {"ok": True, "sent": True, **kwargs}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        send_meshyface_profile_fn=_send_profile,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/color", deps=deps)
+
+    assert received == [{"color": "#db2777", "channel_index": 4}]
+    assert responses == [
+        (
+            200,
+            {
+                "ok": True,
+                "sent": True,
+                "color": "#db2777",
+                "channel_index": 4,
+            },
+        )
+    ]
+
+
+def test_profile_post_is_blocked_in_private_mode() -> None:
+    handler = _FakeHandler()
+    responses: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, private_mode=True, to_int_fn=to_int)
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/color", deps=deps)
+
+    assert responses == [(403, {"ok": False, "error": "This endpoint is disabled in private mode"})]
+
+
+def test_profile_post_requires_configured_api_token() -> None:
+    handler = _FakeHandler()
+    responses: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/color", deps=deps)
+
+    assert responses == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_make_http_handler_passes_state_profile_send_hook(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("meshdash.http_api.build_get_route_dependencies", lambda **kwargs: object())
+
+    def _capture_post_dependencies(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("meshdash.http_api.build_post_route_dependencies", _capture_post_dependencies)
+    monkeypatch.setattr(
+        "meshdash.http_api.build_dashboard_handler_class",
+        lambda **kwargs: {
+            "dispatch_get_fn": kwargs["dispatch_get_fn"],
+            "dispatch_post_fn": kwargs["dispatch_post_fn"],
+        },
+    )
+
+    def _state_fn() -> dict[str, object]:
+        return {}
+
+    def _send_profile(**kwargs: object) -> dict[str, object]:
+        return {"ok": True, **kwargs}
+
+    setattr(_state_fn, "send_meshyface_profile_fn", _send_profile)
+
+    make_http_handler("<html></html>", _state_fn)
+
+    assert captured["send_meshyface_profile_fn"] is _send_profile
+
+
+def test_render_html_includes_manual_profile_controls_only() -> None:
+    html = render_html(3000, 250, False, True, 200000, 30, 72, 1440, "test", "test")
+
+    assert 'id="settings-meshyface-profile-color"' in html
+    assert 'id="settings-meshyface-profile-accept-remote"' in html
+    assert 'id="settings-meshyface-profile-broadcast"' in html
+    assert 'id="settings-meshyface-profile-status"' in html
+    assert 'id="settings-meshyface-profile-sync-enabled"' not in html
+
+
+def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduling() -> None:
+    js = build_dashboard_js(refresh_ms=3000, node_history_hours=72, node_history_max_points=1440)
+
+    assert 'const meshyfaceProfileColorEndpoint = "/api/meshyface/profile/color";' in js
+    assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
+    assert "function syncMeshyfaceProfilesFromState(state = latestState)" in js
+    assert "function meshyfaceProfileAppearanceForNode(nodeId, state = latestState)" in js
+    assert "function effectiveNodeAppearanceForNode(nodeId, state = latestState)" in js
+    assert re.search(
+        r"function nodeTagEntryForNode\(nodeId\)\s*\{\s*"
+        r"return manualNodeTagEntryForNode\(nodeId\);\s*\}",
+        js,
+    )
+    assert re.search(
+        r"function effectiveNodeAppearanceForNode\(nodeId, state = latestState\)\s*\{\s*"
+        r"return manualNodeTagEntryForNode\(nodeId\) \|\| "
+        r"meshyfaceProfileAppearanceForNode\(nodeId, state\);\s*\}",
+        js,
+    )
+    assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js
+    assert "syncMeshyfaceProfilesFromState(state)" in js
+    assert "async function broadcastMeshyfaceProfileColor()" in js
+    broadcast_call_index = js.index("void broadcastMeshyfaceProfileColor();")
+    broadcast_button_index = js.rfind(
+        'document.getElementById("settings-meshyface-profile-broadcast")',
+        0,
+        broadcast_call_index,
+    )
+    broadcast_click_index = js.index('.addEventListener("click"', broadcast_button_index)
+    assert broadcast_button_index >= 0
+    assert broadcast_click_index < broadcast_call_index
+    assert broadcast_call_index - broadcast_button_index < 500
+    assert js.count("broadcastMeshyfaceProfileColor();") == 1
+    assert "maybeBroadcastMeshyfaceProfileColorOnStartup" not in js
+    assert "settingsMeshyfaceProfileSyncEnabled" not in js

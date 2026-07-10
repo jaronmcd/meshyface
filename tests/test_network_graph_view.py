@@ -556,9 +556,12 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'const localId = normalizeNodeId(resolveLocalNodeId(latestState || {}) || "");' in js
     assert 'const isLocalNode = item.nodeId === localId;' in js
     assert 'const isTaggedNode = !!(tagEntry && tagEntry.preset);' in js
-    assert 'isTaggedNode ? "is-tagged" : ""' in js
-    assert 'nodeEl.classList.toggle("is-tagged", isTaggedNode);' in js
-    assert 'nodeEl.setAttribute("style", tagStyleVars);' in js
+    assert 'const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);' in js
+    assert 'hasNodeAppearance ? "is-tagged" : ""' in js
+    assert 'isProfiledNode ? "is-profiled" : ""' in js
+    assert 'nodeEl.classList.toggle("is-tagged", hasNodeAppearance);' in js
+    assert 'nodeEl.classList.toggle("is-profiled", hasNodeAppearance && !isTaggedNode);' in js
+    assert 'nodeEl.setAttribute("style", appearanceStyleVars);' in js
     assert 'function autoNewNodeTagPreset() {' in js
     assert 'id: "auto-new-node",' in js
     assert 'const nodeTagBuiltInIconPaths = {' in js

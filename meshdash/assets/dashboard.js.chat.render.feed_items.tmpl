@@ -152,13 +152,19 @@
           fallbackNode,
         ]);
         const tintTagEntry = tagMatch.entry;
-        const tintNodeId = normalizeNodeId(tagMatch.matchedNodeId || sourceNode || nodeId || sourceNodeRaw || "");
+        const tintNodeId = normalizeNodeId(tagMatch.matchedNodeId || nodeId || sourceNode || sourceNodeRaw || "");
         const tagActive = !!(tintTagEntry && tintTagEntry.preset);
-        const tagStyleVars = (tagActive && typeof nodeTagStyleVars === "function")
-          ? nodeTagStyleVars(tintTagEntry)
-          : "";
-        const tagTintStyleVars = (tagActive && typeof nodeTagTintStyleVars === "function")
-          ? nodeTagTintStyleVars(tintTagEntry, "feed", 210)
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(tintNodeId)
+          : tintTagEntry;
+        const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
+        const appearanceStyleVars = (appearanceActive && typeof nodeAppearanceStyleVars === "function")
+          ? nodeAppearanceStyleVars(appearanceEntry)
+          : ((appearanceActive && typeof nodeTagStyleVars === "function")
+            ? nodeTagStyleVars(appearanceEntry)
+            : "");
+        const appearanceTintStyleVars = (appearanceActive && typeof nodeTagTintStyleVars === "function")
+          ? nodeTagTintStyleVars(appearanceEntry, "feed", 210)
           : "";
         const nodeVisualSeedNode = (
           nodesById.get(normalizeNodeId(tintNodeId))
@@ -186,11 +192,11 @@
         if (showMessageChannelTab && typeof meshChannelEdgeStyle === "function") {{
           rowStyleParts.push(meshChannelEdgeStyle(meshIdx, {{ allowAll: false }}));
         }}
-        if (tagTintStyleVars) {{
-          rowStyleParts.push(tagTintStyleVars);
+        if (appearanceTintStyleVars) {{
+          rowStyleParts.push(appearanceTintStyleVars);
         }}
-        if (tagStyleVars) {{
-          rowStyleParts.push(tagStyleVars);
+        if (appearanceStyleVars) {{
+          rowStyleParts.push(appearanceStyleVars);
         }}
         const combinedRowStyle = rowStyleParts
           .filter((value) => !!value)
@@ -402,6 +408,7 @@
           : "";
         const selectedFeedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
         const tagClass = tagActive ? " tagged-node" : "";
+        const profileClass = appearanceActive && !tagActive ? " profiled-node" : "";
         const messageKey = chatMessageKey(msg);
         const hasChangeMarker = !!messageKey && activeChangeFocusKeys.has(messageKey);
         const changeClass = hasChangeMarker ? " has-change-marker" : "";
@@ -494,7 +501,7 @@
             ? '<span class="chat-monitor-alert-tag" title="Alert packet">[!]</span>'
             : "";
           const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
-          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{statusClass}}${{alertClass}}${{monitorViewClass}}`;
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{profileClass}}${{statusClass}}${{alertClass}}${{monitorViewClass}}`;
           return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
             <span class="chat-entry-msg">
               ${{monitorPrefix}}
@@ -528,7 +535,7 @@
           ? `<span class="chat-feed-side">${{sideParts.join("")}}</span>`
           : "";
         const extraRows = monitorMode ? "" : reactionRow;
-        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{nodeEmojiClass}}${{messageChannelClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{profileClass}}${{nodeEmojiClass}}${{messageChannelClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
           ${{messageChannelTab}}
           <div class="chat-feed-line">
             <div class="chat-feed-summary">

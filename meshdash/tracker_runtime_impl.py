@@ -6,6 +6,10 @@ from .helpers import (
     to_int as _to_int,
 )
 from .history_store_runtime import HistoryStore
+from .meshyface_profile import (
+    MESHYFACE_PROFILE_CACHE_LIMIT,
+    parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
+)
 from .nodes import (
     parse_utc_text_to_unix as _parse_utc_text_to_unix,
     utc_now as _utc_now,
@@ -70,6 +74,7 @@ class DashboardTracker:
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
+        self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
         self._zork_bot_service = None
         self._ping_bot_service = None
         self._ping_public_start_enabled = True
@@ -336,6 +341,7 @@ class DashboardTracker:
                     save_raw_packet_fn(packet)
                 except Exception:
                     pass
+            self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._bump_state_revision_unlocked()
             bot_services = [
@@ -459,8 +465,66 @@ class DashboardTracker:
 
     def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
+            self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=False)
             self._bump_state_revision_unlocked()
+
+    def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
+        profile = _parse_meshyface_profile_packet(packet)
+        if not profile:
+            return False
+        node_id = str(profile.get("node_id") or "").strip().lower()
+        color = str(profile.get("color") or "").strip().lower()
+        updated_unix = _to_int(profile.get("updated_unix"))
+        received_unix = _to_int(profile.get("received_unix"))
+        if not node_id or not color or updated_unix is None or updated_unix <= 0:
+            return False
+
+        existing = self.meshyface_profiles_by_node_id.get(node_id)
+        existing_updated = (
+            _to_int(existing.get("updated_unix")) if isinstance(existing, dict) else None
+        )
+        # Manual last-writer-wins: only a strictly newer advertised timestamp
+        # may replace a cached profile. Equal timestamps are intentionally
+        # ignored so packet arrival order cannot flip the chosen color.
+        if existing_updated is not None and existing_updated >= updated_unix:
+            return False
+
+        next_profile = {
+            "node_id": node_id,
+            "color": color,
+            "updated_unix": int(updated_unix),
+            "received_unix": max(0, int(received_unix or 0)),
+            "source": "mesh",
+        }
+        self.meshyface_profiles_by_node_id[node_id] = next_profile
+
+        evicted_node_id: str | None = None
+        while len(self.meshyface_profiles_by_node_id) > MESHYFACE_PROFILE_CACHE_LIMIT:
+            evicted_node_id = min(
+                self.meshyface_profiles_by_node_id,
+                key=lambda candidate: (
+                    int(
+                        _to_int(
+                            self.meshyface_profiles_by_node_id[candidate].get(
+                                "received_unix"
+                            )
+                        )
+                        or 0
+                    ),
+                    candidate,
+                ),
+            )
+            del self.meshyface_profiles_by_node_id[evicted_node_id]
+        return evicted_node_id != node_id
+
+    def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
+        with self._lock:
+            return {
+                str(node_id): dict(profile)
+                for node_id, profile in self.meshyface_profiles_by_node_id.items()
+                if isinstance(profile, dict)
+            }
 
     def _record_packet_unlocked(
         self, packet: dict[str, object], interface: object, include_live_count: bool

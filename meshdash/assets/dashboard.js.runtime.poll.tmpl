@@ -603,6 +603,9 @@
           (rawState && rawState.history_caps) || null
         );
         latestState = state;
+        if (syncMeshyfaceProfilesFromState(state)) {{
+          chatPollStructuralSignature = "";
+        }}
         if (typeof refreshConsoleNodeRowsCache === "function") {{
           refreshConsoleNodeRowsCache(rawState);
           refreshConsoleNodeRowsCache(state);

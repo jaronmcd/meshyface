@@ -515,11 +515,13 @@
         }}
         target.style.removeProperty("--node-tag-color");
         target.style.removeProperty("--node-tag-vibrance");
+        target.style.removeProperty("--node-profile-border");
+        target.style.removeProperty("--node-profile-bg");
       }}
-      function applyNodeTagSurfaceStyle(target, tagEntry, scope = "member", fallbackHue = 145) {{
+      function applyNodeAppearanceSurfaceStyle(target, appearanceEntry, scope = "member", fallbackHue = 145) {{
         if (!(target instanceof HTMLElement)) return false;
-        const entry = tagEntry && typeof tagEntry === "object" && tagEntry.preset
-          ? tagEntry
+        const entry = appearanceEntry && typeof appearanceEntry === "object" && appearanceEntry.preset
+          ? appearanceEntry
           : null;
         const cleanScope = nodeSurfaceTintScope(scope);
         clearNodeSurfaceTintStyle(target, cleanScope);
@@ -533,25 +535,40 @@
         target.style.setProperty(`${{prefix}}tint-start-hue`, String(hue));
         target.style.setProperty(`${{prefix}}tint-end-hue`, String(hue));
         target.style.setProperty(`${{prefix}}outline-hue`, String(hue));
-        target.style.setProperty("--node-tag-color", normalizeNodeTagColor(entry.preset.color, "#2aa85a"));
+        const color = normalizeNodeTagColor(entry.preset.color, "#2aa85a");
+        target.style.setProperty("--node-tag-color", color);
         target.style.setProperty("--node-tag-vibrance", (clampNodeTagVibrance(entry.preset.vibrance, 70) / 100).toFixed(3));
+        target.style.setProperty("--node-profile-border", color);
+        target.style.setProperty(
+          "--node-profile-bg",
+          `color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%)`
+        );
         return true;
       }}
       for (const member of document.querySelectorAll("#chat-room-unread-list .chat-member-item, #chat-room-meshtastic-list .chat-member-item, #chat-room-pinned-list .chat-member-item, #chat-room-list .chat-member-item")) {{
         if (!(member instanceof HTMLElement)) continue;
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const tagEntry = nodeTagEntryForNode(nodeId);
-        const active = !!tagEntry;
-        member.classList.toggle("tagged-node", active);
+        const tagActive = !!(tagEntry && tagEntry.preset);
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(nodeId)
+          : tagEntry;
+        const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
+        member.classList.toggle("tagged-node", tagActive);
+        member.classList.toggle("profiled-node", appearanceActive && !tagActive);
         const nameLeft = member.querySelector(".chat-member-name-left");
         const existingChip = nameLeft instanceof HTMLElement
           ? nameLeft.querySelector(".chat-member-tag-chip")
           : null;
-        if (active && tagEntry && tagEntry.preset) {{
+        if (appearanceActive) {{
+          applyNodeAppearanceSurfaceStyle(member, appearanceEntry, "member", 145);
+        }} else {{
+          clearNodeSurfaceTintStyle(member, "member");
+        }}
+        if (tagActive) {{
           const tagLabel = normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged");
           const tagDisplayLabel = nodeTagDisplayLabel(tagEntry, "Tagged");
           const tagStyleVars = nodeTagStyleVars(tagEntry);
-          applyNodeTagSurfaceStyle(member, tagEntry, "member", 145);
           if (showTagBadge) {{
             if (existingChip instanceof HTMLElement) {{
               existingChip.textContent = tagDisplayLabel;
@@ -575,7 +592,6 @@
             existingChip.remove();
           }}
         }} else {{
-          clearNodeSurfaceTintStyle(member, "member");
           if (existingChip instanceof HTMLElement) {{
             existingChip.remove();
           }}
@@ -604,10 +620,15 @@
           }}
         }}
         if (!isSelectableNodeId(rowNodeId)) continue;
-        const active = !!(tagEntry && tagEntry.preset);
-        row.classList.toggle("tagged-node", active);
-        if (active) {{
-          applyNodeTagSurfaceStyle(row, tagEntry, "feed", 210);
+        const tagActive = !!(tagEntry && tagEntry.preset);
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(rowNodeId)
+          : tagEntry;
+        const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
+        row.classList.toggle("tagged-node", tagActive);
+        row.classList.toggle("profiled-node", appearanceActive && !tagActive);
+        if (appearanceActive) {{
+          applyNodeAppearanceSurfaceStyle(row, appearanceEntry, "feed", 210);
         }} else {{
           clearNodeSurfaceTintStyle(row, "feed");
         }}
