@@ -18,13 +18,10 @@ _DEFAULT_PACKS_DIR = "map_packs"
 _PACK_ID_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 _CHUNK_PATH_RE = re.compile(r"^chunks/[a-z0-9_]{1,64}/[a-z0-9_.-]{1,80}\.json$")
 
-_DOWNLOAD_CHUNK_BYTES = 256 * 1024
+_ZIP_READ_CHUNK_BYTES = 256 * 1024
 _MAX_INSTALLED_PACK_BYTES = 600 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 
-# Map packs are user-built or locally staged artifacts. This is intentionally
-# not a catalog of first-party downloadable packs.
-KNOWN_PACKS: dict[str, dict[str, Any]] = {}
 
 def map_packs_dir() -> Path:
     override = str(os.environ.get(_PACKS_DIR_ENV) or "").strip()
@@ -188,7 +185,7 @@ def _read_zip_member_limited(archive: Any, rel_path: str, max_bytes: int) -> byt
     total = 0
     with archive.open(info) as handle:
         while True:
-            block = handle.read(min(_DOWNLOAD_CHUNK_BYTES, max(1, limit - total + 1)))
+            block = handle.read(min(_ZIP_READ_CHUNK_BYTES, max(1, limit - total + 1)))
             if not block:
                 break
             total += len(block)
@@ -380,7 +377,6 @@ def map_pack_status_payload() -> dict[str, Any]:
 
     packs: list[dict[str, Any]] = []
     for pack_id in pack_ids:
-        known = KNOWN_PACKS.get(pack_id) or {}
         manifest = load_installed_manifest(pack_id)
         sideload_ready = False
         try:
@@ -398,10 +394,8 @@ def map_pack_status_payload() -> dict[str, Any]:
 
         entry: dict[str, Any] = {
             "id": pack_id,
-            "label": str(known.get("label") or (manifest or {}).get("label") or pack_id),
-            "description": str(
-                known.get("description") or (manifest or {}).get("description") or ""
-            ),
+            "label": str((manifest or {}).get("label") or pack_id),
+            "description": str((manifest or {}).get("description") or ""),
             "state": state,
             "installed": manifest is not None,
             "sideload_ready": sideload_ready,

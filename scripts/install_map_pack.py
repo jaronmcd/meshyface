@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install, list, or remove offline map expansion packs.
+"""Install, list, or remove local map expansion packs.
 
 The dashboard web UI is read-only for map packs; this script is the
 install path. Run it on the machine that hosts the dashboard so the

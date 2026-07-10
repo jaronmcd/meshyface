@@ -137,7 +137,7 @@
       host.appendChild(card);
     }}
 
-    function mapsPackInstallCommand(pack, sideloadReady) {{
+    function mapsPackInstallCommand(pack) {{
       const provided = String(pack && pack.install_command || "").trim();
       if (provided) return provided;
       const packId = String(pack && pack.id || "");
@@ -213,7 +213,7 @@
           card.appendChild(statusEl);
           const cmdEl = document.createElement("code");
           cmdEl.className = "settings-maps-pack-cmd";
-          cmdEl.textContent = mapsPackInstallCommand(pack, state === "sideload_ready");
+          cmdEl.textContent = mapsPackInstallCommand(pack);
           card.appendChild(cmdEl);
         }}
 

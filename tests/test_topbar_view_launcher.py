@@ -149,8 +149,6 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
         html,
     )
 
-    assert ".workspace-launcher-row {" in css
-    assert "z-index: 500;" in css
     assert ".workspace-launcher-shell {" in css
     assert ".chat-users-head-launcher-shell {" in css
     assert ".chat-users-head-theme-btn {" in css

@@ -792,10 +792,6 @@ def _write_zip(zip_path: Path, members: dict[str, bytes]) -> None:
             archive.writestr(name, payload)
 
 
-def test_no_built_in_map_pack_download_catalog() -> None:
-    assert map_packs.KNOWN_PACKS == {}
-
-
 def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

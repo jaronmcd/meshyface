@@ -95,7 +95,7 @@
       registerConsoleCommand({{
         name: "mappacks",
         usage: "mappacks [layers=<a,b,c>] [radius=<km>]",
-        description: "Offline map pack commands sized to your mesh; layers/radius tailor the geofence.",
+        description: "Local map pack commands sized to your mesh; installed packs work offline.",
         supportsVerbosity: false,
         paramGhost: (state, ctx) => {{
           const line = String(ctx && ctx.draft ? ctx.draft : "");

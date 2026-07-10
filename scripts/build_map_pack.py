@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a downloadable offline map expansion pack.
+"""Build a local map expansion pack for Meshyface.
 
 The pack bundles Natural Earth 10m vector layers plus GeoNames cities500
 place labels, split into 15-degree grid chunks so the dashboard can load
