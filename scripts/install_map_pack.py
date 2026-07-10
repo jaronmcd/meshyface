@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -250,10 +251,35 @@ def main() -> int:
     elif args.download:
         url = map_packs.pack_download_url(pack_id)
         if not url:
-            print(f"no download URL is configured for pack {pack_id}", file=sys.stderr)
+            env_name = map_packs.pack_download_url_env(pack_id)
+            extra = f" Set {env_name} to a pack zip URL," if env_name else ""
+            print(
+                f"no download URL is configured for pack {pack_id}."
+                f"{extra} place the zip at {staged_zip}, or pass --zip.",
+                file=sys.stderr,
+            )
             return 1
         print(f"[map-pack] downloading {url}")
-        _download_zip(url, staged_zip)
+        try:
+            _download_zip(url, staged_zip)
+        except urllib.error.HTTPError as exc:
+            reason = str(getattr(exc, "reason", "") or "").strip()
+            detail = f"{exc.code}" + (f" {reason}" if reason else "")
+            print(
+                f"download failed for {pack_id}: HTTP {detail} at {url}",
+                file=sys.stderr,
+            )
+            return 1
+        except urllib.error.URLError as exc:
+            reason = str(getattr(exc, "reason", "") or exc).strip()
+            print(
+                f"download failed for {pack_id}: {reason or 'URL error'}",
+                file=sys.stderr,
+            )
+            return 1
+        except OSError as exc:
+            print(f"download failed for {pack_id}: {exc}", file=sys.stderr)
+            return 1
         source_zip = staged_zip
         cleanup_zip_after_install = True
     else:

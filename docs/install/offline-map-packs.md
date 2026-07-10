@@ -33,3 +33,10 @@ with `--exclude-layers peaks`.
 Installed packs appear in Settings -> Maps. Source downloads and build outputs
 use local `map_sources/` and `map_pack_build/` directories, which are ignored by
 git.
+
+The built-in `global_detail` catalog entry is a local/install target, not a
+guaranteed bundled download. If you publish a compatible pack zip, set
+`MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL` on the dashboard host to make
+`scripts/install_map_pack.py global_detail --download` available. Without that
+environment variable, place a compatible `global_detail.zip` in the map packs
+directory or pass `--zip` explicitly.

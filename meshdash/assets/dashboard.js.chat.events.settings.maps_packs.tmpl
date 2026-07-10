@@ -82,10 +82,18 @@
           if (state === "sideload_ready") {{
             statusEl.textContent = "Pack zip found in the map packs folder. Install it from the dashboard computer:";
           }} else {{
-            const estimate = formatMapPackBytes(pack.download_bytes_estimate);
-            statusEl.textContent = estimate
-              ? `Install from the dashboard computer (~${{estimate}} download):`
-              : "Install from the dashboard computer:";
+            const downloadAvailable = Boolean(pack.download_available);
+            if (downloadAvailable) {{
+              const estimate = formatMapPackBytes(pack.download_bytes_estimate);
+              statusEl.textContent = estimate
+                ? `Install from the dashboard computer (~${{estimate}} download):`
+                : "Install from the dashboard computer:";
+            }} else {{
+              const envName = String(pack.download_url_env || "").trim();
+              statusEl.textContent = envName
+                ? `No published download is configured. Place a compatible zip in the map packs folder or set ${{envName}}, then install from the dashboard computer:`
+                : "No published download is configured. Place a compatible zip in the map packs folder, then install from the dashboard computer:";
+            }}
           }}
           card.appendChild(statusEl);
           const cmdEl = document.createElement("code");

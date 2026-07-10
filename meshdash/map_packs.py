@@ -31,13 +31,10 @@ KNOWN_PACKS: dict[str, dict[str, Any]] = {
             "Natural Earth 1:10m global vector detail (coastline, borders, "
             "states, rivers, lakes, urban areas, roads, railroads, parks) "
             "plus GeoNames cities500 place labels with state/country names. "
-            "Roughly 140 MB installed."
+            "Install from a local compatible pack zip or configure a published "
+            "download URL."
         ),
         "download_url_env": "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL",
-        "download_url": (
-            "https://github.com/jaronmcd/meshyface/releases/download/"
-            "map-pack-global-detail-v1/mesh_map_pack_global_detail_v1.zip"
-        ),
         "download_bytes_estimate": 30 * 1024 * 1024,
     },
 }
@@ -116,13 +113,15 @@ def _build_command_prefix() -> str:
     return _script_command_prefix("build_map_pack.py")
 
 
-def _installer_command(pack_id: str, *, sideload_ready: bool) -> str:
+def _installer_command(
+    pack_id: str, *, sideload_ready: bool, download_available: bool
+) -> str:
     args = [
         pack_id,
         "--packs-dir",
         _packs_dir_command_path(),
     ]
-    if not sideload_ready:
+    if not sideload_ready and download_available:
         args.append("--download")
     quoted = " ".join(shlex.quote(str(arg)) for arg in args)
     return f"{_installer_command_prefix()} {quoted}"
@@ -138,6 +137,13 @@ def pack_download_url(pack_id: str) -> str:
         if override:
             return override
     return str(known.get("download_url") or "").strip()
+
+
+def pack_download_url_env(pack_id: str) -> str:
+    known = KNOWN_PACKS.get(pack_id)
+    if not isinstance(known, dict):
+        return ""
+    return str(known.get("download_url_env") or "").strip()
 
 
 def _validate_manifest_obj(manifest: object, expected_pack_id: str = "") -> str:
@@ -425,6 +431,8 @@ def map_pack_status_payload() -> dict[str, Any]:
             state = "sideload_ready"
         else:
             state = "not_installed"
+        download_url = pack_download_url(pack_id)
+        download_available = bool(download_url)
 
         entry: dict[str, Any] = {
             "id": pack_id,
@@ -435,9 +443,13 @@ def map_pack_status_payload() -> dict[str, Any]:
             "state": state,
             "installed": manifest is not None,
             "sideload_ready": sideload_ready,
+            "download_available": download_available,
+            "download_url_env": pack_download_url_env(pack_id),
             "download_bytes_estimate": int(known.get("download_bytes_estimate") or 0),
             "install_command": _installer_command(
-                pack_id, sideload_ready=sideload_ready
+                pack_id,
+                sideload_ready=sideload_ready,
+                download_available=download_available,
             ),
         }
         if manifest is not None:
