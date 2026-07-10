@@ -61,6 +61,20 @@ Important naming note:
   --clean-app-dir
 ```
 
+## Deploy A Local Map Pack
+
+Build a mesh-sized zip on the workstation, then copy and install it with the
+same deploy helper:
+
+```bash
+./scripts/deploy_meshyface.sh \
+  --target pi@meshyface.local \
+  --map-pack-zip mymesh.zip
+```
+
+The uploaded staging zip is removed after a successful installation. See
+[Offline And Custom Map Data](offline-map-packs.md) for the build command.
+
 ## Full Reset + Redeploy
 
 If you want to remove the current Meshyface install on the target and rebuild it

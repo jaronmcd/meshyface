@@ -309,6 +309,12 @@ compute_local_deploy_payload_hash() {
       if [[ -f "scripts/benchmark_gui_responsiveness.py" ]]; then
         LC_ALL=C sha256sum "scripts/benchmark_gui_responsiveness.py"
       fi
+      if [[ -f "scripts/build_map_pack.py" ]]; then
+        LC_ALL=C sha256sum "scripts/build_map_pack.py"
+      fi
+      if [[ -f "scripts/build_offline_atlas.py" ]]; then
+        LC_ALL=C sha256sum "scripts/build_offline_atlas.py"
+      fi
       if [[ -f "scripts/install_map_pack.py" ]]; then
         LC_ALL=C sha256sum "scripts/install_map_pack.py"
       fi
@@ -330,6 +336,12 @@ cd '${APP_DIR}' && \
   LC_ALL=C sha256sum 'mesh_dashboard.py' 'mesh_connection.py' 'requirements.txt' && \
   if [[ -f 'scripts/benchmark_gui_responsiveness.py' ]]; then \
     LC_ALL=C sha256sum 'scripts/benchmark_gui_responsiveness.py'; \
+  fi && \
+  if [[ -f 'scripts/build_map_pack.py' ]]; then \
+    LC_ALL=C sha256sum 'scripts/build_map_pack.py'; \
+  fi && \
+  if [[ -f 'scripts/build_offline_atlas.py' ]]; then \
+    LC_ALL=C sha256sum 'scripts/build_offline_atlas.py'; \
   fi && \
   if [[ -f 'scripts/install_map_pack.py' ]]; then \
     LC_ALL=C sha256sum 'scripts/install_map_pack.py'; \
@@ -825,7 +837,7 @@ if [[ "${CLEAN_APP_DIR}" -eq 1 ]]; then
   fi
   echo "[deploy] cleaning managed app paths in ${APP_DIR} (preserving databases/config/logs)"
   ssh_cmd "${TARGET}" "\
-rm -rf '${APP_DIR}/meshdash' '${APP_DIR}/__pycache__' && \
+rm -rf '${APP_DIR}/meshdash' '${APP_DIR}/scripts' '${APP_DIR}/__pycache__' && \
 rm -f '${APP_DIR}/mesh_dashboard.py' '${APP_DIR}/mesh_connection.py' && \
 find '${APP_DIR}' -maxdepth 1 -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete"
 fi
@@ -839,6 +851,8 @@ scp_cmd \
 ssh_cmd "${TARGET}" "mkdir -p '${APP_DIR}/scripts'"
 scp_cmd \
   "${ROOT_DIR}/scripts/benchmark_gui_responsiveness.py" \
+  "${ROOT_DIR}/scripts/build_map_pack.py" \
+  "${ROOT_DIR}/scripts/build_offline_atlas.py" \
   "${ROOT_DIR}/scripts/install_map_pack.py" \
   "${TARGET}:${APP_DIR}/scripts/"
 
@@ -989,14 +1003,14 @@ fi
 verify_remote_runtime_payload_hash "${remote_payload_hash}"
 
 if [[ -n "${MAP_PACK_ZIP}" ]]; then
-  map_pack_zip_name="$(basename "${MAP_PACK_ZIP}")"
-  remote_map_pack_zip="${REMOTE_ROOT}/${map_pack_zip_name}"
+  remote_map_pack_zip="${REMOTE_ROOT}/.meshyface-map-pack-upload.zip"
   echo "[deploy] copying map pack zip ${MAP_PACK_ZIP} to ${TARGET}:${remote_map_pack_zip}"
   scp_cmd "${MAP_PACK_ZIP}" "${TARGET}:${remote_map_pack_zip}"
   echo "[deploy] installing map pack zip on ${TARGET}"
   ssh_cmd "${TARGET}" "\
 cd '${REMOTE_ROOT}' && \
-'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' --zip '${remote_map_pack_zip}' --yes"
+'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' --zip '${remote_map_pack_zip}' --yes && \
+rm -f '${remote_map_pack_zip}'"
 fi
 
 target_host="${TARGET#*@}"

@@ -44,6 +44,7 @@ MESH_GATEWAY_HOST=192.168.1.42
 MESH_GATEWAY_PORT=4403
 MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
 MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+MESH_DASHBOARD_MAP_PACKS_DIR=/var/lib/meshyface/map_packs
 PYTHONUNBUFFERED=1
 EOF
 sudo chown root:dialout /etc/meshyface/dashboard.env
@@ -57,6 +58,7 @@ sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
 MESH_DASH_MESH_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
 MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
 MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+MESH_DASHBOARD_MAP_PACKS_DIR=/var/lib/meshyface/map_packs
 PYTHONUNBUFFERED=1
 EOF
 sudo chown root:dialout /etc/meshyface/dashboard.env

@@ -1,8 +1,17 @@
 # Docker
 
 The Docker image runs the same `mesh_dashboard.py` entrypoint as the standalone
-install. It stores SQLite history and theme settings under `/data` by default,
-so mount a volume there if you want state to survive container replacement.
+install. It stores SQLite history, theme settings, and installed map packs under
+`/data` by default, so mount a volume there if you want state to survive
+container replacement. The image includes the map-pack build and install tools
+shown by the dashboard.
+
+To install a locally built pack into a running container:
+
+```bash
+docker cp mymesh.zip <container>:/data/mymesh.zip
+docker exec <container> python scripts/install_map_pack.py --zip /data/mymesh.zip --yes
+```
 
 ## Build Image
 

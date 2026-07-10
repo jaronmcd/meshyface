@@ -24,6 +24,13 @@ python scripts/build_map_pack.py --source-dir map_sources --download \
 python scripts/install_map_pack.py --zip mymesh.zip
 ```
 
+For a workstation-push deployment, the deploy helper can copy and install the
+same local zip in one step:
+
+```bash
+./scripts/deploy_meshyface.sh --target pi@meshyface.local --map-pack-zip mymesh.zip
+```
+
 Regional packs can also use `--region "Minnesota"` or an explicit
 `--center LAT,LON --radius-km KM`. Use `--layers` or `--exclude-layers` to keep
 the pack small. The peaks layer uses GeoNames country dumps; for remote areas
