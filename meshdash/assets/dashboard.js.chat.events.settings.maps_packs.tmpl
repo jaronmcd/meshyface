@@ -10,12 +10,138 @@
       return `${{Math.max(1, Math.round(bytes / 1024))}} KB`;
     }}
 
+    let mapsPackStatusCache = null;
+
+    function settingsMapsMeshSummary(state = latestState) {{
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const distKm = (aLat, aLon, bLat, bLon) => {{
+        const dLat = toRad(bLat - aLat);
+        const dLon = toRad(bLon - aLon);
+        const h = (Math.sin(dLat / 2) ** 2)
+          + (Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * (Math.sin(dLon / 2) ** 2));
+        return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+      }};
+      const nodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+      const points = [];
+      for (const node of nodes) {{
+        const lat = Number(node && node.lat);
+        const lon = Number(node && node.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+        if (lat === 0 && lon === 0) continue;
+        points.push([lat, lon]);
+      }}
+      if (points.length < 3) {{
+        return {{ pointCount: points.length, center: "", suggested: 0, distances: [] }};
+      }}
+      const lats = points.map((point) => point[0]).sort((a, b) => a - b);
+      const lons = points.map((point) => point[1]).sort((a, b) => a - b);
+      const centerLat = lats[Math.floor(lats.length / 2)];
+      const centerLon = lons[Math.floor(lons.length / 2)];
+      const distances = points
+        .map((point) => distKm(centerLat, centerLon, point[0], point[1]))
+        .sort((a, b) => a - b);
+      const p90 = distances[Math.floor(0.9 * (distances.length - 1))];
+      return {{
+        pointCount: points.length,
+        center: `${{centerLat.toFixed(4)}},${{centerLon.toFixed(4)}}`,
+        suggested: Math.max(10, Math.round(p90 * 1.15)),
+        distances,
+      }};
+    }}
+
+    function settingsMapsCommandPrefixes(payload = mapsPackStatusCache) {{
+      const buildPrefix = (payload && typeof payload.build_command_prefix === "string" && payload.build_command_prefix)
+        ? payload.build_command_prefix
+        : "python scripts/build_map_pack.py";
+      const installPrefix = (payload && typeof payload.install_command_prefix === "string" && payload.install_command_prefix)
+        ? payload.install_command_prefix
+        : "python scripts/install_map_pack.py";
+      const packsDir = (payload && typeof payload.packs_dir_command_arg === "string" && payload.packs_dir_command_arg)
+        ? ` --packs-dir ${{payload.packs_dir_command_arg}}`
+        : "";
+      return {{ buildPrefix, installPrefix, packsDir }};
+    }}
+
+    function appendSettingsMapsCommandRow(parent, label, command) {{
+      const row = document.createElement("div");
+      row.className = "settings-maps-command-row";
+      const labelEl = document.createElement("span");
+      labelEl.className = "settings-maps-command-label";
+      labelEl.textContent = label;
+      row.appendChild(labelEl);
+      const codeEl = document.createElement("code");
+      codeEl.className = "settings-maps-pack-cmd settings-maps-build-cmd";
+      codeEl.textContent = command;
+      row.appendChild(codeEl);
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "btn btn-secondary settings-maps-command-copy";
+      copyBtn.type = "button";
+      copyBtn.textContent = "Copy";
+      copyBtn.addEventListener("click", async () => {{
+        const ok = typeof copyTextToClipboard === "function"
+          ? await copyTextToClipboard(command)
+          : false;
+        copyBtn.textContent = ok ? "Copied" : "Copy";
+        copyBtn.title = ok ? "Copied command" : "Clipboard copy was blocked";
+        window.setTimeout(() => {{
+          copyBtn.textContent = "Copy";
+          copyBtn.title = "Copy command";
+        }}, 1500);
+      }});
+      row.appendChild(copyBtn);
+      parent.appendChild(row);
+    }}
+
+    function renderSettingsMapsBuildCommand(payload = mapsPackStatusCache, state = latestState) {{
+      const host = document.getElementById("settings-maps-build-command");
+      if (!(host instanceof HTMLElement)) return;
+      const {{ buildPrefix, installPrefix, packsDir }} = settingsMapsCommandPrefixes(payload);
+      const mesh = settingsMapsMeshSummary(state);
+      const layersArg = ` --layers ${{mapPackLayerPrefKeys.join(",")}}`;
+      let buildCommand = "";
+      let detail = "";
+      if (mesh.center) {{
+        const radius = mesh.suggested;
+        const covered = mesh.distances.filter((distance) => distance <= radius).length;
+        buildCommand = `${{buildPrefix}} --source-dir map_sources --download --center ${{mesh.center}} --radius-km ${{radius}}${{layersArg}} --pack-id mymesh --zip mymesh.zip`;
+        detail = `${{mesh.pointCount}} nodes with GPS. Center ${{mesh.center}}, radius ${{radius}} km covers ${{covered}} nodes.`;
+      }} else {{
+        buildCommand = `${{buildPrefix}} --source-dir map_sources --download --from-history${{layersArg}} --pack-id mymesh --zip mymesh.zip`;
+        detail = `${{mesh.pointCount}} live nodes with GPS. This uses saved node history for the region.`;
+      }}
+      const installCommand = `${{installPrefix}} --zip mymesh.zip${{packsDir}}`;
+
+      host.innerHTML = "";
+      const card = document.createElement("div");
+      card.className = "settings-maps-pack-card settings-maps-build-card";
+      const headEl = document.createElement("div");
+      headEl.className = "settings-maps-pack-head";
+      const titleEl = document.createElement("span");
+      titleEl.className = "settings-maps-pack-name";
+      titleEl.textContent = "Mesh-sized map pack";
+      headEl.appendChild(titleEl);
+      const stateEl = document.createElement("span");
+      stateEl.className = "settings-maps-pack-state";
+      stateEl.textContent = mesh.center ? "Node GPS" : "History";
+      headEl.appendChild(stateEl);
+      card.appendChild(headEl);
+
+      const descEl = document.createElement("div");
+      descEl.className = "settings-maps-pack-status";
+      descEl.textContent = detail;
+      card.appendChild(descEl);
+
+      appendSettingsMapsCommandRow(card, "Build", buildCommand);
+      appendSettingsMapsCommandRow(card, "Install", installCommand);
+      host.appendChild(card);
+    }}
+
     function mapsPackInstallCommand(pack, sideloadReady) {{
       const provided = String(pack && pack.install_command || "").trim();
       if (provided) return provided;
       const packId = String(pack && pack.id || "");
-      const flag = sideloadReady ? "" : " --download";
-      return `python scripts/install_map_pack.py ${{packId}}${{flag}}`;
+      return `python scripts/install_map_pack.py ${{packId}}`;
     }}
 
     function mapsPackStateLabel(pack) {{
@@ -36,7 +162,7 @@
       if (!packs.length) {{
         const emptyEl = document.createElement("div");
         emptyEl.className = "settings-maps-pack-empty";
-        emptyEl.textContent = "No map packs are available.";
+        emptyEl.textContent = "No local map packs are installed. Build one with the Console mappacks command or scripts/build_map_pack.py, then install the zip.";
         listEl.appendChild(emptyEl);
         return;
       }}
@@ -82,18 +208,7 @@
           if (state === "sideload_ready") {{
             statusEl.textContent = "Pack zip found in the map packs folder. Install it from the dashboard computer:";
           }} else {{
-            const downloadAvailable = Boolean(pack.download_available);
-            if (downloadAvailable) {{
-              const estimate = formatMapPackBytes(pack.download_bytes_estimate);
-              statusEl.textContent = estimate
-                ? `Install from the dashboard computer (~${{estimate}} download):`
-                : "Install from the dashboard computer:";
-            }} else {{
-              const envName = String(pack.download_url_env || "").trim();
-              statusEl.textContent = envName
-                ? `No published download is configured. Place a compatible zip in the map packs folder or set ${{envName}}, then install from the dashboard computer:`
-                : "No published download is configured. Place a compatible zip in the map packs folder, then install from the dashboard computer:";
-            }}
+            statusEl.textContent = "Place a compatible pack zip in the map packs folder, then install it from the dashboard computer:";
           }}
           card.appendChild(statusEl);
           const cmdEl = document.createElement("code");
@@ -125,6 +240,8 @@
         }}
         return;
       }}
+      mapsPackStatusCache = payload;
+      renderSettingsMapsBuildCommand(payload);
       renderMapsPackList(payload);
       const packs = payload && Array.isArray(payload.packs) ? payload.packs : [];
       const installedIds = new Set();
@@ -170,4 +287,5 @@
         }});
       }}
       renderMapsLayerToggles();
+      renderSettingsMapsBuildCommand(mapsPackStatusCache);
     }}

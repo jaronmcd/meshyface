@@ -9413,6 +9413,11 @@
       flex-direction: column;
       gap: 8px;
     }}
+    .settings-maps-build-command {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }}
     .settings-maps-pack-empty {{
       font-size: 11px;
       color: #53665a;
@@ -9483,6 +9488,29 @@
       color: #2e4038;
       overflow-wrap: anywhere;
       user-select: all;
+    }}
+    .settings-maps-command-row {{
+      display: grid;
+      grid-template-columns: minmax(52px, auto) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .settings-maps-command-label {{
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #53665a;
+      white-space: nowrap;
+    }}
+    .settings-maps-build-cmd {{
+      min-width: 0;
+    }}
+    .settings-maps-command-copy {{
+      min-height: 26px;
+      padding: 3px 8px;
+      font-size: 11px;
+      white-space: nowrap;
     }}
     .settings-maps-pack-error {{
       color: #7b1f1f;

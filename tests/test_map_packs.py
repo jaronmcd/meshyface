@@ -4,7 +4,6 @@ import hashlib
 import json
 import shlex
 import sys
-import urllib.error
 import zipfile
 from pathlib import Path
 
@@ -18,6 +17,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from meshdash import map_packs  # noqa: E402
+from meshdash.html_js import build_dashboard_js  # noqa: E402
 
 
 def _chunk_payload() -> bytes:
@@ -186,55 +186,34 @@ def test_read_chunk_rejects_traversal_and_unknown_paths(packs_dir: Path) -> None
     assert map_packs.read_map_pack_chunk("../etc", "chunks/cities/c3r9.json") is None
 
 
-def test_status_payload_tracks_available_sideload_and_installed(
-    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", raising=False)
-
+def test_status_payload_tracks_only_local_sideload_and_installed(packs_dir: Path) -> None:
     payload = map_packs.map_pack_status_payload()
     assert payload["ok"] is True
-    entries = {pack["id"]: pack for pack in payload["packs"]}
-    states = {pack_id: pack["state"] for pack_id, pack in entries.items()}
-    assert states.get("global_detail") == "not_installed"
-    assert "install_map_pack.py" in entries["global_detail"]["install_command"]
-    assert "--packs-dir" in entries["global_detail"]["install_command"]
-    assert "--download" not in entries["global_detail"]["install_command"]
-    assert entries["global_detail"]["download_available"] is False
-    assert (
-        entries["global_detail"]["download_url_env"]
-        == "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL"
-    )
+    assert payload["packs"] == []
     assert "install_map_pack.py" in payload["install_command_prefix"]
     assert "build_map_pack.py" in payload["build_command_prefix"]
     assert not Path(shlex.split(payload["install_command_prefix"])[0]).is_absolute()
     assert not Path(shlex.split(payload["install_command_prefix"])[1]).is_absolute()
     assert payload["packs_dir_resolved"] == str(packs_dir.resolve())
     assert payload["packs_dir_command"] == str(packs_dir)
-    assert entries["global_detail"]["install_command"].startswith(
-        payload["install_command_prefix"]
-    )
 
-    monkeypatch.setenv(
-        "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", "https://example.com/pack.zip"
-    )
-    payload = map_packs.map_pack_status_payload()
-    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
-    assert entry["download_available"] is True
-    assert "--download" in entry["install_command"]
-
-    monkeypatch.delenv("MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", raising=False)
-    zip_path = packs_dir / "global_detail.zip"
-    _build_pack_zip(zip_path)
+    zip_path = packs_dir / "mymesh.zip"
+    _build_pack_zip(zip_path, pack_id="mymesh")
     payload = map_packs.map_pack_status_payload()
     entries = {pack["id"]: pack for pack in payload["packs"]}
     states = {pack_id: pack["state"] for pack_id, pack in entries.items()}
-    assert states.get("global_detail") == "sideload_ready"
-    assert "--download" not in entries["global_detail"]["install_command"]
+    assert states == {"mymesh": "sideload_ready"}
+    assert "--download" not in entries["mymesh"]["install_command"]
+    assert "install_map_pack.py" in entries["mymesh"]["install_command"]
+    assert "--packs-dir" in entries["mymesh"]["install_command"]
+    assert entries["mymesh"]["install_command"].startswith(
+        payload["install_command_prefix"]
+    )
 
-    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+    assert map_packs.install_pack_zip("mymesh", zip_path) == ""
     zip_path.unlink()
     payload = map_packs.map_pack_status_payload()
-    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
+    entry = next(p for p in payload["packs"] if p["id"] == "mymesh")
     assert entry["state"] == "installed"
     assert entry["installed"] is True
     assert entry["installed_pack"]["version"] == 1
@@ -246,9 +225,12 @@ def test_status_payload_install_command_uses_portable_default_packs_dir(
 ) -> None:
     monkeypatch.delenv("MESH_DASHBOARD_MAP_PACKS_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
+    packs_dir = tmp_path / "map_packs"
+    packs_dir.mkdir()
+    _build_pack_zip(packs_dir / "mymesh.zip", pack_id="mymesh")
 
     payload = map_packs.map_pack_status_payload()
-    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
+    entry = next(p for p in payload["packs"] if p["id"] == "mymesh")
     command = shlex.split(entry["install_command"])
     packs_dir = command[command.index("--packs-dir") + 1]
 
@@ -300,10 +282,10 @@ def test_installer_cli_installs_external_zip_and_keeps_it(
     packs_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     zip_path = tmp_path / "elsewhere.zip"
-    _build_pack_zip(zip_path)
+    _build_pack_zip(zip_path, pack_id="mymesh")
 
-    assert _run_installer_cli(monkeypatch, "global_detail", "--zip", str(zip_path)) == 0
-    assert map_packs.load_installed_manifest("global_detail") is not None
+    assert _run_installer_cli(monkeypatch, "--zip", str(zip_path)) == 0
+    assert map_packs.load_installed_manifest("mymesh") is not None
     assert zip_path.exists()
 
 
@@ -320,44 +302,23 @@ def test_installer_cli_rejects_sha256_mismatch(
     assert map_packs.load_installed_manifest("global_detail") is None
 
 
-def test_installer_cli_requires_a_source(
-    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert _run_installer_cli(monkeypatch, "global_detail") == 2
-
-
-def test_installer_cli_requires_configured_download_url(
+def test_installer_cli_requires_pack_id_or_zip_manifest(
     packs_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.delenv("MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", raising=False)
-
-    assert _run_installer_cli(monkeypatch, "global_detail", "--download") == 1
+    assert _run_installer_cli(monkeypatch) == 2
 
     err = capsys.readouterr().err
-    assert "no download URL is configured for pack global_detail" in err
-    assert "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL" in err
+    assert "pack id is required unless --zip points to a valid map pack" in err
 
 
-def test_installer_cli_reports_download_http_error(
+def test_installer_cli_frames_download_as_build_step(
     packs_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import install_map_pack
-
-    monkeypatch.setenv(
-        "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL",
-        "https://example.com/missing-pack.zip",
-    )
-
-    def _fail_download(url: str, zip_path: Path) -> None:
-        raise urllib.error.HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
-
-    monkeypatch.setattr(install_map_pack, "_download_zip", _fail_download)
-
-    assert _run_installer_cli(monkeypatch, "global_detail", "--download") == 1
+    assert _run_installer_cli(monkeypatch, "global_detail", "--download") == 2
 
     err = capsys.readouterr().err
-    assert "download failed for global_detail: HTTP 404 Not Found" in err
-    assert "https://example.com/missing-pack.zip" in err
+    assert "install_map_pack.py installs local map pack zips" in err
+    assert "scripts/build_map_pack.py --download" in err
 
 
 def test_installer_cli_delete(
@@ -831,22 +792,33 @@ def _write_zip(zip_path: Path, members: dict[str, bytes]) -> None:
             archive.writestr(name, payload)
 
 
-def test_pack_download_url_prefers_env_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    assert map_packs.pack_download_url("unknown_pack") == ""
+def test_no_built_in_map_pack_download_catalog() -> None:
+    assert map_packs.KNOWN_PACKS == {}
 
-    monkeypatch.delenv("MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", raising=False)
-    assert map_packs.pack_download_url("global_detail") == ""
+
+def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function settingsMapsMeshSummary(state = latestState)" in js
+    assert 'const host = document.getElementById("settings-maps-build-command");' in js
+    assert "Mesh-sized map pack" in js
+    assert "nodes with GPS. Center" in js
     assert (
-        map_packs.pack_download_url_env("global_detail")
-        == "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL"
-    )
-
-    monkeypatch.setenv(
-        "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL", "https://example.com/pack.zip"
-    )
-    assert map_packs.pack_download_url("global_detail") == "https://example.com/pack.zip"
+        "buildCommand = `${buildPrefix} --source-dir map_sources --download "
+        "--center ${mesh.center} --radius-km ${radius}${layersArg} "
+        "--pack-id mymesh --zip mymesh.zip`;"
+    ) in js
+    assert (
+        "buildCommand = `${buildPrefix} --source-dir map_sources --download "
+        "--from-history${layersArg} --pack-id mymesh --zip mymesh.zip`;"
+    ) in js
+    assert "const installCommand = `${installPrefix} --zip mymesh.zip${packsDir}`;" in js
+    assert "appendSettingsMapsCommandRow(card, \"Build\", buildCommand);" in js
+    assert "appendSettingsMapsCommandRow(card, \"Install\", installCommand);" in js
 
 
 def test_validate_manifest_obj_reports_each_defect() -> None:

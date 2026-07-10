@@ -19,25 +19,12 @@ _PACK_ID_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 _CHUNK_PATH_RE = re.compile(r"^chunks/[a-z0-9_]{1,64}/[a-z0-9_.-]{1,80}\.json$")
 
 _DOWNLOAD_CHUNK_BYTES = 256 * 1024
-_DOWNLOAD_TIMEOUT_SECONDS = 30.0
-_MAX_PACK_ZIP_BYTES = 600 * 1024 * 1024
 _MAX_INSTALLED_PACK_BYTES = 600 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 
-KNOWN_PACKS: dict[str, dict[str, Any]] = {
-    "global_detail": {
-        "label": "Global Detail",
-        "description": (
-            "Natural Earth 1:10m global vector detail (coastline, borders, "
-            "states, rivers, lakes, urban areas, roads, railroads, parks) "
-            "plus GeoNames cities500 place labels with state/country names. "
-            "Install from a local compatible pack zip or configure a published "
-            "download URL."
-        ),
-        "download_url_env": "MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL",
-        "download_bytes_estimate": 30 * 1024 * 1024,
-    },
-}
+# Map packs are user-built or locally staged artifacts. This is intentionally
+# not a catalog of first-party downloadable packs.
+KNOWN_PACKS: dict[str, dict[str, Any]] = {}
 
 def map_packs_dir() -> Path:
     override = str(os.environ.get(_PACKS_DIR_ENV) or "").strip()
@@ -113,37 +100,14 @@ def _build_command_prefix() -> str:
     return _script_command_prefix("build_map_pack.py")
 
 
-def _installer_command(
-    pack_id: str, *, sideload_ready: bool, download_available: bool
-) -> str:
+def _installer_command(pack_id: str) -> str:
     args = [
         pack_id,
         "--packs-dir",
         _packs_dir_command_path(),
     ]
-    if not sideload_ready and download_available:
-        args.append("--download")
     quoted = " ".join(shlex.quote(str(arg)) for arg in args)
     return f"{_installer_command_prefix()} {quoted}"
-
-
-def pack_download_url(pack_id: str) -> str:
-    known = KNOWN_PACKS.get(pack_id)
-    if not isinstance(known, dict):
-        return ""
-    env_name = str(known.get("download_url_env") or "").strip()
-    if env_name:
-        override = str(os.environ.get(env_name) or "").strip()
-        if override:
-            return override
-    return str(known.get("download_url") or "").strip()
-
-
-def pack_download_url_env(pack_id: str) -> str:
-    known = KNOWN_PACKS.get(pack_id)
-    if not isinstance(known, dict):
-        return ""
-    return str(known.get("download_url_env") or "").strip()
 
 
 def _validate_manifest_obj(manifest: object, expected_pack_id: str = "") -> str:
@@ -399,7 +363,7 @@ def _installed_pack_summary(manifest: dict[str, Any]) -> dict[str, Any]:
 
 def map_pack_status_payload() -> dict[str, Any]:
     packs_dir = map_packs_dir()
-    pack_ids: list[str] = list(KNOWN_PACKS.keys())
+    pack_ids: list[str] = []
     try:
         if packs_dir.is_dir():
             for entry in sorted(packs_dir.iterdir()):
@@ -431,8 +395,6 @@ def map_pack_status_payload() -> dict[str, Any]:
             state = "sideload_ready"
         else:
             state = "not_installed"
-        download_url = pack_download_url(pack_id)
-        download_available = bool(download_url)
 
         entry: dict[str, Any] = {
             "id": pack_id,
@@ -443,14 +405,7 @@ def map_pack_status_payload() -> dict[str, Any]:
             "state": state,
             "installed": manifest is not None,
             "sideload_ready": sideload_ready,
-            "download_available": download_available,
-            "download_url_env": pack_download_url_env(pack_id),
-            "download_bytes_estimate": int(known.get("download_bytes_estimate") or 0),
-            "install_command": _installer_command(
-                pack_id,
-                sideload_ready=sideload_ready,
-                download_available=download_available,
-            ),
+            "install_command": _installer_command(pack_id),
         }
         if manifest is not None:
             entry["installed_pack"] = _installed_pack_summary(manifest)

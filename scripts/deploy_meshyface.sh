@@ -60,8 +60,7 @@ Options:
                            Acknowledge mesh airtime/congestion risk when enabling BBS/files.
   --no-accept-file-transfer-traffic-disclaimer
                            Clear disclaimer acceptance in dashboard.env.
-  --map-pack <id>          Install/refresh a map expansion pack after deploy
-                           (the target host downloads the release zip).
+  --map-pack-zip <path>    Copy and install a locally built map pack zip after deploy.
   --service <name>         Systemd service name (default: meshtastic-dashboard).
   --service-user <name>    Systemd service user on target (default: remote SSH user).
   --service-group <name>   Systemd service group on target (default: dialout).
@@ -101,7 +100,7 @@ Env overrides:
   MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
   MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER
-  MESH_DASH_DEPLOY_MAP_PACK
+  MESH_DASH_DEPLOY_MAP_PACK_ZIP
 EOF
 }
 
@@ -150,7 +149,7 @@ FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
-MAP_PACK_ID="${MESH_DASH_DEPLOY_MAP_PACK:-}"
+MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
 BBS_ENABLE_SET=0
 GAMES_ENABLE_SET=0
 FILE_TRANSFER_ENABLE_SET=0
@@ -563,8 +562,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --map-pack)
+      echo "--map-pack release downloads were removed; build a local pack zip and pass --map-pack-zip <path>" >&2
+      exit 2
+      ;;
+    --map-pack-zip)
       require_arg "$1" "${2:-}"
-      MAP_PACK_ID="$2"
+      MAP_PACK_ZIP="$2"
       shift 2
       ;;
     --service)
@@ -659,6 +662,14 @@ for local_required in mesh_dashboard.py mesh_connection.py meshdash; do
     exit 1
   fi
 done
+if [[ -n "${MESH_DASH_DEPLOY_MAP_PACK:-}" && -z "${MAP_PACK_ZIP}" ]]; then
+  echo "MESH_DASH_DEPLOY_MAP_PACK release downloads were removed; build a local pack zip and set MESH_DASH_DEPLOY_MAP_PACK_ZIP" >&2
+  exit 2
+fi
+if [[ -n "${MAP_PACK_ZIP}" && ! -f "${MAP_PACK_ZIP}" ]]; then
+  echo "map pack zip not found: ${MAP_PACK_ZIP}" >&2
+  exit 2
+fi
 
 read_remote_identity
 
@@ -977,11 +988,15 @@ fi
 
 verify_remote_runtime_payload_hash "${remote_payload_hash}"
 
-if [[ -n "${MAP_PACK_ID}" ]]; then
-  echo "[deploy] installing map pack ${MAP_PACK_ID} on ${TARGET}"
+if [[ -n "${MAP_PACK_ZIP}" ]]; then
+  map_pack_zip_name="$(basename "${MAP_PACK_ZIP}")"
+  remote_map_pack_zip="${REMOTE_ROOT}/${map_pack_zip_name}"
+  echo "[deploy] copying map pack zip ${MAP_PACK_ZIP} to ${TARGET}:${remote_map_pack_zip}"
+  scp_cmd "${MAP_PACK_ZIP}" "${TARGET}:${remote_map_pack_zip}"
+  echo "[deploy] installing map pack zip on ${TARGET}"
   ssh_cmd "${TARGET}" "\
 cd '${REMOTE_ROOT}' && \
-'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' '${MAP_PACK_ID}' --download --yes"
+'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' --zip '${remote_map_pack_zip}' --yes"
 fi
 
 target_host="${TARGET#*@}"

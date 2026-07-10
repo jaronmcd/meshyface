@@ -99,8 +99,11 @@ def test_render_html_uses_concise_offline_map_pack_notes() -> None:
         revision_title="test",
     )
 
-    assert "Map packs add optional detail to offline maps." in html
-    assert "once installed, the added layers stay local and work without internet." in html
+    assert "Map packs are local dashboard expansions." in html
+    assert "Build a pack for your mesh, install the zip from this dashboard computer" in html
+    assert "the added layers stay local without internet." in html
+    assert 'id="settings-maps-build-command"' in html
+    assert "Loading mesh map pack command..." in html
     assert 'Layers marked "(pack)" require an installed map pack.' in html
     assert "Expansion packs add high-detail worldwide map layers" not in html
     assert "forced offline mode or automatic" not in html

@@ -1,9 +1,9 @@
 # Offline And Custom Map Data
 
 Meshyface includes a small bundled offline atlas as a fallback basemap. For
-more detail, build or install offline map packs on the dashboard host. Map packs
-are local GeoJSON chunks served by the dashboard; the browser does not need
-internet access after they are installed.
+more detail, build a local map pack for your mesh and install it on the
+dashboard host. Map packs are local GeoJSON chunks served by the dashboard; the
+browser does not need internet access after they are installed.
 
 Use the Console workspace command `mappacks` for a live, mesh-sized build
 command. It suggests a center/radius from current node GPS positions and prints
@@ -21,7 +21,7 @@ python scripts/build_map_pack.py --source-dir map_sources --download \
   --from-history --pack-id mymesh --zip mymesh.zip
 
 # Install it into the dashboard's map pack directory.
-python scripts/install_map_pack.py mymesh --zip mymesh.zip
+python scripts/install_map_pack.py --zip mymesh.zip
 ```
 
 Regional packs can also use `--region "Minnesota"` or an explicit
@@ -34,9 +34,6 @@ Installed packs appear in Settings -> Maps. Source downloads and build outputs
 use local `map_sources/` and `map_pack_build/` directories, which are ignored by
 git.
 
-The built-in `global_detail` catalog entry is a local/install target, not a
-guaranteed bundled download. If you publish a compatible pack zip, set
-`MESH_DASHBOARD_MAP_PACK_URL_GLOBAL_DETAIL` on the dashboard host to make
-`scripts/install_map_pack.py global_detail --download` available. Without that
-environment variable, place a compatible `global_detail.zip` in the map packs
-directory or pass `--zip` explicitly.
+There is no bundled first-party "global detail" expansion download. In this
+workflow, `build_map_pack.py --download` downloads the public source datasets
+needed to build your own zip; `install_map_pack.py` installs that local zip.
