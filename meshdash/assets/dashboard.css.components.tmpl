@@ -1427,11 +1427,6 @@
     .disk-fill.danger {{
       background: #ff7676;
     }}
-    .topbar .revision-text {{
-      color: #e7fff0;
-      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-      letter-spacing: 0.1px;
-    }}
     .warn {{ color: var(--danger); font-weight: 600; }}
     .console {{
       display: flex;
@@ -2564,7 +2559,8 @@
     }}
     [data-theme="dark"] .settings-maps-pack-empty,
     [data-theme="dark"] .settings-maps-pack-desc,
-    [data-theme="dark"] .settings-maps-pack-status {{
+    [data-theme="dark"] .settings-maps-pack-status,
+    [data-theme="dark"] .settings-maps-command-label {{
       color: var(--workspace-shell-text-muted);
     }}
     [data-theme="dark"] .settings-maps-pack-name {{
@@ -3820,7 +3816,6 @@
       background: transparent;
     }}
     [data-theme="dark"] .topbar .sub .sub-text,
-    [data-theme="dark"] .topbar .revision-text,
     [data-theme="dark"] #chat-caption,
     [data-theme="dark"] #updated-at,
     [data-theme="dark"] #local-state-error,
@@ -3841,35 +3836,6 @@
     }}
     [data-theme="dark"] .summary-updated-row {{
       color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .topbar-update-ticker {{
-      border-color: var(--workspace-shell-border);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, var(--ui-panel)),
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black)
-        );
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .topbar-update-ticker:hover,
-    [data-theme="dark"] .topbar-update-ticker:focus-within {{
-      border-color: var(--workspace-shell-border-strong);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-hover-bg) 86%, var(--ui-panel-alt)),
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, var(--workspace-shell-hover-bg))
-        );
-    }}
-    [data-theme="dark"] .topbar-update-text,
-    [data-theme="dark"] .topbar-update-item {{
-      color: color-mix(in srgb, var(--workspace-shell-text-soft) 92%, white 8%);
-      text-shadow: 0 0 8px color-mix(in srgb, var(--workspace-shell-active-bg) 34%, transparent);
-    }}
-    [data-theme="dark"] .topbar-update-item.is-oneshot {{
-      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .topbar .summary-ticker-item {{
       --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-strong) 72%, var(--ui-accent) 28%);

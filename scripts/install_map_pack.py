@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install, list, or remove offline map expansion packs.
+"""Install, list, or remove local map expansion packs.
 
 The dashboard web UI is read-only for map packs; this script is the
 install path. Run it on the machine that hosts the dashboard so the
@@ -15,7 +15,6 @@ import json
 import os
 import shutil
 import sys
-import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -23,8 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash import map_packs  # noqa: E402
 
-_DOWNLOAD_CHUNK_BYTES = 256 * 1024
-_DOWNLOAD_TIMEOUT_SECONDS = 30.0
+_FILE_CHUNK_BYTES = 256 * 1024
 
 
 def _human_bytes(count: object) -> str:
@@ -39,54 +37,10 @@ def _human_bytes(count: object) -> str:
     return f"{value:.1f} GB"
 
 
-def _download_zip(url: str, zip_path: Path) -> None:
-    part_path = zip_path.parent / f"{zip_path.name}.part"
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "meshdash-map-packs/1"}
-    )
-    try:
-        with urllib.request.urlopen(
-            request, timeout=_DOWNLOAD_TIMEOUT_SECONDS
-        ) as response:
-            try:
-                bytes_total = int(response.headers.get("Content-Length") or 0)
-            except (TypeError, ValueError):
-                bytes_total = 0
-            if bytes_total > map_packs._MAX_PACK_ZIP_BYTES:
-                raise ValueError("pack download exceeds size limit")
-            bytes_done = 0
-            with open(part_path, "wb") as handle:
-                while True:
-                    block = response.read(_DOWNLOAD_CHUNK_BYTES)
-                    if not block:
-                        break
-                    handle.write(block)
-                    bytes_done += len(block)
-                    if bytes_done > map_packs._MAX_PACK_ZIP_BYTES:
-                        raise ValueError("pack download exceeds size limit")
-                    if bytes_total:
-                        percent = min(100, round(bytes_done * 100 / bytes_total))
-                        progress = (
-                            f"{_human_bytes(bytes_done)} of "
-                            f"{_human_bytes(bytes_total)} ({percent}%)"
-                        )
-                    else:
-                        progress = _human_bytes(bytes_done)
-                    print(f"\r[map-pack] downloading: {progress}", end="", flush=True)
-        print()
-        os.replace(part_path, zip_path)
-    finally:
-        try:
-            if part_path.exists():
-                part_path.unlink()
-        except OSError:
-            pass
-
-
 def _sha256_of_file(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(_DOWNLOAD_CHUNK_BYTES), b""):
+        for block in iter(lambda: handle.read(_FILE_CHUNK_BYTES), b""):
             digest.update(block)
     return digest.hexdigest()
 
@@ -102,6 +56,11 @@ def _zip_manifest_preview(zip_path: Path) -> dict[str, object]:
         return manifest if isinstance(manifest, dict) else {}
     except Exception:
         return {}
+
+
+def _pack_id_from_zip(zip_path: Path) -> str:
+    manifest = _zip_manifest_preview(zip_path)
+    return map_packs._clean_pack_id(manifest.get("id"))
 
 
 def _confirm_install(
@@ -158,19 +117,19 @@ def main() -> int:
     parser.add_argument(
         "pack_id",
         nargs="?",
-        default="global_detail",
-        help="Pack id (default: global_detail).",
+        default="",
+        help="Pack id to install/remove; inferred from --zip manifest when omitted.",
     )
     parser.add_argument(
         "--download",
         action="store_true",
-        help="Fetch the pack zip from its published release URL.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--zip",
         type=Path,
         default=None,
-        help="Install from a local pack zip instead of downloading.",
+        help="Install from a local map pack zip.",
     )
     parser.add_argument(
         "--sha256",
@@ -208,10 +167,30 @@ def main() -> int:
         _print_status()
         return 0
 
-    pack_id = map_packs._clean_pack_id(args.pack_id)
+    if args.download:
+        print(
+            "install_map_pack.py installs local map pack zips; it does not "
+            "download first-party expansion packs. Build a zip with "
+            "scripts/build_map_pack.py --download, then install it with "
+            "scripts/install_map_pack.py --zip <pack.zip>.",
+            file=sys.stderr,
+        )
+        return 2
+
+    zip_pack_id = ""
+    if args.zip is not None:
+        if not args.zip.is_file():
+            print(f"zip not found: {args.zip}", file=sys.stderr)
+            return 1
+        zip_pack_id = _pack_id_from_zip(args.zip)
+
+    pack_id = map_packs._clean_pack_id(args.pack_id) or zip_pack_id
     if not pack_id:
-        known = ", ".join(sorted(map_packs.KNOWN_PACKS)) or "none"
-        print(f"invalid pack id {args.pack_id!r} (known packs: {known})", file=sys.stderr)
+        print(
+            "pack id is required unless --zip points to a valid map pack "
+            "with an id in manifest.json",
+            file=sys.stderr,
+        )
         return 2
 
     packs_dir = map_packs.map_packs_dir()
@@ -240,27 +219,14 @@ def main() -> int:
 
     if args.zip is not None:
         source_zip = args.zip
-        if not source_zip.is_file():
-            print(f"zip not found: {source_zip}", file=sys.stderr)
-            return 1
     elif staged_zip.is_file() and staged_zip.stat().st_size > 0:
         print(f"[map-pack] using staged zip {staged_zip}")
-        source_zip = staged_zip
-        cleanup_zip_after_install = True
-    elif args.download:
-        url = map_packs.pack_download_url(pack_id)
-        if not url:
-            print(f"no download URL is configured for pack {pack_id}", file=sys.stderr)
-            return 1
-        print(f"[map-pack] downloading {url}")
-        _download_zip(url, staged_zip)
         source_zip = staged_zip
         cleanup_zip_after_install = True
     else:
         print(
             f"no pack zip found for {pack_id}.\n"
-            f"Pass --download to fetch the release zip, place the zip at "
-            f"{staged_zip}, or point --zip at a local file.",
+            f"Place the zip at {staged_zip}, or point --zip at a local file.",
             file=sys.stderr,
         )
         return 2

@@ -97,7 +97,7 @@ def emit_startup_status(
 
     if not show_secrets:
         out_fn("Secrets are redacted. Use --show-secrets to display full values.")
-    out_fn(f"Revision: {revision_info.label}")
+    out_fn(revision_info.label or f"Rev: {revision_info.build_ref or revision_info.commit}")
 
     if history_enabled:
         out_fn(

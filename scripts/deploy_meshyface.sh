@@ -60,8 +60,8 @@ Options:
                            Acknowledge mesh airtime/congestion risk when enabling BBS/files.
   --no-accept-file-transfer-traffic-disclaimer
                            Clear disclaimer acceptance in dashboard.env.
-  --map-pack <id>          Install/refresh a map expansion pack after deploy
-                           (the target host downloads the release zip).
+  --pr-number <number>     Associate this build with a pull request.
+  --map-pack-zip <path>    Copy and install a locally built map pack zip after deploy.
   --service <name>         Systemd service name (default: meshtastic-dashboard).
   --service-user <name>    Systemd service user on target (default: remote SSH user).
   --service-group <name>   Systemd service group on target (default: dialout).
@@ -101,7 +101,9 @@ Env overrides:
   MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
   MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER
-  MESH_DASH_DEPLOY_MAP_PACK
+  MESH_DASH_DEPLOY_GIT_COMMIT
+  MESH_DASH_DEPLOY_PR_NUMBER
+  MESH_DASH_DEPLOY_MAP_PACK_ZIP
 EOF
 }
 
@@ -150,7 +152,10 @@ FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
-MAP_PACK_ID="${MESH_DASH_DEPLOY_MAP_PACK:-}"
+DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
+DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
+MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
+MAP_PACKS_DIR=""
 BBS_ENABLE_SET=0
 GAMES_ENABLE_SET=0
 FILE_TRANSFER_ENABLE_SET=0
@@ -201,7 +206,7 @@ verify_remote_runtime_payload_hash() {
     echo "runtime verification failed: expected hash is empty" >&2
     return 1
   fi
-  echo "[deploy] verifying runtime payload hash via /api/version"
+  echo "[deploy] verifying runtime payload hash via /api/revision"
   ssh_cmd "${TARGET}" "\
 EXPECTED_HASH='${expected_hash}' \
 DASH_PORT='${DASH_PORT}' \
@@ -261,7 +266,7 @@ import urllib.error
 import urllib.request
 
 port = str(sys.argv[1]).strip() or "8877"
-url = f"http://127.0.0.1:{port}/api/version?cb={int(time.time() * 1000)}"
+url = f"http://127.0.0.1:{port}/api/revision?cb={int(time.time() * 1000)}"
 try:
     with urllib.request.urlopen(url, timeout=4) as response:
         payload = json.loads(response.read().decode("utf-8", "replace"))
@@ -287,9 +292,9 @@ PY
     exit 0
   fi
   if [[ "${observed_hash}" == __NOT_READY__:* ]]; then
-    echo "[deploy] waiting for /api/version (${attempt}/${MAX_ATTEMPTS}): warming up (${observed_hash#__NOT_READY__:})" >&2
+    echo "[deploy] waiting for /api/revision (${attempt}/${MAX_ATTEMPTS}): warming up (${observed_hash#__NOT_READY__:})" >&2
   elif [[ "${observed_hash}" == __ERROR__:* ]]; then
-    echo "[deploy] waiting for /api/version (${attempt}/${MAX_ATTEMPTS}): ${observed_hash#__ERROR__:}" >&2
+    echo "[deploy] waiting for /api/revision (${attempt}/${MAX_ATTEMPTS}): ${observed_hash#__ERROR__:}" >&2
   else
     observed_display="${observed_hash:-<empty>}"
     echo "[deploy] waiting for runtime hash (${attempt}/${MAX_ATTEMPTS}): observed=${observed_display} expected=${EXPECTED_HASH}" >&2
@@ -297,7 +302,7 @@ PY
   attempt=$((attempt + 1))
   sleep "${SLEEP_SECONDS}"
 done
-echo "runtime verification failed: /api/version did not report expected deploy_payload_hash=${EXPECTED_HASH}" >&2
+echo "runtime verification failed: /api/revision did not report expected deploy_payload_hash=${EXPECTED_HASH}" >&2
 exit 1
 REMOTE
 }
@@ -309,6 +314,12 @@ compute_local_deploy_payload_hash() {
       LC_ALL=C sha256sum "mesh_dashboard.py" "mesh_connection.py" "requirements.txt"
       if [[ -f "scripts/benchmark_gui_responsiveness.py" ]]; then
         LC_ALL=C sha256sum "scripts/benchmark_gui_responsiveness.py"
+      fi
+      if [[ -f "scripts/build_map_pack.py" ]]; then
+        LC_ALL=C sha256sum "scripts/build_map_pack.py"
+      fi
+      if [[ -f "scripts/build_offline_atlas.py" ]]; then
+        LC_ALL=C sha256sum "scripts/build_offline_atlas.py"
       fi
       if [[ -f "scripts/install_map_pack.py" ]]; then
         LC_ALL=C sha256sum "scripts/install_map_pack.py"
@@ -331,6 +342,12 @@ cd '${APP_DIR}' && \
   LC_ALL=C sha256sum 'mesh_dashboard.py' 'mesh_connection.py' 'requirements.txt' && \
   if [[ -f 'scripts/benchmark_gui_responsiveness.py' ]]; then \
     LC_ALL=C sha256sum 'scripts/benchmark_gui_responsiveness.py'; \
+  fi && \
+  if [[ -f 'scripts/build_map_pack.py' ]]; then \
+    LC_ALL=C sha256sum 'scripts/build_map_pack.py'; \
+  fi && \
+  if [[ -f 'scripts/build_offline_atlas.py' ]]; then \
+    LC_ALL=C sha256sum 'scripts/build_offline_atlas.py'; \
   fi && \
   if [[ -f 'scripts/install_map_pack.py' ]]; then \
     LC_ALL=C sha256sum 'scripts/install_map_pack.py'; \
@@ -427,7 +444,7 @@ hard_reboot_remote_target() {
 
 read_existing_dashboard_env_value() {
   local key="$1"
-  ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { print substr(\$0, length(key) + 2); exit }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
+  ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { value = substr(\$0, length(key) + 2); found = 1 } END { if (found) print value }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
 read_remote_identity() {
@@ -562,9 +579,18 @@ while [[ $# -gt 0 ]]; do
       ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=1
       shift
       ;;
-    --map-pack)
+    --pr-number)
       require_arg "$1" "${2:-}"
-      MAP_PACK_ID="$2"
+      DEPLOY_PR_NUMBER="$2"
+      shift 2
+      ;;
+    --map-pack)
+      echo "--map-pack release downloads were removed; build a local pack zip and pass --map-pack-zip <path>" >&2
+      exit 2
+      ;;
+    --map-pack-zip)
+      require_arg "$1" "${2:-}"
+      MAP_PACK_ZIP="$2"
       shift 2
       ;;
     --service)
@@ -659,6 +685,35 @@ for local_required in mesh_dashboard.py mesh_connection.py meshdash; do
     exit 1
   fi
 done
+if [[ -z "${DEPLOY_GIT_COMMIT}" ]]; then
+  DEPLOY_GIT_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD 2>/dev/null || true)"
+fi
+DEPLOY_GIT_COMMIT="${DEPLOY_GIT_COMMIT:-nogit}"
+if [[ ! "${DEPLOY_GIT_COMMIT}" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+  echo "invalid deploy git commit token: ${DEPLOY_GIT_COMMIT}" >&2
+  exit 2
+fi
+if [[ -z "${DEPLOY_PR_NUMBER}" ]]; then
+  deploy_git_subject="$(git -C "${ROOT_DIR}" log -1 --pretty=%s 2>/dev/null || true)"
+  if [[ "${deploy_git_subject}" =~ \(#([0-9]{1,12})\)$ ]]; then
+    DEPLOY_PR_NUMBER="${BASH_REMATCH[1]}"
+  elif [[ "${deploy_git_subject}" =~ [Pp]ull[[:space:]]request[[:space:]]#([0-9]{1,12}) ]]; then
+    DEPLOY_PR_NUMBER="${BASH_REMATCH[1]}"
+  fi
+fi
+DEPLOY_PR_NUMBER="${DEPLOY_PR_NUMBER#\#}"
+if [[ -n "${DEPLOY_PR_NUMBER}" && ! "${DEPLOY_PR_NUMBER}" =~ ^[0-9]{1,12}$ ]]; then
+  echo "--pr-number must contain 1-12 digits" >&2
+  exit 2
+fi
+if [[ -n "${MESH_DASH_DEPLOY_MAP_PACK:-}" && -z "${MAP_PACK_ZIP}" ]]; then
+  echo "MESH_DASH_DEPLOY_MAP_PACK release downloads were removed; build a local pack zip and set MESH_DASH_DEPLOY_MAP_PACK_ZIP" >&2
+  exit 2
+fi
+if [[ -n "${MAP_PACK_ZIP}" && ! -f "${MAP_PACK_ZIP}" ]]; then
+  echo "map pack zip not found: ${MAP_PACK_ZIP}" >&2
+  exit 2
+fi
 
 read_remote_identity
 
@@ -699,6 +754,11 @@ fi
 
 if [[ "${WIPE_REMOTE_ROOT}" -eq 1 && "${BOOTSTRAP}" -eq 0 ]]; then
   BOOTSTRAP=1
+fi
+
+MAP_PACKS_DIR="$(read_existing_dashboard_env_value "MESH_DASHBOARD_MAP_PACKS_DIR")"
+if [[ -z "${MAP_PACKS_DIR}" ]]; then
+  MAP_PACKS_DIR="${REMOTE_ROOT}/map_packs"
 fi
 
 if [[ -z "${MESH_HOST}" ]]; then
@@ -790,6 +850,11 @@ fi
 echo "[deploy] bbs_enable=${BBS_ENABLE}"
 echo "[deploy] games_enable=${GAMES_ENABLE}"
 echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_auto_accept=${FILE_TRANSFER_AUTO_ACCEPT} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
+if [[ -n "${DEPLOY_PR_NUMBER}" ]]; then
+  echo "[deploy] revision=${DEPLOY_GIT_COMMIT} · PR #${DEPLOY_PR_NUMBER}"
+else
+  echo "[deploy] revision=${DEPLOY_GIT_COMMIT}"
+fi
 
 if [[ "${UNINSTALL}" -eq 1 ]]; then
   uninstall_remote_meshyface
@@ -814,7 +879,7 @@ if [[ "${CLEAN_APP_DIR}" -eq 1 ]]; then
   fi
   echo "[deploy] cleaning managed app paths in ${APP_DIR} (preserving databases/config/logs)"
   ssh_cmd "${TARGET}" "\
-rm -rf '${APP_DIR}/meshdash' '${APP_DIR}/__pycache__' && \
+rm -rf '${APP_DIR}/meshdash' '${APP_DIR}/scripts' '${APP_DIR}/__pycache__' && \
 rm -f '${APP_DIR}/mesh_dashboard.py' '${APP_DIR}/mesh_connection.py' && \
 find '${APP_DIR}' -maxdepth 1 -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete"
 fi
@@ -828,6 +893,8 @@ scp_cmd \
 ssh_cmd "${TARGET}" "mkdir -p '${APP_DIR}/scripts'"
 scp_cmd \
   "${ROOT_DIR}/scripts/benchmark_gui_responsiveness.py" \
+  "${ROOT_DIR}/scripts/build_map_pack.py" \
+  "${ROOT_DIR}/scripts/build_offline_atlas.py" \
   "${ROOT_DIR}/scripts/install_map_pack.py" \
   "${TARGET}:${APP_DIR}/scripts/"
 
@@ -921,21 +988,34 @@ DASH_HOST=${DASH_HOST}
 DASH_PORT=${DASH_PORT}
 REFRESH_MS=${REFRESH_MS}
 MESH_DASH_HISTORY_DB=${HISTORY_DB}
+MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}
 MESH_DASH_BBS_ENABLE=${BBS_ENABLE}
 MESH_DASH_GAMES_ENABLE=${GAMES_ENABLE}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
 MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}
 MESH_DASH_FILE_TRANSFER_MAX_BYTES=${FILE_TRANSFER_MAX_BYTES}
 MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}
+MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}
+MESH_DASH_PR_NUMBER=${DEPLOY_PR_NUMBER}
 MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}
 PYTHONUNBUFFERED=${PYTHON_UNBUFFERED}
 EOF"
 else
-  echo "[deploy] updating deploy payload hash in existing ${CONFIG_DIR}/dashboard.env"
+  echo "[deploy] updating revision identity and deploy payload hash in existing ${CONFIG_DIR}/dashboard.env"
   ssh_cmd "${TARGET}" "\
 if [[ ! -f '${CONFIG_DIR}/dashboard.env' ]]; then \
   echo 'dashboard.env not found at ${CONFIG_DIR}/dashboard.env; rerun with --bootstrap or provide --mesh-host/--serial-path' >&2; \
   exit 1; \
+fi && \
+if grep -q '^MESH_DASH_GIT_COMMIT=' '${CONFIG_DIR}/dashboard.env'; then \
+  sed -i \"s/^MESH_DASH_GIT_COMMIT=.*/MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}/\" '${CONFIG_DIR}/dashboard.env'; \
+else \
+  printf '\nMESH_DASH_GIT_COMMIT=%s\n' '${DEPLOY_GIT_COMMIT}' >> '${CONFIG_DIR}/dashboard.env'; \
+fi && \
+if grep -q '^MESH_DASH_PR_NUMBER=' '${CONFIG_DIR}/dashboard.env'; then \
+  sed -i \"s/^MESH_DASH_PR_NUMBER=.*/MESH_DASH_PR_NUMBER=${DEPLOY_PR_NUMBER}/\" '${CONFIG_DIR}/dashboard.env'; \
+else \
+  printf '\nMESH_DASH_PR_NUMBER=%s\n' '${DEPLOY_PR_NUMBER}' >> '${CONFIG_DIR}/dashboard.env'; \
 fi && \
 if grep -q '^MESH_DASH_DEPLOY_PAYLOAD_HASH=' '${CONFIG_DIR}/dashboard.env'; then \
   sed -i \"s/^MESH_DASH_DEPLOY_PAYLOAD_HASH=.*/MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}/\" '${CONFIG_DIR}/dashboard.env'; \
@@ -977,11 +1057,75 @@ fi
 
 verify_remote_runtime_payload_hash "${remote_payload_hash}"
 
-if [[ -n "${MAP_PACK_ID}" ]]; then
-  echo "[deploy] installing map pack ${MAP_PACK_ID} on ${TARGET}"
+if [[ -n "${MAP_PACK_ZIP}" ]]; then
+  remote_map_pack_zip="${REMOTE_ROOT}/.meshyface-map-pack-upload.zip"
+  echo "[deploy] copying map pack zip ${MAP_PACK_ZIP} to ${TARGET}:${remote_map_pack_zip}"
+  scp_cmd "${MAP_PACK_ZIP}" "${TARGET}:${remote_map_pack_zip}"
+  echo "[deploy] installing map pack zip on ${TARGET}"
   ssh_cmd "${TARGET}" "\
-cd '${REMOTE_ROOT}' && \
-'${REMOTE_PYTHON}' '${APP_DIR}/scripts/install_map_pack.py' '${MAP_PACK_ID}' --download --yes"
+REMOTE_ROOT='${REMOTE_ROOT}' \
+REMOTE_PYTHON='${REMOTE_PYTHON}' \
+INSTALL_SCRIPT='${APP_DIR}/scripts/install_map_pack.py' \
+UPLOAD_ZIP='${remote_map_pack_zip}' \
+DASH_PORT='${DASH_PORT}' \
+bash -s" <<'REMOTE'
+set -uo pipefail
+
+cleanup_upload() {
+  rm -f -- "${UPLOAD_ZIP}"
+}
+trap cleanup_upload EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+install_map_pack_upload() {
+  local map_packs_dir
+  map_packs_dir="$(
+    "${REMOTE_PYTHON}" - "${DASH_PORT}" <<'PY'
+import json
+import sys
+import urllib.request
+
+port = str(sys.argv[1]).strip() or "8877"
+url = f"http://127.0.0.1:{port}/api/maps/packs"
+try:
+    with urllib.request.urlopen(url, timeout=4) as response:
+        payload = json.loads(response.read().decode("utf-8", "replace"))
+except Exception as exc:
+    print(f"map pack directory lookup failed: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+if not isinstance(payload, dict) or not payload.get("ok"):
+    print("map pack directory lookup returned an invalid payload", file=sys.stderr)
+    raise SystemExit(1)
+packs_dir = str(payload.get("packs_dir_resolved") or "").strip()
+if not packs_dir:
+    print("map pack directory lookup returned no directory", file=sys.stderr)
+    raise SystemExit(1)
+print(packs_dir)
+PY
+  )" || return $?
+  (
+    cd "${REMOTE_ROOT}" || exit $?
+    "${REMOTE_PYTHON}" "${INSTALL_SCRIPT}" \
+      --zip "${UPLOAD_ZIP}" \
+      --packs-dir "${map_packs_dir}" \
+      --yes
+  )
+}
+
+install_status=0
+install_map_pack_upload || install_status=$?
+
+cleanup_status=0
+cleanup_upload || cleanup_status=$?
+trap - EXIT HUP INT TERM
+if [[ "${install_status}" -ne 0 ]]; then
+  exit "${install_status}"
+fi
+exit "${cleanup_status}"
+REMOTE
 fi
 
 target_host="${TARGET#*@}"

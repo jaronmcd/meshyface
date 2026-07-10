@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shlex
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -17,6 +19,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from meshdash import map_packs  # noqa: E402
+from meshdash.html_js import build_dashboard_js  # noqa: E402
 
 
 def _chunk_payload() -> bytes:
@@ -185,37 +188,34 @@ def test_read_chunk_rejects_traversal_and_unknown_paths(packs_dir: Path) -> None
     assert map_packs.read_map_pack_chunk("../etc", "chunks/cities/c3r9.json") is None
 
 
-def test_status_payload_tracks_available_sideload_and_installed(packs_dir: Path) -> None:
+def test_status_payload_tracks_only_local_sideload_and_installed(packs_dir: Path) -> None:
     payload = map_packs.map_pack_status_payload()
     assert payload["ok"] is True
-    entries = {pack["id"]: pack for pack in payload["packs"]}
-    states = {pack_id: pack["state"] for pack_id, pack in entries.items()}
-    assert states.get("global_detail") == "not_installed"
-    assert "install_map_pack.py" in entries["global_detail"]["install_command"]
-    assert "--packs-dir" in entries["global_detail"]["install_command"]
-    assert "--download" in entries["global_detail"]["install_command"]
+    assert payload["packs"] == []
     assert "install_map_pack.py" in payload["install_command_prefix"]
     assert "build_map_pack.py" in payload["build_command_prefix"]
     assert not Path(shlex.split(payload["install_command_prefix"])[0]).is_absolute()
     assert not Path(shlex.split(payload["install_command_prefix"])[1]).is_absolute()
     assert payload["packs_dir_resolved"] == str(packs_dir.resolve())
     assert payload["packs_dir_command"] == str(packs_dir)
-    assert entries["global_detail"]["install_command"].startswith(
-        payload["install_command_prefix"]
-    )
 
-    zip_path = packs_dir / "global_detail.zip"
-    _build_pack_zip(zip_path)
+    zip_path = packs_dir / "mymesh.zip"
+    _build_pack_zip(zip_path, pack_id="mymesh")
     payload = map_packs.map_pack_status_payload()
     entries = {pack["id"]: pack for pack in payload["packs"]}
     states = {pack_id: pack["state"] for pack_id, pack in entries.items()}
-    assert states.get("global_detail") == "sideload_ready"
-    assert "--download" not in entries["global_detail"]["install_command"]
+    assert states == {"mymesh": "sideload_ready"}
+    assert "--download" not in entries["mymesh"]["install_command"]
+    assert "install_map_pack.py" in entries["mymesh"]["install_command"]
+    assert "--packs-dir" in entries["mymesh"]["install_command"]
+    assert entries["mymesh"]["install_command"].startswith(
+        payload["install_command_prefix"]
+    )
 
-    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+    assert map_packs.install_pack_zip("mymesh", zip_path) == ""
     zip_path.unlink()
     payload = map_packs.map_pack_status_payload()
-    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
+    entry = next(p for p in payload["packs"] if p["id"] == "mymesh")
     assert entry["state"] == "installed"
     assert entry["installed"] is True
     assert entry["installed_pack"]["version"] == 1
@@ -227,9 +227,12 @@ def test_status_payload_install_command_uses_portable_default_packs_dir(
 ) -> None:
     monkeypatch.delenv("MESH_DASHBOARD_MAP_PACKS_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
+    packs_dir = tmp_path / "map_packs"
+    packs_dir.mkdir()
+    _build_pack_zip(packs_dir / "mymesh.zip", pack_id="mymesh")
 
     payload = map_packs.map_pack_status_payload()
-    entry = next(p for p in payload["packs"] if p["id"] == "global_detail")
+    entry = next(p for p in payload["packs"] if p["id"] == "mymesh")
     command = shlex.split(entry["install_command"])
     packs_dir = command[command.index("--packs-dir") + 1]
 
@@ -281,10 +284,10 @@ def test_installer_cli_installs_external_zip_and_keeps_it(
     packs_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     zip_path = tmp_path / "elsewhere.zip"
-    _build_pack_zip(zip_path)
+    _build_pack_zip(zip_path, pack_id="mymesh")
 
-    assert _run_installer_cli(monkeypatch, "global_detail", "--zip", str(zip_path)) == 0
-    assert map_packs.load_installed_manifest("global_detail") is not None
+    assert _run_installer_cli(monkeypatch, "--zip", str(zip_path)) == 0
+    assert map_packs.load_installed_manifest("mymesh") is not None
     assert zip_path.exists()
 
 
@@ -301,10 +304,23 @@ def test_installer_cli_rejects_sha256_mismatch(
     assert map_packs.load_installed_manifest("global_detail") is None
 
 
-def test_installer_cli_requires_a_source(
-    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
+def test_installer_cli_requires_pack_id_or_zip_manifest(
+    packs_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert _run_installer_cli(monkeypatch, "global_detail") == 2
+    assert _run_installer_cli(monkeypatch) == 2
+
+    err = capsys.readouterr().err
+    assert "pack id is required unless --zip points to a valid map pack" in err
+
+
+def test_installer_cli_frames_download_as_build_step(
+    packs_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _run_installer_cli(monkeypatch, "global_detail", "--download") == 2
+
+    err = capsys.readouterr().err
+    assert "install_map_pack.py installs local map pack zips" in err
+    assert "scripts/build_map_pack.py --download" in err
 
 
 def test_installer_cli_delete(
@@ -736,6 +752,473 @@ def test_status_payload_uses_manifest_description_for_custom_packs(packs_dir: Pa
     assert entry["state"] == "installed"
     assert entry["label"] == "Region Test"
     assert entry["description"] == "Regional test coverage."
+
+
+def _manifest_for_chunk(
+    chunk: bytes,
+    *,
+    pack_id: str = "global_detail",
+    **overrides: object,
+) -> dict:
+    manifest = {
+        "format": map_packs.PACK_FORMAT,
+        "id": pack_id,
+        "version": 1,
+        "label": "Test Pack",
+        "attribution": "test",
+        "cell_deg": 15,
+        "layers": {
+            "cities": {
+                "kind": "point",
+                "min_zoom": 4,
+                "chunks": {
+                    "c3r9": {
+                        "path": "chunks/cities/c3r9.json",
+                        "bytes": len(chunk),
+                        "sha256": hashlib.sha256(chunk).hexdigest(),
+                        "features": 1,
+                    }
+                },
+            }
+        },
+        "counts": {"cities": 1},
+        "total_bytes": len(chunk),
+    }
+    manifest.update(overrides)
+    return manifest
+
+
+def _write_zip(zip_path: Path, members: dict[str, bytes]) -> None:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, payload in members.items():
+            archive.writestr(name, payload)
+
+
+def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "function settingsMapsMeshSummary(state = latestState)" in js
+    assert 'const host = document.getElementById("settings-maps-build-command");' in js
+    assert "Mesh-sized map pack" in js
+    assert "nodes with GPS. Center" in js
+    assert (
+        "buildCommand = `${buildPrefix} --source-dir map_sources --download "
+        "--center ${mesh.center} --radius-km ${radius}${layersArg} "
+        "--pack-id mymesh --zip mymesh.zip`;"
+    ) in js
+    assert (
+        "buildCommand = `${buildPrefix} --source-dir map_sources --download "
+        "--from-history${layersArg} --pack-id mymesh --zip mymesh.zip`;"
+    ) in js
+    assert "const installCommand = `${installPrefix} --zip mymesh.zip${packsDir}`;" in js
+    assert "appendSettingsMapsCommandRow(card, \"Build\", buildCommand);" in js
+    assert "appendSettingsMapsCommandRow(card, \"Install\", installCommand);" in js
+
+
+def test_dashboard_js_replaces_map_pack_build_placeholder_on_status_error() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    refresh_start = js.index("async function refreshMapsPackStatus()")
+    catch_start = js.index("} catch (err) {", refresh_start)
+    catch_end = js.index("\n        return;", catch_start)
+    catch_block = js[catch_start:catch_end]
+
+    assert 'document.getElementById("settings-maps-build-command")' in catch_block
+    assert "if (buildEl instanceof HTMLElement)" in catch_block
+    assert "buildEl.querySelector" not in catch_block
+    assert 'buildErrEl.className = "settings-maps-pack-empty";' in catch_block
+    assert (
+        'buildErrEl.textContent = "Map pack build command is unavailable.";'
+        in catch_block
+    )
+    assert "buildEl.appendChild(buildErrEl);" in catch_block
+
+
+@pytest.mark.parametrize(
+    ("query_exit", "installer_exit", "expected_exit"),
+    [(0, 0, 0), (0, 7, 7), (9, 0, 9)],
+)
+def test_push_deploy_uses_configured_map_pack_dir_and_always_cleans_upload(
+    tmp_path: Path, query_exit: int, installer_exit: int, expected_exit: int
+) -> None:
+    deploy = (REPO_ROOT / "scripts" / "deploy_meshyface.sh").read_text(
+        encoding="utf-8"
+    )
+    block_start = deploy.index('if [[ -n "${MAP_PACK_ZIP}" ]]')
+    block_end = deploy.index("\ntarget_host=", block_start)
+    install_block = deploy[block_start:block_end]
+
+    assert "/api/maps/packs" in install_block
+    assert 'payload.get("packs_dir_resolved")' in install_block
+    assert '--packs-dir "${map_packs_dir}"' in install_block
+    assert "install_map_pack_upload || install_status=$?" in install_block
+    assert "trap cleanup_upload EXIT" in install_block
+    assert "cleanup_upload || cleanup_status=$?" in install_block
+    assert install_block.index(
+        "install_map_pack_upload || install_status=$?"
+    ) < install_block.index("cleanup_upload || cleanup_status=$?")
+    assert 'exit "${install_status}"' in install_block
+
+    preserve_read = (
+        'MAP_PACKS_DIR="$(read_existing_dashboard_env_value '
+        '"MESH_DASHBOARD_MAP_PACKS_DIR")"'
+    )
+    env_write = "MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}"
+    assert preserve_read in deploy
+    assert env_write in deploy
+    assert deploy.index(preserve_read) < deploy.index(env_write) < block_start
+
+    script_marker = "<<'REMOTE'\n"
+    script_start = install_block.index(script_marker) + len(script_marker)
+    script_end = install_block.rindex("\nREMOTE")
+    remote_script = install_block[script_start:script_end]
+
+    remote_root = tmp_path / "remote root"
+    configured_packs_dir = tmp_path / "configured packs"
+    upload_zip = remote_root / ".meshyface-map-pack-upload.zip"
+    installer = tmp_path / "fake_installer.py"
+    python_wrapper = tmp_path / "fake-python"
+    args_output = tmp_path / "installer-args.json"
+    remote_root.mkdir()
+    upload_zip.write_bytes(b"map pack")
+    installer.write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['ARGS_OUTPUT']).write_text(json.dumps(sys.argv[1:]))\n"
+        "raise SystemExit(int(os.environ['INSTALLER_EXIT']))\n",
+        encoding="utf-8",
+    )
+    python_wrapper.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [[ "${1:-}" == "-" ]]; then\n'
+        "  cat >/dev/null\n"
+        "  printf '%s\\n' \"${PACKS_DIR_RESPONSE}\"\n"
+        "  exit \"${QUERY_EXIT:-0}\"\n"
+        "fi\n"
+        'exec "${REAL_PYTHON}" "$@"\n',
+        encoding="utf-8",
+    )
+    python_wrapper.chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "REMOTE_ROOT": str(remote_root),
+            "REMOTE_PYTHON": str(python_wrapper),
+            "INSTALL_SCRIPT": str(installer),
+            "UPLOAD_ZIP": str(upload_zip),
+            "DASH_PORT": "8877",
+            "ARGS_OUTPUT": str(args_output),
+            "INSTALLER_EXIT": str(installer_exit),
+            "PACKS_DIR_RESPONSE": str(configured_packs_dir),
+            "QUERY_EXIT": str(query_exit),
+            "REAL_PYTHON": sys.executable,
+        }
+    )
+
+    proc = subprocess.run(
+        ["bash", "-s"],
+        input=remote_script,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert proc.returncode == expected_exit, proc.stderr
+    assert not upload_zip.exists()
+    if query_exit == 0:
+        assert json.loads(args_output.read_text(encoding="utf-8")) == [
+            "--zip",
+            str(upload_zip),
+            "--packs-dir",
+            str(configured_packs_dir),
+            "--yes",
+        ]
+    else:
+        assert not args_output.exists()
+
+
+def test_validate_manifest_obj_reports_each_defect() -> None:
+    validate = map_packs._validate_manifest_obj
+    chunk = _chunk_payload()
+
+    assert validate(["not", "a", "dict"]) == "manifest is not an object"
+    assert "unsupported pack format" in validate({"format": "other/1"})
+    assert "no valid pack id" in validate(
+        {"format": map_packs.PACK_FORMAT, "id": "Bad Id!"}
+    )
+    assert "does not match expected" in validate(
+        _manifest_for_chunk(chunk, pack_id="other_pack"), "global_detail"
+    )
+    assert "has no layers" in validate(_manifest_for_chunk(chunk, layers={}))
+    assert "has no layers" in validate(_manifest_for_chunk(chunk, layers="nope"))
+    assert "is not an object" in validate(
+        _manifest_for_chunk(chunk, layers={"cities": "nope"})
+    )
+    assert "has no chunks object" in validate(
+        _manifest_for_chunk(chunk, layers={"cities": {"kind": "point"}})
+    )
+    assert "is not an object" in validate(
+        _manifest_for_chunk(chunk, layers={"cities": {"chunks": {"c3r9": "nope"}}})
+    )
+    assert "unsafe path" in validate(
+        _manifest_for_chunk(
+            chunk,
+            layers={"cities": {"chunks": {"c3r9": {"path": "../../etc/passwd"}}}},
+        )
+    )
+
+
+def test_load_installed_manifest_rejects_bad_id_and_invalid_manifest(
+    packs_dir: Path,
+) -> None:
+    assert map_packs.load_installed_manifest("Bad Id!") is None
+
+    install_dir = packs_dir / "global_detail"
+    install_dir.mkdir()
+    (install_dir / "manifest.json").write_text(
+        json.dumps({"format": "other/1", "id": "global_detail"}), encoding="utf-8"
+    )
+    assert map_packs.load_installed_manifest("global_detail") is None
+
+
+def test_fail_install_swallows_cleanup_errors(
+    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = packs_dir / ".install-x.tmp"
+    staging.mkdir()
+
+    def _broken_rmtree(path: object, **kwargs: object) -> None:
+        raise OSError("cleanup blocked")
+
+    monkeypatch.setattr(map_packs.shutil, "rmtree", _broken_rmtree)
+    assert map_packs._fail_install(staging, "original error") == "original error"
+
+
+def test_install_pack_zip_rejects_missing_or_unreadable_manifest(
+    packs_dir: Path,
+) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+
+    _write_zip(zip_path, {"chunks/cities/c3r9.json": _chunk_payload()})
+    assert map_packs.install_pack_zip("global_detail", zip_path) == (
+        "pack zip has no manifest.json"
+    )
+
+    _write_zip(zip_path, {"manifest.json": b"{not json"})
+    assert "pack manifest unreadable" in map_packs.install_pack_zip(
+        "global_detail", zip_path
+    )
+
+    oversized = b" " * (map_packs._MAX_MANIFEST_BYTES + 1)
+    _write_zip(zip_path, {"manifest.json": oversized})
+    error = map_packs.install_pack_zip("global_detail", zip_path)
+    assert "pack manifest unreadable" in error
+    assert "size limit" in error
+    assert not (packs_dir / ".install-global_detail.tmp").exists()
+
+
+def test_install_pack_zip_rejects_invalid_total_bytes(packs_dir: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    chunk = _chunk_payload()
+
+    for total_bytes, expected in (
+        (-5, "invalid total_bytes"),
+        (map_packs._MAX_INSTALLED_PACK_BYTES + 1, "exceeds installed size limit"),
+        ("not a number", "invalid total_bytes"),
+    ):
+        manifest = _manifest_for_chunk(chunk, total_bytes=total_bytes)
+        _write_zip(
+            zip_path,
+            {
+                "manifest.json": json.dumps(manifest).encode("utf-8"),
+                "chunks/cities/c3r9.json": chunk,
+            },
+        )
+        error = map_packs.install_pack_zip("global_detail", zip_path)
+        assert expected in error
+        assert not (packs_dir / ".install-global_detail.tmp").exists()
+
+
+def test_install_pack_zip_rejects_chunk_without_byte_count(packs_dir: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    chunk = _chunk_payload()
+    manifest = _manifest_for_chunk(chunk)
+    del manifest["layers"]["cities"]["chunks"]["c3r9"]["bytes"]
+    _write_zip(
+        zip_path,
+        {
+            "manifest.json": json.dumps(manifest).encode("utf-8"),
+            "chunks/cities/c3r9.json": chunk,
+        },
+    )
+
+    assert "invalid byte count" in map_packs.install_pack_zip("global_detail", zip_path)
+
+
+def test_install_pack_zip_rejects_missing_chunk_member(packs_dir: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    chunk = _chunk_payload()
+    manifest = _manifest_for_chunk(chunk)
+    _write_zip(zip_path, {"manifest.json": json.dumps(manifest).encode("utf-8")})
+
+    error = map_packs.install_pack_zip("global_detail", zip_path)
+    assert "missing chunk" in error
+    assert not (packs_dir / ".install-global_detail.tmp").exists()
+
+
+def test_install_pack_zip_rejects_cumulative_size_over_limit(packs_dir: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    chunk = _chunk_payload()
+    manifest = _manifest_for_chunk(chunk, total_bytes=map_packs._MAX_INSTALLED_PACK_BYTES)
+    manifest["layers"]["cities"]["chunks"]["c9r9"] = {
+        "path": "chunks/cities/c9r9.json",
+        "bytes": map_packs._MAX_INSTALLED_PACK_BYTES,
+        "sha256": "",
+        "features": 1,
+    }
+    _write_zip(
+        zip_path,
+        {
+            "manifest.json": json.dumps(manifest).encode("utf-8"),
+            "chunks/cities/c3r9.json": chunk,
+        },
+    )
+
+    error = map_packs.install_pack_zip("global_detail", zip_path)
+    assert error == "pack exceeds installed size limit"
+    assert not (packs_dir / ".install-global_detail.tmp").exists()
+
+
+def test_install_pack_zip_rejects_corrupt_zip(packs_dir: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    zip_path.write_bytes(b"this is not a zip archive")
+
+    error = map_packs.install_pack_zip("global_detail", zip_path)
+    assert error.startswith("pack install failed:")
+    assert not (packs_dir / ".install-global_detail.tmp").exists()
+
+
+def test_install_pack_zip_replaces_existing_install_and_stale_staging(
+    packs_dir: Path,
+) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    _build_pack_zip(zip_path)
+    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+
+    staging = packs_dir / ".install-global_detail.tmp"
+    staging.mkdir()
+    (staging / "leftover.txt").write_text("stale", encoding="utf-8")
+
+    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+    assert map_packs.load_installed_manifest("global_detail") is not None
+    assert not staging.exists()
+
+
+def test_install_pack_zip_reports_activation_failure(
+    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    _build_pack_zip(zip_path)
+
+    def _broken_replace(src: object, dst: object) -> None:
+        raise OSError("activation blocked")
+
+    monkeypatch.setattr(map_packs.os, "replace", _broken_replace)
+    error = map_packs.install_pack_zip("global_detail", zip_path)
+
+    assert error.startswith("pack install failed while activating:")
+    assert not (packs_dir / ".install-global_detail.tmp").exists()
+    assert map_packs.load_installed_manifest("global_detail") is None
+
+
+def test_remove_installed_pack_reports_delete_failure(
+    packs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    _build_pack_zip(zip_path)
+    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+
+    def _broken_rmtree(path: object, **kwargs: object) -> None:
+        raise OSError("delete blocked")
+
+    monkeypatch.setattr(map_packs.shutil, "rmtree", _broken_rmtree)
+    error = map_packs.remove_installed_pack("global_detail")
+    assert error.startswith("failed to delete pack:")
+
+
+def test_status_payload_lists_unknown_sideload_zip(packs_dir: Path) -> None:
+    (packs_dir / "region_custom.zip").write_bytes(b"placeholder zip bytes")
+
+    payload = map_packs.map_pack_status_payload()
+    entry = next(p for p in payload["packs"] if p["id"] == "region_custom")
+    assert entry["state"] == "sideload_ready"
+    assert entry["sideload_ready"] is True
+    assert "--download" not in entry["install_command"]
+
+
+def test_installed_pack_summary_tolerates_bad_numbers(packs_dir: Path) -> None:
+    chunk = _chunk_payload()
+    manifest = _manifest_for_chunk(
+        chunk, pack_id="region_weird", total_bytes=["bad"], version=["bad"]
+    )
+    install_dir = packs_dir / "region_weird"
+    (install_dir / "chunks" / "cities").mkdir(parents=True)
+    (install_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (install_dir / "chunks" / "cities" / "c3r9.json").write_bytes(chunk)
+
+    payload = map_packs.map_pack_status_payload()
+    entry = next(p for p in payload["packs"] if p["id"] == "region_weird")
+    assert entry["installed"] is True
+    assert entry["installed_pack"]["total_bytes"] == 0
+    assert entry["installed_pack"]["version"] == 0
+    assert entry["installed_pack"]["chunk_count"] == 1
+
+
+def test_load_map_pack_manifest_payload_errors(packs_dir: Path) -> None:
+    invalid = map_packs.load_map_pack_manifest_payload("Bad Id!")
+    assert invalid == {"ok": False, "error": "invalid pack id", "http_status": 400}
+
+    missing = map_packs.load_map_pack_manifest_payload("global_detail")
+    assert missing == {"ok": False, "error": "pack is not installed", "http_status": 404}
+
+
+def test_read_chunk_rejects_symlink_escape(packs_dir: Path, tmp_path: Path) -> None:
+    zip_path = packs_dir / "global_detail.zip"
+    _build_pack_zip(zip_path)
+    assert map_packs.install_pack_zip("global_detail", zip_path) == ""
+
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    chunk_path = packs_dir / "global_detail" / "chunks" / "cities" / "c3r9.json"
+    chunk_path.unlink()
+    chunk_path.symlink_to(outside)
+
+    assert map_packs.read_map_pack_chunk("global_detail", "chunks/cities/c3r9.json") is None
+
+
+def test_python_command_path_fallbacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(map_packs, "_app_dir", lambda: tmp_path / "app")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(sys, "executable", "")
+    assert map_packs._python_command_path() == "python"
+
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3")
+    assert map_packs._python_command_path() == "python"
+
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "venvx" / "python"))
+    assert map_packs._python_command_path() == "venvx/python"
 
 
 def test_dashboard_routes_serve_pack_endpoints(packs_dir: Path) -> None:

@@ -52,7 +52,7 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             "revision": {
                 "version": "1.2.3",
                 "commit": "abc123456789",
-                "build_ref": "PR #42 abc1234",
+                "build_ref": "abc123456789 · PR #42",
                 "pr_number": "42",
             },
         },
@@ -98,17 +98,19 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
     deps = _make_deps()
 
     handle_dashboard_get(object(), path="/", query="", deps=deps)
-    handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
+    handle_dashboard_get(object(), path="/api/revision", query="", deps=deps)
     handle_dashboard_get(object(), path="/api/health", query="", deps=deps)
     handle_dashboard_get(object(), path="/metrics", query="", deps=deps)
 
     assert deps.recorder.html == [("<html>dashboard</html>", True)]
     assert deps.recorder.json[0][0] == 200
+    assert deps.recorder.json[0][1]["revision"] == "abc123456789 · PR #42"
     assert deps.recorder.json[0][1]["version"] == "1.2.3"
+    assert deps.recorder.json[0][1]["package_version"] == "1.2.3"
     assert deps.recorder.json[0][1]["commit"] == "abc123456789"
-    assert deps.recorder.json[0][1]["build_ref"] == "PR #42 abc1234"
+    assert deps.recorder.json[0][1]["build_ref"] == "abc123456789 · PR #42"
     assert deps.recorder.json[0][1]["pr_number"] == "42"
-    assert deps.recorder.json[0][1]["label"] == "Rev: PR #42 abc1234"
+    assert deps.recorder.json[0][1]["label"] == "Rev: abc123456789 · PR #42"
     assert deps.recorder.json[1][0] == 200
     assert deps.recorder.json[1][1]["status"] == "ok"
     assert deps.recorder.json[1][1]["node_count"] == 3
@@ -117,18 +119,23 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
     assert "meshdash_radio_link_up 1" in deps.recorder.text[0][1]
 
 
-def test_dashboard_get_reports_version_and_health_errors() -> None:
+def test_dashboard_get_revision_falls_back_when_state_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def failing_state() -> dict[str, object]:
         raise RuntimeError("state unavailable")
 
+    monkeypatch.setenv("MESH_DASH_VERSION", "9.8.7")
+    monkeypatch.setenv("MESH_DASH_GIT_COMMIT", "fallback123456")
+    monkeypatch.setenv("MESH_DASH_PR_NUMBER", "64")
     deps = _make_deps(state_fn=failing_state)
 
-    handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
+    handle_dashboard_get(object(), path="/api/revision", query="", deps=deps)
     handle_dashboard_get(object(), path="/api/health", query="", deps=deps)
 
-    assert deps.recorder.json[0][0] == 500
-    assert deps.recorder.json[0][1]["ok"] is False
-    assert "state unavailable" in deps.recorder.json[0][1]["error"]
+    assert deps.recorder.json[0][0] == 200
+    assert deps.recorder.json[0][1]["revision"] == "fallback1234 · PR #64"
+    assert deps.recorder.json[0][1]["version"] == "9.8.7"
     assert deps.recorder.json[1][0] == 503
     assert deps.recorder.json[1][1]["status"] == "error"
 
@@ -141,12 +148,26 @@ def test_dashboard_get_version_falls_back_to_short_commit_ref() -> None:
         "pr_number": "#77",
     }
 
-    handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
+    handle_dashboard_get(object(), path="/api/revision", query="", deps=deps)
 
     assert deps.recorder.json[0][0] == 200
-    assert deps.recorder.json[0][1]["build_ref"] == "PR #77 fedcba9"
+    assert deps.recorder.json[0][1]["revision"] == "fedcba987654 · PR #77"
+    assert deps.recorder.json[0][1]["version"] == "1.2.3"
+    assert deps.recorder.json[0][1]["package_version"] == "1.2.3"
+    assert deps.recorder.json[0][1]["build_ref"] == "fedcba987654 · PR #77"
     assert deps.recorder.json[0][1]["pr_number"] == "77"
-    assert deps.recorder.json[0][1]["label"] == "Rev: PR #77 fedcba9"
+    assert deps.recorder.json[0][1]["label"] == "Rev: fedcba987654 · PR #77"
+
+
+def test_dashboard_get_keeps_version_endpoint_as_compatibility_alias() -> None:
+    deps = _make_deps()
+
+    handle_dashboard_get(object(), path="/api/version", query="", deps=deps)
+
+    payload = deps.recorder.json[0][1]
+    assert payload["revision"] == "abc123456789 · PR #42"
+    assert payload["version"] == "1.2.3"
+    assert payload["package_version"] == "1.2.3"
 
 
 def test_dashboard_get_serves_system_update_status(monkeypatch: pytest.MonkeyPatch) -> None:

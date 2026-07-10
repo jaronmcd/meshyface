@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a downloadable offline map expansion pack.
+"""Build a local map expansion pack for Meshyface.
 
 The pack bundles Natural Earth 10m vector layers plus GeoNames cities500
 place labels, split into 15-degree grid chunks so the dashboard can load
@@ -38,12 +38,12 @@ from build_offline_atlas import (
 )
 
 PACK_FORMAT = "meshdash-map-pack/1"
-PACK_ID = "global_detail"
-PACK_LABEL = "Global Detail"
+PACK_ID = "mymesh"
+PACK_LABEL = "My Mesh Detail"
 PACK_DESCRIPTION = (
     "Natural Earth 1:10m global vector detail (coastline, borders, states, "
     "rivers, lakes, urban areas, roads, railroads, parks) plus GeoNames "
-    "cities500 place labels."
+    "cities500 place labels, built as a local dashboard map expansion."
 )
 PACK_ATTRIBUTION = "Natural Earth (public domain) | GeoNames.org (CC BY 4.0)"
 CELL_DEG = 15.0
@@ -1140,7 +1140,7 @@ def main() -> int:
             "    --zip peaks-area.zip\n"
             "\n"
             "  # install the result (shows size + asks to confirm)\n"
-            "  python scripts/install_map_pack.py mymesh_pack --zip mymesh.zip\n"
+            "  python scripts/install_map_pack.py --zip mymesh.zip\n"
         ),
     )
     parser.add_argument("--source-dir", type=Path, required=True,

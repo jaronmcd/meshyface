@@ -44,8 +44,6 @@ history search, and mesh utility commands.
 
 ## Screenshots
 
-Network workspace views from a live Meshtastic session.
-
 ### Live network map
 
 ![Live network map.](docs/screenshots/network-map.png)
@@ -82,6 +80,17 @@ Telemetry chart comparing sensor history across multiple nodes.
 
 Top cards for radio activity, node counts, packets, links, battery, and channel
 use.
+
+### Theme customization
+
+Themes can reshape the full dashboard with custom colors, gradients,
+transparency, blur, fonts, particles, or a live-map background. These example
+palettes are custom themes; select any preview to open its full-resolution
+screenshot.
+
+| Signal Green | Neon Magenta | Aurora Relay |
+| --- | --- | --- |
+| [![Signal Green theme with a deep green live-map palette.](docs/screenshots/theme-signal-green.png)](docs/screenshots/theme-signal-green.png) | [![Neon Magenta theme with translucent purple panels and particles.](docs/screenshots/theme-neon-magenta.png)](docs/screenshots/theme-neon-magenta.png) | [![Aurora theme with teal glass, a navy-plum gradient, and amber links.](docs/screenshots/theme-aurora-relay.png)](docs/screenshots/theme-aurora-relay.png) |
 
 ## System Architecture
 
@@ -234,10 +243,18 @@ Related environment variables:
 - `MESH_DASH_GIT_COMMIT`
 - `MESH_DASH_PR_NUMBER`
 
-Runtime revision labels are generated from the current git commit. Set
-`MESH_DASH_PR_NUMBER` in PR preview deployments to show labels like
-`Rev: PR #43 abc1234`; `MESH_DASH_VERSION` remains a release/package version
-override rather than a per-PR bump requirement.
+Runtime identity comes from the 12-character git commit, followed by an
+optional pull-request number, for example `abc123456789 · PR #43`. The Software
+panel displays this single revision instead of a package version. GitHub
+merge/squash commit subjects are detected automatically; unmerged preview
+deployments can set `MESH_DASH_PR_NUMBER` explicitly.
+
+`/api/revision` is the canonical identity endpoint. Its `revision` and
+`build_ref` fields report the runtime revision, while `commit` and `pr_number`
+remain available as structured fields. `/api/version` remains as a legacy
+endpoint, and its `version` field retains release/package metadata.
+`MESH_DASH_VERSION` is likewise reserved for explicit release packaging and is
+not shown in the dashboard.
 
 ### History and analytics
 

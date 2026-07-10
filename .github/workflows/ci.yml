@@ -77,7 +77,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t meshyface:ci .
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          docker build \
+            --build-arg MESH_DASH_GIT_COMMIT="${GITHUB_SHA:0:12}" \
+            --build-arg MESH_DASH_PR_NUMBER="${PR_NUMBER}" \
+            -t meshyface:ci .
 
       - name: Check image entrypoint
         run: docker run --rm meshyface:ci --help

@@ -95,7 +95,7 @@
       registerConsoleCommand({{
         name: "mappacks",
         usage: "mappacks [layers=<a,b,c>] [radius=<km>]",
-        description: "Offline map pack commands sized to your mesh; layers/radius tailor the geofence.",
+        description: "Local map pack commands sized to your mesh; installed packs work offline.",
         supportsVerbosity: false,
         paramGhost: (state, ctx) => {{
           const line = String(ctx && ctx.draft ? ctx.draft : "");
@@ -196,7 +196,7 @@
             ? ` --packs-dir ${{payload.packs_dir_command_arg}}`
             : "";
           lines.push("[mappacks] then install it:");
-          lines.push(`  ${{prefix}} mymesh --zip mymesh.zip${{packsDir}}`);
+          lines.push(`  ${{prefix}} --zip mymesh.zip${{packsDir}}`);
           lines.push(`  # list installed: ${{prefix}} --list`);
           lines.push(`  # remove a pack: ${{prefix}} <pack_id> --delete`);
           lines.push("[mappacks] pack status and per-pack install commands: Settings -> Maps.");

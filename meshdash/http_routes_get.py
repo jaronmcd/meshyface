@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from urllib.parse import parse_qs
 
+from . import __version__ as _PACKAGE_VERSION
 from .api_metrics import (
     build_prometheus_metrics_text as _build_prometheus_metrics_text_helper,
     derive_live_packet_count as _derive_live_packet_count_helper,
@@ -44,7 +45,10 @@ from .revision import (
     build_revision_label as _build_revision_label_helper,
     build_revision_ref as _build_revision_ref_helper,
     build_revision_title as _build_revision_title_helper,
+    detect_git_commit as _detect_git_commit_helper,
+    detect_git_pr_number as _detect_git_pr_number_helper,
     normalize_pr_number as _normalize_pr_number_helper,
+    revision_info as _revision_info_helper,
 )
 from .helpers import to_int as _to_int_helper
 
@@ -295,20 +299,46 @@ def _summary_from_state_payload(payload: object) -> Mapping[str, object]:
     return {}
 
 
-def _build_version_payload(state_payload: object) -> dict[str, object]:
+def _runtime_revision_state_payload() -> dict[str, object]:
+    project_root = str(Path(__file__).resolve().parents[1])
+    cwd = os.getcwd()
+    revision = _revision_info_helper(
+        version_raw=os.environ.get("MESH_DASH_VERSION"),
+        default_version=_PACKAGE_VERSION,
+        unknown_git_commit="nogit",
+        detect_commit=lambda: _detect_git_commit_helper(
+            os.environ.get("MESH_DASH_GIT_COMMIT"),
+            project_root,
+            cwd,
+            "nogit",
+        ),
+        pr_number_raw=os.environ.get("MESH_DASH_PR_NUMBER", ""),
+        detect_pr_number=lambda: _detect_git_pr_number_helper("", project_root, cwd),
+    )
+    return {"summary": {"revision": revision.as_dict()}}
+
+
+def _build_revision_payload(state_payload: object) -> dict[str, object]:
     summary = _summary_from_state_payload(state_payload)
     revision = summary.get("revision") if isinstance(summary, Mapping) else None
     revision_map = revision if isinstance(revision, Mapping) else {}
-    version = str(revision_map.get("version") or "0.0.0")
+    package_version = str(
+        revision_map.get("package_version") or revision_map.get("version") or "0.0.0"
+    )
     commit = str(revision_map.get("commit") or "nogit")
     pr_number = _normalize_pr_number_helper(revision_map.get("pr_number"))
     build_ref = str(revision_map.get("build_ref") or _build_revision_ref_helper(commit, pr_number))
     label = str(revision_map.get("label") or _build_revision_label_helper(build_ref))
-    title = str(revision_map.get("title") or _build_revision_title_helper(version, commit, build_ref))
+    title = str(
+        revision_map.get("title")
+        or _build_revision_title_helper(package_version, commit, build_ref)
+    )
     deploy_payload_hash = str(os.environ.get("MESH_DASH_DEPLOY_PAYLOAD_HASH") or "").strip()
     return {
         "ok": True,
-        "version": version,
+        "revision": build_ref,
+        "version": package_version,
+        "package_version": package_version,
         "commit": commit,
         "build_ref": build_ref,
         "pr_number": pr_number or None,
@@ -362,18 +392,13 @@ def handle_dashboard_get(
     if _write_vendor_asset_response(handler, path=path):
         return
 
-    if path == "/api/version":
+    if path in ("/api/revision", "/api/version"):
         try:
             state_payload = _state_snapshot_for_ops(deps.state_fn)
-            payload = _build_version_payload(state_payload)
-            deps.write_json_response_fn(handler, status_code=200, payload_obj=payload, no_store=True)
-        except Exception as exc:
-            deps.write_json_response_fn(
-                handler,
-                status_code=500,
-                payload_obj={"ok": False, "error": f"version check failed: {exc}"},
-                no_store=True,
-            )
+        except Exception:
+            state_payload = _runtime_revision_state_payload()
+        payload = _build_revision_payload(state_payload)
+        deps.write_json_response_fn(handler, status_code=200, payload_obj=payload, no_store=True)
         return
 
     if path == "/api/health":

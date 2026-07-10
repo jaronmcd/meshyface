@@ -2,8 +2,9 @@ x-meshyface-common: &meshyface-common
   build:
     context: .
     args:
+      MESH_DASH_VERSION: ${MESH_DASH_VERSION:-}
       MESH_DASH_GIT_COMMIT: ${MESH_DASH_GIT_COMMIT:-nogit}
-      MESH_DASH_VERSION: ${MESH_DASH_VERSION:-0.1.0}
+      MESH_DASH_PR_NUMBER: ${MESH_DASH_PR_NUMBER:-}
   image: meshyface:local
   restart: unless-stopped
   ports:

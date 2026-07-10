@@ -79,6 +79,7 @@ from meshdash.history_store_runtime import HistoryStore
 from meshdash.revision import (
     RevisionInfo,
     detect_git_commit as _detect_git_commit_helper,
+    detect_git_pr_number as _detect_git_pr_number_helper,
     revision_info as _build_revision_info_helper,
 )
 from meshdash.tracker_runtime import DashboardTracker, seed_tracker_from_node_db as _seed_tracker_from_node_db_helper
@@ -207,6 +208,14 @@ def _detect_git_commit() -> Optional[str]:
     )
 
 
+def _detect_git_pr_number() -> Optional[str]:
+    return _detect_git_pr_number_helper(
+        explicit_pr_number="",
+        script_dir=os.path.dirname(os.path.abspath(__file__)),
+        cwd=os.getcwd(),
+    )
+
+
 def _revision_info() -> RevisionInfo:
     return _build_revision_info_helper(
         version_raw=os.environ.get("MESH_DASH_VERSION"),
@@ -214,6 +223,7 @@ def _revision_info() -> RevisionInfo:
         unknown_git_commit=UNKNOWN_GIT_COMMIT,
         detect_commit=_detect_git_commit,
         pr_number_raw=os.environ.get("MESH_DASH_PR_NUMBER", ""),
+        detect_pr_number=_detect_git_pr_number,
     )
 
 

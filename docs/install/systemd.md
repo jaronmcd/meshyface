@@ -44,11 +44,17 @@ MESH_GATEWAY_HOST=192.168.1.42
 MESH_GATEWAY_PORT=4403
 MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
 MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+MESH_DASHBOARD_MAP_PACKS_DIR=/var/lib/meshyface/map_packs
 PYTHONUNBUFFERED=1
 EOF
 sudo chown root:dialout /etc/meshyface/dashboard.env
 sudo chmod 0640 /etc/meshyface/dashboard.env
 ```
+
+Git checkouts detect their commit automatically. For an unmerged PR preview,
+add `MESH_DASH_PR_NUMBER=<number>` to `dashboard.env`; remove that line when the
+host returns to a normal branch. Do not pin `MESH_DASH_GIT_COMMIT` on this
+mutable checkout because updates should detect the new `HEAD` automatically.
 
 For a USB serial radio, use this `dashboard.env` instead:
 
@@ -57,6 +63,7 @@ sudo tee /etc/meshyface/dashboard.env >/dev/null <<'EOF'
 MESH_DASH_MESH_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
 MESH_DASH_HISTORY_DB=/var/lib/meshyface/mesh_dashboard_history.sqlite3
 MESH_DASH_THEME_SETTINGS_FILE=/var/lib/meshyface/mesh_dashboard_theme_settings.json
+MESH_DASHBOARD_MAP_PACKS_DIR=/var/lib/meshyface/map_packs
 PYTHONUNBUFFERED=1
 EOF
 sudo chown root:dialout /etc/meshyface/dashboard.env

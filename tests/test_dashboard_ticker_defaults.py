@@ -100,21 +100,21 @@ def test_dashboard_exposes_bot_ticker_gated_by_runtime() -> None:
     assert 'applyLayoutView(navigationTarget, true);' in js
 
 
-def test_dashboard_js_defaults_live_update_ticker_to_disabled() -> None:
+def test_dashboard_js_does_not_include_live_update_ticker() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert "update_ticker_enabled: false," in js
-    assert "raw.update_ticker_enabled" in js
-    assert "function topbarUpdateTickerEnabled() {" in js
-    assert "prefs.update_ticker_enabled = !!liveUpdateToggle.checked;" in js
-    assert "topbarUpdateTickerHasRenderableContent" not in js
-    assert "if (topbarUpdateTickerEnabled()) {" in js
-    assert "setTopbarUpdateTickerVisibility(tickerEl, topbarUpdateTickerEnabled());" in js
-    assert "if (!topbarUpdateTickerEnabled()) {" in js
+    assert "topbarUpdateTicker" not in js
+    assert "publishTopbarUpdateTickerEvent" not in js
+    assert "update_ticker_enabled" not in js
+    assert "updateTickerEnabled" not in js
+    assert "show_update_ticker" not in js
+    assert "showUpdateTicker" not in js
+    assert "node_online_oneshot" not in js
+    assert "topbarOneshot" not in js
     assert "Ticker preferences saved locally." not in js
     assert "Live update ticker shown." not in js
     assert "Live update ticker hidden." not in js
@@ -506,7 +506,7 @@ def test_render_html_widens_ticker_cards_for_phone_swipe_scrolling() -> None:
     assert "scroll-snap-align: start;" in html
 
 
-def test_render_html_exposes_live_update_ticker_toggle_in_settings() -> None:
+def test_render_html_omits_live_update_ticker_toggle_in_settings() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -520,9 +520,10 @@ def test_render_html_exposes_live_update_ticker_toggle_in_settings() -> None:
         revision_title="test",
     )
 
-    assert 'id="settings-ticker-live-update-enabled"' in html
-    assert "Show live update ticker" in html
-    assert "sideways scrolling live-update bar" in html
+    assert 'id="settings-ticker-live-update-enabled"' not in html
+    assert "Show live update ticker" not in html
+    assert "sideways scrolling live-update bar" not in html
+    assert 'id="topbar-update-ticker"' not in html
 
 
 def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> None:

@@ -47,14 +47,6 @@
   <div id="dashboard-livemap-bg" class="{dashboard_livemap_bg_class}" aria-hidden="true"{dashboard_livemap_bg_attrs}></div>
   <div class="topbar">
     <div class="sub">
-      <div id="topbar-update-ticker" class="topbar-update-ticker workspace-update-ticker" role="status" aria-live="polite" aria-label="Live update ticker" hidden>
-        <div id="topbar-update-viewport" class="topbar-update-viewport">
-          <div id="topbar-update-track" class="topbar-update-track">
-            <span id="topbar-update-text-primary" class="topbar-update-text"></span>
-            <span id="topbar-update-text-secondary" class="topbar-update-text" aria-hidden="true"></span>
-          </div>
-        </div>
-      </div>
       <div class="summary-ticker-row" aria-label="Summary tickers">
         <button
           id="summary-ticker-density-toggle"
@@ -958,8 +950,10 @@
             <h3>Offline Maps</h3>
             <div class="settings-fields">
               <div class="settings-help-note">
-                Map packs add optional detail to offline maps. Install packs from this dashboard computer;
-                once installed, the added layers stay local and work without internet.
+                Map packs are local dashboard expansions. Build a pack for your mesh, install the zip from this dashboard computer, and the added layers stay local without internet.
+              </div>
+              <div id="settings-maps-build-command" class="settings-maps-build-command" aria-live="polite">
+                <div class="settings-maps-pack-empty">Loading mesh map pack command...</div>
               </div>
               <div id="settings-maps-pack-list" class="settings-maps-pack-list" aria-live="polite">
                 <div class="settings-maps-pack-empty">Loading map pack status...</div>
@@ -1859,13 +1853,6 @@
               <div class="settings-help-note">
                 Choose which topbar tickers are visible, control their order, and tune minor behavior per ticker.
               </div>
-              <label class="settings-field settings-inline">
-                <input id="settings-ticker-live-update-enabled" type="checkbox" />
-                <span>Show live update ticker</span>
-              </label>
-              <div class="settings-help-note">
-                Controls the sideways scrolling live-update bar under the top summary cards.
-              </div>
               <div class="settings-ticker-shell">
                 <div class="settings-ticker-list-wrap">
                   <div class="settings-label">Available tickers</div>
@@ -2397,8 +2384,7 @@
             <h3>Software</h3>
             <div class="settings-fields">
               <div class="chat-settings-meta-list">
-                <div class="chat-settings-meta-item">Version: <span id="settings-software-version">loading...</span></div>
-                <div class="chat-settings-meta-item">Git: <span id="settings-software-commit">loading...</span></div>
+                <div class="chat-settings-meta-item">Revision: <span id="settings-software-revision">loading...</span></div>
               </div>
               <div class="settings-update-panel">
                 <div id="settings-update-status" class="settings-update-status" aria-live="polite">Update status not checked.</div>
