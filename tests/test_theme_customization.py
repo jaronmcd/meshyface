@@ -1148,7 +1148,18 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert '<option value="down-right">Down right</option>' in html
     assert 'id="settings-appearance-badge-emoji"' not in html
     assert "theme-live-preview" not in html
-    assert "theme-preview" not in html
+    assert 'id="theme-preview"' not in html
+    assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
+    assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
+    assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "themeEditableSettingsForPreset(themePresetSelected)" in js
+    assert "mode: resolvedMeshyfaceProfileThemeMode()," in js
+    assert '? currentMeshyfaceProfileThemeRecipe()' in js
+    assert "...(theme ? { theme } : {})," in js
+    assert "function meshyfaceProfileThemePreviewHtml(appearanceEntry, scope = \"node\")" in js
+    assert 'meshyfaceProfileThemePreviewHtml(appearanceEntry, "node")' in js
+    assert 'meshyfaceProfileThemePreviewHtml(appearanceEntry, "chat")' in js
+    assert "node-profile-theme-swatch" in js
     assert "Shared surface wash" not in html
     assert "Subtle panel and note color" not in html
     assert "Text" in html

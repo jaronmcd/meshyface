@@ -7271,6 +7271,39 @@
     .network-graph-node.is-tagged.is-selected .network-graph-node-core {{
       stroke-width: 3;
     }}
+    .network-graph-node-theme-preview-fo {{
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 140ms ease;
+    }}
+    .network-graph-node.has-theme-preview .network-graph-node-theme-preview-fo {{
+      opacity: 1;
+      visibility: visible;
+    }}
+    .network-graph-node-theme-preview-surface {{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      border: 1px solid var(--node-profile-theme-line, transparent);
+      border-radius: 50%;
+      background: var(--node-profile-theme-gradient, transparent);
+      box-shadow: inset 0 0 4px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 28%, transparent);
+    }}
+    .network-graph-node-theme-preview-surface > span {{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 34%;
+      height: 34%;
+      border: 1px solid var(--node-profile-theme-contrast, #ffffff);
+      border-radius: 50%;
+      background: var(--node-profile-theme-base, var(--accent));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-line, var(--accent)) 78%, transparent);
+      transform: translate(-50%, -50%);
+    }}
     .network-graph-node-label {{
       fill: #284335;
       font-size: var(--network-graph-label-font-size, 10px);
@@ -10449,6 +10482,41 @@
     }}
     .chat-feed-item.profiled-node {{
       border-color: var(--node-profile-border, var(--chat-feed-border-color));
+    }}
+    .node-profile-theme-swatch {{
+      position: relative;
+      display: inline-flex;
+      width: 22px;
+      height: 16px;
+      flex: 0 0 22px;
+      box-sizing: border-box;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid var(--node-profile-theme-line, var(--node-profile-border, var(--accent)));
+      border-radius: 5px;
+      background: var(--node-profile-theme-gradient, var(--node-profile-bg));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 18%, transparent);
+      vertical-align: middle;
+    }}
+    .node-profile-theme-swatch.is-chat {{
+      width: 18px;
+      height: 14px;
+      flex-basis: 18px;
+      border-radius: 4px;
+    }}
+    .node-profile-theme-swatch > span {{
+      display: block;
+      width: 6px;
+      height: 6px;
+      border: 1px solid var(--node-profile-theme-contrast, #ffffff);
+      border-radius: 50%;
+      background: var(--node-profile-theme-base, var(--accent));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-line, var(--accent)) 70%, transparent);
+    }}
+    .node-profile-theme-swatch.is-chat > span {{
+      width: 5px;
+      height: 5px;
     }}
     .dashboard-color-picker-control {{
       display: flex;

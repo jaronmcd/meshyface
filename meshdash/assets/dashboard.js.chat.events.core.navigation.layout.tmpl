@@ -6476,6 +6476,10 @@
             : null);
         const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
         const isProfiledNode = hasNodeAppearance && !isTaggedNode;
+        const profileTheme = isProfiledNode && typeof normalizeMeshyfaceProfileTheme === "function"
+          ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
+          : null;
+        const hasProfileThemePreview = !!profileTheme;
         const appearanceStyleVars = (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function")
           ? nodeAppearanceStyleVars(appearanceEntry)
           : "";
@@ -6507,12 +6511,15 @@
           isSelectedNode ? "is-selected" : "",
           hasNodeAppearance ? "is-tagged" : "",
           isProfiledNode ? "is-profiled" : "",
+          hasProfileThemePreview ? "has-theme-preview" : "",
           item.detached ? "is-detached" : "",
           item.broadcastOnly ? "is-broadcast-only" : "",
           `label-priority-${{labelPriority}}`,
         ].filter(Boolean).join(" ");
         const emojiBoxSize = Math.max(24, Math.round(Number(item.radius) * 2.5));
         const emojiBoxOffset = -(emojiBoxSize / 2);
+        const themePreviewBoxSize = Math.max(10, Number(item.radius) * 1.48);
+        const themePreviewBoxOffset = -(themePreviewBoxSize / 2);
         return `
           <g
             class="${{classes}}"
@@ -6521,6 +6528,13 @@
             transform="translate(${{Number(item.x).toFixed(1)}} ${{Number(item.y).toFixed(1)}})"
           >
             <circle class="network-graph-node-core" r="${{Number(item.radius).toFixed(1)}}"></circle>
+            ${{
+              hasProfileThemePreview
+                ? `<foreignObject class="network-graph-node-theme-preview-fo" x="${{themePreviewBoxOffset.toFixed(1)}}" y="${{themePreviewBoxOffset.toFixed(1)}}" width="${{themePreviewBoxSize.toFixed(1)}}" height="${{themePreviewBoxSize.toFixed(1)}}" aria-hidden="true">
+                    <div xmlns="http://www.w3.org/1999/xhtml" class="network-graph-node-theme-preview-surface"><span></span></div>
+                  </foreignObject>`
+                : ""
+            }}
             ${{
               nodeEmoji
                 ? `<foreignObject class="network-graph-node-emoji-fo" x="${{emojiBoxOffset.toFixed(1)}}" y="${{emojiBoxOffset.toFixed(1)}}" width="${{emojiBoxSize.toFixed(1)}}" height="${{emojiBoxSize.toFixed(1)}}" aria-hidden="true">
@@ -6633,7 +6647,8 @@
       hash = hashMixInt(hash, items.length);
       for (const item of items) {{
         const pos = positions.get(item && item.nodeId) || item || {{}};
-        hash = hashMixStr(hash, normalizeNodeId(item && item.nodeId));
+        const itemNodeId = normalizeNodeId(item && item.nodeId);
+        hash = hashMixStr(hash, itemNodeId);
         hash = hashMixInt(hash, Math.round(Number(pos.x) * 10) || 0);
         hash = hashMixInt(hash, Math.round(Number(pos.y) * 10) || 0);
         hash = hashMixInt(hash, Math.round(Number(item && item.radius) * 10) || 0);
@@ -6641,6 +6656,12 @@
         hash = hashMixInt(hash, item && item.detached ? 1 : 0);
         hash = hashMixInt(hash, item && item.broadcastOnly ? 1 : 0);
         hash = hashMixInt(hash, item && item.showLabel ? 1 : 0);
+        const appearanceEntry = itemNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(itemNodeId)
+          : null;
+        hash = hashMixStr(hash, appearanceEntry && typeof meshyfaceProfileThemeSignature === "function"
+          ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+          : "");
       }}
       hash = hashMixInt(hash, edges.length);
       for (const edge of edges) {{
@@ -6729,6 +6750,9 @@
             String(appearanceEntry.source || "manual-tag"),
             String(preset.color || ""),
             String(preset.vibrance || ""),
+            typeof meshyfaceProfileThemeSignature === "function"
+              ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+              : "",
           ].join(":"));
         }}
       }}
@@ -6807,8 +6831,12 @@
             ? effectiveNodeAppearanceForNode(item.nodeId)
             : null);
         const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
+        const profileTheme = hasNodeAppearance && !isTaggedNode && typeof normalizeMeshyfaceProfileTheme === "function"
+          ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
+          : null;
         nodeEl.classList.toggle("is-tagged", hasNodeAppearance);
         nodeEl.classList.toggle("is-profiled", hasNodeAppearance && !isTaggedNode);
+        nodeEl.classList.toggle("has-theme-preview", !!profileTheme);
         if (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function") {{
           const appearanceStyleVars = nodeAppearanceStyleVars(appearanceEntry);
           if (appearanceStyleVars) {{

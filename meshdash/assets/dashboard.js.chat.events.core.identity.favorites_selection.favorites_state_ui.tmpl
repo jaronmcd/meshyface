@@ -288,6 +288,204 @@
       return "";
     }}
 
+    const meshyfaceProfileThemeVersion = 1;
+    const meshyfaceProfileThemeKeys = new Set([
+      "version",
+      "base_color",
+      "line_color",
+      "line_contrast_color",
+      "gradient_primary_start_color",
+      "gradient_primary_end_color",
+      "color_depth",
+      "foreground_transparency",
+      "foreground_blur",
+      "text_font",
+      "gradient_primary_type",
+      "gradient_primary_direction",
+      "mode",
+    ]);
+    const meshyfaceProfileThemeTextFonts = new Set(["system", "compact", "rounded", "mono", "serif"]);
+    const meshyfaceProfileThemeGradientTypes = new Set(["linear", "radial"]);
+    const meshyfaceProfileThemeGradientDirections = new Set([
+      "right",
+      "left",
+      "down",
+      "up",
+      "down-right",
+      "down-left",
+      "up-right",
+      "up-left",
+      "center",
+    ]);
+    const meshyfaceProfileThemeModes = new Set(["light", "dark"]);
+    const meshyfaceProfileThemeGradientDirectionCss = Object.freeze({{
+      right: {{ linear: "to right", radial: "circle at left center" }},
+      left: {{ linear: "to left", radial: "circle at right center" }},
+      down: {{ linear: "to bottom", radial: "circle at center top" }},
+      up: {{ linear: "to top", radial: "circle at center bottom" }},
+      "down-right": {{ linear: "135deg", radial: "circle at top left" }},
+      "down-left": {{ linear: "225deg", radial: "circle at top right" }},
+      "up-right": {{ linear: "45deg", radial: "circle at bottom left" }},
+      "up-left": {{ linear: "315deg", radial: "circle at bottom right" }},
+      center: {{ linear: "to right", radial: "circle at center" }},
+    }});
+
+    function normalizeMeshyfaceProfileThemeInteger(value, minimum, maximum) {{
+      if (typeof value !== "number" || !Number.isInteger(value)) return null;
+      if (value < minimum || value > maximum) return null;
+      return value;
+    }}
+
+    function normalizeMeshyfaceProfileThemeEnum(value, accepted) {{
+      if (typeof value !== "string") return "";
+      const clean = value.trim().toLowerCase();
+      return accepted.has(clean) ? clean : "";
+    }}
+
+    function normalizeMeshyfaceProfileTheme(rawTheme) {{
+      if (!rawTheme || typeof rawTheme !== "object" || Array.isArray(rawTheme)) return null;
+      const rawKeys = Object.keys(rawTheme);
+      if (
+        rawKeys.length !== meshyfaceProfileThemeKeys.size
+        || rawKeys.some((key) => !meshyfaceProfileThemeKeys.has(key))
+      ) {{
+        return null;
+      }}
+      const version = normalizeMeshyfaceProfileThemeInteger(rawTheme.version, 1, 1);
+      const baseColor = normalizeMeshyfaceProfileColor(rawTheme.base_color, "");
+      const lineColor = normalizeMeshyfaceProfileColor(rawTheme.line_color, "");
+      const lineContrastColor = normalizeMeshyfaceProfileColor(rawTheme.line_contrast_color, "");
+      const gradientStartColor = normalizeMeshyfaceProfileColor(rawTheme.gradient_primary_start_color, "");
+      const gradientEndColor = normalizeMeshyfaceProfileColor(rawTheme.gradient_primary_end_color, "");
+      const colorDepth = normalizeMeshyfaceProfileThemeInteger(rawTheme.color_depth, 0, 100);
+      const foregroundTransparency = normalizeMeshyfaceProfileThemeInteger(
+        rawTheme.foreground_transparency,
+        0,
+        90
+      );
+      const foregroundBlur = normalizeMeshyfaceProfileThemeInteger(rawTheme.foreground_blur, 0, 40);
+      const textFont = normalizeMeshyfaceProfileThemeEnum(rawTheme.text_font, meshyfaceProfileThemeTextFonts);
+      const gradientType = normalizeMeshyfaceProfileThemeEnum(
+        rawTheme.gradient_primary_type,
+        meshyfaceProfileThemeGradientTypes
+      );
+      const gradientDirection = normalizeMeshyfaceProfileThemeEnum(
+        rawTheme.gradient_primary_direction,
+        meshyfaceProfileThemeGradientDirections
+      );
+      const mode = normalizeMeshyfaceProfileThemeEnum(rawTheme.mode, meshyfaceProfileThemeModes);
+      if (
+        version !== meshyfaceProfileThemeVersion
+        || !baseColor
+        || !lineColor
+        || !lineContrastColor
+        || !gradientStartColor
+        || !gradientEndColor
+        || colorDepth == null
+        || foregroundTransparency == null
+        || foregroundBlur == null
+        || !textFont
+        || !gradientType
+        || !gradientDirection
+        || !mode
+      ) {{
+        return null;
+      }}
+      return {{
+        version,
+        base_color: baseColor,
+        line_color: lineColor,
+        line_contrast_color: lineContrastColor,
+        gradient_primary_start_color: gradientStartColor,
+        gradient_primary_end_color: gradientEndColor,
+        color_depth: colorDepth,
+        foreground_transparency: foregroundTransparency,
+        foreground_blur: foregroundBlur,
+        text_font: textFont,
+        gradient_primary_type: gradientType,
+        gradient_primary_direction: gradientDirection,
+        mode,
+      }};
+    }}
+
+    function resolvedMeshyfaceProfileThemeMode() {{
+      const preference = typeof normalizeThemeMode === "function"
+        ? normalizeThemeMode(themePreference)
+        : String(themePreference || "auto").trim().toLowerCase();
+      if (preference === "light" || preference === "dark") return preference;
+      if (typeof systemPreferredTheme === "function") {{
+        const systemMode = systemPreferredTheme();
+        if (systemMode === "light" || systemMode === "dark") return systemMode;
+      }}
+      const documentMode = String(document.documentElement.getAttribute("data-theme") || "").trim().toLowerCase();
+      return documentMode === "dark" ? "dark" : "light";
+    }}
+
+    function currentMeshyfaceProfileThemeRecipe() {{
+      if (typeof themeEditableSettingsForPreset !== "function") return null;
+      const settings = themeEditableSettingsForPreset(themePresetSelected);
+      if (!settings || typeof settings !== "object") return null;
+      return normalizeMeshyfaceProfileTheme({{
+        version: meshyfaceProfileThemeVersion,
+        base_color: settings.base_color,
+        line_color: settings.line_color,
+        line_contrast_color: settings.line_contrast_color,
+        gradient_primary_start_color: settings.gradient_primary_start_color,
+        gradient_primary_end_color: settings.gradient_primary_end_color,
+        color_depth: settings.color_depth,
+        foreground_transparency: settings.foreground_transparency,
+        foreground_blur: settings.foreground_blur,
+        text_font: settings.text_font,
+        gradient_primary_type: settings.gradient_primary_type,
+        gradient_primary_direction: settings.gradient_primary_direction,
+        mode: resolvedMeshyfaceProfileThemeMode(),
+      }});
+    }}
+
+    function meshyfaceProfileThemeSignature(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      return theme ? JSON.stringify(theme) : "";
+    }}
+
+    function meshyfaceProfileThemePreviewGradient(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return "";
+      const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
+      if (!direction) return "";
+      const start = theme.mode === "light"
+        ? `color-mix(in srgb, ${{theme.gradient_primary_start_color}} 28%, #ffffff 72%)`
+        : theme.gradient_primary_start_color;
+      const end = theme.mode === "light"
+        ? `color-mix(in srgb, ${{theme.gradient_primary_end_color}} 28%, #ffffff 72%)`
+        : theme.gradient_primary_end_color;
+      return `${{theme.gradient_primary_type}}-gradient(${{direction[theme.gradient_primary_type]}}, ${{start}}, ${{end}})`;
+    }}
+
+    function meshyfaceProfileThemeStyleVars(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return "";
+      const gradient = meshyfaceProfileThemePreviewGradient(theme);
+      if (!gradient) return "";
+      return [
+        `--node-profile-theme-gradient:${{gradient}}`,
+        `--node-profile-theme-base:${{theme.base_color}}`,
+        `--node-profile-theme-line:${{theme.line_color}}`,
+        `--node-profile-theme-contrast:${{theme.line_contrast_color}}`,
+      ].join(";") + ";";
+    }}
+
+    function meshyfaceProfileThemePreviewHtml(appearanceEntry, scope = "node") {{
+      const theme = normalizeMeshyfaceProfileTheme(
+        appearanceEntry && typeof appearanceEntry === "object" ? appearanceEntry.theme : null
+      );
+      if (!theme) return "";
+      const cleanScope = scope === "chat" ? "chat" : "node";
+      const styleVars = meshyfaceProfileThemeStyleVars(theme);
+      if (!styleVars) return "";
+      const title = `Shared ${{theme.mode}} theme preview`;
+      return `<span class="node-profile-theme-swatch is-${{cleanScope}}" style="${{escAttr(styleVars)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}"><span aria-hidden="true"></span></span>`;
+    }}
+
     function meshyfaceProfileAppearancePreset(color) {{
       return {{
         id: "meshyface-profile",
@@ -310,10 +508,12 @@
       if (localNodeId && cleanNodeId === localNodeId) {{
         const color = normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "#2aa85a");
         const preset = meshyfaceProfileAppearancePreset(color);
+        const theme = currentMeshyfaceProfileThemeRecipe();
         return {{
           nodeId: cleanNodeId,
           source: "local-profile",
           color,
+          ...(theme ? {{ theme }} : {{}}),
           presetId: preset.id,
           preset,
           profileAppearance: true,
@@ -326,10 +526,12 @@
       const color = normalizeMeshyfaceProfileColor(profile.color, "");
       if (!color) return null;
       const preset = meshyfaceProfileAppearancePreset(color);
+      const theme = normalizeMeshyfaceProfileTheme(profile.theme);
       return {{
         nodeId: cleanNodeId,
         source: "remote-profile",
         color,
+        ...(theme ? {{ theme }} : {{}}),
         presetId: preset.id,
         preset,
         profileAppearance: true,
@@ -359,6 +561,7 @@
         const nodeId = normalizeNodeId(profile.node_id || profile.nodeId || rawNodeId);
         if (!isSelectableNodeId(nodeId)) continue;
         const color = normalizeMeshyfaceProfileColor(profile.color, "");
+        const theme = normalizeMeshyfaceProfileTheme(profile.theme);
         const updatedUnix = Math.max(
           0,
           Math.trunc(Number(profile.updated_unix ?? profile.updatedUnix ?? profile.updated) || 0)
@@ -369,6 +572,7 @@
         next.set(nodeId, {{
           node_id: nodeId,
           color,
+          ...(theme ? {{ theme }} : {{}}),
           updated_unix: updatedUnix,
           received_unix: Math.max(
             0,
@@ -572,7 +776,10 @@
       if (!preset) return "";
       const color = normalizeNodeTagColor(preset.color, "#2aa85a");
       const tagVars = nodeTagStyleVars(appearanceEntry);
-      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);`;
+      const themeVars = typeof meshyfaceProfileThemeStyleVars === "function"
+        ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme)
+        : "";
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{themeVars}}`;
     }}
 
     function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{

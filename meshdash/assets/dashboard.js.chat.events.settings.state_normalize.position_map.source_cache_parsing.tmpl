@@ -330,8 +330,8 @@
       if (opts.announce) {{
         setMeshyfaceProfileStatusText(
           next
-            ? "Received Meshyface profile colors are enabled."
-            : "Received Meshyface profile colors are hidden."
+            ? "Received Meshyface profile colors and theme previews are enabled."
+            : "Received Meshyface profile colors and theme previews are hidden."
         );
       }}
     }}
@@ -346,9 +346,12 @@
       const channelIndex = normalizeMeshChannelIndex(
         meshChannelEffectiveSendIndexForApp("profiles")
       );
+      const theme = typeof currentMeshyfaceProfileThemeRecipe === "function"
+        ? currentMeshyfaceProfileThemeRecipe()
+        : null;
       meshyfaceProfileBroadcastInFlight = true;
       syncSettingsAppearanceControls();
-      setMeshyfaceProfileStatusText("Broadcasting experimental Meshyface profile color...");
+      setMeshyfaceProfileStatusText("Broadcasting experimental Meshyface profile color and theme...");
       try {{
         const resp = await fetch(meshyfaceProfileColorEndpoint, {{
           method: "POST",
@@ -356,6 +359,7 @@
           body: JSON.stringify({{
             color,
             channel_index: channelIndex,
+            ...(theme ? {{ theme }} : {{}}),
           }}),
         }});
         const payload = await resp.json().catch(() => ({{}}));
@@ -367,7 +371,7 @@
           payload && payload.channel_index != null ? payload.channel_index : channelIndex
         );
         setMeshyfaceProfileStatusText(
-          `Experimental Meshyface color broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
+          `Experimental Meshyface profile broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
         );
         if (typeof requestImmediatePoll === "function") {{
           requestImmediatePoll(0);
@@ -375,7 +379,7 @@
         return payload;
       }} catch (err) {{
         const message = err instanceof Error ? err.message : String(err || "unknown error");
-        setMeshyfaceProfileStatusText(`Meshyface color broadcast failed: ${{message}}`, true);
+        setMeshyfaceProfileStatusText(`Meshyface profile broadcast failed: ${{message}}`, true);
         return null;
       }} finally {{
         meshyfaceProfileBroadcastInFlight = false;

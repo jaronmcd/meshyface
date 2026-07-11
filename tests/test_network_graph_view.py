@@ -239,6 +239,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())' not in js
     assert '"has-emoji-glyph"' in js
     assert 'class="network-graph-node-emoji-fo"' in js
+    assert 'class="network-graph-node-theme-preview-fo"' in js
+    assert 'class="network-graph-node-theme-preview-surface"' in js
+    assert 'hasProfileThemePreview ? "has-theme-preview" : ""' in js
+    assert "meshyfaceProfileThemeSignature(appearanceEntry.theme)" in js
+    assert 'nodeEl.classList.toggle("has-theme-preview", !!profileTheme);' in js
     assert '<title>${escAttr(buildNetworkGraphEdgeTitle(edge' not in js
     assert '<title>${escAttr(buildNetworkGraphNodeTitle(item' not in js
     assert 'label-priority-${labelPriority}' in js
@@ -805,6 +810,10 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-ring.is-broadcast-only {" in css
     assert ".network-graph-node.is-local .network-graph-node-core {" in css
     assert ".network-graph-node.is-tagged .network-graph-node-core {" in css
+    assert ".network-graph-node-theme-preview-fo {" in css
+    assert ".network-graph-node.has-theme-preview .network-graph-node-theme-preview-fo {" in css
+    assert ".network-graph-node-theme-preview-surface {" in css
+    assert "background: var(--node-profile-theme-gradient, transparent);" in css
     assert ".network-graph-node.is-spread-actual" not in css
     assert ".network-graph-node.is-spread-estimated" not in css
     assert "stroke: var(--node-tag-color, var(--accent));" in css

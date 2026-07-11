@@ -63,6 +63,9 @@
         h = hashMixInt(h, projection.fields.saved.sort);
         h = hashMixStr(h, appearanceEntry && appearanceEntry.source || "manual-tag");
         h = hashMixStr(h, appearanceEntry && appearanceEntry.preset && appearanceEntry.preset.color || "");
+        h = hashMixStr(h, appearanceEntry && typeof meshyfaceProfileThemeSignature === "function"
+          ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+          : "");
         const latSort = Number(projection.fields.pos.sort);
         h = hashMixInt(h, Number.isFinite(latSort) ? Math.round(latSort * 1e4) : 0);
       }}
@@ -179,6 +182,9 @@
           const appearanceStyleAttr = appearanceStyleVars
             ? ` style="${{escAttr(appearanceStyleVars)}}"`
             : "";
+          const themePreviewHtml = appearanceEntry && typeof meshyfaceProfileThemePreviewHtml === "function"
+            ? meshyfaceProfileThemePreviewHtml(appearanceEntry, "node")
+            : "";
           const status = projection.status || "unknown";
           const statusClass = ` status-${{status || "unknown"}}`;
           const pos = projection.fields.pos.text;
@@ -197,6 +203,7 @@
           <td data-sort="${{escAttr(name)}}">
             <span class="node-name-row">
               <span class="node-name-label">${{name}}</span>
+              ${{themePreviewHtml}}
             </span>
           </td>
           <td data-sort="${{escAttr(projection.fields.hardware.sort)}}">${{projection.fields.hardware.text}}</td>

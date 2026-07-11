@@ -56,9 +56,14 @@ def handle_meshyface_profile_color_post(
         return
 
     try:
+        send_kwargs: dict[str, object] = {
+            "color": request.color,
+            "channel_index": request.channel_index,
+        }
+        if request.theme is not None:
+            send_kwargs["theme"] = request.theme
         response_obj = send_meshyface_profile_fn(
-            color=request.color,
-            channel_index=request.channel_index,
+            **send_kwargs,
         )
     except ValueError as exc:
         write_json_response_fn(

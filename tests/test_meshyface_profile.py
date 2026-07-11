@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import re
@@ -9,6 +10,7 @@ import pytest
 from google.protobuf.json_format import MessageToDict
 from meshtastic.protobuf import mesh_pb2, portnums_pb2
 
+import meshdash.meshyface_profile as meshyface_profile_protocol
 import meshdash.tracker_runtime_impl as tracker_runtime_impl
 from meshdash.api_input_meshyface_profile import parse_meshyface_profile_color_request
 from meshdash.helpers import to_int
@@ -19,7 +21,12 @@ from meshdash.http_api_post import build_post_route_dependencies
 from meshdash.http_routes_post import handle_dashboard_post
 from meshdash.meshyface_profile import (
     DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+    MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES,
+    MESHYFACE_THEME_RECIPE_BYTES,
+    MESHYFACE_THEME_RECIPE_ENCODED_LENGTH,
     build_meshyface_profile_payload,
+    decode_meshyface_theme_recipe,
+    encode_meshyface_theme_recipe,
     parse_meshyface_profile_packet,
 )
 from meshdash.revision import RevisionInfo
@@ -60,6 +67,26 @@ class _SendDataIface:
         return _SentPacket()
 
 
+def _theme_recipe(**overrides: object) -> dict[str, object]:
+    recipe: dict[str, object] = {
+        "version": 1,
+        "base_color": "#123456",
+        "line_color": "#abcdef",
+        "line_contrast_color": "#fedcba",
+        "gradient_primary_start_color": "#010203",
+        "gradient_primary_end_color": "#f0e0d0",
+        "color_depth": 73,
+        "foreground_transparency": 42,
+        "foreground_blur": 17,
+        "text_font": "mono",
+        "gradient_primary_type": "radial",
+        "gradient_primary_direction": "down-left",
+        "mode": "dark",
+    }
+    recipe.update(overrides)
+    return recipe
+
+
 class _StateTracker:
     radio_link_connected = None
     radio_link_changed_unix = None
@@ -85,9 +112,15 @@ class _StateTracker:
                 "updated_unix": 1_788_300_000,
                 "received_unix": 1_788_300_010,
                 "source": "mesh",
+                "theme": _theme_recipe(),
             },
             "!bad": {"color": "#22c55e", "updated_unix": 1_788_300_000},
             "!11111111": {"color": "22c55e", "updated_unix": 1_788_300_000},
+            "!22222222": {
+                "color": "#22c55e",
+                "updated_unix": 1_788_300_000,
+                "theme": _theme_recipe(version=2),
+            },
         }
 
 
@@ -98,6 +131,7 @@ def _profile_packet(
     color: str = "#db2777",
     updated_unix: int = 1_770_000_000,
     portnum: object = DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+    theme: object = None,
 ) -> dict[str, object]:
     packet: dict[str, object] = {
         "decoded": {
@@ -106,6 +140,7 @@ def _profile_packet(
                 node_id=node_id,
                 color=color,
                 updated_unix=updated_unix,
+                theme=theme,
             ),
         }
     }
@@ -157,6 +192,7 @@ def test_build_and_parse_meshyface_profile_packet() -> None:
         "color": "#db2777",
         "updated": 1_788_300_000,
     }
+    assert len(payload) == 92
     assert len(payload) <= mesh_pb2.Constants.DATA_PAYLOAD_LEN
     assert parse_meshyface_profile_packet(
         {
@@ -173,11 +209,200 @@ def test_build_and_parse_meshyface_profile_packet() -> None:
     }
 
 
+def test_theme_recipe_codec_round_trip_matches_fixed_byte_layout() -> None:
+    recipe = _theme_recipe()
+
+    encoded = encode_meshyface_theme_recipe(recipe)
+    raw = base64.urlsafe_b64decode(encoded)
+
+    assert len(encoded) == MESHYFACE_THEME_RECIPE_ENCODED_LENGTH == 28
+    assert re.fullmatch(r"[A-Za-z0-9_-]{28}", encoded)
+    assert len(raw) == MESHYFACE_THEME_RECIPE_BYTES == 21
+    assert raw == (
+        b"\x01"
+        b"\x12\x34\x56"
+        b"\xab\xcd\xef"
+        b"\xfe\xdc\xba"
+        b"\x01\x02\x03"
+        b"\xf0\xe0\xd0"
+        + bytes((73, 42, 17, 0b01011011, 1))
+    )
+    assert decode_meshyface_theme_recipe(encoded) == recipe
+
+
+def test_theme_recipe_codec_supports_every_enum_value() -> None:
+    enum_values = {
+        "text_font": ("system", "compact", "rounded", "mono", "serif"),
+        "gradient_primary_type": ("linear", "radial"),
+        "gradient_primary_direction": (
+            "right",
+            "left",
+            "down",
+            "up",
+            "down-right",
+            "down-left",
+            "up-right",
+            "up-left",
+            "center",
+        ),
+        "mode": ("light", "dark"),
+    }
+
+    for key, values in enum_values.items():
+        for value in values:
+            recipe = _theme_recipe(**{key: value})
+            assert decode_meshyface_theme_recipe(
+                encode_meshyface_theme_recipe(recipe)
+            ) == recipe
+
+
+def test_profile_theme_round_trip_stays_within_single_packet_limit() -> None:
+    recipe = _theme_recipe()
+    payload = build_meshyface_profile_payload(
+        node_id="!335d8354",
+        color="#db2777",
+        updated_unix=1_788_300_000,
+        theme=recipe,
+    )
+
+    body = json.loads(payload)
+    assert body["v"] == 1
+    assert body["color"] == "#db2777"
+    assert isinstance(body["theme"], str)
+    assert len(payload) == 131
+    assert len(payload) <= MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES
+    assert MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES == mesh_pb2.Constants.DATA_PAYLOAD_LEN
+    assert parse_meshyface_profile_packet(
+        {
+            "fromId": "!335d8354",
+            "decoded": {"portnum": 256, "payload": payload},
+        },
+        now_unix_fn=lambda: 1_788_300_010,
+    ) == {
+        "node_id": "!335d8354",
+        "color": "#db2777",
+        "updated_unix": 1_788_300_000,
+        "received_unix": 1_788_300_010,
+        "source": "mesh",
+        "theme": recipe,
+    }
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("version", 2),
+        ("base_color", "123456"),
+        ("color_depth", 101),
+        ("foreground_transparency", 91),
+        ("foreground_blur", 41),
+        ("text_font", "comic-sans"),
+        ("gradient_primary_type", "conic"),
+        ("gradient_primary_direction", "sideways"),
+        ("mode", "auto"),
+    ],
+)
+def test_invalid_outgoing_theme_recipe_raises(key: str, value: object) -> None:
+    with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
+        build_meshyface_profile_payload(
+            node_id="!335d8354",
+            color="#db2777",
+            updated_unix=1_788_300_000,
+            theme=_theme_recipe(**{key: value}),
+        )
+
+
+def test_outgoing_theme_recipe_rejects_extra_keys_and_boolean_numbers() -> None:
+    extra = _theme_recipe()
+    extra["background_image"] = "data:image/png;base64,nope"
+
+    for recipe in (extra, _theme_recipe(color_depth=True)):
+        with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
+            encode_meshyface_theme_recipe(recipe)
+
+
+def test_profile_builder_enforces_final_meshtastic_payload_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = build_meshyface_profile_payload(
+        node_id="!335d8354",
+        color="#db2777",
+        updated_unix=1_788_300_000,
+        theme=_theme_recipe(),
+    )
+    monkeypatch.setattr(
+        meshyface_profile_protocol,
+        "MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES",
+        len(payload) - 1,
+    )
+
+    with pytest.raises(ValueError, match="profile payload exceeds"):
+        build_meshyface_profile_payload(
+            node_id="!335d8354",
+            color="#db2777",
+            updated_unix=1_788_300_000,
+            theme=_theme_recipe(),
+        )
+
+
+def _wire_theme(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+@pytest.mark.parametrize(
+    "wire_theme",
+    [
+        "short",
+        "A" * 27 + "=",
+        "A" * 27 + "+",
+        _wire_theme(bytes((2,)) + (b"\x00" * 20)),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((101, 0, 0, 0, 0))),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((0, 91, 0, 0, 0))),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((0, 0, 41, 0, 0))),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((0, 0, 0, 0b111, 0))),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((0, 0, 0, 0b11110000, 0))),
+        _wire_theme(bytes((1,)) + (b"\x00" * 15) + bytes((0, 0, 0, 0, 2))),
+    ],
+)
+def test_malformed_or_unknown_received_theme_degrades_to_color_only(
+    wire_theme: str,
+) -> None:
+    body = json.loads(
+        build_meshyface_profile_payload(
+            node_id="!335d8354",
+            color="#db2777",
+            updated_unix=1_788_300_000,
+        )
+    )
+    body["theme"] = wire_theme
+    packet = {
+        "fromId": "!335d8354",
+        "decoded": {
+            "portnum": "PRIVATE_APP",
+            "payload": json.dumps(body, separators=(",", ":")).encode(),
+        },
+    }
+
+    parsed = parse_meshyface_profile_packet(
+        packet,
+        now_unix_fn=lambda: 1_788_300_010,
+    )
+
+    assert parsed == {
+        "node_id": "!335d8354",
+        "color": "#db2777",
+        "updated_unix": 1_788_300_000,
+        "received_unix": 1_788_300_010,
+        "source": "mesh",
+    }
+
+
 def test_parse_accepts_real_meshtastic_message_to_dict_receive_shape() -> None:
     payload = build_meshyface_profile_payload(
         node_id="!335d8354",
         color="#db2777",
         updated_unix=1_788_300_000,
+        theme=_theme_recipe(),
     )
     mesh_packet = mesh_pb2.MeshPacket()
     setattr(mesh_packet, "from", 0x335D8354)
@@ -198,6 +423,7 @@ def test_parse_accepts_real_meshtastic_message_to_dict_receive_shape() -> None:
     assert parsed is not None
     assert parsed["node_id"] == "!335d8354"
     assert parsed["color"] == "#db2777"
+    assert parsed["theme"] == _theme_recipe()
 
 
 @pytest.mark.parametrize("portnum", [257, "ATAK_FORWARDER", 300, "PRIVATE_APP_300"])
@@ -250,18 +476,36 @@ def test_parse_rejects_invalid_color_from_wire() -> None:
 
 
 def test_parse_meshyface_profile_color_request_validates_color_and_channel() -> None:
-    body = json.dumps({"color": "#DB2777", "channel_index": 2}).encode()
+    body = json.dumps(
+        {
+            "color": "#DB2777",
+            "channel_index": 2,
+            "theme": _theme_recipe(base_color="#ABCDEF"),
+        }
+    ).encode()
 
     request = parse_meshyface_profile_color_request(body, to_int_fn=to_int)
 
     assert request.color == "#db2777"
     assert request.channel_index == 2
+    assert request.theme == _theme_recipe(base_color="#abcdef")
     with pytest.raises(ValueError, match="#rrggbb"):
         parse_meshyface_profile_color_request(b'{"color":"db2777"}', to_int_fn=to_int)
+    with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
+        parse_meshyface_profile_color_request(
+            json.dumps(
+                {
+                    "color": "#db2777",
+                    "theme": _theme_recipe(version=2),
+                }
+            ).encode(),
+            to_int_fn=to_int,
+        )
 
 
 def test_send_meshyface_profile_color_uses_public_send_data_api() -> None:
     iface = _SendDataIface()
+    recipe = _theme_recipe()
 
     response = send_meshyface_profile_color(
         color="#DB2777",
@@ -269,6 +513,7 @@ def test_send_meshyface_profile_color_uses_public_send_data_api() -> None:
         send_lock=threading.Lock(),
         local_node_id_fn=lambda: "!335d8354",
         channel_index=3,
+        theme=recipe,
         now_unix_fn=lambda: 1_788_300_000,
     )
 
@@ -282,11 +527,13 @@ def test_send_meshyface_profile_color_uses_public_send_data_api() -> None:
         "destination": "^all",
         "channel_index": 3,
         "portnum": 256,
+        "theme": recipe,
         "packet_id": 1234,
     }
     assert len(iface.calls) == 1
     payload, kwargs = iface.calls[0]
     assert json.loads(payload)["color"] == "#db2777"
+    assert decode_meshyface_theme_recipe(json.loads(payload)["theme"]) == recipe
     assert kwargs == {
         "destinationId": "^all",
         "portNum": 256,
@@ -294,6 +541,21 @@ def test_send_meshyface_profile_color_uses_public_send_data_api() -> None:
         "wantResponse": False,
         "channelIndex": 3,
     }
+
+
+def test_send_meshyface_profile_color_rejects_invalid_theme_before_radio_send() -> None:
+    iface = _SendDataIface()
+
+    with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
+        send_meshyface_profile_color(
+            color="#db2777",
+            theme=_theme_recipe(mode="auto"),
+            iface=iface,
+            send_lock=threading.Lock(),
+            local_node_id_fn=lambda: "!335d8354",
+        )
+
+    assert iface.calls == []
 
 
 def test_tracker_accepts_only_strictly_newer_profile_updates() -> None:
@@ -310,6 +572,39 @@ def test_tracker_accepts_only_strictly_newer_profile_updates() -> None:
 
     assert tracker.meshyface_profiles_snapshot()["!335d8354"]["color"] == "#a855f7"
     assert list(tracker.recent_chat) == []
+
+
+def test_tracker_replaces_color_and_theme_atomically_and_snapshots_theme() -> None:
+    tracker = DashboardTracker(packet_limit=8)
+    updated = int(time.time()) - 10
+    recipe = _theme_recipe()
+
+    tracker.seed_packet(
+        _profile_packet(color="#db2777", updated_unix=updated, theme=recipe),
+        interface=object(),
+    )
+    first_snapshot = tracker.meshyface_profiles_snapshot()
+    assert first_snapshot["!335d8354"]["theme"] == recipe
+    first_theme = first_snapshot["!335d8354"]["theme"]
+    assert isinstance(first_theme, dict)
+    first_theme["base_color"] = "#000000"
+    stored_theme = tracker.meshyface_profiles_snapshot()["!335d8354"]["theme"]
+    assert isinstance(stored_theme, dict)
+    assert stored_theme["base_color"] == "#123456"
+
+    tracker.seed_packet(
+        _profile_packet(color="#22c55e", updated_unix=updated),
+        interface=object(),
+    )
+    assert tracker.meshyface_profiles_snapshot()["!335d8354"]["theme"] == recipe
+
+    tracker.seed_packet(
+        _profile_packet(color="#0ea5e9", updated_unix=updated + 1),
+        interface=object(),
+    )
+    replaced = tracker.meshyface_profiles_snapshot()["!335d8354"]
+    assert replaced["color"] == "#0ea5e9"
+    assert "theme" not in replaced
 
 
 def test_tracker_profile_cache_is_bounded_and_evicts_oldest_received(
@@ -355,7 +650,15 @@ def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
             "updated_unix": 1_788_300_000,
             "received_unix": 1_788_300_010,
             "source": "mesh",
-        }
+            "theme": _theme_recipe(),
+        },
+        "!22222222": {
+            "node_id": "!22222222",
+            "color": "#22c55e",
+            "updated_unix": 1_788_300_000,
+            "received_unix": 0,
+            "source": "mesh",
+        },
     }
 
     full = build_dashboard_state_typed(**_state_kwargs(tracker))
@@ -411,6 +714,57 @@ def test_handle_dashboard_post_dispatches_profile_color() -> None:
                 "sent": True,
                 "color": "#db2777",
                 "channel_index": 4,
+            },
+        )
+    ]
+
+
+def test_handle_dashboard_post_dispatches_canonical_theme_recipe() -> None:
+    recipe = _theme_recipe()
+    body = json.dumps(
+        {"color": "#db2777", "channel_index": 4, "theme": recipe}
+    ).encode()
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Authorization": "Bearer secret",
+        },
+    )
+    responses: list[tuple[int, object]] = []
+    received: list[dict[str, object]] = []
+
+    def _send_profile(**kwargs: object) -> dict[str, object]:
+        received.append(kwargs)
+        return {"ok": True, "sent": True, **kwargs}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        send_meshyface_profile_fn=_send_profile,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/color", deps=deps)
+
+    assert received == [
+        {"color": "#db2777", "channel_index": 4, "theme": recipe}
+    ]
+    assert responses == [
+        (
+            200,
+            {
+                "ok": True,
+                "sent": True,
+                "color": "#db2777",
+                "channel_index": 4,
+                "theme": recipe,
             },
         )
     ]

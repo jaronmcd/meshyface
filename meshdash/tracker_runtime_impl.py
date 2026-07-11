@@ -8,6 +8,7 @@ from .helpers import (
 from .history_store_runtime import HistoryStore
 from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
+    normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
 )
 from .nodes import (
@@ -497,6 +498,9 @@ class DashboardTracker:
             "received_unix": max(0, int(received_unix or 0)),
             "source": "mesh",
         }
+        theme = _normalize_meshyface_theme_recipe(profile.get("theme"))
+        if theme is not None:
+            next_profile["theme"] = theme
         self.meshyface_profiles_by_node_id[node_id] = next_profile
 
         evicted_node_id: str | None = None
@@ -520,11 +524,18 @@ class DashboardTracker:
 
     def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
         with self._lock:
-            return {
-                str(node_id): dict(profile)
-                for node_id, profile in self.meshyface_profiles_by_node_id.items()
-                if isinstance(profile, dict)
-            }
+            profiles: dict[str, dict[str, object]] = {}
+            for node_id, profile in self.meshyface_profiles_by_node_id.items():
+                if not isinstance(profile, dict):
+                    continue
+                snapshot = dict(profile)
+                theme = _normalize_meshyface_theme_recipe(profile.get("theme"))
+                if theme is not None:
+                    snapshot["theme"] = theme
+                else:
+                    snapshot.pop("theme", None)
+                profiles[str(node_id)] = snapshot
+            return profiles
 
     def _record_packet_unlocked(
         self, packet: dict[str, object], interface: object, include_live_count: bool

@@ -528,10 +528,12 @@ def build_dashboard_runtime_context(
             *,
             color,
             channel_index=0,
+            theme=None,
         ):
             return _send_meshyface_profile_color(
                 color=color,
                 channel_index=channel_index,
+                theme=theme,
                 iface=iface,
                 send_lock=send_lock,
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),

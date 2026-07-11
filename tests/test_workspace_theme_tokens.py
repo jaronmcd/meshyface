@@ -206,7 +206,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     gradient_group = _css_rule(css, ".settings-gradient-group")
     assert "background: var(--settings-bg-muted);" in gradient_group
     assert "theme-live-preview" not in css
-    assert "theme-preview" not in css
+    assert ".theme-preview {" not in css
     dark_color_picker = _css_rule(css, "[data-theme=\"dark\"] .dashboard-color-picker-popover")
     color_picker = _css_rule(css, ".dashboard-color-picker-popover")
     assert "backdrop-filter: blur(14px) saturate(120%);" in color_picker

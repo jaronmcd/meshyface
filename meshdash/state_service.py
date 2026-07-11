@@ -12,6 +12,7 @@ from .history_node_names import build_name_change_chat_entries as _build_name_ch
 from .meshyface_profile import (
     normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
+    normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
 )
 from .nodes_identity import get_local_node_id as _get_local_node_id_helper
 from .nodes import (
@@ -262,13 +263,17 @@ def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object
         if updated_unix is None or updated_unix <= 0:
             continue
         received_unix = _to_int(raw_profile.get("received_unix"))
-        profiles[node_id] = {
+        profile = {
             "node_id": node_id,
             "color": color,
             "updated_unix": int(updated_unix),
             "received_unix": max(0, int(received_unix or 0)),
             "source": "mesh",
         }
+        theme = _normalize_meshyface_theme_recipe(raw_profile.get("theme"))
+        if theme is not None:
+            profile["theme"] = theme
+        profiles[node_id] = profile
     return profiles
 
 
