@@ -1079,6 +1079,16 @@
         );
         if (statusCmp !== 0) return statusCmp;
 
+        // Status is the default grouped view. Within each freshness bucket,
+        // keep the nodes we most recently received from at the top.
+        if (sortKey === "status") {{
+          const receivedCmp = chatNodeNavigatorCompareSortValues(
+            chatNodeNavigatorLastUpdateUnix(b, bProjection),
+            chatNodeNavigatorLastUpdateUnix(a, aProjection)
+          );
+          if (receivedCmp !== 0) return receivedCmp;
+        }}
+
         const activityCmp = chatNodeNavigatorCompareSortValues(
           Number(b && b.lastMessageUnix) || 0,
           Number(a && a.lastMessageUnix) || 0
