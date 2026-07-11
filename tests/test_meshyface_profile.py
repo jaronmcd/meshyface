@@ -15,6 +15,7 @@ import meshdash.meshyface_profile as meshyface_profile_protocol
 import meshdash.tracker_runtime_impl as tracker_runtime_impl
 from meshdash.api_input_meshyface_profile import parse_meshyface_profile_theme_request
 from meshdash.helpers import to_int
+from meshdash.html_css import build_dashboard_css
 from meshdash.html_js import build_dashboard_js
 from meshdash.html_template import render_html
 from meshdash.history_store_runtime import HistoryStore
@@ -1351,6 +1352,15 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert "Theme Sharing" not in html
     assert "Share node theme" not in html
     assert "Use received Meshyface themes to style nodes" not in html
+
+
+def test_dashboard_css_keeps_ghost_overlay_off_compact_node_rows() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert "--node-profile-ghost-text" in css
+    assert ".chat-feed-item.profiled-node::after" in css
+    assert ".chat-member-item.profiled-node::after" not in css
+    assert ".self-node-identity-slot.profiled-node::after" not in css
 
 
 def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduling() -> None:
