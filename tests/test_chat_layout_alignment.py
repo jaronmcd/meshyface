@@ -1425,13 +1425,15 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert "--chat-feed-node-emoji-tail-space: 0px;" in css
     assert ".chat-feed-item.self-authored.has-node-emoji {" in css
     assert "padding-left: 12px;" in css
-    assert ".chat-feed-item.has-node-emoji::after {" in css
-    assert "content: none;" in css
-    assert "display: none;" in css
-    assert ".chat-feed-item.has-node-emoji.has-node-watermark-text::after {" in css
-    assert ".chat-feed-item.self-authored.has-node-emoji::after {" in css
+    assert ".chat-feed-item.has-node-emoji:not(.profiled-node)::after {" in css
+    assert "content: attr(data-node-emoji);" in css
+    assert "display: block;" in css
+    assert "font-size: clamp(44px, 4.8vw, 72px);" in css
+    assert ".chat-feed-item.has-node-emoji.has-node-watermark-text:not(.profiled-node)::after {" in css
+    assert ".chat-feed-item.profiled-node.has-node-emoji::after" not in css
+    assert ".chat-feed-item.self-authored.has-node-emoji:not(.profiled-node)::after {" in css
     assert "left: var(--chat-feed-node-emoji-tail-inset);" in css
-    assert '[data-theme="dark"] .card.chat .chat-feed-item.has-node-emoji::after {' in css
+    assert '[data-theme="dark"] .card.chat .chat-feed-item.has-node-emoji:not(.profiled-node)::after {' not in css
     assert ".chat-hop-watermark-inline {" in css
     assert ".chat-hop-reply-icon {" in css
     assert ".chat-hop-reply-text {" in css
