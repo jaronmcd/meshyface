@@ -588,7 +588,7 @@
             ? nodeTagOverridesProfileAppearance(tagEntry)
             : true
         );
-        member.classList.toggle("tagged-node", tagActive && (!profileAppearanceActive || tagOverridesProfile));
+        member.classList.toggle("tagged-node", false);
         member.classList.toggle("profiled-node", profileAppearanceActive && !tagOverridesProfile);
         const nameLeft = member.querySelector(".chat-member-name-left");
         const existingChip = nameLeft instanceof HTMLElement
@@ -669,7 +669,7 @@
             ? nodeTagOverridesProfileAppearance(tagEntry)
             : true
         );
-        row.classList.toggle("tagged-node", tagActive && (!profileAppearanceActive || tagOverridesProfile));
+        row.classList.toggle("tagged-node", false);
         row.classList.toggle("profiled-node", profileAppearanceActive && !tagOverridesProfile);
         if (appearanceActive) {{
           applyNodeAppearanceSurfaceStyle(row, appearanceEntry, "feed", 210);

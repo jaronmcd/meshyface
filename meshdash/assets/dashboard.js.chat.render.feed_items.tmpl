@@ -448,7 +448,7 @@
             ? nodeTagOverridesProfileAppearance(tintTagEntry)
             : true
         );
-        const tagVisualActive = tagActive && (!profileAppearanceActive || tagOverridesProfile);
+        const tagVisualActive = false;
         const tagClass = tagVisualActive ? " tagged-node" : "";
         const profileClass = profileAppearanceActive && !tagOverridesProfile ? " profiled-node" : "";
         const messageKey = chatMessageKey(msg);

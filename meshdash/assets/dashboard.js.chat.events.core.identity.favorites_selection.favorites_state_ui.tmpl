@@ -712,6 +712,34 @@
       }});
     }}
 
+    function estimateMeshyfaceNodeThemePreviewRender(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return null;
+      const surfaceOpacity = Math.max(10, Math.min(100, 100 - theme.foreground_transparency));
+      const surfaceHoverOpacity = Math.max(surfaceOpacity, Math.min(100, surfaceOpacity + 8));
+      return normalizeMeshyfaceProfileThemeRender({{
+        background_start_color: theme.gradient_primary_start_color,
+        background_end_color: theme.gradient_primary_end_color,
+        surface_color: theme.base_color,
+        surface_opacity: surfaceOpacity,
+        surface_hover_color: theme.base_color,
+        surface_hover_opacity: surfaceHoverOpacity,
+        border_color: theme.line_color,
+        border_muted_color: theme.line_contrast_color,
+      }});
+    }}
+
+    function meshyfaceNodeThemePreviewRenderForTheme(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const signature = meshyfaceProfileThemeSignature(theme);
+      if (!theme || !signature) return null;
+      const exactRender = (
+        settingsMeshyfaceNodeThemePreviewSignature === signature
+        && normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
+      );
+      return exactRender || estimateMeshyfaceNodeThemePreviewRender(theme);
+    }}
+
     function clearMeshyfaceNodeThemePreviewTimer() {{
       if (settingsMeshyfaceNodeThemePreviewTimer !== null) {{
         window.clearTimeout(settingsMeshyfaceNodeThemePreviewTimer);
@@ -865,16 +893,13 @@
       );
       if (localNodeId && cleanNodeId === localNodeId) {{
         const theme = currentMeshyfaceProfileThemeRecipe();
-        const themeSignature = meshyfaceProfileThemeSignature(theme);
-        const render = (
-          themeSignature
-          && settingsMeshyfaceNodeThemePreviewSignature === themeSignature
-        )
-          ? normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
-          : null;
+        const render = meshyfaceNodeThemePreviewRenderForTheme(theme);
         const preset = meshyfaceProfileAppearancePreset(theme, render);
         if (!theme || !preset) return null;
-        if (!render && typeof queueMeshyfaceNodeThemePreviewRenderRefresh === "function") {{
+        if (
+          meshyfaceProfileThemeSignature(theme) !== settingsMeshyfaceNodeThemePreviewSignature
+          && typeof queueMeshyfaceNodeThemePreviewRenderRefresh === "function"
+        ) {{
           queueMeshyfaceNodeThemePreviewRenderRefresh(theme);
         }}
         return {{
@@ -911,22 +936,11 @@
     }}
 
     function effectiveNodeAppearanceForNode(nodeId, state = latestState) {{
-      const tagEntry = manualNodeTagEntryForNode(nodeId);
-      // A custom local tag is an intentional visual override. The built-in
-      // Meshtastic-favorite tag is automatic, though, so it must not erase a
-      // node's advertised Meshyface identity.
-      if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;
-      return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;
+      return meshyfaceProfileAppearanceForNode(nodeId, state);
     }}
 
     function nodeTagOverridesProfileAppearance(tagEntry) {{
-      const presetId = normalizeNodeTagPresetId(
-        (tagEntry && tagEntry.presetId)
-        || (tagEntry && tagEntry.preset && tagEntry.preset.id)
-        || "",
-        ""
-      );
-      return !!presetId && !isMeshtasticFavoritePresetId(presetId);
+      return false;
     }}
 
     function meshyfaceProfilesCacheSignature() {{
@@ -1318,13 +1332,7 @@
       if (!(preview instanceof HTMLElement)) return;
       const theme = currentMeshyfaceProfileThemeRecipe();
       const preset = meshyfaceProfileAppearancePreset(theme);
-      const themeSignature = meshyfaceProfileThemeSignature(theme);
-      const previewRender = (
-        themeSignature
-        && settingsMeshyfaceNodeThemePreviewSignature === themeSignature
-      )
-        ? normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
-        : null;
+      const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);
       const previewTargets = meshyfaceNodeThemePreviewTargets();
       if (theme && preset) {{
         const appearanceEntry = {{

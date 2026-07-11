@@ -1215,6 +1215,9 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function resetMeshyfaceNodeThemeFromDashboard()" in js
     assert "function saveCurrentMeshyfaceNodeThemeAs()" in js
     assert "renderMeshyfaceNodeThemePreview();" in js
+    assert "function estimateMeshyfaceNodeThemePreviewRender(rawTheme)" in js
+    assert "function meshyfaceNodeThemePreviewRenderForTheme(rawTheme)" in js
+    assert "return exactRender || estimateMeshyfaceNodeThemePreviewRender(theme);" in js
     assert "profile.color" not in js
     assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
     assert "function clearRemoteMeshyfaceProfilesCache()" in js
@@ -1229,8 +1232,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
         js,
     )
     assert "function nodeTagOverridesProfileAppearance(tagEntry)" in js
-    assert "if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;" in js
-    assert "return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;" in js
+    assert "return false;" in js[js.index("function nodeTagOverridesProfileAppearance(tagEntry)"):js.index("function meshyfaceProfilesCacheSignature")]
+    assert "if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;" not in js
+    assert "return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;" not in js
+    assert "return meshyfaceProfileAppearanceForNode(nodeId, state);" in js
     local_profile_start = js.index("if (localNodeId && cleanNodeId === localNodeId)")
     local_profile_source_start = js.index('source: "local-profile",', local_profile_start)
     local_profile_end = js.index('source: "remote-profile",', local_profile_source_start)
@@ -1241,6 +1246,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "theme," in local_profile_block
     assert "...(render ? { render } : {})," in local_profile_block
     assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in local_profile_block
+    assert "const render = meshyfaceNodeThemePreviewRenderForTheme(theme);" in local_profile_block
     sharing_gate_index = js.index(
         "if (!settingsMeshyfaceThemeSharingEnabled) return null;",
         local_profile_source_start,
@@ -1254,6 +1260,15 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "const render = normalizeMeshyfaceProfileThemeRender(profile.render);" in js
     assert "color: render ? render.border_color : theme.line_color," in remote_profile_block
     assert "render," in remote_profile_block
+    assert "const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);" in js
+    theme_preference_block = js[
+        js.index("function applyThemePreference(mode, persist = true)")
+        : js.index("function bindThemeToggle()", js.index("function applyThemePreference(mode, persist = true)"))
+    ]
+    assert 'if (typeof renderMeshyfaceNodeThemePreview === "function") {' in theme_preference_block
+    assert "renderMeshyfaceNodeThemePreview();" in theme_preference_block
+    assert 'if (typeof rerenderMeshyfaceProfileAppearance === "function") {' in theme_preference_block
+    assert "rerenderMeshyfaceProfileAppearance();" in theme_preference_block
     assert 'const appearanceClass = appearanceEntry && appearanceEntry.profileAppearance' in js
     assert "--node-profile-color-wash" not in js
     assert "--node-profile-identity-color:${color};" in js
