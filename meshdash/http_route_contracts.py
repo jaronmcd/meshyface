@@ -84,6 +84,7 @@ class SendMeshyfaceProfileFn(Protocol):
         *,
         theme: object,
         channel_index: object = 0,
+        ghost: object = None,
     ) -> dict[str, object]:
         ...
 

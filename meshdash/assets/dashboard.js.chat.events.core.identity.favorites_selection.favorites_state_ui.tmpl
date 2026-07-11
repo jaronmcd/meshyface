@@ -318,6 +318,37 @@
       "center",
     ]);
     const meshyfaceProfileThemeModes = new Set(["light", "dark"]);
+    const meshyfaceProfileGhostEffects = new Set(["soft", "glow", "outline", "stamp"]);
+    const meshyfaceProfileGhostEffectCss = Object.freeze({{
+      soft: {{
+        blendMode: "screen",
+        filter: "blur(0.2px)",
+        transform: "rotate(-7deg) scale(1.14)",
+        weight: "800",
+        tracking: "0.02em",
+      }},
+      glow: {{
+        blendMode: "screen",
+        filter: "drop-shadow(0 0 7px currentColor)",
+        transform: "rotate(-5deg) scale(1.18)",
+        weight: "850",
+        tracking: "0.02em",
+      }},
+      outline: {{
+        blendMode: "normal",
+        filter: "drop-shadow(0 0 2px rgba(0, 0, 0, 0.28))",
+        transform: "rotate(-8deg) scale(1.12)",
+        weight: "850",
+        tracking: "0.03em",
+      }},
+      stamp: {{
+        blendMode: "multiply",
+        filter: "none",
+        transform: "rotate(-12deg) scale(1.08)",
+        weight: "900",
+        tracking: "0.06em",
+      }},
+    }});
     const meshyfaceProfileThemeRenderKeys = new Set([
       "background_start_color",
       "background_end_color",
@@ -352,6 +383,90 @@
       if (typeof value !== "string") return "";
       const clean = value.trim().toLowerCase();
       return accepted.has(clean) ? clean : "";
+    }}
+
+    function normalizeMeshyfaceProfileGhostText(value) {{
+      const raw = String(value == null ? "" : value)
+        .replace(/[\u0000-\u001f\u007f;{{}}<>"'\\]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!raw) return "";
+      const chars = Array.from(raw);
+      let clean = "";
+      let encodedBytes = 0;
+      let charCount = 0;
+      const encoder = typeof TextEncoder === "function" ? new TextEncoder() : null;
+      for (const char of chars) {{
+        const byteLength = encoder
+          ? encoder.encode(char).length
+          : unescape(encodeURIComponent(char)).length;
+        if (charCount >= 5) break;
+        if (encodedBytes + byteLength > 32) break;
+        clean += char;
+        charCount += 1;
+        encodedBytes += byteLength;
+      }}
+      return clean.trim();
+    }}
+
+    function normalizeMeshyfaceProfileGhostBlend(value, fallback = 24) {{
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {{
+        return Math.max(0, Math.min(100, Math.round(parsed)));
+      }}
+      const fallbackParsed = Number(fallback);
+      return Number.isFinite(fallbackParsed)
+        ? Math.max(0, Math.min(100, Math.round(fallbackParsed)))
+        : 24;
+    }}
+
+    function normalizeMeshyfaceProfileGhostEffect(value, fallback = "soft") {{
+      const clean = String(value || "").trim().toLowerCase();
+      if (meshyfaceProfileGhostEffects.has(clean)) return clean;
+      const cleanFallback = String(fallback || "").trim().toLowerCase();
+      return meshyfaceProfileGhostEffects.has(cleanFallback) ? cleanFallback : "soft";
+    }}
+
+    function encodeMeshyfaceProfileGhostFx(rawGhost) {{
+      const ghost = rawGhost && typeof rawGhost === "object" ? rawGhost : {{}};
+      const blend = normalizeMeshyfaceProfileGhostBlend(ghost.blend ?? ghost.ghost_blend, 24);
+      const effect = normalizeMeshyfaceProfileGhostEffect(ghost.effect ?? ghost.ghost_effect, "soft");
+      const effects = Array.from(meshyfaceProfileGhostEffects);
+      const blendSteps = Math.max(0, Math.min(31, Math.round(blend * 31 / 100)));
+      const effectId = Math.max(0, effects.indexOf(effect));
+      return blendSteps | (effectId << 5);
+    }}
+
+    function decodeMeshyfaceProfileGhostFx(value) {{
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 255) return null;
+      const effects = Array.from(meshyfaceProfileGhostEffects);
+      const blendSteps = parsed & 31;
+      const effectId = (parsed >> 5) & 3;
+      return {{
+        blend: Math.round(blendSteps * 100 / 31),
+        effect: effects[effectId] || "soft",
+        fx: parsed,
+      }};
+    }}
+
+    function normalizeMeshyfaceProfileGhost(rawGhost) {{
+      if (rawGhost == null) return null;
+      const payload = typeof rawGhost === "string"
+        ? {{ text: rawGhost }}
+        : (rawGhost && typeof rawGhost === "object" && !Array.isArray(rawGhost) ? rawGhost : null);
+      if (!payload) return null;
+      const fx = decodeMeshyfaceProfileGhostFx(payload.fx ?? payload.ghost_fx);
+      const text = normalizeMeshyfaceProfileGhostText(payload.text ?? payload.ghost_text ?? payload.ghost ?? "");
+      if (!text) return null;
+      const blend = normalizeMeshyfaceProfileGhostBlend(payload.blend ?? payload.ghost_blend, fx ? fx.blend : 24);
+      const effect = normalizeMeshyfaceProfileGhostEffect(payload.effect ?? payload.ghost_effect, fx ? fx.effect : "soft");
+      return {{
+        text,
+        blend,
+        effect,
+        fx: encodeMeshyfaceProfileGhostFx({{ blend, effect }}),
+      }};
     }}
 
     function normalizeMeshyfaceProfileTheme(rawTheme) {{
@@ -526,8 +641,31 @@
       const normalized = typeof normalizeThemeCustomSettings === "function"
         ? normalizeThemeCustomSettings(Object.assign({{}}, fallback, payload))
         : defaultMeshyfaceNodeThemeSettings();
+      const fallbackGhost = normalizeMeshyfaceProfileGhost({{
+        text: fallback.ghost_text,
+        blend: fallback.ghost_blend,
+        effect: fallback.ghost_effect,
+      }});
+      const ghostText = normalizeMeshyfaceProfileGhostText(
+        Object.prototype.hasOwnProperty.call(payload, "ghost_text")
+          ? payload.ghost_text
+          : (fallbackGhost ? fallbackGhost.text : "")
+      );
+      const ghostBlend = normalizeMeshyfaceProfileGhostBlend(
+        Object.prototype.hasOwnProperty.call(payload, "ghost_blend")
+          ? payload.ghost_blend
+          : (fallbackGhost ? fallbackGhost.blend : 24)
+      );
+      const ghostEffect = normalizeMeshyfaceProfileGhostEffect(
+        Object.prototype.hasOwnProperty.call(payload, "ghost_effect")
+          ? payload.ghost_effect
+          : (fallbackGhost ? fallbackGhost.effect : "soft")
+      );
       return Object.assign({{}}, normalized, {{
         mode: normalizeMeshyfaceNodeThemeMode(payload.mode, fallback.mode),
+        ghost_text: ghostText,
+        ghost_blend: ghostBlend,
+        ghost_effect: ghostEffect,
       }});
     }}
 
@@ -592,6 +730,15 @@
         gradient_primary_type: settings.gradient_primary_type,
         gradient_primary_direction: settings.gradient_primary_direction,
         mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,
+      }});
+    }}
+
+    function currentMeshyfaceProfileGhost() {{
+      const settings = currentMeshyfaceNodeThemeSettings();
+      return normalizeMeshyfaceProfileGhost({{
+        text: settings && settings.ghost_text,
+        blend: settings && settings.ghost_blend,
+        effect: settings && settings.ghost_effect,
       }});
     }}
 
@@ -986,6 +1133,15 @@
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
     ];
+    const meshyfaceProfileGhostStyleProperties = [
+      "--node-profile-ghost-text",
+      "--node-profile-ghost-opacity",
+      "--node-profile-ghost-blend-mode",
+      "--node-profile-ghost-filter",
+      "--node-profile-ghost-transform",
+      "--node-profile-ghost-weight",
+      "--node-profile-ghost-tracking",
+    ];
 
     function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
@@ -1017,9 +1173,38 @@
         : "";
     }}
 
+    function meshyfaceProfileGhostStyleEntries(rawGhost) {{
+      const ghost = normalizeMeshyfaceProfileGhost(rawGhost);
+      if (!ghost) return [];
+      const effect = meshyfaceProfileGhostEffectCss[ghost.effect] || meshyfaceProfileGhostEffectCss.soft;
+      return [
+        ["--node-profile-ghost-text", JSON.stringify(ghost.text)],
+        ["--node-profile-ghost-opacity", (ghost.blend / 100).toFixed(3)],
+        ["--node-profile-ghost-blend-mode", effect.blendMode],
+        ["--node-profile-ghost-filter", effect.filter],
+        ["--node-profile-ghost-transform", effect.transform],
+        ["--node-profile-ghost-weight", effect.weight],
+        ["--node-profile-ghost-tracking", effect.tracking],
+      ];
+    }}
+
+    function meshyfaceProfileGhostStyleVars(rawGhost) {{
+      const entries = meshyfaceProfileGhostStyleEntries(rawGhost);
+      return entries.length > 0
+        ? entries.map(([property, value]) => `${{property}}:${{value}}`).join(";") + ";"
+        : "";
+    }}
+
     function clearMeshyfaceProfileThemeElementStyle(target) {{
       if (!target || !target.style) return;
       for (const property of meshyfaceProfileThemeStyleProperties) {{
+        target.style.removeProperty(property);
+      }}
+    }}
+
+    function clearMeshyfaceProfileGhostElementStyle(target) {{
+      if (!target || !target.style) return;
+      for (const property of meshyfaceProfileGhostStyleProperties) {{
         target.style.removeProperty(property);
       }}
     }}
@@ -1028,6 +1213,16 @@
       if (!target || !target.style) return false;
       clearMeshyfaceProfileThemeElementStyle(target);
       const entries = meshyfaceProfileThemeStyleEntries(rawTheme, rawRender);
+      for (const [property, value] of entries) {{
+        target.style.setProperty(property, value);
+      }}
+      return entries.length > 0;
+    }}
+
+    function applyMeshyfaceProfileGhostElementStyle(target, rawGhost) {{
+      if (!target || !target.style) return false;
+      clearMeshyfaceProfileGhostElementStyle(target);
+      const entries = meshyfaceProfileGhostStyleEntries(rawGhost);
       for (const [property, value] of entries) {{
         target.style.setProperty(property, value);
       }}
@@ -1059,6 +1254,7 @@
       );
       if (localNodeId && cleanNodeId === localNodeId) {{
         const theme = currentMeshyfaceProfileThemeRecipe();
+        const ghost = currentMeshyfaceProfileGhost();
         const render = meshyfaceNodeThemePreviewRenderForTheme(theme);
         const preset = meshyfaceProfileAppearancePreset(theme, render);
         if (!theme || !preset) return null;
@@ -1073,6 +1269,7 @@
           source: "local-profile",
           color: render ? render.border_color : theme.line_color,
           theme,
+          ...(ghost ? {{ ghost }} : {{}}),
           ...(render ? {{ render }} : {{}}),
           presetId: preset.id,
           preset,
@@ -1084,6 +1281,7 @@
       const profile = remoteMeshyfaceProfilesByNodeId.get(cleanNodeId);
       if (!profile || typeof profile !== "object") return null;
       const theme = normalizeMeshyfaceProfileTheme(profile.theme);
+      const ghost = normalizeMeshyfaceProfileGhost(profile.ghost);
       const render = normalizeMeshyfaceProfileThemeRender(profile.render);
       const preset = meshyfaceProfileAppearancePreset(theme, render);
       if (!theme || !preset) return null;
@@ -1092,6 +1290,7 @@
         source: "remote-profile",
         color: render ? render.border_color : theme.line_color,
         theme,
+        ...(ghost ? {{ ghost }} : {{}}),
         render,
         presetId: preset.id,
         preset,
@@ -1133,6 +1332,7 @@
         const nodeId = normalizeNodeId(profile.node_id || profile.nodeId || rawNodeId);
         if (!isSelectableNodeId(nodeId)) continue;
         const theme = normalizeMeshyfaceProfileTheme(profile.theme);
+        const ghost = normalizeMeshyfaceProfileGhost(profile.ghost);
         const render = normalizeMeshyfaceProfileThemeRender(profile.render);
         const updatedUnix = Math.max(
           0,
@@ -1144,6 +1344,7 @@
         next.set(nodeId, {{
           node_id: nodeId,
           theme,
+          ...(ghost ? {{ ghost }} : {{}}),
           ...(render ? {{ render }} : {{}}),
           updated_unix: updatedUnix,
           received_unix: Math.max(
@@ -1365,12 +1566,15 @@
       const themeVars = typeof meshyfaceProfileThemeStyleVars === "function"
         ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme, profileRender)
         : "";
+      const ghostVars = appearanceEntry.profileAppearance && typeof meshyfaceProfileGhostStyleVars === "function"
+        ? meshyfaceProfileGhostStyleVars(appearanceEntry.ghost)
+        : "";
       // A profile's projected workspace border is its compact identity edge;
       // its advertised host surface supplies the remote-node background.
       const profileIdentityVars = appearanceEntry.profileAppearance && profileTheme
         ? `--node-profile-identity-color:${{color}};`
         : "";
-      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:${{surfaceBackground}};${{profileIdentityVars}}${{themeVars}}`;
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:${{surfaceBackground}};${{profileIdentityVars}}${{themeVars}}${{ghostVars}}`;
     }}
 
     // These are the shared identity variables used by small, non-chat node
@@ -1384,6 +1588,7 @@
       "--node-profile-identity-color",
       "--node-profile-bg",
       ...meshyfaceProfileThemeStyleProperties,
+      ...meshyfaceProfileGhostStyleProperties,
     ];
 
     function clearNodeAppearanceElementStyle(target) {{
@@ -1498,6 +1703,7 @@
       const preview = document.getElementById("settings-meshyface-node-theme-preview");
       if (!(preview instanceof HTMLElement)) return;
       const theme = currentMeshyfaceProfileThemeRecipe();
+      const ghost = currentMeshyfaceProfileGhost();
       const preset = meshyfaceProfileAppearancePreset(theme);
       const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);
       const previewTargets = meshyfaceNodeThemePreviewTargets();
@@ -1507,6 +1713,7 @@
           source: "local-profile-preview",
           color: previewRender ? previewRender.border_color : theme.line_color,
           theme,
+          ...(ghost ? {{ ghost }} : {{}}),
           ...(previewRender ? {{ render: previewRender }} : {{}}),
           presetId: preset.id,
           preset,
@@ -1604,6 +1811,17 @@
       if (modeSelect instanceof HTMLSelectElement) {{
         modeSelect.value = normalizeMeshyfaceNodeThemeMode(settings.mode);
       }}
+      const ghostTextInput = document.getElementById("settings-meshyface-node-theme-ghost-text");
+      if (ghostTextInput instanceof HTMLInputElement) {{
+        const cleanText = normalizeMeshyfaceProfileGhostText(settings.ghost_text);
+        if (ghostTextInput.value !== cleanText) {{
+          ghostTextInput.value = cleanText;
+        }}
+      }}
+      const ghostEffectSelect = document.getElementById("settings-meshyface-node-theme-ghost-effect");
+      if (ghostEffectSelect instanceof HTMLSelectElement) {{
+        ghostEffectSelect.value = normalizeMeshyfaceProfileGhostEffect(settings.ghost_effect);
+      }}
       const setRangeInput = (id, outputId, value, suffix, normalize) => {{
         const normalized = normalize(value);
         const input = document.getElementById(id);
@@ -1635,6 +1853,13 @@
         settings.foreground_blur,
         "",
         normalizeThemeCustomForegroundBlur
+      );
+      setRangeInput(
+        "settings-meshyface-node-theme-ghost-blend",
+        "settings-meshyface-node-theme-ghost-blend-value",
+        settings.ghost_blend,
+        "%",
+        normalizeMeshyfaceProfileGhostBlend
       );
       const selectedSavedTheme = selected !== "custom" && Object.prototype.hasOwnProperty.call(catalog, selected);
       const dashboardThemeConvertible = !!meshyfaceProfileThemeDashboardOptions(currentMeshyfaceProfileThemeRecipe());
@@ -1969,6 +2194,24 @@
         normalizeThemeCustomGradientDirection
       );
       bindSelect("settings-meshyface-node-theme-mode", "mode", normalizeMeshyfaceNodeThemeMode);
+      bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);
+
+      const ghostTextInput = document.getElementById("settings-meshyface-node-theme-ghost-text");
+      if (ghostTextInput instanceof HTMLInputElement && ghostTextInput.dataset.bound !== "1") {{
+        ghostTextInput.dataset.bound = "1";
+        ghostTextInput.addEventListener("input", () => {{
+          const clean = normalizeMeshyfaceProfileGhostText(ghostTextInput.value);
+          if (ghostTextInput.value !== clean) {{
+            ghostTextInput.value = clean;
+          }}
+          updateMeshyfaceNodeThemeSettingPatch({{ ghost_text: clean }}, {{ rerender: false }});
+        }});
+        ghostTextInput.addEventListener("change", () => {{
+          const clean = normalizeMeshyfaceProfileGhostText(ghostTextInput.value);
+          ghostTextInput.value = clean;
+          updateMeshyfaceNodeThemeSettingPatch({{ ghost_text: clean }});
+        }});
+      }}
 
       const bindRangeInput = (id, key, normalize) => {{
         const input = document.getElementById(id);
@@ -1988,6 +2231,7 @@
         normalizeThemeCustomForegroundTransparency
       );
       bindRangeInput("settings-meshyface-node-theme-foreground-blur", "foreground_blur", normalizeThemeCustomForegroundBlur);
+      bindRangeInput("settings-meshyface-node-theme-ghost-blend", "ghost_blend", normalizeMeshyfaceProfileGhostBlend);
       syncMeshyfaceNodeThemeControls();
     }}
 

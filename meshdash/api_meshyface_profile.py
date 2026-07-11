@@ -56,10 +56,13 @@ def handle_meshyface_profile_theme_post(
         return
 
     try:
-        response_obj = send_meshyface_profile_fn(
-            theme=request.theme,
-            channel_index=request.channel_index,
-        )
+        send_kwargs: dict[str, object] = {
+            "theme": request.theme,
+            "channel_index": request.channel_index,
+        }
+        if request.ghost is not None:
+            send_kwargs["ghost"] = request.ghost
+        response_obj = send_meshyface_profile_fn(**send_kwargs)
     except ValueError as exc:
         write_json_response_fn(
             handler,

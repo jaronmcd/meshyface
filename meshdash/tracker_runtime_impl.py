@@ -9,6 +9,7 @@ from .helpers import (
 from .history_store_runtime import HistoryStore
 from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
+    normalize_meshyface_profile_ghost as _normalize_meshyface_profile_ghost,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
@@ -64,13 +65,17 @@ def _normalize_meshyface_profile_cache_entry(value: object) -> dict[str, object]
     theme = _normalize_meshyface_theme_recipe(value.get("theme"))
     if not node_id or theme is None or updated_unix is None or updated_unix <= 0:
         return None
-    return {
+    ghost = _normalize_meshyface_profile_ghost(value.get("ghost"))
+    profile = {
         "node_id": node_id,
         "updated_unix": int(updated_unix),
         "received_unix": max(0, int(received_unix or 0)),
         "source": "mesh",
         "theme": theme,
     }
+    if ghost:
+        profile["ghost"] = ghost
+    return profile
 
 
 class DashboardTracker:

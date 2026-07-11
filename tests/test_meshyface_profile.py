@@ -23,6 +23,8 @@ from meshdash.http_api_post import build_post_route_dependencies
 from meshdash.http_routes_post import handle_dashboard_post
 from meshdash.meshyface_profile import (
     DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+    MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES,
+    MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS,
     MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES,
     MESHYFACE_THEME_RECIPE_BYTES,
     MESHYFACE_THEME_RECIPE_ENCODED_LENGTH,
@@ -148,6 +150,12 @@ class _StateTracker:
                 "received_unix": 1_788_300_010,
                 "source": "mesh",
                 "theme": _theme_recipe(),
+                "ghost": {
+                    "text": "73",
+                    "blend": 23,
+                    "effect": "glow",
+                    "fx": 39,
+                },
             },
             "!bad": {"updated_unix": 1_788_300_000, "theme": _theme_recipe()},
             "!11111111": {
@@ -168,6 +176,7 @@ def _profile_packet(
     updated_unix: int = 1_770_000_000,
     portnum: object = DEFAULT_MESHYFACE_PROFILE_PORTNUM,
     theme: object = None,
+    ghost: object = None,
 ) -> dict[str, object]:
     packet: dict[str, object] = {
         "decoded": {
@@ -176,6 +185,7 @@ def _profile_packet(
                 node_id=node_id,
                 updated_unix=updated_unix,
                 theme=_theme_recipe() if theme is None else theme,
+                ghost=ghost,
             ),
         }
     }
@@ -365,6 +375,42 @@ def test_profile_theme_round_trip_stays_within_single_packet_limit() -> None:
         "received_unix": 1_788_300_010,
         "source": "mesh",
         "theme": recipe,
+    }
+
+
+def test_profile_packet_can_carry_compact_ghost_text() -> None:
+    recipe = _theme_recipe()
+    payload = build_meshyface_profile_payload(
+        node_id="!335d8354",
+        updated_unix=1_788_300_000,
+        theme=recipe,
+        ghost={"text": "🔥🔥🔥🔥🔥", "blend": 52, "effect": "glow"},
+    )
+
+    body = json.loads(payload)
+    assert body["ghost"] == "🔥🔥🔥🔥🔥"
+    assert body["ghost_fx"] == 48
+    assert len(body["ghost"]) == MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS
+    assert len(body["ghost"].encode("utf-8")) <= MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES
+    assert MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES - len(payload) >= 70
+    assert parse_meshyface_profile_packet(
+        {
+            "fromId": "!335d8354",
+            "decoded": {"portnum": 256, "payload": payload},
+        },
+        now_unix_fn=lambda: 1_788_300_010,
+    ) == {
+        "node_id": "!335d8354",
+        "updated_unix": 1_788_300_000,
+        "received_unix": 1_788_300_010,
+        "source": "mesh",
+        "theme": recipe,
+        "ghost": {
+            "text": "🔥🔥🔥🔥🔥",
+            "blend": 52,
+            "effect": "glow",
+            "fx": 48,
+        },
     }
 
 
@@ -558,19 +604,42 @@ def test_parse_rejects_legacy_and_color_bearing_wire_packets() -> None:
 
     assert parse_meshyface_profile_packet(color_bearing_packet) is None
 
+    ghost_fx_without_text = dict(body)
+    ghost_fx_without_text["ghost_fx"] = 7
+    ghost_fx_packet = {
+        "fromId": "!335d8354",
+        "decoded": {
+            "portnum": "PRIVATE_APP",
+            "payload": json.dumps(
+                ghost_fx_without_text,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode(),
+        },
+    }
+
+    assert parse_meshyface_profile_packet(ghost_fx_packet) is None
+
 
 def test_parse_meshyface_profile_theme_request_validates_theme_and_channel() -> None:
     body = json.dumps(
         {
             "channel_index": 2,
             "theme": _theme_recipe(base_color="#ABCDEF"),
+            "ghost": {"text": "AB🔥", "blend": 45, "effect": "stamp"},
         }
-    ).encode()
+    ).encode("utf-8")
 
     request = parse_meshyface_profile_theme_request(body, to_int_fn=to_int)
 
     assert request.channel_index == 2
     assert request.theme == _theme_recipe(base_color="#abcdef")
+    assert request.ghost == {
+        "text": "AB🔥",
+        "blend": 45,
+        "effect": "stamp",
+        "fx": 110,
+    }
     with pytest.raises(ValueError, match="no longer supported"):
         parse_meshyface_profile_theme_request(
             json.dumps({"color": "#db2777", "theme": _theme_recipe()}).encode(),
@@ -624,6 +693,33 @@ def test_send_meshyface_profile_theme_uses_public_send_data_api() -> None:
         "wantResponse": False,
         "channelIndex": 3,
     }
+
+
+def test_send_meshyface_profile_theme_includes_optional_ghost() -> None:
+    iface = _SendDataIface()
+    recipe = _theme_recipe()
+
+    response = send_meshyface_profile_theme(
+        theme=recipe,
+        ghost={"text": "HELLO", "blend": 35, "effect": "outline"},
+        iface=iface,
+        send_lock=threading.Lock(),
+        local_node_id_fn=lambda: "!335d8354",
+        channel_index=3,
+        now_unix_fn=lambda: 1_788_300_000,
+    )
+
+    assert response["ghost"] == {
+        "text": "HELLO",
+        "blend": 35,
+        "effect": "outline",
+        "fx": 75,
+    }
+    payload, _kwargs = iface.calls[0]
+    body = json.loads(payload)
+    assert body["ghost"] == "HELLO"
+    assert body["ghost_fx"] == 75
+    assert decode_meshyface_theme_recipe(body["theme"]) == recipe
 
 
 def test_send_meshyface_profile_theme_rejects_invalid_theme_before_radio_send() -> None:
@@ -745,15 +841,22 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
     history_path = tmp_path / "profile-history.sqlite3"
     updated = int(time.time()) - 10
     recipe = _theme_recipe()
+    ghost = {
+        "text": "73",
+        "blend": 23,
+        "effect": "glow",
+        "fx": 39,
+    }
 
     first_store = _open_history_store(history_path)
     try:
         first_tracker = DashboardTracker(packet_limit=8, history_store=first_store)
         first_tracker.seed_packet(
-            _profile_packet(updated_unix=updated, theme=recipe),
+            _profile_packet(updated_unix=updated, theme=recipe, ghost=ghost),
             interface=object(),
         )
         assert first_tracker.meshyface_profiles_snapshot()["!335d8354"]["theme"] == recipe
+        assert first_tracker.meshyface_profiles_snapshot()["!335d8354"]["ghost"] == ghost
     finally:
         first_store.close()
 
@@ -763,6 +866,7 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
         restored = second_tracker.meshyface_profiles_snapshot()["!335d8354"]
         assert "color" not in restored
         assert restored["theme"] == recipe
+        assert restored["ghost"] == ghost
 
         second_tracker.seed_packet(
             _profile_packet(
@@ -986,6 +1090,12 @@ def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
             "source": "mesh",
             "theme": _theme_recipe(),
             "render": build_meshyface_theme_render(_theme_recipe()),
+            "ghost": {
+                "text": "73",
+                "blend": 23,
+                "effect": "glow",
+                "fx": 39,
+            },
         },
     }
 
@@ -1043,6 +1153,62 @@ def test_handle_dashboard_post_dispatches_profile_theme() -> None:
                 "sent": True,
                 "channel_index": 4,
                 "theme": recipe,
+            },
+        )
+    ]
+
+
+def test_handle_dashboard_post_dispatches_profile_theme_ghost() -> None:
+    recipe = _theme_recipe()
+    ghost = {"text": "AB🔥", "blend": 45, "effect": "stamp"}
+    body = json.dumps({"channel_index": 4, "theme": recipe, "ghost": ghost}).encode(
+        "utf-8"
+    )
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Authorization": "Bearer secret",
+        },
+    )
+    responses: list[tuple[int, object]] = []
+    received: list[dict[str, object]] = []
+
+    def _send_profile(**kwargs: object) -> dict[str, object]:
+        received.append(kwargs)
+        return {"ok": True, "sent": True, **kwargs}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        send_meshyface_profile_fn=_send_profile,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/theme", deps=deps)
+
+    normalized_ghost = {
+        "text": "AB🔥",
+        "blend": 45,
+        "effect": "stamp",
+        "fx": 110,
+    }
+    assert received == [{"channel_index": 4, "theme": recipe, "ghost": normalized_ghost}]
+    assert responses == [
+        (
+            200,
+            {
+                "ok": True,
+                "sent": True,
+                "channel_index": 4,
+                "theme": recipe,
+                "ghost": normalized_ghost,
             },
         )
     ]
@@ -1170,6 +1336,9 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-node-theme-save"' in html
     assert 'id="settings-meshyface-node-theme-try-dashboard"' in html
     assert 'id="settings-meshyface-node-theme-save-dashboard"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-text"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-effect"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-blend"' in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
@@ -1216,6 +1385,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "function currentMeshyfaceProfileGhost()" in js
+    assert "function normalizeMeshyfaceProfileGhostText(value)" in js
+    assert "function normalizeMeshyfaceProfileGhost(rawGhost)" in js
+    assert "function meshyfaceProfileGhostStyleVars(rawGhost)" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
     assert "function syncMeshyfaceNodeThemeControls()" in js
     assert "function bindMeshyfaceNodeThemeControls()" in js
@@ -1228,6 +1401,9 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function saveCurrentMeshyfaceNodeThemeAsDashboardTheme()" in js
     assert "Previewing node appearance on the dashboard. Use Undo look to restore the previous theme." in js
     assert "renderMeshyfaceNodeThemePreview();" in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-text")' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);' in js
+    assert 'bindRangeInput("settings-meshyface-node-theme-ghost-blend", "ghost_blend", normalizeMeshyfaceProfileGhostBlend);' in js
     assert "function estimateMeshyfaceNodeThemePreviewRender(rawTheme)" in js
     assert "function meshyfaceNodeThemePreviewRenderForTheme(rawTheme)" in js
     assert "function persistMeshyfaceNodeThemePreviewRenderCache(signature, rawRender)" in js

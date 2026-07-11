@@ -11,6 +11,7 @@ from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
     MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
+    normalize_meshyface_profile_ghost as _normalize_meshyface_profile_ghost,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
 )
@@ -45,32 +46,42 @@ def _normalize_profile(value: object) -> dict[str, object] | None:
     theme = _normalize_meshyface_theme_recipe(value.get("theme"))
     if not node_id or theme is None or updated_unix is None or updated_unix <= 0:
         return None
+    ghost = _normalize_meshyface_profile_ghost(value.get("ghost"))
 
-    return {
+    profile = {
         "node_id": node_id,
         "updated_unix": int(updated_unix),
         "received_unix": max(0, int(received_unix or 0)),
         "source": "mesh",
         "theme": theme,
     }
+    if ghost:
+        profile["ghost"] = ghost
+    return profile
 
 
 def _profile_from_row(row: object) -> dict[str, object] | None:
     if not isinstance(row, tuple) or len(row) < 4:
         return None
     theme: object = None
+    ghost: object = None
     raw_theme = row[3]
     if isinstance(raw_theme, str) and raw_theme:
         try:
             theme = json.loads(raw_theme)
         except (TypeError, ValueError):
             theme = None
+    if isinstance(theme, Mapping) and ("theme" in theme or "ghost" in theme):
+        ghost = theme.get("ghost")
+        theme = theme.get("theme")
     profile: dict[str, object] = {
         "node_id": row[0],
         "updated_unix": row[1],
         "received_unix": row[2],
         "theme": theme,
     }
+    if ghost:
+        profile["ghost"] = ghost
     return _normalize_profile(profile)
 
 
@@ -219,7 +230,14 @@ def _save_normalized_meshyface_profile_unlocked(
     # v2 profiles derive it solely from the advertised theme, never from wire
     # or UI color state.
     storage_color = str(theme["line_color"])
-    theme_json = json.dumps(theme, separators=(",", ":"))
+    ghost = _normalize_meshyface_profile_ghost(normalized.get("ghost"))
+    storage_payload: object = theme
+    if ghost:
+        storage_payload = {
+            "theme": theme,
+            "ghost": ghost,
+        }
+    theme_json = json.dumps(storage_payload, separators=(",", ":"), ensure_ascii=False)
     cursor = store._conn.execute(
         """
         INSERT INTO meshyface_profiles(

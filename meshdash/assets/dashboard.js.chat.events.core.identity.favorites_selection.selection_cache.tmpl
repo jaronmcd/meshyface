@@ -521,6 +521,9 @@
         if (typeof clearMeshyfaceProfileThemeElementStyle === "function") {{
           clearMeshyfaceProfileThemeElementStyle(target);
         }}
+        if (typeof clearMeshyfaceProfileGhostElementStyle === "function") {{
+          clearMeshyfaceProfileGhostElementStyle(target);
+        }}
       }}
       function applyNodeAppearanceSurfaceStyle(target, appearanceEntry, scope = "member", fallbackHue = 145) {{
         if (!(target instanceof HTMLElement)) return false;
@@ -566,6 +569,9 @@
         );
         if (typeof applyMeshyfaceProfileThemeElementStyle === "function") {{
           applyMeshyfaceProfileThemeElementStyle(target, entry.theme, profileRender);
+        }}
+        if (typeof applyMeshyfaceProfileGhostElementStyle === "function") {{
+          applyMeshyfaceProfileGhostElementStyle(target, entry.ghost);
         }}
         return true;
       }}

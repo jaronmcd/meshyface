@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 from .meshyface_profile import (
+    normalize_meshyface_profile_ghost,
     normalize_meshyface_theme_recipe,
 )
 from .runtime_types import ToIntFn
@@ -13,6 +14,7 @@ from .runtime_types import ToIntFn
 class MeshyfaceProfileThemeRequest:
     theme: dict[str, object]
     channel_index: int
+    ghost: dict[str, object] | None = None
 
 
 def parse_meshyface_profile_theme_request(
@@ -39,7 +41,25 @@ def parse_meshyface_profile_theme_request(
     theme = normalize_meshyface_theme_recipe(body.get("theme"))
     if theme is None:
         raise ValueError("theme must be a complete valid Meshyface theme recipe")
+    ghost = None
+    ghost_keys = {"ghost", "ghost_text", "ghost_blend", "ghost_effect", "ghost_fx"}
+    if any(key in body for key in ghost_keys):
+        raw_ghost = body.get("ghost")
+        if raw_ghost is not None:
+            ghost = normalize_meshyface_profile_ghost(raw_ghost)
+        else:
+            ghost = normalize_meshyface_profile_ghost(
+                {
+                    "text": body.get("ghost_text"),
+                    "blend": body.get("ghost_blend"),
+                    "effect": body.get("ghost_effect"),
+                    "fx": body.get("ghost_fx"),
+                }
+            )
+        if ghost is None and (body.get("ghost") or body.get("ghost_text")):
+            raise ValueError("ghost must be 1-5 characters within the profile byte limit")
     return MeshyfaceProfileThemeRequest(
         theme=theme,
         channel_index=int(channel_index),
+        ghost=ghost,
     )

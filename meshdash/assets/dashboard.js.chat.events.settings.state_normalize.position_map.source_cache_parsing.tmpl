@@ -379,6 +379,16 @@
         setMeshyfaceProfileStatusText("Your node appearance is incomplete and cannot be shared.", true);
         return null;
       }}
+      const ghost = typeof currentMeshyfaceProfileGhost === "function"
+        ? currentMeshyfaceProfileGhost()
+        : null;
+      const body = {{
+        theme,
+        channel_index: channelIndex,
+      }};
+      if (ghost) {{
+        body.ghost = ghost;
+      }}
       meshyfaceProfileBroadcastInFlight = true;
       syncSettingsAppearanceControls();
       setMeshyfaceProfileStatusText("Broadcasting node appearance...");
@@ -386,10 +396,7 @@
         const resp = await fetch(meshyfaceProfileThemeEndpoint, {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{
-            theme,
-            channel_index: channelIndex,
-          }}),
+          body: JSON.stringify(body),
         }});
         const payload = await resp.json().catch(() => ({{}}));
         if (!resp.ok || (payload && payload.ok === false)) {{

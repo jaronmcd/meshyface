@@ -21,15 +21,20 @@ MESHYFACE_PROFILE_CACHE_LIMIT = 2048
 MESHYFACE_THEME_RECIPE_VERSION = 1
 MESHYFACE_THEME_RECIPE_BYTES = 21
 MESHYFACE_THEME_RECIPE_ENCODED_LENGTH = 28
+MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS = 5
+MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES = 32
 
 _PROFILE_COLOR_RE = re.compile(r"^#[0-9a-f]{6}$", re.IGNORECASE)
 _PROFILE_NODE_ID_RE = re.compile(r"^!?[0-9a-f]{8}$", re.IGNORECASE)
 _THEME_RECIPE_WIRE_RE = re.compile(r"^[A-Za-z0-9_-]{28}$")
+_PROFILE_GHOST_TEXT_DISALLOWED_RE = re.compile(r"[\x00-\x1f\x7f;{}<>\"'\\]")
 _RGBA_COLOR_RE = re.compile(
     r"^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*"
     r"(0(?:\.\d+)?|1(?:\.0+)?)\s*\)$"
 )
-_PROFILE_WIRE_KEYS = frozenset({"type", "v", "node", "updated", "theme"})
+_PROFILE_WIRE_REQUIRED_KEYS = frozenset({"type", "v", "node", "updated", "theme"})
+_PROFILE_WIRE_OPTIONAL_KEYS = frozenset({"ghost", "ghost_fx"})
+_PROFILE_WIRE_KEYS = _PROFILE_WIRE_REQUIRED_KEYS | _PROFILE_WIRE_OPTIONAL_KEYS
 _THEME_RECIPE_KEYS = frozenset(
     {
         "version",
@@ -61,6 +66,7 @@ _THEME_GRADIENT_DIRECTIONS = (
     "center",
 )
 _THEME_MODES = ("light", "dark")
+_PROFILE_GHOST_EFFECTS = ("soft", "glow", "outline", "stamp")
 
 
 def normalize_meshyface_profile_color(value: object) -> str | None:
@@ -80,6 +86,134 @@ def normalize_meshyface_profile_node_id(value: object) -> str | None:
     if not _PROFILE_NODE_ID_RE.fullmatch(text):
         return None
     return text if text.startswith("!") else f"!{text}"
+
+
+def normalize_meshyface_profile_ghost_text(value: object) -> str | None:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        return None
+    text = _PROFILE_GHOST_TEXT_DISALLOWED_RE.sub("", value)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+    clean_chars: list[str] = []
+    encoded_len = 0
+    for char in text:
+        char_bytes = char.encode("utf-8", errors="ignore")
+        if not char_bytes:
+            continue
+        if len(clean_chars) >= MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS:
+            break
+        if encoded_len + len(char_bytes) > MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES:
+            break
+        clean_chars.append(char)
+        encoded_len += len(char_bytes)
+    return "".join(clean_chars).strip()
+
+
+def normalize_meshyface_profile_ghost_blend(
+    value: object,
+    *,
+    fallback: int = 24,
+) -> int | None:
+    if value is None:
+        return int(max(0, min(100, fallback)))
+    if isinstance(value, bool):
+        return None
+    parsed = _to_int(value)
+    if parsed is None or parsed < 0 or parsed > 100:
+        return None
+    return int(parsed)
+
+
+def normalize_meshyface_profile_ghost_effect(
+    value: object,
+    *,
+    fallback: str = "soft",
+) -> str:
+    clean = str(value or "").strip().lower()
+    if clean in _PROFILE_GHOST_EFFECTS:
+        return clean
+    fallback_clean = str(fallback or "").strip().lower()
+    return fallback_clean if fallback_clean in _PROFILE_GHOST_EFFECTS else "soft"
+
+
+def encode_meshyface_profile_ghost_fx(
+    *,
+    blend: object = 24,
+    effect: object = "soft",
+) -> int | None:
+    clean_blend = normalize_meshyface_profile_ghost_blend(blend)
+    if clean_blend is None:
+        return None
+    clean_effect = normalize_meshyface_profile_ghost_effect(effect)
+    blend_steps = max(0, min(31, round(clean_blend * 31 / 100)))
+    effect_id = _PROFILE_GHOST_EFFECTS.index(clean_effect)
+    return int(blend_steps | (effect_id << 5))
+
+
+def decode_meshyface_profile_ghost_fx(value: object) -> dict[str, object] | None:
+    if value is None:
+        value = encode_meshyface_profile_ghost_fx()
+    if isinstance(value, bool):
+        return None
+    parsed = _to_int(value)
+    if parsed is None or parsed < 0 or parsed > 255:
+        return None
+    fx = int(parsed)
+    blend_steps = fx & 0x1F
+    effect_id = (fx >> 5) & 0x03
+    return {
+        "blend": int(round(blend_steps * 100 / 31)),
+        "effect": _PROFILE_GHOST_EFFECTS[effect_id],
+        "fx": fx,
+    }
+
+
+def normalize_meshyface_profile_ghost(value: object) -> dict[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        payload: Mapping[str, object] = {"text": value}
+    elif isinstance(value, Mapping):
+        payload = value
+    else:
+        return None
+
+    text = normalize_meshyface_profile_ghost_text(
+        _mapping_get(payload, "text", "ghost_text", "ghost")
+    )
+    if text is None:
+        return None
+    if not text:
+        return None
+
+    fx_raw = _mapping_get(payload, "fx", "ghost_fx")
+    decoded_fx = decode_meshyface_profile_ghost_fx(fx_raw) if fx_raw is not None else None
+    if fx_raw is not None and decoded_fx is None:
+        return None
+    blend_fallback = int(decoded_fx["blend"]) if decoded_fx else 24
+    effect_fallback = str(decoded_fx["effect"]) if decoded_fx else "soft"
+    blend = normalize_meshyface_profile_ghost_blend(
+        _mapping_get(payload, "blend", "ghost_blend"),
+        fallback=blend_fallback,
+    )
+    if blend is None:
+        return None
+    effect = normalize_meshyface_profile_ghost_effect(
+        _mapping_get(payload, "effect", "ghost_effect"),
+        fallback=effect_fallback,
+    )
+    fx = encode_meshyface_profile_ghost_fx(blend=blend, effect=effect)
+    if fx is None:
+        return None
+    return {
+        "text": text,
+        "blend": int(blend),
+        "effect": effect,
+        "fx": int(fx),
+    }
 
 
 def _normalize_theme_integer(value: object, *, minimum: int, maximum: int) -> int | None:
@@ -328,6 +462,10 @@ def build_meshyface_profile_payload(
     node_id: object,
     updated_unix: object,
     theme: object,
+    ghost: object = None,
+    ghost_text: object = None,
+    ghost_blend: object = 24,
+    ghost_effect: object = "soft",
 ) -> bytes:
     clean_node_id = normalize_meshyface_profile_node_id(node_id)
     if not clean_node_id:
@@ -347,7 +485,24 @@ def build_meshyface_profile_payload(
         "updated": int(updated),
         "theme": encode_meshyface_theme_recipe(clean_theme),
     }
-    encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    clean_ghost = normalize_meshyface_profile_ghost(ghost)
+    if clean_ghost is None and ghost_text is not None:
+        clean_ghost = normalize_meshyface_profile_ghost(
+            {
+                "text": ghost_text,
+                "blend": ghost_blend,
+                "effect": ghost_effect,
+            }
+        )
+    if clean_ghost:
+        payload["ghost"] = clean_ghost["text"]
+        payload["ghost_fx"] = clean_ghost["fx"]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
     if len(encoded) > MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES:
         raise ValueError(
             f"profile payload exceeds {MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES}-byte Meshtastic limit"
@@ -421,7 +576,11 @@ def parse_meshyface_profile_packet(
     body = _decode_payload_object(_mapping_get(decoded, "payload"))
     if body is None:
         return None
-    if set(body.keys()) != _PROFILE_WIRE_KEYS:
+    body_keys = set(body.keys())
+    if (
+        not _PROFILE_WIRE_REQUIRED_KEYS.issubset(body_keys)
+        or body_keys - _PROFILE_WIRE_KEYS
+    ):
         return None
     if body.get("type") != MESHYFACE_PROFILE_TYPE:
         return None
@@ -439,6 +598,18 @@ def parse_meshyface_profile_packet(
     theme = decode_meshyface_theme_recipe(body.get("theme"))
     if theme is None:
         return None
+    ghost: dict[str, object] | None = None
+    if "ghost" in body or "ghost_fx" in body:
+        if "ghost" not in body:
+            return None
+        ghost = normalize_meshyface_profile_ghost(
+            {
+                "text": body.get("ghost"),
+                "fx": body.get("ghost_fx"),
+            }
+        )
+        if ghost is None:
+            return None
     updated_raw = body.get("updated")
     if isinstance(updated_raw, bool):
         return None
@@ -458,4 +629,6 @@ def parse_meshyface_profile_packet(
         "source": "mesh",
         "theme": theme,
     }
+    if ghost:
+        profile["ghost"] = ghost
     return profile

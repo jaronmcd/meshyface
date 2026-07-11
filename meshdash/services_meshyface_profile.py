@@ -7,6 +7,7 @@ from .meshyface_profile import (
     MESHYFACE_PROFILE_PORTNUM,
     MESHYFACE_PROFILE_TYPE,
     build_meshyface_profile_payload,
+    normalize_meshyface_profile_ghost,
     normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe,
 )
@@ -31,11 +32,26 @@ def send_meshyface_profile_theme(
     send_lock: object,
     local_node_id_fn,
     channel_index: object = 0,
+    ghost: object = None,
+    ghost_text: object = None,
+    ghost_blend: object = 24,
+    ghost_effect: object = "soft",
     now_unix_fn=time.time,
 ) -> dict[str, object]:
     clean_theme = normalize_meshyface_theme_recipe(theme)
     if clean_theme is None:
         raise ValueError("theme must be a complete valid Meshyface theme recipe")
+    clean_ghost = normalize_meshyface_profile_ghost(ghost)
+    if clean_ghost is None and ghost_text is not None:
+        clean_ghost = normalize_meshyface_profile_ghost(
+            {
+                "text": ghost_text,
+                "blend": ghost_blend,
+                "effect": ghost_effect,
+            }
+        )
+    if clean_ghost is None and (ghost or ghost_text):
+        raise ValueError("ghost must be 1-5 characters within the profile byte limit")
     try:
         local_node_id = local_node_id_fn()
     except Exception as exc:
@@ -56,6 +72,7 @@ def send_meshyface_profile_theme(
         node_id=clean_node_id,
         updated_unix=updated_unix,
         theme=clean_theme,
+        ghost=clean_ghost,
     )
     send_data = getattr(iface, "sendData", None)
     if not callable(send_data):
@@ -82,6 +99,8 @@ def send_meshyface_profile_theme(
         "channel_index": int(clean_channel),
         "portnum": MESHYFACE_PROFILE_PORTNUM,
     }
+    if clean_ghost:
+        response["ghost"] = clean_ghost
     packet_id = _sent_packet_id(sent_packet)
     if packet_id is not None:
         response["packet_id"] = packet_id

@@ -11,6 +11,7 @@ from .helpers import (
 from .history_node_names import build_name_change_chat_entries as _build_name_change_chat_entries_helper
 from .meshyface_profile import (
     build_meshyface_theme_render as _build_meshyface_theme_render,
+    normalize_meshyface_profile_ghost as _normalize_meshyface_profile_ghost,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
 )
@@ -263,6 +264,7 @@ def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object
         theme = _normalize_meshyface_theme_recipe(raw_profile.get("theme"))
         if theme is None:
             continue
+        ghost = _normalize_meshyface_profile_ghost(raw_profile.get("ghost"))
         render = _build_meshyface_theme_render(theme)
         if render is None:
             continue
@@ -274,6 +276,8 @@ def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object
             "theme": theme,
             "render": render,
         }
+        if ghost:
+            profile["ghost"] = ghost
         profiles[node_id] = profile
     return profiles
 

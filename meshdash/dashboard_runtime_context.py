@@ -528,10 +528,12 @@ def build_dashboard_runtime_context(
             *,
             theme,
             channel_index=0,
+            ghost=None,
         ):
             return _send_meshyface_profile_theme(
                 channel_index=channel_index,
                 theme=theme,
+                ghost=ghost,
                 iface=iface,
                 send_lock=send_lock,
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
