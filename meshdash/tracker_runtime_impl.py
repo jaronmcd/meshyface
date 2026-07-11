@@ -1,5 +1,6 @@
 import threading
 import time
+from collections.abc import Mapping
 from typing import Optional
 
 from .helpers import (
@@ -8,6 +9,8 @@ from .helpers import (
 from .history_store_runtime import HistoryStore
 from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
+    normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
+    normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
 )
@@ -53,6 +56,28 @@ DEFAULT_CHAT_DELIVERY_TIMEOUT_SECONDS = 90
 MIN_REAL_LINK_COUNT = 2
 
 
+def _normalize_meshyface_profile_cache_entry(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    node_id = _normalize_meshyface_profile_node_id(value.get("node_id"))
+    color = _normalize_meshyface_profile_color(value.get("color"))
+    updated_unix = _to_int(value.get("updated_unix"))
+    received_unix = _to_int(value.get("received_unix"))
+    if not node_id or not color or updated_unix is None or updated_unix <= 0:
+        return None
+    profile: dict[str, object] = {
+        "node_id": node_id,
+        "color": color,
+        "updated_unix": int(updated_unix),
+        "received_unix": max(0, int(received_unix or 0)),
+        "source": "mesh",
+    }
+    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
+    if theme is not None:
+        profile["theme"] = theme
+    return profile
+
+
 class DashboardTracker:
     def __init__(self, packet_limit: int, history_store: Optional[HistoryStore] = None) -> None:
         self._lock = threading.Lock()
@@ -76,6 +101,7 @@ class DashboardTracker:
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
         self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
+        self._restore_meshyface_profiles_from_history_unlocked()
         self._zork_bot_service = None
         self._ping_bot_service = None
         self._ping_public_start_enabled = True
@@ -472,13 +498,85 @@ class DashboardTracker:
 
     def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
         profile = _parse_meshyface_profile_packet(packet)
-        if not profile:
+        next_profile = _normalize_meshyface_profile_cache_entry(profile)
+        if next_profile is None:
             return False
-        node_id = str(profile.get("node_id") or "").strip().lower()
-        color = str(profile.get("color") or "").strip().lower()
+
+        if not self._cache_meshyface_profile_unlocked(next_profile):
+            return False
+        self._persist_meshyface_profile_unlocked(next_profile)
+        return True
+
+    def _restore_meshyface_profiles_from_history_unlocked(self) -> None:
+        history_store = getattr(self, "_history_store", None)
+        load_profiles_fn = getattr(history_store, "load_meshyface_profiles", None)
+        if not callable(load_profiles_fn):
+            return
+        try:
+            raw_profiles = load_profiles_fn(limit=MESHYFACE_PROFILE_CACHE_LIMIT)
+        except TypeError:
+            try:
+                raw_profiles = load_profiles_fn()
+            except Exception:
+                return
+        except Exception:
+            return
+        # Dedicated profile persistence was added after raw packets had already
+        # been stored by some dashboards.  Only when that dedicated cache has
+        # no usable rows do a bounded legacy-packet recovery; existing live
+        # rows must remain the source of truth.
+        if not raw_profiles:
+            backfill_profiles_fn = getattr(
+                history_store,
+                "backfill_meshyface_profiles_from_packets",
+                None,
+            )
+            if callable(backfill_profiles_fn):
+                try:
+                    raw_profiles = backfill_profiles_fn(
+                        limit=MESHYFACE_PROFILE_CACHE_LIMIT,
+                    )
+                except TypeError:
+                    try:
+                        raw_profiles = backfill_profiles_fn()
+                    except Exception:
+                        pass
+                except Exception:
+                    # A legacy recovery failure is never allowed to prevent
+                    # dashboard startup or ordinary profile reception.
+                    pass
+        if isinstance(raw_profiles, Mapping):
+            profile_rows = raw_profiles.values()
+        elif isinstance(raw_profiles, (list, tuple)):
+            profile_rows = raw_profiles
+        else:
+            return
+        for raw_profile in profile_rows:
+            profile = _normalize_meshyface_profile_cache_entry(raw_profile)
+            if profile is not None:
+                self._cache_meshyface_profile_unlocked(profile)
+
+    def _persist_meshyface_profile_unlocked(self, profile: dict[str, object]) -> None:
+        history_store = getattr(self, "_history_store", None)
+        save_profile_fn = getattr(history_store, "save_meshyface_profile", None)
+        if not callable(save_profile_fn):
+            return
+        try:
+            save_profile_fn(profile, limit=MESHYFACE_PROFILE_CACHE_LIMIT)
+        except TypeError:
+            try:
+                save_profile_fn(profile)
+            except Exception:
+                pass
+        except Exception:
+            # Profile identity is optional dashboard state. A storage failure
+            # must not interrupt ordinary radio receive handling.
+            pass
+
+    def _cache_meshyface_profile_unlocked(self, profile: dict[str, object]) -> bool:
+        node_id = str(profile["node_id"])
         updated_unix = _to_int(profile.get("updated_unix"))
-        received_unix = _to_int(profile.get("received_unix"))
-        if not node_id or not color or updated_unix is None or updated_unix <= 0:
+        if updated_unix is None or updated_unix <= 0:
             return False
 
         existing = self.meshyface_profiles_by_node_id.get(node_id)
@@ -491,19 +589,8 @@ class DashboardTracker:
         if existing_updated is not None and existing_updated >= updated_unix:
             return False
 
-        next_profile = {
-            "node_id": node_id,
-            "color": color,
-            "updated_unix": int(updated_unix),
-            "received_unix": max(0, int(received_unix or 0)),
-            "source": "mesh",
-        }
-        theme = _normalize_meshyface_theme_recipe(profile.get("theme"))
-        if theme is not None:
-            next_profile["theme"] = theme
-        self.meshyface_profiles_by_node_id[node_id] = next_profile
+        self.meshyface_profiles_by_node_id[node_id] = dict(profile)
 
-        evicted_node_id: str | None = None
         while len(self.meshyface_profiles_by_node_id) > MESHYFACE_PROFILE_CACHE_LIMIT:
             evicted_node_id = min(
                 self.meshyface_profiles_by_node_id,
@@ -520,7 +607,7 @@ class DashboardTracker:
                 ),
             )
             del self.meshyface_profiles_by_node_id[evicted_node_id]
-        return evicted_node_id != node_id
+        return node_id in self.meshyface_profiles_by_node_id
 
     def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
         with self._lock:

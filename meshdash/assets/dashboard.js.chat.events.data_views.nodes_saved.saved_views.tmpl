@@ -353,6 +353,10 @@
 
       if (!isSelectableNodeId(nodeId)) {{
         host.dataset.nodeId = "";
+        host.classList.remove("has-node-appearance", "profiled-node");
+        if (typeof clearNodeAppearanceElementStyle === "function") {{
+          clearNodeAppearanceElementStyle(host);
+        }}
         const visibleFavoriteCount = visibleFavoriteNodeIds().length;
         const emptyDetailsHtml = visibleFavoriteCount === 0
           ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
@@ -369,6 +373,18 @@
 
       const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       const node = nodes.find((entry) => normalizeNodeId(entry.id || "") === nodeId) || null;
+      const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+        ? effectiveNodeAppearanceForNode(nodeId, safeState)
+        : null;
+      const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
+      const profileAppearance = !!(hasNodeAppearance && appearanceEntry.profileAppearance);
+      host.classList.toggle("has-node-appearance", hasNodeAppearance);
+      host.classList.toggle("profiled-node", profileAppearance);
+      if (hasNodeAppearance && typeof applyNodeAppearanceElementStyle === "function") {{
+        applyNodeAppearanceElementStyle(host, appearanceEntry);
+      }} else if (typeof clearNodeAppearanceElementStyle === "function") {{
+        clearNodeAppearanceElementStyle(host);
+      }}
       const historyCapsById = new Map(
         Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
           .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])

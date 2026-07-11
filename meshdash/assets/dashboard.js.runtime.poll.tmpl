@@ -605,6 +605,12 @@
         latestState = state;
         if (syncMeshyfaceProfilesFromState(state)) {{
           chatPollStructuralSignature = "";
+          // Profile packets alter presentation even when radio/node fields are
+          // unchanged. Force the spatial cache to rebuild its marker and popup
+          // identity surfaces on this poll.
+          lastMapSignature = "";
+          lastMapGraphSignature = "";
+          lastMapRenderMode = "";
         }}
         if (typeof refreshConsoleNodeRowsCache === "function") {{
           refreshConsoleNodeRowsCache(rawState);

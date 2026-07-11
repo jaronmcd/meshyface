@@ -175,7 +175,9 @@
           const appearanceEntry = entry.appearanceEntry && entry.appearanceEntry.preset
             ? entry.appearanceEntry
             : null;
-          const appearanceClass = appearanceEntry ? " profiled-node" : "";
+          const appearanceClass = appearanceEntry && appearanceEntry.profileAppearance
+            ? " profiled-node"
+            : "";
           const appearanceStyleVars = appearanceEntry && typeof nodeAppearanceStyleVars === "function"
             ? nodeAppearanceStyleVars(appearanceEntry)
             : "";

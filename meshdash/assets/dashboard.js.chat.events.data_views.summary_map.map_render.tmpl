@@ -981,6 +981,12 @@
             markerHash,
             resolveMapNodeEmoji(normalizedId, latestState)
           );
+          markerHash = hashMixStr(
+            markerHash,
+            (typeof mapNodeAppearanceSignature === "function")
+              ? mapNodeAppearanceSignature(normalizedId, latestState)
+              : ""
+          );
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.anchorCount) || 0) : 0);
           markerHash = hashMixInt(markerHash, isEstimated ? Math.trunc(Number(estimate && estimate.supportLinks) || 0) : 0);
           markerHash = hashMixInt(markerHash, isEstimated ? (Math.round(Number(estimate && estimate.fitScore) * 1000) || 0) : 1000);

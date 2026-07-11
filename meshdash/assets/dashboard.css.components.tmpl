@@ -8458,7 +8458,8 @@
         inset 2px 0 0 var(--node-profile-border, var(--accent)),
         inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 16%, transparent);
     }}
-    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover,
+    #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
       background:
         var(--node-profile-theme-wash-hover, var(--chat-member-node-gradient-hover)),
         var(--chat-member-node-bg-hover);
@@ -8581,4 +8582,466 @@
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--surface-tint-text) 62%
       );
+    }}
+    .map-node-emoji-marker.has-node-appearance {{
+      background: var(
+        --node-profile-theme-gradient,
+        radial-gradient(
+          circle at 50% 44%,
+          color-mix(in srgb, var(--node-profile-border, #2a3a70) 76%, #ffffff 24%) 0%,
+          color-mix(in srgb, var(--node-profile-border, #21315d) 72%, #111b38 28%) 58%,
+          color-mix(in srgb, var(--node-profile-border, #1a2749) 54%, #08101f 46%) 100%
+        )
+      );
+    }}
+    .map-node-info-card.has-node-appearance:not(.is-estimated) {{
+      border-color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 72%,
+        var(--line) 28%
+      );
+      background:
+        var(
+          --node-profile-theme-wash,
+          var(
+            --node-profile-color-wash,
+            linear-gradient(
+              180deg,
+              color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, var(--panel) 82%) 0%,
+              color-mix(in srgb, var(--node-profile-border, var(--accent)) 7%, var(--panel) 93%) 100%
+            )
+          )
+        ),
+        linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%) 0%, color-mix(in srgb, var(--panel) 96%, black 4%) 100%);
+    }}
+    .map-node-info-card.has-node-appearance .map-node-info-emoji {{
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, #9fb5ff));
+      background: var(
+        --node-profile-theme-gradient,
+        radial-gradient(
+          circle at 50% 42%,
+          color-mix(in srgb, var(--node-profile-border, #31457f) 76%, #ffffff 24%) 0%,
+          color-mix(in srgb, var(--node-profile-border, #24335f) 68%, #12203f 32%) 62%,
+          color-mix(in srgb, var(--node-profile-border, #192544) 54%, #07101f 46%) 100%
+        )
+      );
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 24%, transparent),
+        0 4px 14px color-mix(in srgb, var(--node-profile-border, #0a1224) 30%, transparent);
+    }}
+    .map-node-info-card.has-node-appearance .map-node-info-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 42%,
+        var(--ink) 58%
+      );
+    }}
+    [data-theme="dark"] .map-node-info-card.has-node-appearance .map-node-info-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 42%,
+        var(--ink) 58%
+      );
+    }}
+    .chat-node-details-drawer.has-node-appearance .chat-node-details-head {{
+      border-bottom-color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 66%,
+        var(--surface-tint-border) 34%
+      );
+      background:
+        var(
+          --node-profile-theme-wash,
+          var(--node-profile-color-wash, transparent)
+        ),
+        var(--surface-tint-bg-alt);
+    }}
+    .chat-node-details-drawer.has-node-appearance .chat-node-details-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 46%,
+        var(--surface-tint-text) 54%
+      );
+    }}
+    [data-theme="dark"] .chat-node-details-drawer.has-node-appearance .chat-node-details-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 46%,
+        var(--surface-tint-text) 54%
+      );
+    }}
+    .chat-node-details-drawer.has-node-appearance .chat-node-details-icon-btn {{
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, #4f6f63));
+      background: var(--node-profile-theme-gradient, var(--node-profile-border, rgba(28, 50, 61, 0.94)));
+      color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff));
+    }}
+    .saved-node-details.has-node-appearance {{
+      border-color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 64%,
+        var(--surface-tint-border) 36%
+      );
+      background:
+        var(
+          --node-profile-theme-wash,
+          var(--node-profile-color-wash, transparent)
+        ),
+        var(--surface-tint-bg-soft);
+    }}
+    .saved-node-details.has-node-appearance .saved-node-section:first-child {{
+      border-color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 56%,
+        var(--surface-tint-border) 44%
+      );
+      background:
+        var(
+          --node-profile-theme-wash,
+          var(--node-profile-color-wash, transparent)
+        ),
+        var(--surface-tint-bg-alt);
+    }}
+    .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 48%,
+        var(--surface-tint-text-soft) 52%
+      );
+    }}
+    [data-theme="dark"] .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 48%,
+        var(--surface-tint-text-soft) 52%
+      );
+    }}
+    /*
+     * A remote profile must remain recognizable inside the receiver's shell
+     * theme.  The sender-selected color is therefore an always-visible
+     * identity rail; the shared theme recipe is the secondary texture behind
+     * it.  Do not attach these treatments to alerts or transient status cards:
+     * their operational color language takes precedence.
+     */
+    .profiled-node {{
+      /* This is deliberately the unmodified color selected by the profile
+       * owner. Theme colors may only appear in the texture layers below. */
+      --node-profile-identity-color: var(--node-profile-border, var(--accent));
+      --node-profile-identity-edge: var(--node-profile-identity-color);
+      --node-profile-identity-wash: linear-gradient(
+        100deg,
+        color-mix(in srgb, var(--node-profile-identity-color) 42%, transparent) 0%,
+        color-mix(in srgb, var(--node-profile-identity-color) 24%, transparent) 52%,
+        color-mix(in srgb, var(--node-profile-identity-color) 8%, transparent) 76%,
+        transparent 100%
+      );
+      --node-profile-identity-wash-hover: linear-gradient(
+        100deg,
+        color-mix(in srgb, var(--node-profile-identity-color) 52%, transparent) 0%,
+        color-mix(in srgb, var(--node-profile-identity-color) 30%, transparent) 52%,
+        color-mix(in srgb, var(--node-profile-identity-color) 10%, transparent) 76%,
+        transparent 100%
+      );
+      /* The profile color is the identity edge; the advertised base color
+       * owns the small remote surface. This keeps a blue/black theme visibly
+       * blue even when its primary gradient happens to be black. */
+      --node-profile-theme-surface: linear-gradient(
+        112deg,
+        color-mix(in srgb, var(--node-profile-theme-base, var(--node-profile-identity-color)) 48%, transparent) 0%,
+        color-mix(in srgb, var(--node-profile-theme-base, var(--node-profile-identity-color)) 28%, transparent) 58%,
+        transparent 100%
+      );
+      --node-profile-theme-surface-hover: linear-gradient(
+        112deg,
+        color-mix(in srgb, var(--node-profile-theme-base, var(--node-profile-identity-color)) 58%, transparent) 0%,
+        color-mix(in srgb, var(--node-profile-theme-base, var(--node-profile-identity-color)) 34%, transparent) 58%,
+        transparent 100%
+      );
+      /* Unlike the low-opacity wash, this stays opaque: it is the small
+       * legible preview of the remote user's actual theme recipe. */
+      --node-profile-theme-motif:
+        linear-gradient(
+          90deg,
+          var(--node-profile-theme-base, var(--node-profile-identity-color)) 0 14%,
+          var(--node-profile-theme-line, var(--node-profile-identity-color)) 14% 19%,
+          transparent 19% 100%
+        ),
+        var(
+          --node-profile-theme-motif-gradient,
+          var(
+            --node-profile-theme-gradient,
+            linear-gradient(
+              118deg,
+              var(--node-profile-identity-color),
+              color-mix(in srgb, var(--node-profile-identity-color) 46%, #ffffff 54%)
+            )
+          )
+        );
+      --node-profile-theme-ribbon-size: 8px;
+      --node-profile-theme-badge-text: var(
+        --node-profile-theme-contrast,
+        var(--theme-text-color-on-fill, #ffffff)
+      );
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node),
+    #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node) {{
+      border-bottom-color: var(--node-profile-identity-color);
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--chat-member-node-gradient)),
+        var(--chat-member-node-bg);
+      box-shadow:
+        inset 4px 0 0 var(--node-profile-identity-edge),
+        inset 0 0 0 1px var(--node-profile-identity-color);
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat,
+        var(--node-profile-theme-surface-hover),
+        var(--node-profile-identity-wash-hover),
+        var(--node-profile-theme-wash-hover, var(--chat-member-node-gradient-hover)),
+        var(--chat-member-node-bg-hover);
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node).selected-node,
+    #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node).selected-node {{
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--chat-member-node-gradient)),
+        var(--chat-member-node-bg);
+    }}
+    #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {{
+      width: 4px;
+      background: var(--node-profile-identity-edge);
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-identity-edge) 76%,
+        var(--chat-member-node-fg, var(--workspace-shell-text)) 24%
+      ) !important;
+      text-shadow: 0 0 10px color-mix(in srgb, var(--node-profile-border, var(--accent)) 30%, transparent);
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name-left::after {{
+      content: "";
+      display: inline-block;
+      width: 18px;
+      height: 10px;
+      margin-left: 5px;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
+      flex: 0 0 auto;
+    }}
+    #nodes-table tbody tr.profiled-node:not(.selected-node) td {{
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 5px no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, linear-gradient(transparent, transparent)),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 54%, var(--surface-tint-bg-soft) 46%);
+    }}
+    #nodes-table tbody tr.profiled-node:not(.selected-node) td:first-child {{
+      box-shadow:
+        inset 4px 0 0 var(--node-profile-identity-edge),
+        inset 0 0 0 1px var(--node-profile-identity-color);
+    }}
+    #nodes-table tbody tr.profiled-node.node-selectable:not(.selected-node):hover td {{
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 5px no-repeat,
+        var(--node-profile-theme-surface-hover),
+        var(--node-profile-identity-wash-hover),
+        var(--node-profile-theme-wash-hover, var(--node-profile-theme-wash, linear-gradient(transparent, transparent))),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 62%, var(--surface-tint-bg-hover) 38%);
+    }}
+    #nodes-table tbody tr.profiled-node .node-name-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-identity-edge) 76%,
+        var(--surface-tint-text) 24%
+      ) !important;
+      text-shadow: 0 0 10px color-mix(in srgb, var(--node-profile-border, var(--accent)) 26%, transparent);
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    #nodes-table tbody tr.profiled-node .node-name-row::after {{
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 11px;
+      margin-left: 6px;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
+    }}
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+      border-color: var(--node-profile-identity-color);
+      background:
+        var(--chat-feed-channel-edge-bg),
+        var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--chat-feed-node-gradient)),
+        var(--chat-feed-node-bg);
+      box-shadow:
+        inset 4px 0 0 var(--node-profile-identity-edge),
+        inset 0 0 0 1px var(--node-profile-identity-color);
+    }}
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.chat-selectable:not(.kind-status):not(.kind-alert):not(.has-change-marker):hover {{
+      background:
+        var(--chat-feed-channel-edge-bg),
+        var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat,
+        var(--node-profile-theme-surface-hover),
+        var(--node-profile-identity-wash-hover),
+        var(--node-profile-theme-wash-hover, var(--chat-feed-node-gradient-hover)),
+        var(--chat-feed-node-bg-hover);
+    }}
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.self-authored:not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+      box-shadow:
+        inset -4px 0 0 var(--node-profile-identity-edge),
+        inset 0 0 0 1px var(--node-profile-identity-color);
+    }}
+    .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-identity-edge) 76%,
+        var(--theme-text-color, var(--ink)) 24%
+      ) !important;
+      text-shadow: 0 0 10px color-mix(in srgb, var(--node-profile-border, var(--accent)) 30%, transparent);
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author::after {{
+      content: "";
+      display: inline-block;
+      align-self: center;
+      width: 22px;
+      height: 10px;
+      margin-left: 6px;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
+    }}
+    .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
+      border-left-width: 4px;
+      border-left-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
+    }}
+    .peer-dm-popout-head.profiled-node {{
+      border-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
+      box-shadow: inset 4px 0 0 var(--node-profile-identity-edge);
+    }}
+    .peer-dm-popout-msg.profiled-node:not(.is-alert) {{
+      border-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, rgba(var(--peer-dm-channel-rgb), 0.09)));
+      box-shadow: inset 4px 0 0 var(--node-profile-identity-edge);
+    }}
+    .map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result) {{
+      border-color: var(--node-profile-identity-edge);
+      box-shadow:
+        0 0 0 calc(2px + (2px * var(--map-node-flash, 0))) color-mix(in srgb, var(--node-profile-border, var(--accent)) 38%, transparent),
+        0 0 14px color-mix(in srgb, var(--node-profile-border, var(--accent)) 46%, transparent),
+        0 3px 8px rgba(10, 18, 36, 0.28);
+    }}
+    .map-node-info-card.profiled-node:not(.is-estimated) {{
+      border-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 8px no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent)),
+        linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%) 0%, color-mix(in srgb, var(--panel) 96%, black 4%) 100%);
+      box-shadow:
+        inset 4px 0 0 var(--node-profile-identity-edge),
+        0 10px 30px color-mix(in srgb, var(--node-profile-border, #061012) 26%, transparent);
+    }}
+    .map-node-info-card.profiled-node .map-node-info-title {{
+      color: color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--ink) 24%) !important;
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .map-node-info-card.profiled-node .map-node-info-title-wrap::after {{
+      content: "";
+      display: block;
+      width: 26px;
+      height: 10px;
+      margin-top: 4px;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-head {{
+      border-bottom-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 7px no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent)),
+        var(--surface-tint-bg-alt);
+      box-shadow: inset 4px 0 0 var(--node-profile-identity-edge);
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-title {{
+      color: color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--surface-tint-text) 24%) !important;
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-title::after {{
+      content: "";
+      display: inline-block;
+      width: 24px;
+      height: 9px;
+      margin-left: 7px;
+      vertical-align: middle;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
+    }}
+    .saved-node-details.profiled-node {{
+      border-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 8px no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent)),
+        var(--surface-tint-bg-soft);
+      box-shadow: inset 4px 0 0 var(--node-profile-identity-edge);
+    }}
+    .saved-node-details.profiled-node .saved-node-section:first-child {{
+      border-color: var(--node-profile-identity-edge);
+      background:
+        var(--node-profile-theme-motif) 0 0 / 100% 5px no-repeat,
+        var(--node-profile-theme-surface),
+        var(--node-profile-identity-wash),
+        var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent)),
+        var(--surface-tint-bg-alt);
+    }}
+    .saved-node-details.profiled-node .saved-node-section:first-child .saved-node-section-title {{
+      color: color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--surface-tint-text-soft) 24%) !important;
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .saved-node-details.profiled-node .saved-node-section:first-child .saved-node-section-title::after {{
+      content: "";
+      display: inline-block;
+      width: 24px;
+      height: 9px;
+      margin-left: 7px;
+      vertical-align: middle;
+      border: 1px solid var(--node-profile-identity-edge);
+      border-radius: 3px;
+      background: var(--node-profile-theme-motif);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--node-profile-identity-edge) 34%, transparent);
     }}

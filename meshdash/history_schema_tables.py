@@ -165,6 +165,15 @@ TABLE_SCHEMA_STATEMENTS = [
       updated_unix INTEGER NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS meshyface_profiles (
+      node_id TEXT PRIMARY KEY,
+      color TEXT NOT NULL,
+      updated_unix INTEGER NOT NULL,
+      received_unix INTEGER NOT NULL,
+      theme_json TEXT
+    )
+    """,
 
     # Fast per-node rollup of history storage totals.
     #

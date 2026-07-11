@@ -982,3 +982,31 @@ def test_snapshot_falls_back_to_live_signal_metrics_when_history_has_none() -> N
     assert row["avg_rssi"] == -93.0
     assert row["snr_samples"] == 2
     assert row["rssi_samples"] == 2
+
+
+def test_dashboard_map_renders_effective_node_identity_on_markers_and_popups() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert "function mapNodeEffectiveAppearance(nodeId, state = latestState)" in js
+    assert "function mapNodeAppearanceSignature(nodeId, state = latestState)" in js
+    assert "function applyMapNodeAppearanceStyle(baseStyle, nodeId, markerKind = \"actual\", state = latestState)" in js
+    assert 'if (markerKind !== "actual") return baseStyle;' in js
+    assert "style.color = appearanceEntry && appearanceEntry.profileAppearance" in js
+    assert "style.weight = Math.max(Number(style.weight) || 0, 2.8);" in js
+    assert "const identityStyle = applyMapNodeAppearanceStyle(baseStyle, nodeId, kind, safeState);" in js
+    assert "const activityStyle = applyMapNodeActivityFlashStyle(identityStyle, flashStrength, kind);" in js
+    assert "mapNodeAppearanceSignature(nodeId, latestState)" in js
+    assert "mapNodeAppearanceSignature(selection, latestState)" in js
+    assert "mapNodeAppearanceSignature(normalizedId, latestState)" in js
+    assert "const appearanceEntry = mapNodeEffectiveAppearance(normalizedId, state);" in js
+    assert '"map-node-info-card${isEstimated ? " is-estimated" : ""}${appearanceClass}"${appearanceStyleAttr}' in js
+    assert 'appearanceEntry ? "has-node-appearance" : ""' in js
+    assert 'appearanceEntry && appearanceEntry.profileAppearance ? "profiled-node" : ""' in js
+    assert ".map-node-emoji-marker.has-node-appearance {" in css
+    assert ".map-node-info-card.has-node-appearance:not(.is-estimated) {" in css
+    assert ".map-node-info-card.has-node-appearance .map-node-info-emoji {" in css

@@ -305,6 +305,17 @@
       "mode",
     ]);
     const meshyfaceProfileThemeTextFonts = new Set(["system", "compact", "rounded", "mono", "serif"]);
+    // Wire values are an enum, never a sender supplied CSS string.  Keep the
+    // receiving-side font stacks equally closed so a remote theme can give its
+    // node identity a little personality without affecting the receiver's
+    // shell or creating a style-injection path.
+    const meshyfaceProfileThemeFontFamilies = Object.freeze({{
+      system: '"IBM Plex Sans", "Segoe UI", sans-serif',
+      compact: '"Bahnschrift", "Arial Narrow", "IBM Plex Sans", "Segoe UI", sans-serif',
+      rounded: '"Aptos", "Segoe UI Variable", "Nunito", "IBM Plex Sans", sans-serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+      serif: 'Georgia, "Times New Roman", serif',
+    }});
     const meshyfaceProfileThemeGradientTypes = new Set(["linear", "radial"]);
     const meshyfaceProfileThemeGradientDirections = new Set([
       "right",
@@ -447,6 +458,13 @@
       return theme ? JSON.stringify(theme) : "";
     }}
 
+    function meshyfaceProfileThemeFontFamily(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return "";
+      return meshyfaceProfileThemeFontFamilies[theme.text_font]
+        || meshyfaceProfileThemeFontFamilies.system;
+    }}
+
     function buildMeshyfaceProfileThemeGradient(theme, kind = "identity", hover = false) {{
       const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
       if (!direction) return "";
@@ -458,7 +476,7 @@
           : (hover ? 26 : 18);
         start = `color-mix(in srgb, ${{start}} ${{intensity}}%, transparent)`;
         end = `color-mix(in srgb, ${{end}} ${{Math.max(6, intensity - 5)}}%, transparent)`;
-      }} else if (theme.mode === "light") {{
+      }} else if (kind === "identity" && theme.mode === "light") {{
         start = `color-mix(in srgb, ${{start}} 28%, #ffffff 72%)`;
         end = `color-mix(in srgb, ${{end}} 28%, #ffffff 72%)`;
       }}
@@ -479,11 +497,13 @@
 
     const meshyfaceProfileThemeStyleProperties = [
       "--node-profile-theme-gradient",
+      "--node-profile-theme-motif-gradient",
       "--node-profile-theme-wash",
       "--node-profile-theme-wash-hover",
       "--node-profile-theme-base",
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
+      "--node-profile-theme-font-family",
       "--chat-member-node-gradient",
       "--chat-member-node-gradient-hover",
       "--chat-feed-node-gradient",
@@ -494,16 +514,22 @@
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme) return [];
       const gradient = buildMeshyfaceProfileThemeGradient(theme, "identity", false);
+      // The small remote-node motif intentionally uses the exact advertised
+      // stops. A light receiver may soften a full identity surface, but the
+      // motif is where a person's gradient needs to remain recognizable.
+      const motifGradient = buildMeshyfaceProfileThemeGradient(theme, "motif", false);
       const wash = buildMeshyfaceProfileThemeGradient(theme, "wash", false);
       const washHover = buildMeshyfaceProfileThemeGradient(theme, "wash", true);
-      if (!gradient || !wash || !washHover) return [];
+      if (!gradient || !motifGradient || !wash || !washHover) return [];
       return [
         ["--node-profile-theme-gradient", gradient],
+        ["--node-profile-theme-motif-gradient", motifGradient],
         ["--node-profile-theme-wash", wash],
         ["--node-profile-theme-wash-hover", washHover],
         ["--node-profile-theme-base", theme.base_color],
         ["--node-profile-theme-line", theme.line_color],
         ["--node-profile-theme-contrast", theme.line_contrast_color],
+        ["--node-profile-theme-font-family", meshyfaceProfileThemeFontFamily(theme)],
         ["--chat-member-node-gradient", "var(--node-profile-theme-wash)"],
         ["--chat-member-node-gradient-hover", "var(--node-profile-theme-wash-hover)"],
         ["--chat-feed-node-gradient", "var(--node-profile-theme-wash)"],
@@ -565,7 +591,10 @@
           ...(theme ? {{ theme }} : {{}}),
           presetId: preset.id,
           preset,
-          profileAppearance: true,
+          // The local dashboard already owns this theme.  Keep its own node
+          // in the normal shell treatment; `profileAppearance` is reserved
+          // for a profile received from another Meshyface dashboard.
+          profileAppearance: false,
           localProfile: true,
         }};
       }}
@@ -845,10 +874,54 @@
         : "";
       const colorWash = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 18%, transparent), color-mix(in srgb, ${{color}} 8%, transparent) 58%, transparent)`;
       const colorWashHover = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 26%, transparent), color-mix(in srgb, ${{color}} 12%, transparent) 58%, transparent)`;
+      // Profile color is the node's compact, canonical identity. Keep it
+      // separate from the advertised theme recipe: the latter can texture a
+      // surface, but must never substitute for the color the owner picked.
+      const profileIdentityVars = appearanceEntry.profileAppearance
+        ? `--node-profile-identity-color:${{color}};`
+        : "";
       const profileWashVars = appearanceEntry.profileAppearance
         ? `--node-profile-color-wash:${{colorWash}};--node-profile-color-wash-hover:${{colorWashHover}};--chat-member-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-member-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));--chat-feed-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-feed-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));`
         : "";
-      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{profileWashVars}}${{themeVars}}`;
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{profileIdentityVars}}${{profileWashVars}}${{themeVars}}`;
+    }}
+
+    // These are the shared identity variables used by small, non-chat node
+    // surfaces such as the map popup and selected-node inspector. Keep this
+    // separate from the member/feed tint variables: an inspector can move
+    // between panes without inheriting chat-list presentation state.
+    const nodeAppearanceElementStyleProperties = [
+      "--node-tag-color",
+      "--node-tag-vibrance",
+      "--node-profile-border",
+      "--node-profile-identity-color",
+      "--node-profile-bg",
+      "--node-profile-color-wash",
+      "--node-profile-color-wash-hover",
+      ...meshyfaceProfileThemeStyleProperties,
+    ];
+
+    function clearNodeAppearanceElementStyle(target) {{
+      if (!(target instanceof HTMLElement)) return;
+      for (const property of nodeAppearanceElementStyleProperties) {{
+        target.style.removeProperty(property);
+      }}
+    }}
+
+    function applyNodeAppearanceElementStyle(target, appearanceEntry) {{
+      if (!(target instanceof HTMLElement)) return false;
+      clearNodeAppearanceElementStyle(target);
+      const styleVars = nodeAppearanceStyleVars(appearanceEntry);
+      if (!styleVars) return false;
+      for (const declaration of styleVars.split(";")) {{
+        const separator = declaration.indexOf(":");
+        if (separator <= 0) continue;
+        const property = declaration.slice(0, separator).trim();
+        const value = declaration.slice(separator + 1).trim();
+        if (!property || !value) continue;
+        target.style.setProperty(property, value);
+      }}
+      return true;
     }}
 
     function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{

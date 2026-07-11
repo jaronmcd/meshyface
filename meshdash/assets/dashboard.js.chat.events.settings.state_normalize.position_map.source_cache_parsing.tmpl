@@ -293,6 +293,42 @@
       if (activeLayoutView === "saved" && typeof renderFavorites === "function") {{
         renderFavorites(latestState, null);
       }}
+      const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
+        ? normalizeNetworkSubview(activeNetworkSubview)
+        : String(activeNetworkSubview || "map").trim().toLowerCase();
+      const networkMapVisible = activeLayoutView === "network" && (
+        typeof networkSubviewUsesMap === "function"
+          ? networkSubviewUsesMap(activeNetworkSubviewName)
+          : activeNetworkSubviewName === "map"
+      );
+      const mapVisible = activeLayoutView === "saved" || networkMapVisible;
+      if (mapVisible && typeof renderMap === "function") {{
+        // A profile preference changes effective appearance without changing
+        // any node telemetry, so bypass the normal map-data render cache.
+        lastMapSignature = "";
+        lastMapGraphSignature = "";
+        lastMapRenderMode = "";
+        const mapNodeId = activeLayoutView === "saved"
+          ? resolveSavedViewNodeId(latestState)
+          : normalizeNodeId(selectedNodeId || "");
+        const cachedHistory = (
+          isSelectableNodeId(mapNodeId)
+          && typeof cachedNodeHistory === "function"
+        ) ? cachedNodeHistory(mapNodeId) : null;
+        renderMap(
+          latestState.nodes || [],
+          (latestState.traffic || {{}}).edges || [],
+          cachedHistory,
+          {{ bypassNodeFade: true }}
+        );
+      }}
+      if (
+        typeof syncChatNodeDetailsDrawer === "function"
+        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        && isChatNodeDetailsDrawerExpanded()
+      ) {{
+        syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
+      }}
     }}
 
     function setMeshyfaceProfileColor(value, options = null) {{

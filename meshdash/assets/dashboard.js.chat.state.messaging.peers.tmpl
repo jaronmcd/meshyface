@@ -3777,6 +3777,10 @@
         closeBtn.disabled = !visibleExpanded;
       }}
       if (!visibleExpanded) {{
+        drawer.classList.remove("has-node-appearance", "profiled-node");
+        if (typeof clearNodeAppearanceElementStyle === "function") {{
+          clearNodeAppearanceElementStyle(drawer);
+        }}
         if (titleEl instanceof HTMLElement) {{
           setDrawerElementTextIfChanged(titleEl, "Node Details");
         }}
@@ -3884,6 +3888,18 @@
       const selectedNode = Array.isArray(safeState && safeState.nodes)
         ? (safeState.nodes.find((entry) => normalizeNodeId(entry && entry.id) === selectedId) || null)
         : null;
+      const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+        ? effectiveNodeAppearanceForNode(selectedId, safeState)
+        : null;
+      const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
+      const profileAppearance = !!(hasNodeAppearance && appearanceEntry.profileAppearance);
+      drawer.classList.toggle("has-node-appearance", hasNodeAppearance);
+      drawer.classList.toggle("profiled-node", profileAppearance);
+      if (hasNodeAppearance && typeof applyNodeAppearanceElementStyle === "function") {{
+        applyNodeAppearanceElementStyle(drawer, appearanceEntry);
+      }} else if (typeof clearNodeAppearanceElementStyle === "function") {{
+        clearNodeAppearanceElementStyle(drawer);
+      }}
       const localNameEmoji = (
         typeof localNameEmojiForNode === "function"
         ? localNameEmojiForNode(selectedId, selectedNode)

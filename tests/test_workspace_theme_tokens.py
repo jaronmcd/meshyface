@@ -13,6 +13,12 @@ def _css_rule(css: str, selector: str) -> str:
     return css.split(marker, 1)[1].split("}", 1)[0]
 
 
+def _last_css_rule(css: str, selector: str) -> str:
+    marker = f"{selector} {{"
+    assert marker in css
+    return css.rsplit(marker, 1)[1].split("}", 1)[0]
+
+
 def test_theme_exposes_shared_workspace_shell_tokens() -> None:
     theme_css = build_theme_css(indent="")
 
@@ -299,3 +305,70 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .settings-ticker-config {" in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings," in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings .body {" in css
+
+
+def test_received_profile_identity_rails_survive_receiver_theme() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    profile_tokens = _css_rule(css, "    .profiled-node")
+    roster = _last_css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)",
+    )
+    feed = _last_css_rule(
+        css,
+        ".card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker)",
+    )
+    feed_author = _last_css_rule(
+        css,
+        ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name",
+    )
+    map_marker = _css_rule(
+        css,
+        ".map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result)",
+    )
+    node_details = _css_rule(css, ".chat-node-details-drawer.profiled-node .chat-node-details-head")
+    roster_badge = _last_css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name-left::after",
+    )
+    feed_badge = _last_css_rule(
+        css,
+        ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author::after",
+    )
+    table_badge = _last_css_rule(css, "#nodes-table tbody tr.profiled-node .node-name-row::after")
+    map_badge = _last_css_rule(css, ".map-node-info-card.profiled-node .map-node-info-title-wrap::after")
+
+    assert "--node-profile-identity-edge" in profile_tokens
+    assert "--node-profile-identity-color: var(--node-profile-border, var(--accent));" in profile_tokens
+    assert "--node-profile-identity-edge: var(--node-profile-identity-color);" in profile_tokens
+    assert "--node-profile-identity-wash" in profile_tokens
+    assert "--node-profile-theme-motif" in profile_tokens
+    assert "--node-profile-theme-motif-gradient," in profile_tokens
+    assert "var(--node-profile-theme-base, var(--node-profile-identity-color)) 0 14%" in profile_tokens
+    assert "var(--node-profile-theme-line, var(--node-profile-identity-color)) 14% 19%" in profile_tokens
+    assert "--node-profile-theme-surface" in profile_tokens
+    assert "var(--node-profile-theme-base, var(--node-profile-identity-color)) 48%, transparent" in profile_tokens
+    assert "#ffffff 22%" not in profile_tokens
+    assert "border-bottom-color: var(--node-profile-identity-color);" in roster
+    assert "inset 4px 0 0 var(--node-profile-identity-edge)" in roster
+    assert "var(--node-profile-identity-wash)" in roster
+    assert "var(--node-profile-theme-surface)" in roster
+    assert "var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat" in roster
+    assert "border-color: var(--node-profile-identity-color);" in feed
+    assert "inset 4px 0 0 var(--node-profile-identity-edge)" in feed
+    assert "var(--node-profile-identity-wash)" in feed
+    assert "var(--node-profile-theme-surface)" in feed
+    assert "var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat" in feed
+    assert "!important" in feed_author
+    for badge in (roster_badge, feed_badge, table_badge, map_badge):
+        assert 'content: "";' in badge
+        assert "background: var(--node-profile-theme-motif);" in badge
+        assert "border: 1px solid var(--node-profile-identity-edge);" in badge
+        assert "border-radius: 3px;" in badge
+    assert 'content: "Theme";' not in css
+    assert 'content: "  Theme";' not in css
+    assert "is-trace-running" in css
+    assert "is-trace-result" in css
+    assert "border-color: var(--node-profile-identity-edge);" in map_marker
+    assert "inset 4px 0 0 var(--node-profile-identity-edge);" in node_details

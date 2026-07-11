@@ -5,6 +5,7 @@ import re
 import threading
 import time
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from google.protobuf.json_format import MessageToDict
@@ -16,6 +17,7 @@ from meshdash.api_input_meshyface_profile import parse_meshyface_profile_color_r
 from meshdash.helpers import to_int
 from meshdash.html_js import build_dashboard_js
 from meshdash.html_template import render_html
+from meshdash.history_store_runtime import HistoryStore
 from meshdash.http_api import make_http_handler
 from meshdash.http_api_post import build_post_route_dependencies
 from meshdash.http_routes_post import handle_dashboard_post
@@ -147,6 +149,54 @@ def _profile_packet(
     if sender_id is not None:
         packet["fromId"] = sender_id
     return packet
+
+
+def _open_history_store(path: Path) -> HistoryStore:
+    return HistoryStore(
+        db_path=str(path),
+        max_rows=100,
+        retention_days=30,
+        event_max_rows=100,
+        event_retention_days=30,
+        rollup_retention_days=30,
+    )
+
+
+def _save_legacy_hex_profile_packet(
+    store: HistoryStore,
+    *,
+    created_unix: int,
+    node_id: str = "!335d8354",
+    color: str = "#db2777",
+    updated_unix: int = 1_788_300_000,
+    theme: object = None,
+) -> None:
+    packet = _profile_packet(
+        node_id=node_id,
+        sender_id=node_id,
+        color=color,
+        updated_unix=updated_unix,
+        theme=theme,
+    )
+    decoded = packet["decoded"]
+    assert isinstance(decoded, dict)
+    payload = decoded["payload"]
+    assert isinstance(payload, bytes)
+    # ``to_jsonable`` converts bytes to this exact historical packet_json
+    # shape, which predates the dedicated meshyface_profiles table.
+    legacy_packet = {
+        "fromId": node_id,
+        "decoded": {
+            "portnum": decoded["portnum"],
+            "payload": payload.hex(),
+        },
+    }
+    with store._lock:
+        store._conn.execute(
+            "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(?, ?, ?)",
+            (created_unix, "{}", json.dumps(legacy_packet, separators=(",", ":"))),
+        )
+        store._conn.commit()
 
 
 def _revision() -> RevisionInfo:
@@ -641,6 +691,225 @@ def test_tracker_profile_cache_is_bounded_and_evicts_oldest_received(
     assert set(profiles) == {"!00000002", "!00000003"}
 
 
+def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Path) -> None:
+    history_path = tmp_path / "profile-history.sqlite3"
+    updated = int(time.time()) - 10
+    recipe = _theme_recipe()
+
+    first_store = _open_history_store(history_path)
+    try:
+        first_tracker = DashboardTracker(packet_limit=8, history_store=first_store)
+        first_tracker.seed_packet(
+            _profile_packet(color="#db2777", updated_unix=updated, theme=recipe),
+            interface=object(),
+        )
+        assert first_tracker.meshyface_profiles_snapshot()["!335d8354"]["theme"] == recipe
+    finally:
+        first_store.close()
+
+    second_store = _open_history_store(history_path)
+    try:
+        second_tracker = DashboardTracker(packet_limit=8, history_store=second_store)
+        restored = second_tracker.meshyface_profiles_snapshot()["!335d8354"]
+        assert restored["color"] == "#db2777"
+        assert restored["theme"] == recipe
+
+        second_tracker.seed_packet(
+            _profile_packet(color="#22c55e", updated_unix=updated - 1),
+            interface=object(),
+        )
+        assert second_tracker.meshyface_profiles_snapshot()["!335d8354"]["color"] == "#db2777"
+    finally:
+        second_store.close()
+
+
+def test_tracker_backfills_hex_profile_packets_after_profile_cache_upgrade(
+    tmp_path: Path,
+) -> None:
+    store = _open_history_store(tmp_path / "legacy-profile-history.sqlite3")
+    recipe = _theme_recipe()
+    try:
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_010,
+            color="#db2777",
+            updated_unix=1_788_300_000,
+            theme=recipe,
+        )
+
+        tracker = DashboardTracker(packet_limit=8, history_store=store)
+
+        assert tracker.meshyface_profiles_snapshot() == {
+            "!335d8354": {
+                "node_id": "!335d8354",
+                "color": "#db2777",
+                "updated_unix": 1_788_300_000,
+                "received_unix": 1_788_300_010,
+                "source": "mesh",
+                "theme": recipe,
+            }
+        }
+        assert store.load_meshyface_profiles() == list(
+            tracker.meshyface_profiles_snapshot().values()
+        )
+    finally:
+        store.close()
+
+
+def test_profile_packet_backfill_replays_hex_packets_with_strict_lww(tmp_path: Path) -> None:
+    store = _open_history_store(tmp_path / "legacy-profile-lww.sqlite3")
+    winning_recipe = _theme_recipe(base_color="#0ea5e9")
+    try:
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_010,
+            color="#db2777",
+            updated_unix=1_788_300_000,
+        )
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_020,
+            color="#0ea5e9",
+            updated_unix=1_788_300_001,
+            theme=winning_recipe,
+        )
+        # An equal advertised timestamp arrives later.  Like live reception,
+        # strict LWW keeps the first value for that timestamp.
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_030,
+            color="#22c55e",
+            updated_unix=1_788_300_001,
+        )
+
+        tracker = DashboardTracker(packet_limit=8, history_store=store)
+        profile = tracker.meshyface_profiles_snapshot()["!335d8354"]
+
+        assert profile["color"] == "#0ea5e9"
+        assert profile["updated_unix"] == 1_788_300_001
+        assert profile["received_unix"] == 1_788_300_020
+        assert profile["theme"] == winning_recipe
+    finally:
+        store.close()
+
+
+def test_profile_packet_backfill_only_reads_bounded_newest_packet_window(
+    tmp_path: Path,
+) -> None:
+    store = _open_history_store(tmp_path / "legacy-profile-window.sqlite3")
+    try:
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_010,
+            color="#db2777",
+            updated_unix=1_788_300_000,
+        )
+        with store._lock:
+            store._conn.executemany(
+                "INSERT INTO packets(created_unix, summary_json, packet_json) VALUES(?, ?, ?)",
+                [
+                    (1_788_300_020, "{}", "{}"),
+                    (1_788_300_030, "{}", "{}"),
+                ],
+            )
+            store._conn.commit()
+
+        assert store.backfill_meshyface_profiles_from_packets(packet_limit=2) == []
+        assert store.load_meshyface_profiles() == []
+    finally:
+        store.close()
+
+
+def test_profile_packet_backfill_never_overwrites_existing_profile_rows(
+    tmp_path: Path,
+) -> None:
+    store = _open_history_store(tmp_path / "existing-profile-history.sqlite3")
+    try:
+        assert store.save_meshyface_profile(
+            {
+                "node_id": "!335d8354",
+                "color": "#a855f7",
+                "updated_unix": 1_788_300_100,
+                "received_unix": 1_788_300_100,
+            }
+        )
+        _save_legacy_hex_profile_packet(
+            store,
+            created_unix=1_788_300_200,
+            color="#db2777",
+            updated_unix=1_788_300_200,
+        )
+
+        tracker = DashboardTracker(packet_limit=8, history_store=store)
+
+        assert tracker.meshyface_profiles_snapshot()["!335d8354"]["color"] == "#a855f7"
+        assert store.load_meshyface_profiles()[0]["color"] == "#a855f7"
+    finally:
+        store.close()
+
+
+def test_history_store_profile_rows_are_lww_bounded_and_resettable(tmp_path: Path) -> None:
+    store = _open_history_store(tmp_path / "profile-history.sqlite3")
+    try:
+        first = {
+            "node_id": "!00000001",
+            "color": "#db2777",
+            "updated_unix": 100,
+            "received_unix": 100,
+            "theme": _theme_recipe(),
+        }
+        assert store.save_meshyface_profile(first, limit=2) is True
+        assert store.save_meshyface_profile(
+            {**first, "color": "#22c55e", "received_unix": 101}, limit=2
+        ) is False
+        assert store.save_meshyface_profile(
+            {**first, "color": "#0ea5e9", "updated_unix": 99}, limit=2
+        ) is False
+        assert store.save_meshyface_profile(
+            {**first, "color": "#a855f7", "updated_unix": 101}, limit=2
+        ) is True
+
+        assert store.save_meshyface_profile(
+            {
+                "node_id": "!00000002",
+                "color": "#22c55e",
+                "updated_unix": 200,
+                "received_unix": 200,
+            },
+            limit=2,
+        ) is True
+        assert store.save_meshyface_profile(
+            {
+                "node_id": "!00000003",
+                "color": "#0ea5e9",
+                "updated_unix": 300,
+                "received_unix": 300,
+            },
+            limit=2,
+        ) is True
+        profiles = store.load_meshyface_profiles(limit=2)
+        assert [profile["node_id"] for profile in profiles] == ["!00000003", "!00000002"]
+
+        with store._lock:
+            store._conn.execute(
+                """
+                INSERT INTO meshyface_profiles(
+                    node_id, color, updated_unix, received_unix, theme_json
+                )
+                VALUES(?, ?, ?, ?, ?)
+                """,
+                ("!not-a-node", "#ffffff", 400, 400, None),
+            )
+            store._conn.commit()
+        profiles = store.load_meshyface_profiles(limit=3)
+        assert {profile["node_id"] for profile in profiles} == {"!00000002", "!00000003"}
+
+        assert store.reset() >= 2
+        assert store.load_meshyface_profiles() == []
+    finally:
+        store.close()
+
+
 def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
     tracker = _StateTracker()
     expected = {
@@ -858,7 +1127,22 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function nodeTagOverridesProfileAppearance(tagEntry)" in js
     assert "if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;" in js
     assert "return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;" in js
+    local_profile_start = js.index('source: "local-profile",')
+    local_profile_end = js.index('source: "remote-profile",', local_profile_start)
+    local_profile_block = js[local_profile_start:local_profile_end]
+    assert "profileAppearance: false," in local_profile_block
+    assert "localProfile: true," in local_profile_block
+    remote_profile_block = js[local_profile_end:js.index("function effectiveNodeAppearanceForNode", local_profile_end)]
+    assert "profileAppearance: true," in remote_profile_block
+    assert "remoteProfile: true," in remote_profile_block
+    assert 'const appearanceClass = appearanceEntry && appearanceEntry.profileAppearance' in js
     assert "--node-profile-color-wash:" in js
+    assert "--node-profile-identity-color:${color};" in js
+    assert "const meshyfaceProfileThemeFontFamilies = Object.freeze" in js
+    assert "function meshyfaceProfileThemeFontFamily(rawTheme)" in js
+    assert '"--node-profile-theme-font-family", meshyfaceProfileThemeFontFamily(theme)' in js
+    assert '"--node-profile-theme-motif-gradient", motifGradient' in js
+    assert 'target.style.setProperty("--node-profile-identity-color", color);' in js
     assert "data-reply-node-id=\"${escAttr(replyParentNodeId)}\"" in js
     assert "peer-dm-popout-head${peerProfileClass}" in js
     assert "peer-dm-popout-msg${isOwn ? \" is-own\" : \"\"}${alertClass}${messageProfileClass}" in js
@@ -878,3 +1162,24 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert js.count("broadcastMeshyfaceProfileColor();") == 1
     assert "maybeBroadcastMeshyfaceProfileColorOnStartup" not in js
     assert "settingsMeshyfaceProfileSyncEnabled" not in js
+
+
+def test_dashboard_js_invalidates_spatial_and_inspector_surfaces_when_profiles_change() -> None:
+    js = build_dashboard_js(refresh_ms=3000, node_history_hours=72, node_history_max_points=1440)
+
+    poll_sync_start = js.index("if (syncMeshyfaceProfilesFromState(state)) {")
+    poll_sync_end = js.index("if (typeof refreshConsoleNodeRowsCache", poll_sync_start)
+    poll_sync_block = js[poll_sync_start:poll_sync_end]
+    assert 'chatPollStructuralSignature = "";' in poll_sync_block
+    assert 'lastMapSignature = "";' in poll_sync_block
+    assert 'lastMapGraphSignature = "";' in poll_sync_block
+    assert 'lastMapRenderMode = "";' in poll_sync_block
+
+    rerender_start = js.index("function rerenderMeshyfaceProfileAppearance() {")
+    rerender_end = js.index("function setMeshyfaceProfileColor", rerender_start)
+    rerender_block = js[rerender_start:rerender_end]
+    assert "const networkMapVisible = activeLayoutView === \"network\"" in rerender_block
+    assert "const mapVisible = activeLayoutView === \"saved\" || networkMapVisible;" in rerender_block
+    assert "renderMap(" in rerender_block
+    assert "bypassNodeFade: true" in rerender_block
+    assert "syncChatNodeDetailsDrawer(latestState, { fetchHistory: false });" in rerender_block

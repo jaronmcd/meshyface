@@ -516,6 +516,7 @@
         target.style.removeProperty("--node-tag-color");
         target.style.removeProperty("--node-tag-vibrance");
         target.style.removeProperty("--node-profile-border");
+        target.style.removeProperty("--node-profile-identity-color");
         target.style.removeProperty("--node-profile-bg");
         target.style.removeProperty("--node-profile-color-wash");
         target.style.removeProperty("--node-profile-color-wash-hover");
@@ -544,6 +545,9 @@
         target.style.setProperty("--node-tag-color", color);
         target.style.setProperty("--node-tag-vibrance", (clampNodeTagVibrance(entry.preset.vibrance, 70) / 100).toFixed(3));
         target.style.setProperty("--node-profile-border", color);
+        if (entry.profileAppearance) {{
+          target.style.setProperty("--node-profile-identity-color", color);
+        }}
         target.style.setProperty(
           "--node-profile-bg",
           `color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%)`

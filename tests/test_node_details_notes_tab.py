@@ -482,3 +482,26 @@ def test_dashboard_js_renders_top_peer_as_clickable_node_link() -> None:
     assert ".saved-node-inline-link {" in css
     assert ".saved-node-inline-link:hover {" in css
     assert "[data-theme=\"dark\"] .saved-node-inline-link:hover {" in css
+
+
+def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert "function applyNodeAppearanceElementStyle(target, appearanceEntry)" in js
+    assert "function clearNodeAppearanceElementStyle(target)" in js
+    assert 'host.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
+    assert 'host.classList.toggle("profiled-node", profileAppearance);' in js
+    assert "applyNodeAppearanceElementStyle(host, appearanceEntry);" in js
+    assert 'drawer.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
+    assert 'drawer.classList.toggle("profiled-node", profileAppearance);' in js
+    assert "applyNodeAppearanceElementStyle(drawer, appearanceEntry);" in js
+    assert 'drawer.classList.remove("has-node-appearance", "profiled-node");' in js
+    assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-head {" in css
+    assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-icon-btn {" in css
+    assert ".saved-node-details.has-node-appearance {" in css
+    assert ".saved-node-details.has-node-appearance .saved-node-section:first-child {" in css
