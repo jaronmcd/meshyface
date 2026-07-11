@@ -31,11 +31,11 @@
     }}
 
     function loadSettingsAppearancePreferences() {{
-      settingsMeshyfaceProfileAcceptRemoteEnabled = true;
+      settingsMeshyfaceThemeSharingEnabled = true;
       settingsScreenWakeLockEnabled = true;
       try {{
-        settingsMeshyfaceProfileAcceptRemoteEnabled = parseBoolToken(
-          window.localStorage.getItem(settingsMeshyfaceProfileAcceptRemoteStorageKey),
+        settingsMeshyfaceThemeSharingEnabled = parseBoolToken(
+          window.localStorage.getItem(settingsMeshyfaceThemeSharingStorageKey),
           true
         );
         settingsScreenWakeLockEnabled = parseBoolToken(
@@ -49,8 +49,8 @@
     function persistSettingsAppearancePreferences() {{
       try {{
         window.localStorage.setItem(
-          settingsMeshyfaceProfileAcceptRemoteStorageKey,
-          settingsMeshyfaceProfileAcceptRemoteEnabled ? "1" : "0"
+          settingsMeshyfaceThemeSharingStorageKey,
+          settingsMeshyfaceThemeSharingEnabled ? "1" : "0"
         );
         window.localStorage.setItem(
           settingsScreenWakeLockStorageKey,
@@ -226,13 +226,16 @@
     }}
 
     function syncSettingsAppearanceControls() {{
-      const acceptRemoteToggle = document.getElementById("settings-meshyface-profile-accept-remote");
-      if (acceptRemoteToggle instanceof HTMLInputElement) {{
-        acceptRemoteToggle.checked = !!settingsMeshyfaceProfileAcceptRemoteEnabled;
+      const themeSharingToggle = document.getElementById("settings-meshyface-theme-sharing");
+      if (themeSharingToggle instanceof HTMLInputElement) {{
+        themeSharingToggle.checked = !!settingsMeshyfaceThemeSharingEnabled;
       }}
       const broadcastBtn = document.getElementById("settings-meshyface-profile-broadcast");
       if (broadcastBtn instanceof HTMLButtonElement) {{
-        broadcastBtn.disabled = !!meshyfaceProfileBroadcastInFlight;
+        broadcastBtn.disabled = !!meshyfaceProfileBroadcastInFlight || !settingsMeshyfaceThemeSharingEnabled;
+        broadcastBtn.title = settingsMeshyfaceThemeSharingEnabled
+          ? ""
+          : "Turn on Theme Sharing to broadcast your theme.";
       }}
       const consoleTimestampsToggle = document.getElementById("console-timestamps");
       if (consoleTimestampsToggle instanceof HTMLInputElement) {{
@@ -318,29 +321,45 @@
       }}
     }}
 
-    function setMeshyfaceProfileAcceptRemoteEnabled(enabled, options = null) {{
+    function setMeshyfaceThemeSharingEnabled(enabled, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
       const next = !!enabled;
-      const changed = settingsMeshyfaceProfileAcceptRemoteEnabled !== next;
-      settingsMeshyfaceProfileAcceptRemoteEnabled = next;
+      const changed = settingsMeshyfaceThemeSharingEnabled !== next;
+      settingsMeshyfaceThemeSharingEnabled = next;
+      const profilesChanged = next
+        ? (
+          typeof syncMeshyfaceProfilesFromState === "function"
+            ? syncMeshyfaceProfilesFromState(latestState)
+            : false
+        )
+        : (
+          typeof clearRemoteMeshyfaceProfilesCache === "function"
+            ? clearRemoteMeshyfaceProfilesCache()
+            : false
+        );
       if (opts.persist !== false) {{
         persistSettingsAppearancePreferences();
       }}
       syncSettingsAppearanceControls();
-      if (changed && opts.rerender !== false) {{
+      if ((changed || profilesChanged) && opts.rerender !== false) {{
         rerenderMeshyfaceProfileAppearance();
       }}
       if (opts.announce) {{
         setMeshyfaceProfileStatusText(
           next
-            ? "Received Meshyface node themes are enabled."
-            : "Received Meshyface node themes are hidden."
+            ? "Theme Sharing is on. You can broadcast your theme and see remote themed nodes."
+            : "Theme Sharing is off. Theme broadcasts are disabled and remote themed nodes are hidden."
         );
       }}
     }}
 
     async function broadcastMeshyfaceProfileTheme() {{
       if (meshyfaceProfileBroadcastInFlight) return null;
+      if (!settingsMeshyfaceThemeSharingEnabled) {{
+        setMeshyfaceProfileStatusText("Turn on Theme Sharing before broadcasting your theme.", true);
+        syncSettingsAppearanceControls();
+        return null;
+      }}
       const channelIndex = normalizeMeshChannelIndex(
         meshChannelEffectiveSendIndexForApp("profiles")
       );
@@ -353,7 +372,7 @@
       }}
       meshyfaceProfileBroadcastInFlight = true;
       syncSettingsAppearanceControls();
-      setMeshyfaceProfileStatusText("Broadcasting experimental Meshyface node theme...");
+      setMeshyfaceProfileStatusText("Broadcasting Meshyface theme...");
       try {{
         const resp = await fetch(meshyfaceProfileThemeEndpoint, {{
           method: "POST",
@@ -372,7 +391,7 @@
           payload && payload.channel_index != null ? payload.channel_index : channelIndex
         );
         setMeshyfaceProfileStatusText(
-          `Experimental Meshyface theme broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
+          `Theme Sharing broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
         );
         if (typeof requestImmediatePoll === "function") {{
           requestImmediatePoll(0);

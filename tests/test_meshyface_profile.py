@@ -1160,13 +1160,17 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     html = render_html(3000, 250, False, True, 200000, 30, 72, 1440, "test", "test")
 
     assert 'id="settings-meshyface-profile-color"' not in html
-    assert 'id="settings-meshyface-profile-accept-remote"' in html
+    assert 'id="settings-meshyface-profile-accept-remote"' not in html
+    assert 'id="settings-meshyface-theme-sharing"' in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
     assert "My Meshyface color" not in html
+    assert "Theme Sharing" in html
+    assert "Enable Theme Sharing" in html
+    assert "Opt in to Theme Sharing" not in html
     assert "Share current theme" in html
-    assert "Use received Meshyface themes to style nodes" in html
+    assert "Use received Meshyface themes to style nodes" not in html
 
 
 def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduling() -> None:
@@ -1177,10 +1181,19 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceProfileColor" not in js
     assert "settingsMeshyfaceProfileColorStorageKey" not in js
     assert "setMeshyfaceProfileColor" not in js
+    assert "settingsMeshyfaceProfileAcceptRemoteEnabled" not in js
+    assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
+    assert 'let settingsMeshyfaceThemeSharingEnabled = true;' in js
+    assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV1";' in js
+    assert 'document.getElementById("settings-meshyface-theme-sharing")' in js
+    assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
     assert "profile.color" not in js
     assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
+    assert "function clearRemoteMeshyfaceProfilesCache()" in js
     assert "function syncMeshyfaceProfilesFromState(state = latestState)" in js
+    assert "if (!settingsMeshyfaceThemeSharingEnabled) return clearRemoteMeshyfaceProfilesCache();" in js
     assert "function meshyfaceProfileAppearanceForNode(nodeId, state = latestState)" in js
+    assert "if (!settingsMeshyfaceThemeSharingEnabled) return null;" in js
     assert "function effectiveNodeAppearanceForNode(nodeId, state = latestState)" in js
     assert re.search(
         r"function nodeTagEntryForNode\(nodeId\)\s*\{\s*"
@@ -1232,6 +1245,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js
     assert "syncMeshyfaceProfilesFromState(state)" in js
     assert "async function broadcastMeshyfaceProfileTheme()" in js
+    assert "Turn on Theme Sharing before broadcasting your theme." in js
     assert "body: JSON.stringify({" in js
     assert "theme," in js
     broadcast_call_index = js.index("void broadcastMeshyfaceProfileTheme();")
@@ -1261,7 +1275,7 @@ def test_dashboard_js_invalidates_spatial_and_inspector_surfaces_when_profiles_c
     assert 'lastMapRenderMode = "";' in poll_sync_block
 
     rerender_start = js.index("function rerenderMeshyfaceProfileAppearance() {")
-    rerender_end = js.index("function setMeshyfaceProfileAcceptRemoteEnabled", rerender_start)
+    rerender_end = js.index("function setMeshyfaceThemeSharingEnabled", rerender_start)
     rerender_block = js[rerender_start:rerender_end]
     assert "const networkMapVisible = activeLayoutView === \"network\"" in rerender_block
     assert "const mapVisible = activeLayoutView === \"saved\" || networkMapVisible;" in rerender_block

@@ -605,6 +605,7 @@
     function meshyfaceProfileAppearanceForNode(nodeId, state = latestState) {{
       const cleanNodeId = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(cleanNodeId)) return null;
+      if (!settingsMeshyfaceThemeSharingEnabled) return null;
       const safeState = (state && typeof state === "object") ? state : {{}};
       const localNodeId = normalizeNodeId(
         (typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : "")
@@ -629,7 +630,6 @@
           localProfile: true,
         }};
       }}
-      if (!settingsMeshyfaceProfileAcceptRemoteEnabled) return null;
       const profile = remoteMeshyfaceProfilesByNodeId.get(cleanNodeId);
       if (!profile || typeof profile !== "object") return null;
       const theme = normalizeMeshyfaceProfileTheme(profile.theme);
@@ -673,7 +673,14 @@
       return JSON.stringify(Array.from(remoteMeshyfaceProfilesByNodeId.entries()).sort());
     }}
 
+    function clearRemoteMeshyfaceProfilesCache() {{
+      const hadProfiles = remoteMeshyfaceProfilesByNodeId.size > 0;
+      remoteMeshyfaceProfilesByNodeId.clear();
+      return hadProfiles;
+    }}
+
     function syncMeshyfaceProfilesFromState(state = latestState) {{
+      if (!settingsMeshyfaceThemeSharingEnabled) return clearRemoteMeshyfaceProfilesCache();
       const safeState = (state && typeof state === "object") ? state : {{}};
       if (!Object.prototype.hasOwnProperty.call(safeState, "meshyface_profiles")) return false;
       const rawProfiles = safeState.meshyface_profiles;

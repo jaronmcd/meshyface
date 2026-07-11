@@ -6,7 +6,7 @@
         String(controlId || "").startsWith("settings-map-layer-")
         || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
-        || controlId === "settings-meshyface-profile-accept-remote"
+        || controlId === "settings-meshyface-theme-sharing"
         || controlId === "settings-appearance-keep-screen-on"
         || controlId === "settings-raw-packet-capture-enabled"
         || controlId === "theme-custom-base-color"
@@ -100,8 +100,8 @@
               : `Time sync timezone set to ${{settingsTimeSyncTimezonePref}}.`
           );
         }}
-        if (target instanceof HTMLInputElement && target.id === "settings-meshyface-profile-accept-remote") {{
-          setMeshyfaceProfileAcceptRemoteEnabled(!!target.checked, {{
+        if (target instanceof HTMLInputElement && target.id === "settings-meshyface-theme-sharing") {{
+          setMeshyfaceThemeSharingEnabled(!!target.checked, {{
             persist: true,
             rerender: true,
             announce: true,
