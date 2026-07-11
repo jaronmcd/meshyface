@@ -1410,6 +1410,11 @@ def test_dashboard_css_keeps_ghost_overlay_off_compact_node_rows() -> None:
     css = build_dashboard_css(theme_css="")
 
     assert "--node-profile-ghost-text" in css
+    assert "--node-profile-ghost-font-size" in css
+    assert "--node-profile-ghost-anchor-x" in css
+    assert "transform: translate(-50%, -50%) var(--node-profile-ghost-transform" in css
+    assert "--node-profile-ghost-justify" not in css
+    assert "--node-profile-ghost-padding-x" not in css
     assert ".chat-feed-item.profiled-node::after" in css
     assert ".chat-member-item.profiled-node::after" not in css
     assert ".self-node-identity-slot.profiled-node::after" not in css
@@ -1454,6 +1459,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(payload);" in js
     assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
     assert "function normalizeMeshyfaceProfileGhostText(value)" in js
+    assert "function meshyfaceProfileGhostVisualUnits(value)" in js
+    assert "function meshyfaceProfileGhostAutoFontSize(value)" in js
+    assert "function meshyfaceProfileGhostAnchorX(justify, value)" in js
+    assert '"--node-profile-ghost-anchor-x"' in js
     assert "const meshyfaceProfileGhostBlendMax = 25;" in js
     assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
     assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js

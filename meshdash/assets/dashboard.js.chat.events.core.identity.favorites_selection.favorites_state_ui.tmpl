@@ -347,11 +347,6 @@
       "left-upside-down": "rotate(172deg) scale(1.1)",
       "right-upside-down": "rotate(188deg) scale(1.1)",
     }});
-    const meshyfaceProfileGhostJustifyCss = Object.freeze({{
-      left: {{ justify: "flex-start", padding: "18%" }},
-      center: {{ justify: "center", padding: "10%" }},
-      right: {{ justify: "flex-end", padding: "18%" }},
-    }});
     const meshyfaceProfileGhostEffectCss = Object.freeze({{
       soft: {{
         blendMode: "screen",
@@ -440,6 +435,45 @@
         encodedBytes += byteLength;
       }}
       return clean.trim();
+    }}
+
+    function meshyfaceProfileGhostVisualUnits(value) {{
+      const chars = Array.from(String(value || "").trim());
+      if (chars.length === 0) return 1;
+      return chars.reduce((units, char) => {{
+        const codePoint = char.codePointAt(0) || 0;
+        if (/\s/.test(char)) return units + 0.35;
+        if (codePoint > 0xffff) return units + 1.2;
+        if (/^[A-Z0-9]$/.test(char)) return units + 0.72;
+        if (/^[a-z]$/.test(char)) return units + 0.62;
+        return units + 0.9;
+      }}, 0);
+    }}
+
+    function meshyfaceProfileGhostAutoFontSize(value) {{
+      const units = meshyfaceProfileGhostVisualUnits(value);
+      if (units <= 1.2) return "clamp(24px, 3.7em, 62px)";
+      if (units <= 2.2) return "clamp(22px, 3.2em, 54px)";
+      if (units <= 3.2) return "clamp(20px, 2.75em, 48px)";
+      if (units <= 4.2) return "clamp(18px, 2.35em, 42px)";
+      return "clamp(16px, 2.05em, 36px)";
+    }}
+
+    function meshyfaceProfileGhostAnchorX(justify, value) {{
+      const cleanJustify = normalizeMeshyfaceProfileGhostJustify(justify);
+      if (cleanJustify === "center") return "50%";
+      const units = meshyfaceProfileGhostVisualUnits(value);
+      let offset = 12;
+      if (units <= 1.2) {{
+        offset = 27;
+      }} else if (units <= 2.2) {{
+        offset = 24;
+      }} else if (units <= 3.2) {{
+        offset = 20;
+      }} else if (units <= 4.2) {{
+        offset = 16;
+      }}
+      return cleanJustify === "left" ? `${{50 - offset}}%` : `${{50 + offset}}%`;
     }}
 
     function normalizeMeshyfaceProfileGhostBlend(value, fallback = meshyfaceProfileGhostBlendMax) {{
@@ -1328,8 +1362,8 @@
       "--node-profile-ghost-blend-mode",
       "--node-profile-ghost-filter",
       "--node-profile-ghost-transform",
-      "--node-profile-ghost-justify",
-      "--node-profile-ghost-padding-x",
+      "--node-profile-ghost-font-size",
+      "--node-profile-ghost-anchor-x",
       "--node-profile-ghost-weight",
       "--node-profile-ghost-tracking",
     ];
@@ -1370,15 +1404,14 @@
       if (!ghost) return [];
       const effect = meshyfaceProfileGhostEffectCss[ghost.effect] || meshyfaceProfileGhostEffectCss.soft;
       const tiltTransform = meshyfaceProfileGhostTiltCss[ghost.tilt] || meshyfaceProfileGhostTiltCss[meshyfaceProfileGhostTiltDefault];
-      const justifyStyle = meshyfaceProfileGhostJustifyCss[ghost.justify] || meshyfaceProfileGhostJustifyCss[meshyfaceProfileGhostJustifyDefault];
       return [
         ["--node-profile-ghost-text", JSON.stringify(ghost.text)],
         ["--node-profile-ghost-opacity", (ghost.blend / 100).toFixed(3)],
         ["--node-profile-ghost-blend-mode", effect.blendMode],
         ["--node-profile-ghost-filter", effect.filter],
         ["--node-profile-ghost-transform", tiltTransform],
-        ["--node-profile-ghost-justify", justifyStyle.justify],
-        ["--node-profile-ghost-padding-x", justifyStyle.padding],
+        ["--node-profile-ghost-font-size", meshyfaceProfileGhostAutoFontSize(ghost.text)],
+        ["--node-profile-ghost-anchor-x", meshyfaceProfileGhostAnchorX(ghost.justify, ghost.text)],
         ["--node-profile-ghost-weight", effect.weight],
         ["--node-profile-ghost-tracking", effect.tracking],
       ];

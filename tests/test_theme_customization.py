@@ -1162,6 +1162,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
     assert "function currentMeshyfaceProfileOutgoingPayload(extra = null)" in js
     assert "function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null)" in js
+    assert "function meshyfaceProfileGhostAutoFontSize(value)" in js
+    assert "function meshyfaceProfileGhostAnchorX(justify, value)" in js
     assert "function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault)" in js
     assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
     assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js

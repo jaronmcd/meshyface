@@ -8749,15 +8749,13 @@
     .saved-node-details.profiled-node .saved-node-section:first-child::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
-      inset: -10%;
+      top: 50%;
+      left: var(--node-profile-ghost-anchor-x, 50%);
       z-index: 0;
-      display: flex;
-      align-items: center;
-      justify-content: var(--node-profile-ghost-justify, center);
+      display: block;
       box-sizing: border-box;
-      padding: 0 var(--node-profile-ghost-padding-x, 10%);
       color: var(--node-profile-theme-contrast, var(--node-profile-identity-color));
-      font-size: clamp(18px, 2.6em, 46px);
+      font-size: var(--node-profile-ghost-font-size, clamp(18px, 2.6em, 46px));
       font-weight: var(--node-profile-ghost-weight, 800);
       letter-spacing: var(--node-profile-ghost-tracking, 0.02em);
       line-height: 1;
@@ -8766,8 +8764,8 @@
       white-space: nowrap;
       mix-blend-mode: var(--node-profile-ghost-blend-mode, screen);
       filter: var(--node-profile-ghost-filter, blur(0.2px));
-      transform: var(--node-profile-ghost-transform, rotate(-7deg) scale(1.14));
-      transform-origin: center;
+      transform: translate(-50%, -50%) var(--node-profile-ghost-transform, rotate(-7deg) scale(1.14));
+      transform-origin: center center;
     }}
     .chat-feed-item.profiled-node > *,
     .card.chat .chat-reply-inline.profiled-node > *,
