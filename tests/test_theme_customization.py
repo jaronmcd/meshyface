@@ -1087,6 +1087,21 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'id="theme-custom-gradient-primary-end-color"' in html
     assert 'id="theme-custom-gradient-primary-type"' in html
     assert 'id="theme-custom-gradient-primary-direction"' in html
+    theme_panel_start = html.index('id="settings-appearance-theme-panel"')
+    assert "Surface" in html
+    assert "Accent and text" in html
+    assert (
+        html.index('id="theme-custom-base-color"', theme_panel_start)
+        < html.index('id="theme-custom-foreground-transparency"', theme_panel_start)
+        < html.index('id="theme-custom-foreground-blur"', theme_panel_start)
+        < html.index('id="theme-custom-color-depth"', theme_panel_start)
+    )
+    assert (
+        html.index('id="theme-custom-gradient-primary-start-color"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-type"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-direction"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-end-color"', theme_panel_start)
+    )
     assert 'id="theme-custom-background-type"' in html
     assert '<option value="particles">Particles</option>' in html
     assert '<option value="livemap">Live map</option>' in html
@@ -1183,22 +1198,33 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
     assert 'const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);' in js
-    assert 'mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,' in js
+    assert 'mode: resolvedMeshyfaceProfileThemeMode(),' in js
     assert 'id="settings-meshyface-node-theme-preview-card"' in html
     assert 'id="settings-meshyface-node-theme-preview-member"' in html
     assert 'id="settings-meshyface-node-theme-ghost-justify"' in html
     assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
     assert 'id="settings-meshyface-node-theme-ghost-upside-down"' in html
+    assert 'id="settings-meshyface-node-theme-mode"' not in html
     assert "Watermark" in html
-    assert "Watermark justify" in html
-    assert "Watermark tilt" in html
+    assert "Node surface" in html
+    assert "Identity" in html
+    assert "Background gradient" in html
+    assert '<span class="settings-label">Justify</span>' in html
+    assert '<span class="settings-label">Tilt</span>' in html
     assert "Upside down" in html
     assert '<option value="center" selected>Center</option>' in html
     assert '<option value="upside-down">Upside down</option>' not in html
-    assert "Watermark strength" in html
+    assert '<span class="settings-label">Strength</span>' in html
     assert 'class="settings-meshyface-node-theme-preview-shell"' in html
     assert 'class="chat-feed-item profiled-node chat-selectable"' in html
     assert 'class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"' in html
+    node_panel_start = html.index('id="settings-appearance-node-panel"')
+    assert (
+        html.index('id="settings-meshyface-node-theme-gradient-start-color"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-type"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-direction"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-end-color"', node_panel_start)
+    )
     assert "function meshyfaceNodeThemePreviewPayload(rawTheme)" in js
     assert "preview_only: true," in js
     assert "function meshyfaceNodeThemePreviewRenderFromPayload(payload, rawTheme)" in js
@@ -1240,7 +1266,7 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "Shared surface wash" not in html
     assert "Subtle panel and note color" not in html
     assert "Node font" in html
-    assert "Gradient direction" in html
+    assert '<span class="settings-label">Direction</span>' in html
     assert "Text" in html
     assert "Console preview" not in html
     assert "$ mesh status --live" not in html

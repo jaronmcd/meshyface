@@ -318,7 +318,7 @@
       "center",
     ]);
     const meshyfaceProfileThemeModes = new Set(["light", "dark"]);
-    const meshyfaceProfileGhostBlendMax = 25;
+    const meshyfaceProfileGhostBlendMax = 50;
     const meshyfaceProfileGhostTiltDefault = "level";
     const meshyfaceProfileGhostJustifyDefault = "center";
     const meshyfaceProfileThemeFontFamilyCss = Object.freeze({{
@@ -803,7 +803,7 @@
           : (fallbackGhost ? fallbackGhost.justify : meshyfaceProfileGhostJustifyDefault)
       );
       return Object.assign({{}}, normalized, {{
-        mode: normalizeMeshyfaceNodeThemeMode(payload.mode, fallback.mode),
+        mode: "current",
         ghost_text: ghostText,
         ghost_blend: ghostBlend,
         ghost_effect: ghostEffect,
@@ -838,7 +838,7 @@
         : defaultMeshyfaceNodeThemeSettings();
       const ghost = normalizeMeshyfaceProfileGhost(payload.ghost);
       return Object.assign({{}}, normalized, {{
-        mode: normalizeMeshyfaceNodeThemeMode(theme.mode, "current"),
+        mode: "current",
         ghost_text: ghost ? ghost.text : "",
         ghost_blend: ghost ? ghost.blend : meshyfaceProfileGhostBlendMax,
         ghost_effect: ghost ? ghost.effect : "soft",
@@ -850,7 +850,6 @@
     function meshyfaceNodeThemeOutgoingPayloadFromSettings(rawSettings, extra = null) {{
       const settings = normalizeMeshyfaceNodeThemeSettings(rawSettings);
       if (!settings || typeof settings !== "object") return null;
-      const requestedMode = normalizeMeshyfaceNodeThemeMode(settings.mode);
       const theme = normalizeMeshyfaceProfileTheme({{
         version: meshyfaceProfileThemeVersion,
         base_color: settings.base_color,
@@ -864,7 +863,7 @@
         text_font: settings.text_font,
         gradient_primary_type: settings.gradient_primary_type,
         gradient_primary_direction: settings.gradient_primary_direction,
-        mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,
+        mode: resolvedMeshyfaceProfileThemeMode(),
       }});
       if (!theme) return null;
       const payload = {{ theme }};
@@ -2084,10 +2083,6 @@
       if (gradientDirectionSelect instanceof HTMLSelectElement) {{
         gradientDirectionSelect.value = normalizeThemeCustomGradientDirection(settings.gradient_primary_direction);
       }}
-      const modeSelect = document.getElementById("settings-meshyface-node-theme-mode");
-      if (modeSelect instanceof HTMLSelectElement) {{
-        modeSelect.value = normalizeMeshyfaceNodeThemeMode(settings.mode);
-      }}
       const ghostTextInput = document.getElementById("settings-meshyface-node-theme-ghost-text");
       if (ghostTextInput instanceof HTMLInputElement) {{
         const cleanText = normalizeMeshyfaceProfileGhostText(settings.ghost_text);
@@ -2490,7 +2485,6 @@
         "gradient_primary_direction",
         normalizeThemeCustomGradientDirection
       );
-      bindSelect("settings-meshyface-node-theme-mode", "mode", normalizeMeshyfaceNodeThemeMode);
       bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);
       bindSelect("settings-meshyface-node-theme-ghost-justify", "ghost_justify", normalizeMeshyfaceProfileGhostJustify);
 

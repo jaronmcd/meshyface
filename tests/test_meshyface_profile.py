@@ -1460,17 +1460,31 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
     assert 'id="settings-meshyface-node-theme-ghost-upside-down"' in html
     assert 'id="settings-meshyface-node-theme-ghost-blend"' in html
-    assert 'id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="25"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="50"' in html
+    assert 'id="settings-meshyface-node-theme-mode"' not in html
     assert "Watermark" in html
-    assert "Watermark effect" in html
-    assert "Watermark justify" in html
-    assert "Watermark tilt" in html
+    assert "Node surface" in html
+    assert "Identity" in html
+    assert "Background gradient" in html
+    assert '<span class="settings-label">Effect</span>' in html
+    assert '<span class="settings-label">Justify</span>' in html
+    assert '<span class="settings-label">Tilt</span>' in html
     assert "Upside down" in html
     assert '<option value="center" selected>Center</option>' in html
     assert '<option value="upside-down">Upside down</option>' not in html
-    assert "Watermark strength" in html
-    assert "Watermark blur" in html
+    assert '<span class="settings-label">Strength</span>' in html
+    assert '<span class="settings-label">Blur</span>' in html
     assert "Ghost text" not in html
+    node_panel_start = html.index('id="settings-appearance-node-panel"')
+    assert html.index("Watermark", node_panel_start) < html.index("Node surface", node_panel_start)
+    assert html.index("Node surface", node_panel_start) < html.index("Identity", node_panel_start)
+    assert html.index("Identity", node_panel_start) < html.index("Background gradient", node_panel_start)
+    assert (
+        html.index('id="settings-meshyface-node-theme-gradient-start-color"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-type"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-direction"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-end-color"', node_panel_start)
+    )
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert (
@@ -1559,7 +1573,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function meshyfaceProfileGhostAutoFontSize(value)" in js
     assert "function meshyfaceProfileGhostAnchorX(justify, value)" in js
     assert '"--node-profile-ghost-anchor-x"' in js
-    assert "const meshyfaceProfileGhostBlendMax = 25;" in js
+    assert "const meshyfaceProfileGhostBlendMax = 50;" in js
     assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
     assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js
     assert "function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault)" in js

@@ -10410,11 +10410,43 @@
       flex-direction: column;
       gap: 10px;
     }}
-    .settings-gradient-fields.settings-meshyface-node-theme-fields {{
-      grid-template-columns: repeat(5, minmax(118px, 1fr));
+    .settings-control-stack {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }}
+    .settings-control-section {{
+      min-width: 0;
+    }}
+    .settings-control-section + .settings-control-section {{
+      padding-top: 4px;
+      border-top: 1px solid color-mix(in srgb, var(--settings-line-soft) 42%, transparent);
+    }}
+    .settings-control-section > .settings-sublegend {{
+      margin: 0 0 7px;
+    }}
+    .settings-theme-control-stack {{
+      margin-top: 2px;
+    }}
+    .settings-gradient-fields.settings-theme-surface-fields {{
+      grid-template-columns: minmax(130px, 0.9fr) repeat(3, minmax(150px, 1.1fr));
+    }}
+    .settings-gradient-fields.settings-theme-identity-fields {{
+      grid-template-columns: repeat(3, minmax(140px, 1fr));
     }}
     .settings-gradient-fields.settings-meshyface-node-theme-text-fields {{
-      grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(120px, 1fr)) minmax(116px, 0.8fr) minmax(160px, 1.2fr);
+      grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(120px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-surface-fields {{
+      grid-template-columns: minmax(130px, 0.9fr) repeat(2, minmax(150px, 1.1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-identity-fields {{
+      grid-template-columns: repeat(3, minmax(140px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
     }}
     .settings-meshyface-node-theme-toggle-field {{
       align-self: end;
@@ -10519,12 +10551,28 @@
       .settings-gradient-fields {{
         grid-template-columns: repeat(2, minmax(120px, 1fr));
       }}
+      .settings-gradient-fields.settings-theme-surface-fields,
+      .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }}
       .settings-livemap-layer-grid {{
         grid-template-columns: repeat(3, minmax(96px, 1fr));
       }}
     }}
     @media (max-width: 640px) {{
       .settings-gradient-fields {{
+        grid-template-columns: 1fr;
+      }}
+      .settings-gradient-fields.settings-theme-surface-fields,
+      .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
         grid-template-columns: 1fr;
       }}
     }}

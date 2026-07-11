@@ -2027,95 +2027,105 @@
                   </div>
                 </div>
               </div>
-              <div class="settings-row">
-                <label class="settings-field" for="theme-custom-base-color">
-                  <span class="settings-label">Base color</span>
-                  <input
-                    id="theme-custom-base-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#007bff"
-                    aria-label="Custom theme base color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-line-color">
-                  <span class="settings-label">Line color</span>
-                  <input
-                    id="theme-custom-line-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#0da6ff"
-                    aria-label="Custom theme line color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-line-contrast-color">
-                  <span class="settings-label">Line contrast color</span>
-                  <input
-                    id="theme-custom-line-contrast-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#4f55ff"
-                    aria-label="Custom theme line contrast color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-text-font">
-                  <span class="settings-label">Text font</span>
-                  <select id="theme-custom-text-font" class="settings-select" aria-label="Custom theme text font">
-                    <option value="system">System</option>
-                    <option value="compact">Compact</option>
-                    <option value="rounded">Rounded</option>
-                    <option value="mono">Mono</option>
-                    <option value="serif">Serif</option>
-                  </select>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-color-depth">
-                  <span class="settings-label">Color depth</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-color-depth"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value="44"
-                      aria-label="Custom theme color depth"
-                    />
-                    <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">44%</output>
+              <div class="settings-control-stack settings-theme-control-stack">
+                <div class="settings-control-section">
+                  <div class="settings-sublegend">Surface</div>
+                  <div class="settings-gradient-fields settings-theme-surface-fields">
+                    <label class="settings-field" for="theme-custom-base-color">
+                      <span class="settings-label">Base color</span>
+                      <input
+                        id="theme-custom-base-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#007bff"
+                        aria-label="Custom theme base color"
+                      />
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-transparency">
+                      <span class="settings-label">Foreground transparency</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-foreground-transparency"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="90"
+                          step="1"
+                          value="39"
+                          aria-label="Custom theme foreground transparency"
+                        />
+                        <output id="theme-custom-foreground-transparency-value" for="theme-custom-foreground-transparency">39%</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-blur">
+                      <span class="settings-label">Foreground blur</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-foreground-blur"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="40"
+                          step="1"
+                          value="0"
+                          aria-label="Custom theme foreground blur"
+                        />
+                        <output id="theme-custom-foreground-blur-value" for="theme-custom-foreground-blur">0px</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-color-depth">
+                      <span class="settings-label">Color depth</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-color-depth"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="44"
+                          aria-label="Custom theme color depth"
+                        />
+                        <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">44%</output>
+                      </div>
+                    </label>
                   </div>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-transparency">
-                  <span class="settings-label">Foreground transparency</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-foreground-transparency"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="90"
-                      step="1"
-                      value="39"
-                      aria-label="Custom theme foreground transparency"
-                    />
-                    <output id="theme-custom-foreground-transparency-value" for="theme-custom-foreground-transparency">39%</output>
+                </div>
+                <div class="settings-control-section">
+                  <div class="settings-sublegend">Accent and text</div>
+                  <div class="settings-gradient-fields settings-theme-identity-fields">
+                    <label class="settings-field" for="theme-custom-line-color">
+                      <span class="settings-label">Line color</span>
+                      <input
+                        id="theme-custom-line-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#0da6ff"
+                        aria-label="Custom theme line color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-line-contrast-color">
+                      <span class="settings-label">Line contrast color</span>
+                      <input
+                        id="theme-custom-line-contrast-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#4f55ff"
+                        aria-label="Custom theme line contrast color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-text-font">
+                      <span class="settings-label">Text font</span>
+                      <select id="theme-custom-text-font" class="settings-select" aria-label="Custom theme text font">
+                        <option value="system">System</option>
+                        <option value="compact">Compact</option>
+                        <option value="rounded">Rounded</option>
+                        <option value="mono">Mono</option>
+                        <option value="serif">Serif</option>
+                      </select>
+                    </label>
                   </div>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-blur">
-                  <span class="settings-label">Foreground blur</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-foreground-blur"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="40"
-                      step="1"
-                      value="0"
-                      aria-label="Custom theme foreground blur"
-                    />
-                    <output id="theme-custom-foreground-blur-value" for="theme-custom-foreground-blur">0px</output>
-                  </div>
-                </label>
+                </div>
               </div>
               <div class="settings-row settings-gradient-row">
                 <fieldset class="settings-gradient-group settings-background-panel">
@@ -2327,16 +2337,6 @@
                         aria-label="Background gradient start color"
                       />
                     </label>
-                    <label class="settings-field" for="theme-custom-gradient-primary-end-color">
-                      <span class="settings-label">End color</span>
-                      <input
-                        id="theme-custom-gradient-primary-end-color"
-                        class="settings-input settings-color-input"
-                        type="color"
-                        value="#060d1f"
-                        aria-label="Background gradient end color"
-                      />
-                    </label>
                     <label class="settings-field" for="theme-custom-gradient-primary-type">
                       <span class="settings-label">Type</span>
                       <select id="theme-custom-gradient-primary-type" class="settings-select" aria-label="Background gradient type">
@@ -2357,6 +2357,16 @@
                         <option value="up-left">Up left</option>
                         <option value="center">Center</option>
                       </select>
+                    </label>
+                    <label class="settings-field" for="theme-custom-gradient-primary-end-color">
+                      <span class="settings-label">End color</span>
+                      <input
+                        id="theme-custom-gradient-primary-end-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#060d1f"
+                        aria-label="Background gradient end color"
+                      />
                     </label>
                     </div>
                   </div>
@@ -2480,129 +2490,139 @@
                       </div>
                     </div>
                   </div>
-                  <div class="settings-gradient-fields settings-meshyface-node-theme-text-fields">
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
-                      <span class="settings-label">Watermark</span>
-                      <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
-                      <span class="settings-label">Watermark effect</span>
-                      <select id="settings-meshyface-node-theme-ghost-effect" class="settings-select">
-                        <option value="soft">Soft</option>
-                        <option value="glow">Glow</option>
-                        <option value="outline">Outline</option>
-                        <option value="stamp">Stamp</option>
-                      </select>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-justify">
-                      <span class="settings-label">Watermark justify</span>
-                      <select id="settings-meshyface-node-theme-ghost-justify" class="settings-select">
-                        <option value="left">Left</option>
-                        <option value="center" selected>Center</option>
-                        <option value="right">Right</option>
-                      </select>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-tilt">
-                      <span class="settings-label">Watermark tilt</span>
-                      <select id="settings-meshyface-node-theme-ghost-tilt" class="settings-select">
-                        <option value="level">Level</option>
-                        <option value="left">Tilt left</option>
-                        <option value="right">Tilt right</option>
-                      </select>
-                    </label>
-                    <label class="settings-field settings-inline settings-meshyface-node-theme-toggle-field" for="settings-meshyface-node-theme-ghost-upside-down">
-                      <input id="settings-meshyface-node-theme-ghost-upside-down" type="checkbox" />
-                      <span>Upside down</span>
-                    </label>
-                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-ghost-blend">
-                      <span class="settings-label">Watermark strength</span>
-                      <div class="settings-range-row">
-                        <input id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="25" step="1" value="24" />
-                        <output id="settings-meshyface-node-theme-ghost-blend-value" for="settings-meshyface-node-theme-ghost-blend">24%</output>
+                  <div class="settings-control-stack settings-meshyface-node-theme-control-stack">
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Watermark</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-text-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
+                          <span class="settings-label">Text</span>
+                          <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
+                          <span class="settings-label">Effect</span>
+                          <select id="settings-meshyface-node-theme-ghost-effect" class="settings-select">
+                            <option value="soft">Soft</option>
+                            <option value="glow">Glow</option>
+                            <option value="outline">Outline</option>
+                            <option value="stamp">Stamp</option>
+                          </select>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-ghost-blend">
+                          <span class="settings-label">Strength</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="50" step="1" value="24" />
+                            <output id="settings-meshyface-node-theme-ghost-blend-value" for="settings-meshyface-node-theme-ghost-blend">24%</output>
+                          </div>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-blur">
+                          <span class="settings-label">Blur</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-foreground-blur" class="settings-range-input" type="range" min="0" max="40" step="1" value="0" />
+                            <output id="settings-meshyface-node-theme-foreground-blur-value" for="settings-meshyface-node-theme-foreground-blur">0</output>
+                          </div>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-justify">
+                          <span class="settings-label">Justify</span>
+                          <select id="settings-meshyface-node-theme-ghost-justify" class="settings-select">
+                            <option value="left">Left</option>
+                            <option value="center" selected>Center</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-tilt">
+                          <span class="settings-label">Tilt</span>
+                          <select id="settings-meshyface-node-theme-ghost-tilt" class="settings-select">
+                            <option value="level">Level</option>
+                            <option value="left">Tilt left</option>
+                            <option value="right">Tilt right</option>
+                          </select>
+                        </label>
+                        <label class="settings-field settings-inline settings-meshyface-node-theme-toggle-field" for="settings-meshyface-node-theme-ghost-upside-down">
+                          <input id="settings-meshyface-node-theme-ghost-upside-down" type="checkbox" />
+                          <span>Upside down</span>
+                        </label>
                       </div>
-                    </label>
-                  </div>
-                  <div class="settings-gradient-fields settings-meshyface-node-theme-fields">
-                    <label class="settings-field" for="settings-meshyface-node-theme-base-color">
-                      <span class="settings-label">Base color</span>
-                      <input id="settings-meshyface-node-theme-base-color" class="settings-input settings-color-input" type="color" value="#007bff" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-line-color">
-                      <span class="settings-label">Line color</span>
-                      <input id="settings-meshyface-node-theme-line-color" class="settings-input settings-color-input" type="color" value="#0da6ff" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-line-contrast-color">
-                      <span class="settings-label">Contrast color</span>
-                      <input id="settings-meshyface-node-theme-line-contrast-color" class="settings-input settings-color-input" type="color" value="#4f55ff" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-text-font">
-                      <span class="settings-label">Node font</span>
-                      <select id="settings-meshyface-node-theme-text-font" class="settings-select">
-                        <option value="system">System</option>
-                        <option value="compact">Compact</option>
-                        <option value="rounded">Rounded</option>
-                        <option value="mono">Mono</option>
-                        <option value="serif">Serif</option>
-                      </select>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-start-color">
-                      <span class="settings-label">Start color</span>
-                      <input id="settings-meshyface-node-theme-gradient-start-color" class="settings-input settings-color-input" type="color" value="#00356e" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-end-color">
-                      <span class="settings-label">End color</span>
-                      <input id="settings-meshyface-node-theme-gradient-end-color" class="settings-input settings-color-input" type="color" value="#060d1f" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-type">
-                      <span class="settings-label">Gradient type</span>
-                      <select id="settings-meshyface-node-theme-gradient-type" class="settings-select">
-                        <option value="linear">Linear</option>
-                        <option value="radial">Radial</option>
-                      </select>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-direction">
-                      <span class="settings-label">Gradient direction</span>
-                      <select id="settings-meshyface-node-theme-gradient-direction" class="settings-select">
-                        <option value="right">Right</option>
-                        <option value="left">Left</option>
-                        <option value="down">Down</option>
-                        <option value="up">Up</option>
-                        <option value="down-right">Down right</option>
-                        <option value="down-left">Down left</option>
-                        <option value="up-right">Up right</option>
-                        <option value="up-left">Up left</option>
-                        <option value="center">Center</option>
-                      </select>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-mode">
-                      <span class="settings-label">Mode</span>
-                      <select id="settings-meshyface-node-theme-mode" class="settings-select">
-                        <option value="current">Current display</option>
-                        <option value="dark">Dark</option>
-                        <option value="light">Light</option>
-                      </select>
-                    </label>
-                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-color-depth">
-                      <span class="settings-label">Color depth</span>
-                      <div class="settings-range-row">
-                        <input id="settings-meshyface-node-theme-color-depth" class="settings-range-input" type="range" min="0" max="100" step="1" value="44" />
-                        <output id="settings-meshyface-node-theme-color-depth-value" for="settings-meshyface-node-theme-color-depth">44%</output>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Node surface</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-surface-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-base-color">
+                          <span class="settings-label">Base color</span>
+                          <input id="settings-meshyface-node-theme-base-color" class="settings-input settings-color-input" type="color" value="#007bff" />
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-transparency">
+                          <span class="settings-label">Transparency</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-foreground-transparency" class="settings-range-input" type="range" min="0" max="90" step="1" value="39" />
+                            <output id="settings-meshyface-node-theme-foreground-transparency-value" for="settings-meshyface-node-theme-foreground-transparency">39%</output>
+                          </div>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-color-depth">
+                          <span class="settings-label">Color depth</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-color-depth" class="settings-range-input" type="range" min="0" max="100" step="1" value="44" />
+                            <output id="settings-meshyface-node-theme-color-depth-value" for="settings-meshyface-node-theme-color-depth">44%</output>
+                          </div>
+                        </label>
                       </div>
-                    </label>
-                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-transparency">
-                      <span class="settings-label">Transparency</span>
-                      <div class="settings-range-row">
-                        <input id="settings-meshyface-node-theme-foreground-transparency" class="settings-range-input" type="range" min="0" max="90" step="1" value="39" />
-                        <output id="settings-meshyface-node-theme-foreground-transparency-value" for="settings-meshyface-node-theme-foreground-transparency">39%</output>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Identity</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-identity-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-line-color">
+                          <span class="settings-label">Line color</span>
+                          <input id="settings-meshyface-node-theme-line-color" class="settings-input settings-color-input" type="color" value="#0da6ff" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-line-contrast-color">
+                          <span class="settings-label">Contrast color</span>
+                          <input id="settings-meshyface-node-theme-line-contrast-color" class="settings-input settings-color-input" type="color" value="#4f55ff" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-text-font">
+                          <span class="settings-label">Node font</span>
+                          <select id="settings-meshyface-node-theme-text-font" class="settings-select">
+                            <option value="system">System</option>
+                            <option value="compact">Compact</option>
+                            <option value="rounded">Rounded</option>
+                            <option value="mono">Mono</option>
+                            <option value="serif">Serif</option>
+                          </select>
+                        </label>
                       </div>
-                    </label>
-                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-blur">
-                      <span class="settings-label">Watermark blur</span>
-                      <div class="settings-range-row">
-                        <input id="settings-meshyface-node-theme-foreground-blur" class="settings-range-input" type="range" min="0" max="40" step="1" value="0" />
-                        <output id="settings-meshyface-node-theme-foreground-blur-value" for="settings-meshyface-node-theme-foreground-blur">0</output>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Background gradient</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-gradient-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-start-color">
+                          <span class="settings-label">Start color</span>
+                          <input id="settings-meshyface-node-theme-gradient-start-color" class="settings-input settings-color-input" type="color" value="#00356e" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-type">
+                          <span class="settings-label">Type</span>
+                          <select id="settings-meshyface-node-theme-gradient-type" class="settings-select">
+                            <option value="linear">Linear</option>
+                            <option value="radial">Radial</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-direction">
+                          <span class="settings-label">Direction</span>
+                          <select id="settings-meshyface-node-theme-gradient-direction" class="settings-select">
+                            <option value="right">Right</option>
+                            <option value="left">Left</option>
+                            <option value="down">Down</option>
+                            <option value="up">Up</option>
+                            <option value="down-right">Down right</option>
+                            <option value="down-left">Down left</option>
+                            <option value="up-right">Up right</option>
+                            <option value="up-left">Up left</option>
+                            <option value="center">Center</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-end-color">
+                          <span class="settings-label">End color</span>
+                          <input id="settings-meshyface-node-theme-gradient-end-color" class="settings-input settings-color-input" type="color" value="#060d1f" />
+                        </label>
                       </div>
-                    </label>
+                    </div>
                   </div>
                 </div>
               </div>
