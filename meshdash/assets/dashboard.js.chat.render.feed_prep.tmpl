@@ -284,28 +284,7 @@
         const mergedMessages = localInfoMessages.length
           ? rawMessages.concat(localInfoMessages)
           : rawMessages;
-        const mergedTimeline = mergedMessages
-          .map((msg, index) => {{
-            const unix = latestUnixTimestamp(
-              msg && msg.rx_time,
-              msg && msg.captured_at,
-            );
-            return {{
-              msg,
-              index,
-              unix: Number.isFinite(unix) ? Math.floor(unix) : null,
-            }};
-          }})
-          .sort((a, b) => {{
-            const aUnix = Number.isFinite(a.unix) ? a.unix : null;
-            const bUnix = Number.isFinite(b.unix) ? b.unix : null;
-            if (aUnix == null && bUnix != null) return -1;
-            if (aUnix != null && bUnix == null) return 1;
-            if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
-              return aUnix - bUnix;
-            }}
-            return a.index - b.index;
-          }});
+        const mergedTimeline = chatMessagesInReceivedTimelineOrder(mergedMessages);
 
         for (const timelineRow of mergedTimeline) {{
           const msg = timelineRow && typeof timelineRow === "object"

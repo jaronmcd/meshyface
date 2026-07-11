@@ -998,8 +998,6 @@ def _slim_recent_chat_for_chat_profile(
         if not isinstance(entry, Mapping):
             continue
         slim_entry = dict(entry)
-        if slim_entry.get("rx_time") not in (None, ""):
-            slim_entry.pop("captured_at", None)
         if slim_entry.get("delivery_updated_unix") not in (None, ""):
             slim_entry.pop("delivery_updated_at", None)
         destination = (
