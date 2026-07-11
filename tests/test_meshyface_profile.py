@@ -946,6 +946,35 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
         second_store.close()
 
 
+def test_meshyface_profile_processing_toggle_survives_history_store_restart(
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "profile-processing-settings.sqlite3"
+
+    first_store = _open_history_store(history_path)
+    try:
+        first_tracker = DashboardTracker(packet_limit=8, history_store=first_store)
+        assert first_tracker.meshyface_profile_processing_status()["enabled"] is False
+        assert first_tracker.set_meshyface_profile_processing_enabled(True)["enabled"] is True
+    finally:
+        first_store.close()
+
+    second_store = _open_history_store(history_path)
+    try:
+        second_tracker = DashboardTracker(packet_limit=8, history_store=second_store)
+        assert second_tracker.meshyface_profile_processing_status()["enabled"] is True
+        assert second_tracker.set_meshyface_profile_processing_enabled(False)["enabled"] is False
+    finally:
+        second_store.close()
+
+    third_store = _open_history_store(history_path)
+    try:
+        third_tracker = DashboardTracker(packet_limit=8, history_store=third_store)
+        assert third_tracker.meshyface_profile_processing_status()["enabled"] is False
+    finally:
+        third_store.close()
+
+
 def test_tracker_backfills_hex_theme_profile_packets_after_profile_cache_upgrade(
     tmp_path: Path,
 ) -> None:
@@ -1558,6 +1587,11 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function syncMeshyfaceThemeSharingServerPreference(enabled, options = null)" in js
     assert "function syncMeshyfaceThemeSharingFromState(state = latestState)" in js
     assert 'body: JSON.stringify({ enabled: next }),' in js
+    load_prefs_block = js[
+        js.index("function loadSettingsAppearancePreferences()")
+        : js.index("function persistSettingsAppearancePreferences()")
+    ]
+    assert "syncMeshyfaceThemeSharingServerPreference(settingsMeshyfaceThemeSharingEnabled" not in load_prefs_block
     assert "opts.server === true" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
@@ -1618,10 +1652,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "window.localStorage.getItem(settingsMeshyfaceNodeThemePreviewRenderStorageKey)" in js
     assert "window.localStorage.setItem(\n          settingsMeshyfaceNodeThemePreviewRenderStorageKey," in js
     assert "if (typeof loadMeshyfaceNodeThemePreferencesFromStorage === \"function\") {" in js
-    assert "persistMeshyfaceNodeThemePreferences();" not in js[
-        js.index("function loadSettingsAppearancePreferences()")
-        : js.index("function persistSettingsAppearancePreferences()")
-    ]
+    assert "persistMeshyfaceNodeThemePreferences();" not in load_prefs_block
     assert "profile.color" not in js
     assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
     assert "function clearRemoteMeshyfaceProfilesCache()" in js

@@ -100,7 +100,9 @@ class DashboardTracker:
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
-        self.meshyface_profile_processing_enabled = False
+        self.meshyface_profile_processing_enabled = (
+            self._load_meshyface_profile_processing_enabled()
+        )
         self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
         self._restore_meshyface_profiles_from_history_unlocked()
         self._zork_bot_service = None
@@ -561,6 +563,37 @@ class DashboardTracker:
             if profile is not None:
                 self._cache_meshyface_profile_unlocked(profile)
 
+    def _load_meshyface_profile_processing_enabled(self) -> bool:
+        history_store = getattr(self, "_history_store", None)
+        load_settings_fn = getattr(
+            history_store,
+            "get_meshyface_profile_processing_settings",
+            None,
+        )
+        if not callable(load_settings_fn):
+            return False
+        try:
+            response = load_settings_fn()
+        except Exception:
+            return False
+        if not isinstance(response, Mapping):
+            return False
+        return bool(response.get("enabled"))
+
+    def _persist_meshyface_profile_processing_enabled_unlocked(self, enabled: bool) -> None:
+        history_store = getattr(self, "_history_store", None)
+        save_settings_fn = getattr(
+            history_store,
+            "set_meshyface_profile_processing_settings",
+            None,
+        )
+        if not callable(save_settings_fn):
+            return
+        try:
+            save_settings_fn(bool(enabled))
+        except Exception:
+            pass
+
     def _persist_meshyface_profile_unlocked(self, profile: dict[str, object]) -> None:
         history_store = getattr(self, "_history_store", None)
         save_profile_fn = getattr(history_store, "save_meshyface_profile", None)
@@ -634,6 +667,7 @@ class DashboardTracker:
             )
             changed = previous_enabled != next_enabled
             self.meshyface_profile_processing_enabled = next_enabled
+            self._persist_meshyface_profile_processing_enabled_unlocked(next_enabled)
             cleared_profiles = 0
             if not next_enabled:
                 cleared_profiles = len(self.meshyface_profiles_by_node_id)

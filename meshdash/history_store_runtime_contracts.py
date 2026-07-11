@@ -39,6 +39,8 @@ class HistoryStoreRuntimeState(HistoryStoreWriteState, Protocol):
     _bot_runtime_settings_updated_unix: int
     _custom_telemetry_rules: list[dict[str, object]]
     _custom_telemetry_updated_unix: int
+    _meshyface_profile_processing_enabled: bool
+    _meshyface_profile_processing_updated_unix: int
 
 
 class BuildHistoryStorePolicyFn(Protocol):

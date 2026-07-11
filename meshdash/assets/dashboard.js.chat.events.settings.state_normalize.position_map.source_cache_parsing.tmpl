@@ -50,15 +50,6 @@
       if (typeof loadMeshyfaceNodeThemePreferencesFromStorage === "function") {{
         loadMeshyfaceNodeThemePreferencesFromStorage();
       }}
-      if (typeof syncMeshyfaceThemeSharingServerPreference === "function") {{
-        window.setTimeout(() => {{
-          void syncMeshyfaceThemeSharingServerPreference(settingsMeshyfaceThemeSharingEnabled, {{
-            announce: false,
-            previousEnabled: false,
-            revertOnError: false,
-          }});
-        }}, 0);
-      }}
     }}
 
     function persistSettingsAppearancePreferences() {{

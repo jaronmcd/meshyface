@@ -304,9 +304,19 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_save_custom_telemetry_settings_helper", lambda store, *, rules: _record("set_custom", rules))
     monkeypatch.setattr(runtime_impl, "_load_bbs_settings_helper", lambda store: _record("get_bbs"))
     monkeypatch.setattr(runtime_impl, "_load_bot_runtime_settings_helper", lambda store: _record("get_bot"))
+    monkeypatch.setattr(
+        runtime_impl,
+        "_load_meshyface_profile_processing_settings_helper",
+        lambda store: _record("get_profile_processing"),
+    )
     monkeypatch.setattr(runtime_impl, "_load_bbs_posts_helper", lambda store: _record("get_posts"))
     monkeypatch.setattr(runtime_impl, "_save_bbs_settings_helper", lambda store, *, settings: _record("set_bbs", settings))
     monkeypatch.setattr(runtime_impl, "_save_bot_runtime_settings_helper", lambda store, *, settings: _record("set_bot", settings))
+    monkeypatch.setattr(
+        runtime_impl,
+        "_save_meshyface_profile_processing_settings_helper",
+        lambda store, *, enabled: _record("set_profile_processing", enabled),
+    )
     monkeypatch.setattr(runtime_impl, "_append_bbs_post_helper", lambda store, *, post: _record("append_post", post))
     monkeypatch.setattr(runtime_impl, "_load_raw_packet_stats_helper", lambda store: _record("raw_stats"))
     monkeypatch.setattr(runtime_impl, "_save_raw_packet_settings_helper", lambda store, *, settings: _record("raw_settings", settings))
@@ -364,9 +374,11 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     assert store.set_custom_telemetry_settings([{"metric_key": "temp"}])["helper"] == "set_custom"
     assert store.get_bbs_settings()["helper"] == "get_bbs"
     assert store.get_bot_runtime_settings()["helper"] == "get_bot"
+    assert store.get_meshyface_profile_processing_settings()["helper"] == "get_profile_processing"
     assert store.get_bbs_posts()["helper"] == "get_posts"
     assert store.set_bbs_settings({"title": "bbs"})["helper"] == "set_bbs"
     assert store.set_bot_runtime_settings({"ping_enabled": True})["helper"] == "set_bot"
+    assert store.set_meshyface_profile_processing_settings(True)["helper"] == "set_profile_processing"
     assert store.append_bbs_post({"title": "post"})["helper"] == "append_post"
 
     assert calls[0][0] == "init"
