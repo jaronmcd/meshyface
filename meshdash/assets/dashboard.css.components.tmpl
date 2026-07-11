@@ -8786,6 +8786,86 @@
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text {{
       color: var(--ticker-text-strong);
     }}
+    .topbar .summary-ticker-item-self.profiled-node {{
+      --node-profile-self-text: var(--node-profile-theme-contrast, var(--ticker-text-strong));
+      --node-profile-self-soft-text: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--ticker-text-muted)) 72%,
+        var(--node-profile-theme-line, var(--node-profile-identity-edge)) 28%
+      );
+      --node-profile-self-label-text: color-mix(
+        in srgb,
+        var(--node-profile-theme-base, var(--node-profile-theme-line, var(--node-profile-identity-edge))) 76%,
+        var(--node-profile-theme-contrast, var(--ticker-text-strong)) 24%
+      );
+      border-color: var(--node-profile-identity-edge);
+      background: var(--node-profile-theme-surface) !important;
+      color: var(--node-profile-self-text);
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 24%, transparent),
+        0 0 14px color-mix(in srgb, var(--node-profile-identity-edge) 16%, transparent);
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node:hover {{
+      background: var(--node-profile-theme-surface-hover) !important;
+    }}
+    .topbar .summary-ticker-item-self.profiled-node > .value {{
+      color: var(--node-profile-self-text);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node > .label {{
+      color: var(--node-profile-self-label-text);
+    }}
+    .topbar:not(.ticker-expanded) .summary-ticker-item-self.profiled-node > .label {{
+      color: color-mix(in srgb, var(--node-profile-self-label-text) 84%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .self-node-name-text {{
+      color: var(--node-profile-self-text);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .self-node-id,
+    .topbar .summary-ticker-item-self.profiled-node .self-node-city {{
+      color: var(--node-profile-self-soft-text);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .value.self-node-value .self-node-identity-local.profiled-node {{
+      background: transparent !important;
+      background-image: none !important;
+      box-shadow: none;
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .value.self-node-value .self-node-identity-local.profiled-node[role="button"]:hover {{
+      background: color-mix(in srgb, var(--node-profile-identity-edge) 12%, transparent) !important;
+      background-image: none !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 24%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .self-node-label-self[role="button"]:hover,
+    .topbar .summary-ticker-item-self.profiled-node .self-node-label-selected[role="button"]:hover {{
+      background: color-mix(in srgb, var(--node-profile-theme-line, var(--node-profile-identity-edge)) 16%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-line, var(--node-profile-identity-edge)) 24%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node .self-node-label-self[role="button"]:focus-visible,
+    .topbar .summary-ticker-item-self.profiled-node .self-node-label-selected[role="button"]:focus-visible {{
+      outline-color: var(--node-profile-theme-line, var(--node-profile-identity-edge));
+    }}
+    .topbar .summary-ticker-item-self.profiled-node.has-node-profile-watermark::before {{
+      content: var(--node-profile-ghost-text, "");
+      position: absolute;
+      top: 50%;
+      left: var(--node-profile-ghost-anchor-x, 50%);
+      z-index: 0;
+      color: var(--node-profile-theme-contrast, var(--node-profile-identity-color));
+      font-size: var(--node-profile-ghost-font-size, clamp(22px, 3.8em, 82px));
+      font-weight: var(--node-profile-ghost-weight, 800);
+      letter-spacing: var(--node-profile-ghost-tracking, 0.02em);
+      line-height: 1;
+      opacity: var(--node-profile-ghost-opacity, 0);
+      pointer-events: none;
+      white-space: nowrap;
+      mix-blend-mode: var(--node-profile-ghost-blend-mode, screen);
+      filter: var(--node-profile-ghost-filter, blur(0.2px));
+      transform: translate(-50%, -50%) var(--node-profile-ghost-transform, rotate(-7deg) scale(1.14));
+      transform-origin: center center;
+    }}
+    .topbar .summary-ticker-item-self.profiled-node.has-node-profile-watermark.has-node-emoji:not(.has-dual-node-watermarks)::after {{
+      content: none;
+    }}
     .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node {{
       box-shadow: inset 0 0 0 1px var(--node-profile-identity-edge);
     }}

@@ -546,7 +546,14 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "const hasSelectedTickerNode = isSelectableNodeId(selectedTickerId) && selectedTickerId !== localId;" in js
     assert "const selectedTickerNode = hasSelectedTickerNode" in js
     assert "const resolveTickerIdentityName = (nodeId, node, owner, fallbackName) => {" in js
-    assert 'selfCard.classList.remove("has-selected-node");' in js
+    assert 'selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark");' in js
+    assert "clearNodeAppearanceElementStyle(selfCard);" in js
+    assert "const selfCardAppearanceEntry = (" in js
+    assert "effectiveNodeAppearanceForNode(localId, state)" in js
+    assert "selfCard.classList.add(\"profiled-node\");" in js
+    assert "applyNodeAppearanceElementStyle(selfCard, selfCardAppearanceEntry);" in js
+    assert "meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)" in js
+    assert "selfCard.classList.add(\"has-node-profile-watermark\");" in js
     assert 'selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);' in js
     assert 'selfLabelText.className = "self-node-label-self";' in js
     assert 'selfLabelText.textContent = "Self";' in js
@@ -658,6 +665,11 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert "display: block;" in html
     assert ".self-node-identity-slot .self-node-city[hidden]" in html
     assert ".self-node-identity-slot.profiled-node" in html
+    assert ".summary-ticker-item-self.profiled-node" in html
+    assert ".self-node-identity-local.profiled-node" in html
+    assert "background: transparent !important;" in html
+    assert ".summary-ticker-item-self.profiled-node.has-node-profile-watermark::before" in html
+    assert ".summary-ticker-item-self.profiled-node.has-node-profile-watermark.has-node-emoji:not(.has-dual-node-watermarks)::after" in html
     assert ".self-node-identity-selected.profiled-node" in html
     assert "display: block !important;" in html
     assert "visibility: hidden;" in html

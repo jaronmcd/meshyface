@@ -326,6 +326,22 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
         css,
         ".topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text",
     )
+    self_ticker_card = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node",
+    )
+    self_ticker_label = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node > .label",
+    )
+    self_ticker_compact_label = _last_css_rule(
+        css,
+        ".topbar:not(.ticker-expanded) .summary-ticker-item-self.profiled-node > .label",
+    )
+    self_ticker_themed_name = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node .self-node-name-text",
+    )
     graph_label = _last_css_rule(
         css,
         ".network-graph-node.has-theme-identity .network-graph-node-label",
@@ -357,6 +373,14 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "color: var(--surface-tint-text) !important;" in table_name
     assert "color: var(--theme-text-color, var(--ink)) !important;" in feed_author
     assert "color: var(--ticker-text-strong);" in ticker_name
+    assert "--node-profile-self-text:" in self_ticker_card
+    assert "--node-profile-self-label-text:" in self_ticker_card
+    assert "color: var(--node-profile-self-text);" in self_ticker_card
+    assert "background: var(--node-profile-theme-surface) !important;" in self_ticker_card
+    assert "border-color: var(--node-profile-identity-edge);" in self_ticker_card
+    assert "color: var(--node-profile-self-label-text);" in self_ticker_label
+    assert "var(--node-profile-self-label-text) 84%" in self_ticker_compact_label
+    assert "color: var(--node-profile-self-text);" in self_ticker_themed_name
     assert "fill: var(--surface-tint-text);" in graph_label
     for text_rule in (roster_name, table_name, feed_author, ticker_name, graph_label):
         assert "--node-profile-identity-edge" not in text_rule

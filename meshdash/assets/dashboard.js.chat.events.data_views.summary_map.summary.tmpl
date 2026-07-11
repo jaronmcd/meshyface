@@ -856,7 +856,32 @@
       const selfMetric = document.getElementById("m-self");
       const selfCard = document.getElementById("summary-ticker-self");
       if (selfCard instanceof HTMLElement) {{
-        selfCard.classList.remove("has-selected-node");
+        selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark");
+        if (typeof clearNodeAppearanceElementStyle === "function") {{
+          clearNodeAppearanceElementStyle(selfCard);
+        }}
+        const selfCardAppearanceEntry = (
+          isSelectableNodeId(localId)
+          && typeof effectiveNodeAppearanceForNode === "function"
+        )
+          ? effectiveNodeAppearanceForNode(localId, state)
+          : null;
+        const selfCardProfileAppearance = !!(
+          selfCardAppearanceEntry
+          && selfCardAppearanceEntry.profileAppearance
+        );
+        if (selfCardProfileAppearance) {{
+          selfCard.classList.add("profiled-node");
+          if (typeof applyNodeAppearanceElementStyle === "function") {{
+            applyNodeAppearanceElementStyle(selfCard, selfCardAppearanceEntry);
+          }}
+          const selfCardGhost = typeof meshyfaceProfileGhostForAppearance === "function"
+            ? meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)
+            : null;
+          if (selfCardGhost && selfCardGhost.text) {{
+            selfCard.classList.add("has-node-profile-watermark");
+          }}
+        }}
         const selfLabel = selfCard.querySelector("[data-ticker-label]");
         if (selfLabel instanceof HTMLElement) {{
           selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);
