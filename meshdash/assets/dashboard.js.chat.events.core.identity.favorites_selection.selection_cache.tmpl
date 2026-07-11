@@ -518,8 +518,6 @@
         target.style.removeProperty("--node-profile-border");
         target.style.removeProperty("--node-profile-identity-color");
         target.style.removeProperty("--node-profile-bg");
-        target.style.removeProperty("--node-profile-color-wash");
-        target.style.removeProperty("--node-profile-color-wash-hover");
         if (typeof clearMeshyfaceProfileThemeElementStyle === "function") {{
           clearMeshyfaceProfileThemeElementStyle(target);
         }}
@@ -541,19 +539,33 @@
         target.style.setProperty(`${{prefix}}tint-start-hue`, String(hue));
         target.style.setProperty(`${{prefix}}tint-end-hue`, String(hue));
         target.style.setProperty(`${{prefix}}outline-hue`, String(hue));
-        const color = normalizeNodeTagColor(entry.preset.color, "#2aa85a");
+        const profileTheme = typeof normalizeMeshyfaceProfileTheme === "function"
+          ? normalizeMeshyfaceProfileTheme(entry.theme)
+          : null;
+        const profileRender = typeof normalizeMeshyfaceProfileThemeRender === "function"
+          ? normalizeMeshyfaceProfileThemeRender(entry.render)
+          : null;
+        const color = profileRender
+          ? profileRender.border_color
+          : profileTheme
+            ? profileTheme.line_color
+          : normalizeNodeTagColor(entry.preset.color, "#2aa85a");
+        const surfaceColor = profileTheme ? profileTheme.base_color : color;
+        const surfaceBackground = entry.profileAppearance && profileTheme
+          ? `var(--node-profile-theme-surface, var(--node-profile-theme-background, ${{surfaceColor}}))`
+          : `color-mix(in srgb, ${{surfaceColor}} 15%, var(--surface-tint-bg-soft) 85%)`;
         target.style.setProperty("--node-tag-color", color);
         target.style.setProperty("--node-tag-vibrance", (clampNodeTagVibrance(entry.preset.vibrance, 70) / 100).toFixed(3));
         target.style.setProperty("--node-profile-border", color);
-        if (entry.profileAppearance) {{
+        if (entry.profileAppearance && profileTheme) {{
           target.style.setProperty("--node-profile-identity-color", color);
         }}
         target.style.setProperty(
           "--node-profile-bg",
-          `color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%)`
+          surfaceBackground
         );
         if (typeof applyMeshyfaceProfileThemeElementStyle === "function") {{
-          applyMeshyfaceProfileThemeElementStyle(target, entry.theme);
+          applyMeshyfaceProfileThemeElementStyle(target, entry.theme, profileRender);
         }}
         return true;
       }}

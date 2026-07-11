@@ -8,10 +8,11 @@ import time
 from collections.abc import Mapping
 
 from .helpers import to_int as _to_int
+from .theme import build_palette_theme_preset as _build_palette_theme_preset
 
 
 MESHYFACE_PROFILE_TYPE = "meshyface.profile"
-MESHYFACE_PROFILE_VERSION = 1
+MESHYFACE_PROFILE_VERSION = 2
 MESHYFACE_PROFILE_PORTNUM = 256
 DEFAULT_MESHYFACE_PROFILE_PORTNUM = MESHYFACE_PROFILE_PORTNUM
 MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES = 233
@@ -24,6 +25,11 @@ MESHYFACE_THEME_RECIPE_ENCODED_LENGTH = 28
 _PROFILE_COLOR_RE = re.compile(r"^#[0-9a-f]{6}$", re.IGNORECASE)
 _PROFILE_NODE_ID_RE = re.compile(r"^!?[0-9a-f]{8}$", re.IGNORECASE)
 _THEME_RECIPE_WIRE_RE = re.compile(r"^[A-Za-z0-9_-]{28}$")
+_RGBA_COLOR_RE = re.compile(
+    r"^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*"
+    r"(0(?:\.\d+)?|1(?:\.0+)?)\s*\)$"
+)
+_PROFILE_WIRE_KEYS = frozenset({"type", "v", "node", "updated", "theme"})
 _THEME_RECIPE_KEYS = frozenset(
     {
         "version",
@@ -149,6 +155,85 @@ def normalize_meshyface_theme_recipe(value: object) -> dict[str, object] | None:
     }
 
 
+def _theme_surface_color_and_opacity(value: object) -> tuple[str, int] | None:
+    color = normalize_meshyface_profile_color(value)
+    if color is not None:
+        return color, 100
+    match = _RGBA_COLOR_RE.fullmatch(str(value or "").strip())
+    if match is None:
+        return None
+    red, green, blue = (int(match.group(index)) for index in range(1, 4))
+    if any(component < 0 or component > 255 for component in (red, green, blue)):
+        return None
+    try:
+        alpha = float(match.group(4))
+    except ValueError:
+        return None
+    if alpha < 0 or alpha > 1:
+        return None
+    return f"#{red:02x}{green:02x}{blue:02x}", int(round(alpha * 100))
+
+
+def build_meshyface_theme_render(value: object) -> dict[str, object] | None:
+    """Project a valid recipe into safe, sender-owned node-surface tokens.
+
+    The theme recipe is intentionally compact for mesh transport.  This
+    receiver-side projection reuses the canonical palette generator so a
+    themed node gets the same workspace surface layered over the sender's
+    background gradient, rather than treating its accent/base as a flat fill.
+    """
+
+    recipe = normalize_meshyface_theme_recipe(value)
+    if recipe is None:
+        return None
+    try:
+        palette = _build_palette_theme_preset(
+            recipe["base_color"],
+            line_color=recipe["line_color"],
+            line_contrast_color=recipe["line_contrast_color"],
+            color_depth=int(recipe["color_depth"]),
+            gradient_primary_start_color=recipe["gradient_primary_start_color"],
+            gradient_primary_end_color=recipe["gradient_primary_end_color"],
+            gradient_primary_type=recipe["gradient_primary_type"],
+            gradient_primary_direction=recipe["gradient_primary_direction"],
+            foreground_transparency=int(recipe["foreground_transparency"]),
+            foreground_blur=int(recipe["foreground_blur"]),
+            text_font=recipe["text_font"],
+        )
+        tokens = palette[str(recipe["mode"])]
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    background_start = normalize_meshyface_profile_color(
+        tokens.get("--theme-background-gradient-start")
+    )
+    background_end = normalize_meshyface_profile_color(
+        tokens.get("--theme-background-gradient-end")
+    )
+    border = normalize_meshyface_profile_color(tokens.get("--workspace-shell-border"))
+    border_muted = normalize_meshyface_profile_color(
+        tokens.get("--workspace-shell-border-muted")
+    )
+    surface = _theme_surface_color_and_opacity(tokens.get("--workspace-shell-bg"))
+    surface_hover = _theme_surface_color_and_opacity(
+        tokens.get("--workspace-shell-hover-bg")
+    )
+    if not all((background_start, background_end, border, border_muted, surface, surface_hover)):
+        return None
+    surface_color, surface_opacity = surface
+    hover_color, hover_opacity = surface_hover
+    return {
+        "background_start_color": background_start,
+        "background_end_color": background_end,
+        "surface_color": surface_color,
+        "surface_opacity": surface_opacity,
+        "surface_hover_color": hover_color,
+        "surface_hover_opacity": hover_opacity,
+        "border_color": border,
+        "border_muted_color": border_muted,
+    }
+
+
 def encode_meshyface_theme_recipe(value: object) -> str:
     recipe = normalize_meshyface_theme_recipe(value)
     if recipe is None:
@@ -241,16 +326,15 @@ def decode_meshyface_theme_recipe(value: object) -> dict[str, object] | None:
 def build_meshyface_profile_payload(
     *,
     node_id: object,
-    color: object,
     updated_unix: object,
-    theme: object = None,
+    theme: object,
 ) -> bytes:
     clean_node_id = normalize_meshyface_profile_node_id(node_id)
     if not clean_node_id:
         raise ValueError("local node id is unavailable")
-    clean_color = normalize_meshyface_profile_color(color)
-    if not clean_color:
-        raise ValueError("color must be #rrggbb")
+    clean_theme = normalize_meshyface_theme_recipe(theme)
+    if clean_theme is None:
+        raise ValueError("theme must be a complete valid Meshyface theme recipe")
     if isinstance(updated_unix, bool):
         raise ValueError("updated timestamp must be positive")
     updated = _to_int(updated_unix)
@@ -260,11 +344,9 @@ def build_meshyface_profile_payload(
         "type": MESHYFACE_PROFILE_TYPE,
         "v": MESHYFACE_PROFILE_VERSION,
         "node": clean_node_id,
-        "color": clean_color,
         "updated": int(updated),
+        "theme": encode_meshyface_theme_recipe(clean_theme),
     }
-    if theme is not None:
-        payload["theme"] = encode_meshyface_theme_recipe(theme)
     encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     if len(encoded) > MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES:
         raise ValueError(
@@ -339,6 +421,8 @@ def parse_meshyface_profile_packet(
     body = _decode_payload_object(_mapping_get(decoded, "payload"))
     if body is None:
         return None
+    if set(body.keys()) != _PROFILE_WIRE_KEYS:
+        return None
     if body.get("type") != MESHYFACE_PROFILE_TYPE:
         return None
     version = body.get("v")
@@ -352,8 +436,8 @@ def parse_meshyface_profile_packet(
     if not from_id or not body_node_id or from_id != body_node_id:
         return None
 
-    color = normalize_meshyface_profile_color(body.get("color"))
-    if not color:
+    theme = decode_meshyface_theme_recipe(body.get("theme"))
+    if theme is None:
         return None
     updated_raw = body.get("updated")
     if isinstance(updated_raw, bool):
@@ -369,12 +453,9 @@ def parse_meshyface_profile_packet(
         return None
     profile = {
         "node_id": from_id,
-        "color": color,
         "updated_unix": int(updated),
         "received_unix": max(0, received_unix),
         "source": "mesh",
+        "theme": theme,
     }
-    theme = decode_meshyface_theme_recipe(body.get("theme"))
-    if theme is not None:
-        profile["theme"] = theme
     return profile

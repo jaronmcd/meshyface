@@ -35,6 +35,8 @@
 
     function mapNodeAppearanceColor(appearanceEntry) {{
       const preset = appearanceEntry && appearanceEntry.preset;
+      const theme = mapNodeAppearanceTheme(appearanceEntry);
+      if (theme) return theme.line_color;
       const rawColor = String(
         (appearanceEntry && appearanceEntry.color)
         || (preset && preset.color)
@@ -50,16 +52,23 @@
       return normalizeMeshyfaceProfileTheme(appearanceEntry && appearanceEntry.theme);
     }}
 
+    function mapNodeAppearanceThemeRender(appearanceEntry) {{
+      if (typeof normalizeMeshyfaceProfileThemeRender !== "function") return null;
+      return normalizeMeshyfaceProfileThemeRender(appearanceEntry && appearanceEntry.render);
+    }}
+
     function mapNodeAppearanceSignature(nodeId, state = latestState) {{
       const appearanceEntry = mapNodeEffectiveAppearance(nodeId, state);
       if (!appearanceEntry) return "";
       const themeSignature = (typeof meshyfaceProfileThemeSignature === "function")
         ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
         : "";
+      const render = mapNodeAppearanceThemeRender(appearanceEntry);
       return [
         String(appearanceEntry.source || "appearance"),
         mapNodeAppearanceColor(appearanceEntry),
         themeSignature,
+        render ? JSON.stringify(render) : "",
       ].join("|");
     }}
 
@@ -72,14 +81,12 @@
       const color = mapNodeAppearanceColor(appearanceEntry);
       if (!color) return baseStyle;
       const theme = mapNodeAppearanceTheme(appearanceEntry);
+      const render = mapNodeAppearanceThemeRender(appearanceEntry);
       const style = Object.assign({{}}, baseStyle);
-      // The advertised color is the durable identity anchor on a receiving
-      // dashboard. Keep a theme's base color inside the marker, but do not let
-      // a low-contrast theme line erase the node's recognizable outer ring.
-      style.color = appearanceEntry && appearanceEntry.profileAppearance
-        ? color
-        : ((theme && theme.line_color) || color);
-      style.fillColor = (theme && theme.base_color) || color;
+      // A received theme uses its generated workspace border and surface,
+      // rather than turning its accent/base into a highlighter marker.
+      style.color = (render && render.border_color) || (theme && theme.line_color) || color;
+      style.fillColor = (render && render.surface_color) || (theme && theme.base_color) || color;
       if (appearanceEntry && appearanceEntry.profileAppearance) {{
         style.weight = Math.max(Number(style.weight) || 0, 2.8);
       }}

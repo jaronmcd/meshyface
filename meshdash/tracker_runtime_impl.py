@@ -9,7 +9,6 @@ from .helpers import (
 from .history_store_runtime import HistoryStore
 from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
-    normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
@@ -60,22 +59,18 @@ def _normalize_meshyface_profile_cache_entry(value: object) -> dict[str, object]
     if not isinstance(value, Mapping):
         return None
     node_id = _normalize_meshyface_profile_node_id(value.get("node_id"))
-    color = _normalize_meshyface_profile_color(value.get("color"))
     updated_unix = _to_int(value.get("updated_unix"))
     received_unix = _to_int(value.get("received_unix"))
-    if not node_id or not color or updated_unix is None or updated_unix <= 0:
+    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
+    if not node_id or theme is None or updated_unix is None or updated_unix <= 0:
         return None
-    profile: dict[str, object] = {
+    return {
         "node_id": node_id,
-        "color": color,
         "updated_unix": int(updated_unix),
         "received_unix": max(0, int(received_unix or 0)),
         "source": "mesh",
+        "theme": theme,
     }
-    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
-    if theme is not None:
-        profile["theme"] = theme
-    return profile
 
 
 class DashboardTracker:
@@ -585,7 +580,7 @@ class DashboardTracker:
         )
         # Manual last-writer-wins: only a strictly newer advertised timestamp
         # may replace a cached profile. Equal timestamps are intentionally
-        # ignored so packet arrival order cannot flip the chosen color.
+        # ignored so packet arrival order cannot flip the chosen theme.
         if existing_updated is not None and existing_updated >= updated_unix:
             return False
 
@@ -613,15 +608,9 @@ class DashboardTracker:
         with self._lock:
             profiles: dict[str, dict[str, object]] = {}
             for node_id, profile in self.meshyface_profiles_by_node_id.items():
-                if not isinstance(profile, dict):
-                    continue
-                snapshot = dict(profile)
-                theme = _normalize_meshyface_theme_recipe(profile.get("theme"))
-                if theme is not None:
-                    snapshot["theme"] = theme
-                else:
-                    snapshot.pop("theme", None)
-                profiles[str(node_id)] = snapshot
+                snapshot = _normalize_meshyface_profile_cache_entry(profile)
+                if snapshot is not None:
+                    profiles[str(node_id)] = snapshot
             return profiles
 
     def _record_packet_unlocked(

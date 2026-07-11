@@ -996,7 +996,9 @@ def test_dashboard_map_renders_effective_node_identity_on_markers_and_popups() -
     assert "function mapNodeAppearanceSignature(nodeId, state = latestState)" in js
     assert "function applyMapNodeAppearanceStyle(baseStyle, nodeId, markerKind = \"actual\", state = latestState)" in js
     assert 'if (markerKind !== "actual") return baseStyle;' in js
-    assert "style.color = appearanceEntry && appearanceEntry.profileAppearance" in js
+    assert "function mapNodeAppearanceThemeRender(appearanceEntry)" in js
+    assert "style.color = (render && render.border_color) || (theme && theme.line_color) || color;" in js
+    assert "style.fillColor = (render && render.surface_color) || (theme && theme.base_color) || color;" in js
     assert "style.weight = Math.max(Number(style.weight) || 0, 2.8);" in js
     assert "const identityStyle = applyMapNodeAppearanceStyle(baseStyle, nodeId, kind, safeState);" in js
     assert "const activityStyle = applyMapNodeActivityFlashStyle(identityStyle, flashStrength, kind);" in js

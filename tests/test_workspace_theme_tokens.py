@@ -214,8 +214,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "theme-live-preview" not in css
     assert ".theme-preview {" not in css
     assert ".node-profile-theme-swatch" not in css
-    assert "var(--node-profile-theme-wash, var(--chat-member-node-gradient))" in css
-    assert "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {" in css
+    assert "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {" not in css
     assert ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {" in css
     assert ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {" in css
     assert "var(--chat-member-node-gradient)," in css
@@ -229,13 +228,8 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
         css,
         '[data-theme="dark"] #chat-room-pinned-list .chat-member-item:not(.muted-node):hover',
     )
-    pinned_identity_edge = _css_rule(
-        css,
-        "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before",
-    )
     assert "var(--chat-member-node-gradient)" in dark_pinned_profile
     assert "var(--chat-member-node-gradient-hover)" in dark_pinned_profile_hover
-    assert "background: var(--node-profile-border" in pinned_identity_edge
     assert ".card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
     assert ".chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
     assert ".chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" not in css
@@ -307,7 +301,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .layout.view-settings .settings .body {" in css
 
 
-def test_received_profile_identity_rails_survive_receiver_theme() -> None:
+def test_received_profile_uses_simple_theme_background_and_border() -> None:
     css = build_dashboard_css(theme_css="")
 
     profile_tokens = _css_rule(css, "    .profiled-node")
@@ -323,52 +317,62 @@ def test_received_profile_identity_rails_survive_receiver_theme() -> None:
         css,
         ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name",
     )
+    roster_name = _last_css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name",
+    )
+    table_name = _last_css_rule(css, "#nodes-table tbody tr.profiled-node .node-name-label")
+    ticker_name = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text",
+    )
+    graph_label = _last_css_rule(
+        css,
+        ".network-graph-node.has-theme-identity .network-graph-node-label",
+    )
     map_marker = _css_rule(
         css,
         ".map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result)",
     )
     node_details = _css_rule(css, ".chat-node-details-drawer.profiled-node .chat-node-details-head")
-    roster_badge = _last_css_rule(
-        css,
-        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name-left::after",
-    )
-    feed_badge = _last_css_rule(
-        css,
-        ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author::after",
-    )
-    table_badge = _last_css_rule(css, "#nodes-table tbody tr.profiled-node .node-name-row::after")
-    map_badge = _last_css_rule(css, ".map-node-info-card.profiled-node .map-node-info-title-wrap::after")
-
     assert "--node-profile-identity-edge" in profile_tokens
-    assert "--node-profile-identity-color: var(--node-profile-border, var(--accent));" in profile_tokens
+    assert "--node-profile-identity-color: var(" in profile_tokens
+    assert "--node-profile-theme-line," in profile_tokens
+    assert "var(--node-profile-border, var(--accent))" in profile_tokens
     assert "--node-profile-identity-edge: var(--node-profile-identity-color);" in profile_tokens
-    assert "--node-profile-identity-wash" in profile_tokens
-    assert "--node-profile-theme-motif" in profile_tokens
-    assert "--node-profile-theme-motif-gradient," in profile_tokens
-    assert "var(--node-profile-theme-base, var(--node-profile-identity-color)) 0 14%" in profile_tokens
-    assert "var(--node-profile-theme-line, var(--node-profile-identity-color)) 14% 19%" in profile_tokens
-    assert "--node-profile-theme-surface" in profile_tokens
-    assert "var(--node-profile-theme-base, var(--node-profile-identity-color)) 48%, transparent" in profile_tokens
-    assert "#ffffff 22%" not in profile_tokens
-    assert "border-bottom-color: var(--node-profile-identity-color);" in roster
-    assert "inset 4px 0 0 var(--node-profile-identity-edge)" in roster
-    assert "var(--node-profile-identity-wash)" in roster
-    assert "var(--node-profile-theme-surface)" in roster
-    assert "var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat" in roster
+    assert "--node-profile-theme-surface:" in profile_tokens
+    assert "--node-profile-theme-surface-hover:" in profile_tokens
+    assert "--node-profile-theme-shell, transparent" in profile_tokens
+    assert "--node-profile-theme-shell-hover" in profile_tokens
+    assert "--node-profile-theme-background," in profile_tokens
+    assert "--node-profile-theme-base" in profile_tokens
+    assert "color-mix(" not in profile_tokens
+    assert "border-bottom-color: var(--node-profile-theme-border-muted, var(--node-profile-identity-color));" in roster
+    assert "background-image: var(--node-profile-theme-surface) !important;" in roster
+    assert "box-shadow: none;" in roster
     assert "border-color: var(--node-profile-identity-color);" in feed
-    assert "inset 4px 0 0 var(--node-profile-identity-edge)" in feed
-    assert "var(--node-profile-identity-wash)" in feed
-    assert "var(--node-profile-theme-surface)" in feed
-    assert "var(--node-profile-theme-motif) 0 0 / 100% var(--node-profile-theme-ribbon-size) no-repeat" in feed
+    assert "background-image: var(--node-profile-theme-surface) !important;" in feed
+    assert "box-shadow:" not in feed
+    assert "color: var(--chat-member-node-fg, var(--workspace-shell-text)) !important;" in roster_name
+    assert "color: var(--surface-tint-text) !important;" in table_name
+    assert "color: var(--theme-text-color, var(--ink)) !important;" in feed_author
+    assert "color: var(--ticker-text-strong);" in ticker_name
+    assert "fill: var(--surface-tint-text);" in graph_label
+    for text_rule in (roster_name, table_name, feed_author, ticker_name, graph_label):
+        assert "--node-profile-identity-edge" not in text_rule
+        assert "--node-profile-theme-contrast" not in text_rule
     assert "!important" in feed_author
-    for badge in (roster_badge, feed_badge, table_badge, map_badge):
-        assert 'content: "";' in badge
-        assert "background: var(--node-profile-theme-motif);" in badge
-        assert "border: 1px solid var(--node-profile-identity-edge);" in badge
-        assert "border-radius: 3px;" in badge
+    assert "--node-profile-theme-motif" not in css
+    assert "--node-profile-theme-ribbon-size" not in css
+    assert "inset 4px 0 0 var(--node-profile-identity-edge)" not in css
+    assert ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name-left::after {" not in css
+    assert ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author::after {" not in css
+    assert "#nodes-table tbody tr.profiled-node .node-name-row::after {" not in css
+    assert ".map-node-info-card.profiled-node .map-node-info-title-wrap::after {" not in css
     assert 'content: "Theme";' not in css
     assert 'content: "  Theme";' not in css
     assert "is-trace-running" in css
     assert "is-trace-result" in css
     assert "border-color: var(--node-profile-identity-edge);" in map_marker
-    assert "inset 4px 0 0 var(--node-profile-identity-edge);" in node_details
+    assert "background-image: var(--node-profile-theme-surface) !important;" in node_details
+    assert "box-shadow:" not in node_details

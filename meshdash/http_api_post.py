@@ -78,9 +78,9 @@ parse_network_tool_request = _load_optional_callable(
     ".api_input_network_tools",
     "parse_network_tool_request",
 )
-parse_meshyface_profile_color_request = _load_optional_callable(
+parse_meshyface_profile_theme_request = _load_optional_callable(
     ".api_input_meshyface_profile",
-    "parse_meshyface_profile_color_request",
+    "parse_meshyface_profile_theme_request",
 )
 
 
@@ -121,7 +121,7 @@ def build_post_route_dependencies(
         ),
         write_json_response_fn=write_json_response,
         send_meshyface_profile_fn=send_meshyface_profile_fn,
-        parse_meshyface_profile_color_request_fn=parse_meshyface_profile_color_request,
+        parse_meshyface_profile_theme_request_fn=parse_meshyface_profile_theme_request,
         set_theme_preset_fn=set_theme_preset_fn,
         parse_theme_settings_request_fn=parse_theme_settings_request,
         set_bbs_settings_fn=set_bbs_settings_fn,

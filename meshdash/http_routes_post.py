@@ -14,7 +14,7 @@ from .api_system_update import (
 
 _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/chat/send",
-    "/api/meshyface/profile/color",
+    "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
     "/api/bots/zork",
@@ -33,7 +33,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
 }
 _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/chat/send",
-    "/api/meshyface/profile/color",
+    "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
     "/api/bots/zork",
@@ -86,9 +86,9 @@ _handle_network_tool_post_helper = _load_optional_handler(
     ".api_network_tools",
     "handle_network_tool_post",
 )
-_handle_meshyface_profile_color_post_helper = _load_optional_handler(
+_handle_meshyface_profile_theme_post_helper = _load_optional_handler(
     ".api_meshyface_profile",
-    "handle_meshyface_profile_color_post",
+    "handle_meshyface_profile_theme_post",
 )
 _handle_zork_bot_toggle_post_helper = _load_optional_handler(
     ".api_bots",
@@ -221,10 +221,10 @@ def handle_dashboard_post(
         )
         return
 
-    if path == "/api/meshyface/profile/color":
-        parse_profile_request_fn = deps.parse_meshyface_profile_color_request_fn
+    if path == "/api/meshyface/profile/theme":
+        parse_profile_request_fn = deps.parse_meshyface_profile_theme_request_fn
         if parse_profile_request_fn is None or not callable(
-            _handle_meshyface_profile_color_post_helper
+            _handle_meshyface_profile_theme_post_helper
         ):
             deps.write_json_response_fn(
                 handler,
@@ -235,12 +235,12 @@ def handle_dashboard_post(
                 },
             )
             return
-        _handle_meshyface_profile_color_post_helper(
+        _handle_meshyface_profile_theme_post_helper(
             handler,
             send_meshyface_profile_fn=deps.send_meshyface_profile_fn,
             to_int_fn=deps.to_int_fn,
             validate_content_length_fn=deps.validate_content_length_fn,
-            parse_meshyface_profile_color_request_fn=parse_profile_request_fn,
+            parse_meshyface_profile_theme_request_fn=parse_profile_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
         )
         return

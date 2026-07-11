@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import (
-    ParseMeshyfaceProfileColorRequestFn,
+    ParseMeshyfaceProfileThemeRequestFn,
     SendMeshyfaceProfileFn,
     ToIntFn,
     ValidateContentLengthFn,
@@ -10,16 +10,16 @@ from .http_route_contracts import (
 )
 
 
-def handle_meshyface_profile_color_post(
+def handle_meshyface_profile_theme_post(
     handler: DashboardHttpHandler,
     *,
     send_meshyface_profile_fn: SendMeshyfaceProfileFn | None,
     to_int_fn: ToIntFn,
     validate_content_length_fn: ValidateContentLengthFn,
-    parse_meshyface_profile_color_request_fn: ParseMeshyfaceProfileColorRequestFn | None,
+    parse_meshyface_profile_theme_request_fn: ParseMeshyfaceProfileThemeRequestFn | None,
     write_json_response_fn: WriteJsonResponseFn,
 ) -> None:
-    if send_meshyface_profile_fn is None or parse_meshyface_profile_color_request_fn is None:
+    if send_meshyface_profile_fn is None or parse_meshyface_profile_theme_request_fn is None:
         write_json_response_fn(
             handler,
             status_code=503,
@@ -46,7 +46,7 @@ def handle_meshyface_profile_color_post(
 
     raw = handler.rfile.read(content_length)
     try:
-        request = parse_meshyface_profile_color_request_fn(raw, to_int_fn=to_int_fn)
+        request = parse_meshyface_profile_theme_request_fn(raw, to_int_fn=to_int_fn)
     except ValueError as exc:
         write_json_response_fn(
             handler,
@@ -56,14 +56,9 @@ def handle_meshyface_profile_color_post(
         return
 
     try:
-        send_kwargs: dict[str, object] = {
-            "color": request.color,
-            "channel_index": request.channel_index,
-        }
-        if request.theme is not None:
-            send_kwargs["theme"] = request.theme
         response_obj = send_meshyface_profile_fn(
-            **send_kwargs,
+            theme=request.theme,
+            channel_index=request.channel_index,
         )
     except ValueError as exc:
         write_json_response_fn(

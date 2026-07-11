@@ -305,17 +305,6 @@
       "mode",
     ]);
     const meshyfaceProfileThemeTextFonts = new Set(["system", "compact", "rounded", "mono", "serif"]);
-    // Wire values are an enum, never a sender supplied CSS string.  Keep the
-    // receiving-side font stacks equally closed so a remote theme can give its
-    // node identity a little personality without affecting the receiver's
-    // shell or creating a style-injection path.
-    const meshyfaceProfileThemeFontFamilies = Object.freeze({{
-      system: '"IBM Plex Sans", "Segoe UI", sans-serif',
-      compact: '"Bahnschrift", "Arial Narrow", "IBM Plex Sans", "Segoe UI", sans-serif',
-      rounded: '"Aptos", "Segoe UI Variable", "Nunito", "IBM Plex Sans", sans-serif',
-      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-      serif: 'Georgia, "Times New Roman", serif',
-    }});
     const meshyfaceProfileThemeGradientTypes = new Set(["linear", "radial"]);
     const meshyfaceProfileThemeGradientDirections = new Set([
       "right",
@@ -329,6 +318,18 @@
       "center",
     ]);
     const meshyfaceProfileThemeModes = new Set(["light", "dark"]);
+    const meshyfaceProfileThemeRenderKeys = new Set([
+      "background_start_color",
+      "background_end_color",
+      "surface_color",
+      "surface_opacity",
+      "surface_hover_color",
+      "surface_hover_opacity",
+      "border_color",
+      "border_muted_color",
+    ]);
+    // Theme packets carry enums, not CSS fragments. This closed map lets a
+    // receiver recreate the sender's advertised host gradient safely.
     const meshyfaceProfileThemeGradientDirectionCss = Object.freeze({{
       right: {{ linear: "to right", radial: "circle at left center" }},
       left: {{ linear: "to left", radial: "circle at right center" }},
@@ -419,6 +420,47 @@
       }};
     }}
 
+    function normalizeMeshyfaceProfileThemeRender(rawRender) {{
+      if (!rawRender || typeof rawRender !== "object" || Array.isArray(rawRender)) return null;
+      const rawKeys = Object.keys(rawRender);
+      if (
+        rawKeys.length !== meshyfaceProfileThemeRenderKeys.size
+        || rawKeys.some((key) => !meshyfaceProfileThemeRenderKeys.has(key))
+      ) {{
+        return null;
+      }}
+      const backgroundStart = normalizeMeshyfaceProfileColor(rawRender.background_start_color, "");
+      const backgroundEnd = normalizeMeshyfaceProfileColor(rawRender.background_end_color, "");
+      const surfaceColor = normalizeMeshyfaceProfileColor(rawRender.surface_color, "");
+      const surfaceOpacity = normalizeMeshyfaceProfileThemeInteger(rawRender.surface_opacity, 0, 100);
+      const surfaceHoverColor = normalizeMeshyfaceProfileColor(rawRender.surface_hover_color, "");
+      const surfaceHoverOpacity = normalizeMeshyfaceProfileThemeInteger(rawRender.surface_hover_opacity, 0, 100);
+      const borderColor = normalizeMeshyfaceProfileColor(rawRender.border_color, "");
+      const borderMutedColor = normalizeMeshyfaceProfileColor(rawRender.border_muted_color, "");
+      if (
+        !backgroundStart
+        || !backgroundEnd
+        || !surfaceColor
+        || surfaceOpacity == null
+        || !surfaceHoverColor
+        || surfaceHoverOpacity == null
+        || !borderColor
+        || !borderMutedColor
+      ) {{
+        return null;
+      }}
+      return {{
+        background_start_color: backgroundStart,
+        background_end_color: backgroundEnd,
+        surface_color: surfaceColor,
+        surface_opacity: surfaceOpacity,
+        surface_hover_color: surfaceHoverColor,
+        surface_hover_opacity: surfaceHoverOpacity,
+        border_color: borderColor,
+        border_muted_color: borderMutedColor,
+      }};
+    }}
+
     function resolvedMeshyfaceProfileThemeMode() {{
       const preference = typeof normalizeThemeMode === "function"
         ? normalizeThemeMode(themePreference)
@@ -458,87 +500,72 @@
       return theme ? JSON.stringify(theme) : "";
     }}
 
-    function meshyfaceProfileThemeFontFamily(rawTheme) {{
+    function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme) return "";
-      return meshyfaceProfileThemeFontFamilies[theme.text_font]
-        || meshyfaceProfileThemeFontFamilies.system;
-    }}
-
-    function buildMeshyfaceProfileThemeGradient(theme, kind = "identity", hover = false) {{
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
       const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
-      if (!direction) return "";
-      let start = theme.gradient_primary_start_color;
-      let end = theme.gradient_primary_end_color;
-      if (kind === "wash") {{
-        const intensity = theme.mode === "dark"
-          ? (hover ? 32 : 24)
-          : (hover ? 26 : 18);
-        start = `color-mix(in srgb, ${{start}} ${{intensity}}%, transparent)`;
-        end = `color-mix(in srgb, ${{end}} ${{Math.max(6, intensity - 5)}}%, transparent)`;
-      }} else if (kind === "identity" && theme.mode === "light") {{
-        start = `color-mix(in srgb, ${{start}} 28%, #ffffff 72%)`;
-        end = `color-mix(in srgb, ${{end}} 28%, #ffffff 72%)`;
-      }}
-      return `${{theme.gradient_primary_type}}-gradient(${{direction[theme.gradient_primary_type]}}, ${{start}}, ${{end}})`;
+      const kind = theme.gradient_primary_type;
+      const directionCss = direction && direction[kind];
+      if (!directionCss) return "";
+      const start = render ? render.background_start_color : theme.gradient_primary_start_color;
+      const end = render ? render.background_end_color : theme.gradient_primary_end_color;
+      return `${{kind}}-gradient(${{directionCss}}, ${{start}}, ${{end}})`;
     }}
 
-    function meshyfaceProfileThemeIdentityGradient(rawTheme) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return "";
-      return buildMeshyfaceProfileThemeGradient(theme, "identity", false);
+    function meshyfaceProfileThemeAlphaColor(color, opacity) {{
+      const cleanColor = normalizeMeshyfaceProfileColor(color, "");
+      const cleanOpacity = normalizeMeshyfaceProfileThemeInteger(opacity, 0, 100);
+      if (!cleanColor || cleanOpacity == null) return "";
+      if (cleanOpacity >= 100) return cleanColor;
+      const red = Number.parseInt(cleanColor.slice(1, 3), 16);
+      const green = Number.parseInt(cleanColor.slice(3, 5), 16);
+      const blue = Number.parseInt(cleanColor.slice(5, 7), 16);
+      const alpha = String(cleanOpacity / 100).replace(/^0(?=\.)/, "");
+      return `rgba(${{red}}, ${{green}}, ${{blue}}, ${{alpha}})`;
     }}
 
-    function meshyfaceProfileThemeWashGradient(rawTheme, hover = false) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return "";
-      return buildMeshyfaceProfileThemeGradient(theme, "wash", !!hover);
+    function meshyfaceProfileThemeAlphaGradient(color, opacity) {{
+      const fill = meshyfaceProfileThemeAlphaColor(color, opacity);
+      return fill ? "linear-gradient(" + fill + ", " + fill + ")" : "";
     }}
 
     const meshyfaceProfileThemeStyleProperties = [
-      "--node-profile-theme-gradient",
-      "--node-profile-theme-motif-gradient",
-      "--node-profile-theme-wash",
-      "--node-profile-theme-wash-hover",
+      "--node-profile-theme-background",
+      "--node-profile-theme-shell",
+      "--node-profile-theme-shell-hover",
+      "--node-profile-theme-border",
+      "--node-profile-theme-border-muted",
       "--node-profile-theme-base",
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
-      "--node-profile-theme-font-family",
-      "--chat-member-node-gradient",
-      "--chat-member-node-gradient-hover",
-      "--chat-feed-node-gradient",
-      "--chat-feed-node-gradient-hover",
     ];
 
-    function meshyfaceProfileThemeStyleEntries(rawTheme) {{
+    function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme) return [];
-      const gradient = buildMeshyfaceProfileThemeGradient(theme, "identity", false);
-      // The small remote-node motif intentionally uses the exact advertised
-      // stops. A light receiver may soften a full identity surface, but the
-      // motif is where a person's gradient needs to remain recognizable.
-      const motifGradient = buildMeshyfaceProfileThemeGradient(theme, "motif", false);
-      const wash = buildMeshyfaceProfileThemeGradient(theme, "wash", false);
-      const washHover = buildMeshyfaceProfileThemeGradient(theme, "wash", true);
-      if (!gradient || !motifGradient || !wash || !washHover) return [];
-      return [
-        ["--node-profile-theme-gradient", gradient],
-        ["--node-profile-theme-motif-gradient", motifGradient],
-        ["--node-profile-theme-wash", wash],
-        ["--node-profile-theme-wash-hover", washHover],
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      const backgroundGradient = meshyfaceProfileThemeBackgroundGradient(theme, render);
+      if (!backgroundGradient) return [];
+      const entries = [
+        ["--node-profile-theme-background", backgroundGradient],
         ["--node-profile-theme-base", theme.base_color],
         ["--node-profile-theme-line", theme.line_color],
         ["--node-profile-theme-contrast", theme.line_contrast_color],
-        ["--node-profile-theme-font-family", meshyfaceProfileThemeFontFamily(theme)],
-        ["--chat-member-node-gradient", "var(--node-profile-theme-wash)"],
-        ["--chat-member-node-gradient-hover", "var(--node-profile-theme-wash-hover)"],
-        ["--chat-feed-node-gradient", "var(--node-profile-theme-wash)"],
-        ["--chat-feed-node-gradient-hover", "var(--node-profile-theme-wash-hover)"],
       ];
+      if (render) {{
+        entries.splice(1, 0,
+          ["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(render.surface_color, render.surface_opacity)],
+          ["--node-profile-theme-shell-hover", meshyfaceProfileThemeAlphaGradient(render.surface_hover_color, render.surface_hover_opacity)],
+          ["--node-profile-theme-border", render.border_color],
+          ["--node-profile-theme-border-muted", render.border_muted_color]
+        );
+      }}
+      return entries;
     }}
 
-    function meshyfaceProfileThemeStyleVars(rawTheme) {{
-      const entries = meshyfaceProfileThemeStyleEntries(rawTheme);
+    function meshyfaceProfileThemeStyleVars(rawTheme, rawRender = null) {{
+      const entries = meshyfaceProfileThemeStyleEntries(rawTheme, rawRender);
       return entries.length > 0
         ? entries.map(([property, value]) => `${{property}}:${{value}}`).join(";") + ";"
         : "";
@@ -551,22 +578,26 @@
       }}
     }}
 
-    function applyMeshyfaceProfileThemeElementStyle(target, rawTheme) {{
+    function applyMeshyfaceProfileThemeElementStyle(target, rawTheme, rawRender = null) {{
       if (!target || !target.style) return false;
       clearMeshyfaceProfileThemeElementStyle(target);
-      const entries = meshyfaceProfileThemeStyleEntries(rawTheme);
+      const entries = meshyfaceProfileThemeStyleEntries(rawTheme, rawRender);
       for (const [property, value] of entries) {{
         target.style.setProperty(property, value);
       }}
       return entries.length > 0;
     }}
 
-    function meshyfaceProfileAppearancePreset(color) {{
+    function meshyfaceProfileAppearancePreset(rawTheme, rawRender = null) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return null;
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
       return {{
         id: "meshyface-profile",
-        name: "Meshyface profile",
+        name: "Meshyface theme",
         emoji: "",
-        color: normalizeMeshyfaceProfileColor(color, "#2aa85a"),
+        // The projected workspace border is the durable identity edge.
+        color: render ? render.border_color : theme.line_color,
         vibrance: 74,
       }};
     }}
@@ -581,14 +612,14 @@
         || ""
       );
       if (localNodeId && cleanNodeId === localNodeId) {{
-        const color = normalizeMeshyfaceProfileColor(settingsMeshyfaceProfileColor, "#2aa85a");
-        const preset = meshyfaceProfileAppearancePreset(color);
         const theme = currentMeshyfaceProfileThemeRecipe();
+        const preset = meshyfaceProfileAppearancePreset(theme);
+        if (!theme || !preset) return null;
         return {{
           nodeId: cleanNodeId,
           source: "local-profile",
-          color,
-          ...(theme ? {{ theme }} : {{}}),
+          color: theme.line_color,
+          theme,
           presetId: preset.id,
           preset,
           // The local dashboard already owns this theme.  Keep its own node
@@ -601,15 +632,16 @@
       if (!settingsMeshyfaceProfileAcceptRemoteEnabled) return null;
       const profile = remoteMeshyfaceProfilesByNodeId.get(cleanNodeId);
       if (!profile || typeof profile !== "object") return null;
-      const color = normalizeMeshyfaceProfileColor(profile.color, "");
-      if (!color) return null;
-      const preset = meshyfaceProfileAppearancePreset(color);
       const theme = normalizeMeshyfaceProfileTheme(profile.theme);
+      const render = normalizeMeshyfaceProfileThemeRender(profile.render);
+      const preset = meshyfaceProfileAppearancePreset(theme, render);
+      if (!theme || !preset) return null;
       return {{
         nodeId: cleanNodeId,
         source: "remote-profile",
-        color,
-        ...(theme ? {{ theme }} : {{}}),
+        color: render ? render.border_color : theme.line_color,
+        theme,
+        render,
         presetId: preset.id,
         preset,
         profileAppearance: true,
@@ -653,19 +685,19 @@
         const profile = (rawProfile && typeof rawProfile === "object") ? rawProfile : {{}};
         const nodeId = normalizeNodeId(profile.node_id || profile.nodeId || rawNodeId);
         if (!isSelectableNodeId(nodeId)) continue;
-        const color = normalizeMeshyfaceProfileColor(profile.color, "");
         const theme = normalizeMeshyfaceProfileTheme(profile.theme);
+        const render = normalizeMeshyfaceProfileThemeRender(profile.render);
         const updatedUnix = Math.max(
           0,
           Math.trunc(Number(profile.updated_unix ?? profile.updatedUnix ?? profile.updated) || 0)
         );
-        if (!color || updatedUnix <= 0) continue;
+        if (!theme || updatedUnix <= 0) continue;
         const previous = next.get(nodeId);
         if (previous && Number(previous.updated_unix) > updatedUnix) continue;
         next.set(nodeId, {{
           node_id: nodeId,
-          color,
-          ...(theme ? {{ theme }} : {{}}),
+          theme,
+          ...(render ? {{ render }} : {{}}),
           updated_unix: updatedUnix,
           received_unix: Math.max(
             0,
@@ -867,23 +899,31 @@
         ? appearanceEntry.preset
         : null;
       if (!preset) return "";
-      const color = normalizeNodeTagColor(preset.color, "#2aa85a");
+      const profileTheme = typeof normalizeMeshyfaceProfileTheme === "function"
+        ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
+        : null;
+      const profileRender = typeof normalizeMeshyfaceProfileThemeRender === "function"
+        ? normalizeMeshyfaceProfileThemeRender(appearanceEntry.render)
+        : null;
+      const color = profileRender
+        ? profileRender.border_color
+        : profileTheme
+          ? profileTheme.line_color
+        : normalizeNodeTagColor(preset.color, "#2aa85a");
+      const surfaceColor = profileTheme ? profileTheme.base_color : color;
+      const surfaceBackground = appearanceEntry.profileAppearance && profileTheme
+        ? `var(--node-profile-theme-surface, var(--node-profile-theme-background, ${{surfaceColor}}))`
+        : `color-mix(in srgb, ${{surfaceColor}} 15%, var(--surface-tint-bg-soft) 85%)`;
       const tagVars = nodeTagStyleVars(appearanceEntry);
       const themeVars = typeof meshyfaceProfileThemeStyleVars === "function"
-        ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme)
+        ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme, profileRender)
         : "";
-      const colorWash = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 18%, transparent), color-mix(in srgb, ${{color}} 8%, transparent) 58%, transparent)`;
-      const colorWashHover = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 26%, transparent), color-mix(in srgb, ${{color}} 12%, transparent) 58%, transparent)`;
-      // Profile color is the node's compact, canonical identity. Keep it
-      // separate from the advertised theme recipe: the latter can texture a
-      // surface, but must never substitute for the color the owner picked.
-      const profileIdentityVars = appearanceEntry.profileAppearance
+      // A profile's projected workspace border is its compact identity edge;
+      // its advertised host surface supplies the remote-node background.
+      const profileIdentityVars = appearanceEntry.profileAppearance && profileTheme
         ? `--node-profile-identity-color:${{color}};`
         : "";
-      const profileWashVars = appearanceEntry.profileAppearance
-        ? `--node-profile-color-wash:${{colorWash}};--node-profile-color-wash-hover:${{colorWashHover}};--chat-member-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-member-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));--chat-feed-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-feed-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));`
-        : "";
-      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{profileIdentityVars}}${{profileWashVars}}${{themeVars}}`;
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:${{surfaceBackground}};${{profileIdentityVars}}${{themeVars}}`;
     }}
 
     // These are the shared identity variables used by small, non-chat node
@@ -896,8 +936,6 @@
       "--node-profile-border",
       "--node-profile-identity-color",
       "--node-profile-bg",
-      "--node-profile-color-wash",
-      "--node-profile-color-wash-hover",
       ...meshyfaceProfileThemeStyleProperties,
     ];
 

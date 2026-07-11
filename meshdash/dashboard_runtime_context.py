@@ -518,20 +518,18 @@ def build_dashboard_runtime_context(
     # wiring can discover it without adding another server-wide dependency.
     try:
         from .services_meshyface_profile import (
-            send_meshyface_profile_color as _send_meshyface_profile_color,
+            send_meshyface_profile_theme as _send_meshyface_profile_theme,
         )
     except Exception:
-        _send_meshyface_profile_color = None
+        _send_meshyface_profile_theme = None
 
-    if _send_meshyface_profile_color is not None:
+    if _send_meshyface_profile_theme is not None:
         def _send_meshyface_profile_fn(  # type: ignore[no-redef]
             *,
-            color,
+            theme,
             channel_index=0,
-            theme=None,
         ):
-            return _send_meshyface_profile_color(
-                color=color,
+            return _send_meshyface_profile_theme(
                 channel_index=channel_index,
                 theme=theme,
                 iface=iface,

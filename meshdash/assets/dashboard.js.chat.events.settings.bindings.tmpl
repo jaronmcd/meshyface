@@ -6,7 +6,6 @@
         String(controlId || "").startsWith("settings-map-layer-")
         || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
-        || controlId === "settings-meshyface-profile-color"
         || controlId === "settings-meshyface-profile-accept-remote"
         || controlId === "settings-appearance-keep-screen-on"
         || controlId === "settings-raw-packet-capture-enabled"
@@ -100,13 +99,6 @@
               ? "Time sync timezone set to browser local."
               : `Time sync timezone set to ${{settingsTimeSyncTimezonePref}}.`
           );
-        }}
-        if (target instanceof HTMLInputElement && target.id === "settings-meshyface-profile-color") {{
-          setMeshyfaceProfileColor(target.value, {{
-            persist: true,
-            rerender: true,
-            announce: true,
-          }});
         }}
         if (target instanceof HTMLInputElement && target.id === "settings-meshyface-profile-accept-remote") {{
           setMeshyfaceProfileAcceptRemoteEnabled(!!target.checked, {{
@@ -211,7 +203,7 @@
       const profileBroadcastBtn = document.getElementById("settings-meshyface-profile-broadcast");
       if (profileBroadcastBtn instanceof HTMLButtonElement) {{
         profileBroadcastBtn.addEventListener("click", () => {{
-          void broadcastMeshyfaceProfileColor();
+          void broadcastMeshyfaceProfileTheme();
         }});
       }}
       syncSettingsTimeSyncControls();

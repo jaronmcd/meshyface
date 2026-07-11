@@ -7,7 +7,6 @@ from .meshyface_profile import (
     MESHYFACE_PROFILE_PORTNUM,
     MESHYFACE_PROFILE_TYPE,
     build_meshyface_profile_payload,
-    normalize_meshyface_profile_color,
     normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe,
 )
@@ -25,19 +24,18 @@ def _sent_packet_id(sent_packet: object) -> int | None:
     return parsed if parsed is not None and parsed > 0 else None
 
 
-def send_meshyface_profile_color(
+def send_meshyface_profile_theme(
     *,
-    color: object,
+    theme: object,
     iface: object,
     send_lock: object,
     local_node_id_fn,
     channel_index: object = 0,
-    theme: object = None,
     now_unix_fn=time.time,
 ) -> dict[str, object]:
-    clean_color = normalize_meshyface_profile_color(color)
-    if not clean_color:
-        raise ValueError("color must be #rrggbb")
+    clean_theme = normalize_meshyface_theme_recipe(theme)
+    if clean_theme is None:
+        raise ValueError("theme must be a complete valid Meshyface theme recipe")
     try:
         local_node_id = local_node_id_fn()
     except Exception as exc:
@@ -50,18 +48,12 @@ def send_meshyface_profile_color(
     clean_channel = _to_int(channel_index)
     if clean_channel is None or clean_channel < 0:
         raise ValueError("channel_index must be non-negative")
-    clean_theme = None
-    if theme is not None:
-        clean_theme = normalize_meshyface_theme_recipe(theme)
-        if clean_theme is None:
-            raise ValueError("theme must be a complete valid Meshyface theme recipe")
     try:
         updated_unix = int(now_unix_fn())
     except Exception:
         updated_unix = int(time.time())
     payload = build_meshyface_profile_payload(
         node_id=clean_node_id,
-        color=clean_color,
         updated_unix=updated_unix,
         theme=clean_theme,
     )
@@ -84,14 +76,12 @@ def send_meshyface_profile_color(
         "sent": True,
         "type": MESHYFACE_PROFILE_TYPE,
         "node": clean_node_id,
-        "color": clean_color,
         "updated": updated_unix,
+        "theme": clean_theme,
         "destination": "^all",
         "channel_index": int(clean_channel),
         "portnum": MESHYFACE_PROFILE_PORTNUM,
     }
-    if clean_theme is not None:
-        response["theme"] = clean_theme
     packet_id = _sent_packet_id(sent_packet)
     if packet_id is not None:
         response["packet_id"] = packet_id

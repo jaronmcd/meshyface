@@ -10,7 +10,6 @@ from .history_store_runtime_contracts import (
 from .meshyface_profile import (
     MESHYFACE_PROFILE_CACHE_LIMIT,
     MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES,
-    normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
     parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
@@ -41,30 +40,26 @@ def _normalize_profile(value: object) -> dict[str, object] | None:
     if not isinstance(value, Mapping):
         return None
     node_id = _normalize_meshyface_profile_node_id(value.get("node_id"))
-    color = _normalize_meshyface_profile_color(value.get("color"))
     updated_unix = _to_int(value.get("updated_unix"))
     received_unix = _to_int(value.get("received_unix"))
-    if not node_id or not color or updated_unix is None or updated_unix <= 0:
+    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
+    if not node_id or theme is None or updated_unix is None or updated_unix <= 0:
         return None
 
-    profile: dict[str, object] = {
+    return {
         "node_id": node_id,
-        "color": color,
         "updated_unix": int(updated_unix),
         "received_unix": max(0, int(received_unix or 0)),
         "source": "mesh",
+        "theme": theme,
     }
-    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
-    if theme is not None:
-        profile["theme"] = theme
-    return profile
 
 
 def _profile_from_row(row: object) -> dict[str, object] | None:
-    if not isinstance(row, tuple) or len(row) < 5:
+    if not isinstance(row, tuple) or len(row) < 4:
         return None
     theme: object = None
-    raw_theme = row[4]
+    raw_theme = row[3]
     if isinstance(raw_theme, str) and raw_theme:
         try:
             theme = json.loads(raw_theme)
@@ -72,12 +67,10 @@ def _profile_from_row(row: object) -> dict[str, object] | None:
             theme = None
     profile: dict[str, object] = {
         "node_id": row[0],
-        "color": row[1],
-        "updated_unix": row[2],
-        "received_unix": row[3],
+        "updated_unix": row[1],
+        "received_unix": row[2],
+        "theme": theme,
     }
-    if theme is not None:
-        profile["theme"] = theme
     return _normalize_profile(profile)
 
 
@@ -99,7 +92,7 @@ def _load_meshyface_profiles_from_connection_unlocked(
 ) -> list[dict[str, object]]:
     rows = conn.execute(
         """
-        SELECT node_id, color, updated_unix, received_unix, theme_json
+        SELECT node_id, updated_unix, received_unix, theme_json
         FROM meshyface_profiles
         ORDER BY received_unix DESC, node_id DESC
         LIMIT ?
@@ -219,8 +212,14 @@ def _save_normalized_meshyface_profile_unlocked(
     store: HistoryStoreWriteState,
     normalized: dict[str, object],
 ) -> bool:
-    theme = normalized.get("theme")
-    theme_json = json.dumps(theme, separators=(",", ":")) if theme is not None else None
+    theme = _normalize_meshyface_theme_recipe(normalized.get("theme"))
+    if theme is None:
+        return False
+    # The existing table retains a non-null color column. It is storage-only:
+    # v2 profiles derive it solely from the advertised theme, never from wire
+    # or UI color state.
+    storage_color = str(theme["line_color"])
+    theme_json = json.dumps(theme, separators=(",", ":"))
     cursor = store._conn.execute(
         """
         INSERT INTO meshyface_profiles(
@@ -236,7 +235,7 @@ def _save_normalized_meshyface_profile_unlocked(
         """,
         (
             normalized["node_id"],
-            normalized["color"],
+            storage_color,
             normalized["updated_unix"],
             normalized["received_unix"],
             theme_json,

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
     from .api_input_history import NodeHistoryQuery, OnlineActivityQuery
-    from .api_input_meshyface_profile import MeshyfaceProfileColorRequest
+    from .api_input_meshyface_profile import MeshyfaceProfileThemeRequest
     from .api_input_network_tools import NetworkToolRequest
     from .api_input_radio import RadioSettingsRequest
     from .api_input_raw_packets import RawPacketCaptureSettingsRequest
@@ -20,7 +20,7 @@ else:
     ChannelSettingsRequest = object
     ChatSendRequest = object
     CustomTelemetrySettingsRequest = object
-    MeshyfaceProfileColorRequest = object
+    MeshyfaceProfileThemeRequest = object
     NodeHistoryQuery = object
     NetworkToolRequest = object
     OnlineActivityQuery = object
@@ -82,9 +82,8 @@ class SendMeshyfaceProfileFn(Protocol):
     def __call__(
         self,
         *,
-        color: object,
+        theme: object,
         channel_index: object = 0,
-        theme: object = None,
     ) -> dict[str, object]:
         ...
 
@@ -225,13 +224,13 @@ class ParseChatSendRequestFn(Protocol):
         ...
 
 
-class ParseMeshyfaceProfileColorRequestFn(Protocol):
+class ParseMeshyfaceProfileThemeRequestFn(Protocol):
     def __call__(
         self,
         raw_body: bytes,
         *,
         to_int_fn: ToIntFn,
-    ) -> MeshyfaceProfileColorRequest:
+    ) -> MeshyfaceProfileThemeRequest:
         ...
 
 
@@ -409,8 +408,8 @@ class DashboardPostRouteDependencies:
     parse_chat_send_request_fn: ParseChatSendRequestFn
     write_json_response_fn: WriteJsonResponseFn
     send_meshyface_profile_fn: Optional[SendMeshyfaceProfileFn] = None
-    parse_meshyface_profile_color_request_fn: Optional[
-        ParseMeshyfaceProfileColorRequestFn
+    parse_meshyface_profile_theme_request_fn: Optional[
+        ParseMeshyfaceProfileThemeRequestFn
     ] = None
     set_theme_preset_fn: Optional[SetThemePresetFn] = None
     parse_theme_settings_request_fn: Optional[ParseThemeSettingsRequestFn] = None

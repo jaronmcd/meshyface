@@ -813,7 +813,7 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-node-theme-surface-fo {" in css
     assert ".network-graph-node.has-theme-identity .network-graph-node-theme-surface-fo {" in css
     assert ".network-graph-node-theme-surface {" in css
-    assert "background: var(--node-profile-theme-gradient, transparent);" in css
+    assert "background: var(--node-profile-theme-surface, var(--node-profile-theme-base, transparent));" in css
     assert ".network-graph-node.is-spread-actual" not in css
     assert ".network-graph-node.is-spread-estimated" not in css
     assert "stroke: var(--node-tag-color, var(--accent));" in css

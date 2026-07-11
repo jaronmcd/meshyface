@@ -1155,15 +1155,26 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "themeEditableSettingsForPreset(themePresetSelected)" in js
     assert "mode: resolvedMeshyfaceProfileThemeMode()," in js
     assert '? currentMeshyfaceProfileThemeRecipe()' in js
-    assert "...(theme ? { theme } : {})," in js
-    assert "function meshyfaceProfileThemeIdentityGradient(rawTheme)" in js
-    assert "function meshyfaceProfileThemeWashGradient(rawTheme, hover = false)" in js
-    assert "function meshyfaceProfileThemeStyleEntries(rawTheme)" in js
-    assert "function applyMeshyfaceProfileThemeElementStyle(target, rawTheme)" in js
+    assert "...(theme ? { theme } : {})," not in js
+    assert "if (!theme || !preset) return null;" in js
+    assert "function meshyfaceProfileThemeIdentityGradient(rawTheme)" not in js
+    assert "function meshyfaceProfileThemeWashGradient(rawTheme, hover = false)" not in js
+    assert "function normalizeMeshyfaceProfileThemeRender(rawRender)" in js
+    assert "function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null)" in js
+    assert "function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null)" in js
+    assert "function applyMeshyfaceProfileThemeElementStyle(target, rawTheme, rawRender = null)" in js
     assert "clearMeshyfaceProfileThemeElementStyle(target);" in js
-    assert "applyMeshyfaceProfileThemeElementStyle(target, entry.theme);" in js
-    assert '["--chat-member-node-gradient", "var(--node-profile-theme-wash)"]' in js
-    assert '["--chat-feed-node-gradient", "var(--node-profile-theme-wash)"]' in js
+    assert "applyMeshyfaceProfileThemeElementStyle(target, entry.theme, profileRender);" in js
+    assert '["--node-profile-theme-background", backgroundGradient]' in js
+    assert '["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(' in js
+    assert '["--node-profile-theme-border", render.border_color]' in js
+    assert '["--node-profile-theme-base", theme.base_color]' in js
+    assert '["--node-profile-theme-line", theme.line_color]' in js
+    assert '["--node-profile-theme-contrast", theme.line_contrast_color]' in js
+    assert "--node-profile-theme-motif" not in js
+    assert "--node-profile-theme-gradient" not in js
+    assert "--node-profile-theme-wash" not in js
+    assert "--node-profile-theme-font-family" not in js
     assert "meshyfaceProfileThemePreviewHtml" not in js
     assert "node-profile-theme-swatch" not in js
     assert "Shared surface wash" not in html

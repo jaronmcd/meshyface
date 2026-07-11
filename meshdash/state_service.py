@@ -10,7 +10,7 @@ from .helpers import (
 )
 from .history_node_names import build_name_change_chat_entries as _build_name_change_chat_entries_helper
 from .meshyface_profile import (
-    normalize_meshyface_profile_color as _normalize_meshyface_profile_color,
+    build_meshyface_theme_render as _build_meshyface_theme_render,
     normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
     normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
 )
@@ -256,23 +256,24 @@ def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object
         node_id = _normalize_meshyface_profile_node_id(raw_node_id)
         if not node_id or not isinstance(raw_profile, Mapping):
             continue
-        color = _normalize_meshyface_profile_color(raw_profile.get("color"))
-        if not color:
-            continue
         updated_unix = _to_int(raw_profile.get("updated_unix"))
         if updated_unix is None or updated_unix <= 0:
             continue
         received_unix = _to_int(raw_profile.get("received_unix"))
+        theme = _normalize_meshyface_theme_recipe(raw_profile.get("theme"))
+        if theme is None:
+            continue
+        render = _build_meshyface_theme_render(theme)
+        if render is None:
+            continue
         profile = {
             "node_id": node_id,
-            "color": color,
             "updated_unix": int(updated_unix),
             "received_unix": max(0, int(received_unix or 0)),
             "source": "mesh",
+            "theme": theme,
+            "render": render,
         }
-        theme = _normalize_meshyface_theme_recipe(raw_profile.get("theme"))
-        if theme is not None:
-            profile["theme"] = theme
         profiles[node_id] = profile
     return profiles
 
