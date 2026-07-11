@@ -100,6 +100,7 @@ class DashboardTracker:
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
+        self.meshyface_profile_processing_enabled = False
         self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
         self._restore_meshyface_profiles_from_history_unlocked()
         self._zork_bot_service = None
@@ -497,6 +498,8 @@ class DashboardTracker:
             self._bump_state_revision_unlocked()
 
     def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
+        if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+            return False
         profile = _parse_meshyface_profile_packet(packet)
         next_profile = _normalize_meshyface_profile_cache_entry(profile)
         if next_profile is None:
@@ -508,6 +511,8 @@ class DashboardTracker:
         return True
 
     def _restore_meshyface_profiles_from_history_unlocked(self) -> None:
+        if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+            return
         history_store = getattr(self, "_history_store", None)
         load_profiles_fn = getattr(history_store, "load_meshyface_profiles", None)
         if not callable(load_profiles_fn):
@@ -609,8 +614,46 @@ class DashboardTracker:
             del self.meshyface_profiles_by_node_id[evicted_node_id]
         return node_id in self.meshyface_profiles_by_node_id
 
+    def meshyface_profile_processing_status(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "ok": True,
+                "enabled": bool(
+                    getattr(self, "meshyface_profile_processing_enabled", False)
+                ),
+                "cached_profiles": len(self.meshyface_profiles_by_node_id),
+            }
+
+    def set_meshyface_profile_processing_enabled(
+        self, enabled: bool
+    ) -> dict[str, object]:
+        with self._lock:
+            next_enabled = bool(enabled)
+            previous_enabled = bool(
+                getattr(self, "meshyface_profile_processing_enabled", False)
+            )
+            changed = previous_enabled != next_enabled
+            self.meshyface_profile_processing_enabled = next_enabled
+            cleared_profiles = 0
+            if not next_enabled:
+                cleared_profiles = len(self.meshyface_profiles_by_node_id)
+                self.meshyface_profiles_by_node_id.clear()
+            elif changed:
+                self._restore_meshyface_profiles_from_history_unlocked()
+            if changed or cleared_profiles:
+                self._bump_state_revision_unlocked()
+            return {
+                "ok": True,
+                "enabled": next_enabled,
+                "changed": bool(changed or cleared_profiles),
+                "cached_profiles": len(self.meshyface_profiles_by_node_id),
+                "cleared_profiles": cleared_profiles,
+            }
+
     def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
         with self._lock:
+            if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+                return {}
             profiles: dict[str, dict[str, object]] = {}
             for node_id, profile in self.meshyface_profiles_by_node_id.items():
                 snapshot = _normalize_meshyface_profile_cache_entry(profile)

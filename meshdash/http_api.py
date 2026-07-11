@@ -10,6 +10,7 @@ from .http_route_contracts import (
     SummaryMetricsHistoryFn,
     SendChatFn,
     SendMeshyfaceProfileFn,
+    SetMeshyfaceProfileProcessingEnabledFn,
     SetThemePresetFn,
     StateFn,
     ToIntFn,
@@ -24,6 +25,9 @@ def make_http_handler(
     summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
     send_chat_fn: SendChatFn | None = None,
     send_meshyface_profile_fn: SendMeshyfaceProfileFn | None = None,
+    set_meshyface_profile_processing_enabled_fn: (
+        SetMeshyfaceProfileProcessingEnabledFn | None
+    ) = None,
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
     api_token: str | None = None,
@@ -35,6 +39,11 @@ def make_http_handler(
     apply_radio_settings_fn = getattr(state_fn, "apply_radio_settings_fn", None)
     apply_channel_settings_fn = getattr(state_fn, "apply_channel_settings_fn", None)
     state_meshyface_profile_fn = getattr(state_fn, "send_meshyface_profile_fn", None)
+    state_set_meshyface_profile_processing_enabled_fn = getattr(
+        state_fn,
+        "set_meshyface_profile_processing_enabled_fn",
+        None,
+    )
     get_bbs_settings_fn = getattr(state_fn, "get_bbs_settings_fn", None)
     get_bbs_host_runtime_fn = getattr(state_fn, "get_bbs_host_runtime_fn", None)
     set_bbs_settings_fn = getattr(state_fn, "set_bbs_settings_fn", None)
@@ -75,6 +84,15 @@ def make_http_handler(
             else (
                 state_meshyface_profile_fn
                 if callable(state_meshyface_profile_fn)
+                else None
+            )
+        ),
+        set_meshyface_profile_processing_enabled_fn=(
+            set_meshyface_profile_processing_enabled_fn
+            if callable(set_meshyface_profile_processing_enabled_fn)
+            else (
+                state_set_meshyface_profile_processing_enabled_fn
+                if callable(state_set_meshyface_profile_processing_enabled_fn)
                 else None
             )
         ),

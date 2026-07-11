@@ -89,6 +89,11 @@ class SendMeshyfaceProfileFn(Protocol):
         ...
 
 
+class SetMeshyfaceProfileProcessingEnabledFn(Protocol):
+    def __call__(self, enabled: bool) -> dict[str, object]:
+        ...
+
+
 class GetThemeSettingsFn(Protocol):
     def __call__(self) -> dict[str, object]:
         ...
@@ -409,6 +414,9 @@ class DashboardPostRouteDependencies:
     parse_chat_send_request_fn: ParseChatSendRequestFn
     write_json_response_fn: WriteJsonResponseFn
     send_meshyface_profile_fn: Optional[SendMeshyfaceProfileFn] = None
+    set_meshyface_profile_processing_enabled_fn: Optional[
+        SetMeshyfaceProfileProcessingEnabledFn
+    ] = None
     parse_meshyface_profile_theme_request_fn: Optional[
         ParseMeshyfaceProfileThemeRequestFn
     ] = None

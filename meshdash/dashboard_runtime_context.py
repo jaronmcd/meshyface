@@ -530,6 +530,13 @@ def build_dashboard_runtime_context(
             channel_index=0,
             ghost=None,
         ):
+            status_fn = getattr(tracker, "meshyface_profile_processing_status", None)
+            if callable(status_fn):
+                status = status_fn()
+                if isinstance(status, Mapping) and not bool(status.get("enabled", False)):
+                    raise ValueError("node appearance sharing is disabled")
+            elif not bool(getattr(tracker, "meshyface_profile_processing_enabled", False)):
+                raise ValueError("node appearance sharing is disabled")
             return _send_meshyface_profile_theme(
                 channel_index=channel_index,
                 theme=theme,
@@ -551,6 +558,36 @@ def build_dashboard_runtime_context(
                     state_lite_fn,
                     "send_meshyface_profile_fn",
                     _send_meshyface_profile_fn,
+                )
+            except Exception:
+                pass
+
+    set_meshyface_profile_processing_enabled = getattr(
+        tracker,
+        "set_meshyface_profile_processing_enabled",
+        None,
+    )
+    if callable(set_meshyface_profile_processing_enabled):
+        def _set_meshyface_profile_processing_enabled_fn(  # type: ignore[no-redef]
+            enabled,
+        ):
+            return set_meshyface_profile_processing_enabled(bool(enabled))
+
+        try:
+            setattr(
+                loaders.state_fn,
+                "set_meshyface_profile_processing_enabled_fn",
+                _set_meshyface_profile_processing_enabled_fn,
+            )
+        except Exception:
+            pass
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(
+                    state_lite_fn,
+                    "set_meshyface_profile_processing_enabled_fn",
+                    _set_meshyface_profile_processing_enabled_fn,
                 )
             except Exception:
                 pass

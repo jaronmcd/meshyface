@@ -45,6 +45,7 @@ class DashboardStatePayload:
     nodes_full: list[StateRow]
     traffic: StateTrafficPayload
     local_node_id: str = "local"
+    meshyface_profile_processing_enabled: bool = False
     meshyface_profiles: dict[str, dict[str, object]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, object]:
@@ -67,6 +68,7 @@ class DashboardStatePayload:
             "nodes_full": self.nodes_full,
             "traffic": self.traffic.as_dict(),
             "local_node_id": self.local_node_id,
+            "meshyface_profile_processing_enabled": self.meshyface_profile_processing_enabled,
             "meshyface_profiles": self.meshyface_profiles,
         }
 
@@ -131,6 +133,9 @@ def coerce_dashboard_state_payload(
         nodes_full=(value.get("nodes_full") if isinstance(value.get("nodes_full"), list) else []),
         traffic=coerce_state_traffic_payload(value.get("traffic") or {}),
         local_node_id=str(value.get("local_node_id") or "local"),
+        meshyface_profile_processing_enabled=bool(
+            value.get("meshyface_profile_processing_enabled", False)
+        ),
         meshyface_profiles=(
             value.get("meshyface_profiles")
             if isinstance(value.get("meshyface_profiles"), dict)

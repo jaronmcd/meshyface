@@ -34,12 +34,12 @@
     }}
 
     function loadSettingsAppearancePreferences() {{
-      settingsMeshyfaceThemeSharingEnabled = true;
+      settingsMeshyfaceThemeSharingEnabled = false;
       settingsScreenWakeLockEnabled = true;
       try {{
         settingsMeshyfaceThemeSharingEnabled = parseBoolToken(
           window.localStorage.getItem(settingsMeshyfaceThemeSharingStorageKey),
-          true
+          false
         );
         settingsScreenWakeLockEnabled = parseBoolToken(
           window.localStorage.getItem(settingsScreenWakeLockStorageKey),
@@ -49,6 +49,15 @@
       }}
       if (typeof loadMeshyfaceNodeThemePreferencesFromStorage === "function") {{
         loadMeshyfaceNodeThemePreferencesFromStorage();
+      }}
+      if (typeof syncMeshyfaceThemeSharingServerPreference === "function") {{
+        window.setTimeout(() => {{
+          void syncMeshyfaceThemeSharingServerPreference(settingsMeshyfaceThemeSharingEnabled, {{
+            announce: false,
+            previousEnabled: false,
+            revertOnError: false,
+          }});
+        }}, 0);
       }}
     }}
 
@@ -63,6 +72,98 @@
           settingsScreenWakeLockEnabled ? "1" : "0"
         );
       }} catch (_err) {{
+      }}
+    }}
+
+    function meshyfaceThemeSharingEnabledFromState(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      if (!Object.prototype.hasOwnProperty.call(
+        safeState,
+        "meshyface_profile_processing_enabled"
+      )) {{
+        return null;
+      }}
+      return !!safeState.meshyface_profile_processing_enabled;
+    }}
+
+    function syncMeshyfaceThemeSharingFromState(state = latestState) {{
+      const serverEnabled = meshyfaceThemeSharingEnabledFromState(state);
+      if (serverEnabled == null) return false;
+      if (settingsMeshyfaceThemeSharingServerPending !== null) return false;
+      if (settingsMeshyfaceThemeSharingEnabled === serverEnabled) return false;
+      setMeshyfaceThemeSharingEnabled(serverEnabled, {{
+        persist: true,
+        rerender: false,
+        announce: false,
+        server: false,
+      }});
+      return true;
+    }}
+
+    async function syncMeshyfaceThemeSharingServerPreference(enabled, options = null) {{
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const next = !!enabled;
+      const previousEnabled = typeof opts.previousEnabled === "boolean"
+        ? opts.previousEnabled
+        : settingsMeshyfaceThemeSharingEnabled;
+      const requestSerial = settingsMeshyfaceThemeSharingServerRequestSerial + 1;
+      settingsMeshyfaceThemeSharingServerRequestSerial = requestSerial;
+      settingsMeshyfaceThemeSharingServerPending = next;
+      syncSettingsAppearanceControls();
+      try {{
+        const resp = await fetch(meshyfaceProfileSettingsEndpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ enabled: next }}),
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || (payload && payload.ok === false)) {{
+          const message = payload && payload.error ? payload.error : `API ${{resp.status}}`;
+          throw new Error(String(message));
+        }}
+        const serverEnabled = payload && Object.prototype.hasOwnProperty.call(payload, "enabled")
+          ? !!payload.enabled
+          : next;
+        if (requestSerial === settingsMeshyfaceThemeSharingServerRequestSerial) {{
+          settingsMeshyfaceThemeSharingServerPending = null;
+        }}
+        setMeshyfaceThemeSharingEnabled(serverEnabled, {{
+          persist: true,
+          rerender: true,
+          announce: false,
+          server: false,
+        }});
+        if (opts.announce) {{
+          setMeshyfaceProfileStatusText(
+            serverEnabled
+              ? "Theme packets are enabled. This dashboard can send and receive shared node appearance packets."
+              : "Theme packets are disabled. Shared node appearance packets are not sent or processed."
+          );
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        return payload;
+      }} catch (err) {{
+        if (requestSerial === settingsMeshyfaceThemeSharingServerRequestSerial) {{
+          settingsMeshyfaceThemeSharingServerPending = null;
+        }}
+        if (opts.revertOnError !== false) {{
+          setMeshyfaceThemeSharingEnabled(previousEnabled, {{
+            persist: true,
+            rerender: true,
+            announce: false,
+            server: false,
+          }});
+        }} else {{
+          syncSettingsAppearanceControls();
+        }}
+        const message = err instanceof Error ? err.message : String(err || "unknown error");
+        setMeshyfaceProfileStatusText(
+          `Theme packet setting update failed: ${{message}}`,
+          true
+        );
+        return null;
       }}
     }}
 
@@ -235,13 +336,18 @@
       const themeSharingToggle = document.getElementById("settings-meshyface-theme-sharing");
       if (themeSharingToggle instanceof HTMLInputElement) {{
         themeSharingToggle.checked = !!settingsMeshyfaceThemeSharingEnabled;
+        themeSharingToggle.disabled = settingsMeshyfaceThemeSharingServerPending !== null;
       }}
       const broadcastBtn = document.getElementById("settings-meshyface-profile-broadcast");
       if (broadcastBtn instanceof HTMLButtonElement) {{
-        broadcastBtn.disabled = !!meshyfaceProfileBroadcastInFlight || !settingsMeshyfaceThemeSharingEnabled;
+        broadcastBtn.disabled = (
+          !!meshyfaceProfileBroadcastInFlight
+          || !settingsMeshyfaceThemeSharingEnabled
+          || settingsMeshyfaceThemeSharingServerPending !== null
+        );
         broadcastBtn.title = settingsMeshyfaceThemeSharingEnabled
           ? ""
-          : "Turn on sharing to broadcast your node appearance.";
+          : "Enable theme packets to broadcast your node appearance.";
       }}
       const consoleTimestampsToggle = document.getElementById("console-timestamps");
       if (consoleTimestampsToggle instanceof HTMLInputElement) {{
@@ -334,6 +440,7 @@
       const opts = (options && typeof options === "object") ? options : {{}};
       const next = !!enabled;
       const changed = settingsMeshyfaceThemeSharingEnabled !== next;
+      const previous = settingsMeshyfaceThemeSharingEnabled;
       settingsMeshyfaceThemeSharingEnabled = next;
       const profilesChanged = next
         ? (
@@ -356,16 +463,23 @@
       if (opts.announce) {{
         setMeshyfaceProfileStatusText(
           next
-            ? "Node appearance sharing is on. You can broadcast your appearance and see shared node appearances."
-            : "Node appearance sharing is off. Broadcasts are disabled and shared node appearances are hidden."
+            ? "Theme packets are enabled. This dashboard can broadcast your node appearance and show shared node appearances."
+            : "Theme packets are disabled. This dashboard will not send, process, or show shared node appearances."
         );
+      }}
+      if (opts.server === true && typeof syncMeshyfaceThemeSharingServerPreference === "function") {{
+        void syncMeshyfaceThemeSharingServerPreference(next, {{
+          announce: !!opts.announce,
+          previousEnabled: previous,
+          revertOnError: true,
+        }});
       }}
     }}
 
     async function broadcastMeshyfaceProfileTheme() {{
       if (meshyfaceProfileBroadcastInFlight) return null;
       if (!settingsMeshyfaceThemeSharingEnabled) {{
-        setMeshyfaceProfileStatusText("Turn on sharing before broadcasting your node appearance.", true);
+        setMeshyfaceProfileStatusText("Enable theme packets before broadcasting your node appearance.", true);
         syncSettingsAppearanceControls();
         return null;
       }}

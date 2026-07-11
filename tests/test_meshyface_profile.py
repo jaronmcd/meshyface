@@ -133,6 +133,7 @@ class _StateTracker:
     radio_link_connected = None
     radio_link_changed_unix = None
     radio_link_error = None
+    meshyface_profile_processing_enabled = True
 
     def snapshot(self, by_id: dict[str, dict[str, object]]) -> object:
         return empty_tracker_snapshot()
@@ -766,6 +767,7 @@ def test_send_meshyface_profile_theme_rejects_invalid_theme_before_radio_send() 
 
 def test_tracker_accepts_only_strictly_newer_profile_updates() -> None:
     tracker = DashboardTracker(packet_limit=8)
+    tracker.set_meshyface_profile_processing_enabled(True)
     updated = int(time.time()) - 10
     first_recipe = _theme_recipe(line_color="#db2777")
     equal_recipe = _theme_recipe(line_color="#22c55e")
@@ -798,6 +800,7 @@ def test_tracker_accepts_only_strictly_newer_profile_updates() -> None:
 
 def test_tracker_replaces_theme_atomically_and_snapshots_theme() -> None:
     tracker = DashboardTracker(packet_limit=8)
+    tracker.set_meshyface_profile_processing_enabled(True)
     updated = int(time.time()) - 10
     recipe = _theme_recipe()
     equal_recipe = _theme_recipe(base_color="#22c55e")
@@ -831,6 +834,36 @@ def test_tracker_replaces_theme_atomically_and_snapshots_theme() -> None:
     assert replaced["theme"] == replacement_recipe
 
 
+def test_tracker_profile_processing_disabled_skips_parser_and_clears_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracker = DashboardTracker(packet_limit=8)
+    assert tracker.meshyface_profile_processing_status()["enabled"] is False
+    assert tracker.meshyface_profiles_snapshot() == {}
+    tracker.set_meshyface_profile_processing_enabled(True)
+    updated = int(time.time()) - 10
+    tracker.seed_packet(
+        _profile_packet(updated_unix=updated, theme=_theme_recipe()),
+        interface=object(),
+    )
+    assert tracker.meshyface_profiles_snapshot()
+
+    response = tracker.set_meshyface_profile_processing_enabled(False)
+    assert response["enabled"] is False
+    assert tracker.meshyface_profiles_snapshot() == {}
+
+    def _parse(_packet: object) -> dict[str, object] | None:
+        raise AssertionError("disabled profile processing must not parse packets")
+
+    monkeypatch.setattr(tracker_runtime_impl, "_parse_meshyface_profile_packet", _parse)
+    tracker.seed_packet(
+        _profile_packet(updated_unix=updated + 1, theme=_theme_recipe()),
+        interface=object(),
+    )
+
+    assert tracker.meshyface_profiles_snapshot() == {}
+
+
 def test_tracker_profile_cache_is_bounded_and_evicts_oldest_received(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -856,6 +889,7 @@ def test_tracker_profile_cache_is_bounded_and_evicts_oldest_received(
 
     monkeypatch.setattr(tracker_runtime_impl, "_parse_meshyface_profile_packet", _parse)
     tracker = DashboardTracker(packet_limit=8)
+    tracker.set_meshyface_profile_processing_enabled(True)
 
     for node_id in received_times:
         tracker.seed_packet({"fromId": node_id}, interface=object())
@@ -881,6 +915,7 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
     first_store = _open_history_store(history_path)
     try:
         first_tracker = DashboardTracker(packet_limit=8, history_store=first_store)
+        first_tracker.set_meshyface_profile_processing_enabled(True)
         first_tracker.seed_packet(
             _profile_packet(updated_unix=updated, theme=recipe, ghost=ghost),
             interface=object(),
@@ -893,6 +928,7 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
     second_store = _open_history_store(history_path)
     try:
         second_tracker = DashboardTracker(packet_limit=8, history_store=second_store)
+        second_tracker.set_meshyface_profile_processing_enabled(True)
         restored = second_tracker.meshyface_profiles_snapshot()["!335d8354"]
         assert "color" not in restored
         assert restored["theme"] == recipe
@@ -924,6 +960,7 @@ def test_tracker_backfills_hex_theme_profile_packets_after_profile_cache_upgrade
         )
 
         tracker = DashboardTracker(packet_limit=8, history_store=store)
+        tracker.set_meshyface_profile_processing_enabled(True)
 
         assert tracker.meshyface_profiles_snapshot() == {
             "!335d8354": {
@@ -966,6 +1003,7 @@ def test_profile_packet_backfill_replays_hex_packets_with_strict_lww(tmp_path: P
         )
 
         tracker = DashboardTracker(packet_limit=8, history_store=store)
+        tracker.set_meshyface_profile_processing_enabled(True)
         profile = tracker.meshyface_profiles_snapshot()["!335d8354"]
 
         assert "color" not in profile
@@ -1022,6 +1060,7 @@ def test_profile_packet_backfill_never_overwrites_existing_profile_rows(
         )
 
         tracker = DashboardTracker(packet_limit=8, history_store=store)
+        tracker.set_meshyface_profile_processing_enabled(True)
 
         assert tracker.meshyface_profiles_snapshot()["!335d8354"]["theme"] == _theme_recipe(
             line_color="#a855f7"
@@ -1140,7 +1179,9 @@ def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
     )
 
     assert full.as_dict()["meshyface_profiles"] == expected
+    assert full.as_dict()["meshyface_profile_processing_enabled"] is True
     assert lite["meshyface_profiles"] == expected
+    assert lite["meshyface_profile_processing_enabled"] is True
     assert "meshyface_profiles" not in full.as_dict()["traffic"]
 
 
@@ -1187,6 +1228,43 @@ def test_handle_dashboard_post_dispatches_profile_theme() -> None:
                 "theme": recipe,
             },
         )
+    ]
+
+
+def test_handle_dashboard_post_dispatches_profile_processing_settings() -> None:
+    body = json.dumps({"enabled": False}).encode()
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Authorization": "Bearer secret",
+        },
+    )
+    responses: list[tuple[int, object]] = []
+    received: list[bool] = []
+
+    def _set_enabled(enabled: bool) -> dict[str, object]:
+        received.append(enabled)
+        return {"ok": True, "enabled": enabled, "changed": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_meshyface_profile_processing_enabled_fn=_set_enabled,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = replace(
+        deps,
+        write_json_response_fn=lambda handler, *, status_code, payload_obj, **kwargs: responses.append(
+            (status_code, payload_obj)
+        ),
+    )
+
+    handle_dashboard_post(handler, path="/api/meshyface/profile/settings", deps=deps)
+
+    assert received == [False]
+    assert responses == [
+        (200, {"ok": True, "enabled": False, "changed": True})
     ]
 
 
@@ -1394,10 +1472,17 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert "Ghost text" not in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
+    assert (
+        html.index('id="settings-meshyface-theme-sharing"')
+        < html.index('id="settings-meshyface-profile-broadcast"')
+        < html.index('id="settings-meshyface-profile-status"')
+        < html.index('class="settings-meshyface-node-theme-panel"')
+    )
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
     assert "My Meshyface color" not in html
     assert "Node Appearance" in html
     assert "Share node appearance" in html
+    assert "Allows sending and receiving shared node appearance theme packets." in html
     assert "Shared appearance preview" in html
     assert "Node appearance" in html
     assert "Broadcast appearance" in html
@@ -1418,22 +1503,27 @@ def test_dashboard_css_keeps_ghost_overlay_off_compact_node_rows() -> None:
     assert ".chat-feed-item.profiled-node::after" in css
     assert ".chat-member-item.profiled-node::after" not in css
     assert ".self-node-identity-slot.profiled-node::after" not in css
+    assert "min-width: min(220px, 84%);" in css
+    assert "min-height: 54px;" in css
+    assert ".settings-meshyface-share-row" in css
 
 
 def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduling() -> None:
     js = build_dashboard_js(refresh_ms=3000, node_history_hours=72, node_history_max_points=1440)
 
     assert 'const meshyfaceProfileThemeEndpoint = "/api/meshyface/profile/theme";' in js
+    assert 'const meshyfaceProfileSettingsEndpoint = "/api/meshyface/profile/settings";' in js
     assert "meshyfaceProfileColorEndpoint" not in js
     assert "settingsMeshyfaceProfileColor" not in js
     assert "settingsMeshyfaceProfileColorStorageKey" not in js
     assert "setMeshyfaceProfileColor" not in js
     assert "settingsMeshyfaceProfileAcceptRemoteEnabled" not in js
     assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
-    assert 'let settingsMeshyfaceThemeSharingEnabled = true;' in js
+    assert 'let settingsMeshyfaceThemeSharingEnabled = false;' in js
+    assert "let settingsMeshyfaceThemeSharingServerPending = null;" in js
     assert 'let settingsMeshyfaceNodeThemeSettings = null;' in js
     assert 'let settingsMeshyfaceNodeThemeSelected = "custom";' in js
-    assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV1";' in js
+    assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV2";' in js
     assert 'const settingsMeshyfaceNodeThemeStorageKey = "meshDashboardMeshyfaceNodeThemeV1";' in js
     assert (
         'const settingsMeshyfaceNodeThemeCatalogStorageKey = '
@@ -1450,6 +1540,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "let meshyfaceProfileThemeDashboardPreviewUndo = null;" in js
     assert 'document.getElementById("settings-meshyface-theme-sharing")' in js
     assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
+    assert "function syncMeshyfaceThemeSharingServerPreference(enabled, options = null)" in js
+    assert "function syncMeshyfaceThemeSharingFromState(state = latestState)" in js
+    assert 'body: JSON.stringify({ enabled: next }),' in js
+    assert "opts.server === true" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
     assert "function currentMeshyfaceProfileGhost()" in js
@@ -1597,8 +1691,9 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "peer-dm-popout-msg${isOwn ? \" is-own\" : \"\"}${alertClass}${messageProfileClass}" in js
     assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js
     assert "syncMeshyfaceProfilesFromState(state)" in js
+    assert "syncMeshyfaceThemeSharingFromState(state)" in js
     assert "async function broadcastMeshyfaceProfileTheme()" in js
-    assert "Turn on sharing before broadcasting your node appearance." in js
+    assert "Enable theme packets before broadcasting your node appearance." in js
     assert "body: JSON.stringify({" in js
     assert "theme," in js
     broadcast_call_index = js.index("void broadcastMeshyfaceProfileTheme();")
@@ -1619,9 +1714,13 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
 def test_dashboard_js_invalidates_spatial_and_inspector_surfaces_when_profiles_change() -> None:
     js = build_dashboard_js(refresh_ms=3000, node_history_hours=72, node_history_max_points=1440)
 
-    poll_sync_start = js.index("if (syncMeshyfaceProfilesFromState(state)) {")
+    poll_sync_start = js.index(
+        "const meshyfaceSharingChanged = ("
+    )
     poll_sync_end = js.index("if (typeof refreshConsoleNodeRowsCache", poll_sync_start)
     poll_sync_block = js[poll_sync_start:poll_sync_end]
+    assert "syncMeshyfaceThemeSharingFromState(state)" in poll_sync_block
+    assert "syncMeshyfaceProfilesFromState(state) || meshyfaceSharingChanged" in poll_sync_block
     assert 'chatPollStructuralSignature = "";' in poll_sync_block
     assert 'lastMapSignature = "";' in poll_sync_block
     assert 'lastMapGraphSignature = "";' in poll_sync_block

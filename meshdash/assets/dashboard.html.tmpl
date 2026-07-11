@@ -2391,10 +2391,16 @@
                 data-settings-appearance-tab-panel="node"
                 hidden
               >
-              <label class="settings-field settings-inline">
-                <input id="settings-meshyface-theme-sharing" type="checkbox" />
-                <span>Share node appearance</span>
-              </label>
+              <div class="settings-row settings-meshyface-share-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-meshyface-theme-sharing" type="checkbox" />
+                  <span>Share node appearance</span>
+                </label>
+                <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast appearance</button>
+              </div>
+              <div id="settings-meshyface-profile-status" class="settings-help-note" aria-live="polite">
+                Allows sending and receiving shared node appearance theme packets. When off, this dashboard does not send, process, or show shared node appearances.
+              </div>
               <div class="settings-meshyface-node-theme-panel">
                 <div class="settings-meshyface-node-theme-preview-wrap">
                   <div class="settings-meshyface-node-theme-preview-head">
@@ -2599,15 +2605,6 @@
                     </label>
                   </div>
                 </div>
-              </div>
-              <div class="settings-row">
-                <div class="settings-field">
-                  <span class="settings-label">Share node appearance</span>
-                  <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast appearance</button>
-                </div>
-              </div>
-              <div id="settings-meshyface-profile-status" class="settings-help-note" aria-live="polite">
-                Shared node appearance broadcasts may hop when the mesh permits private app traffic.
               </div>
               </div>
             </div>

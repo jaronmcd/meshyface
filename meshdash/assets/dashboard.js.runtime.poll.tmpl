@@ -603,7 +603,11 @@
           (rawState && rawState.history_caps) || null
         );
         latestState = state;
-        if (syncMeshyfaceProfilesFromState(state)) {{
+        const meshyfaceSharingChanged = (
+          typeof syncMeshyfaceThemeSharingFromState === "function"
+          && syncMeshyfaceThemeSharingFromState(state)
+        );
+        if (syncMeshyfaceProfilesFromState(state) || meshyfaceSharingChanged) {{
           chatPollStructuralSignature = "";
           // Profile packets alter presentation even when radio/node fields are
           // unchanged. Force the spatial cache to rebuild its marker and popup

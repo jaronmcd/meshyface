@@ -282,6 +282,21 @@ def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object
     return profiles
 
 
+def _load_meshyface_profile_processing_enabled_safe(tracker: object) -> bool:
+    status_fn = getattr(tracker, "meshyface_profile_processing_status", None)
+    if callable(status_fn):
+        try:
+            status = status_fn()
+            if isinstance(status, Mapping) and "enabled" in status:
+                return bool(status.get("enabled"))
+        except Exception:
+            return False
+    try:
+        return bool(getattr(tracker, "meshyface_profile_processing_enabled", False))
+    except Exception:
+        return False
+
+
 def _chat_entry_sort_unix(entry: object) -> Optional[int]:
     if not isinstance(entry, Mapping):
         return None
@@ -1382,6 +1397,9 @@ def build_dashboard_state_typed(
         local_node_id=local_node_id,
     )
     meshyface_profiles = _load_meshyface_profiles_safe(tracker)
+    meshyface_profile_processing_enabled = (
+        _load_meshyface_profile_processing_enabled_safe(tracker)
+    )
     traffic_payload = StateTrafficPayload(
         edges=tracker_data.edges,
         port_counts=tracker_data.port_counts,
@@ -1408,6 +1426,7 @@ def build_dashboard_state_typed(
         nodes_full=nodes.full,
         traffic=traffic_payload,
         local_node_id=local_node_id,
+        meshyface_profile_processing_enabled=meshyface_profile_processing_enabled,
         meshyface_profiles=meshyface_profiles,
     )
     return state_payload
@@ -1615,6 +1634,9 @@ def build_dashboard_state_lite(
         nodes_full=state_payload.nodes_full,
         traffic=slim_traffic,
         local_node_id=state_payload.local_node_id,
+        meshyface_profile_processing_enabled=(
+            state_payload.meshyface_profile_processing_enabled
+        ),
         meshyface_profiles=state_payload.meshyface_profiles,
     ).as_dict()
 
