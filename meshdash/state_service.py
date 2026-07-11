@@ -237,6 +237,22 @@ def _chat_entry_sort_unix(entry: object) -> Optional[int]:
     if not isinstance(entry, Mapping):
         return None
     for value in (
+        entry.get("captured_at_unix"),
+        entry.get("capturedAtUnix"),
+    ):
+        unix_value = _to_int(value)
+        if unix_value is not None and unix_value > 0:
+            return int(unix_value)
+    for value in (
+        entry.get("captured_at"),
+        entry.get("capturedAt"),
+    ):
+        unix_value = _parse_utc_text_to_unix_helper(value)
+        if unix_value is not None and unix_value > 0:
+            return int(unix_value)
+    for value in (
+        entry.get("_history_created_unix"),
+        entry.get("created_unix"),
         entry.get("rx_time_unix"),
         entry.get("time_unix"),
     ):
@@ -245,7 +261,6 @@ def _chat_entry_sort_unix(entry: object) -> Optional[int]:
             return int(unix_value)
     for value in (
         entry.get("rx_time"),
-        entry.get("captured_at"),
         entry.get("time"),
     ):
         unix_value = _parse_utc_text_to_unix_helper(value)
@@ -998,8 +1013,6 @@ def _slim_recent_chat_for_chat_profile(
         if not isinstance(entry, Mapping):
             continue
         slim_entry = dict(entry)
-        if slim_entry.get("rx_time") not in (None, ""):
-            slim_entry.pop("captured_at", None)
         if slim_entry.get("delivery_updated_unix") not in (None, ""):
             slim_entry.pop("delivery_updated_at", None)
         destination = (

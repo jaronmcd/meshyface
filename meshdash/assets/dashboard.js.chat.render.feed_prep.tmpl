@@ -284,28 +284,7 @@
         const mergedMessages = localInfoMessages.length
           ? rawMessages.concat(localInfoMessages)
           : rawMessages;
-        const mergedTimeline = mergedMessages
-          .map((msg, index) => {{
-            const unix = latestUnixTimestamp(
-              msg && msg.rx_time,
-              msg && msg.captured_at,
-            );
-            return {{
-              msg,
-              index,
-              unix: Number.isFinite(unix) ? Math.floor(unix) : null,
-            }};
-          }})
-          .sort((a, b) => {{
-            const aUnix = Number.isFinite(a.unix) ? a.unix : null;
-            const bUnix = Number.isFinite(b.unix) ? b.unix : null;
-            if (aUnix == null && bUnix != null) return -1;
-            if (aUnix != null && bUnix == null) return 1;
-            if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
-              return aUnix - bUnix;
-            }}
-            return a.index - b.index;
-          }});
+        const mergedTimeline = chatMessagesInReceivedTimelineOrder(mergedMessages);
 
         for (const timelineRow of mergedTimeline) {{
           const msg = timelineRow && typeof timelineRow === "object"
@@ -365,13 +344,13 @@
             const reactorId = endpointsForBuild(msg).fromId || resolveMessageNodeId(msg.from || "");
             const reactorMeta = chatEndpointParts(reactorId);
             const reactorName = reactorMeta.label || reactorId || "Unknown node";
-            const dedupeKey = reactorId || `${{reactorName}}:${{msg.rx_time || msg.captured_at || bucket.count}}`;
+            const dedupeKey = reactorId || `${{reactorName}}:${{chatMessageReceivedRaw(msg) || bucket.count}}`;
             if (!bucket.reactors.has(dedupeKey)) {{
               bucket.reactors.add(dedupeKey);
               bucket.count += 1;
               bucket.names.push(reactorName);
             }}
-            const reactionTime = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+            const reactionTime = chatMessageReceivedUnix(msg);
             if (reactionTime && reactionTime > bucket.lastUnix) {{
               bucket.lastUnix = reactionTime;
             }}
@@ -529,7 +508,7 @@
           const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
           if (bucket.length <= 0) continue;
           const latestMsg = bucket[bucket.length - 1];
-          const unix = latestUnixTimestamp(latestMsg && latestMsg.rx_time, latestMsg && latestMsg.captured_at);
+          const unix = chatMessageReceivedUnix(latestMsg);
           const score = Number.isFinite(unix) ? unix : 0;
           if (!bestPeerId || score > bestUnix) {{
             bestPeerId = peerId;

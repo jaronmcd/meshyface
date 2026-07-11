@@ -189,6 +189,99 @@
       return latest > 0 ? latest : null;
     }}
 
+    function firstValidTimestampMs(...values) {{
+      for (const value of values) {{
+        const ts = parseDashboardTimeToMs(value);
+        if (ts && ts > 0) return ts;
+      }}
+      return null;
+    }}
+
+    function chatMessageReceivedMs(msg) {{
+      const safeMsg = msg && typeof msg === "object" ? msg : {{}};
+      // captured_at is stamped by this dashboard when the packet enters the
+      // local chat timeline. Meshtastic rx_time can come from another clock,
+      // so it is only a legacy fallback and must never outrank local receipt.
+      return firstValidTimestampMs(
+        safeMsg.captured_at_unix,
+        safeMsg.capturedAtUnix,
+        safeMsg.captured_at,
+        safeMsg.capturedAt,
+        safeMsg._history_created_unix,
+        safeMsg.history_created_unix,
+        safeMsg.created_unix,
+        safeMsg.rx_time_unix,
+        safeMsg.rxTimeUnix,
+        safeMsg.rx_time,
+        safeMsg.rxTime,
+        safeMsg.time,
+        safeMsg.timestamp,
+      );
+    }}
+
+    function chatMessageReceivedUnix(msg) {{
+      const receivedMs = chatMessageReceivedMs(msg);
+      return Number.isFinite(receivedMs) && receivedMs > 0
+        ? Math.floor(receivedMs / 1000)
+        : null;
+    }}
+
+    function chatMessageReceivedRaw(msg) {{
+      const safeMsg = msg && typeof msg === "object" ? msg : {{}};
+      const candidates = [
+        safeMsg.captured_at_unix,
+        safeMsg.capturedAtUnix,
+        safeMsg.captured_at,
+        safeMsg.capturedAt,
+        safeMsg._history_created_unix,
+        safeMsg.history_created_unix,
+        safeMsg.created_unix,
+        safeMsg.rx_time_unix,
+        safeMsg.rxTimeUnix,
+        safeMsg.rx_time,
+        safeMsg.rxTime,
+        safeMsg.time,
+        safeMsg.timestamp,
+      ];
+      for (const value of candidates) {{
+        if (parseDashboardTimeToMs(value)) return value;
+      }}
+      return "";
+    }}
+
+    function chatMessagesInReceivedTimelineOrder(messages) {{
+      const source = Array.isArray(messages) ? messages : [];
+      return source
+        .map((msg, index) => {{
+          const receivedMs = chatMessageReceivedMs(msg);
+          const historyId = parsePositiveMessageId(
+            msg && (msg._history_id ?? msg.history_id)
+          );
+          return {{
+            msg,
+            index,
+            historyId,
+            receivedMs: Number.isFinite(receivedMs) ? Math.floor(receivedMs) : null,
+            unix: Number.isFinite(receivedMs) ? Math.floor(receivedMs / 1000) : null,
+          }};
+        }})
+        .sort((a, b) => {{
+          const aMs = Number.isFinite(a.receivedMs) ? a.receivedMs : null;
+          const bMs = Number.isFinite(b.receivedMs) ? b.receivedMs : null;
+          if (aMs == null && bMs != null) return -1;
+          if (aMs != null && bMs == null) return 1;
+          if (aMs != null && bMs != null && aMs !== bMs) return aMs - bMs;
+          const aHistoryId = Number.isInteger(a.historyId) ? a.historyId : null;
+          const bHistoryId = Number.isInteger(b.historyId) ? b.historyId : null;
+          if (aHistoryId != null && bHistoryId != null && aHistoryId !== bHistoryId) {{
+            return aHistoryId - bHistoryId;
+          }}
+          if (aHistoryId != null && bHistoryId == null) return -1;
+          if (aHistoryId == null && bHistoryId != null) return 1;
+          return a.index - b.index;
+        }});
+    }}
+
     function nestedPathValue(root, path) {{
       if (!root || typeof root !== "object") return null;
       let current = root;

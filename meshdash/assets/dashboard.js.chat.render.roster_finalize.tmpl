@@ -284,7 +284,7 @@
             const fromId = normalizeNodeId(endpoints && endpoints.fromId);
             const toId = normalizeNodeId(endpoints && endpoints.toId);
             if (fromId !== pendingDest || toId !== localNodeId) continue;
-            const peerReplyUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+            const peerReplyUnix = chatMessageReceivedUnix(msg);
             if (peerReplyUnix <= 0 || peerReplyUnix < pendingSentUnix) continue;
             const replyTime = formatLocalChatTime(peerReplyUnix, "n/a", nowUnix);
             setChatSendStatus(`Direct to ${{pendingDest}} reached peer (reply seen at ${{replyTime}}).`);
@@ -539,11 +539,11 @@
               const isOwn = isCanonicalNodeId(localNodeId) && fromId === localNodeId;
               const fromMeta = chatEndpointParts(
                 fromId,
-                latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at)
+                chatMessageReceivedUnix(msg)
               );
               const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
-              const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
-              const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
+              const rawTime = String(chatMessageReceivedRaw(msg) || "").trim();
+              const msgUnix = chatMessageReceivedUnix(msg);
               const timeLabel = formatLocalChatTime(msgUnix, rawTime || "n/a", nowUnix);
               const isLocalEcho = msg && (msg.local_echo === true || msg.localEcho === true);
               const deliveryState = normalizeDeliveryState(msg && (msg.delivery_state ?? msg.deliveryState));

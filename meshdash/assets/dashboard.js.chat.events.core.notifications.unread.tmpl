@@ -141,7 +141,7 @@
           countsUnread: kind !== "status" && !senderIsSelf,
           selfRelevant: systemRelevant,
           systemRelevant,
-          unix: latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at),
+          unix: chatMessageReceivedUnix(msg),
         }});
       }}
       chatMessageEntriesCache = {{

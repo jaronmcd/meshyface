@@ -86,11 +86,11 @@
         const fallbackSelectable = isSelectableNodeId(fallbackNode) ? fallbackNode : "";
         const nodeId = primarySelectable || fallbackSelectable;
         const selectableClass = nodeId ? "chat-selectable" : "";
-        const msgTimeUnix = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+        const msgTimeUnix = chatMessageReceivedUnix(msg);
         const fromMeta = chatEndpointParts(sourceNode, msgTimeUnix);
         const toMeta = chatEndpointParts(fallbackNode, msgTimeUnix);
         const fromStatusKey = normalizeFreshnessKey(fromMeta.status);
-        const rawTimeText = String(msg.rx_time || msg.captured_at || "").trim();
+        const rawTimeText = String(chatMessageReceivedRaw(msg) || "").trim();
         const timeText = formatLocalChatTime(msgTimeUnix, rawTimeText || "n/a", nowUnix);
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
         const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);
@@ -275,12 +275,8 @@
                 ? parentPacket.decoded
                 : {{}};
               const parentEndpoints = packetEndpointIds(parentPacketEntry);
-              const parentUnix = latestUnixTimestamp(
-                parentSummary.rx_time_unix,
-                parentSummary.captured_at,
-                parentSummary.rx_time,
-                parentPacketEntry && (parentPacketEntry.captured_at || parentPacketEntry.rx_time),
-              );
+              const parentTiming = {{ ...parentPacketEntry, ...parentSummary }};
+              const parentUnix = chatMessageReceivedUnix(parentTiming);
               const parentFromMeta = chatEndpointParts(parentEndpoints.fromId, parentUnix);
               replyTooltipSummary = `Replying to ${{parentFromMeta.label || `packet #${{replyToId}}`}}`;
               const parentText = compactInlineMessage(
@@ -292,7 +288,7 @@
               if (Number.isInteger(parentChannelIndex) && parentChannelIndex >= 0) {{
                 metaParts.push(meshChannelViewMenuLabel(parentChannelIndex));
               }}
-              const parentTimeRaw = String(parentSummary.rx_time || parentSummary.captured_at || "").trim();
+              const parentTimeRaw = String(chatMessageReceivedRaw(parentTiming) || "").trim();
               if (parentTimeRaw) {{
                 metaParts.push(formatLocalChatTime(parentUnix, parentTimeRaw, nowUnix));
               }}

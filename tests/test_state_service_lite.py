@@ -338,7 +338,7 @@ def test_slim_recent_chat_for_map_activity_keeps_only_local_echo_fields() -> Non
     ]
 
 
-def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
+def test_slim_recent_chat_for_chat_profile_keeps_local_received_timestamp() -> None:
     slimmed = _slim_recent_chat_for_chat_profile(
         [
             {
@@ -380,6 +380,7 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
         "from": "!node-a",
         "to": "^all",
         "rx_time": "2026-06-03 00:00:01Z",
+        "captured_at": "2026-06-03 00:00:02Z",
         "delivery_updated_unix": 1780444801,
         "text": "hello",
     }
@@ -389,6 +390,33 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
     assert slimmed[1]["portnum"] == "ALERT_APP"
     assert "scope" not in slimmed[2]
     assert "portnum" not in slimmed[2]
+
+
+def test_merge_recent_chat_orders_synthetic_rows_by_local_receipt(monkeypatch) -> None:
+    monkeypatch.setattr(
+        state_service,
+        "_build_name_change_chat_entries_helper",
+        lambda **_kwargs: [
+            {
+                "text": "received-second",
+                "captured_at": "2026-06-03 00:00:02Z",
+                "rx_time": "2026-06-03 00:01:00Z",
+            }
+        ],
+    )
+
+    rows = state_service._merge_recent_chat_entries(
+        recent_chat=[
+            {
+                "text": "received-first",
+                "captured_at": "2026-06-03 00:00:01Z",
+                "rx_time": "2026-06-03 00:02:00Z",
+            }
+        ],
+        recent_packets=[],
+    )
+
+    assert [row["text"] for row in rows] == ["received-first", "received-second"]
 
 
 def test_slim_recent_chat_for_notifications_keeps_only_unread_fields() -> None:

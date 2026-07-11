@@ -208,7 +208,18 @@
         if (!(row && typeof row === "object")) return;
         const key = chatHistoryMessageKey(row);
         if (key) {{
-          keyedRows.set(key, row);
+          const existing = keyedRows.get(key);
+          if (existing && typeof existing === "object") {{
+            const merged = {{ ...existing, ...row }};
+            for (const field of ["captured_at", "capturedAt", "_history_id", "history_id", "_history_created_unix"]) {{
+              if (merged[field] == null || merged[field] === "") {{
+                merged[field] = existing[field];
+              }}
+            }}
+            keyedRows.set(key, merged);
+          }} else {{
+            keyedRows.set(key, row);
+          }}
         }} else {{
           unkeyedRows.push(row);
         }}
@@ -262,16 +273,22 @@
         chatHistoryCursorByView.delete(cleanKey);
         return;
       }}
-      const oldest = rows[0];
+      const oldestHistory = rows.reduce((oldestRow, row) => {{
+        const rowId = parsePositiveMessageId(row && (row._history_id ?? row.history_id));
+        if (rowId == null) return oldestRow;
+        const oldestId = parsePositiveMessageId(
+          oldestRow && (oldestRow._history_id ?? oldestRow.history_id)
+        );
+        return oldestId == null || rowId < oldestId ? row : oldestRow;
+      }}, null);
+      const oldest = (
+        oldestHistory
+        || rows.find((row) => !(row && (row.local_only === true || row.localOnly === true)))
+        || rows[0]
+      );
       const historyId = Number(oldest && (oldest._history_id ?? oldest.history_id));
       const beforeId = Number.isInteger(historyId) && historyId > 0 ? historyId : null;
-      const beforeUnix = latestUnixTimestamp(
-        oldest && oldest._history_created_unix,
-        oldest && oldest.rx_time_unix,
-        oldest && oldest.created_unix,
-        oldest && oldest.rx_time,
-        oldest && oldest.captured_at
-      );
+      const beforeUnix = chatMessageReceivedUnix(oldest);
       chatHistoryCursorByView.set(cleanKey, {{
         beforeId,
         beforeUnix: Number.isFinite(beforeUnix) && beforeUnix > 0 ? Math.floor(beforeUnix) : null,
@@ -332,6 +349,12 @@
         chatHistoryRows.push(row);
         added += 1;
       }}
+      chatHistoryRows.sort((a, b) => {{
+        const aId = parsePositiveMessageId(a && (a._history_id ?? a.history_id));
+        const bId = parsePositiveMessageId(b && (b._history_id ?? b.history_id));
+        if (aId != null && bId != null && aId !== bId) return aId - bId;
+        return 0;
+      }});
       while (chatHistoryRows.length > chatHistoryLoadedMaxEntries) {{
         const removed = chatHistoryRows.shift();
         const key = chatHistoryMessageKey(removed);

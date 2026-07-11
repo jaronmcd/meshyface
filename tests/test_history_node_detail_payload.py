@@ -107,6 +107,34 @@ def test_name_change_chat_entries_emit_status_rows_after_first_seen_name() -> No
     assert entries[0]["text"] == "Mesh Node changed their name to Mesh Relay"
 
 
+def test_name_change_chat_entries_use_local_receipt_before_radio_time() -> None:
+    entries = build_name_change_chat_entries(
+        recent_packets=[
+            {
+                "summary": {
+                    "from": "!01020304",
+                    "captured_at": "2023-11-14 22:15:00Z",
+                    "rx_time_unix": 1_700_000_200,
+                },
+                "packet": {"decoded": {"user": {"longName": "Old Name"}}},
+            },
+            {
+                "summary": {
+                    "from": "!01020304",
+                    "captured_at": "2023-11-14 22:15:10Z",
+                    "rx_time_unix": 1_700_000_000,
+                },
+                "packet": {"decoded": {"user": {"longName": "New Name"}}},
+            },
+        ]
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["text"] == "Old Name changed their name to New Name"
+    assert entries[0]["captured_at"] == "2023-11-14 22:15:10Z"
+    assert entries[0]["rx_time"] == "2023-11-14 22:15:10Z"
+
+
 def test_name_private_helpers_cover_normalization_and_time_parsing() -> None:
     assert _normalize_node_id("0xffffffff") == "^all"
     assert _normalize_node_id("01020304") == "!01020304"
