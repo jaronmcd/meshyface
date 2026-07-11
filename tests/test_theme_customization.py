@@ -1089,7 +1089,14 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'id="theme-custom-gradient-primary-direction"' in html
     theme_panel_start = html.index('id="settings-appearance-theme-panel"')
     assert "Surface" in html
-    assert "Accent and text" in html
+    assert "Identity" in html
+    assert "Accent and text" not in html
+    assert (
+        html.index("Surface", theme_panel_start)
+        < html.index("Identity", theme_panel_start)
+        < html.index("Background", theme_panel_start)
+        < html.index("Background gradient", theme_panel_start)
+    )
     assert (
         html.index('id="theme-custom-base-color"', theme_panel_start)
         < html.index('id="theme-custom-foreground-transparency"', theme_panel_start)
@@ -1120,7 +1127,7 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "data-background-image-only" in html
     assert "data-background-particles" in html
     assert "data-particles-random-only" in html
-    assert ".settings-gradient-group," in css
+    assert ".settings-gradient-fields.settings-theme-gradient-fields" in css
     assert ".settings-input," in css
     assert "backdrop-filter: var(--theme-foreground-blur, none);" in css
     assert "--settings-control-bg: color-mix(in srgb, var(--settings-bg-soft) 86%, transparent);" in css
@@ -1294,7 +1301,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert ">0.2</output>" in html
     assert 'value="88"' in html
     assert ">88%</output>" in html
-    assert 'class="settings-gradient-group settings-background-panel"' in html
+    assert 'class="settings-gradient-group settings-background-panel"' not in html
+    assert 'class="settings-control-section"' in html
     assert 'data-background-livemap-only' in html
     assert 'class="settings-livemap-layer-grid"' in html
     assert 'id="theme-custom-livemap-layer-roads"' in html

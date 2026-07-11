@@ -209,8 +209,8 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "border: 1px solid var(--settings-line-soft);" in css
     assert "--floating-stage-bg: var(--theme-background-gradient" in css
     assert "background: var(--theme-background-gradient, var(--theme-gradient-primary, var(--bg)));" in css
-    gradient_group = _css_rule(css, ".settings-gradient-group")
-    assert "background: var(--settings-bg-muted);" in gradient_group
+    control_section_rule = _css_rule(css, ".settings-control-section + .settings-control-section")
+    assert "border-top: 1px solid color-mix(in srgb, var(--settings-line-soft) 42%, transparent);" in control_section_rule
     assert "theme-live-preview" not in css
     assert ".theme-preview {" not in css
     assert ".node-profile-theme-swatch" not in css

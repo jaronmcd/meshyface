@@ -3308,7 +3308,6 @@
     .workspace-stack-head-shell,
     .workspace-stack-list-shell,
     .settings-panel,
-    .settings-gradient-group,
     .settings-input,
     .settings-select,
     .settings-textarea,
@@ -10256,9 +10255,6 @@
       gap: 10px 12px;
       align-items: flex-end;
     }}
-    .settings-gradient-row {{
-      align-items: stretch;
-    }}
     .settings-theme-preset-row {{
       align-items: flex-end;
     }}
@@ -10436,6 +10432,9 @@
     .settings-gradient-fields.settings-theme-identity-fields {{
       grid-template-columns: repeat(3, minmax(140px, 1fr));
     }}
+    .settings-gradient-fields.settings-theme-gradient-fields {{
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+    }}
     .settings-gradient-fields.settings-meshyface-node-theme-text-fields {{
       grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(120px, 1fr));
     }}
@@ -10451,26 +10450,6 @@
     .settings-meshyface-node-theme-toggle-field {{
       align-self: end;
       min-height: 30px;
-    }}
-    .settings-gradient-group {{
-      flex: 1 1 420px;
-      min-width: min(100%, 320px);
-      margin: 0;
-      padding: 10px;
-      border: 1px solid var(--settings-line-soft);
-      border-radius: 10px;
-      background: var(--settings-bg-muted);
-    }}
-    .settings-gradient-group legend {{
-      padding: 0 4px;
-      color: var(--settings-text-muted);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }}
-    .settings-background-panel {{
-      flex-basis: 100%;
     }}
     .settings-background-source-fields {{
       display: grid;
@@ -10553,6 +10532,7 @@
       }}
       .settings-gradient-fields.settings-theme-surface-fields,
       .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-theme-gradient-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
@@ -10569,6 +10549,7 @@
       }}
       .settings-gradient-fields.settings-theme-surface-fields,
       .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-theme-gradient-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
       .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
