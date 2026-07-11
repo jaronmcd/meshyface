@@ -7,6 +7,7 @@
         || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
         || controlId === "settings-meshyface-theme-sharing"
+        || String(controlId || "").startsWith("settings-meshyface-node-theme-")
         || controlId === "settings-appearance-keep-screen-on"
         || controlId === "settings-raw-packet-capture-enabled"
         || controlId === "theme-custom-base-color"
@@ -205,6 +206,9 @@
         profileBroadcastBtn.addEventListener("click", () => {{
           void broadcastMeshyfaceProfileTheme();
         }});
+      }}
+      if (typeof bindMeshyfaceNodeThemeControls === "function") {{
+        bindMeshyfaceNodeThemeControls();
       }}
       syncSettingsTimeSyncControls();
       syncSettingsAppearanceControls();

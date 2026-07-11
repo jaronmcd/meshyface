@@ -474,10 +474,110 @@
       return documentMode === "dark" ? "dark" : "light";
     }}
 
+    const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);
+
+    function normalizeMeshyfaceNodeThemeMode(rawMode, fallback = "current") {{
+      const clean = String(rawMode || "").trim().toLowerCase();
+      if (meshyfaceNodeThemeModes.has(clean)) return clean;
+      const fallbackClean = String(fallback || "").trim().toLowerCase();
+      return meshyfaceNodeThemeModes.has(fallbackClean) ? fallbackClean : "current";
+    }}
+
+    function defaultMeshyfaceNodeThemeSettings() {{
+      const normalized = typeof normalizeThemeCustomSettings === "function"
+        ? normalizeThemeCustomSettings({{}})
+        : {{
+          base_color: "#007bff",
+          line_color: "#0da6ff",
+          line_contrast_color: "#4f55ff",
+          color_depth: 44,
+          foreground_transparency: 39,
+          foreground_blur: 0,
+          text_font: "system",
+          gradient_primary_start_color: "#00356e",
+          gradient_primary_end_color: "#060d1f",
+          gradient_primary_type: "linear",
+          gradient_primary_direction: "right",
+        }};
+      return Object.assign({{}}, normalized, {{ mode: "current" }});
+    }}
+
+    function dashboardThemeSettingsForMeshyfaceNode() {{
+      if (
+        typeof themeEditableSettingsForPreset === "function"
+        && typeof normalizeThemeCustomSettings === "function"
+      ) {{
+        return Object.assign(
+          {{}},
+          normalizeThemeCustomSettings(themeEditableSettingsForPreset(themePresetSelected)),
+          {{ mode: "current" }}
+        );
+      }}
+      return defaultMeshyfaceNodeThemeSettings();
+    }}
+
+    function normalizeMeshyfaceNodeThemeSettings(rawSettings, fallbackSettings = null) {{
+      const fallback = fallbackSettings && typeof fallbackSettings === "object" && !Array.isArray(fallbackSettings)
+        ? fallbackSettings
+        : dashboardThemeSettingsForMeshyfaceNode();
+      const payload = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
+        ? rawSettings
+        : {{}};
+      const normalized = typeof normalizeThemeCustomSettings === "function"
+        ? normalizeThemeCustomSettings(Object.assign({{}}, fallback, payload))
+        : defaultMeshyfaceNodeThemeSettings();
+      return Object.assign({{}}, normalized, {{
+        mode: normalizeMeshyfaceNodeThemeMode(payload.mode, fallback.mode),
+      }});
+    }}
+
+    function sanitizeMeshyfaceNodeThemeName(rawName) {{
+      const clean = String(rawName || "").trim().replace(/\s+/g, " ").slice(0, 48);
+      if (!clean || clean.toLowerCase() === "custom") return "";
+      return clean;
+    }}
+
+    function normalizeMeshyfaceNodeThemeCatalog(rawCatalog) {{
+      const normalized = {{}};
+      if (!rawCatalog || typeof rawCatalog !== "object" || Array.isArray(rawCatalog)) return normalized;
+      const fallback = dashboardThemeSettingsForMeshyfaceNode();
+      let count = 0;
+      for (const [rawName, rawSettings] of Object.entries(rawCatalog)) {{
+        const name = sanitizeMeshyfaceNodeThemeName(rawName);
+        if (!name) continue;
+        normalized[name] = normalizeMeshyfaceNodeThemeSettings(rawSettings, fallback);
+        count += 1;
+        if (count >= 50) break;
+      }}
+      return normalized;
+    }}
+
+    function normalizeMeshyfaceNodeThemeName(rawName, catalog = settingsMeshyfaceNodeThemeCatalog, fallback = "custom") {{
+      const name = sanitizeMeshyfaceNodeThemeName(rawName);
+      if (name && catalog && Object.prototype.hasOwnProperty.call(catalog, name)) return name;
+      const cleanFallback = sanitizeMeshyfaceNodeThemeName(fallback);
+      if (cleanFallback && catalog && Object.prototype.hasOwnProperty.call(catalog, cleanFallback)) {{
+        return cleanFallback;
+      }}
+      return "custom";
+    }}
+
+    function currentMeshyfaceNodeThemeSettings() {{
+      const catalog = normalizeMeshyfaceNodeThemeCatalog(settingsMeshyfaceNodeThemeCatalog);
+      const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, catalog);
+      if (selected !== "custom" && Object.prototype.hasOwnProperty.call(catalog, selected)) {{
+        return normalizeMeshyfaceNodeThemeSettings(catalog[selected]);
+      }}
+      if (settingsMeshyfaceNodeThemeSettings && typeof settingsMeshyfaceNodeThemeSettings === "object") {{
+        return normalizeMeshyfaceNodeThemeSettings(settingsMeshyfaceNodeThemeSettings);
+      }}
+      return dashboardThemeSettingsForMeshyfaceNode();
+    }}
+
     function currentMeshyfaceProfileThemeRecipe() {{
-      if (typeof themeEditableSettingsForPreset !== "function") return null;
-      const settings = themeEditableSettingsForPreset(themePresetSelected);
+      const settings = currentMeshyfaceNodeThemeSettings();
       if (!settings || typeof settings !== "object") return null;
+      const requestedMode = normalizeMeshyfaceNodeThemeMode(settings.mode);
       return normalizeMeshyfaceProfileTheme({{
         version: meshyfaceProfileThemeVersion,
         base_color: settings.base_color,
@@ -491,7 +591,7 @@
         text_font: settings.text_font,
         gradient_primary_type: settings.gradient_primary_type,
         gradient_primary_direction: settings.gradient_primary_direction,
-        mode: resolvedMeshyfaceProfileThemeMode(),
+        mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,
       }});
     }}
 
@@ -528,6 +628,155 @@
     function meshyfaceProfileThemeAlphaGradient(color, opacity) {{
       const fill = meshyfaceProfileThemeAlphaColor(color, opacity);
       return fill ? "linear-gradient(" + fill + ", " + fill + ")" : "";
+    }}
+
+    function meshyfaceProfileThemeSurfaceColorAndOpacity(value) {{
+      const cleanColor = normalizeMeshyfaceProfileColor(value, "");
+      if (cleanColor) return {{ color: cleanColor, opacity: 100 }};
+      const match = /^rgba\(\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?)\s*\)$/i.exec(
+        String(value || "").trim()
+      );
+      if (!match) return null;
+      const red = Number.parseInt(match[1], 10);
+      const green = Number.parseInt(match[2], 10);
+      const blue = Number.parseInt(match[3], 10);
+      const alpha = Number.parseFloat(match[4]);
+      if (
+        !Number.isFinite(red)
+        || !Number.isFinite(green)
+        || !Number.isFinite(blue)
+        || !Number.isFinite(alpha)
+        || red < 0
+        || red > 255
+        || green < 0
+        || green > 255
+        || blue < 0
+        || blue > 255
+        || alpha < 0
+        || alpha > 1
+      ) {{
+        return null;
+      }}
+      const hex = [red, green, blue]
+        .map((part) => Math.round(part).toString(16).padStart(2, "0"))
+        .join("");
+      return {{ color: `#${{hex}}`, opacity: Math.round(alpha * 100) }};
+    }}
+
+    function meshyfaceNodeThemePreviewPayload(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return null;
+      return {{
+        preset_name: "custom",
+        preview_only: true,
+        custom_theme: {{
+          base_color: theme.base_color,
+          line_color: theme.line_color,
+          line_contrast_color: theme.line_contrast_color,
+          color_depth: theme.color_depth,
+          foreground_transparency: theme.foreground_transparency,
+          foreground_blur: theme.foreground_blur,
+          text_font: theme.text_font,
+          gradient_primary_start_color: theme.gradient_primary_start_color,
+          gradient_primary_end_color: theme.gradient_primary_end_color,
+          gradient_primary_type: theme.gradient_primary_type,
+          gradient_primary_direction: theme.gradient_primary_direction,
+          background_type: "particles",
+          particles_enabled: false,
+          particles_links: false,
+          particles_count: 0,
+        }},
+      }};
+    }}
+
+    function meshyfaceNodeThemePreviewRenderFromPayload(payload, rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme || !payload || typeof payload !== "object") return null;
+      const presets = payload.presets && typeof payload.presets === "object" ? payload.presets : null;
+      const customPreset = presets && presets.custom && typeof presets.custom === "object" ? presets.custom : null;
+      const tokens = customPreset && customPreset[theme.mode] && typeof customPreset[theme.mode] === "object"
+        ? customPreset[theme.mode]
+        : null;
+      if (!tokens) return null;
+      const surface = meshyfaceProfileThemeSurfaceColorAndOpacity(tokens["--workspace-shell-bg"]);
+      const surfaceHover = meshyfaceProfileThemeSurfaceColorAndOpacity(tokens["--workspace-shell-hover-bg"]);
+      return normalizeMeshyfaceProfileThemeRender({{
+        background_start_color: tokens["--theme-background-gradient-start"],
+        background_end_color: tokens["--theme-background-gradient-end"],
+        surface_color: surface && surface.color,
+        surface_opacity: surface && surface.opacity,
+        surface_hover_color: surfaceHover && surfaceHover.color,
+        surface_hover_opacity: surfaceHover && surfaceHover.opacity,
+        border_color: tokens["--workspace-shell-border"],
+        border_muted_color: tokens["--workspace-shell-border-muted"],
+      }});
+    }}
+
+    function clearMeshyfaceNodeThemePreviewTimer() {{
+      if (settingsMeshyfaceNodeThemePreviewTimer !== null) {{
+        window.clearTimeout(settingsMeshyfaceNodeThemePreviewTimer);
+        settingsMeshyfaceNodeThemePreviewTimer = null;
+      }}
+    }}
+
+    async function refreshMeshyfaceNodeThemePreviewRender(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const signature = meshyfaceProfileThemeSignature(theme);
+      if (!theme || !signature) return false;
+      const payloadBody = meshyfaceNodeThemePreviewPayload(theme);
+      if (!payloadBody) return false;
+      const requestSerial = ++settingsMeshyfaceNodeThemePreviewRequestSerial;
+      let abortController = null;
+      if (typeof AbortController === "function") {{
+        if (settingsMeshyfaceNodeThemePreviewAbortController instanceof AbortController) {{
+          settingsMeshyfaceNodeThemePreviewAbortController.abort();
+        }}
+        abortController = new AbortController();
+        settingsMeshyfaceNodeThemePreviewAbortController = abortController;
+      }}
+      try {{
+        const requestInit = {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(payloadBody),
+        }};
+        if (abortController instanceof AbortController) {{
+          requestInit.signal = abortController.signal;
+        }}
+        const resp = await fetch(themeSettingsEndpoint, requestInit);
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok || !payload || payload.ok === false) return false;
+        if (requestSerial !== settingsMeshyfaceNodeThemePreviewRequestSerial) return false;
+        const render = meshyfaceNodeThemePreviewRenderFromPayload(payload, theme);
+        if (!render) return false;
+        settingsMeshyfaceNodeThemePreviewRender = render;
+        settingsMeshyfaceNodeThemePreviewSignature = signature;
+        renderMeshyfaceNodeThemePreview({{ refreshRender: false }});
+        return true;
+      }} catch (_err) {{
+        return false;
+      }} finally {{
+        if (settingsMeshyfaceNodeThemePreviewAbortController === abortController) {{
+          settingsMeshyfaceNodeThemePreviewAbortController = null;
+        }}
+      }}
+    }}
+
+    function queueMeshyfaceNodeThemePreviewRenderRefresh(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const signature = meshyfaceProfileThemeSignature(theme);
+      if (!theme || !signature) return;
+      if (
+        settingsMeshyfaceNodeThemePreviewSignature === signature
+        && normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
+      ) {{
+        return;
+      }}
+      clearMeshyfaceNodeThemePreviewTimer();
+      settingsMeshyfaceNodeThemePreviewTimer = window.setTimeout(() => {{
+        settingsMeshyfaceNodeThemePreviewTimer = null;
+        void refreshMeshyfaceNodeThemePreviewRender(theme);
+      }}, 80);
     }}
 
     const meshyfaceProfileThemeStyleProperties = [
@@ -967,6 +1216,465 @@
         target.style.setProperty(property, value);
       }}
       return true;
+    }}
+
+    function setMeshyfaceNodeThemeStatusText(message, error = false) {{
+      if (typeof setMeshyfaceProfileStatusText === "function") {{
+        setMeshyfaceProfileStatusText(message, error);
+      }} else if (typeof setSettingsStatusText === "function") {{
+        setSettingsStatusText(message);
+      }}
+    }}
+
+    function loadMeshyfaceNodeThemePreferencesFromStorage() {{
+      let catalog = {{}};
+      try {{
+        const rawCatalog = window.localStorage.getItem(settingsMeshyfaceNodeThemeCatalogStorageKey) || "";
+        catalog = rawCatalog ? normalizeMeshyfaceNodeThemeCatalog(JSON.parse(rawCatalog)) : {{}};
+      }} catch (_err) {{
+        catalog = {{}};
+      }}
+      settingsMeshyfaceNodeThemeCatalog = catalog;
+      try {{
+        const rawSettings = window.localStorage.getItem(settingsMeshyfaceNodeThemeStorageKey) || "";
+        settingsMeshyfaceNodeThemeSettings = rawSettings
+          ? normalizeMeshyfaceNodeThemeSettings(JSON.parse(rawSettings))
+          : null;
+      }} catch (_err) {{
+        settingsMeshyfaceNodeThemeSettings = null;
+      }}
+      try {{
+        settingsMeshyfaceNodeThemeSelected = normalizeMeshyfaceNodeThemeName(
+          window.localStorage.getItem(settingsMeshyfaceNodeThemeSelectedStorageKey) || "custom",
+          settingsMeshyfaceNodeThemeCatalog
+        );
+      }} catch (_err) {{
+        settingsMeshyfaceNodeThemeSelected = "custom";
+      }}
+    }}
+
+    function persistMeshyfaceNodeThemePreferences() {{
+      try {{
+        settingsMeshyfaceNodeThemeCatalog = normalizeMeshyfaceNodeThemeCatalog(settingsMeshyfaceNodeThemeCatalog);
+        settingsMeshyfaceNodeThemeSelected = normalizeMeshyfaceNodeThemeName(
+          settingsMeshyfaceNodeThemeSelected,
+          settingsMeshyfaceNodeThemeCatalog
+        );
+        window.localStorage.setItem(
+          settingsMeshyfaceNodeThemeCatalogStorageKey,
+          JSON.stringify(settingsMeshyfaceNodeThemeCatalog)
+        );
+        window.localStorage.setItem(settingsMeshyfaceNodeThemeSelectedStorageKey, settingsMeshyfaceNodeThemeSelected);
+        if (settingsMeshyfaceNodeThemeSettings && typeof settingsMeshyfaceNodeThemeSettings === "object") {{
+          settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(settingsMeshyfaceNodeThemeSettings);
+          window.localStorage.setItem(
+            settingsMeshyfaceNodeThemeStorageKey,
+            JSON.stringify(settingsMeshyfaceNodeThemeSettings)
+          );
+        }} else {{
+          window.localStorage.removeItem(settingsMeshyfaceNodeThemeStorageKey);
+        }}
+      }} catch (_err) {{
+      }}
+    }}
+
+    function localMeshyfaceNodeThemePreviewName() {{
+      const safeState = latestState && typeof latestState === "object" ? latestState : {{}};
+      const localNodeId = normalizeNodeId(
+        typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : ""
+      );
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const node = localNodeId
+        ? nodes.find((entry) => normalizeNodeId(entry && entry.id) === localNodeId)
+        : null;
+      return (
+        (node && typeof preferredNodeName === "function" ? preferredNodeName(node) : "")
+        || (localNodeId && nodeNameCache.get(localNodeId))
+        || "Your node"
+      );
+    }}
+
+    function meshyfaceNodeThemePreviewTargets() {{
+      return [
+        document.getElementById("settings-meshyface-node-theme-preview-card"),
+        document.getElementById("settings-meshyface-node-theme-preview-member"),
+      ].filter((target) => target instanceof HTMLElement);
+    }}
+
+    function renderMeshyfaceNodeThemePreview(options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const preview = document.getElementById("settings-meshyface-node-theme-preview");
+      if (!(preview instanceof HTMLElement)) return;
+      const theme = currentMeshyfaceProfileThemeRecipe();
+      const preset = meshyfaceProfileAppearancePreset(theme);
+      const themeSignature = meshyfaceProfileThemeSignature(theme);
+      const previewRender = (
+        themeSignature
+        && settingsMeshyfaceNodeThemePreviewSignature === themeSignature
+      )
+        ? normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
+        : null;
+      const previewTargets = meshyfaceNodeThemePreviewTargets();
+      if (theme && preset) {{
+        const appearanceEntry = {{
+          nodeId: "local-preview",
+          source: "local-profile-preview",
+          color: previewRender ? previewRender.border_color : theme.line_color,
+          theme,
+          ...(previewRender ? {{ render: previewRender }} : {{}}),
+          presetId: preset.id,
+          preset,
+          profileAppearance: true,
+          localProfile: true,
+        }};
+        for (const target of previewTargets) {{
+          applyNodeAppearanceElementStyle(target, appearanceEntry);
+        }}
+        if (opts.refreshRender !== false) {{
+          queueMeshyfaceNodeThemePreviewRenderRefresh(theme);
+        }}
+      }} else {{
+        clearMeshyfaceNodeThemePreviewTimer();
+        for (const target of previewTargets) {{
+          clearNodeAppearanceElementStyle(target);
+        }}
+      }}
+      const previewName = localMeshyfaceNodeThemePreviewName();
+      for (const id of [
+        "settings-meshyface-node-theme-preview-name",
+        "settings-meshyface-node-theme-preview-member-name",
+      ]) {{
+        const nameEl = document.getElementById(id);
+        if (nameEl instanceof HTMLElement) {{
+          nameEl.textContent = previewName;
+        }}
+      }}
+      const messageEl = document.getElementById("settings-meshyface-node-theme-preview-message");
+      if (messageEl instanceof HTMLElement) {{
+        messageEl.textContent = "Node theme preview";
+      }}
+      const modeEl = document.getElementById("settings-meshyface-node-theme-preview-mode");
+      const settings = currentMeshyfaceNodeThemeSettings();
+      const requestedMode = normalizeMeshyfaceNodeThemeMode(settings && settings.mode);
+      const resolvedMode = theme ? theme.mode : resolvedMeshyfaceProfileThemeMode();
+      if (modeEl instanceof HTMLElement) {{
+        modeEl.textContent = requestedMode === "current" ? `current: ${{resolvedMode}}` : requestedMode;
+      }}
+      const metaEl = document.getElementById("settings-meshyface-node-theme-preview-meta");
+      if (metaEl instanceof HTMLElement) {{
+        metaEl.textContent = settingsMeshyfaceThemeSharingEnabled
+          ? "Shared when you broadcast your node theme"
+          : "Preview only while Theme Sharing is off";
+      }}
+    }}
+
+    function syncMeshyfaceNodeThemeControls() {{
+      const catalog = normalizeMeshyfaceNodeThemeCatalog(settingsMeshyfaceNodeThemeCatalog);
+      settingsMeshyfaceNodeThemeCatalog = catalog;
+      settingsMeshyfaceNodeThemeSelected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, catalog);
+      const settings = currentMeshyfaceNodeThemeSettings();
+      const selected = settingsMeshyfaceNodeThemeSelected;
+      const select = document.getElementById("settings-meshyface-node-theme-select");
+      if (select instanceof HTMLSelectElement) {{
+        select.innerHTML = "";
+        const customOption = document.createElement("option");
+        customOption.value = "custom";
+        customOption.textContent = settingsMeshyfaceNodeThemeSettings ? "Unsaved node theme" : "Current dashboard theme";
+        select.appendChild(customOption);
+        for (const name of Object.keys(catalog).sort((a, b) => a.localeCompare(b))) {{
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name;
+          select.appendChild(option);
+        }}
+        select.value = selected;
+      }}
+      const setColorInput = (id, value, fallback) => {{
+        const input = document.getElementById(id);
+        if (!(input instanceof HTMLInputElement)) return;
+        input.value = normalizeThemeCustomBaseColor(value || fallback);
+        if (typeof syncDashboardColorPickerInput === "function") {{
+          syncDashboardColorPickerInput(input, {{ fallback: normalizeThemeCustomBaseColor(fallback || value) }});
+        }}
+      }};
+      setColorInput("settings-meshyface-node-theme-base-color", settings.base_color, "#007bff");
+      setColorInput("settings-meshyface-node-theme-line-color", settings.line_color, settings.base_color || "#0da6ff");
+      setColorInput("settings-meshyface-node-theme-line-contrast-color", settings.line_contrast_color, "#4f55ff");
+      setColorInput("settings-meshyface-node-theme-gradient-start-color", settings.gradient_primary_start_color, settings.base_color || "#00356e");
+      setColorInput("settings-meshyface-node-theme-gradient-end-color", settings.gradient_primary_end_color, "#060d1f");
+      const textFontSelect = document.getElementById("settings-meshyface-node-theme-text-font");
+      if (textFontSelect instanceof HTMLSelectElement) {{
+        textFontSelect.value = normalizeThemeCustomTextFont(settings.text_font);
+      }}
+      const gradientTypeSelect = document.getElementById("settings-meshyface-node-theme-gradient-type");
+      if (gradientTypeSelect instanceof HTMLSelectElement) {{
+        gradientTypeSelect.value = normalizeThemeCustomGradientType(settings.gradient_primary_type);
+      }}
+      const gradientDirectionSelect = document.getElementById("settings-meshyface-node-theme-gradient-direction");
+      if (gradientDirectionSelect instanceof HTMLSelectElement) {{
+        gradientDirectionSelect.value = normalizeThemeCustomGradientDirection(settings.gradient_primary_direction);
+      }}
+      const modeSelect = document.getElementById("settings-meshyface-node-theme-mode");
+      if (modeSelect instanceof HTMLSelectElement) {{
+        modeSelect.value = normalizeMeshyfaceNodeThemeMode(settings.mode);
+      }}
+      const setRangeInput = (id, outputId, value, suffix, normalize) => {{
+        const normalized = normalize(value);
+        const input = document.getElementById(id);
+        if (input instanceof HTMLInputElement) {{
+          input.value = String(normalized);
+        }}
+        const output = document.getElementById(outputId);
+        if (output instanceof HTMLOutputElement || output instanceof HTMLElement) {{
+          output.textContent = `${{normalized}}${{suffix}}`;
+        }}
+      }};
+      setRangeInput(
+        "settings-meshyface-node-theme-color-depth",
+        "settings-meshyface-node-theme-color-depth-value",
+        settings.color_depth,
+        "%",
+        normalizeThemeCustomColorDepth
+      );
+      setRangeInput(
+        "settings-meshyface-node-theme-foreground-transparency",
+        "settings-meshyface-node-theme-foreground-transparency-value",
+        settings.foreground_transparency,
+        "%",
+        normalizeThemeCustomForegroundTransparency
+      );
+      setRangeInput(
+        "settings-meshyface-node-theme-foreground-blur",
+        "settings-meshyface-node-theme-foreground-blur-value",
+        settings.foreground_blur,
+        "",
+        normalizeThemeCustomForegroundBlur
+      );
+      const selectedSavedTheme = selected !== "custom" && Object.prototype.hasOwnProperty.call(catalog, selected);
+      const renameBtn = document.getElementById("settings-meshyface-node-theme-rename");
+      if (renameBtn instanceof HTMLButtonElement) {{
+        renameBtn.hidden = !selectedSavedTheme;
+      }}
+      const deleteBtn = document.getElementById("settings-meshyface-node-theme-delete");
+      if (deleteBtn instanceof HTMLButtonElement) {{
+        deleteBtn.hidden = !selectedSavedTheme;
+      }}
+      renderMeshyfaceNodeThemePreview();
+    }}
+
+    function updateMeshyfaceNodeThemeSettingPatch(patch, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const current = currentMeshyfaceNodeThemeSettings();
+      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(
+        Object.assign({{}}, current, patch && typeof patch === "object" ? patch : {{}}),
+        current
+      );
+      if (opts.keepSelected !== true) {{
+        settingsMeshyfaceNodeThemeSelected = "custom";
+      }}
+      persistMeshyfaceNodeThemePreferences();
+      syncMeshyfaceNodeThemeControls();
+      if (opts.rerender !== false && typeof rerenderMeshyfaceProfileAppearance === "function") {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
+    }}
+
+    function resetMeshyfaceNodeThemeFromDashboard() {{
+      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(
+        dashboardThemeSettingsForMeshyfaceNode()
+      );
+      settingsMeshyfaceNodeThemeSelected = "custom";
+      persistMeshyfaceNodeThemePreferences();
+      syncMeshyfaceNodeThemeControls();
+      if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
+      setMeshyfaceNodeThemeStatusText("Node theme reset from the current dashboard theme.");
+    }}
+
+    function saveCurrentMeshyfaceNodeThemeAs() {{
+      const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
+      const suggested = selected === "custom" ? "" : selected;
+      const rawName = window.prompt("Save node theme as:", suggested);
+      if (rawName == null) return false;
+      const name = sanitizeMeshyfaceNodeThemeName(rawName);
+      if (!name) return false;
+      if (
+        Object.prototype.hasOwnProperty.call(settingsMeshyfaceNodeThemeCatalog, name)
+        && !window.confirm(`Replace saved node theme "${{name}}"?`)
+      ) {{
+        return false;
+      }}
+      const settings = currentMeshyfaceNodeThemeSettings();
+      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemeSettings(settings);
+      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(settings);
+      settingsMeshyfaceNodeThemeSelected = name;
+      persistMeshyfaceNodeThemePreferences();
+      syncMeshyfaceNodeThemeControls();
+      setMeshyfaceNodeThemeStatusText(`Saved node theme "${{name}}".`);
+      return true;
+    }}
+
+    function renameSelectedMeshyfaceNodeTheme() {{
+      const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
+      if (selected === "custom") return false;
+      const rawName = window.prompt("Rename node theme:", selected);
+      if (rawName == null) return false;
+      const name = sanitizeMeshyfaceNodeThemeName(rawName);
+      if (!name || name === selected) return false;
+      if (
+        Object.prototype.hasOwnProperty.call(settingsMeshyfaceNodeThemeCatalog, name)
+        && !window.confirm(`Replace saved node theme "${{name}}"?`)
+      ) {{
+        return false;
+      }}
+      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemeSettings(
+        settingsMeshyfaceNodeThemeCatalog[selected]
+      );
+      delete settingsMeshyfaceNodeThemeCatalog[selected];
+      settingsMeshyfaceNodeThemeSelected = name;
+      persistMeshyfaceNodeThemePreferences();
+      syncMeshyfaceNodeThemeControls();
+      setMeshyfaceNodeThemeStatusText(`Renamed node theme to "${{name}}".`);
+      return true;
+    }}
+
+    function deleteSelectedMeshyfaceNodeTheme() {{
+      const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
+      if (selected === "custom") return false;
+      if (!window.confirm(`Delete node theme "${{selected}}"? This cannot be undone.`)) return false;
+      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(
+        settingsMeshyfaceNodeThemeCatalog[selected]
+      );
+      delete settingsMeshyfaceNodeThemeCatalog[selected];
+      settingsMeshyfaceNodeThemeSelected = "custom";
+      persistMeshyfaceNodeThemePreferences();
+      syncMeshyfaceNodeThemeControls();
+      setMeshyfaceNodeThemeStatusText(`Deleted node theme "${{selected}}".`);
+      return true;
+    }}
+
+    function bindMeshyfaceNodeThemeControls() {{
+      const select = document.getElementById("settings-meshyface-node-theme-select");
+      if (select instanceof HTMLSelectElement && select.dataset.bound !== "1") {{
+        select.dataset.bound = "1";
+        select.addEventListener("change", () => {{
+          const next = normalizeMeshyfaceNodeThemeName(select.value, settingsMeshyfaceNodeThemeCatalog);
+          settingsMeshyfaceNodeThemeSelected = next;
+          if (next !== "custom") {{
+            settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(
+              settingsMeshyfaceNodeThemeCatalog[next]
+            );
+          }}
+          persistMeshyfaceNodeThemePreferences();
+          syncMeshyfaceNodeThemeControls();
+          if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
+            rerenderMeshyfaceProfileAppearance();
+          }}
+        }});
+      }}
+
+      const bindButton = (id, handler) => {{
+        const button = document.getElementById(id);
+        if (!(button instanceof HTMLButtonElement) || button.dataset.bound === "1") return;
+        button.dataset.bound = "1";
+        button.addEventListener("click", handler);
+      }};
+      bindButton("settings-meshyface-node-theme-reset", resetMeshyfaceNodeThemeFromDashboard);
+      bindButton("settings-meshyface-node-theme-save", saveCurrentMeshyfaceNodeThemeAs);
+      bindButton("settings-meshyface-node-theme-rename", renameSelectedMeshyfaceNodeTheme);
+      bindButton("settings-meshyface-node-theme-delete", deleteSelectedMeshyfaceNodeTheme);
+
+      const bindColorInput = (id, key, normalize, fallback) => {{
+        const input = document.getElementById(id);
+        if (!(input instanceof HTMLInputElement) || input.dataset.bound === "1") return;
+        if (typeof attachDashboardColorPicker === "function") {{
+          attachDashboardColorPicker(input, {{
+            fallback,
+            label: String(key || "").replace(/_/g, " "),
+            buttonLabel: "Pick node theme color",
+          }});
+        }}
+        input.dataset.bound = "1";
+        input.addEventListener("input", () => {{
+          if (!themeCustomColorInputHasCompleteHex(input)) return;
+          updateMeshyfaceNodeThemeSettingPatch({{ [key]: normalize(input.value, fallback) }}, {{ rerender: false }});
+        }});
+        input.addEventListener("change", () => {{
+          if (!themeCustomColorInputHasCompleteHex(input)) {{
+            syncMeshyfaceNodeThemeControls();
+            return;
+          }}
+          updateMeshyfaceNodeThemeSettingPatch({{ [key]: normalize(input.value, fallback) }});
+        }});
+      }};
+      bindColorInput(
+        "settings-meshyface-node-theme-base-color",
+        "base_color",
+        normalizeThemeCustomBaseColor,
+        "#007bff"
+      );
+      bindColorInput(
+        "settings-meshyface-node-theme-line-color",
+        "line_color",
+        normalizeThemeCustomLineColor,
+        "#0da6ff"
+      );
+      bindColorInput(
+        "settings-meshyface-node-theme-line-contrast-color",
+        "line_contrast_color",
+        normalizeThemeCustomLineContrastColor,
+        "#4f55ff"
+      );
+      bindColorInput(
+        "settings-meshyface-node-theme-gradient-start-color",
+        "gradient_primary_start_color",
+        normalizeThemeCustomGradientColor,
+        "#00356e"
+      );
+      bindColorInput(
+        "settings-meshyface-node-theme-gradient-end-color",
+        "gradient_primary_end_color",
+        normalizeThemeCustomGradientColor,
+        "#060d1f"
+      );
+
+      const bindSelect = (id, key, normalize) => {{
+        const selectEl = document.getElementById(id);
+        if (!(selectEl instanceof HTMLSelectElement) || selectEl.dataset.bound === "1") return;
+        selectEl.dataset.bound = "1";
+        selectEl.addEventListener("change", () => {{
+          updateMeshyfaceNodeThemeSettingPatch({{ [key]: normalize(selectEl.value) }});
+        }});
+      }};
+      bindSelect("settings-meshyface-node-theme-text-font", "text_font", normalizeThemeCustomTextFont);
+      bindSelect("settings-meshyface-node-theme-gradient-type", "gradient_primary_type", normalizeThemeCustomGradientType);
+      bindSelect(
+        "settings-meshyface-node-theme-gradient-direction",
+        "gradient_primary_direction",
+        normalizeThemeCustomGradientDirection
+      );
+      bindSelect("settings-meshyface-node-theme-mode", "mode", normalizeMeshyfaceNodeThemeMode);
+
+      const bindRangeInput = (id, key, normalize) => {{
+        const input = document.getElementById(id);
+        if (!(input instanceof HTMLInputElement) || input.dataset.bound === "1") return;
+        input.dataset.bound = "1";
+        input.addEventListener("input", () => {{
+          updateMeshyfaceNodeThemeSettingPatch({{ [key]: normalize(input.value) }}, {{ rerender: false }});
+        }});
+        input.addEventListener("change", () => {{
+          updateMeshyfaceNodeThemeSettingPatch({{ [key]: normalize(input.value) }});
+        }});
+      }};
+      bindRangeInput("settings-meshyface-node-theme-color-depth", "color_depth", normalizeThemeCustomColorDepth);
+      bindRangeInput(
+        "settings-meshyface-node-theme-foreground-transparency",
+        "foreground_transparency",
+        normalizeThemeCustomForegroundTransparency
+      );
+      bindRangeInput("settings-meshyface-node-theme-foreground-blur", "foreground_blur", normalizeThemeCustomForegroundBlur);
+      syncMeshyfaceNodeThemeControls();
     }}
 
     function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{

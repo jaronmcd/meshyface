@@ -1162,6 +1162,12 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-profile-color"' not in html
     assert 'id="settings-meshyface-profile-accept-remote"' not in html
     assert 'id="settings-meshyface-theme-sharing"' in html
+    assert 'id="settings-meshyface-node-theme-preview"' in html
+    assert 'id="settings-meshyface-node-theme-preview-card"' in html
+    assert 'id="settings-meshyface-node-theme-preview-member"' in html
+    assert 'id="settings-meshyface-node-theme-select"' in html
+    assert 'id="settings-meshyface-node-theme-reset"' in html
+    assert 'id="settings-meshyface-node-theme-save"' in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
@@ -1169,7 +1175,7 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert "Theme Sharing" in html
     assert "Enable Theme Sharing" in html
     assert "Opt in to Theme Sharing" not in html
-    assert "Share current theme" in html
+    assert "Share node theme" in html
     assert "Use received Meshyface themes to style nodes" not in html
 
 
@@ -1184,9 +1190,28 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceProfileAcceptRemoteEnabled" not in js
     assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
     assert 'let settingsMeshyfaceThemeSharingEnabled = true;' in js
+    assert 'let settingsMeshyfaceNodeThemeSettings = null;' in js
+    assert 'let settingsMeshyfaceNodeThemeSelected = "custom";' in js
     assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV1";' in js
+    assert 'const settingsMeshyfaceNodeThemeStorageKey = "meshDashboardMeshyfaceNodeThemeV1";' in js
+    assert (
+        'const settingsMeshyfaceNodeThemeCatalogStorageKey = '
+        '"meshDashboardMeshyfaceNodeThemeCatalogV1";'
+    ) in js
+    assert (
+        'const settingsMeshyfaceNodeThemeSelectedStorageKey = '
+        '"meshDashboardMeshyfaceNodeThemeSelectedV1";'
+    ) in js
     assert 'document.getElementById("settings-meshyface-theme-sharing")' in js
     assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
+    assert "function currentMeshyfaceNodeThemeSettings()" in js
+    assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
+    assert "function syncMeshyfaceNodeThemeControls()" in js
+    assert "function bindMeshyfaceNodeThemeControls()" in js
+    assert "function resetMeshyfaceNodeThemeFromDashboard()" in js
+    assert "function saveCurrentMeshyfaceNodeThemeAs()" in js
+    assert "renderMeshyfaceNodeThemePreview();" in js
     assert "profile.color" not in js
     assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
     assert "function clearRemoteMeshyfaceProfilesCache()" in js

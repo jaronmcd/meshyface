@@ -12,6 +12,9 @@
         }}
       }} catch (_err) {{
       }}
+      if (typeof loadMeshyfaceNodeThemePreferencesFromStorage === "function") {{
+        loadMeshyfaceNodeThemePreferencesFromStorage();
+      }}
     }}
 
     function loadSettingsFixedPositionCache() {{
@@ -43,6 +46,9 @@
           true
         );
       }} catch (_err) {{
+      }}
+      if (typeof persistMeshyfaceNodeThemePreferences === "function") {{
+        persistMeshyfaceNodeThemePreferences();
       }}
     }}
 
@@ -251,6 +257,9 @@
       }}
       if (typeof syncThemeCustomControls === "function") {{
         syncThemeCustomControls();
+      }}
+      if (typeof syncMeshyfaceNodeThemeControls === "function") {{
+        syncMeshyfaceNodeThemeControls();
       }}
     }}
 

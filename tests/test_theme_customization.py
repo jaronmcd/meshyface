@@ -1152,8 +1152,22 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
     assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
-    assert "themeEditableSettingsForPreset(themePresetSelected)" in js
-    assert "mode: resolvedMeshyfaceProfileThemeMode()," in js
+    assert "function currentMeshyfaceNodeThemeSettings()" in js
+    assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
+    assert 'const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);' in js
+    assert 'mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,' in js
+    assert 'id="settings-meshyface-node-theme-preview-card"' in html
+    assert 'id="settings-meshyface-node-theme-preview-member"' in html
+    assert 'class="settings-meshyface-node-theme-preview-shell"' in html
+    assert 'class="chat-feed-item profiled-node chat-selectable"' in html
+    assert 'class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"' in html
+    assert "function meshyfaceNodeThemePreviewPayload(rawTheme)" in js
+    assert "preview_only: true," in js
+    assert "function meshyfaceNodeThemePreviewRenderFromPayload(payload, rawTheme)" in js
+    assert "function refreshMeshyfaceNodeThemePreviewRender(rawTheme)" in js
+    assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in js
+    assert "applyNodeAppearanceElementStyle(target, appearanceEntry);" in js
+    assert "settingsMeshyfaceNodeThemePreviewRender" in js
     assert '? currentMeshyfaceProfileThemeRecipe()' in js
     assert "...(theme ? { theme } : {})," not in js
     assert "if (!theme || !preset) return null;" in js

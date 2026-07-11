@@ -2339,15 +2339,176 @@
                 <strong>Theme Sharing</strong>
               </div>
               <div class="settings-help-note">
-                Share your current theme and see themes shared by other Meshyface nodes. Disabling Theme Sharing stops broadcasts and hides remote themes.
+                Share your node theme and see themes shared by other Meshyface nodes. Disabling Theme Sharing stops broadcasts and hides remote themes.
               </div>
               <label class="settings-field settings-inline">
                 <input id="settings-meshyface-theme-sharing" type="checkbox" />
                 <span>Enable Theme Sharing</span>
               </label>
+              <div class="settings-meshyface-node-theme-panel">
+                <div class="settings-meshyface-node-theme-preview-wrap">
+                  <div class="settings-meshyface-node-theme-preview-head">
+                    <span class="settings-label">Remote node preview</span>
+                    <span id="settings-meshyface-node-theme-preview-mode" class="settings-meshyface-node-theme-preview-mode">current</span>
+                  </div>
+                  <div id="settings-meshyface-node-theme-preview" class="settings-meshyface-node-theme-preview" aria-live="polite">
+                    <div class="settings-meshyface-node-theme-preview-shell">
+                      <div class="chat-feed settings-meshyface-node-theme-preview-feed">
+                        <div
+                          id="settings-meshyface-node-theme-preview-card"
+                          class="chat-feed-item profiled-node chat-selectable"
+                        >
+                          <div class="chat-feed-line">
+                            <div class="chat-feed-summary">
+                              <span class="chat-endpoint chat-feed-author">
+                                <span class="chat-name" id="settings-meshyface-node-theme-preview-name">Your node</span>
+                              </span>
+                              <span class="chat-feed-colon">:</span>
+                              <span class="chat-feed-text chat-feed-text-inline" id="settings-meshyface-node-theme-preview-message">Node theme preview</span>
+                            </div>
+                            <span class="chat-feed-side">
+                              <span class="chat-feed-time">now</span>
+                            </span>
+                          </div>
+                          <div class="chat-reaction-row" aria-hidden="true">
+                            <button class="chat-reaction-summary is-empty" type="button" tabindex="-1">React</button>
+                            <button class="chat-reply-btn" type="button" tabindex="-1">↩ Reply</button>
+                            <button class="chat-hop-watermark-inline chat-hop-reply-btn" type="button" tabindex="-1">
+                              <span class="chat-hop-reply-icon" aria-hidden="true">↩</span>
+                              <span class="chat-hop-reply-text">0 hops</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          id="settings-meshyface-node-theme-preview-member"
+                          class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"
+                          data-node-id="!preview"
+                          data-unread-direct-count="0"
+                          aria-label="Remote node preview"
+                        >
+                          <span class="chat-member-status chat-member-status-dot status-online" title="Status: Online" aria-label="Status: Online">●</span>
+                          <span class="chat-member-main">
+                            <span class="chat-member-name-row">
+                              <span class="chat-member-name-left">
+                                <span class="chat-member-name status-online" id="settings-meshyface-node-theme-preview-member-name">Your node</span>
+                              </span>
+                              <span class="chat-member-actions"></span>
+                            </span>
+                            <span class="chat-member-meta-row" id="settings-meshyface-node-theme-preview-meta">Shared when broadcast</span>
+                            <span class="chat-member-fields-row">
+                              <span>Hops 0</span>
+                              <span>LINK</span>
+                              <span>SNR n/a</span>
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-meshyface-node-theme-controls">
+                  <div class="settings-row settings-theme-preset-row">
+                    <label class="settings-field" for="settings-meshyface-node-theme-select">
+                      <span class="settings-label">Node theme</span>
+                      <select id="settings-meshyface-node-theme-select" class="settings-select" aria-label="Node theme"></select>
+                    </label>
+                    <div class="settings-field settings-theme-preset-actions">
+                      <span class="settings-label">Actions</span>
+                      <div class="settings-inline-actions">
+                        <button id="settings-meshyface-node-theme-reset" class="btn btn-secondary" type="button">Reset from current theme</button>
+                        <button id="settings-meshyface-node-theme-save" class="btn btn-secondary" type="button">Save as</button>
+                        <button id="settings-meshyface-node-theme-rename" class="btn btn-secondary" type="button" hidden>Rename</button>
+                        <button id="settings-meshyface-node-theme-delete" class="btn btn-danger" type="button" hidden>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="settings-gradient-fields settings-meshyface-node-theme-fields">
+                    <label class="settings-field" for="settings-meshyface-node-theme-base-color">
+                      <span class="settings-label">Base color</span>
+                      <input id="settings-meshyface-node-theme-base-color" class="settings-input settings-color-input" type="color" value="#007bff" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-line-color">
+                      <span class="settings-label">Line color</span>
+                      <input id="settings-meshyface-node-theme-line-color" class="settings-input settings-color-input" type="color" value="#0da6ff" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-line-contrast-color">
+                      <span class="settings-label">Contrast color</span>
+                      <input id="settings-meshyface-node-theme-line-contrast-color" class="settings-input settings-color-input" type="color" value="#4f55ff" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-text-font">
+                      <span class="settings-label">Text</span>
+                      <select id="settings-meshyface-node-theme-text-font" class="settings-select">
+                        <option value="system">System</option>
+                        <option value="compact">Compact</option>
+                        <option value="rounded">Rounded</option>
+                        <option value="mono">Mono</option>
+                        <option value="serif">Serif</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-start-color">
+                      <span class="settings-label">Start color</span>
+                      <input id="settings-meshyface-node-theme-gradient-start-color" class="settings-input settings-color-input" type="color" value="#00356e" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-end-color">
+                      <span class="settings-label">End color</span>
+                      <input id="settings-meshyface-node-theme-gradient-end-color" class="settings-input settings-color-input" type="color" value="#060d1f" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-type">
+                      <span class="settings-label">Type</span>
+                      <select id="settings-meshyface-node-theme-gradient-type" class="settings-select">
+                        <option value="linear">Linear</option>
+                        <option value="radial">Radial</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-gradient-direction">
+                      <span class="settings-label">Direction</span>
+                      <select id="settings-meshyface-node-theme-gradient-direction" class="settings-select">
+                        <option value="right">Right</option>
+                        <option value="left">Left</option>
+                        <option value="down">Down</option>
+                        <option value="up">Up</option>
+                        <option value="down-right">Down right</option>
+                        <option value="down-left">Down left</option>
+                        <option value="up-right">Up right</option>
+                        <option value="up-left">Up left</option>
+                        <option value="center">Center</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-mode">
+                      <span class="settings-label">Mode</span>
+                      <select id="settings-meshyface-node-theme-mode" class="settings-select">
+                        <option value="current">Current display</option>
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                      </select>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-color-depth">
+                      <span class="settings-label">Color depth</span>
+                      <div class="settings-range-row">
+                        <input id="settings-meshyface-node-theme-color-depth" class="settings-range-input" type="range" min="0" max="100" step="1" value="44" />
+                        <output id="settings-meshyface-node-theme-color-depth-value" for="settings-meshyface-node-theme-color-depth">44%</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-transparency">
+                      <span class="settings-label">Transparency</span>
+                      <div class="settings-range-row">
+                        <input id="settings-meshyface-node-theme-foreground-transparency" class="settings-range-input" type="range" min="0" max="90" step="1" value="39" />
+                        <output id="settings-meshyface-node-theme-foreground-transparency-value" for="settings-meshyface-node-theme-foreground-transparency">39%</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-blur">
+                      <span class="settings-label">Blur</span>
+                      <div class="settings-range-row">
+                        <input id="settings-meshyface-node-theme-foreground-blur" class="settings-range-input" type="range" min="0" max="40" step="1" value="0" />
+                        <output id="settings-meshyface-node-theme-foreground-blur-value" for="settings-meshyface-node-theme-foreground-blur">0</output>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
               <div class="settings-row">
                 <div class="settings-field">
-                  <span class="settings-label">Share current theme</span>
+                  <span class="settings-label">Share node theme</span>
                   <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast theme</button>
                 </div>
               </div>
