@@ -1399,16 +1399,31 @@
         : "";
     }}
 
-    function meshyfaceProfileGhostStyleEntries(rawGhost) {{
+    function meshyfaceProfileGhostFilterWithThemeBlur(effectFilter, rawTheme = null) {{
+      const cleanFilter = String(effectFilter || "none").trim() || "none";
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const blurValue = theme ? Math.max(0, Math.min(40, theme.foreground_blur)) : 0;
+      const watermarkBlurPx = Math.max(0, Math.min(4, blurValue / 10));
+      if (watermarkBlurPx <= 0) return cleanFilter;
+      const rounded = Math.round(watermarkBlurPx * 10) / 10;
+      const formatted = Number.isInteger(rounded)
+        ? String(rounded)
+        : rounded.toFixed(1).replace(/0+$/, "").replace(/\.$/, "");
+      const blurFilter = `blur(${{formatted}}px)`;
+      return cleanFilter === "none" ? blurFilter : `${{cleanFilter}} ${{blurFilter}}`;
+    }}
+
+    function meshyfaceProfileGhostStyleEntries(rawGhost, rawTheme = null) {{
       const ghost = normalizeMeshyfaceProfileGhost(rawGhost);
       if (!ghost) return [];
       const effect = meshyfaceProfileGhostEffectCss[ghost.effect] || meshyfaceProfileGhostEffectCss.soft;
+      const filter = meshyfaceProfileGhostFilterWithThemeBlur(effect.filter, rawTheme);
       const tiltTransform = meshyfaceProfileGhostTiltCss[ghost.tilt] || meshyfaceProfileGhostTiltCss[meshyfaceProfileGhostTiltDefault];
       return [
         ["--node-profile-ghost-text", JSON.stringify(ghost.text)],
         ["--node-profile-ghost-opacity", (ghost.blend / 100).toFixed(3)],
         ["--node-profile-ghost-blend-mode", effect.blendMode],
-        ["--node-profile-ghost-filter", effect.filter],
+        ["--node-profile-ghost-filter", filter],
         ["--node-profile-ghost-transform", tiltTransform],
         ["--node-profile-ghost-font-size", meshyfaceProfileGhostAutoFontSize(ghost.text)],
         ["--node-profile-ghost-anchor-x", meshyfaceProfileGhostAnchorX(ghost.justify, ghost.text)],
@@ -1417,8 +1432,8 @@
       ];
     }}
 
-    function meshyfaceProfileGhostStyleVars(rawGhost) {{
-      const entries = meshyfaceProfileGhostStyleEntries(rawGhost);
+    function meshyfaceProfileGhostStyleVars(rawGhost, rawTheme = null) {{
+      const entries = meshyfaceProfileGhostStyleEntries(rawGhost, rawTheme);
       return entries.length > 0
         ? entries.map(([property, value]) => `${{property}}:${{value}}`).join(";") + ";"
         : "";
@@ -1448,10 +1463,10 @@
       return entries.length > 0;
     }}
 
-    function applyMeshyfaceProfileGhostElementStyle(target, rawGhost) {{
+    function applyMeshyfaceProfileGhostElementStyle(target, rawGhost, rawTheme = null) {{
       if (!target || !target.style) return false;
       clearMeshyfaceProfileGhostElementStyle(target);
-      const entries = meshyfaceProfileGhostStyleEntries(rawGhost);
+      const entries = meshyfaceProfileGhostStyleEntries(rawGhost, rawTheme);
       for (const [property, value] of entries) {{
         target.style.setProperty(property, value);
       }}
@@ -1819,7 +1834,7 @@
         ? meshyfaceProfileGhostForAppearance(appearanceEntry)
         : null;
       const ghostVars = appearanceEntry.profileAppearance && typeof meshyfaceProfileGhostStyleVars === "function"
-        ? meshyfaceProfileGhostStyleVars(profileGhost)
+        ? meshyfaceProfileGhostStyleVars(profileGhost, appearanceEntry.theme)
         : "";
       // A profile's projected workspace border is its compact identity edge;
       // its advertised host surface supplies the remote-node background.

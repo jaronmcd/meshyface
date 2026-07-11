@@ -1469,6 +1469,7 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert '<option value="center" selected>Center</option>' in html
     assert '<option value="upside-down">Upside down</option>' not in html
     assert "Watermark strength" in html
+    assert "Watermark blur" in html
     assert "Ghost text" not in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
@@ -1569,7 +1570,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function meshyfaceProfileFallbackGhostForNode(nodeId, node = null)" in js
     assert "function meshyfaceProfileGhostForAppearance(appearanceEntry)" in js
     assert "function normalizeMeshyfaceProfileGhost(rawGhost)" in js
-    assert "function meshyfaceProfileGhostStyleVars(rawGhost)" in js
+    assert "function meshyfaceProfileGhostFilterWithThemeBlur(effectFilter, rawTheme = null)" in js
+    assert "const watermarkBlurPx = Math.max(0, Math.min(4, blurValue / 10));" in js
+    assert "return cleanFilter === \"none\" ? blurFilter : `${cleanFilter} ${blurFilter}`;" in js
+    assert "function meshyfaceProfileGhostStyleVars(rawGhost, rawTheme = null)" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
     assert "function syncMeshyfaceNodeThemeControls()" in js
     assert "function bindMeshyfaceNodeThemeControls()" in js
@@ -1665,7 +1669,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "--node-profile-bg:${surfaceBackground};" in js
     assert "const profileGhost = appearanceEntry.profileAppearance" in js
     assert "meshyfaceProfileGhostForAppearance(appearanceEntry)" in js
-    assert "meshyfaceProfileGhostStyleVars(profileGhost)" in js
+    assert "meshyfaceProfileGhostStyleVars(profileGhost, appearanceEntry.theme)" in js
     assert "var(--node-profile-theme-surface, var(--node-profile-theme-background" in js
     assert "const profileRender = typeof normalizeMeshyfaceProfileThemeRender" in js
     assert "--node-profile-theme-background" in js
