@@ -1484,6 +1484,8 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-node-theme-try-dashboard"' in html
     assert 'id="settings-meshyface-node-theme-save-dashboard"' in html
     assert 'id="settings-meshyface-node-theme-ghost-text"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-text-emoji-btn"' in html
+    assert 'data-chat-emoji-target="settings-meshyface-node-theme-ghost-text"' in html
     assert 'id="settings-meshyface-node-theme-ghost-effect"' in html
     assert 'id="settings-meshyface-node-theme-ghost-justify"' in html
     assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
@@ -1527,6 +1529,10 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert "Node Appearance" in html
     assert "Share node appearance" in html
     assert "Allows sending and receiving shared node appearance theme packets." in html
+    assert 'id="settings-owner-short-name-emoji-btn"' in html
+    assert 'data-chat-emoji-target="settings-owner-short-name"' in html
+    assert 'id="settings-owner-long-name-emoji-btn"' in html
+    assert 'data-chat-emoji-target="settings-owner-long-name"' in html
     assert "Shared appearance preview" in html
     assert "Node appearance" in html
     assert "Broadcast appearance" in html
@@ -1565,6 +1571,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
     assert 'let settingsMeshyfaceThemeSharingEnabled = false;' in js
     assert "let settingsMeshyfaceThemeSharingServerPending = null;" in js
+    assert "let chatEmojiTextTargetInput = null;" in js
     assert 'let settingsMeshyfaceNodeThemeSettings = null;' in js
     assert 'let settingsMeshyfaceNodeThemeSelected = "custom";' in js
     assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV2";' in js
@@ -1587,12 +1594,12 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function syncMeshyfaceThemeSharingServerPreference(enabled, options = null)" in js
     assert "function syncMeshyfaceThemeSharingFromState(state = latestState)" in js
     assert 'body: JSON.stringify({ enabled: next }),' in js
+    assert "opts.server === true" in js
     load_prefs_block = js[
         js.index("function loadSettingsAppearancePreferences()")
         : js.index("function persistSettingsAppearancePreferences()")
     ]
     assert "syncMeshyfaceThemeSharingServerPreference(settingsMeshyfaceThemeSharingEnabled" not in load_prefs_block
-    assert "opts.server === true" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
     assert "function currentMeshyfaceProfileGhost()" in js
@@ -1635,6 +1642,9 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "Previewing node appearance on the dashboard. Use Undo look to restore the previous theme." in js
     assert "renderMeshyfaceNodeThemePreview();" in js
     assert 'document.getElementById("settings-meshyface-node-theme-ghost-text")' in js
+    assert "function chatEmojiInputButtons()" in js
+    assert 'openChatEmojiPanel("input", null, btn, false, input);' in js
+    assert "chatEmojiMode === \"input\" && chatEmojiTextTargetInput instanceof HTMLInputElement" in js
     assert 'document.getElementById("settings-meshyface-node-theme-ghost-justify")' in js
     assert 'document.getElementById("settings-meshyface-node-theme-ghost-upside-down")' in js
     assert 'bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);' in js

@@ -713,24 +713,46 @@
               <label class="settings-field">
                 <span class="settings-label">Node Name</span>
                 <div class="settings-row">
-                  <input
-                    id="settings-owner-short-name"
-                    class="settings-input"
-                    type="text"
-                    maxlength="4"
-                    placeholder="Short (max 4)"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                  <input
-                    id="settings-owner-long-name"
-                    class="settings-input"
-                    type="text"
-                    maxlength="80"
-                    placeholder="Long name"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
+                  <div class="settings-emoji-input-row settings-owner-name-input-row">
+                    <input
+                      id="settings-owner-short-name"
+                      class="settings-input"
+                      type="text"
+                      maxlength="4"
+                      placeholder="Short (max 4)"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button
+                      id="settings-owner-short-name-emoji-btn"
+                      class="settings-emoji-picker-btn"
+                      type="button"
+                      data-chat-emoji-target="settings-owner-short-name"
+                      aria-label="Pick short-name emoji"
+                      aria-expanded="false"
+                      title="Pick emoji"
+                    >🙂</button>
+                  </div>
+                  <div class="settings-emoji-input-row settings-owner-name-input-row settings-owner-name-long-input-row">
+                    <input
+                      id="settings-owner-long-name"
+                      class="settings-input"
+                      type="text"
+                      maxlength="80"
+                      placeholder="Long name"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button
+                      id="settings-owner-long-name-emoji-btn"
+                      class="settings-emoji-picker-btn"
+                      type="button"
+                      data-chat-emoji-target="settings-owner-long-name"
+                      aria-label="Pick long-name emoji"
+                      aria-expanded="false"
+                      title="Pick emoji"
+                    >🙂</button>
+                  </div>
                   <button id="settings-apply-owner" class="btn btn-secondary" type="button">Apply Name</button>
                 </div>
               </label>
@@ -2494,7 +2516,18 @@
                       <div class="settings-gradient-fields settings-meshyface-node-theme-text-fields">
                         <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
                           <span class="settings-label">Text</span>
-                          <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
+                          <div class="settings-emoji-input-row">
+                            <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
+                            <button
+                              id="settings-meshyface-node-theme-ghost-text-emoji-btn"
+                              class="settings-emoji-picker-btn"
+                              type="button"
+                              data-chat-emoji-target="settings-meshyface-node-theme-ghost-text"
+                              aria-label="Pick watermark emoji"
+                              aria-expanded="false"
+                              title="Pick emoji"
+                            >🙂</button>
+                          </div>
                         </label>
                         <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
                           <span class="settings-label">Effect</span>

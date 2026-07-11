@@ -10636,6 +10636,49 @@
       background: var(--settings-bg-strong);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent)) 22%, transparent);
     }}
+    .settings-emoji-input-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 6px;
+      align-items: stretch;
+      min-width: 0;
+    }}
+    .settings-emoji-input-row .settings-input {{
+      min-width: 0;
+      width: 100%;
+    }}
+    .settings-owner-name-input-row {{
+      flex: 0 0 174px;
+    }}
+    .settings-owner-name-long-input-row {{
+      flex: 1 1 280px;
+    }}
+    .settings-emoji-picker-btn {{
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--settings-control-border);
+      border-radius: 8px;
+      background: var(--settings-control-bg);
+      color: var(--settings-control-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }}
+    .settings-emoji-picker-btn:hover,
+    .settings-emoji-picker-btn[aria-expanded="true"] {{
+      border-color: var(--ui-accent-soft, var(--accent));
+      background: var(--settings-bg-strong);
+    }}
+    .settings-emoji-picker-btn:focus-visible {{
+      outline: none;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent)) 24%, transparent);
+    }}
     .settings-input[type="number"] {{
       -moz-appearance: textfield;
       appearance: textfield;

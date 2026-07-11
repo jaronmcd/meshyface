@@ -259,9 +259,12 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'iconChip.className = "chat-node-details-icon-chip";' in js
     assert 'iconChip.innerHTML = `<span class="chat-node-details-icon-glyph" aria-hidden="true">${escAttr(effectiveEmoji)}</span>`;' in js
     assert 'let chatEmojiTagTargetInput = null;' in js
+    assert 'let chatEmojiTextTargetInput = null;' in js
     assert 'chatEmojiMode === "tag" && chatEmojiTagTargetInput instanceof HTMLInputElement' in js
+    assert 'chatEmojiMode === "input" && chatEmojiTextTargetInput instanceof HTMLInputElement' in js
     assert 'chatEmojiMode === "tag" && tagTargetInput instanceof HTMLInputElement' in js
     assert 'if (target.closest("#chat-node-details-icon-btn")) return;' in js
+    assert 'if (target.closest("[data-chat-emoji-target]")) return;' in js
     assert 'if (target.closest("#favorite-menu-tag-emoji-input")) return;' in js
     assert 'if (target.closest("#favorite-menu-node-emoji-input")) return;' in js
     assert 'if (target.closest("#chat-node-details-head-icon-input")) return;' in js
