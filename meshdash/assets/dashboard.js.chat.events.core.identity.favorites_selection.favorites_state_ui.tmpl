@@ -752,6 +752,9 @@
         settingsMeshyfaceNodeThemePreviewRender = render;
         settingsMeshyfaceNodeThemePreviewSignature = signature;
         renderMeshyfaceNodeThemePreview({{ refreshRender: false }});
+        if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
+          rerenderMeshyfaceProfileAppearance();
+        }}
         return true;
       }} catch (_err) {{
         return false;
@@ -854,7 +857,6 @@
     function meshyfaceProfileAppearanceForNode(nodeId, state = latestState) {{
       const cleanNodeId = normalizeNodeId(nodeId);
       if (!isSelectableNodeId(cleanNodeId)) return null;
-      if (!settingsMeshyfaceThemeSharingEnabled) return null;
       const safeState = (state && typeof state === "object") ? state : {{}};
       const localNodeId = normalizeNodeId(
         (typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : "")
@@ -863,22 +865,31 @@
       );
       if (localNodeId && cleanNodeId === localNodeId) {{
         const theme = currentMeshyfaceProfileThemeRecipe();
-        const preset = meshyfaceProfileAppearancePreset(theme);
+        const themeSignature = meshyfaceProfileThemeSignature(theme);
+        const render = (
+          themeSignature
+          && settingsMeshyfaceNodeThemePreviewSignature === themeSignature
+        )
+          ? normalizeMeshyfaceProfileThemeRender(settingsMeshyfaceNodeThemePreviewRender)
+          : null;
+        const preset = meshyfaceProfileAppearancePreset(theme, render);
         if (!theme || !preset) return null;
+        if (!render && typeof queueMeshyfaceNodeThemePreviewRenderRefresh === "function") {{
+          queueMeshyfaceNodeThemePreviewRenderRefresh(theme);
+        }}
         return {{
           nodeId: cleanNodeId,
           source: "local-profile",
-          color: theme.line_color,
+          color: render ? render.border_color : theme.line_color,
           theme,
+          ...(render ? {{ render }} : {{}}),
           presetId: preset.id,
           preset,
-          // The local dashboard already owns this theme.  Keep its own node
-          // in the normal shell treatment; `profileAppearance` is reserved
-          // for a profile received from another Meshyface dashboard.
-          profileAppearance: false,
+          profileAppearance: true,
           localProfile: true,
         }};
       }}
+      if (!settingsMeshyfaceThemeSharingEnabled) return null;
       const profile = remoteMeshyfaceProfilesByNodeId.get(cleanNodeId);
       if (!profile || typeof profile !== "object") return null;
       const theme = normalizeMeshyfaceProfileTheme(profile.theme);

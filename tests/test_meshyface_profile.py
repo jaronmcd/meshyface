@@ -1231,13 +1231,21 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function nodeTagOverridesProfileAppearance(tagEntry)" in js
     assert "if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;" in js
     assert "return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;" in js
-    local_profile_start = js.index('source: "local-profile",')
-    local_profile_end = js.index('source: "remote-profile",', local_profile_start)
+    local_profile_start = js.index("if (localNodeId && cleanNodeId === localNodeId)")
+    local_profile_source_start = js.index('source: "local-profile",', local_profile_start)
+    local_profile_end = js.index('source: "remote-profile",', local_profile_source_start)
     local_profile_block = js[local_profile_start:local_profile_end]
-    assert "profileAppearance: false," in local_profile_block
+    assert "profileAppearance: true," in local_profile_block
     assert "localProfile: true," in local_profile_block
-    assert "color: theme.line_color," in local_profile_block
+    assert "color: render ? render.border_color : theme.line_color," in local_profile_block
     assert "theme," in local_profile_block
+    assert "...(render ? { render } : {})," in local_profile_block
+    assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in local_profile_block
+    sharing_gate_index = js.index(
+        "if (!settingsMeshyfaceThemeSharingEnabled) return null;",
+        local_profile_source_start,
+    )
+    assert sharing_gate_index < local_profile_end
     remote_profile_block = js[local_profile_end:js.index("function effectiveNodeAppearanceForNode", local_profile_end)]
     assert "profileAppearance: true," in remote_profile_block
     assert "remoteProfile: true," in remote_profile_block
