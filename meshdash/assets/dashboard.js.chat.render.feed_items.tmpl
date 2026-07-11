@@ -86,11 +86,11 @@
         const fallbackSelectable = isSelectableNodeId(fallbackNode) ? fallbackNode : "";
         const nodeId = primarySelectable || fallbackSelectable;
         const selectableClass = nodeId ? "chat-selectable" : "";
-        const msgTimeUnix = latestUnixTimestamp(msg.rx_time, msg.captured_at);
+        const msgTimeUnix = chatMessageReceivedUnix(msg);
         const fromMeta = chatEndpointParts(sourceNode, msgTimeUnix);
         const toMeta = chatEndpointParts(fallbackNode, msgTimeUnix);
         const fromStatusKey = normalizeFreshnessKey(fromMeta.status);
-        const rawTimeText = String(msg.rx_time || msg.captured_at || "").trim();
+        const rawTimeText = String(chatMessageReceivedRaw(msg) || "").trim();
         const timeText = formatLocalChatTime(msgTimeUnix, rawTimeText || "n/a", nowUnix);
         const textHtml = chatPlainTextToHtml(msg.text || "", true);
         const textHtmlMonitor = chatPlainTextToHtml(msg.text || "", false);

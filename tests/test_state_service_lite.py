@@ -338,7 +338,7 @@ def test_slim_recent_chat_for_map_activity_keeps_only_local_echo_fields() -> Non
     ]
 
 
-def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
+def test_slim_recent_chat_for_chat_profile_keeps_local_received_timestamp() -> None:
     slimmed = _slim_recent_chat_for_chat_profile(
         [
             {
@@ -380,6 +380,7 @@ def test_slim_recent_chat_for_chat_profile_drops_duplicate_timestamps() -> None:
         "from": "!node-a",
         "to": "^all",
         "rx_time": "2026-06-03 00:00:01Z",
+        "captured_at": "2026-06-03 00:00:02Z",
         "delivery_updated_unix": 1780444801,
         "text": "hello",
     }
