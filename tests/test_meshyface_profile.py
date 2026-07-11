@@ -390,11 +390,11 @@ def test_profile_packet_can_carry_compact_ghost_text() -> None:
         node_id="!335d8354",
         updated_unix=1_788_300_000,
         theme=recipe,
-        ghost={"text": "🔥🔥🔥🔥🔥", "blend": 100, "effect": "glow"},
+        ghost={"text": "🔥🔥🔥🔥🔥🔥", "blend": 100, "effect": "glow"},
     )
 
     body = json.loads(payload)
-    assert body["ghost"] == "🔥🔥🔥🔥🔥"
+    assert body["ghost"] == "🔥🔥🔥🔥🔥🔥"
     assert body["ghost_fx"] == 63
     assert "ghost_tilt" not in body
     assert "ghost_justify" not in body
@@ -412,10 +412,10 @@ def test_profile_packet_can_carry_compact_ghost_text() -> None:
         "updated_unix": 1_788_300_000,
         "received_unix": 1_788_300_010,
         "source": "mesh",
-        "theme": recipe,
-        "ghost": {
-            "text": "🔥🔥🔥🔥🔥",
-            "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
+            "theme": recipe,
+            "ghost": {
+                "text": "🔥🔥🔥🔥🔥🔥",
+                "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
             "effect": "glow",
             "tilt": MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
             "justify": MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
@@ -1459,6 +1459,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(payload);" in js
     assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
     assert "function normalizeMeshyfaceProfileGhostText(value)" in js
+    assert "if (charCount >= 6) break;" in js
     assert "function meshyfaceProfileGhostVisualUnits(value)" in js
     assert "function meshyfaceProfileGhostAutoFontSize(value)" in js
     assert "function meshyfaceProfileGhostAnchorX(justify, value)" in js

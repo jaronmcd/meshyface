@@ -428,7 +428,7 @@
         const byteLength = encoder
           ? encoder.encode(char).length
           : unescape(encodeURIComponent(char)).length;
-        if (charCount >= 5) break;
+        if (charCount >= 6) break;
         if (encodedBytes + byteLength > 32) break;
         clean += char;
         charCount += 1;
