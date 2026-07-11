@@ -6479,7 +6479,7 @@
         const profileTheme = isProfiledNode && typeof normalizeMeshyfaceProfileTheme === "function"
           ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
           : null;
-        const hasProfileThemePreview = !!profileTheme;
+        const hasProfileThemeIdentity = !!profileTheme;
         const appearanceStyleVars = (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function")
           ? nodeAppearanceStyleVars(appearanceEntry)
           : "";
@@ -6511,15 +6511,15 @@
           isSelectedNode ? "is-selected" : "",
           hasNodeAppearance ? "is-tagged" : "",
           isProfiledNode ? "is-profiled" : "",
-          hasProfileThemePreview ? "has-theme-preview" : "",
+          hasProfileThemeIdentity ? "has-theme-identity" : "",
           item.detached ? "is-detached" : "",
           item.broadcastOnly ? "is-broadcast-only" : "",
           `label-priority-${{labelPriority}}`,
         ].filter(Boolean).join(" ");
         const emojiBoxSize = Math.max(24, Math.round(Number(item.radius) * 2.5));
         const emojiBoxOffset = -(emojiBoxSize / 2);
-        const themePreviewBoxSize = Math.max(10, Number(item.radius) * 1.48);
-        const themePreviewBoxOffset = -(themePreviewBoxSize / 2);
+        const themeSurfaceBoxSize = Math.max(10, Number(item.radius) * 1.56);
+        const themeSurfaceBoxOffset = -(themeSurfaceBoxSize / 2);
         return `
           <g
             class="${{classes}}"
@@ -6529,9 +6529,9 @@
           >
             <circle class="network-graph-node-core" r="${{Number(item.radius).toFixed(1)}}"></circle>
             ${{
-              hasProfileThemePreview
-                ? `<foreignObject class="network-graph-node-theme-preview-fo" x="${{themePreviewBoxOffset.toFixed(1)}}" y="${{themePreviewBoxOffset.toFixed(1)}}" width="${{themePreviewBoxSize.toFixed(1)}}" height="${{themePreviewBoxSize.toFixed(1)}}" aria-hidden="true">
-                    <div xmlns="http://www.w3.org/1999/xhtml" class="network-graph-node-theme-preview-surface"><span></span></div>
+              hasProfileThemeIdentity
+                ? `<foreignObject class="network-graph-node-theme-surface-fo" x="${{themeSurfaceBoxOffset.toFixed(1)}}" y="${{themeSurfaceBoxOffset.toFixed(1)}}" width="${{themeSurfaceBoxSize.toFixed(1)}}" height="${{themeSurfaceBoxSize.toFixed(1)}}" aria-hidden="true">
+                    <div xmlns="http://www.w3.org/1999/xhtml" class="network-graph-node-theme-surface"></div>
                   </foreignObject>`
                 : ""
             }}
@@ -6836,7 +6836,7 @@
           : null;
         nodeEl.classList.toggle("is-tagged", hasNodeAppearance);
         nodeEl.classList.toggle("is-profiled", hasNodeAppearance && !isTaggedNode);
-        nodeEl.classList.toggle("has-theme-preview", !!profileTheme);
+        nodeEl.classList.toggle("has-theme-identity", !!profileTheme);
         if (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function") {{
           const appearanceStyleVars = nodeAppearanceStyleVars(appearanceEntry);
           if (appearanceStyleVars) {{

@@ -1112,6 +1112,24 @@
       background: color-mix(in srgb, var(--accent) 13%, transparent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
     }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node {{
+      border-radius: 9px;
+      background: var(--node-profile-theme-wash, transparent);
+      box-shadow: inset 2px 0 0 var(--node-profile-border, var(--accent));
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node[role="button"]:hover {{
+      background: var(--node-profile-theme-wash-hover, var(--node-profile-theme-wash, transparent));
+      box-shadow:
+        inset 2px 0 0 var(--node-profile-border, var(--accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 34%,
+        var(--ticker-text-strong) 66%
+      );
+    }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot[role="button"]:focus-visible {{
       outline: 2px solid color-mix(in srgb, var(--accent-2) 74%, black);
       outline-offset: 1px;
@@ -1190,6 +1208,14 @@
       align-items: stretch;
       justify-items: stretch;
       text-align: right;
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node {{
+      box-shadow: inset -2px 0 0 var(--node-profile-border, var(--accent));
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node[role="button"]:hover {{
+      box-shadow:
+        inset -2px 0 0 var(--node-profile-border, var(--accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
     }}
     .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected .self-node-name {{
       flex: 0 1 auto;
@@ -7271,38 +7297,28 @@
     .network-graph-node.is-tagged.is-selected .network-graph-node-core {{
       stroke-width: 3;
     }}
-    .network-graph-node-theme-preview-fo {{
+    .network-graph-node-theme-surface-fo {{
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
       transition: opacity 140ms ease;
     }}
-    .network-graph-node.has-theme-preview .network-graph-node-theme-preview-fo {{
-      opacity: 1;
+    .network-graph-node.has-theme-identity .network-graph-node-theme-surface-fo {{
+      opacity: 0.82;
       visibility: visible;
     }}
-    .network-graph-node-theme-preview-surface {{
-      position: relative;
+    .network-graph-node.has-theme-identity:hover .network-graph-node-theme-surface-fo {{
+      opacity: 0.94;
+    }}
+    .network-graph-node-theme-surface {{
       width: 100%;
       height: 100%;
       box-sizing: border-box;
       overflow: hidden;
-      border: 1px solid var(--node-profile-theme-line, transparent);
+      border: 1px solid color-mix(in srgb, var(--node-profile-theme-line, transparent) 68%, transparent);
       border-radius: 50%;
       background: var(--node-profile-theme-gradient, transparent);
-      box-shadow: inset 0 0 4px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 28%, transparent);
-    }}
-    .network-graph-node-theme-preview-surface > span {{
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 34%;
-      height: 34%;
-      border: 1px solid var(--node-profile-theme-contrast, #ffffff);
-      border-radius: 50%;
-      background: var(--node-profile-theme-base, var(--accent));
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-line, var(--accent)) 78%, transparent);
-      transform: translate(-50%, -50%);
+      box-shadow: inset 0 0 5px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 22%, transparent);
     }}
     .network-graph-node-label {{
       fill: #284335;
@@ -10460,13 +10476,25 @@
       cursor: pointer;
     }}
     #nodes-table tbody tr.profiled-node:not(.selected-node) td {{
-      background: color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 78%, transparent);
+      background:
+        var(--node-profile-theme-wash, linear-gradient(transparent, transparent)),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 42%, var(--surface-tint-bg-soft) 58%);
     }}
     #nodes-table tbody tr.profiled-node:not(.selected-node) td:first-child {{
       box-shadow: inset 3px 0 0 var(--node-profile-border, var(--accent));
     }}
     #nodes-table tbody tr.profiled-node.node-selectable:not(.selected-node):hover td {{
-      background: color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 88%, var(--surface-tint-bg-soft) 12%);
+      background:
+        var(--node-profile-theme-wash-hover, var(--node-profile-theme-wash, linear-gradient(transparent, transparent))),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 48%, var(--surface-tint-bg-hover) 52%);
+    }}
+    #nodes-table tbody tr.profiled-node .node-name-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--surface-tint-text) 62%
+      );
+      font-weight: 700;
     }}
     .node-profile-emoji {{
       display: inline-block;
@@ -10480,43 +10508,8 @@
         inset 2px 0 0 var(--node-profile-border, var(--accent)),
         inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
     }}
-    .chat-feed-item.profiled-node {{
+    .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
       border-color: var(--node-profile-border, var(--chat-feed-border-color));
-    }}
-    .node-profile-theme-swatch {{
-      position: relative;
-      display: inline-flex;
-      width: 22px;
-      height: 16px;
-      flex: 0 0 22px;
-      box-sizing: border-box;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      border: 1px solid var(--node-profile-theme-line, var(--node-profile-border, var(--accent)));
-      border-radius: 5px;
-      background: var(--node-profile-theme-gradient, var(--node-profile-bg));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 18%, transparent);
-      vertical-align: middle;
-    }}
-    .node-profile-theme-swatch.is-chat {{
-      width: 18px;
-      height: 14px;
-      flex-basis: 18px;
-      border-radius: 4px;
-    }}
-    .node-profile-theme-swatch > span {{
-      display: block;
-      width: 6px;
-      height: 6px;
-      border: 1px solid var(--node-profile-theme-contrast, #ffffff);
-      border-radius: 50%;
-      background: var(--node-profile-theme-base, var(--accent));
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-profile-theme-line, var(--accent)) 70%, transparent);
-    }}
-    .node-profile-theme-swatch.is-chat > span {{
-      width: 5px;
-      height: 5px;
     }}
     .dashboard-color-picker-control {{
       display: flex;

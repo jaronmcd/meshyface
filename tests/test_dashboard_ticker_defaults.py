@@ -562,6 +562,10 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert 'selfMetric.classList.toggle("is-dual-node-context", hasSelectedTickerNode);' in js
     assert 'const addIdentitySlot = (kind, label, nodeId, node, owner, nodeName, fallbackName) => {' in js
     assert "slot.className = `self-node-identity-slot self-node-identity-${kind}`;" in js
+    assert 'effectiveNodeAppearanceForNode(cleanNodeId, state)' in js
+    assert 'appearanceEntry.profileAppearance' in js
+    assert 'slot.classList.add("profiled-node");' in js
+    assert 'slot.setAttribute("style", appearanceStyleVars);' in js
     assert "slot.dataset.nodeId = cleanNodeId;" in js
     assert "slot.dataset.identityKind = targetLabel;" in js
     assert 'slot.setAttribute("role", "button");' in js
@@ -653,6 +657,8 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert "display: flex;" in html
     assert "display: block;" in html
     assert ".self-node-identity-slot .self-node-city[hidden]" in html
+    assert ".self-node-identity-slot.profiled-node" in html
+    assert ".self-node-identity-selected.profiled-node" in html
     assert "display: block !important;" in html
     assert "visibility: hidden;" in html
     assert ".self-node-identity-selected {" in html

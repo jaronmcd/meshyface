@@ -207,6 +207,31 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "background: var(--settings-bg-muted);" in gradient_group
     assert "theme-live-preview" not in css
     assert ".theme-preview {" not in css
+    assert ".node-profile-theme-swatch" not in css
+    assert "var(--node-profile-theme-wash, var(--chat-member-node-gradient))" in css
+    assert "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {" in css
+    assert ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {" in css
+    assert ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {" in css
+    assert "var(--chat-member-node-gradient)," in css
+    assert "var(--chat-member-node-gradient-hover)," in css
+    assert ".network-graph-node.has-theme-identity .network-graph-node-label {" in css
+    dark_pinned_profile = _css_rule(
+        css,
+        '[data-theme="dark"] #chat-room-pinned-list .chat-member-item:not(.muted-node)',
+    )
+    dark_pinned_profile_hover = _css_rule(
+        css,
+        '[data-theme="dark"] #chat-room-pinned-list .chat-member-item:not(.muted-node):hover',
+    )
+    pinned_identity_edge = _css_rule(
+        css,
+        "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before",
+    )
+    assert "var(--chat-member-node-gradient)" in dark_pinned_profile
+    assert "var(--chat-member-node-gradient-hover)" in dark_pinned_profile_hover
+    assert "background: var(--node-profile-border" in pinned_identity_edge
+    assert ".card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
+    assert ".chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
     dark_color_picker = _css_rule(css, "[data-theme=\"dark\"] .dashboard-color-picker-popover")
     color_picker = _css_rule(css, ".dashboard-color-picker-popover")
     assert "backdrop-filter: blur(14px) saturate(120%);" in color_picker

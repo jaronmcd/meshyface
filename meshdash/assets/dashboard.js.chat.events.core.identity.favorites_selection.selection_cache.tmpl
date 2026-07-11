@@ -517,6 +517,9 @@
         target.style.removeProperty("--node-tag-vibrance");
         target.style.removeProperty("--node-profile-border");
         target.style.removeProperty("--node-profile-bg");
+        if (typeof clearMeshyfaceProfileThemeElementStyle === "function") {{
+          clearMeshyfaceProfileThemeElementStyle(target);
+        }}
       }}
       function applyNodeAppearanceSurfaceStyle(target, appearanceEntry, scope = "member", fallbackHue = 145) {{
         if (!(target instanceof HTMLElement)) return false;
@@ -543,6 +546,9 @@
           "--node-profile-bg",
           `color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%)`
         );
+        if (typeof applyMeshyfaceProfileThemeElementStyle === "function") {{
+          applyMeshyfaceProfileThemeElementStyle(target, entry.theme);
+        }}
         return true;
       }}
       for (const member of document.querySelectorAll("#chat-room-unread-list .chat-member-item, #chat-room-meshtastic-list .chat-member-item, #chat-room-pinned-list .chat-member-item, #chat-room-list .chat-member-item")) {{

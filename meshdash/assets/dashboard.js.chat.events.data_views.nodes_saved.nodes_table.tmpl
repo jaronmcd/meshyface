@@ -182,9 +182,6 @@
           const appearanceStyleAttr = appearanceStyleVars
             ? ` style="${{escAttr(appearanceStyleVars)}}"`
             : "";
-          const themePreviewHtml = appearanceEntry && typeof meshyfaceProfileThemePreviewHtml === "function"
-            ? meshyfaceProfileThemePreviewHtml(appearanceEntry, "node")
-            : "";
           const status = projection.status || "unknown";
           const statusClass = ` status-${{status || "unknown"}}`;
           const pos = projection.fields.pos.text;
@@ -203,7 +200,6 @@
           <td data-sort="${{escAttr(name)}}">
             <span class="node-name-row">
               <span class="node-name-label">${{name}}</span>
-              ${{themePreviewHtml}}
             </span>
           </td>
           <td data-sort="${{escAttr(projection.fields.hardware.sort)}}">${{projection.fields.hardware.text}}</td>

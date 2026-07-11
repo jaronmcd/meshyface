@@ -2067,9 +2067,6 @@
         const memberStyleAttr = memberStyleVars ? ` style="${{escAttr(memberStyleVars)}}"` : "";
         const tagClass = tagActive ? " tagged-node" : "";
         const profileClass = appearanceActive && !tagActive ? " profiled-node" : "";
-        const themePreviewHtml = appearanceActive && typeof meshyfaceProfileThemePreviewHtml === "function"
-          ? meshyfaceProfileThemePreviewHtml(appearanceEntry, "chat")
-          : "";
         const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
           ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`
@@ -2135,7 +2132,6 @@
             <span class="chat-member-name-row">
               <span class="chat-member-name-left">
                 <span class="chat-member-name status-${{statusKey}}">${{escAttr(memberDisplayName)}}</span>
-                ${{themePreviewHtml}}
                 ${{tagChipHtml}}
                 ${{malformedTextChipHtml}}
               </span>

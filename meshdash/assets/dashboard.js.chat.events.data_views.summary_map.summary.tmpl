@@ -942,6 +942,22 @@
             const slot = document.createElement("div");
             slot.className = `self-node-identity-slot self-node-identity-${{kind}}`;
             const cleanNodeId = normalizeNodeId(nodeId || "");
+            const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+              ? effectiveNodeAppearanceForNode(cleanNodeId, state)
+              : null;
+            const hasProfileAppearance = !!(
+              appearanceEntry
+              && appearanceEntry.profileAppearance
+            );
+            if (hasProfileAppearance) {{
+              slot.classList.add("profiled-node");
+              if (typeof nodeAppearanceStyleVars === "function") {{
+                const appearanceStyleVars = nodeAppearanceStyleVars(appearanceEntry);
+                if (appearanceStyleVars) {{
+                  slot.setAttribute("style", appearanceStyleVars);
+                }}
+              }}
+            }}
             if (isSelectableNodeId(cleanNodeId)) {{
               const targetLabel = kind === "selected" ? "selected" : "self";
               slot.dataset.nodeId = cleanNodeId;

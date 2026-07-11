@@ -8447,3 +8447,86 @@
     [data-theme="dark"] .workspace-chrome-status {{
       color: #a7c4b5;
     }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node) {{
+      border-bottom-color: color-mix(
+        in srgb,
+        var(--node-profile-border, var(--chat-member-node-border)) 34%,
+        var(--chat-member-node-border) 66%
+      );
+      background: var(--node-profile-theme-wash, var(--chat-member-node-gradient)), var(--chat-member-node-bg);
+      box-shadow:
+        inset 2px 0 0 var(--node-profile-border, var(--accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 16%, transparent);
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
+      background:
+        var(--node-profile-theme-wash-hover, var(--chat-member-node-gradient-hover)),
+        var(--chat-member-node-bg-hover);
+    }}
+    #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {{
+      background: var(--node-profile-border, var(--surface-tint-border-strong));
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--chat-member-node-fg, var(--workspace-shell-text)) 62%
+      );
+    }}
+    .card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+      border-color: var(--node-profile-border, var(--chat-feed-border-color));
+    }}
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+      background:
+        var(--chat-feed-channel-edge-bg),
+        var(--node-profile-theme-wash, var(--chat-feed-node-gradient)),
+        var(--chat-feed-node-bg);
+    }}
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.self-authored.chat-selectable:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker):hover {{
+      background:
+        var(--chat-feed-channel-edge-bg),
+        var(--node-profile-theme-wash-hover, var(--chat-feed-node-gradient-hover)),
+        var(--chat-feed-node-bg-hover);
+    }}
+    .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--theme-text-color, var(--ink)) 62%
+      );
+    }}
+    [data-theme="dark"] #nodes-table tbody tr.profiled-node .node-name-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--surface-tint-text) 62%
+      );
+    }}
+    [data-theme="dark"] .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--chat-member-node-fg, var(--workspace-shell-text)) 62%
+      );
+    }}
+    [data-theme="dark"] .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--theme-text-color, var(--workspace-shell-text)) 62%
+      );
+    }}
+    .network-graph-node.has-theme-identity .network-graph-node-label {{
+      fill: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--surface-tint-text) 62%
+      );
+    }}
+    [data-theme="dark"] .network-graph-node.has-theme-identity .network-graph-node-label {{
+      fill: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--surface-tint-text) 62%
+      );
+    }}

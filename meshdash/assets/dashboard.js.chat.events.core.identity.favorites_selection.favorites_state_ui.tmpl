@@ -447,43 +447,92 @@
       return theme ? JSON.stringify(theme) : "";
     }}
 
-    function meshyfaceProfileThemePreviewGradient(rawTheme) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return "";
+    function buildMeshyfaceProfileThemeGradient(theme, kind = "identity", hover = false) {{
       const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
       if (!direction) return "";
-      const start = theme.mode === "light"
-        ? `color-mix(in srgb, ${{theme.gradient_primary_start_color}} 28%, #ffffff 72%)`
-        : theme.gradient_primary_start_color;
-      const end = theme.mode === "light"
-        ? `color-mix(in srgb, ${{theme.gradient_primary_end_color}} 28%, #ffffff 72%)`
-        : theme.gradient_primary_end_color;
+      let start = theme.gradient_primary_start_color;
+      let end = theme.gradient_primary_end_color;
+      if (kind === "wash") {{
+        const intensity = theme.mode === "dark"
+          ? (hover ? 22 : 16)
+          : (hover ? 18 : 12);
+        start = `color-mix(in srgb, ${{start}} ${{intensity}}%, transparent)`;
+        end = `color-mix(in srgb, ${{end}} ${{Math.max(6, intensity - 5)}}%, transparent)`;
+      }} else if (theme.mode === "light") {{
+        start = `color-mix(in srgb, ${{start}} 28%, #ffffff 72%)`;
+        end = `color-mix(in srgb, ${{end}} 28%, #ffffff 72%)`;
+      }}
       return `${{theme.gradient_primary_type}}-gradient(${{direction[theme.gradient_primary_type]}}, ${{start}}, ${{end}})`;
     }}
 
-    function meshyfaceProfileThemeStyleVars(rawTheme) {{
+    function meshyfaceProfileThemeIdentityGradient(rawTheme) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme) return "";
-      const gradient = meshyfaceProfileThemePreviewGradient(theme);
-      if (!gradient) return "";
-      return [
-        `--node-profile-theme-gradient:${{gradient}}`,
-        `--node-profile-theme-base:${{theme.base_color}}`,
-        `--node-profile-theme-line:${{theme.line_color}}`,
-        `--node-profile-theme-contrast:${{theme.line_contrast_color}}`,
-      ].join(";") + ";";
+      return buildMeshyfaceProfileThemeGradient(theme, "identity", false);
     }}
 
-    function meshyfaceProfileThemePreviewHtml(appearanceEntry, scope = "node") {{
-      const theme = normalizeMeshyfaceProfileTheme(
-        appearanceEntry && typeof appearanceEntry === "object" ? appearanceEntry.theme : null
-      );
+    function meshyfaceProfileThemeWashGradient(rawTheme, hover = false) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme) return "";
-      const cleanScope = scope === "chat" ? "chat" : "node";
-      const styleVars = meshyfaceProfileThemeStyleVars(theme);
-      if (!styleVars) return "";
-      const title = `Shared ${{theme.mode}} theme preview`;
-      return `<span class="node-profile-theme-swatch is-${{cleanScope}}" style="${{escAttr(styleVars)}}" title="${{escAttr(title)}}" aria-label="${{escAttr(title)}}"><span aria-hidden="true"></span></span>`;
+      return buildMeshyfaceProfileThemeGradient(theme, "wash", !!hover);
+    }}
+
+    const meshyfaceProfileThemeStyleProperties = [
+      "--node-profile-theme-gradient",
+      "--node-profile-theme-wash",
+      "--node-profile-theme-wash-hover",
+      "--node-profile-theme-base",
+      "--node-profile-theme-line",
+      "--node-profile-theme-contrast",
+      "--chat-member-node-gradient",
+      "--chat-member-node-gradient-hover",
+      "--chat-feed-node-gradient",
+      "--chat-feed-node-gradient-hover",
+    ];
+
+    function meshyfaceProfileThemeStyleEntries(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme) return [];
+      const gradient = buildMeshyfaceProfileThemeGradient(theme, "identity", false);
+      const wash = buildMeshyfaceProfileThemeGradient(theme, "wash", false);
+      const washHover = buildMeshyfaceProfileThemeGradient(theme, "wash", true);
+      if (!gradient || !wash || !washHover) return [];
+      return [
+        ["--node-profile-theme-gradient", gradient],
+        ["--node-profile-theme-wash", wash],
+        ["--node-profile-theme-wash-hover", washHover],
+        ["--node-profile-theme-base", theme.base_color],
+        ["--node-profile-theme-line", theme.line_color],
+        ["--node-profile-theme-contrast", theme.line_contrast_color],
+        ["--chat-member-node-gradient", "var(--node-profile-theme-wash)"],
+        ["--chat-member-node-gradient-hover", "var(--node-profile-theme-wash-hover)"],
+        ["--chat-feed-node-gradient", "var(--node-profile-theme-wash)"],
+        ["--chat-feed-node-gradient-hover", "var(--node-profile-theme-wash-hover)"],
+      ];
+    }}
+
+    function meshyfaceProfileThemeStyleVars(rawTheme) {{
+      const entries = meshyfaceProfileThemeStyleEntries(rawTheme);
+      return entries.length > 0
+        ? entries.map(([property, value]) => `${{property}}:${{value}}`).join(";") + ";"
+        : "";
+    }}
+
+    function clearMeshyfaceProfileThemeElementStyle(target) {{
+      if (!target || !target.style) return;
+      for (const property of meshyfaceProfileThemeStyleProperties) {{
+        target.style.removeProperty(property);
+      }}
+    }}
+
+    function applyMeshyfaceProfileThemeElementStyle(target, rawTheme) {{
+      if (!target || !target.style) return false;
+      clearMeshyfaceProfileThemeElementStyle(target);
+      const entries = meshyfaceProfileThemeStyleEntries(rawTheme);
+      for (const [property, value] of entries) {{
+        target.style.setProperty(property, value);
+      }}
+      return entries.length > 0;
     }}
 
     function meshyfaceProfileAppearancePreset(color) {{
