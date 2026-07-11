@@ -843,7 +843,7 @@
       const render = normalizeMeshyfaceProfileThemeRender(rawRender);
       return {{
         id: "meshyface-profile",
-        name: "Meshyface theme",
+        name: "Node appearance",
         emoji: "",
         // The projected workspace border is the durable identity edge.
         color: render ? render.border_color : theme.line_color,
@@ -1351,7 +1351,7 @@
       }}
       const messageEl = document.getElementById("settings-meshyface-node-theme-preview-message");
       if (messageEl instanceof HTMLElement) {{
-        messageEl.textContent = "Node theme preview";
+        messageEl.textContent = "Node appearance preview";
       }}
       const modeEl = document.getElementById("settings-meshyface-node-theme-preview-mode");
       const settings = currentMeshyfaceNodeThemeSettings();
@@ -1363,8 +1363,8 @@
       const metaEl = document.getElementById("settings-meshyface-node-theme-preview-meta");
       if (metaEl instanceof HTMLElement) {{
         metaEl.textContent = settingsMeshyfaceThemeSharingEnabled
-          ? "Shared when you broadcast your node theme"
-          : "Preview only while Theme Sharing is off";
+          ? "Shared when you broadcast your node appearance"
+          : "Preview only while sharing is off";
       }}
     }}
 
@@ -1379,7 +1379,7 @@
         select.innerHTML = "";
         const customOption = document.createElement("option");
         customOption.value = "custom";
-        customOption.textContent = settingsMeshyfaceNodeThemeSettings ? "Unsaved node theme" : "Current dashboard theme";
+        customOption.textContent = settingsMeshyfaceNodeThemeSettings ? "Unsaved node appearance" : "Current dashboard theme";
         select.appendChild(customOption);
         for (const name of Object.keys(catalog).sort((a, b) => a.localeCompare(b))) {{
           const option = document.createElement("option");
@@ -1489,19 +1489,19 @@
       if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
         rerenderMeshyfaceProfileAppearance();
       }}
-      setMeshyfaceNodeThemeStatusText("Node theme reset from the current dashboard theme.");
+      setMeshyfaceNodeThemeStatusText("Node appearance reset from the current dashboard theme.");
     }}
 
     function saveCurrentMeshyfaceNodeThemeAs() {{
       const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
       const suggested = selected === "custom" ? "" : selected;
-      const rawName = window.prompt("Save node theme as:", suggested);
+      const rawName = window.prompt("Save node appearance as:", suggested);
       if (rawName == null) return false;
       const name = sanitizeMeshyfaceNodeThemeName(rawName);
       if (!name) return false;
       if (
         Object.prototype.hasOwnProperty.call(settingsMeshyfaceNodeThemeCatalog, name)
-        && !window.confirm(`Replace saved node theme "${{name}}"?`)
+        && !window.confirm(`Replace saved node appearance "${{name}}"?`)
       ) {{
         return false;
       }}
@@ -1511,20 +1511,20 @@
       settingsMeshyfaceNodeThemeSelected = name;
       persistMeshyfaceNodeThemePreferences();
       syncMeshyfaceNodeThemeControls();
-      setMeshyfaceNodeThemeStatusText(`Saved node theme "${{name}}".`);
+      setMeshyfaceNodeThemeStatusText(`Saved node appearance "${{name}}".`);
       return true;
     }}
 
     function renameSelectedMeshyfaceNodeTheme() {{
       const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
       if (selected === "custom") return false;
-      const rawName = window.prompt("Rename node theme:", selected);
+      const rawName = window.prompt("Rename node appearance:", selected);
       if (rawName == null) return false;
       const name = sanitizeMeshyfaceNodeThemeName(rawName);
       if (!name || name === selected) return false;
       if (
         Object.prototype.hasOwnProperty.call(settingsMeshyfaceNodeThemeCatalog, name)
-        && !window.confirm(`Replace saved node theme "${{name}}"?`)
+        && !window.confirm(`Replace saved node appearance "${{name}}"?`)
       ) {{
         return false;
       }}
@@ -1535,14 +1535,14 @@
       settingsMeshyfaceNodeThemeSelected = name;
       persistMeshyfaceNodeThemePreferences();
       syncMeshyfaceNodeThemeControls();
-      setMeshyfaceNodeThemeStatusText(`Renamed node theme to "${{name}}".`);
+      setMeshyfaceNodeThemeStatusText(`Renamed node appearance to "${{name}}".`);
       return true;
     }}
 
     function deleteSelectedMeshyfaceNodeTheme() {{
       const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
       if (selected === "custom") return false;
-      if (!window.confirm(`Delete node theme "${{selected}}"? This cannot be undone.`)) return false;
+      if (!window.confirm(`Delete node appearance "${{selected}}"? This cannot be undone.`)) return false;
       settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(
         settingsMeshyfaceNodeThemeCatalog[selected]
       );
@@ -1550,7 +1550,7 @@
       settingsMeshyfaceNodeThemeSelected = "custom";
       persistMeshyfaceNodeThemePreferences();
       syncMeshyfaceNodeThemeControls();
-      setMeshyfaceNodeThemeStatusText(`Deleted node theme "${{selected}}".`);
+      setMeshyfaceNodeThemeStatusText(`Deleted node appearance "${{selected}}".`);
       return true;
     }}
 
@@ -1592,7 +1592,7 @@
           attachDashboardColorPicker(input, {{
             fallback,
             label: String(key || "").replace(/_/g, " "),
-            buttonLabel: "Pick node theme color",
+            buttonLabel: "Pick node appearance color",
           }});
         }}
         input.dataset.bound = "1";

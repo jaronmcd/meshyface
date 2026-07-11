@@ -1983,6 +1983,33 @@
 
           <div class="settings-panel settings-panel-wide" data-settings-tab-panel="appearance" hidden>
             <div class="settings-fields">
+              <div class="settings-appearance-tabbar workspace-pillbar" role="tablist" aria-label="Appearance sections">
+                <button
+                  id="settings-appearance-tab-theme-btn"
+                  class="settings-appearance-tab-btn workspace-pill-btn is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="settings-appearance-theme-panel"
+                  data-settings-appearance-tab="theme"
+                >Theme</button>
+                <button
+                  id="settings-appearance-tab-node-btn"
+                  class="settings-appearance-tab-btn workspace-pill-btn"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-appearance-node-panel"
+                  data-settings-appearance-tab="node"
+                >Node Appearance</button>
+              </div>
+              <div
+                id="settings-appearance-theme-panel"
+                class="settings-appearance-tab-panel"
+                role="tabpanel"
+                aria-labelledby="settings-appearance-tab-theme-btn"
+                data-settings-appearance-tab-panel="theme"
+              >
               <div class="settings-row settings-theme-preset-row">
                 <label class="settings-field" for="theme-preset-select">
                   <span class="settings-label">Preset</span>
@@ -2335,20 +2362,43 @@
                   </div>
                 </fieldset>
               </div>
-              <div class="settings-help-note">
-                <strong>Theme Sharing</strong>
+              <label class="settings-field settings-inline">
+                <input id="settings-appearance-keep-screen-on" type="checkbox" />
+                <span>Keep screen on while dashboard is open</span>
+              </label>
+              <div id="settings-wake-lock-status" class="settings-help-note settings-wake-lock-status" aria-live="polite"></div>
+              <div class="settings-row">
+                <label class="settings-field">
+                  <span class="settings-label">Console text size</span>
+                  <select id="console-font-size-select" class="settings-select" aria-label="Console text size">
+                    <option value="sm">Small</option>
+                    <option value="md">Medium</option>
+                    <option value="lg">Large</option>
+                    <option value="xl">XL</option>
+                  </select>
+                </label>
+                <label class="settings-field settings-inline">
+                  <input id="console-timestamps" type="checkbox" />
+                  <span>Show timestamps in Console</span>
+                </label>
               </div>
-              <div class="settings-help-note">
-                Share your node theme and see themes shared by other Meshyface nodes. Disabling Theme Sharing stops broadcasts and hides remote themes.
               </div>
+              <div
+                id="settings-appearance-node-panel"
+                class="settings-appearance-tab-panel"
+                role="tabpanel"
+                aria-labelledby="settings-appearance-tab-node-btn"
+                data-settings-appearance-tab-panel="node"
+                hidden
+              >
               <label class="settings-field settings-inline">
                 <input id="settings-meshyface-theme-sharing" type="checkbox" />
-                <span>Enable Theme Sharing</span>
+                <span>Share node appearance</span>
               </label>
               <div class="settings-meshyface-node-theme-panel">
                 <div class="settings-meshyface-node-theme-preview-wrap">
                   <div class="settings-meshyface-node-theme-preview-head">
-                    <span class="settings-label">Remote node preview</span>
+                    <span class="settings-label">Shared appearance preview</span>
                     <span id="settings-meshyface-node-theme-preview-mode" class="settings-meshyface-node-theme-preview-mode">current</span>
                   </div>
                   <div id="settings-meshyface-node-theme-preview" class="settings-meshyface-node-theme-preview" aria-live="polite">
@@ -2364,7 +2414,7 @@
                                 <span class="chat-name" id="settings-meshyface-node-theme-preview-name">Your node</span>
                               </span>
                               <span class="chat-feed-colon">:</span>
-                              <span class="chat-feed-text chat-feed-text-inline" id="settings-meshyface-node-theme-preview-message">Node theme preview</span>
+                              <span class="chat-feed-text chat-feed-text-inline" id="settings-meshyface-node-theme-preview-message">Node appearance preview</span>
                             </div>
                             <span class="chat-feed-side">
                               <span class="chat-feed-time">now</span>
@@ -2384,7 +2434,7 @@
                           class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"
                           data-node-id="!preview"
                           data-unread-direct-count="0"
-                          aria-label="Remote node preview"
+                          aria-label="Shared appearance preview"
                         >
                           <span class="chat-member-status chat-member-status-dot status-online" title="Status: Online" aria-label="Status: Online">●</span>
                           <span class="chat-member-main">
@@ -2409,8 +2459,8 @@
                 <div class="settings-meshyface-node-theme-controls">
                   <div class="settings-row settings-theme-preset-row">
                     <label class="settings-field" for="settings-meshyface-node-theme-select">
-                      <span class="settings-label">Node theme</span>
-                      <select id="settings-meshyface-node-theme-select" class="settings-select" aria-label="Node theme"></select>
+                      <span class="settings-label">Node appearance</span>
+                      <select id="settings-meshyface-node-theme-select" class="settings-select" aria-label="Node appearance"></select>
                     </label>
                     <div class="settings-field settings-theme-preset-actions">
                       <span class="settings-label">Actions</span>
@@ -2508,32 +2558,13 @@
               </div>
               <div class="settings-row">
                 <div class="settings-field">
-                  <span class="settings-label">Share node theme</span>
-                  <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast theme</button>
+                  <span class="settings-label">Share node appearance</span>
+                  <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast appearance</button>
                 </div>
               </div>
               <div id="settings-meshyface-profile-status" class="settings-help-note" aria-live="polite">
-                Theme broadcasts may hop when the mesh permits private app traffic.
+                Shared node appearance broadcasts may hop when the mesh permits private app traffic.
               </div>
-              <label class="settings-field settings-inline">
-                <input id="settings-appearance-keep-screen-on" type="checkbox" />
-                <span>Keep screen on while dashboard is open</span>
-              </label>
-              <div id="settings-wake-lock-status" class="settings-help-note settings-wake-lock-status" aria-live="polite"></div>
-              <div class="settings-row">
-                <label class="settings-field">
-                  <span class="settings-label">Console text size</span>
-                  <select id="console-font-size-select" class="settings-select" aria-label="Console text size">
-                    <option value="sm">Small</option>
-                    <option value="md">Medium</option>
-                    <option value="lg">Large</option>
-                    <option value="xl">XL</option>
-                  </select>
-                </label>
-                <label class="settings-field settings-inline">
-                  <input id="console-timestamps" type="checkbox" />
-                  <span>Show timestamps in Console</span>
-                </label>
               </div>
             </div>
           </div>

@@ -1172,10 +1172,13 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
     assert "My Meshyface color" not in html
-    assert "Theme Sharing" in html
-    assert "Enable Theme Sharing" in html
-    assert "Opt in to Theme Sharing" not in html
-    assert "Share node theme" in html
+    assert "Node Appearance" in html
+    assert "Share node appearance" in html
+    assert "Shared appearance preview" in html
+    assert "Node appearance" in html
+    assert "Broadcast appearance" in html
+    assert "Theme Sharing" not in html
+    assert "Share node theme" not in html
     assert "Use received Meshyface themes to style nodes" not in html
 
 
@@ -1270,7 +1273,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js
     assert "syncMeshyfaceProfilesFromState(state)" in js
     assert "async function broadcastMeshyfaceProfileTheme()" in js
-    assert "Turn on Theme Sharing before broadcasting your theme." in js
+    assert "Turn on sharing before broadcasting your node appearance." in js
     assert "body: JSON.stringify({" in js
     assert "theme," in js
     broadcast_call_index = js.index("void broadcastMeshyfaceProfileTheme();")

@@ -241,7 +241,7 @@
         broadcastBtn.disabled = !!meshyfaceProfileBroadcastInFlight || !settingsMeshyfaceThemeSharingEnabled;
         broadcastBtn.title = settingsMeshyfaceThemeSharingEnabled
           ? ""
-          : "Turn on Theme Sharing to broadcast your theme.";
+          : "Turn on sharing to broadcast your node appearance.";
       }}
       const consoleTimestampsToggle = document.getElementById("console-timestamps");
       if (consoleTimestampsToggle instanceof HTMLInputElement) {{
@@ -356,8 +356,8 @@
       if (opts.announce) {{
         setMeshyfaceProfileStatusText(
           next
-            ? "Theme Sharing is on. You can broadcast your theme and see remote themed nodes."
-            : "Theme Sharing is off. Theme broadcasts are disabled and remote themed nodes are hidden."
+            ? "Node appearance sharing is on. You can broadcast your appearance and see shared node appearances."
+            : "Node appearance sharing is off. Broadcasts are disabled and shared node appearances are hidden."
         );
       }}
     }}
@@ -365,7 +365,7 @@
     async function broadcastMeshyfaceProfileTheme() {{
       if (meshyfaceProfileBroadcastInFlight) return null;
       if (!settingsMeshyfaceThemeSharingEnabled) {{
-        setMeshyfaceProfileStatusText("Turn on Theme Sharing before broadcasting your theme.", true);
+        setMeshyfaceProfileStatusText("Turn on sharing before broadcasting your node appearance.", true);
         syncSettingsAppearanceControls();
         return null;
       }}
@@ -376,12 +376,12 @@
         ? currentMeshyfaceProfileThemeRecipe()
         : null;
       if (!theme) {{
-        setMeshyfaceProfileStatusText("Your current Meshyface theme is incomplete and cannot be shared.", true);
+        setMeshyfaceProfileStatusText("Your node appearance is incomplete and cannot be shared.", true);
         return null;
       }}
       meshyfaceProfileBroadcastInFlight = true;
       syncSettingsAppearanceControls();
-      setMeshyfaceProfileStatusText("Broadcasting Meshyface theme...");
+      setMeshyfaceProfileStatusText("Broadcasting node appearance...");
       try {{
         const resp = await fetch(meshyfaceProfileThemeEndpoint, {{
           method: "POST",
@@ -400,7 +400,7 @@
           payload && payload.channel_index != null ? payload.channel_index : channelIndex
         );
         setMeshyfaceProfileStatusText(
-          `Theme Sharing broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
+          `Node appearance broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
         );
         if (typeof requestImmediatePoll === "function") {{
           requestImmediatePoll(0);
@@ -408,7 +408,7 @@
         return payload;
       }} catch (err) {{
         const message = err instanceof Error ? err.message : String(err || "unknown error");
-        setMeshyfaceProfileStatusText(`Meshyface theme broadcast failed: ${{message}}`, true);
+        setMeshyfaceProfileStatusText(`Node appearance broadcast failed: ${{message}}`, true);
         return null;
       }} finally {{
         meshyfaceProfileBroadcastInFlight = false;

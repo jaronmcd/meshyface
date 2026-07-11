@@ -44,7 +44,14 @@
           setActiveSettingsTab(tabBtn.dataset.settingsTab, true);
         }});
       }}
+      for (const tabBtn of settingsCard.querySelectorAll(".settings-appearance-tab-btn[data-settings-appearance-tab]")) {{
+        if (!(tabBtn instanceof HTMLButtonElement)) continue;
+        tabBtn.addEventListener("click", () => {{
+          setActiveSettingsAppearanceTab(tabBtn.dataset.settingsAppearanceTab, true);
+        }});
+      }}
       setActiveSettingsTab(activeSettingsTab, false);
+      setActiveSettingsAppearanceTab(activeSettingsAppearanceTab, false);
       bindMapsSettingsControls();
 
       settingsCard.addEventListener("input", (ev) => {{

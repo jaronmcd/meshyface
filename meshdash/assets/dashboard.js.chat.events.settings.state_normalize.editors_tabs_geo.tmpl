@@ -178,6 +178,56 @@
       }}
     }}
 
+    function normalizeSettingsAppearanceTab(value) {{
+      const key = String(value || "").trim().toLowerCase();
+      if (key === "node") return "node";
+      return "theme";
+    }}
+
+    function loadSettingsAppearanceTabPreference() {{
+      try {{
+        activeSettingsAppearanceTab = normalizeSettingsAppearanceTab(
+          window.localStorage.getItem(settingsAppearanceTabStorageKey) || ""
+        );
+      }} catch (_err) {{
+        activeSettingsAppearanceTab = "theme";
+      }}
+    }}
+
+    function persistSettingsAppearanceTabPreference() {{
+      try {{
+        window.localStorage.setItem(settingsAppearanceTabStorageKey, activeSettingsAppearanceTab);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function setActiveSettingsAppearanceTab(tab, persist = true) {{
+      const next = normalizeSettingsAppearanceTab(tab);
+      activeSettingsAppearanceTab = next;
+      if (persist) {{
+        persistSettingsAppearanceTabPreference();
+      }}
+
+      const tabButtons = document.querySelectorAll(".settings-appearance-tab-btn[data-settings-appearance-tab]");
+      for (const btn of tabButtons) {{
+        if (!(btn instanceof HTMLButtonElement)) continue;
+        const isActive = normalizeSettingsAppearanceTab(btn.dataset.settingsAppearanceTab) === next;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }}
+
+      const panels = document.querySelectorAll(".card.settings [data-settings-appearance-tab-panel]");
+      for (const panel of panels) {{
+        if (!(panel instanceof HTMLElement)) continue;
+        const panelTab = normalizeSettingsAppearanceTab(panel.dataset.settingsAppearanceTabPanel);
+        panel.hidden = panelTab !== next;
+      }}
+
+      if (activeSettingsTab === "appearance") {{
+        syncSettingsAppearanceControls();
+      }}
+    }}
+
     function setActiveSettingsTab(tab, persist = true) {{
       const next = normalizeSettingsTab(tab);
       const prev = activeSettingsTab;
@@ -226,6 +276,7 @@
       }} else if (next === "nodes") {{
         renderNodeVisibilityListsUi(latestRawState || latestState || {{}});
       }} else if (next === "appearance") {{
+        setActiveSettingsAppearanceTab(activeSettingsAppearanceTab, false);
         syncSettingsAppearanceControls();
       }} else if (next === "system") {{
         if (typeof renderSettingsDeviceInfo === "function") {{

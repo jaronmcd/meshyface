@@ -1149,6 +1149,14 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'id="settings-appearance-badge-emoji"' not in html
     assert "theme-live-preview" not in html
     assert 'id="theme-preview"' not in html
+    assert 'id="settings-appearance-tab-theme-btn"' in html
+    assert 'id="settings-appearance-tab-node-btn"' in html
+    assert 'data-settings-appearance-tab-panel="theme"' in html
+    assert 'data-settings-appearance-tab-panel="node"' in html
+    assert "function normalizeSettingsAppearanceTab(value)" in js
+    assert "function setActiveSettingsAppearanceTab(tab, persist = true)" in js
+    assert "settingsAppearanceTabStorageKey" in js
+    assert 'runBootStep("loadSettingsAppearanceTabPreference", () => loadSettingsAppearanceTabPreference());' in js
     assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
     assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
