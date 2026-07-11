@@ -740,6 +740,47 @@
       return exactRender || estimateMeshyfaceNodeThemePreviewRender(theme);
     }}
 
+    function persistMeshyfaceNodeThemePreviewRenderCache(signature, rawRender) {{
+      const cleanSignature = String(signature || "").trim();
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      try {{
+        if (!cleanSignature || !render) {{
+          window.localStorage.removeItem(settingsMeshyfaceNodeThemePreviewRenderStorageKey);
+          return false;
+        }}
+        window.localStorage.setItem(
+          settingsMeshyfaceNodeThemePreviewRenderStorageKey,
+          JSON.stringify({{ signature: cleanSignature, render }})
+        );
+        return true;
+      }} catch (_err) {{
+        return false;
+      }}
+    }}
+
+    function loadMeshyfaceNodeThemePreviewRenderCacheFromStorage() {{
+      settingsMeshyfaceNodeThemePreviewRender = null;
+      settingsMeshyfaceNodeThemePreviewSignature = "";
+      try {{
+        const raw = window.localStorage.getItem(settingsMeshyfaceNodeThemePreviewRenderStorageKey) || "";
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        const signature = String(parsed && parsed.signature || "").trim();
+        const render = normalizeMeshyfaceProfileThemeRender(parsed && parsed.render);
+        const currentSignature = meshyfaceProfileThemeSignature(currentMeshyfaceProfileThemeRecipe());
+        if (!signature || !render || !currentSignature || signature !== currentSignature) {{
+          return false;
+        }}
+        settingsMeshyfaceNodeThemePreviewRender = render;
+        settingsMeshyfaceNodeThemePreviewSignature = signature;
+        return true;
+      }} catch (_err) {{
+        settingsMeshyfaceNodeThemePreviewRender = null;
+        settingsMeshyfaceNodeThemePreviewSignature = "";
+        return false;
+      }}
+    }}
+
     function clearMeshyfaceNodeThemePreviewTimer() {{
       if (settingsMeshyfaceNodeThemePreviewTimer !== null) {{
         window.clearTimeout(settingsMeshyfaceNodeThemePreviewTimer);
@@ -779,6 +820,7 @@
         if (!render) return false;
         settingsMeshyfaceNodeThemePreviewRender = render;
         settingsMeshyfaceNodeThemePreviewSignature = signature;
+        persistMeshyfaceNodeThemePreviewRenderCache(signature, render);
         renderMeshyfaceNodeThemePreview({{ refreshRender: false }});
         if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
           rerenderMeshyfaceProfileAppearance();
@@ -1276,6 +1318,7 @@
       }} catch (_err) {{
         settingsMeshyfaceNodeThemeSelected = "custom";
       }}
+      loadMeshyfaceNodeThemePreviewRenderCacheFromStorage();
     }}
 
     function persistMeshyfaceNodeThemePreferences() {{

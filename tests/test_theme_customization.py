@@ -1173,6 +1173,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "preview_only: true," in js
     assert "function meshyfaceNodeThemePreviewRenderFromPayload(payload, rawTheme)" in js
     assert "function refreshMeshyfaceNodeThemePreviewRender(rawTheme)" in js
+    assert "function loadMeshyfaceNodeThemePreviewRenderCacheFromStorage()" in js
+    assert "persistMeshyfaceNodeThemePreviewRenderCache(signature, render);" in js
     assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in js
     assert "applyNodeAppearanceElementStyle(target, appearanceEntry);" in js
     assert "settingsMeshyfaceNodeThemePreviewRender" in js

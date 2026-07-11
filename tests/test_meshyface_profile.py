@@ -1205,6 +1205,10 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
         'const settingsMeshyfaceNodeThemeSelectedStorageKey = '
         '"meshDashboardMeshyfaceNodeThemeSelectedV1";'
     ) in js
+    assert (
+        'const settingsMeshyfaceNodeThemePreviewRenderStorageKey = '
+        '"meshDashboardMeshyfaceNodeThemePreviewRenderV1";'
+    ) in js
     assert 'document.getElementById("settings-meshyface-theme-sharing")' in js
     assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
@@ -1217,7 +1221,18 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "renderMeshyfaceNodeThemePreview();" in js
     assert "function estimateMeshyfaceNodeThemePreviewRender(rawTheme)" in js
     assert "function meshyfaceNodeThemePreviewRenderForTheme(rawTheme)" in js
+    assert "function persistMeshyfaceNodeThemePreviewRenderCache(signature, rawRender)" in js
+    assert "function loadMeshyfaceNodeThemePreviewRenderCacheFromStorage()" in js
     assert "return exactRender || estimateMeshyfaceNodeThemePreviewRender(theme);" in js
+    assert "persistMeshyfaceNodeThemePreviewRenderCache(signature, render);" in js
+    assert "loadMeshyfaceNodeThemePreviewRenderCacheFromStorage();" in js
+    assert "window.localStorage.getItem(settingsMeshyfaceNodeThemePreviewRenderStorageKey)" in js
+    assert "window.localStorage.setItem(\n          settingsMeshyfaceNodeThemePreviewRenderStorageKey," in js
+    assert "if (typeof loadMeshyfaceNodeThemePreferencesFromStorage === \"function\") {" in js
+    assert "persistMeshyfaceNodeThemePreferences();" not in js[
+        js.index("function loadSettingsAppearancePreferences()")
+        : js.index("function persistSettingsAppearancePreferences()")
+    ]
     assert "profile.color" not in js
     assert "const remoteMeshyfaceProfilesByNodeId = new Map();" in js
     assert "function clearRemoteMeshyfaceProfilesCache()" in js
