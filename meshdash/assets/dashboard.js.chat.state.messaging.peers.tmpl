@@ -2065,8 +2065,19 @@
           : "";
         const memberStyleVars = `${{appearanceTintStyleVars}}${{appearanceStyleVars}}`;
         const memberStyleAttr = memberStyleVars ? ` style="${{escAttr(memberStyleVars)}}"` : "";
-        const tagClass = tagActive ? " tagged-node" : "";
-        const profileClass = appearanceActive && !tagActive ? " profiled-node" : "";
+        const profileAppearanceActive = !!(
+          appearanceActive
+          && appearanceEntry
+          && appearanceEntry.profileAppearance
+        );
+        const tagOverridesProfile = tagActive && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(tagEntry)
+            : true
+        );
+        const tagVisualActive = tagActive && (!profileAppearanceActive || tagOverridesProfile);
+        const tagClass = tagVisualActive ? " tagged-node" : "";
+        const profileClass = profileAppearanceActive && !tagOverridesProfile ? " profiled-node" : "";
         const mutedClass = muted ? " muted-node" : "";
         const tagChipHtml = (showTagBadge && tagActive)
           ? `<span class="chat-member-tag-chip" style="${{escAttr(tagStyleVars)}}" title="Tag: ${{escAttr(tagLabel)}}">${{escAttr(tagLabel)}}</span>`

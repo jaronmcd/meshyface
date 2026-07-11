@@ -517,6 +517,8 @@
         target.style.removeProperty("--node-tag-vibrance");
         target.style.removeProperty("--node-profile-border");
         target.style.removeProperty("--node-profile-bg");
+        target.style.removeProperty("--node-profile-color-wash");
+        target.style.removeProperty("--node-profile-color-wash-hover");
         if (typeof clearMeshyfaceProfileThemeElementStyle === "function") {{
           clearMeshyfaceProfileThemeElementStyle(target);
         }}
@@ -560,8 +562,18 @@
           ? effectiveNodeAppearanceForNode(nodeId)
           : tagEntry;
         const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
-        member.classList.toggle("tagged-node", tagActive);
-        member.classList.toggle("profiled-node", appearanceActive && !tagActive);
+        const profileAppearanceActive = !!(
+          appearanceActive
+          && appearanceEntry
+          && appearanceEntry.profileAppearance
+        );
+        const tagOverridesProfile = tagActive && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(tagEntry)
+            : true
+        );
+        member.classList.toggle("tagged-node", tagActive && (!profileAppearanceActive || tagOverridesProfile));
+        member.classList.toggle("profiled-node", profileAppearanceActive && !tagOverridesProfile);
         const nameLeft = member.querySelector(".chat-member-name-left");
         const existingChip = nameLeft instanceof HTMLElement
           ? nameLeft.querySelector(".chat-member-tag-chip")
@@ -631,8 +643,18 @@
           ? effectiveNodeAppearanceForNode(rowNodeId)
           : tagEntry;
         const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
-        row.classList.toggle("tagged-node", tagActive);
-        row.classList.toggle("profiled-node", appearanceActive && !tagActive);
+        const profileAppearanceActive = !!(
+          appearanceActive
+          && appearanceEntry
+          && appearanceEntry.profileAppearance
+        );
+        const tagOverridesProfile = tagActive && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(tagEntry)
+            : true
+        );
+        row.classList.toggle("tagged-node", tagActive && (!profileAppearanceActive || tagOverridesProfile));
+        row.classList.toggle("profiled-node", profileAppearanceActive && !tagOverridesProfile);
         if (appearanceActive) {{
           applyNodeAppearanceSurfaceStyle(row, appearanceEntry, "feed", 210);
         }} else {{

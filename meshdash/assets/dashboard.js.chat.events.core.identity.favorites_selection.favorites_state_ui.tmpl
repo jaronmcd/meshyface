@@ -454,8 +454,8 @@
       let end = theme.gradient_primary_end_color;
       if (kind === "wash") {{
         const intensity = theme.mode === "dark"
-          ? (hover ? 22 : 16)
-          : (hover ? 18 : 12);
+          ? (hover ? 32 : 24)
+          : (hover ? 26 : 18);
         start = `color-mix(in srgb, ${{start}} ${{intensity}}%, transparent)`;
         end = `color-mix(in srgb, ${{end}} ${{Math.max(6, intensity - 5)}}%, transparent)`;
       }} else if (theme.mode === "light") {{
@@ -590,7 +590,22 @@
     }}
 
     function effectiveNodeAppearanceForNode(nodeId, state = latestState) {{
-      return manualNodeTagEntryForNode(nodeId) || meshyfaceProfileAppearanceForNode(nodeId, state);
+      const tagEntry = manualNodeTagEntryForNode(nodeId);
+      // A custom local tag is an intentional visual override. The built-in
+      // Meshtastic-favorite tag is automatic, though, so it must not erase a
+      // node's advertised Meshyface identity.
+      if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;
+      return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;
+    }}
+
+    function nodeTagOverridesProfileAppearance(tagEntry) {{
+      const presetId = normalizeNodeTagPresetId(
+        (tagEntry && tagEntry.presetId)
+        || (tagEntry && tagEntry.preset && tagEntry.preset.id)
+        || "",
+        ""
+      );
+      return !!presetId && !isMeshtasticFavoritePresetId(presetId);
     }}
 
     function meshyfaceProfilesCacheSignature() {{
@@ -828,7 +843,12 @@
       const themeVars = typeof meshyfaceProfileThemeStyleVars === "function"
         ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme)
         : "";
-      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{themeVars}}`;
+      const colorWash = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 18%, transparent), color-mix(in srgb, ${{color}} 8%, transparent) 58%, transparent)`;
+      const colorWashHover = `linear-gradient(90deg, color-mix(in srgb, ${{color}} 26%, transparent), color-mix(in srgb, ${{color}} 12%, transparent) 58%, transparent)`;
+      const profileWashVars = appearanceEntry.profileAppearance
+        ? `--node-profile-color-wash:${{colorWash}};--node-profile-color-wash-hover:${{colorWashHover}};--chat-member-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-member-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));--chat-feed-node-gradient:var(--node-profile-theme-wash, var(--node-profile-color-wash));--chat-feed-node-gradient-hover:var(--node-profile-theme-wash-hover, var(--node-profile-color-wash-hover));`
+        : "";
+      return `${{tagVars}}--node-profile-border:${{color}};--node-profile-bg:color-mix(in srgb, ${{color}} 15%, var(--surface-tint-bg-soft) 85%);${{profileWashVars}}${{themeVars}}`;
     }}
 
     function nodeTagTintStyleVars(tagEntry, scope = "member", fallbackHue = 145) {{

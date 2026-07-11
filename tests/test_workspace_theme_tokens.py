@@ -231,7 +231,12 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "var(--chat-member-node-gradient-hover)" in dark_pinned_profile_hover
     assert "background: var(--node-profile-border" in pinned_identity_edge
     assert ".card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
-    assert ".chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
+    assert ".chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
+    assert ".chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" not in css
+    assert ".chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {" in css
+    assert ".card.chat .chat-reply-inline.profiled-node:not(.missing) {" in css
+    assert ".peer-dm-popout-head.profiled-node {" in css
+    assert ".peer-dm-popout-msg.profiled-node:not(.is-alert) {" in css
     dark_color_picker = _css_rule(css, "[data-theme=\"dark\"] .dashboard-color-picker-popover")
     color_picker = _css_rule(css, ".dashboard-color-picker-popover")
     assert "backdrop-filter: blur(14px) saturate(120%);" in color_picker

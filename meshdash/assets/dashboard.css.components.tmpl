@@ -8476,13 +8476,13 @@
     .card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
       border-color: var(--node-profile-border, var(--chat-feed-border-color));
     }}
-    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
       background:
         var(--chat-feed-channel-edge-bg),
         var(--node-profile-theme-wash, var(--chat-feed-node-gradient)),
         var(--chat-feed-node-bg);
     }}
-    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.self-authored.chat-selectable:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker):hover {{
+    .card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.chat-selectable:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker):hover {{
       background:
         var(--chat-feed-channel-edge-bg),
         var(--node-profile-theme-wash-hover, var(--chat-feed-node-gradient-hover)),
@@ -8514,6 +8514,58 @@
         in srgb,
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--theme-text-color, var(--workspace-shell-text)) 62%
+      );
+    }}
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {{
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) !important;
+      background: var(--node-profile-theme-gradient, var(--node-profile-border, var(--accent))) !important;
+      color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff)) !important;
+    }}
+    .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
+      border-left-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent)));
+      background: var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
+    }}
+    .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
+        var(--theme-text-color, var(--ink)) 46%
+      ) !important;
+    }}
+    [data-theme="dark"] .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--workspace-shell-text)) 46%
+      ) !important;
+    }}
+    .peer-dm-popout-head.profiled-node {{
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--peer-dm-channel-fill)));
+      background: var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
+    }}
+    .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
+        var(--theme-text-color, var(--ink)) 46%
+      );
+    }}
+    [data-theme="dark"] .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--workspace-shell-text)) 46%
+      );
+    }}
+    .peer-dm-popout-msg.profiled-node:not(.is-alert) {{
+      border-color: var(--node-profile-border, rgba(var(--peer-dm-channel-rgb), 0.46));
+      background: var(--node-profile-theme-wash, var(--node-profile-color-wash, rgba(var(--peer-dm-channel-rgb), 0.09)));
+    }}
+    .peer-dm-popout-msg.profiled-node:not(.is-alert) .peer-dm-popout-msg-meta {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 44%,
+        var(--theme-text-color-soft, var(--workspace-shell-text-soft, #5c7868)) 56%
       );
     }}
     .network-graph-node.has-theme-identity .network-graph-node-label {{

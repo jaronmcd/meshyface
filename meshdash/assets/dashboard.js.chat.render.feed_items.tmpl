@@ -246,10 +246,14 @@
         let replyInlineLabel = "";
         let replyInlineText = "";
         let replyInlineMissing = false;
+        let replyParentNodeId = "";
         if (Number.isInteger(replyToId) && replyToId > 0) {{
           const parentMsg = messageIndex.get(String(replyToId));
           if (parentMsg) {{
-            const parentFromMeta = chatEndpointParts(endpointsForMessage(parentMsg).fromId);
+            const parentEndpoints = endpointsForMessage(parentMsg);
+            const parentSourceNode = resolveChatFeedNodeId(parentEndpoints.fromId) || parentEndpoints.fromId;
+            replyParentNodeId = isSelectableNodeId(parentSourceNode) ? parentSourceNode : "";
+            const parentFromMeta = chatEndpointParts(parentEndpoints.fromId);
             const parentLabel = parentFromMeta.label || "Unknown node";
             const parentTextRaw = String(
               parentMsg.text
@@ -281,6 +285,8 @@
                 ? parentPacket.decoded
                 : {{}};
               const parentEndpoints = packetEndpointIds(parentPacketEntry);
+              const parentSourceNode = resolveChatFeedNodeId(parentEndpoints.fromId) || parentEndpoints.fromId;
+              replyParentNodeId = isSelectableNodeId(parentSourceNode) ? parentSourceNode : "";
               const parentUnix = latestUnixTimestamp(
                 parentSummary.rx_time_unix,
                 parentSummary.captured_at,
@@ -314,6 +320,31 @@
             }}
           }}
         }}
+        const replyTagEntry = replyParentNodeId && typeof nodeTagEntryForNode === "function"
+          ? nodeTagEntryForNode(replyParentNodeId)
+          : null;
+        const replyAppearanceEntry = replyParentNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(replyParentNodeId)
+          : replyTagEntry;
+        const replyProfileAppearanceActive = !!(
+          replyAppearanceEntry
+          && replyAppearanceEntry.preset
+          && replyAppearanceEntry.profileAppearance
+        );
+        const replyTagOverridesProfile = !!(
+          replyTagEntry
+          && typeof nodeTagOverridesProfileAppearance === "function"
+          && nodeTagOverridesProfileAppearance(replyTagEntry)
+        );
+        const replyProfileClass = replyProfileAppearanceActive && !replyTagOverridesProfile
+          ? " profiled-node"
+          : "";
+        const replyStyleVars = replyProfileClass && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(replyAppearanceEntry)
+          : "";
+        const replyStyleAttr = replyStyleVars
+          ? ` style="${{escAttr(replyStyleVars)}}"`
+          : "";
         const messageReactions = messageId ? reactionBuckets.get(String(messageId)) : null;
         const reactionGroups = messageReactions
           ? Array.from(messageReactions.values())
@@ -407,8 +438,19 @@
           ? `<div class="chat-reaction-row">${{reactionRowParts.join("")}}</div>`
           : "";
         const selectedFeedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
-        const tagClass = tagActive ? " tagged-node" : "";
-        const profileClass = appearanceActive && !tagActive ? " profiled-node" : "";
+        const profileAppearanceActive = !!(
+          appearanceActive
+          && appearanceEntry
+          && appearanceEntry.profileAppearance
+        );
+        const tagOverridesProfile = tagActive && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(tintTagEntry)
+            : true
+        );
+        const tagVisualActive = tagActive && (!profileAppearanceActive || tagOverridesProfile);
+        const tagClass = tagVisualActive ? " tagged-node" : "";
+        const profileClass = profileAppearanceActive && !tagOverridesProfile ? " profiled-node" : "";
         const messageKey = chatMessageKey(msg);
         const hasChangeMarker = !!messageKey && activeChangeFocusKeys.has(messageKey);
         const changeClass = hasChangeMarker ? " has-change-marker" : "";
@@ -468,7 +510,7 @@
           ? `Jump to original packet #${{replyInlineJumpTargetId}}`
           : "Original packet is unavailable";
         const replyInline = replyInlineLabel
-          ? `<button type="button" class="chat-reply-inline${{replyInlineMissing ? " missing" : ""}}" data-reply-target-id="${{escAttr(replyInlineJumpTargetId || "")}}" title="${{escAttr(replyInlineTitle)}}" aria-label="${{escAttr(replyInlineTitle)}}">
+          ? `<button type="button" class="chat-reply-inline${{replyInlineMissing ? " missing" : ""}}${{replyProfileClass}}" data-reply-target-id="${{escAttr(replyInlineJumpTargetId || "")}}" data-reply-node-id="${{escAttr(replyParentNodeId)}}"${{replyStyleAttr}} title="${{escAttr(replyInlineTitle)}}" aria-label="${{escAttr(replyInlineTitle)}}">
               <span class="chat-reply-inline-label">↪ ${{escAttr(replyInlineLabel)}}</span>
               <span class="chat-reply-inline-text">${{escAttr(replyInlineText)}}</span>
             </button>`

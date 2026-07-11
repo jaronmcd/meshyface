@@ -855,12 +855,13 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
         r"return manualNodeTagEntryForNode\(nodeId\);\s*\}",
         js,
     )
-    assert re.search(
-        r"function effectiveNodeAppearanceForNode\(nodeId, state = latestState\)\s*\{\s*"
-        r"return manualNodeTagEntryForNode\(nodeId\) \|\| "
-        r"meshyfaceProfileAppearanceForNode\(nodeId, state\);\s*\}",
-        js,
-    )
+    assert "function nodeTagOverridesProfileAppearance(tagEntry)" in js
+    assert "if (nodeTagOverridesProfileAppearance(tagEntry)) return tagEntry;" in js
+    assert "return meshyfaceProfileAppearanceForNode(nodeId, state) || tagEntry;" in js
+    assert "--node-profile-color-wash:" in js
+    assert "data-reply-node-id=\"${escAttr(replyParentNodeId)}\"" in js
+    assert "peer-dm-popout-head${peerProfileClass}" in js
+    assert "peer-dm-popout-msg${isOwn ? \" is-own\" : \"\"}${alertClass}${messageProfileClass}" in js
     assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js
     assert "syncMeshyfaceProfilesFromState(state)" in js
     assert "async function broadcastMeshyfaceProfileColor()" in js
