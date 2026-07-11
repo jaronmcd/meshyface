@@ -23,6 +23,9 @@ MESHYFACE_THEME_RECIPE_BYTES = 21
 MESHYFACE_THEME_RECIPE_ENCODED_LENGTH = 28
 MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS = 5
 MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES = 32
+MESHYFACE_PROFILE_GHOST_BLEND_MAX = 25
+MESHYFACE_PROFILE_GHOST_TILT_DEFAULT = "level"
+MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT = "center"
 
 _PROFILE_COLOR_RE = re.compile(r"^#[0-9a-f]{6}$", re.IGNORECASE)
 _PROFILE_NODE_ID_RE = re.compile(r"^!?[0-9a-f]{8}$", re.IGNORECASE)
@@ -33,7 +36,9 @@ _RGBA_COLOR_RE = re.compile(
     r"(0(?:\.\d+)?|1(?:\.0+)?)\s*\)$"
 )
 _PROFILE_WIRE_REQUIRED_KEYS = frozenset({"type", "v", "node", "updated", "theme"})
-_PROFILE_WIRE_OPTIONAL_KEYS = frozenset({"ghost", "ghost_fx"})
+_PROFILE_WIRE_OPTIONAL_KEYS = frozenset(
+    {"ghost", "ghost_fx", "ghost_tilt", "ghost_justify"}
+)
 _PROFILE_WIRE_KEYS = _PROFILE_WIRE_REQUIRED_KEYS | _PROFILE_WIRE_OPTIONAL_KEYS
 _THEME_RECIPE_KEYS = frozenset(
     {
@@ -67,6 +72,16 @@ _THEME_GRADIENT_DIRECTIONS = (
 )
 _THEME_MODES = ("light", "dark")
 _PROFILE_GHOST_EFFECTS = ("soft", "glow", "outline", "stamp")
+_PROFILE_GHOST_BASE_TILTS = ("level", "left", "right")
+_PROFILE_GHOST_TILTS = (
+    "level",
+    "left",
+    "right",
+    "level-upside-down",
+    "left-upside-down",
+    "right-upside-down",
+)
+_PROFILE_GHOST_JUSTIFICATIONS = ("left", "center", "right")
 
 
 def normalize_meshyface_profile_color(value: object) -> str | None:
@@ -115,16 +130,16 @@ def normalize_meshyface_profile_ghost_text(value: object) -> str | None:
 def normalize_meshyface_profile_ghost_blend(
     value: object,
     *,
-    fallback: int = 24,
+    fallback: int = MESHYFACE_PROFILE_GHOST_BLEND_MAX,
 ) -> int | None:
     if value is None:
-        return int(max(0, min(100, fallback)))
+        return int(max(0, min(MESHYFACE_PROFILE_GHOST_BLEND_MAX, fallback)))
     if isinstance(value, bool):
         return None
     parsed = _to_int(value)
-    if parsed is None or parsed < 0 or parsed > 100:
+    if parsed is None or parsed < 0:
         return None
-    return int(parsed)
+    return int(min(parsed, MESHYFACE_PROFILE_GHOST_BLEND_MAX))
 
 
 def normalize_meshyface_profile_ghost_effect(
@@ -139,18 +154,91 @@ def normalize_meshyface_profile_ghost_effect(
     return fallback_clean if fallback_clean in _PROFILE_GHOST_EFFECTS else "soft"
 
 
+def normalize_meshyface_profile_ghost_tilt(
+    value: object,
+    *,
+    fallback: str = MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+) -> str:
+    clean = str(value or "").strip().lower().replace("_", "-")
+    if clean in {"none", "flat", "straight"}:
+        clean = "level"
+    elif clean in {"tilt-left", "lean-left"}:
+        clean = "left"
+    elif clean in {"tilt-right", "lean-right"}:
+        clean = "right"
+    elif clean in {"upside-down", "upside down", "invert", "inverted"}:
+        clean = "level-upside-down"
+    elif clean in {"tilt-left-upside-down", "lean-left-upside-down", "left-invert", "left-inverted"}:
+        clean = "left-upside-down"
+    elif clean in {"tilt-right-upside-down", "lean-right-upside-down", "right-invert", "right-inverted"}:
+        clean = "right-upside-down"
+    if clean in _PROFILE_GHOST_TILTS:
+        return clean
+    fallback_clean = str(fallback or "").strip().lower().replace("_", "-")
+    if fallback_clean in {"upside-down", "upside down", "invert", "inverted"}:
+        fallback_clean = "level-upside-down"
+    return (
+        fallback_clean
+        if fallback_clean in _PROFILE_GHOST_TILTS
+        else MESHYFACE_PROFILE_GHOST_TILT_DEFAULT
+    )
+
+
+def meshyface_profile_ghost_tilt_base(value: object) -> str:
+    tilt = normalize_meshyface_profile_ghost_tilt(value)
+    return tilt.removesuffix("-upside-down")
+
+
+def meshyface_profile_ghost_tilt_upside_down(value: object) -> bool:
+    return normalize_meshyface_profile_ghost_tilt(value).endswith("-upside-down")
+
+
+def compose_meshyface_profile_ghost_tilt(base: object, upside_down: object) -> str:
+    clean_base = meshyface_profile_ghost_tilt_base(base)
+    return f"{clean_base}-upside-down" if bool(upside_down) else clean_base
+
+
+def normalize_meshyface_profile_ghost_justify(
+    value: object,
+    *,
+    fallback: str = MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+) -> str:
+    clean = str(value or "").strip().lower().replace("_", "-")
+    if clean in {"middle", "centre"}:
+        clean = "center"
+    elif clean in {"start", "beginning"}:
+        clean = "left"
+    elif clean in {"end"}:
+        clean = "right"
+    if clean in _PROFILE_GHOST_JUSTIFICATIONS:
+        return clean
+    fallback_clean = str(fallback or "").strip().lower().replace("_", "-")
+    if fallback_clean in {"middle", "centre"}:
+        fallback_clean = "center"
+    return (
+        fallback_clean
+        if fallback_clean in _PROFILE_GHOST_JUSTIFICATIONS
+        else MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT
+    )
+
+
 def encode_meshyface_profile_ghost_fx(
     *,
     blend: object = 24,
     effect: object = "soft",
+    tilt: object = MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
 ) -> int | None:
     clean_blend = normalize_meshyface_profile_ghost_blend(blend)
     if clean_blend is None:
         return None
     clean_effect = normalize_meshyface_profile_ghost_effect(effect)
-    blend_steps = max(0, min(31, round(clean_blend * 31 / 100)))
+    upside_down = meshyface_profile_ghost_tilt_upside_down(tilt)
+    blend_steps = max(
+        0,
+        min(31, round(clean_blend * 31 / MESHYFACE_PROFILE_GHOST_BLEND_MAX)),
+    )
     effect_id = _PROFILE_GHOST_EFFECTS.index(clean_effect)
-    return int(blend_steps | (effect_id << 5))
+    return int(blend_steps | (effect_id << 5) | (0x80 if upside_down else 0))
 
 
 def decode_meshyface_profile_ghost_fx(value: object) -> dict[str, object] | None:
@@ -164,9 +252,15 @@ def decode_meshyface_profile_ghost_fx(value: object) -> dict[str, object] | None
     fx = int(parsed)
     blend_steps = fx & 0x1F
     effect_id = (fx >> 5) & 0x03
+    upside_down = bool(fx & 0x80)
     return {
-        "blend": int(round(blend_steps * 100 / 31)),
+        "blend": int(round(blend_steps * MESHYFACE_PROFILE_GHOST_BLEND_MAX / 31)),
         "effect": _PROFILE_GHOST_EFFECTS[effect_id],
+        "tilt": compose_meshyface_profile_ghost_tilt(
+            MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+            upside_down,
+        ),
+        "upside_down": upside_down,
         "fx": fx,
     }
 
@@ -193,8 +287,16 @@ def normalize_meshyface_profile_ghost(value: object) -> dict[str, object] | None
     decoded_fx = decode_meshyface_profile_ghost_fx(fx_raw) if fx_raw is not None else None
     if fx_raw is not None and decoded_fx is None:
         return None
-    blend_fallback = int(decoded_fx["blend"]) if decoded_fx else 24
+    blend_fallback = (
+        int(decoded_fx["blend"]) if decoded_fx else MESHYFACE_PROFILE_GHOST_BLEND_MAX
+    )
     effect_fallback = str(decoded_fx["effect"]) if decoded_fx else "soft"
+    tilt_fallback = (
+        str(decoded_fx["tilt"])
+        if decoded_fx
+        else MESHYFACE_PROFILE_GHOST_TILT_DEFAULT
+    )
+    justify_fallback = MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT
     blend = normalize_meshyface_profile_ghost_blend(
         _mapping_get(payload, "blend", "ghost_blend"),
         fallback=blend_fallback,
@@ -205,13 +307,26 @@ def normalize_meshyface_profile_ghost(value: object) -> dict[str, object] | None
         _mapping_get(payload, "effect", "ghost_effect"),
         fallback=effect_fallback,
     )
-    fx = encode_meshyface_profile_ghost_fx(blend=blend, effect=effect)
+    raw_tilt = _mapping_get(payload, "tilt", "ghost_tilt")
+    tilt = normalize_meshyface_profile_ghost_tilt(raw_tilt, fallback=tilt_fallback)
+    if raw_tilt is not None and decoded_fx and decoded_fx.get("upside_down"):
+        tilt = compose_meshyface_profile_ghost_tilt(
+            meshyface_profile_ghost_tilt_base(tilt),
+            True,
+        )
+    justify = normalize_meshyface_profile_ghost_justify(
+        _mapping_get(payload, "justify", "ghost_justify", "alignment", "text_align"),
+        fallback=justify_fallback,
+    )
+    fx = encode_meshyface_profile_ghost_fx(blend=blend, effect=effect, tilt=tilt)
     if fx is None:
         return None
     return {
         "text": text,
         "blend": int(blend),
         "effect": effect,
+        "tilt": tilt,
+        "justify": justify,
         "fx": int(fx),
     }
 
@@ -466,6 +581,8 @@ def build_meshyface_profile_payload(
     ghost_text: object = None,
     ghost_blend: object = 24,
     ghost_effect: object = "soft",
+    ghost_tilt: object = MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+    ghost_justify: object = MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
 ) -> bytes:
     clean_node_id = normalize_meshyface_profile_node_id(node_id)
     if not clean_node_id:
@@ -492,11 +609,18 @@ def build_meshyface_profile_payload(
                 "text": ghost_text,
                 "blend": ghost_blend,
                 "effect": ghost_effect,
+                "tilt": ghost_tilt,
+                "justify": ghost_justify,
             }
         )
     if clean_ghost:
         payload["ghost"] = clean_ghost["text"]
         payload["ghost_fx"] = clean_ghost["fx"]
+        clean_ghost_tilt_base = meshyface_profile_ghost_tilt_base(clean_ghost["tilt"])
+        if clean_ghost_tilt_base != MESHYFACE_PROFILE_GHOST_TILT_DEFAULT:
+            payload["ghost_tilt"] = clean_ghost_tilt_base
+        if clean_ghost["justify"] != MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT:
+            payload["ghost_justify"] = clean_ghost["justify"]
     encoded = json.dumps(
         payload,
         ensure_ascii=False,
@@ -599,13 +723,20 @@ def parse_meshyface_profile_packet(
     if theme is None:
         return None
     ghost: dict[str, object] | None = None
-    if "ghost" in body or "ghost_fx" in body:
+    if (
+        "ghost" in body
+        or "ghost_fx" in body
+        or "ghost_tilt" in body
+        or "ghost_justify" in body
+    ):
         if "ghost" not in body:
             return None
         ghost = normalize_meshyface_profile_ghost(
             {
                 "text": body.get("ghost"),
                 "fx": body.get("ghost_fx"),
+                "tilt": body.get("ghost_tilt"),
+                "justify": body.get("ghost_justify"),
             }
         )
         if ghost is None:

@@ -8708,6 +8708,7 @@
      * receiver's channel and card layers. Operational alert/status color
      * language wins; readable text stays local. */
     .profiled-node {{
+      font-family: var(--node-profile-theme-font-family, inherit);
       --node-profile-identity-color: var(
         --node-profile-theme-border,
         var(--node-profile-theme-line, var(--node-profile-border, var(--accent)))
@@ -8752,7 +8753,9 @@
       z-index: 0;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: var(--node-profile-ghost-justify, center);
+      box-sizing: border-box;
+      padding: 0 var(--node-profile-ghost-padding-x, 10%);
       color: var(--node-profile-theme-contrast, var(--node-profile-identity-color));
       font-size: clamp(18px, 2.6em, 46px);
       font-weight: var(--node-profile-ghost-weight, 800);

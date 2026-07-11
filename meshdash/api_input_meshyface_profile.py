@@ -42,17 +42,42 @@ def parse_meshyface_profile_theme_request(
     if theme is None:
         raise ValueError("theme must be a complete valid Meshyface theme recipe")
     ghost = None
-    ghost_keys = {"ghost", "ghost_text", "ghost_blend", "ghost_effect", "ghost_fx"}
+    ghost_keys = {
+        "ghost",
+        "ghost_text",
+        "ghost_blend",
+        "ghost_effect",
+        "ghost_tilt",
+        "ghost_justify",
+        "ghost_fx",
+    }
     if any(key in body for key in ghost_keys):
         raw_ghost = body.get("ghost")
         if raw_ghost is not None:
-            ghost = normalize_meshyface_profile_ghost(raw_ghost)
+            if isinstance(raw_ghost, dict):
+                ghost_payload = dict(raw_ghost)
+            else:
+                ghost_payload = {
+                    "text": raw_ghost,
+                    "blend": body.get("ghost_blend"),
+                    "effect": body.get("ghost_effect"),
+                    "tilt": body.get("ghost_tilt"),
+                    "justify": body.get("ghost_justify"),
+                    "fx": body.get("ghost_fx"),
+                }
+            if "ghost_tilt" in body and "tilt" not in ghost_payload:
+                ghost_payload["tilt"] = body.get("ghost_tilt")
+            if "ghost_justify" in body and "justify" not in ghost_payload:
+                ghost_payload["justify"] = body.get("ghost_justify")
+            ghost = normalize_meshyface_profile_ghost(ghost_payload)
         else:
             ghost = normalize_meshyface_profile_ghost(
                 {
                     "text": body.get("ghost_text"),
                     "blend": body.get("ghost_blend"),
                     "effect": body.get("ghost_effect"),
+                    "tilt": body.get("ghost_tilt"),
+                    "justify": body.get("ghost_justify"),
                     "fx": body.get("ghost_fx"),
                 }
             )

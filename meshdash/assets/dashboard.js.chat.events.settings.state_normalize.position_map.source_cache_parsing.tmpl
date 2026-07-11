@@ -372,22 +372,12 @@
       const channelIndex = normalizeMeshChannelIndex(
         meshChannelEffectiveSendIndexForApp("profiles")
       );
-      const theme = typeof currentMeshyfaceProfileThemeRecipe === "function"
-        ? currentMeshyfaceProfileThemeRecipe()
+      const body = typeof currentMeshyfaceProfileOutgoingPayload === "function"
+        ? currentMeshyfaceProfileOutgoingPayload({{ channel_index: channelIndex }})
         : null;
-      if (!theme) {{
+      if (!body || !body.theme) {{
         setMeshyfaceProfileStatusText("Your node appearance is incomplete and cannot be shared.", true);
         return null;
-      }}
-      const ghost = typeof currentMeshyfaceProfileGhost === "function"
-        ? currentMeshyfaceProfileGhost()
-        : null;
-      const body = {{
-        theme,
-        channel_index: channelIndex,
-      }};
-      if (ghost) {{
-        body.ghost = ghost;
       }}
       meshyfaceProfileBroadcastInFlight = true;
       syncSettingsAppearanceControls();

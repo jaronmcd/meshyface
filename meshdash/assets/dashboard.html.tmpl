@@ -2474,6 +2474,48 @@
                       </div>
                     </div>
                   </div>
+                  <div class="settings-gradient-fields settings-meshyface-node-theme-text-fields">
+                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
+                      <span class="settings-label">Watermark</span>
+                      <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
+                      <span class="settings-label">Watermark effect</span>
+                      <select id="settings-meshyface-node-theme-ghost-effect" class="settings-select">
+                        <option value="soft">Soft</option>
+                        <option value="glow">Glow</option>
+                        <option value="outline">Outline</option>
+                        <option value="stamp">Stamp</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-justify">
+                      <span class="settings-label">Watermark justify</span>
+                      <select id="settings-meshyface-node-theme-ghost-justify" class="settings-select">
+                        <option value="left">Left</option>
+                        <option value="center" selected>Center</option>
+                        <option value="right">Right</option>
+                      </select>
+                    </label>
+                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-tilt">
+                      <span class="settings-label">Watermark tilt</span>
+                      <select id="settings-meshyface-node-theme-ghost-tilt" class="settings-select">
+                        <option value="level">Level</option>
+                        <option value="left">Tilt left</option>
+                        <option value="right">Tilt right</option>
+                      </select>
+                    </label>
+                    <label class="settings-field settings-inline settings-meshyface-node-theme-toggle-field" for="settings-meshyface-node-theme-ghost-upside-down">
+                      <input id="settings-meshyface-node-theme-ghost-upside-down" type="checkbox" />
+                      <span>Upside down</span>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-ghost-blend">
+                      <span class="settings-label">Watermark strength</span>
+                      <div class="settings-range-row">
+                        <input id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="25" step="1" value="24" />
+                        <output id="settings-meshyface-node-theme-ghost-blend-value" for="settings-meshyface-node-theme-ghost-blend">24%</output>
+                      </div>
+                    </label>
+                  </div>
                   <div class="settings-gradient-fields settings-meshyface-node-theme-fields">
                     <label class="settings-field" for="settings-meshyface-node-theme-base-color">
                       <span class="settings-label">Base color</span>
@@ -2488,7 +2530,7 @@
                       <input id="settings-meshyface-node-theme-line-contrast-color" class="settings-input settings-color-input" type="color" value="#4f55ff" />
                     </label>
                     <label class="settings-field" for="settings-meshyface-node-theme-text-font">
-                      <span class="settings-label">Text</span>
+                      <span class="settings-label">Node font</span>
                       <select id="settings-meshyface-node-theme-text-font" class="settings-select">
                         <option value="system">System</option>
                         <option value="compact">Compact</option>
@@ -2506,14 +2548,14 @@
                       <input id="settings-meshyface-node-theme-gradient-end-color" class="settings-input settings-color-input" type="color" value="#060d1f" />
                     </label>
                     <label class="settings-field" for="settings-meshyface-node-theme-gradient-type">
-                      <span class="settings-label">Type</span>
+                      <span class="settings-label">Gradient type</span>
                       <select id="settings-meshyface-node-theme-gradient-type" class="settings-select">
                         <option value="linear">Linear</option>
                         <option value="radial">Radial</option>
                       </select>
                     </label>
                     <label class="settings-field" for="settings-meshyface-node-theme-gradient-direction">
-                      <span class="settings-label">Direction</span>
+                      <span class="settings-label">Gradient direction</span>
                       <select id="settings-meshyface-node-theme-gradient-direction" class="settings-select">
                         <option value="right">Right</option>
                         <option value="left">Left</option>
@@ -2553,26 +2595,6 @@
                       <div class="settings-range-row">
                         <input id="settings-meshyface-node-theme-foreground-blur" class="settings-range-input" type="range" min="0" max="40" step="1" value="0" />
                         <output id="settings-meshyface-node-theme-foreground-blur-value" for="settings-meshyface-node-theme-foreground-blur">0</output>
-                      </div>
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
-                      <span class="settings-label">Ghost text</span>
-                      <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
-                    </label>
-                    <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
-                      <span class="settings-label">Ghost effect</span>
-                      <select id="settings-meshyface-node-theme-ghost-effect" class="settings-select">
-                        <option value="soft">Soft</option>
-                        <option value="glow">Glow</option>
-                        <option value="outline">Outline</option>
-                        <option value="stamp">Stamp</option>
-                      </select>
-                    </label>
-                    <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-ghost-blend">
-                      <span class="settings-label">Ghost blend</span>
-                      <div class="settings-range-row">
-                        <input id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="100" step="1" value="24" />
-                        <output id="settings-meshyface-node-theme-ghost-blend-value" for="settings-meshyface-node-theme-ghost-blend">24%</output>
                       </div>
                     </label>
                   </div>

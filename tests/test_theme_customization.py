@@ -1160,6 +1160,15 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
     assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "function currentMeshyfaceProfileOutgoingPayload(extra = null)" in js
+    assert "function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null)" in js
+    assert "function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault)" in js
+    assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
+    assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js
+    assert "function normalizeMeshyfaceProfileGhostJustify(value, fallback = meshyfaceProfileGhostJustifyDefault)" in js
+    assert "function meshyfaceProfileGhostTiltBase(value)" in js
+    assert "function meshyfaceProfileGhostTiltUpsideDown(value)" in js
+    assert "function composeMeshyfaceProfileGhostTilt(base, upsideDown)" in js
     assert "function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null)" in js
     assert "function meshyfaceProfileThemeDashboardOptions(rawTheme, extraOptions = null)" in js
     assert "function hasMeshyfaceProfileThemeDashboardPreviewUndo()" in js
@@ -1175,6 +1184,16 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,' in js
     assert 'id="settings-meshyface-node-theme-preview-card"' in html
     assert 'id="settings-meshyface-node-theme-preview-member"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-justify"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-upside-down"' in html
+    assert "Watermark" in html
+    assert "Watermark justify" in html
+    assert "Watermark tilt" in html
+    assert "Upside down" in html
+    assert '<option value="center" selected>Center</option>' in html
+    assert '<option value="upside-down">Upside down</option>' not in html
+    assert "Watermark strength" in html
     assert 'class="settings-meshyface-node-theme-preview-shell"' in html
     assert 'class="chat-feed-item profiled-node chat-selectable"' in html
     assert 'class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"' in html
@@ -1187,7 +1206,13 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in js
     assert "applyNodeAppearanceElementStyle(target, appearanceEntry);" in js
     assert "settingsMeshyfaceNodeThemePreviewRender" in js
-    assert '? currentMeshyfaceProfileThemeRecipe()' in js
+    assert "const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();" in js
+    assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-justify")' in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-upside-down")' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-justify", "ghost_justify", normalizeMeshyfaceProfileGhostJustify);' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-tilt", "ghost_tilt", normalizeMeshyfaceProfileGhostTilt);' not in js
+    assert "composeMeshyfaceProfileGhostTilt(" in js
     assert "...(theme ? { theme } : {})," not in js
     assert "if (!theme || !preset) return null;" in js
     assert "function meshyfaceProfileThemeIdentityGradient(rawTheme)" not in js
@@ -1207,11 +1232,13 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "--node-profile-theme-motif" not in js
     assert "--node-profile-theme-gradient" not in js
     assert "--node-profile-theme-wash" not in js
-    assert "--node-profile-theme-font-family" not in js
+    assert "--node-profile-theme-font-family" in js
     assert "meshyfaceProfileThemePreviewHtml" not in js
     assert "node-profile-theme-swatch" not in js
     assert "Shared surface wash" not in html
     assert "Subtle panel and note color" not in html
+    assert "Node font" in html
+    assert "Gradient direction" in html
     assert "Text" in html
     assert "Console preview" not in html
     assert "$ mesh status --live" not in html

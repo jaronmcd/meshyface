@@ -318,7 +318,40 @@
       "center",
     ]);
     const meshyfaceProfileThemeModes = new Set(["light", "dark"]);
+    const meshyfaceProfileGhostBlendMax = 25;
+    const meshyfaceProfileGhostTiltDefault = "level";
+    const meshyfaceProfileGhostJustifyDefault = "center";
+    const meshyfaceProfileThemeFontFamilyCss = Object.freeze({{
+      system: '"IBM Plex Sans", "Segoe UI", sans-serif',
+      compact: '"Bahnschrift", "Arial Narrow", "IBM Plex Sans", "Segoe UI", sans-serif',
+      rounded: '"Aptos", "Segoe UI Variable", "Nunito", "IBM Plex Sans", sans-serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+      serif: 'Georgia, "Times New Roman", serif',
+    }});
     const meshyfaceProfileGhostEffects = new Set(["soft", "glow", "outline", "stamp"]);
+    const meshyfaceProfileGhostJustifications = new Set(["left", "center", "right"]);
+    const meshyfaceProfileGhostBaseTilts = new Set(["level", "left", "right"]);
+    const meshyfaceProfileGhostTilts = new Set([
+      "level",
+      "left",
+      "right",
+      "level-upside-down",
+      "left-upside-down",
+      "right-upside-down",
+    ]);
+    const meshyfaceProfileGhostTiltCss = Object.freeze({{
+      level: "rotate(0deg) scale(1.1)",
+      left: "rotate(-8deg) scale(1.14)",
+      right: "rotate(8deg) scale(1.14)",
+      "level-upside-down": "rotate(180deg) scale(1.08)",
+      "left-upside-down": "rotate(172deg) scale(1.1)",
+      "right-upside-down": "rotate(188deg) scale(1.1)",
+    }});
+    const meshyfaceProfileGhostJustifyCss = Object.freeze({{
+      left: {{ justify: "flex-start", padding: "18%" }},
+      center: {{ justify: "center", padding: "10%" }},
+      right: {{ justify: "flex-end", padding: "18%" }},
+    }});
     const meshyfaceProfileGhostEffectCss = Object.freeze({{
       soft: {{
         blendMode: "screen",
@@ -409,15 +442,15 @@
       return clean.trim();
     }}
 
-    function normalizeMeshyfaceProfileGhostBlend(value, fallback = 24) {{
+    function normalizeMeshyfaceProfileGhostBlend(value, fallback = meshyfaceProfileGhostBlendMax) {{
       const parsed = Number(value);
       if (Number.isFinite(parsed)) {{
-        return Math.max(0, Math.min(100, Math.round(parsed)));
+        return Math.max(0, Math.min(meshyfaceProfileGhostBlendMax, Math.round(parsed)));
       }}
       const fallbackParsed = Number(fallback);
       return Number.isFinite(fallbackParsed)
-        ? Math.max(0, Math.min(100, Math.round(fallbackParsed)))
-        : 24;
+        ? Math.max(0, Math.min(meshyfaceProfileGhostBlendMax, Math.round(fallbackParsed)))
+        : meshyfaceProfileGhostBlendMax;
     }}
 
     function normalizeMeshyfaceProfileGhostEffect(value, fallback = "soft") {{
@@ -427,14 +460,60 @@
       return meshyfaceProfileGhostEffects.has(cleanFallback) ? cleanFallback : "soft";
     }}
 
+    function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault) {{
+      let clean = String(value || "").trim().toLowerCase().replace(/_/g, "-");
+      if (clean === "none" || clean === "flat" || clean === "straight") clean = "level";
+      if (clean === "tilt-left" || clean === "lean-left") clean = "left";
+      if (clean === "tilt-right" || clean === "lean-right") clean = "right";
+      if (clean === "upside-down" || clean === "upside down" || clean === "invert" || clean === "inverted") clean = "level-upside-down";
+      if (clean === "tilt-left-upside-down" || clean === "lean-left-upside-down" || clean === "left-invert" || clean === "left-inverted") clean = "left-upside-down";
+      if (clean === "tilt-right-upside-down" || clean === "lean-right-upside-down" || clean === "right-invert" || clean === "right-inverted") clean = "right-upside-down";
+      if (meshyfaceProfileGhostTilts.has(clean)) return clean;
+      let cleanFallback = String(fallback || "").trim().toLowerCase().replace(/_/g, "-");
+      if (cleanFallback === "upside-down" || cleanFallback === "upside down" || cleanFallback === "invert" || cleanFallback === "inverted") {{
+        cleanFallback = "level-upside-down";
+      }}
+      return meshyfaceProfileGhostTilts.has(cleanFallback) ? cleanFallback : meshyfaceProfileGhostTiltDefault;
+    }}
+
+    function normalizeMeshyfaceProfileGhostJustify(value, fallback = meshyfaceProfileGhostJustifyDefault) {{
+      let clean = String(value || "").trim().toLowerCase().replace(/_/g, "-");
+      if (clean === "middle" || clean === "centre") clean = "center";
+      if (clean === "start" || clean === "beginning") clean = "left";
+      if (clean === "end") clean = "right";
+      if (meshyfaceProfileGhostJustifications.has(clean)) return clean;
+      let cleanFallback = String(fallback || "").trim().toLowerCase().replace(/_/g, "-");
+      if (cleanFallback === "middle" || cleanFallback === "centre") cleanFallback = "center";
+      return meshyfaceProfileGhostJustifications.has(cleanFallback)
+        ? cleanFallback
+        : meshyfaceProfileGhostJustifyDefault;
+    }}
+
+    function meshyfaceProfileGhostTiltBase(value) {{
+      const tilt = normalizeMeshyfaceProfileGhostTilt(value);
+      return tilt.endsWith("-upside-down") ? tilt.slice(0, "-upside-down".length * -1) : tilt;
+    }}
+
+    function meshyfaceProfileGhostTiltUpsideDown(value) {{
+      return normalizeMeshyfaceProfileGhostTilt(value).endsWith("-upside-down");
+    }}
+
+    function composeMeshyfaceProfileGhostTilt(base, upsideDown) {{
+      const cleanBase = meshyfaceProfileGhostBaseTilts.has(String(base || "").trim().toLowerCase())
+        ? String(base || "").trim().toLowerCase()
+        : meshyfaceProfileGhostTiltBase(base);
+      return upsideDown ? `${{cleanBase}}-upside-down` : cleanBase;
+    }}
+
     function encodeMeshyfaceProfileGhostFx(rawGhost) {{
       const ghost = rawGhost && typeof rawGhost === "object" ? rawGhost : {{}};
       const blend = normalizeMeshyfaceProfileGhostBlend(ghost.blend ?? ghost.ghost_blend, 24);
       const effect = normalizeMeshyfaceProfileGhostEffect(ghost.effect ?? ghost.ghost_effect, "soft");
+      const tilt = normalizeMeshyfaceProfileGhostTilt(ghost.tilt ?? ghost.ghost_tilt, meshyfaceProfileGhostTiltDefault);
       const effects = Array.from(meshyfaceProfileGhostEffects);
-      const blendSteps = Math.max(0, Math.min(31, Math.round(blend * 31 / 100)));
+      const blendSteps = Math.max(0, Math.min(31, Math.round(blend * 31 / meshyfaceProfileGhostBlendMax)));
       const effectId = Math.max(0, effects.indexOf(effect));
-      return blendSteps | (effectId << 5);
+      return blendSteps | (effectId << 5) | (meshyfaceProfileGhostTiltUpsideDown(tilt) ? 128 : 0);
     }}
 
     function decodeMeshyfaceProfileGhostFx(value) {{
@@ -443,9 +522,12 @@
       const effects = Array.from(meshyfaceProfileGhostEffects);
       const blendSteps = parsed & 31;
       const effectId = (parsed >> 5) & 3;
+      const upsideDown = Boolean(parsed & 128);
       return {{
-        blend: Math.round(blendSteps * 100 / 31),
+        blend: Math.round(blendSteps * meshyfaceProfileGhostBlendMax / 31),
         effect: effects[effectId] || "soft",
+        tilt: composeMeshyfaceProfileGhostTilt(meshyfaceProfileGhostTiltDefault, upsideDown),
+        upside_down: upsideDown,
         fx: parsed,
       }};
     }}
@@ -461,11 +543,22 @@
       if (!text) return null;
       const blend = normalizeMeshyfaceProfileGhostBlend(payload.blend ?? payload.ghost_blend, fx ? fx.blend : 24);
       const effect = normalizeMeshyfaceProfileGhostEffect(payload.effect ?? payload.ghost_effect, fx ? fx.effect : "soft");
+      const rawTilt = payload.tilt ?? payload.ghost_tilt;
+      let tilt = normalizeMeshyfaceProfileGhostTilt(rawTilt, fx ? fx.tilt : meshyfaceProfileGhostTiltDefault);
+      if (rawTilt != null && fx && fx.upside_down) {{
+        tilt = composeMeshyfaceProfileGhostTilt(meshyfaceProfileGhostTiltBase(tilt), true);
+      }}
+      const justify = normalizeMeshyfaceProfileGhostJustify(
+        payload.justify ?? payload.ghost_justify ?? payload.alignment ?? payload.text_align,
+        meshyfaceProfileGhostJustifyDefault
+      );
       return {{
         text,
         blend,
         effect,
-        fx: encodeMeshyfaceProfileGhostFx({{ blend, effect }}),
+        tilt,
+        justify,
+        fx: encodeMeshyfaceProfileGhostFx({{ blend, effect, tilt }}),
       }};
     }}
 
@@ -638,6 +731,8 @@
       const payload = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
         ? rawSettings
         : {{}};
+      const payloadSettings = meshyfaceNodeThemeSettingsFromOutgoingPayload(payload, fallback);
+      if (payloadSettings) return payloadSettings;
       const normalized = typeof normalizeThemeCustomSettings === "function"
         ? normalizeThemeCustomSettings(Object.assign({{}}, fallback, payload))
         : defaultMeshyfaceNodeThemeSettings();
@@ -645,6 +740,8 @@
         text: fallback.ghost_text,
         blend: fallback.ghost_blend,
         effect: fallback.ghost_effect,
+        tilt: fallback.ghost_tilt,
+        justify: fallback.ghost_justify,
       }});
       const ghostText = normalizeMeshyfaceProfileGhostText(
         Object.prototype.hasOwnProperty.call(payload, "ghost_text")
@@ -661,12 +758,117 @@
           ? payload.ghost_effect
           : (fallbackGhost ? fallbackGhost.effect : "soft")
       );
+      const ghostTilt = normalizeMeshyfaceProfileGhostTilt(
+        Object.prototype.hasOwnProperty.call(payload, "ghost_tilt")
+          ? payload.ghost_tilt
+          : (fallbackGhost ? fallbackGhost.tilt : meshyfaceProfileGhostTiltDefault)
+      );
+      const ghostJustify = normalizeMeshyfaceProfileGhostJustify(
+        Object.prototype.hasOwnProperty.call(payload, "ghost_justify")
+          ? payload.ghost_justify
+          : (fallbackGhost ? fallbackGhost.justify : meshyfaceProfileGhostJustifyDefault)
+      );
       return Object.assign({{}}, normalized, {{
         mode: normalizeMeshyfaceNodeThemeMode(payload.mode, fallback.mode),
         ghost_text: ghostText,
         ghost_blend: ghostBlend,
         ghost_effect: ghostEffect,
+        ghost_tilt: ghostTilt,
+        ghost_justify: ghostJustify,
       }});
+    }}
+
+    function meshyfaceNodeThemeSettingsFromOutgoingPayload(rawPayload, fallbackSettings = null) {{
+      const payload = rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)
+        ? rawPayload
+        : {{}};
+      const theme = normalizeMeshyfaceProfileTheme(payload.theme);
+      if (!theme) return null;
+      const fallback = fallbackSettings && typeof fallbackSettings === "object" && !Array.isArray(fallbackSettings)
+        ? fallbackSettings
+        : dashboardThemeSettingsForMeshyfaceNode();
+      const normalized = typeof normalizeThemeCustomSettings === "function"
+        ? normalizeThemeCustomSettings(Object.assign({{}}, fallback, {{
+          base_color: theme.base_color,
+          line_color: theme.line_color,
+          line_contrast_color: theme.line_contrast_color,
+          color_depth: theme.color_depth,
+          foreground_transparency: theme.foreground_transparency,
+          foreground_blur: theme.foreground_blur,
+          text_font: theme.text_font,
+          gradient_primary_start_color: theme.gradient_primary_start_color,
+          gradient_primary_end_color: theme.gradient_primary_end_color,
+          gradient_primary_type: theme.gradient_primary_type,
+          gradient_primary_direction: theme.gradient_primary_direction,
+        }}))
+        : defaultMeshyfaceNodeThemeSettings();
+      const ghost = normalizeMeshyfaceProfileGhost(payload.ghost);
+      return Object.assign({{}}, normalized, {{
+        mode: normalizeMeshyfaceNodeThemeMode(theme.mode, "current"),
+        ghost_text: ghost ? ghost.text : "",
+        ghost_blend: ghost ? ghost.blend : meshyfaceProfileGhostBlendMax,
+        ghost_effect: ghost ? ghost.effect : "soft",
+        ghost_tilt: ghost ? ghost.tilt : meshyfaceProfileGhostTiltDefault,
+        ghost_justify: ghost ? ghost.justify : meshyfaceProfileGhostJustifyDefault,
+      }});
+    }}
+
+    function meshyfaceNodeThemeOutgoingPayloadFromSettings(rawSettings, extra = null) {{
+      const settings = normalizeMeshyfaceNodeThemeSettings(rawSettings);
+      if (!settings || typeof settings !== "object") return null;
+      const requestedMode = normalizeMeshyfaceNodeThemeMode(settings.mode);
+      const theme = normalizeMeshyfaceProfileTheme({{
+        version: meshyfaceProfileThemeVersion,
+        base_color: settings.base_color,
+        line_color: settings.line_color,
+        line_contrast_color: settings.line_contrast_color,
+        gradient_primary_start_color: settings.gradient_primary_start_color,
+        gradient_primary_end_color: settings.gradient_primary_end_color,
+        color_depth: settings.color_depth,
+        foreground_transparency: settings.foreground_transparency,
+        foreground_blur: settings.foreground_blur,
+        text_font: settings.text_font,
+        gradient_primary_type: settings.gradient_primary_type,
+        gradient_primary_direction: settings.gradient_primary_direction,
+        mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,
+      }});
+      if (!theme) return null;
+      const payload = {{ theme }};
+      const ghost = normalizeMeshyfaceProfileGhost({{
+        text: settings.ghost_text,
+        blend: settings.ghost_blend,
+        effect: settings.ghost_effect,
+        tilt: settings.ghost_tilt,
+        justify: settings.ghost_justify,
+      }});
+      if (ghost) {{
+        payload.ghost = ghost;
+      }}
+      if (extra && typeof extra === "object") {{
+        for (const [key, value] of Object.entries(extra)) {{
+          if (value != null) {{
+            payload[key] = value;
+          }}
+        }}
+      }}
+      return payload;
+    }}
+
+    function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null) {{
+      const payload = rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)
+        ? rawPayload
+        : {{}};
+      const directTheme = normalizeMeshyfaceProfileTheme(payload.theme);
+      if (directTheme) {{
+        const normalized = {{ theme: directTheme }};
+        const ghost = normalizeMeshyfaceProfileGhost(payload.ghost);
+        if (ghost) {{
+          normalized.ghost = ghost;
+        }}
+        return normalized;
+      }}
+      const settings = normalizeMeshyfaceNodeThemeSettings(payload, fallbackSettings);
+      return meshyfaceNodeThemeOutgoingPayloadFromSettings(settings);
     }}
 
     function sanitizeMeshyfaceNodeThemeName(rawName) {{
@@ -683,7 +885,9 @@
       for (const [rawName, rawSettings] of Object.entries(rawCatalog)) {{
         const name = sanitizeMeshyfaceNodeThemeName(rawName);
         if (!name) continue;
-        normalized[name] = normalizeMeshyfaceNodeThemeSettings(rawSettings, fallback);
+        const payload = normalizeMeshyfaceNodeThemePayload(rawSettings, fallback);
+        if (!payload) continue;
+        normalized[name] = payload;
         count += 1;
         if (count >= 50) break;
       }}
@@ -713,33 +917,17 @@
     }}
 
     function currentMeshyfaceProfileThemeRecipe() {{
-      const settings = currentMeshyfaceNodeThemeSettings();
-      if (!settings || typeof settings !== "object") return null;
-      const requestedMode = normalizeMeshyfaceNodeThemeMode(settings.mode);
-      return normalizeMeshyfaceProfileTheme({{
-        version: meshyfaceProfileThemeVersion,
-        base_color: settings.base_color,
-        line_color: settings.line_color,
-        line_contrast_color: settings.line_contrast_color,
-        gradient_primary_start_color: settings.gradient_primary_start_color,
-        gradient_primary_end_color: settings.gradient_primary_end_color,
-        color_depth: settings.color_depth,
-        foreground_transparency: settings.foreground_transparency,
-        foreground_blur: settings.foreground_blur,
-        text_font: settings.text_font,
-        gradient_primary_type: settings.gradient_primary_type,
-        gradient_primary_direction: settings.gradient_primary_direction,
-        mode: requestedMode === "current" ? resolvedMeshyfaceProfileThemeMode() : requestedMode,
-      }});
+      const payload = meshyfaceNodeThemeOutgoingPayloadFromSettings(currentMeshyfaceNodeThemeSettings());
+      return payload && payload.theme ? payload.theme : null;
     }}
 
     function currentMeshyfaceProfileGhost() {{
-      const settings = currentMeshyfaceNodeThemeSettings();
-      return normalizeMeshyfaceProfileGhost({{
-        text: settings && settings.ghost_text,
-        blend: settings && settings.ghost_blend,
-        effect: settings && settings.ghost_effect,
-      }});
+      const payload = meshyfaceNodeThemeOutgoingPayloadFromSettings(currentMeshyfaceNodeThemeSettings());
+      return payload && payload.ghost ? payload.ghost : null;
+    }}
+
+    function currentMeshyfaceProfileOutgoingPayload(extra = null) {{
+      return meshyfaceNodeThemeOutgoingPayloadFromSettings(currentMeshyfaceNodeThemeSettings(), extra);
     }}
 
     function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null) {{
@@ -1132,6 +1320,7 @@
       "--node-profile-theme-base",
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
+      "--node-profile-theme-font-family",
     ];
     const meshyfaceProfileGhostStyleProperties = [
       "--node-profile-ghost-text",
@@ -1139,6 +1328,8 @@
       "--node-profile-ghost-blend-mode",
       "--node-profile-ghost-filter",
       "--node-profile-ghost-transform",
+      "--node-profile-ghost-justify",
+      "--node-profile-ghost-padding-x",
       "--node-profile-ghost-weight",
       "--node-profile-ghost-tracking",
     ];
@@ -1154,6 +1345,7 @@
         ["--node-profile-theme-base", theme.base_color],
         ["--node-profile-theme-line", theme.line_color],
         ["--node-profile-theme-contrast", theme.line_contrast_color],
+        ["--node-profile-theme-font-family", meshyfaceProfileThemeFontFamilyCss[theme.text_font] || meshyfaceProfileThemeFontFamilyCss.system],
       ];
       if (render) {{
         entries.splice(1, 0,
@@ -1177,12 +1369,16 @@
       const ghost = normalizeMeshyfaceProfileGhost(rawGhost);
       if (!ghost) return [];
       const effect = meshyfaceProfileGhostEffectCss[ghost.effect] || meshyfaceProfileGhostEffectCss.soft;
+      const tiltTransform = meshyfaceProfileGhostTiltCss[ghost.tilt] || meshyfaceProfileGhostTiltCss[meshyfaceProfileGhostTiltDefault];
+      const justifyStyle = meshyfaceProfileGhostJustifyCss[ghost.justify] || meshyfaceProfileGhostJustifyCss[meshyfaceProfileGhostJustifyDefault];
       return [
         ["--node-profile-ghost-text", JSON.stringify(ghost.text)],
         ["--node-profile-ghost-opacity", (ghost.blend / 100).toFixed(3)],
         ["--node-profile-ghost-blend-mode", effect.blendMode],
         ["--node-profile-ghost-filter", effect.filter],
-        ["--node-profile-ghost-transform", effect.transform],
+        ["--node-profile-ghost-transform", tiltTransform],
+        ["--node-profile-ghost-justify", justifyStyle.justify],
+        ["--node-profile-ghost-padding-x", justifyStyle.padding],
         ["--node-profile-ghost-weight", effect.weight],
         ["--node-profile-ghost-tracking", effect.tracking],
       ];
@@ -1253,8 +1449,9 @@
         || ""
       );
       if (localNodeId && cleanNodeId === localNodeId) {{
-        const theme = currentMeshyfaceProfileThemeRecipe();
-        const ghost = currentMeshyfaceProfileGhost();
+        const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
+        const theme = outgoingPayload && outgoingPayload.theme;
+        const ghost = outgoingPayload && outgoingPayload.ghost;
         const render = meshyfaceNodeThemePreviewRenderForTheme(theme);
         const preset = meshyfaceProfileAppearancePreset(theme, render);
         if (!theme || !preset) return null;
@@ -1702,8 +1899,9 @@
       const opts = options && typeof options === "object" ? options : {{}};
       const preview = document.getElementById("settings-meshyface-node-theme-preview");
       if (!(preview instanceof HTMLElement)) return;
-      const theme = currentMeshyfaceProfileThemeRecipe();
-      const ghost = currentMeshyfaceProfileGhost();
+      const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
+      const theme = outgoingPayload && outgoingPayload.theme;
+      const ghost = outgoingPayload && outgoingPayload.ghost;
       const preset = meshyfaceProfileAppearancePreset(theme);
       const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);
       const previewTargets = meshyfaceNodeThemePreviewTargets();
@@ -1822,6 +2020,19 @@
       if (ghostEffectSelect instanceof HTMLSelectElement) {{
         ghostEffectSelect.value = normalizeMeshyfaceProfileGhostEffect(settings.ghost_effect);
       }}
+      const ghostJustifySelect = document.getElementById("settings-meshyface-node-theme-ghost-justify");
+      if (ghostJustifySelect instanceof HTMLSelectElement) {{
+        ghostJustifySelect.value = normalizeMeshyfaceProfileGhostJustify(settings.ghost_justify);
+      }}
+      const normalizedGhostTilt = normalizeMeshyfaceProfileGhostTilt(settings.ghost_tilt);
+      const ghostTiltSelect = document.getElementById("settings-meshyface-node-theme-ghost-tilt");
+      if (ghostTiltSelect instanceof HTMLSelectElement) {{
+        ghostTiltSelect.value = meshyfaceProfileGhostTiltBase(normalizedGhostTilt);
+      }}
+      const ghostUpsideDownInput = document.getElementById("settings-meshyface-node-theme-ghost-upside-down");
+      if (ghostUpsideDownInput instanceof HTMLInputElement) {{
+        ghostUpsideDownInput.checked = meshyfaceProfileGhostTiltUpsideDown(normalizedGhostTilt);
+      }}
       const setRangeInput = (id, outputId, value, suffix, normalize) => {{
         const normalized = normalize(value);
         const input = document.getElementById(id);
@@ -1862,7 +2073,8 @@
         normalizeMeshyfaceProfileGhostBlend
       );
       const selectedSavedTheme = selected !== "custom" && Object.prototype.hasOwnProperty.call(catalog, selected);
-      const dashboardThemeConvertible = !!meshyfaceProfileThemeDashboardOptions(currentMeshyfaceProfileThemeRecipe());
+      const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
+      const dashboardThemeConvertible = !!meshyfaceProfileThemeDashboardOptions(outgoingPayload && outgoingPayload.theme);
       const dashboardPreviewUndoActive = hasMeshyfaceProfileThemeDashboardPreviewUndo();
       const tryDashboardBtn = document.getElementById("settings-meshyface-node-theme-try-dashboard");
       if (tryDashboardBtn instanceof HTMLButtonElement) {{
@@ -1937,9 +2149,13 @@
       ) {{
         return false;
       }}
-      const settings = currentMeshyfaceNodeThemeSettings();
-      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemeSettings(settings);
-      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(settings);
+      const payload = currentMeshyfaceProfileOutgoingPayload();
+      if (!payload) {{
+        setMeshyfaceNodeThemeStatusText("Node appearance is incomplete and cannot be saved.", true);
+        return false;
+      }}
+      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(payload);
+      settingsMeshyfaceNodeThemeSettings = normalizeMeshyfaceNodeThemeSettings(payload);
       settingsMeshyfaceNodeThemeSelected = name;
       persistMeshyfaceNodeThemePreferences();
       syncMeshyfaceNodeThemeControls();
@@ -1997,8 +2213,9 @@
     }}
 
     async function tryCurrentMeshyfaceNodeThemeOnDashboard() {{
+      const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
       return tryMeshyfaceProfileThemeOnDashboard(
-        currentMeshyfaceProfileThemeRecipe(),
+        outgoingPayload && outgoingPayload.theme,
         document.getElementById("settings-meshyface-node-theme-try-dashboard")
       );
     }}
@@ -2045,8 +2262,9 @@
     async function saveCurrentMeshyfaceNodeThemeAsDashboardTheme() {{
       const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
       const suggested = selected === "custom" ? "" : selected;
+      const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
       return saveMeshyfaceProfileThemeAsDashboardTheme(
-        currentMeshyfaceProfileThemeRecipe(),
+        outgoingPayload && outgoingPayload.theme,
         suggested,
         document.getElementById("settings-meshyface-node-theme-save-dashboard")
       );
@@ -2065,7 +2283,7 @@
       ) {{
         return false;
       }}
-      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemeSettings(
+      settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(
         settingsMeshyfaceNodeThemeCatalog[selected]
       );
       delete settingsMeshyfaceNodeThemeCatalog[selected];
@@ -2195,6 +2413,32 @@
       );
       bindSelect("settings-meshyface-node-theme-mode", "mode", normalizeMeshyfaceNodeThemeMode);
       bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);
+      bindSelect("settings-meshyface-node-theme-ghost-justify", "ghost_justify", normalizeMeshyfaceProfileGhostJustify);
+
+      const ghostTiltSelect = document.getElementById("settings-meshyface-node-theme-ghost-tilt");
+      if (ghostTiltSelect instanceof HTMLSelectElement && ghostTiltSelect.dataset.bound !== "1") {{
+        ghostTiltSelect.dataset.bound = "1";
+        ghostTiltSelect.addEventListener("change", () => {{
+          const current = normalizeMeshyfaceProfileGhostTilt(currentMeshyfaceNodeThemeSettings().ghost_tilt);
+          const next = composeMeshyfaceProfileGhostTilt(
+            ghostTiltSelect.value,
+            meshyfaceProfileGhostTiltUpsideDown(current)
+          );
+          updateMeshyfaceNodeThemeSettingPatch({{ ghost_tilt: next }});
+        }});
+      }}
+      const ghostUpsideDownInput = document.getElementById("settings-meshyface-node-theme-ghost-upside-down");
+      if (ghostUpsideDownInput instanceof HTMLInputElement && ghostUpsideDownInput.dataset.bound !== "1") {{
+        ghostUpsideDownInput.dataset.bound = "1";
+        ghostUpsideDownInput.addEventListener("change", () => {{
+          const current = normalizeMeshyfaceProfileGhostTilt(currentMeshyfaceNodeThemeSettings().ghost_tilt);
+          const next = composeMeshyfaceProfileGhostTilt(
+            meshyfaceProfileGhostTiltBase(current),
+            ghostUpsideDownInput.checked
+          );
+          updateMeshyfaceNodeThemeSettingPatch({{ ghost_tilt: next }});
+        }});
+      }}
 
       const ghostTextInput = document.getElementById("settings-meshyface-node-theme-ghost-text");
       if (ghostTextInput instanceof HTMLInputElement && ghostTextInput.dataset.bound !== "1") {{

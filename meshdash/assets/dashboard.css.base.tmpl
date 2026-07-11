@@ -10404,8 +10404,15 @@
       flex-direction: column;
       gap: 10px;
     }}
-    .settings-meshyface-node-theme-fields {{
+    .settings-gradient-fields.settings-meshyface-node-theme-fields {{
       grid-template-columns: repeat(5, minmax(118px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-text-fields {{
+      grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(120px, 1fr)) minmax(116px, 0.8fr) minmax(160px, 1.2fr);
+    }}
+    .settings-meshyface-node-theme-toggle-field {{
+      align-self: end;
+      min-height: 30px;
     }}
     .settings-gradient-group {{
       flex: 1 1 420px;
@@ -10492,6 +10499,7 @@
         grid-template-columns: 1fr;
       }}
       .settings-gradient-fields,
+      .settings-meshyface-node-theme-text-fields,
       .settings-background-image-fields,
       .settings-particles-fields,
       .settings-livemap-layer-grid {{

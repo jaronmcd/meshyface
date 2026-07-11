@@ -24,6 +24,9 @@ from meshdash.http_api_post import build_post_route_dependencies
 from meshdash.http_routes_post import handle_dashboard_post
 from meshdash.meshyface_profile import (
     DEFAULT_MESHYFACE_PROFILE_PORTNUM,
+    MESHYFACE_PROFILE_GHOST_BLEND_MAX,
+    MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+    MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
     MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES,
     MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS,
     MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES,
@@ -155,7 +158,9 @@ class _StateTracker:
                     "text": "73",
                     "blend": 23,
                     "effect": "glow",
-                    "fx": 39,
+                    "tilt": MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+                    "justify": MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+                    "fx": 61,
                 },
             },
             "!bad": {"updated_unix": 1_788_300_000, "theme": _theme_recipe()},
@@ -385,12 +390,14 @@ def test_profile_packet_can_carry_compact_ghost_text() -> None:
         node_id="!335d8354",
         updated_unix=1_788_300_000,
         theme=recipe,
-        ghost={"text": "🔥🔥🔥🔥🔥", "blend": 52, "effect": "glow"},
+        ghost={"text": "🔥🔥🔥🔥🔥", "blend": 100, "effect": "glow"},
     )
 
     body = json.loads(payload)
     assert body["ghost"] == "🔥🔥🔥🔥🔥"
-    assert body["ghost_fx"] == 48
+    assert body["ghost_fx"] == 63
+    assert "ghost_tilt" not in body
+    assert "ghost_justify" not in body
     assert len(body["ghost"]) == MESHYFACE_PROFILE_GHOST_TEXT_MAX_CHARS
     assert len(body["ghost"].encode("utf-8")) <= MESHYFACE_PROFILE_GHOST_TEXT_MAX_BYTES
     assert MESHYFACE_PROFILE_MAX_PAYLOAD_BYTES - len(payload) >= 70
@@ -408,9 +415,11 @@ def test_profile_packet_can_carry_compact_ghost_text() -> None:
         "theme": recipe,
         "ghost": {
             "text": "🔥🔥🔥🔥🔥",
-            "blend": 52,
+            "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
             "effect": "glow",
-            "fx": 48,
+            "tilt": MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+            "justify": MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+            "fx": 63,
         },
     }
 
@@ -627,7 +636,13 @@ def test_parse_meshyface_profile_theme_request_validates_theme_and_channel() -> 
         {
             "channel_index": 2,
             "theme": _theme_recipe(base_color="#ABCDEF"),
-            "ghost": {"text": "AB🔥", "blend": 45, "effect": "stamp"},
+            "ghost": {
+                "text": "AB🔥",
+                "blend": 45,
+                "effect": "stamp",
+                "tilt": "right-upside-down",
+                "justify": "left",
+            },
         }
     ).encode("utf-8")
 
@@ -637,9 +652,11 @@ def test_parse_meshyface_profile_theme_request_validates_theme_and_channel() -> 
     assert request.theme == _theme_recipe(base_color="#abcdef")
     assert request.ghost == {
         "text": "AB🔥",
-        "blend": 45,
+        "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
         "effect": "stamp",
-        "fx": 110,
+        "tilt": "right-upside-down",
+        "justify": "left",
+        "fx": 255,
     }
     with pytest.raises(ValueError, match="no longer supported"):
         parse_meshyface_profile_theme_request(
@@ -702,7 +719,13 @@ def test_send_meshyface_profile_theme_includes_optional_ghost() -> None:
 
     response = send_meshyface_profile_theme(
         theme=recipe,
-        ghost={"text": "HELLO", "blend": 35, "effect": "outline"},
+        ghost={
+            "text": "HELLO",
+            "blend": 35,
+            "effect": "outline",
+            "tilt": "right-upside-down",
+            "justify": "right",
+        },
         iface=iface,
         send_lock=threading.Lock(),
         local_node_id_fn=lambda: "!335d8354",
@@ -712,14 +735,18 @@ def test_send_meshyface_profile_theme_includes_optional_ghost() -> None:
 
     assert response["ghost"] == {
         "text": "HELLO",
-        "blend": 35,
+        "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
         "effect": "outline",
-        "fx": 75,
+        "tilt": "right-upside-down",
+        "justify": "right",
+        "fx": 223,
     }
     payload, _kwargs = iface.calls[0]
     body = json.loads(payload)
     assert body["ghost"] == "HELLO"
-    assert body["ghost_fx"] == 75
+    assert body["ghost_fx"] == 223
+    assert body["ghost_tilt"] == "right"
+    assert body["ghost_justify"] == "right"
     assert decode_meshyface_theme_recipe(body["theme"]) == recipe
 
 
@@ -846,7 +873,9 @@ def test_received_meshyface_profile_survives_history_store_restart(tmp_path: Pat
         "text": "73",
         "blend": 23,
         "effect": "glow",
-        "fx": 39,
+        "tilt": MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+        "justify": MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+        "fx": 61,
     }
 
     first_store = _open_history_store(history_path)
@@ -1095,7 +1124,9 @@ def test_full_and_lite_state_include_sanitized_top_level_profiles() -> None:
                 "text": "73",
                 "blend": 23,
                 "effect": "glow",
-                "fx": 39,
+                "tilt": MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+                "justify": MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
+                "fx": 61,
             },
         },
     }
@@ -1161,7 +1192,13 @@ def test_handle_dashboard_post_dispatches_profile_theme() -> None:
 
 def test_handle_dashboard_post_dispatches_profile_theme_ghost() -> None:
     recipe = _theme_recipe()
-    ghost = {"text": "AB🔥", "blend": 45, "effect": "stamp"}
+    ghost = {
+        "text": "AB🔥",
+        "blend": 45,
+        "effect": "stamp",
+        "tilt": "right-upside-down",
+        "justify": "left",
+    }
     body = json.dumps({"channel_index": 4, "theme": recipe, "ghost": ghost}).encode(
         "utf-8"
     )
@@ -1196,9 +1233,11 @@ def test_handle_dashboard_post_dispatches_profile_theme_ghost() -> None:
 
     normalized_ghost = {
         "text": "AB🔥",
-        "blend": 45,
+        "blend": MESHYFACE_PROFILE_GHOST_BLEND_MAX,
         "effect": "stamp",
-        "fx": 110,
+        "tilt": "right-upside-down",
+        "justify": "left",
+        "fx": 255,
     }
     assert received == [{"channel_index": 4, "theme": recipe, "ghost": normalized_ghost}]
     assert responses == [
@@ -1339,7 +1378,20 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-node-theme-save-dashboard"' in html
     assert 'id="settings-meshyface-node-theme-ghost-text"' in html
     assert 'id="settings-meshyface-node-theme-ghost-effect"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-justify"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-upside-down"' in html
     assert 'id="settings-meshyface-node-theme-ghost-blend"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="25"' in html
+    assert "Watermark" in html
+    assert "Watermark effect" in html
+    assert "Watermark justify" in html
+    assert "Watermark tilt" in html
+    assert "Upside down" in html
+    assert '<option value="center" selected>Center</option>' in html
+    assert '<option value="upside-down">Upside down</option>' not in html
+    assert "Watermark strength" in html
+    assert "Ghost text" not in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
@@ -1396,7 +1448,20 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
     assert "function currentMeshyfaceProfileGhost()" in js
+    assert "function currentMeshyfaceProfileOutgoingPayload(extra = null)" in js
+    assert "function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null)" in js
+    assert "function meshyfaceNodeThemeOutgoingPayloadFromSettings(rawSettings, extra = null)" in js
+    assert "settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(payload);" in js
+    assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
     assert "function normalizeMeshyfaceProfileGhostText(value)" in js
+    assert "const meshyfaceProfileGhostBlendMax = 25;" in js
+    assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
+    assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js
+    assert "function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault)" in js
+    assert "function normalizeMeshyfaceProfileGhostJustify(value, fallback = meshyfaceProfileGhostJustifyDefault)" in js
+    assert "function meshyfaceProfileGhostTiltBase(value)" in js
+    assert "function meshyfaceProfileGhostTiltUpsideDown(value)" in js
+    assert "function composeMeshyfaceProfileGhostTilt(base, upsideDown)" in js
     assert "function normalizeMeshyfaceProfileGhost(rawGhost)" in js
     assert "function meshyfaceProfileGhostStyleVars(rawGhost)" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
@@ -1412,7 +1477,12 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "Previewing node appearance on the dashboard. Use Undo look to restore the previous theme." in js
     assert "renderMeshyfaceNodeThemePreview();" in js
     assert 'document.getElementById("settings-meshyface-node-theme-ghost-text")' in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-justify")' in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-upside-down")' in js
     assert 'bindSelect("settings-meshyface-node-theme-ghost-effect", "ghost_effect", normalizeMeshyfaceProfileGhostEffect);' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-justify", "ghost_justify", normalizeMeshyfaceProfileGhostJustify);' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-tilt", "ghost_tilt", normalizeMeshyfaceProfileGhostTilt);' not in js
+    assert "composeMeshyfaceProfileGhostTilt(" in js
     assert 'bindRangeInput("settings-meshyface-node-theme-ghost-blend", "ghost_blend", normalizeMeshyfaceProfileGhostBlend);' in js
     assert "function estimateMeshyfaceNodeThemePreviewRender(rawTheme)" in js
     assert "function meshyfaceNodeThemePreviewRenderForTheme(rawTheme)" in js
@@ -1492,7 +1562,12 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "--node-profile-theme-border-muted" in js
     assert "const meshyfaceProfileThemeFontFamilies = Object.freeze" not in js
     assert "function meshyfaceProfileThemeFontFamily(rawTheme)" not in js
-    assert "--node-profile-theme-font-family" not in js
+    assert "const meshyfaceProfileThemeFontFamilyCss = Object.freeze" in js
+    assert "--node-profile-theme-font-family" in js
+    assert (
+        '["--node-profile-theme-font-family", '
+        "meshyfaceProfileThemeFontFamilyCss[theme.text_font] || meshyfaceProfileThemeFontFamilyCss.system]"
+    ) in js
     assert "--node-profile-theme-motif-gradient" not in js
     assert "--node-profile-theme-gradient" not in js
     assert "--node-profile-theme-wash" not in js

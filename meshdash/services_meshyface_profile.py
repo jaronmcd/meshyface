@@ -4,8 +4,10 @@ import time
 
 from .helpers import to_int as _to_int
 from .meshyface_profile import (
+    MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
     MESHYFACE_PROFILE_PORTNUM,
     MESHYFACE_PROFILE_TYPE,
+    MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
     build_meshyface_profile_payload,
     normalize_meshyface_profile_ghost,
     normalize_meshyface_profile_node_id,
@@ -36,6 +38,8 @@ def send_meshyface_profile_theme(
     ghost_text: object = None,
     ghost_blend: object = 24,
     ghost_effect: object = "soft",
+    ghost_tilt: object = MESHYFACE_PROFILE_GHOST_TILT_DEFAULT,
+    ghost_justify: object = MESHYFACE_PROFILE_GHOST_JUSTIFY_DEFAULT,
     now_unix_fn=time.time,
 ) -> dict[str, object]:
     clean_theme = normalize_meshyface_theme_recipe(theme)
@@ -48,6 +52,8 @@ def send_meshyface_profile_theme(
                 "text": ghost_text,
                 "blend": ghost_blend,
                 "effect": ghost_effect,
+                "tilt": ghost_tilt,
+                "justify": ghost_justify,
             }
         )
     if clean_ghost is None and (ghost or ghost_text):
