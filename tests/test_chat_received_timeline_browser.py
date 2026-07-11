@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 
@@ -11,7 +12,17 @@ def _function_block(source: str, start: str, end: str) -> str:
     return start + source.split(start, 1)[1].split(end, 1)[0]
 
 
-def test_chat_received_timeline_contract_in_browser(tmp_path) -> None:
+@pytest.mark.gui_benchmark
+def test_chat_received_timeline_contract_in_browser(
+    request: pytest.FixtureRequest,
+    tmp_path,
+) -> None:
+    enabled = bool(request.config.getoption("--run-gui-benchmark")) or (
+        os.environ.get("MESH_GUI_BENCH_RUN", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    if not enabled:
+        pytest.skip("set MESH_GUI_BENCH_RUN=1 or pass --run-gui-benchmark")
     chromium = shutil.which("chromium") or shutil.which("chromium-browser")
     if not chromium:
         pytest.skip("Chromium is required for the JavaScript timeline contract probe")
