@@ -875,6 +875,15 @@
           if (typeof applyNodeAppearanceElementStyle === "function") {{
             applyNodeAppearanceElementStyle(selfCard, selfCardAppearanceEntry);
           }}
+          const selfCardChannelIndex = typeof normalizeMeshyfaceProfileLastBroadcastChannelIndex === "function"
+            ? normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+              selfCardAppearanceEntry.channel_index ?? selfCardAppearanceEntry.channelIndex
+            )
+            : null;
+          if (selfCardChannelIndex != null && typeof meshChannelColorMeta === "function") {{
+            const selfCardChannelMeta = meshChannelColorMeta(selfCardChannelIndex, {{ allowAll: false }});
+            selfCard.style.setProperty("--self-node-channel-edge-fill", selfCardChannelMeta.fill);
+          }}
           const selfCardGhost = typeof meshyfaceProfileGhostForAppearance === "function"
             ? meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)
             : null;

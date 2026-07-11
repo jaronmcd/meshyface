@@ -963,6 +963,35 @@
       return meshyfaceNodeThemeOutgoingPayloadFromSettings(currentMeshyfaceNodeThemeSettings(), extra);
     }}
 
+    function normalizeMeshyfaceProfileLastBroadcastChannelIndex(value) {{
+      const text = String(value == null ? "" : value).trim();
+      if (!text) return null;
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      const rawIdx = Math.trunc(num);
+      if (!Number.isInteger(rawIdx) || rawIdx < 0) return null;
+      const idx = typeof normalizeMeshChannelIndex === "function"
+        ? normalizeMeshChannelIndex(rawIdx)
+        : rawIdx;
+      return Number.isInteger(idx) && idx >= 0 ? idx : null;
+    }}
+
+    function currentMeshyfaceProfileDisplayChannelIndex() {{
+      const storedIdx = normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+        settingsMeshyfaceProfileLastBroadcastChannelIndex
+      );
+      if (storedIdx != null) return storedIdx;
+      if (
+        settingsMeshyfaceThemeSharingEnabled
+        && typeof meshChannelEffectiveSendIndexForApp === "function"
+      ) {{
+        return normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+          meshChannelEffectiveSendIndexForApp("profiles")
+        );
+      }}
+      return null;
+    }}
+
     function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       if (!theme || typeof normalizeThemeCustomSettings !== "function") return null;
@@ -1499,6 +1528,7 @@
         const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();
         const theme = outgoingPayload && outgoingPayload.theme;
         const ghost = outgoingPayload && outgoingPayload.ghost;
+        const channelIndex = currentMeshyfaceProfileDisplayChannelIndex();
         const render = meshyfaceNodeThemePreviewRenderForTheme(theme);
         const preset = meshyfaceProfileAppearancePreset(theme, render);
         if (!theme || !preset) return null;
@@ -1514,6 +1544,7 @@
           color: render ? render.border_color : theme.line_color,
           theme,
           ...(ghost ? {{ ghost }} : {{}}),
+          ...(channelIndex != null ? {{ channel_index: channelIndex }} : {{}}),
           ...(render ? {{ render }} : {{}}),
           presetId: preset.id,
           preset,
@@ -1853,6 +1884,7 @@
       "--node-profile-border",
       "--node-profile-identity-color",
       "--node-profile-bg",
+      "--self-node-channel-edge-fill",
       ...meshyfaceProfileThemeStyleProperties,
       ...meshyfaceProfileGhostStyleProperties,
     ];
@@ -1913,6 +1945,13 @@
       }} catch (_err) {{
         settingsMeshyfaceNodeThemeSelected = "custom";
       }}
+      try {{
+        settingsMeshyfaceProfileLastBroadcastChannelIndex = normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+          window.localStorage.getItem(settingsMeshyfaceProfileLastBroadcastChannelStorageKey)
+        );
+      }} catch (_err) {{
+        settingsMeshyfaceProfileLastBroadcastChannelIndex = null;
+      }}
       loadMeshyfaceNodeThemePreviewRenderCacheFromStorage();
     }}
 
@@ -1937,8 +1976,33 @@
         }} else {{
           window.localStorage.removeItem(settingsMeshyfaceNodeThemeStorageKey);
         }}
+        const broadcastChannelIndex = normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+          settingsMeshyfaceProfileLastBroadcastChannelIndex
+        );
+        if (broadcastChannelIndex != null) {{
+          window.localStorage.setItem(
+            settingsMeshyfaceProfileLastBroadcastChannelStorageKey,
+            String(broadcastChannelIndex)
+          );
+        }} else {{
+          window.localStorage.removeItem(settingsMeshyfaceProfileLastBroadcastChannelStorageKey);
+        }}
       }} catch (_err) {{
       }}
+    }}
+
+    function setMeshyfaceProfileLastBroadcastChannelIndex(channelIndex, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const next = normalizeMeshyfaceProfileLastBroadcastChannelIndex(channelIndex);
+      const changed = settingsMeshyfaceProfileLastBroadcastChannelIndex !== next;
+      settingsMeshyfaceProfileLastBroadcastChannelIndex = next;
+      if (opts.persist !== false) {{
+        persistMeshyfaceNodeThemePreferences();
+      }}
+      if (changed && opts.rerender !== false && typeof rerenderMeshyfaceProfileAppearance === "function") {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
+      return changed;
     }}
 
     function localMeshyfaceNodeThemePreviewName() {{

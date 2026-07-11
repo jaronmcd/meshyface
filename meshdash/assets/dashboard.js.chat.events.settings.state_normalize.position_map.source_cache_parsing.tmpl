@@ -501,6 +501,9 @@
         const sentChannel = normalizeMeshChannelIndex(
           payload && payload.channel_index != null ? payload.channel_index : channelIndex
         );
+        if (typeof setMeshyfaceProfileLastBroadcastChannelIndex === "function") {{
+          setMeshyfaceProfileLastBroadcastChannelIndex(sentChannel, {{ rerender: true }});
+        }}
         setMeshyfaceProfileStatusText(
           `Node appearance broadcast on ${{meshChannelSendLabelForIndex(sentChannel)}}.`
         );

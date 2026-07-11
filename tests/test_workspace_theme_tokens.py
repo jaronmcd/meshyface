@@ -367,16 +367,18 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "background-image: var(--node-profile-theme-surface) !important;" in roster
     assert "box-shadow: none;" in roster
     assert "border-color: var(--node-profile-identity-color);" in feed
-    assert "background-image: var(--node-profile-theme-surface) !important;" in feed
+    assert "background-image: var(--chat-feed-channel-edge-bg), var(--node-profile-theme-surface) !important;" in feed
     assert "box-shadow:" not in feed
     assert "color: var(--chat-member-node-fg, var(--workspace-shell-text)) !important;" in roster_name
     assert "color: var(--surface-tint-text) !important;" in table_name
     assert "color: var(--theme-text-color, var(--ink)) !important;" in feed_author
     assert "color: var(--ticker-text-strong);" in ticker_name
+    assert "--self-node-channel-edge-bg:" in self_ticker_card
+    assert "var(--self-node-channel-edge-fill, transparent) 0 4px" in self_ticker_card
     assert "--node-profile-self-text:" in self_ticker_card
     assert "--node-profile-self-label-text:" in self_ticker_card
     assert "color: var(--node-profile-self-text);" in self_ticker_card
-    assert "background: var(--node-profile-theme-surface) !important;" in self_ticker_card
+    assert "background: var(--self-node-channel-edge-bg), var(--node-profile-theme-surface) !important;" in self_ticker_card
     assert "border-color: var(--node-profile-identity-edge);" in self_ticker_card
     assert "color: var(--node-profile-self-label-text);" in self_ticker_label
     assert "var(--node-profile-self-label-text) 84%" in self_ticker_compact_label

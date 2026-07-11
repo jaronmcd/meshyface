@@ -1571,10 +1571,15 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
     assert 'let settingsMeshyfaceThemeSharingEnabled = false;' in js
     assert "let settingsMeshyfaceThemeSharingServerPending = null;" in js
+    assert "let settingsMeshyfaceProfileLastBroadcastChannelIndex = null;" in js
     assert "let chatEmojiTextTargetInput = null;" in js
     assert 'let settingsMeshyfaceNodeThemeSettings = null;' in js
     assert 'let settingsMeshyfaceNodeThemeSelected = "custom";' in js
     assert 'const settingsMeshyfaceThemeSharingStorageKey = "meshDashboardMeshyfaceThemeSharingV2";' in js
+    assert (
+        'const settingsMeshyfaceProfileLastBroadcastChannelStorageKey = '
+        '"meshDashboardMeshyfaceProfileLastBroadcastChannelV1";'
+    ) in js
     assert 'const settingsMeshyfaceNodeThemeStorageKey = "meshDashboardMeshyfaceNodeThemeV1";' in js
     assert (
         'const settingsMeshyfaceNodeThemeCatalogStorageKey = '
@@ -1604,10 +1609,12 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
     assert "function currentMeshyfaceProfileGhost()" in js
     assert "function currentMeshyfaceProfileOutgoingPayload(extra = null)" in js
+    assert "function currentMeshyfaceProfileDisplayChannelIndex()" in js
     assert "function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null)" in js
     assert "function meshyfaceNodeThemeOutgoingPayloadFromSettings(rawSettings, extra = null)" in js
     assert "settingsMeshyfaceNodeThemeCatalog[name] = normalizeMeshyfaceNodeThemePayload(payload);" in js
     assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
+    assert "setMeshyfaceProfileLastBroadcastChannelIndex(sentChannel, { rerender: true });" in js
     assert "function normalizeMeshyfaceProfileGhostText(value)" in js
     assert "if (charCount >= 6) break;" in js
     assert "function meshyfaceProfileGhostVisualUnits(value)" in js
@@ -1689,6 +1696,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "localProfile: true," in local_profile_block
     assert "color: render ? render.border_color : theme.line_color," in local_profile_block
     assert "theme," in local_profile_block
+    assert "...(channelIndex != null ? { channel_index: channelIndex } : {})," in local_profile_block
     assert "...(render ? { render } : {})," in local_profile_block
     assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in local_profile_block
     assert "const render = meshyfaceNodeThemePreviewRenderForTheme(theme);" in local_profile_block

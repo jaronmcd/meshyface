@@ -552,6 +552,8 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "effectiveNodeAppearanceForNode(localId, state)" in js
     assert "selfCard.classList.add(\"profiled-node\");" in js
     assert "applyNodeAppearanceElementStyle(selfCard, selfCardAppearanceEntry);" in js
+    assert "normalizeMeshyfaceProfileLastBroadcastChannelIndex(" in js
+    assert "selfCard.style.setProperty(\"--self-node-channel-edge-fill\", selfCardChannelMeta.fill);" in js
     assert "meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)" in js
     assert "selfCard.classList.add(\"has-node-profile-watermark\");" in js
     assert 'selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);' in js
