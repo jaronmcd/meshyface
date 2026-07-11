@@ -1168,6 +1168,8 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
     assert 'id="settings-meshyface-node-theme-select"' in html
     assert 'id="settings-meshyface-node-theme-reset"' in html
     assert 'id="settings-meshyface-node-theme-save"' in html
+    assert 'id="settings-meshyface-node-theme-try-dashboard"' in html
+    assert 'id="settings-meshyface-node-theme-save-dashboard"' in html
     assert 'id="settings-meshyface-profile-broadcast"' in html
     assert 'id="settings-meshyface-profile-status"' in html
     assert 'id="settings-meshyface-profile-sync-enabled"' not in html
@@ -1209,6 +1211,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
         'const settingsMeshyfaceNodeThemePreviewRenderStorageKey = '
         '"meshDashboardMeshyfaceNodeThemePreviewRenderV1";'
     ) in js
+    assert "let meshyfaceProfileThemeDashboardPreviewUndo = null;" in js
     assert 'document.getElementById("settings-meshyface-theme-sharing")' in js
     assert "function setMeshyfaceThemeSharingEnabled(enabled, options = null)" in js
     assert "function currentMeshyfaceNodeThemeSettings()" in js
@@ -1218,6 +1221,12 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function bindMeshyfaceNodeThemeControls()" in js
     assert "function resetMeshyfaceNodeThemeFromDashboard()" in js
     assert "function saveCurrentMeshyfaceNodeThemeAs()" in js
+    assert "function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null)" in js
+    assert "function captureMeshyfaceProfileThemeDashboardPreviewUndo(rawTheme)" in js
+    assert "function clearMeshyfaceProfileThemeDashboardPreviewUndo()" in js
+    assert "function tryCurrentMeshyfaceNodeThemeOnDashboard()" in js
+    assert "function saveCurrentMeshyfaceNodeThemeAsDashboardTheme()" in js
+    assert "Previewing node appearance on the dashboard. Use Undo look to restore the previous theme." in js
     assert "renderMeshyfaceNodeThemePreview();" in js
     assert "function estimateMeshyfaceNodeThemePreviewRender(rawTheme)" in js
     assert "function meshyfaceNodeThemePreviewRenderForTheme(rawTheme)" in js

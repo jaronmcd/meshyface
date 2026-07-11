@@ -595,6 +595,130 @@
       }});
     }}
 
+    function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme || typeof normalizeThemeCustomSettings !== "function") return null;
+      let base = null;
+      if (baseSettings && typeof baseSettings === "object" && !Array.isArray(baseSettings)) {{
+        base = baseSettings;
+      }} else if (typeof themeEditableSettingsForPreset === "function") {{
+        base = themeEditableSettingsForPreset(themePresetSelected);
+      }} else if (typeof currentThemeCustomSettings === "function") {{
+        base = currentThemeCustomSettings();
+      }}
+      const settings = normalizeThemeCustomSettings(base || {{}});
+      return Object.assign({{}}, settings, {{
+        base_color: theme.base_color,
+        line_color: theme.line_color,
+        line_contrast_color: theme.line_contrast_color,
+        color_depth: theme.color_depth,
+        foreground_transparency: theme.foreground_transparency,
+        foreground_blur: theme.foreground_blur,
+        text_font: theme.text_font,
+        gradient_primary_start_color: theme.gradient_primary_start_color,
+        gradient_primary_end_color: theme.gradient_primary_end_color,
+        gradient_primary_type: theme.gradient_primary_type,
+        gradient_primary_direction: theme.gradient_primary_direction,
+      }});
+    }}
+
+    function meshyfaceProfileThemeDashboardOptions(rawTheme, extraOptions = null) {{
+      const settings = meshyfaceProfileThemeDashboardSettings(rawTheme);
+      if (!settings) return null;
+      const opts = extraOptions && typeof extraOptions === "object" ? extraOptions : {{}};
+      return {{
+        presetName: opts.presetName == null ? "custom" : opts.presetName,
+        baseColor: settings.base_color,
+        lineColor: settings.line_color,
+        lineContrastColor: settings.line_contrast_color,
+        colorDepth: settings.color_depth,
+        foregroundTransparency: settings.foreground_transparency,
+        foregroundBlur: settings.foreground_blur,
+        textFont: settings.text_font,
+        gradientPrimaryStartColor: settings.gradient_primary_start_color,
+        gradientPrimaryEndColor: settings.gradient_primary_end_color,
+        gradientPrimaryType: settings.gradient_primary_type,
+        gradientPrimaryDirection: settings.gradient_primary_direction,
+        backgroundType: settings.background_type,
+        backgroundImageData: settings.background_image_data,
+        backgroundImageLayout: settings.background_image_layout,
+        backgroundImageDarken: settings.background_image_darken,
+        particlesEnabled: settings.particles_enabled,
+        particlesColor: settings.particles_color,
+        particlesLinkColor: settings.particles_link_color,
+        livemapLinkColor: settings.livemap_link_color,
+        particlesCount: settings.particles_count,
+        particlesSpeed: settings.particles_speed,
+        particlesSize: settings.particles_size,
+        particlesOpacity: settings.particles_opacity,
+        particlesLinks: settings.particles_links,
+        livemapLayers: settings.livemap_layers,
+        previewOnly: Boolean(opts.previewOnly),
+      }};
+    }}
+
+    function hasMeshyfaceProfileThemeDashboardPreviewUndo() {{
+      return !!(
+        meshyfaceProfileThemeDashboardPreviewUndo
+        && typeof meshyfaceProfileThemeDashboardPreviewUndo === "object"
+        && meshyfaceProfileThemeDashboardPreviewUndo.options
+        && typeof saveThemeSettings === "function"
+      );
+    }}
+
+    function captureMeshyfaceProfileThemeDashboardPreviewUndo(rawTheme) {{
+      if (hasMeshyfaceProfileThemeDashboardPreviewUndo()) return true;
+      if (typeof buildCurrentThemeCustomOptions !== "function") return false;
+      const signature = meshyfaceProfileThemeSignature(rawTheme);
+      const options = buildCurrentThemeCustomOptions({{
+        presetName: themePresetSelected,
+        previewOnly: true,
+      }});
+      if (!signature || !options) return false;
+      meshyfaceProfileThemeDashboardPreviewUndo = {{
+        signature,
+        options,
+      }};
+      return true;
+    }}
+
+    function clearMeshyfaceProfileThemeDashboardPreviewUndo() {{
+      meshyfaceProfileThemeDashboardPreviewUndo = null;
+      if (typeof syncMeshyfaceNodeThemeControls === "function") {{
+        syncMeshyfaceNodeThemeControls();
+      }}
+      if (typeof syncChatNodeDetailsDrawer === "function") {{
+        syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
+      }}
+    }}
+
+    async function undoMeshyfaceProfileThemeDashboardPreview(button = null) {{
+      if (!hasMeshyfaceProfileThemeDashboardPreviewUndo()) return false;
+      const undoState = meshyfaceProfileThemeDashboardPreviewUndo;
+      if (button instanceof HTMLButtonElement) {{
+        button.disabled = true;
+      }}
+      setMeshyfaceNodeThemeStatusText("Restoring previous dashboard theme...");
+      try {{
+        const restored = await saveThemeSettings(undoState.options, {{ refreshControls: true }});
+        if (restored) {{
+          meshyfaceProfileThemeDashboardPreviewUndo = null;
+          syncMeshyfaceNodeThemeControls();
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
+          }}
+          setMeshyfaceNodeThemeStatusText("Restored the previous dashboard theme.");
+        }} else {{
+          setMeshyfaceNodeThemeStatusText("Dashboard theme restore did not apply.", true);
+        }}
+        return !!restored;
+      }} finally {{
+        if (button instanceof HTMLButtonElement) {{
+          button.disabled = false;
+        }}
+      }}
+    }}
+
     function meshyfaceProfileThemeSignature(rawTheme) {{
       const theme = normalizeMeshyfaceProfileTheme(rawTheme);
       return theme ? JSON.stringify(theme) : "";
@@ -1513,6 +1637,27 @@
         normalizeThemeCustomForegroundBlur
       );
       const selectedSavedTheme = selected !== "custom" && Object.prototype.hasOwnProperty.call(catalog, selected);
+      const dashboardThemeConvertible = !!meshyfaceProfileThemeDashboardOptions(currentMeshyfaceProfileThemeRecipe());
+      const dashboardPreviewUndoActive = hasMeshyfaceProfileThemeDashboardPreviewUndo();
+      const tryDashboardBtn = document.getElementById("settings-meshyface-node-theme-try-dashboard");
+      if (tryDashboardBtn instanceof HTMLButtonElement) {{
+        tryDashboardBtn.disabled = dashboardPreviewUndoActive
+          ? typeof saveThemeSettings !== "function"
+          : (!dashboardThemeConvertible || typeof saveThemeSettings !== "function");
+        tryDashboardBtn.textContent = dashboardPreviewUndoActive ? "Undo look" : "Try on dashboard";
+        tryDashboardBtn.title = dashboardPreviewUndoActive
+          ? "Restore the dashboard theme from before the preview"
+          : dashboardThemeConvertible
+          ? "Preview this node appearance as the dashboard theme"
+          : "Node appearance is incomplete";
+      }}
+      const saveDashboardBtn = document.getElementById("settings-meshyface-node-theme-save-dashboard");
+      if (saveDashboardBtn instanceof HTMLButtonElement) {{
+        saveDashboardBtn.disabled = !dashboardThemeConvertible || typeof postThemeManagementAction !== "function";
+        saveDashboardBtn.title = dashboardThemeConvertible
+          ? "Save this node appearance as a dashboard theme"
+          : "Node appearance is incomplete";
+      }}
       const renameBtn = document.getElementById("settings-meshyface-node-theme-rename");
       if (renameBtn instanceof HTMLButtonElement) {{
         renameBtn.hidden = !selectedSavedTheme;
@@ -1575,6 +1720,111 @@
       syncMeshyfaceNodeThemeControls();
       setMeshyfaceNodeThemeStatusText(`Saved node appearance "${{name}}".`);
       return true;
+    }}
+
+    async function tryMeshyfaceProfileThemeOnDashboard(rawTheme, button = null) {{
+      if (hasMeshyfaceProfileThemeDashboardPreviewUndo()) {{
+        return undoMeshyfaceProfileThemeDashboardPreview(button);
+      }}
+      if (typeof saveThemeSettings !== "function") {{
+        setMeshyfaceNodeThemeStatusText("Dashboard theme editing is unavailable.", true);
+        return false;
+      }}
+      const options = meshyfaceProfileThemeDashboardOptions(
+        rawTheme,
+        {{ presetName: "custom", previewOnly: true }}
+      );
+      if (!options) {{
+        setMeshyfaceNodeThemeStatusText("Node appearance is incomplete and cannot be previewed as a dashboard theme.", true);
+        return false;
+      }}
+      const undoReady = captureMeshyfaceProfileThemeDashboardPreviewUndo(rawTheme);
+      if (button instanceof HTMLButtonElement) {{
+        button.disabled = true;
+      }}
+      setMeshyfaceNodeThemeStatusText("Previewing node appearance on dashboard...");
+      try {{
+        const applied = await saveThemeSettings(options, {{ refreshControls: true }});
+        if (applied) {{
+          const signature = meshyfaceProfileThemeSignature(rawTheme);
+          if (signature && meshyfaceProfileThemeDashboardPreviewUndo) {{
+            meshyfaceProfileThemeDashboardPreviewUndo.signature = signature;
+          }}
+          syncMeshyfaceNodeThemeControls();
+          if (typeof syncChatNodeDetailsDrawer === "function") {{
+            syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
+          }}
+        }}
+        setMeshyfaceNodeThemeStatusText(
+          applied
+            ? (undoReady
+              ? "Previewing node appearance on the dashboard. Use Undo look to restore the previous theme."
+              : "Previewing node appearance on the dashboard.")
+            : "Dashboard theme preview did not apply.",
+          !applied
+        );
+        return !!applied;
+      }} finally {{
+        if (button instanceof HTMLButtonElement) {{
+          button.disabled = false;
+        }}
+      }}
+    }}
+
+    async function tryCurrentMeshyfaceNodeThemeOnDashboard() {{
+      return tryMeshyfaceProfileThemeOnDashboard(
+        currentMeshyfaceProfileThemeRecipe(),
+        document.getElementById("settings-meshyface-node-theme-try-dashboard")
+      );
+    }}
+
+    async function saveMeshyfaceProfileThemeAsDashboardTheme(rawTheme, suggestedName = "", button = null) {{
+      if (
+        typeof buildThemeSettingsSavePayload !== "function"
+        || typeof postThemeManagementAction !== "function"
+      ) {{
+        setMeshyfaceNodeThemeStatusText("Dashboard theme saving is unavailable.", true);
+        return false;
+      }}
+      const rawName = window.prompt("Save dashboard theme as:", suggestedName);
+      if (rawName == null) return false;
+      const name = String(rawName || "").trim();
+      if (!name) return false;
+      const options = meshyfaceProfileThemeDashboardOptions(
+        rawTheme,
+        {{ presetName: name }}
+      );
+      if (!options) {{
+        setMeshyfaceNodeThemeStatusText("Node appearance is incomplete and cannot be saved as a dashboard theme.", true);
+        return false;
+      }}
+      const payload = buildThemeSettingsSavePayload(options);
+      payload.action = "save";
+      if (button instanceof HTMLButtonElement) {{
+        button.disabled = true;
+      }}
+      try {{
+        const saved = await postThemeManagementAction(payload);
+        if (saved) {{
+          clearMeshyfaceProfileThemeDashboardPreviewUndo();
+          setMeshyfaceNodeThemeStatusText(`Saved dashboard theme "${{name}}" from node appearance.`);
+        }}
+        return !!saved;
+      }} finally {{
+        if (button instanceof HTMLButtonElement) {{
+          button.disabled = false;
+        }}
+      }}
+    }}
+
+    async function saveCurrentMeshyfaceNodeThemeAsDashboardTheme() {{
+      const selected = normalizeMeshyfaceNodeThemeName(settingsMeshyfaceNodeThemeSelected, settingsMeshyfaceNodeThemeCatalog);
+      const suggested = selected === "custom" ? "" : selected;
+      return saveMeshyfaceProfileThemeAsDashboardTheme(
+        currentMeshyfaceProfileThemeRecipe(),
+        suggested,
+        document.getElementById("settings-meshyface-node-theme-save-dashboard")
+      );
     }}
 
     function renameSelectedMeshyfaceNodeTheme() {{
@@ -1644,6 +1894,8 @@
       }};
       bindButton("settings-meshyface-node-theme-reset", resetMeshyfaceNodeThemeFromDashboard);
       bindButton("settings-meshyface-node-theme-save", saveCurrentMeshyfaceNodeThemeAs);
+      bindButton("settings-meshyface-node-theme-try-dashboard", () => void tryCurrentMeshyfaceNodeThemeOnDashboard());
+      bindButton("settings-meshyface-node-theme-save-dashboard", () => void saveCurrentMeshyfaceNodeThemeAsDashboardTheme());
       bindButton("settings-meshyface-node-theme-rename", renameSelectedMeshyfaceNodeTheme);
       bindButton("settings-meshyface-node-theme-delete", deleteSelectedMeshyfaceNodeTheme);
 

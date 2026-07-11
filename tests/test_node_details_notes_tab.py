@@ -78,6 +78,8 @@ def test_dashboard_js_includes_chat_node_details_location_chat_and_links_tabs() 
     assert 'id="chat-node-details-panel-messages"' in js
     assert 'id="chat-node-details-messages-host"' in js
     assert 'id="chat-node-details-pin-btn"' in js
+    assert 'id="chat-node-details-theme-try-btn"' in js
+    assert 'id="chat-node-details-theme-save-btn"' in js
 
 
 def test_dashboard_js_places_messages_before_details_and_notes_in_drawer_tabs() -> None:
@@ -115,12 +117,25 @@ def test_dashboard_js_places_tag_title_pin_and_mute_actions_in_drawer_header() -
     status_index = js.index('id="chat-node-details-status-chip"')
     reset_index = js.index('id="chat-node-details-reset-btn"')
     title_index = js.index('id="chat-node-details-title"')
+    theme_try_index = js.index('id="chat-node-details-theme-try-btn"')
+    theme_save_index = js.index('id="chat-node-details-theme-save-btn"')
     pin_index = js.index('id="chat-node-details-pin-btn"')
     mute_index = js.index('id="chat-node-details-mute-btn"')
     tabs_index = js.index('class="chat-node-details-tabs"')
 
     assert 'id="chat-node-details-dm-btn"' not in js
-    assert head_index < tag_index < status_index < reset_index < title_index < pin_index < mute_index < tabs_index
+    assert (
+        head_index
+        < tag_index
+        < status_index
+        < reset_index
+        < title_index
+        < theme_try_index
+        < theme_save_index
+        < pin_index
+        < mute_index
+        < tabs_index
+    )
 
 
 def test_render_html_includes_promoted_node_details_host() -> None:
@@ -180,7 +195,15 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'const notesPanel = document.getElementById("chat-node-details-panel-notes");' in js
     assert 'const notesHost = document.getElementById("chat-node-details-notes-host");' in js
     assert 'const pinBtn = document.getElementById("chat-node-details-pin-btn");' in js
+    assert 'const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");' in js
+    assert 'const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");' in js
     assert 'const resetBtn = document.getElementById("chat-node-details-reset-btn");' in js
+    assert "const themeForDrawerButton = (button) => {" in js
+    assert 'themeTryBtn.textContent = dashboardPreviewUndoActive ? "Undo look" : "Try look";' in js
+    assert "hasMeshyfaceProfileThemeDashboardPreviewUndo()" in js
+    assert "void tryMeshyfaceProfileThemeOnDashboard(null, themeTryBtn);" in js
+    assert "void tryMeshyfaceProfileThemeOnDashboard(theme, themeTryBtn);" in js
+    assert "void saveMeshyfaceProfileThemeAsDashboardTheme(theme, suggested, themeSaveBtn);" in js
     assert 'const renderNotesInDrawer = (' in js
     assert 'const renderLocationInDrawer = (' in js
     assert 'const renderChatInDrawer = (' in js

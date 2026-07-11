@@ -3557,6 +3557,8 @@
         '<div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>',
         '</div>',
         '<div class="chat-node-details-head-actions">',
+        '<button id="chat-node-details-theme-try-btn" class="chat-node-details-action-btn chat-node-details-theme-try-btn" type="button" title="Preview shared node appearance as dashboard theme" aria-label="Preview shared node appearance as dashboard theme" hidden>Try look</button>',
+        '<button id="chat-node-details-theme-save-btn" class="chat-node-details-action-btn chat-node-details-theme-save-btn" type="button" title="Save shared node appearance as dashboard theme" aria-label="Save shared node appearance as dashboard theme" hidden>Save theme</button>',
         '<button id="chat-node-details-pin-btn" class="pin-toggle-btn chat-node-details-action-btn chat-node-details-pin-btn" type="button" title="Pin this node to the top of the chat list" aria-label="Pin this node to the top of the chat list" aria-pressed="false" hidden><span class="chat-node-details-pin-label">Pin</span></button>',
         '<button id="chat-node-details-mute-btn" class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn" type="button" title="Mute this user in chat feed" aria-pressed="false" hidden><span class="chat-node-details-mute-label">Mute</span></button>',
         '<button id="chat-node-details-promote-btn" class="chat-node-details-action-btn chat-node-details-promote-btn" type="button" title="Expand node details over the workspace" aria-label="Expand node details over the workspace" aria-pressed="false" hidden><span class="chat-node-details-promote-label">Expand</span></button>',
@@ -3719,6 +3721,8 @@
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
+      const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
+      const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
       const resetBtn = document.getElementById("chat-node-details-reset-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const locationTabBtn = document.getElementById("chat-node-details-tab-location");
@@ -3819,6 +3823,18 @@
           promoteBtn.classList.remove("active");
           promoteBtn.setAttribute("aria-pressed", "false");
           setDrawerElementTextIfChanged(promoteBtn.querySelector(".chat-node-details-promote-label"), "Expand");
+        }}
+        if (themeTryBtn instanceof HTMLButtonElement) {{
+          themeTryBtn.hidden = true;
+          themeTryBtn.disabled = true;
+          themeTryBtn.dataset.nodeId = "";
+          themeTryBtn.dataset.themeName = "";
+        }}
+        if (themeSaveBtn instanceof HTMLButtonElement) {{
+          themeSaveBtn.hidden = true;
+          themeSaveBtn.disabled = true;
+          themeSaveBtn.dataset.nodeId = "";
+          themeSaveBtn.dataset.themeName = "";
         }}
         if (resetBtn instanceof HTMLButtonElement) {{
           resetBtn.hidden = true;
@@ -4087,6 +4103,48 @@
       if (titleEl instanceof HTMLElement) {{
         setDrawerElementTextIfChanged(titleEl, `${{titleName}} (${selectedId})`);
       }}
+      const sharedProfileTheme = (
+        profileAppearance
+        && appearanceEntry
+        && appearanceEntry.remoteProfile
+        && typeof normalizeMeshyfaceProfileTheme === "function"
+      ) ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme) : null;
+      const canImportSharedProfileTheme = !!(
+        sharedProfileTheme
+        && typeof meshyfaceProfileThemeDashboardOptions === "function"
+        && meshyfaceProfileThemeDashboardOptions(sharedProfileTheme)
+      );
+      const dashboardPreviewUndoActive = (
+        typeof hasMeshyfaceProfileThemeDashboardPreviewUndo === "function"
+        && hasMeshyfaceProfileThemeDashboardPreviewUndo()
+      );
+      if (themeTryBtn instanceof HTMLButtonElement) {{
+        themeTryBtn.hidden = !canImportSharedProfileTheme && !dashboardPreviewUndoActive;
+        themeTryBtn.disabled = dashboardPreviewUndoActive
+          ? typeof tryMeshyfaceProfileThemeOnDashboard !== "function"
+          : (!canImportSharedProfileTheme || typeof tryMeshyfaceProfileThemeOnDashboard !== "function");
+        themeTryBtn.dataset.nodeId = canImportSharedProfileTheme ? selectedId : "";
+        themeTryBtn.dataset.themeName = canImportSharedProfileTheme ? titleName : "";
+        themeTryBtn.textContent = dashboardPreviewUndoActive ? "Undo look" : "Try look";
+        const tryTitle = dashboardPreviewUndoActive
+          ? "Restore the dashboard theme from before the preview"
+          : canImportSharedProfileTheme
+          ? `Preview ${{titleName}} shared appearance as dashboard theme`
+          : "No shared node appearance to preview";
+        themeTryBtn.title = tryTitle;
+        themeTryBtn.setAttribute("aria-label", tryTitle);
+      }}
+      if (themeSaveBtn instanceof HTMLButtonElement) {{
+        themeSaveBtn.hidden = !canImportSharedProfileTheme;
+        themeSaveBtn.disabled = !canImportSharedProfileTheme || typeof saveMeshyfaceProfileThemeAsDashboardTheme !== "function";
+        themeSaveBtn.dataset.nodeId = canImportSharedProfileTheme ? selectedId : "";
+        themeSaveBtn.dataset.themeName = canImportSharedProfileTheme ? titleName : "";
+        const saveTitle = canImportSharedProfileTheme
+          ? `Save ${{titleName}} shared appearance as dashboard theme`
+          : "No shared node appearance to save";
+        themeSaveBtn.title = saveTitle;
+        themeSaveBtn.setAttribute("aria-label", saveTitle);
+      }}
       if (pinBtn instanceof HTMLButtonElement) {{
         const canPin = isSelectableNodeId(selectedId);
         const active = canPin && (typeof isPinnedNode === "function") && isPinnedNode(selectedId);
@@ -4278,6 +4336,8 @@
       const opts = options && typeof options === "object" ? options : {{}};
       const closeBtn = document.getElementById("chat-node-details-close-btn");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
+      const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
+      const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
       const drawer = document.getElementById("chat-node-details-drawer");
       if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
         closeBtn.dataset.bound = "1";
@@ -4294,6 +4354,39 @@
           setChatNodeDetailsPromoted(!chatNodeDetailsPromoted, {{
             fetchHistory: true,
           }});
+        }});
+      }}
+      const themeForDrawerButton = (button) => {{
+        if (!(button instanceof HTMLButtonElement)) return null;
+        const nodeId = normalizeNodeId(button.dataset.nodeId || "");
+        if (!isSelectableNodeId(nodeId) || typeof effectiveNodeAppearanceForNode !== "function") return null;
+        const entry = effectiveNodeAppearanceForNode(nodeId, latestState);
+        if (!entry || !entry.remoteProfile || typeof normalizeMeshyfaceProfileTheme !== "function") return null;
+        return normalizeMeshyfaceProfileTheme(entry.theme);
+      }};
+      if (themeTryBtn instanceof HTMLButtonElement && themeTryBtn.dataset.bound !== "1") {{
+        themeTryBtn.dataset.bound = "1";
+        themeTryBtn.addEventListener("click", () => {{
+          if (
+            typeof hasMeshyfaceProfileThemeDashboardPreviewUndo === "function"
+            && hasMeshyfaceProfileThemeDashboardPreviewUndo()
+            && typeof tryMeshyfaceProfileThemeOnDashboard === "function"
+          ) {{
+            void tryMeshyfaceProfileThemeOnDashboard(null, themeTryBtn);
+            return;
+          }}
+          const theme = themeForDrawerButton(themeTryBtn);
+          if (!theme || typeof tryMeshyfaceProfileThemeOnDashboard !== "function") return;
+          void tryMeshyfaceProfileThemeOnDashboard(theme, themeTryBtn);
+        }});
+      }}
+      if (themeSaveBtn instanceof HTMLButtonElement && themeSaveBtn.dataset.bound !== "1") {{
+        themeSaveBtn.dataset.bound = "1";
+        themeSaveBtn.addEventListener("click", () => {{
+          const theme = themeForDrawerButton(themeSaveBtn);
+          if (!theme || typeof saveMeshyfaceProfileThemeAsDashboardTheme !== "function") return;
+          const suggested = String(themeSaveBtn.dataset.themeName || "").trim();
+          void saveMeshyfaceProfileThemeAsDashboardTheme(theme, suggested, themeSaveBtn);
         }});
       }}
       if (drawer instanceof HTMLElement) {{

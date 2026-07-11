@@ -1160,6 +1160,15 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
     assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
     assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null)" in js
+    assert "function meshyfaceProfileThemeDashboardOptions(rawTheme, extraOptions = null)" in js
+    assert "function hasMeshyfaceProfileThemeDashboardPreviewUndo()" in js
+    assert "function undoMeshyfaceProfileThemeDashboardPreview(button = null)" in js
+    assert "function tryCurrentMeshyfaceNodeThemeOnDashboard()" in js
+    assert "function saveCurrentMeshyfaceNodeThemeAsDashboardTheme()" in js
+    assert "Undo look" in js
+    assert "Try on dashboard" in html
+    assert "Save as theme" in html
     assert "function currentMeshyfaceNodeThemeSettings()" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
     assert 'const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);' in js
