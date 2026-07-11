@@ -217,13 +217,13 @@ def build_name_change_chat_entries(
             continue
 
         time_unix = _extract_time_unix(
-            summary.get("captured_at"),
-            entry.get("captured_at"),
             summary.get("rx_time_unix"),
             packet.get("rxTime"),
             summary.get("rx_time"),
+            summary.get("captured_at"),
             entry.get("rx_time_unix"),
             entry.get("rx_time"),
+            entry.get("captured_at"),
             now_unix=now_unix,
         )
         if time_unix is None or time_unix <= 0:

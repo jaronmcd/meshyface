@@ -275,8 +275,12 @@
                 ? parentPacket.decoded
                 : {{}};
               const parentEndpoints = packetEndpointIds(parentPacketEntry);
-              const parentTiming = {{ ...parentPacketEntry, ...parentSummary }};
-              const parentUnix = chatMessageReceivedUnix(parentTiming);
+              const parentUnix = latestUnixTimestamp(
+                parentSummary.rx_time_unix,
+                parentSummary.captured_at,
+                parentSummary.rx_time,
+                parentPacketEntry && (parentPacketEntry.captured_at || parentPacketEntry.rx_time),
+              );
               const parentFromMeta = chatEndpointParts(parentEndpoints.fromId, parentUnix);
               replyTooltipSummary = `Replying to ${{parentFromMeta.label || `packet #${{replyToId}}`}}`;
               const parentText = compactInlineMessage(
@@ -288,7 +292,7 @@
               if (Number.isInteger(parentChannelIndex) && parentChannelIndex >= 0) {{
                 metaParts.push(meshChannelViewMenuLabel(parentChannelIndex));
               }}
-              const parentTimeRaw = String(chatMessageReceivedRaw(parentTiming) || "").trim();
+              const parentTimeRaw = String(parentSummary.rx_time || parentSummary.captured_at || "").trim();
               if (parentTimeRaw) {{
                 metaParts.push(formatLocalChatTime(parentUnix, parentTimeRaw, nowUnix));
               }}

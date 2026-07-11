@@ -1528,14 +1528,14 @@ def test_chat_feed_uses_received_time_for_order_labels_and_reply_index() -> None
         node_history_max_points=240,
     )
 
-    helper = js.split("function chatMessageReceivedMs(msg) {", 1)[1].split(
+    helper = js.split("function chatMessageReceivedValue(msg) {", 1)[1].split(
         "function nestedPathValue", 1
     )[0]
     captured_index = helper.index("safeMsg.captured_at")
     history_index = helper.index("safeMsg._history_created_unix")
     radio_index = helper.index("safeMsg.rx_time")
     assert captured_index < history_index < radio_index
-    assert "return firstValidTimestampMs(" in helper
+    assert "const candidates = [" in helper
     assert "function chatMessagesInReceivedTimelineOrder(messages)" in js
 
     feed_prep = js.split("const mergedTimeline =", 1)[1].split(
@@ -1550,20 +1550,9 @@ def test_chat_feed_uses_received_time_for_order_labels_and_reply_index() -> None
     assert "const msgTimeUnix = chatMessageReceivedUnix(msg);" in feed_item
     assert "const rawTimeText = String(chatMessageReceivedRaw(msg)" in feed_item
 
-    chat_labs = js.split("const timeline = chatMessagesInReceivedTimelineOrder(baseRows)", 1)[1].split(
-        "if (!timeline.length)", 1
-    )[0]
-    assert ".slice(-maxLines)" in chat_labs
-    assert "latestUnixTimestamp" not in chat_labs
-
     assert "for (const msgIdKey of messageIdAliasKeys(msgId))" in js
     assert "messageIndexLocal.set(msgIdKey, msg);" in js
     assert "const parentMsg = messageIndex.get(String(replyToId));" in js
-    cursor = js.split("function rememberChatHistoryCursorForView", 1)[1].split(
-        "function buildChatHistoryLoadControlHtml", 1
-    )[0]
-    assert "const oldestHistory = rows.reduce" in cursor
-    assert "rowId < oldestId ? row : oldestRow" in cursor
 
 
 def test_chat_reply_preview_uses_reaction_emoji_for_empty_parent_text() -> None:

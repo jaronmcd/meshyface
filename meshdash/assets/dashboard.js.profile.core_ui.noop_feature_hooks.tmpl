@@ -1096,24 +1096,21 @@
 
       const feed = document.getElementById("chat-feed");
       if (feed instanceof HTMLElement) {{
-        const rows = chatMessagesInReceivedTimelineOrder(recentChat)
-          .slice(-Math.max(1, chatFeedMaxEntries || 120))
-          .map((timelineRow) => {{
-            const msg = timelineRow && timelineRow.msg;
-            const fromRaw = normalizeNodeId(
-              (msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)) || ""
-            ) || "unknown";
-            const toRaw = normalizeNodeId(
-              (msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)) || ""
-            ) || "^all";
-            const textRaw = String((msg && (msg.text || msg.payload || msg.message)) || "").trim();
-            const rawTime = String(chatMessageReceivedRaw(msg) || "").trim();
-            const unix = chatMessageReceivedUnix(msg);
-            const timeText = (typeof formatLocalChatTime === "function")
-              ? formatLocalChatTime(unix, rawTime || "n/a", nowUnix)
-              : (rawTime || "n/a");
-            return `<div class="chat-feed-item chat-feed-item-monitor-exact"><span class="chat-entry-msg"><span class="chat-monitor-prefix">[${{escAttr(timeText)}}]</span><span class="chat-monitor-network-tag">[${{escAttr(fromRaw)}}→${{escAttr(toRaw)}}]</span><span class="chat-entry-copy chat-monitor-text">${{escAttr(textRaw || "(no text)")}}</span></span></div>`;
-          }});
+        const rows = recentChat.slice(-Math.max(1, chatFeedMaxEntries || 120)).map((msg) => {{
+          const fromRaw = normalizeNodeId(
+            (msg && (msg.from || msg.from_id || msg.fromId || msg.source || msg.source_id || msg.sourceId)) || ""
+          ) || "unknown";
+          const toRaw = normalizeNodeId(
+            (msg && (msg.to || msg.to_id || msg.toId || msg.destination || msg.dest || msg.dest_id || msg.destId)) || ""
+          ) || "^all";
+          const textRaw = String((msg && (msg.text || msg.payload || msg.message)) || "").trim();
+          const rawTime = String((msg && (msg.rx_time || msg.captured_at || msg.time)) || "").trim();
+          const unix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at, msg && msg.time);
+          const timeText = (typeof formatLocalChatTime === "function")
+            ? formatLocalChatTime(unix, rawTime || "n/a", nowUnix)
+            : (rawTime || "n/a");
+          return `<div class="chat-feed-item chat-feed-item-monitor-exact"><span class="chat-entry-msg"><span class="chat-monitor-prefix">[${{escAttr(timeText)}}]</span><span class="chat-monitor-network-tag">[${{escAttr(fromRaw)}}→${{escAttr(toRaw)}}]</span><span class="chat-entry-copy chat-monitor-text">${{escAttr(textRaw || "(no text)")}}</span></span></div>`;
+        }});
         feed.innerHTML = rows.length > 0
           ? rows.join("")
           : '<div class="chat-feed-empty">No chat messages available yet.</div>';

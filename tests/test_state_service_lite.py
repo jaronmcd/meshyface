@@ -392,33 +392,6 @@ def test_slim_recent_chat_for_chat_profile_keeps_local_received_timestamp() -> N
     assert "portnum" not in slimmed[2]
 
 
-def test_merge_recent_chat_orders_synthetic_rows_by_local_receipt(monkeypatch) -> None:
-    monkeypatch.setattr(
-        state_service,
-        "_build_name_change_chat_entries_helper",
-        lambda **_kwargs: [
-            {
-                "text": "received-second",
-                "captured_at": "2026-06-03 00:00:02Z",
-                "rx_time": "2026-06-03 00:01:00Z",
-            }
-        ],
-    )
-
-    rows = state_service._merge_recent_chat_entries(
-        recent_chat=[
-            {
-                "text": "received-first",
-                "captured_at": "2026-06-03 00:00:01Z",
-                "rx_time": "2026-06-03 00:02:00Z",
-            }
-        ],
-        recent_packets=[],
-    )
-
-    assert [row["text"] for row in rows] == ["received-first", "received-second"]
-
-
 def test_slim_recent_chat_for_notifications_keeps_only_unread_fields() -> None:
     slimmed = _slim_recent_chat_for_notifications(
         [

@@ -344,13 +344,13 @@
             const reactorId = endpointsForBuild(msg).fromId || resolveMessageNodeId(msg.from || "");
             const reactorMeta = chatEndpointParts(reactorId);
             const reactorName = reactorMeta.label || reactorId || "Unknown node";
-            const dedupeKey = reactorId || `${{reactorName}}:${{chatMessageReceivedRaw(msg) || bucket.count}}`;
+            const dedupeKey = reactorId || `${{reactorName}}:${{msg.rx_time || msg.captured_at || bucket.count}}`;
             if (!bucket.reactors.has(dedupeKey)) {{
               bucket.reactors.add(dedupeKey);
               bucket.count += 1;
               bucket.names.push(reactorName);
             }}
-            const reactionTime = chatMessageReceivedUnix(msg);
+            const reactionTime = latestUnixTimestamp(msg.rx_time, msg.captured_at);
             if (reactionTime && reactionTime > bucket.lastUnix) {{
               bucket.lastUnix = reactionTime;
             }}
@@ -508,7 +508,7 @@
           const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
           if (bucket.length <= 0) continue;
           const latestMsg = bucket[bucket.length - 1];
-          const unix = chatMessageReceivedUnix(latestMsg);
+          const unix = latestUnixTimestamp(latestMsg && latestMsg.rx_time, latestMsg && latestMsg.captured_at);
           const score = Number.isFinite(unix) ? unix : 0;
           if (!bestPeerId || score > bestUnix) {{
             bestPeerId = peerId;

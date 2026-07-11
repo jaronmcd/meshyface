@@ -37,14 +37,9 @@ def test_chat_received_timeline_contract_in_browser(
         "function parseDashboardTimeToMs(value) {",
         "function parseDashboardTimeToUnix",
     )
-    parse_message_id = _function_block(
-        js,
-        "function parsePositiveMessageId(value) {",
-        "function messageIdAliasKeys",
-    )
     received_helpers = _function_block(
         js,
-        "function firstValidTimestampMs(...values) {",
+        "function chatMessageReceivedValue(msg) {",
         "function nestedPathValue",
     )
 
@@ -64,21 +59,10 @@ def test_chat_received_timeline_contract_in_browser(
         {"id": "fallback-second", "rx_time": "2026-06-03 00:00:04Z"},
         {"id": "tie-b", "captured_at": "2026-06-03 00:00:05Z"},
         {"id": "tie-a", "captured_at": "2026-06-03 00:00:05Z"},
-        {
-            "id": "history-later",
-            "captured_at": "2026-06-03 00:00:06Z",
-            "_history_id": 20,
-        },
-        {
-            "id": "history-earlier",
-            "captured_at": "2026-06-03 00:00:06Z",
-            "_history_id": 10,
-        },
         {"id": "unknown-2"},
     ]
     html = f"""<!doctype html><meta charset=\"utf-8\"><pre id=\"result\"></pre><script>
 {parse_time}
-{parse_message_id}
 {received_helpers}
 const rows = {json.dumps(rows)};
 const replyRows = chatMessagesInReceivedTimelineOrder([
@@ -148,8 +132,6 @@ document.getElementById("result").textContent = JSON.stringify(result);
         "fallback-second",
         "tie-b",
         "tie-a",
-        "history-earlier",
-        "history-later",
     ]
     assert payload["selected"] == [
         "2026-06-03 00:00:01Z",

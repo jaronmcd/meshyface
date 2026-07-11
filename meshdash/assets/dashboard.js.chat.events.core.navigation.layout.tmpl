@@ -387,7 +387,7 @@
           }}
           const reactorId = resolveNodeIdFromMessage(msg, fromIdKeys);
           const reactorName = nodeLabel(reactorId, "Unknown node");
-          const dedupeKey = reactorId || `${{reactorName}}:${{chatMessageReceivedRaw(msg) || bucket.count}}`;
+          const dedupeKey = reactorId || `${{reactorName}}:${{msg.rx_time || msg.captured_at || bucket.count}}`;
           if (!bucket.reactors.has(dedupeKey)) {{
             bucket.reactors.add(dedupeKey);
             bucket.count += 1;
@@ -398,8 +398,32 @@
         baseRows.push(msg);
       }}
 
-      const timeline = chatMessagesInReceivedTimelineOrder(baseRows)
+      const timeline = baseRows
+        .map((msg, index) => {{
+          const unix = latestUnixTimestamp(
+            msg && msg.rx_time,
+            msg && msg.captured_at,
+            msg && msg.time,
+            msg && msg.rxTime,
+            msg && msg.timestamp,
+          );
+          return {{
+            msg,
+            index,
+            unix: Number.isFinite(unix) ? Math.floor(unix) : null,
+          }};
+        }})
         .filter((row) => row && row.msg && typeof row.msg === "object")
+        .sort((a, b) => {{
+          const aUnix = Number.isFinite(a.unix) ? a.unix : null;
+          const bUnix = Number.isFinite(b.unix) ? b.unix : null;
+          if (aUnix == null && bUnix != null) return -1;
+          if (aUnix != null && bUnix == null) return 1;
+          if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
+            return aUnix - bUnix;
+          }}
+          return a.index - b.index;
+        }})
         .slice(-maxLines);
 
       if (!timeline.length) {{
@@ -450,7 +474,7 @@
             || msg.emojiCodepoint != null
           )
         );
-        const rawTime = chatMessageReceivedRaw(msg);
+        const rawTime = msg && (msg.rx_time || msg.captured_at || msg.time || msg.rxTime || msg.timestamp || "");
         const timeLabel = Number.isFinite(row.unix) && row.unix > 0
           ? formatLocalChatTime(row.unix, rawTime || "n/a", nowUnix)
           : String(rawTime || "n/a");
