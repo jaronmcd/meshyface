@@ -1744,6 +1744,25 @@
       return nodeIntrinsicEmojiForNode(nodeId, node);
     }}
 
+    function meshyfaceProfileFallbackGhostForNode(nodeId, node = null) {{
+      const emoji = nodeIntrinsicEmojiForNode(nodeId, node);
+      if (!emoji) return null;
+      return normalizeMeshyfaceProfileGhost({{
+        text: emoji,
+        blend: 24,
+        effect: "soft",
+        tilt: meshyfaceProfileGhostTiltDefault,
+        justify: meshyfaceProfileGhostJustifyDefault,
+      }});
+    }}
+
+    function meshyfaceProfileGhostForAppearance(appearanceEntry) {{
+      if (!(appearanceEntry && typeof appearanceEntry === "object" && appearanceEntry.profileAppearance)) return null;
+      const explicitGhost = normalizeMeshyfaceProfileGhost(appearanceEntry.ghost);
+      if (explicitGhost) return explicitGhost;
+      return meshyfaceProfileFallbackGhostForNode(appearanceEntry.nodeId, appearanceEntry.node || null);
+    }}
+
     function nodeTagDisplayLabel(tagEntry, fallback = "Tagged") {{
       const preset = tagEntry && typeof tagEntry === "object" && tagEntry.preset
         ? tagEntry.preset
@@ -1796,8 +1815,11 @@
       const themeVars = typeof meshyfaceProfileThemeStyleVars === "function"
         ? meshyfaceProfileThemeStyleVars(appearanceEntry.theme, profileRender)
         : "";
+      const profileGhost = appearanceEntry.profileAppearance
+        ? meshyfaceProfileGhostForAppearance(appearanceEntry)
+        : null;
       const ghostVars = appearanceEntry.profileAppearance && typeof meshyfaceProfileGhostStyleVars === "function"
-        ? meshyfaceProfileGhostStyleVars(appearanceEntry.ghost)
+        ? meshyfaceProfileGhostStyleVars(profileGhost)
         : "";
       // A profile's projected workspace border is its compact identity edge;
       // its advertised host surface supplies the remote-node background.
@@ -1939,12 +1961,21 @@
       const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);
       const previewTargets = meshyfaceNodeThemePreviewTargets();
       if (theme && preset) {{
+        const safeState = latestState && typeof latestState === "object" ? latestState : {{}};
+        const previewLocalNodeId = normalizeNodeId(
+          typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : ""
+        );
+        const previewNodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+        const previewNode = previewLocalNodeId
+          ? previewNodes.find((entry) => normalizeNodeId(entry && entry.id) === previewLocalNodeId)
+          : null;
         const appearanceEntry = {{
-          nodeId: "local-preview",
+          nodeId: previewLocalNodeId || "local-preview",
           source: "local-profile-preview",
           color: previewRender ? previewRender.border_color : theme.line_color,
           theme,
           ...(ghost ? {{ ghost }} : {{}}),
+          ...(previewNode ? {{ node: previewNode }} : {{}}),
           ...(previewRender ? {{ render: previewRender }} : {{}}),
           presetId: preset.id,
           preset,

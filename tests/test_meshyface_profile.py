@@ -1472,6 +1472,8 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "function meshyfaceProfileGhostTiltBase(value)" in js
     assert "function meshyfaceProfileGhostTiltUpsideDown(value)" in js
     assert "function composeMeshyfaceProfileGhostTilt(base, upsideDown)" in js
+    assert "function meshyfaceProfileFallbackGhostForNode(nodeId, node = null)" in js
+    assert "function meshyfaceProfileGhostForAppearance(appearanceEntry)" in js
     assert "function normalizeMeshyfaceProfileGhost(rawGhost)" in js
     assert "function meshyfaceProfileGhostStyleVars(rawGhost)" in js
     assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
@@ -1551,6 +1553,8 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "color: render ? render.border_color : theme.line_color," in remote_profile_block
     assert "render," in remote_profile_block
     assert "const previewRender = meshyfaceNodeThemePreviewRenderForTheme(theme);" in js
+    assert 'nodeId: previewLocalNodeId || "local-preview",' in js
+    assert "...(previewNode ? { node: previewNode } : {})," in js
     theme_preference_block = js[
         js.index("function applyThemePreference(mode, persist = true)")
         : js.index("function bindThemeToggle()", js.index("function applyThemePreference(mode, persist = true)"))
@@ -1565,6 +1569,9 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "const surfaceColor = profileTheme ? profileTheme.base_color : color;" in js
     assert "const surfaceBackground = appearanceEntry.profileAppearance && profileTheme" in js
     assert "--node-profile-bg:${surfaceBackground};" in js
+    assert "const profileGhost = appearanceEntry.profileAppearance" in js
+    assert "meshyfaceProfileGhostForAppearance(appearanceEntry)" in js
+    assert "meshyfaceProfileGhostStyleVars(profileGhost)" in js
     assert "var(--node-profile-theme-surface, var(--node-profile-theme-background" in js
     assert "const profileRender = typeof normalizeMeshyfaceProfileThemeRender" in js
     assert "--node-profile-theme-background" in js
