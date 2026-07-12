@@ -386,6 +386,11 @@
       "surface_hover_opacity",
       "border_color",
       "border_muted_color",
+      "text_color",
+      "text_strong_color",
+      "text_soft_color",
+      "text_muted_color",
+      "text_on_fill_color",
     ]);
     // Theme packets carry enums, not CSS fragments. This closed map lets a
     // receiver recreate the sender's advertised host gradient safely.
@@ -679,6 +684,11 @@
       const surfaceHoverOpacity = normalizeMeshyfaceProfileThemeInteger(rawRender.surface_hover_opacity, 0, 100);
       const borderColor = normalizeMeshyfaceProfileColor(rawRender.border_color, "");
       const borderMutedColor = normalizeMeshyfaceProfileColor(rawRender.border_muted_color, "");
+      const textColor = normalizeMeshyfaceProfileColor(rawRender.text_color, "");
+      const textStrongColor = normalizeMeshyfaceProfileColor(rawRender.text_strong_color, "");
+      const textSoftColor = normalizeMeshyfaceProfileColor(rawRender.text_soft_color, "");
+      const textMutedColor = normalizeMeshyfaceProfileColor(rawRender.text_muted_color, "");
+      const textOnFillColor = normalizeMeshyfaceProfileColor(rawRender.text_on_fill_color, "");
       if (
         !backgroundStart
         || !backgroundEnd
@@ -688,6 +698,11 @@
         || surfaceHoverOpacity == null
         || !borderColor
         || !borderMutedColor
+        || !textColor
+        || !textStrongColor
+        || !textSoftColor
+        || !textMutedColor
+        || !textOnFillColor
       ) {{
         return null;
       }}
@@ -700,6 +715,11 @@
         surface_hover_opacity: surfaceHoverOpacity,
         border_color: borderColor,
         border_muted_color: borderMutedColor,
+        text_color: textColor,
+        text_strong_color: textStrongColor,
+        text_soft_color: textSoftColor,
+        text_muted_color: textMutedColor,
+        text_on_fill_color: textOnFillColor,
       }};
     }}
 
@@ -807,6 +827,11 @@
         surface_hover_color: meshyfaceProfileThemeClientColor(render.surface_hover_color, theme.mode, "surface-hover"),
         border_color: meshyfaceProfileThemeClientColor(render.border_color, theme.mode, "border"),
         border_muted_color: meshyfaceProfileThemeClientColor(render.border_muted_color, theme.mode, "border"),
+        text_color: meshyfaceProfileThemeClientColor(render.text_color, theme.mode, "contrast"),
+        text_strong_color: meshyfaceProfileThemeClientColor(render.text_strong_color, theme.mode, "contrast"),
+        text_soft_color: meshyfaceProfileThemeClientColor(render.text_soft_color, theme.mode, "contrast"),
+        text_muted_color: meshyfaceProfileThemeClientColor(render.text_muted_color, theme.mode, "contrast"),
+        text_on_fill_color: meshyfaceProfileThemeClientColor(render.text_on_fill_color, theme.mode, "contrast"),
       }});
     }}
 
@@ -1325,6 +1350,11 @@
         surface_hover_opacity: surfaceHover && surfaceHover.opacity,
         border_color: tokens["--workspace-shell-border"],
         border_muted_color: tokens["--workspace-shell-border-muted"],
+        text_color: tokens["--theme-text-color"],
+        text_strong_color: tokens["--theme-text-color-strong"],
+        text_soft_color: tokens["--theme-text-color-soft"],
+        text_muted_color: tokens["--theme-text-color-muted"],
+        text_on_fill_color: tokens["--theme-text-color-on-fill"],
       }});
     }}
 
@@ -1342,6 +1372,11 @@
         surface_hover_opacity: surfaceHoverOpacity,
         border_color: theme.line_color,
         border_muted_color: theme.line_contrast_color,
+        text_color: theme.line_contrast_color,
+        text_strong_color: theme.line_contrast_color,
+        text_soft_color: theme.line_contrast_color,
+        text_muted_color: theme.line_contrast_color,
+        text_on_fill_color: theme.line_contrast_color,
       }});
     }}
 
@@ -1478,6 +1513,11 @@
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
       "--node-profile-theme-font-family",
+      "--node-profile-theme-text",
+      "--node-profile-theme-text-strong",
+      "--node-profile-theme-text-soft",
+      "--node-profile-theme-text-muted",
+      "--node-profile-theme-text-on-fill",
     ];
     const meshyfaceProfileGhostStyleProperties = [
       "--node-profile-ghost-text",
@@ -1510,7 +1550,12 @@
           ["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(render.surface_color, render.surface_opacity)],
           ["--node-profile-theme-shell-hover", meshyfaceProfileThemeAlphaGradient(render.surface_hover_color, render.surface_hover_opacity)],
           ["--node-profile-theme-border", render.border_color],
-          ["--node-profile-theme-border-muted", render.border_muted_color]
+          ["--node-profile-theme-border-muted", render.border_muted_color],
+          ["--node-profile-theme-text", render.text_color],
+          ["--node-profile-theme-text-strong", render.text_strong_color],
+          ["--node-profile-theme-text-soft", render.text_soft_color],
+          ["--node-profile-theme-text-muted", render.text_muted_color],
+          ["--node-profile-theme-text-on-fill", render.text_on_fill_color]
         );
       }}
       return entries;

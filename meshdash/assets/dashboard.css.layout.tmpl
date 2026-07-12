@@ -2088,15 +2088,22 @@
       top: 5px;
       right: 6px;
       z-index: 4;
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       padding: 0;
       border: 0;
       background: transparent;
       overflow: visible;
     }}
-    .chat-node-details-promoted-host .chat-node-details-head-main,
-    .chat-node-details-promoted-host .chat-node-details-head-actions {{
+    .chat-node-details-promoted-host .chat-node-details-head-main {{
       display: none;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head-actions {{
+      display: inline-flex;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head-actions > :not(.chat-node-details-promote-btn) {{
+      display: none !important;
     }}
     .chat-node-details-promoted-host .chat-node-details-tabs {{
       padding-right: 38px;
@@ -2125,7 +2132,7 @@
     }}
     .chat-node-details-head {{
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
       padding: 7px 8px 6px 8px;
@@ -2133,13 +2140,48 @@
       background: var(--surface-tint-bg-alt);
     }}
     .chat-node-details-head-main {{
+      position: relative;
       min-width: 0;
       width: 100%;
       display: grid;
-      grid-template-columns: auto auto auto auto minmax(0, 1fr);
+      grid-template-columns: auto auto auto minmax(0, 1fr);
       align-items: center;
       gap: 8px;
       justify-self: stretch;
+      border-radius: 6px;
+      padding: 2px 28px 2px 4px;
+      cursor: pointer;
+      transition: background-color 120ms ease, box-shadow 120ms ease;
+    }}
+    .chat-node-details-head-main::after {{
+      content: "×";
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      color: var(--workspace-shell-text-soft, var(--surface-tint-text-soft));
+      font-size: 19px;
+      font-weight: 500;
+      line-height: 1;
+      opacity: 0.38;
+      pointer-events: none;
+      transform: translateY(-52%);
+      transition: color 120ms ease, opacity 120ms ease, transform 120ms ease;
+    }}
+    .chat-node-details-head-main:hover {{
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg, var(--surface-tint-bg-hover)) 76%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong, var(--surface-tint-border-strong)) 52%, transparent);
+    }}
+    .chat-node-details-head-main:hover::after,
+    .chat-node-details-head-main:focus-visible::after,
+    .chat-node-details-head-main:focus-within::after {{
+      color: var(--workspace-shell-text, var(--surface-tint-text));
+      opacity: 0.86;
+      transform: translateY(-52%) scale(1.06);
+    }}
+    .chat-node-details-head-main:focus-visible,
+    .chat-node-details-head-main:focus-within {{
+      outline: 2px solid var(--workspace-shell-border-strong, var(--surface-tint-border-strong));
+      outline-offset: 1px;
     }}
     .chat-node-details-icon-btn {{
       width: 22px;
@@ -2196,6 +2238,11 @@
     .chat-node-details-title {{
       min-width: 0;
       width: 100%;
+      appearance: none;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      padding: 3px 6px;
       font-size: 11px;
       font-weight: 700;
       color: #264734;
@@ -2205,6 +2252,7 @@
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 0.2px;
+      cursor: inherit;
     }}
     .chat-node-details-head-actions {{
       display: inline-flex;
@@ -2213,27 +2261,6 @@
       gap: 6px;
       min-width: 0;
       justify-self: end;
-    }}
-    .chat-node-details-close-btn {{
-      border: 1px solid #bfd5c3;
-      background: #f5fbf6;
-      color: #244b37;
-      border-radius: 999px;
-      width: 22px;
-      min-width: 22px;
-      height: 22px;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      line-height: 1;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-    }}
-    .chat-node-details-close-btn:hover {{
-      background: #e8f3eb;
     }}
     .chat-node-details-tabs {{
       display: flex;
@@ -2317,7 +2344,7 @@
       align-items: center;
       min-width: 0;
     }}
-    .chat-node-details-head-tag-btn {{
+    .chat-node-details-footer-tag-btn {{
       justify-self: start;
       max-width: 100%;
     }}
@@ -2346,6 +2373,48 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }}
+    .chat-node-details-footer-actions {{
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      padding: 6px 8px;
+      border-top: 1px solid var(--workspace-shell-border, var(--surface-tint-border));
+      background: var(--workspace-shell-bg-alt, var(--surface-tint-bg-alt));
+    }}
+    .chat-node-details-footer-node-actions,
+    .chat-node-details-footer-theme-actions,
+    .chat-node-details-footer-state-actions {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }}
+    .chat-node-details-footer-node-actions {{
+      justify-content: flex-start;
+      overflow: visible;
+    }}
+    .chat-node-details-footer-theme-actions {{
+      justify-content: center;
+    }}
+    .chat-node-details-footer-state-actions {{
+      justify-content: flex-end;
+    }}
+    .chat-node-details-footer-label {{
+      flex: 0 0 auto;
+      color: var(--workspace-shell-text-soft, var(--surface-tint-text-soft));
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }}
+    .chat-node-details-footer-tag-btn {{
+      flex: 0 0 auto;
+      min-width: max-content;
     }}
     .chat-node-details-panel {{
       flex: 1 1 auto;

@@ -3944,16 +3944,6 @@
     [data-theme="dark"] .chat-node-details-title {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .chat-node-details-close-btn {{
-      border-color: var(--workspace-shell-border-muted);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .chat-node-details-close-btn:hover {{
-      border-color: var(--workspace-shell-border-strong);
-      background: var(--workspace-shell-hover-bg);
-      color: var(--workspace-shell-text);
-    }}
     [data-theme="dark"] .chat-node-details-tabs {{
       border-bottom-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
@@ -7636,7 +7626,7 @@
     .peer-dm-popout-head.profiled-node,
     .peer-dm-popout-msg.profiled-node,
     .map-node-info-card.profiled-node,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {{
       position: relative;
       overflow: hidden;
       isolation: isolate;
@@ -7646,7 +7636,7 @@
     .peer-dm-popout-head.profiled-node::after,
     .peer-dm-popout-msg.profiled-node::after,
     .map-node-info-card.profiled-node::after,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head::after {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
       top: 50%;
@@ -7672,7 +7662,7 @@
     .peer-dm-popout-head.profiled-node > *,
     .peer-dm-popout-msg.profiled-node > *,
     .map-node-info-card.profiled-node > *,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head > * {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head > * {{
       position: relative;
       z-index: 1;
     }}
@@ -7945,10 +7935,36 @@
     .map-node-info-card.profiled-node .map-node-info-title {{
       color: var(--ui-text) !important;
     }}
-    .chat-node-details-drawer.profiled-node .chat-node-details-head {{
-      border-bottom-color: var(--node-profile-identity-edge);
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {{
+      border-bottom-color: var(--node-profile-theme-border-muted, var(--node-profile-identity-edge));
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .chat-node-details-drawer.profiled-node .chat-node-details-title {{
-      color: var(--surface-tint-text) !important;
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-title {{
+      color: var(--node-profile-theme-text-strong, var(--workspace-shell-text)) !important;
+    }}
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head-main:hover {{
+      background: var(--node-profile-theme-shell-hover, transparent);
+      box-shadow: inset 0 0 0 1px var(--node-profile-theme-border-muted, var(--node-profile-identity-edge));
+    }}
+    .chat-node-details-footer-actions.has-shared-theme-preview {{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      border-top-color: var(--node-profile-identity-edge);
+      background-image: var(--node-profile-theme-surface) !important;
+      font-family: var(--node-profile-theme-font-family, inherit);
+    }}
+    .chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-footer-label {{
+      color: var(--node-profile-theme-text-soft, var(--workspace-shell-text-soft));
+    }}
+    .chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-action-btn,
+    .chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-footer-tag-btn {{
+      border-color: var(--node-profile-theme-border-muted, var(--workspace-shell-border-muted));
+      background: var(--node-profile-theme-shell-hover, var(--workspace-shell-bg-alt));
+      color: var(--node-profile-theme-text, var(--workspace-shell-text));
+    }}
+    .chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-action-btn:hover,
+    .chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-footer-tag-btn:hover {{
+      border-color: var(--node-profile-theme-border, var(--workspace-shell-border-strong));
+      color: var(--node-profile-theme-text-strong, var(--workspace-shell-text));
     }}

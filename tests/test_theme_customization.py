@@ -1552,7 +1552,10 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "line_contrast_color:" in js
     assert "tint_color:" not in js
     assert "tint_intensity:" not in js
-    assert "text_color:" not in js
+    theme_save_payload = js.split(
+        "function buildThemeSettingsSavePayload(options = null) {", 1
+    )[1].split("async function saveThemeSettings(options = null, requestOptions = null) {", 1)[0]
+    assert "text_color:" not in theme_save_payload
     assert "text_font:" in js
     assert "gradient_primary_start_color:" in js
     assert "foreground_transparency:" in js

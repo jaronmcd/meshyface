@@ -463,11 +463,36 @@ def build_meshyface_theme_render(value: object) -> dict[str, object] | None:
     border_muted = normalize_meshyface_profile_color(
         tokens.get("--workspace-shell-border-muted")
     )
+    text = normalize_meshyface_profile_color(tokens.get("--theme-text-color"))
+    text_strong = normalize_meshyface_profile_color(
+        tokens.get("--theme-text-color-strong")
+    )
+    text_soft = normalize_meshyface_profile_color(tokens.get("--theme-text-color-soft"))
+    text_muted = normalize_meshyface_profile_color(
+        tokens.get("--theme-text-color-muted")
+    )
+    text_on_fill = normalize_meshyface_profile_color(
+        tokens.get("--theme-text-color-on-fill")
+    )
     surface = _theme_surface_color_and_opacity(tokens.get("--workspace-shell-bg"))
     surface_hover = _theme_surface_color_and_opacity(
         tokens.get("--workspace-shell-hover-bg")
     )
-    if not all((background_start, background_end, border, border_muted, surface, surface_hover)):
+    if not all(
+        (
+            background_start,
+            background_end,
+            border,
+            border_muted,
+            surface,
+            surface_hover,
+            text,
+            text_strong,
+            text_soft,
+            text_muted,
+            text_on_fill,
+        )
+    ):
         return None
     surface_color, surface_opacity = surface
     hover_color, hover_opacity = surface_hover
@@ -480,6 +505,11 @@ def build_meshyface_theme_render(value: object) -> dict[str, object] | None:
         "surface_hover_opacity": hover_opacity,
         "border_color": border,
         "border_muted_color": border_muted,
+        "text_color": text,
+        "text_strong_color": text_strong,
+        "text_soft_color": text_soft,
+        "text_muted_color": text_muted,
+        "text_on_fill_color": text_on_fill,
     }
 
 

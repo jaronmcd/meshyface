@@ -122,6 +122,11 @@ def test_theme_render_reuses_sender_workspace_surface() -> None:
         "surface_hover_opacity": 49,
         "border_color": "#1ca6f6",
         "border_muted_color": "#1b8ed5",
+        "text_color": "#ebf0f5",
+        "text_strong_color": "#ffffff",
+        "text_soft_color": "#bfd1de",
+        "text_muted_color": "#aec4d5",
+        "text_on_fill_color": "#0f172a",
     }
 
 
