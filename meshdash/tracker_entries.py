@@ -2,6 +2,7 @@ import base64
 from typing import Optional
 
 from .chat_scope import chat_scope_for_destination
+from .file_transfer_protocol import decode_file_transfer_packet, file_transfer_frame_text
 from .runtime_types import FormatEpochFn, ToIntFn, UtcNowFn
 
 
@@ -132,6 +133,8 @@ def build_packet_summary(
     to_int_fn: ToIntFn,
 ) -> dict[str, object]:
     portnum = decoded.get("portnum") if isinstance(decoded, dict) else None
+    file_frame = decode_file_transfer_packet(packet)
+    file_frame_text = file_transfer_frame_text(file_frame) if file_frame is not None else ""
     summary = {
         "captured_at": utc_now_fn(),
         "live": True,
@@ -151,7 +154,11 @@ def build_packet_summary(
         "want_ack": packet.get("wantAck"),
         "priority": packet.get("priority"),
         "channel": _packet_channel_index(packet),
-        "decoded_text": decoded.get("text") if isinstance(decoded, dict) else None,
+        "decoded_text": (
+            file_frame_text
+            if file_frame_text
+            else decoded.get("text") if isinstance(decoded, dict) else None
+        ),
         "reply_id": reply_id,
         "emoji": emoji_glyph,
         "emoji_codepoint": emoji_codepoint,
@@ -179,7 +186,9 @@ def build_chat_entry_from_packet(
     utc_now_fn: UtcNowFn,
     format_epoch_fn: FormatEpochFn,
 ) -> Optional[dict[str, object]]:
-    decoded_text = decoded.get("text") if isinstance(decoded, dict) else None
+    file_frame = decode_file_transfer_packet(packet)
+    file_frame_text = file_transfer_frame_text(file_frame) if file_frame is not None else ""
+    decoded_text = file_frame_text or (decoded.get("text") if isinstance(decoded, dict) else None)
     store_forward_text, store_forward_rr = _extract_store_forward_text_from_decoded_payload(decoded)
     store_forward_recovered = False
     if not (isinstance(decoded_text, str) and decoded_text.strip()):

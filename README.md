@@ -334,6 +334,9 @@ Related environment variables:
   it casually on shared displays.
 - File transfer can consume significant mesh airtime. Keep it disabled unless
   you have explicitly accepted that tradeoff.
+- File transfer uses the beta `MF_FILE_V2` binary protocol on dedicated private
+  port `258`. It is intentionally incompatible with the former text-message
+  transport.
 
 
 ## Testing And Coverage

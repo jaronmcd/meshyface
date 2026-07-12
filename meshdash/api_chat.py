@@ -6,6 +6,7 @@ from .http_route_contracts import (
     ValidateContentLengthFn,
     WriteJsonResponseFn,
 )
+from .file_transfer_protocol import FILE_TRANSFER_PROTOCOL_PREFIX
 
 
 def handle_chat_send_post(
@@ -16,6 +17,7 @@ def handle_chat_send_post(
     validate_content_length_fn: ValidateContentLengthFn,
     parse_chat_send_request_fn: ParseChatSendRequestFn,
     write_json_response_fn: WriteJsonResponseFn,
+    file_transfer_only: bool = False,
 ) -> None:
     if send_chat_fn is None:
         write_json_response_fn(
@@ -40,6 +42,20 @@ def handle_chat_send_post(
 
     raw = handler.rfile.read(content_length)
     chat_request = parse_chat_send_request_fn(raw, to_int_fn=to_int_fn)
+    request_text = str(chat_request.text or "").strip()
+    is_file_transfer = request_text.startswith(FILE_TRANSFER_PROTOCOL_PREFIX)
+    if file_transfer_only != is_file_transfer:
+        error = (
+            "A valid MF_FILE_V2 frame is required"
+            if file_transfer_only
+            else "MF_FILE_V2 frames must use /api/files/send"
+        )
+        write_json_response_fn(
+            handler,
+            status_code=400,
+            payload_obj={"ok": False, "error": error},
+        )
+        return
 
     try:
         response_obj = send_chat_fn(

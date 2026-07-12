@@ -51,7 +51,7 @@ def fetch_packet_search_rows(conn: SqlConnection, limit: int) -> SqlRows:
 
 def fetch_chat_search_rows(conn: SqlConnection, limit: int) -> SqlRows:
     clean_limit = int(limit)
-    file_transfer_like = '%"text":"MF_FILE_V1|%'
+    file_transfer_like = '%"text":"MF_FILE_V2|%'
     if clean_limit <= 0:
         return conn.execute(
             """
@@ -227,7 +227,7 @@ def fetch_recent_chat_rows(conn: SqlConnection, limit: int) -> SqlRows:
         LIMIT ?
         """,
         (
-            'mf_file_v1|%',
+            'mf_file_v2|%',
             'rv1|%',
             'ck1|%',
             'ch1|%',
@@ -285,7 +285,7 @@ def fetch_chat_page_rows(
         "lower(COALESCE(json_extract(message_json, '$.text'), '')) NOT LIKE ?",
     ]
     params: list[object] = [
-        'mf_file_v1|%',
+        'mf_file_v2|%',
         'rv1|%',
         'ck1|%',
         'ch1|%',

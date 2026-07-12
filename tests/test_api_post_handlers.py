@@ -215,6 +215,39 @@ def test_chat_send_handler_maps_disabled_success_and_errors() -> None:
     assert calls[4]["payload"]["error"] == "Invalid request size"  # type: ignore[index]
 
 
+def test_chat_and_file_endpoints_enforce_separate_protocols() -> None:
+    calls: list[dict[str, object]] = []
+    sent: list[dict[str, object]] = []
+
+    def _call(text: str, *, file_transfer_only: bool) -> None:
+        raw = text.encode("utf-8")
+        handle_chat_send_post(
+            _Handler(raw),
+            send_chat_fn=lambda **kwargs: sent.append(kwargs) or {"ok": True},
+            to_int_fn=to_int,
+            validate_content_length_fn=_validate_content_length,
+            parse_chat_send_request_fn=lambda body, *, to_int_fn: SimpleNamespace(
+                text=body.decode("utf-8"),
+                destination="!01020304",
+                channel_index=2,
+                reply_id=None,
+                retry_of=None,
+                emoji=None,
+            ),
+            write_json_response_fn=_writer(calls),
+            file_transfer_only=file_transfer_only,
+        )
+
+    _call("hello", file_transfer_only=True)
+    _call("MF_FILE_V2|C|abcd1234|0|AQID", file_transfer_only=False)
+    _call("MF_FILE_V2|C|abcd1234|0|AQID", file_transfer_only=True)
+
+    assert [call["status"] for call in calls] == [400, 400, 200]
+    assert calls[0]["payload"]["error"] == "A valid MF_FILE_V2 frame is required"  # type: ignore[index]
+    assert calls[1]["payload"]["error"] == "MF_FILE_V2 frames must use /api/files/send"  # type: ignore[index]
+    assert len(sent) == 1
+
+
 def _call_radio(
     calls: list[dict[str, object]],
     *,

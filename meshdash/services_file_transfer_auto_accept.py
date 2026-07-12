@@ -5,12 +5,13 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from .config import DEFAULT_CHAT_MAX_BYTES, DEFAULT_FILE_TRANSFER_MAX_BYTES
+from .config import DEFAULT_FILE_TRANSFER_MAX_BYTES
 from .file_transfer_protocol import (
     FILE_TRANSFER_CHUNK_BYTES,
     FILE_TRANSFER_MAX_FILE_BYTES,
     build_file_transfer_ack_frame,
-    parse_file_transfer_frame_text,
+    decode_file_transfer_packet,
+    file_transfer_frame_text,
 )
 from .helpers import to_int as _to_int
 from .helpers_node_names import normalize_node_id_text as _normalize_node_id_text
@@ -132,7 +133,7 @@ class FileTransferAutoAcceptService:
         meta_ack_refresh_seconds: float = _META_ACK_REFRESH_SECONDS,
         session_ttl_seconds: int = _SESSION_TTL_SECONDS,
         max_sessions: int = _MAX_SESSIONS,
-        max_ack_frame_bytes: int = DEFAULT_CHAT_MAX_BYTES,
+        max_ack_frame_bytes: int = 1024,
         max_file_bytes: int = DEFAULT_FILE_TRANSFER_MAX_BYTES,
         replay_ttl_seconds: float = _REPLAY_TTL_SECONDS,
         replay_fallback_ttl_seconds: float = _REPLAY_FALLBACK_TTL_SECONDS,
@@ -603,15 +604,14 @@ class FileTransferAutoAcceptService:
             return
         if not isinstance(packet, Mapping):
             return
-        frame_text = _extract_packet_text(packet)
-        frame = parse_file_transfer_frame_text(
-            frame_text,
+        frame = decode_file_transfer_packet(
+            packet,
             max_file_bytes=self._max_file_bytes,
             max_total_chunks=self._max_total_chunks,
-            max_frame_bytes=self._max_ack_frame_bytes,
         )
         if frame is None:
             return
+        frame_text = file_transfer_frame_text(frame)
         kind = str(frame.get("kind") or "").strip().lower()
         if kind not in {"meta", "chunk", "flow"}:
             return

@@ -287,7 +287,6 @@
           ? unknownChannelRefreshMs
           : fileTransferAckPeriodicRefreshMs;
         const periodicRefresh = !signatureChanged
-          && receivedCount < totalChunks
           && periodicRefreshCount < fileTransferAckPeriodicRefreshMax
           && periodicWithinWindow
           && (nowMs - lastSentAtMs) > periodicRefreshMs;
@@ -420,14 +419,21 @@
         }}
         try {{
           let sentChannels = [];
-          for (let idx = 0; idx < sendChannels.length; idx += 1) {{
-            const channelIndex = sendChannels[idx];
+          const finalAckCopies = signatureChanged && receivedCount >= totalChunks
+            ? fileTransferFinalAckDuplicateSends
+            : 1;
+          const sendAttempts = [];
+          for (let copyIndex = 0; copyIndex < finalAckCopies; copyIndex += 1) {{
+            sendAttempts.push(...sendChannels);
+          }}
+          for (let idx = 0; idx < sendAttempts.length; idx += 1) {{
+            const channelIndex = sendAttempts[idx];
             try {{
               await sendFileTransferFrameText(frame, senderId, channelIndex);
-              sentChannels.push(channelIndex);
+              if (!sentChannels.includes(channelIndex)) sentChannels.push(channelIndex);
             }} catch (_err) {{
             }}
-            if (idx + 1 < sendChannels.length) {{
+            if (idx + 1 < sendAttempts.length) {{
               await waitFileTransferFrameGap();
             }}
           }}

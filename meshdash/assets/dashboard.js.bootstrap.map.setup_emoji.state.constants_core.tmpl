@@ -333,10 +333,12 @@
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
     const fileTransferAutoAcceptDefault = !!Number({file_transfer_auto_accept});
-    const fileTransferProtocolPrefix = "MF_FILE_V1";
-    const fileTransferChatMaxBytes = chatMessageMaxBytes;
+    const fileTransferProtocolPrefix = "MF_FILE_V2";
+    // Browser-facing V2 frames are an internal JSON/API representation. The
+    // backend converts them to compact binary before radio transmission.
+    const fileTransferChatMaxBytes = 1024;
     const fileTransferMaxFileBytes = Math.max(1024, Math.trunc(Number({file_transfer_max_bytes}) || 0));
-    const fileTransferChunkBytes = 64;
+    const fileTransferChunkBytes = 160;
     const fileTransferMaxChunks = Math.max(1, Math.ceil(fileTransferMaxFileBytes / fileTransferChunkBytes));
     const fileTransferMaxAckBitmapBytes = Math.max(1, Math.ceil(fileTransferMaxChunks / 8));
     const fileTransferChunkCacheMaxEntries = 96;
@@ -401,6 +403,7 @@
     const fileTransferAckPeriodicRefreshMs = 5000;
     const fileTransferAckPeriodicRefreshMax = 6;
     const fileTransferAckPeriodicRefreshWindowMs = 45 * 1000;
+    const fileTransferFinalAckDuplicateSends = 3;
     const fileTransferAckWaitBeforeRetryMs = 4000;
     const fileTransferAckFinalGraceMs = 15 * 1000;
     const fileTransferAckProgressStallFailMs = 3 * 60 * 1000;

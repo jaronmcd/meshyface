@@ -645,7 +645,7 @@
         throw new Error("Cannot send an empty file frame.");
       }}
       const payloadBytes = utf8ByteLength(text);
-      if (payloadBytes > fileTransferChatMaxBytes) {{
+      if (payloadBytes > 1024) {{
         throw new Error(`File frame too large (${payloadBytes} bytes).`);
       }}
       const body = {{
@@ -653,7 +653,7 @@
         destination,
         channel_index: channelIndex,
       }};
-      const resp = await fetch("/api/chat/send", {{
+      const resp = await fetch("/api/files/send", {{
         method: "POST",
         headers: {{ "Content-Type": "application/json" }},
         body: JSON.stringify(body),

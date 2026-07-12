@@ -197,6 +197,14 @@ def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> No
     )
 
     assert "const fileTransferMaxChunks = Math.max(1, Math.ceil(fileTransferMaxFileBytes / fileTransferChunkBytes));" in js
+    assert "const peerLikelyOnline = session.waitingForAccept" in js
+    assert "Pausing here" in js
+    assert "if (!inFlightOverCap && unsentMissing.length > 0)" in js
+    assert "Never let endgame retransmission starve chunks" in js
+    assert "const periodicRefresh = !signatureChanged\n          && periodicRefreshCount" in js
+    assert "const fileTransferFinalAckDuplicateSends = 3;" in js
+    assert "const finalAckCopies = signatureChanged && receivedCount >= totalChunks" in js
+    assert "sendAttempts.push(...sendChannels);" in js
     assert "totalChunks > fileTransferMaxChunks" in js
     assert "fileSize > fileTransferMaxFileBytes" in js
     assert "const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));" in js

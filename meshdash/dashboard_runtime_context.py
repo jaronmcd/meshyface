@@ -547,7 +547,7 @@ def build_dashboard_runtime_context(
             file_transfer_auto_accept_service = _build_file_transfer_auto_accept_service(
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
                 send_chat_fn=loaders.send_chat_fn,
-                max_ack_frame_bytes=default_chat_max_bytes,
+                max_ack_frame_bytes=1024,
                 max_file_bytes=getattr(
                     args,
                     "file_transfer_max_bytes",

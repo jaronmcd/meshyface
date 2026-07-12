@@ -281,7 +281,15 @@
           && createdAtMs > 0
           && (nowMs - createdAtMs) <= Math.max(0, Math.trunc(Number(fileTransferPeerUnknownGraceMs) || 0))
         );
-        const peerLikelyOnline = ackSuggestsOnline || peerFreshnessKey === "online" || peerFreshnessKey === "warn" || unknownWithinGrace;
+        // While waiting for receiver acceptance, the metadata/ACK handshake is
+        // the authoritative liveness probe. Node-info freshness may legitimately
+        // be stale even though the peer is receiving file packets. Pausing here
+        // would also suppress metadata retries and deadlock manual acceptance.
+        const peerLikelyOnline = session.waitingForAccept
+          || ackSuggestsOnline
+          || peerFreshnessKey === "online"
+          || peerFreshnessKey === "warn"
+          || unknownWithinGrace;
         if (session.pausedByReceiver) {{
           continue;
         }}
@@ -746,8 +754,14 @@
             const unsentMissing = missingIndexes.filter((idx) => idx >= frontierIndex);
             const olderMissing = missingIndexes.filter((idx) => idx < frontierIndex);
             const selected = [];
-            if (!endgame && !inFlightOverCap && unsentMissing.length > 0) {{
-              const newChunkBias = hasRecentAckProgress ? 0.82 : 0.7;
+            if (!inFlightOverCap && unsentMissing.length > 0) {{
+              // Never let endgame retransmission starve chunks that have not
+              // crossed the wire yet. Previously, once a short transfer entered
+              // endgame, the selector repeatedly chose older missing chunks and
+              // could resend them forever without advancing the frontier.
+              const newChunkBias = endgame
+                ? 1
+                : (hasRecentAckProgress ? 0.82 : 0.7);
               const desiredNew = Math.max(
                 1,
                 Math.min(

@@ -8,6 +8,12 @@ from .chat_send import (
     prepare_chat_send_input,
 )
 from .send_chat_contracts import SendLock, SendTextInterface
+from .file_transfer_protocol import (
+    FILE_TRANSFER_PORTNUM,
+    FILE_TRANSFER_PROTOCOL_PREFIX,
+    encode_file_transfer_frame,
+    parse_file_transfer_frame_text,
+)
 from .runtime_types import (
     LocalNodeIdFn,
     NormalizeSingleEmojiFn,
@@ -24,6 +30,69 @@ _OUTGOING_RETRY_LIMIT = 1
 _OUTGOING_RETRY_MAX_IN_FLIGHT = 32
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
 _OUTGOING_RETRY_SLOTS = threading.BoundedSemaphore(_OUTGOING_RETRY_MAX_IN_FLIGHT)
+
+
+def _send_file_transfer_frame_v2(
+    *,
+    text: str,
+    destination: object,
+    channel_index: Optional[int],
+    iface: object,
+    send_lock: SendLock,
+    chat_max_bytes: int,
+    normalize_single_emoji_fn: NormalizeSingleEmojiFn,
+    to_int_fn: ToIntFn,
+) -> dict[str, object]:
+    frame = parse_file_transfer_frame_text(text)
+    if frame is None:
+        raise ValueError("Invalid MF_FILE_V2 frame")
+    payload = encode_file_transfer_frame(frame)
+    prepared = prepare_chat_send_input(
+        text="file",
+        destination=destination,
+        channel_index=channel_index,
+        reply_id=None,
+        retry_of=None,
+        emoji=None,
+        chat_max_bytes=chat_max_bytes,
+        normalize_single_emoji_fn=normalize_single_emoji_fn,
+        to_int_fn=to_int_fn,
+    )
+    dest = str(prepared.get("destination") or "^all")
+    if dest == "^all":
+        raise ValueError("MF_FILE_V2 transfers require a direct destination")
+    chan_candidate = to_int_fn(prepared.get("channel_index"))
+    chan = chan_candidate if chan_candidate is not None and chan_candidate >= 0 else 0
+    send_data = getattr(iface, "sendData", None)
+    if not callable(send_data):
+        raise RuntimeError("Connected interface does not support sendData()")
+    with send_lock:
+        sent_packet = send_data(
+            payload,
+            destinationId=dest,
+            portNum=FILE_TRANSFER_PORTNUM,
+            # MF_FILE_V2 carries selective application ACKs. Requesting a
+            # Meshtastic routing ACK for every metadata, chunk, and ACK frame
+            # doubles control traffic and can starve completion packets on a
+            # busy half-duplex link.
+            wantAck=False,
+            wantResponse=False,
+            channelIndex=chan,
+        )
+    packet_id = _sent_packet_id(sent_packet, to_int_fn=to_int_fn)
+    response: dict[str, object] = {
+        "ok": True,
+        "sent": True,
+        "protocol": "MF_FILE_V2",
+        "destination": dest,
+        "channel_index": chan,
+        "portnum": FILE_TRANSFER_PORTNUM,
+        "wire_bytes": len(payload),
+    }
+    if packet_id is not None:
+        response["message_id"] = packet_id
+        response["packet_id"] = packet_id
+    return response
 
 
 def _sent_packet_id(sent_packet: object, *, to_int_fn: ToIntFn) -> Optional[int]:
@@ -219,6 +288,18 @@ def send_chat_message(
     outgoing_retry_async: bool = True,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
+    raw_text = str(text or "").strip()
+    if raw_text.startswith(FILE_TRANSFER_PROTOCOL_PREFIX):
+        return _send_file_transfer_frame_v2(
+            text=raw_text,
+            destination=destination,
+            channel_index=channel_index,
+            iface=iface,
+            send_lock=send_lock,
+            chat_max_bytes=chat_max_bytes,
+            normalize_single_emoji_fn=normalize_single_emoji_fn,
+            to_int_fn=to_int_fn,
+        )
     prepared = prepare_chat_send_input(
         text=text,
         destination=destination,

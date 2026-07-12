@@ -14,6 +14,7 @@ from .api_system_update import (
 
 _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/chat/send",
+    "/api/files/send",
     "/api/meshyface/profile/settings",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
@@ -30,6 +31,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
 }
 _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/chat/send",
+    "/api/files/send",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
@@ -188,7 +190,7 @@ def handle_dashboard_post(
         )
         return
 
-    if path == "/api/chat/send":
+    if path in {"/api/chat/send", "/api/files/send"}:
         if not callable(_handle_chat_send_post_helper):
             deps.write_json_response_fn(
                 handler,
@@ -203,6 +205,7 @@ def handle_dashboard_post(
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_chat_send_request_fn=deps.parse_chat_send_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
+            file_transfer_only=(path == "/api/files/send"),
         )
         return
 
