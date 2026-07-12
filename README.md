@@ -104,8 +104,10 @@ then use **Broadcast appearance** to publish it.
 - Received appearances can style node identities in chat, rosters, node
   details, maps, graphs, sensors, and tickers without replacing the receiving
   dashboard's own theme.
-- Turning **Share node appearance** off stops this dashboard from sending,
-  processing, or displaying shared node appearances.
+- Turning **Share node appearance** off disables both sides of the feature. It
+  stops broadcasts and bypasses the profile receive path before incoming
+  appearance payloads are decoded, cached, or persisted; cached shared
+  appearances are cleared and no received appearance is rendered.
 - When history is enabled, received profiles and the local sharing preference
   persist in the history SQLite database.
 - Shared appearances are cosmetic metadata. A received appearance does not
