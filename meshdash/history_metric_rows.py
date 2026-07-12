@@ -1,6 +1,6 @@
 from typing import Optional
 
-from .helpers import to_int as _to_int
+from .helpers import to_float as _to_float, to_int as _to_int
 from .history_rollups import merge_metric as _merge_metric
 
 
@@ -18,7 +18,7 @@ def build_metric_rollup_values(
         0,
         None,
         None,
-        float(hops) if hops is not None else None,
+        _to_float(hops),
     )
     return {
         "packet_count": 1,
@@ -82,7 +82,7 @@ def merge_metric_rollup_row(
         hops_count,
         hops_min,
         hops_max,
-        float(hops) if hops is not None else None,
+        _to_float(hops),
     )
     return {
         "packet_count": int(packet_count or 0) + 1,

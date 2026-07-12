@@ -265,7 +265,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "bots", "games", "bbs", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "bots", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([
@@ -367,7 +367,6 @@
       defaultBotTrafficSnifferCommandHeads = defaultBotTrafficSnifferCommandHeads.filter((head) => head !== "zork");
     }}
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
-    const bbsFeatureEnabled = !!Number({bbs_enabled});
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
     const fileTransferAutoAcceptDefault = !!Number({file_transfer_auto_accept});
@@ -375,6 +374,30 @@
     const fileTransferChatMaxBytes = chatMessageMaxBytes;
     const fileTransferMaxFileBytes = Math.max(1024, Math.trunc(Number({file_transfer_max_bytes}) || 0));
     const fileTransferChunkBytes = 64;
+    const fileTransferMaxChunks = Math.max(1, Math.ceil(fileTransferMaxFileBytes / fileTransferChunkBytes));
+    const fileTransferMaxAckBitmapBytes = Math.max(1, Math.ceil(fileTransferMaxChunks / 8));
+    const fileTransferChunkCacheMaxEntries = 96;
+    const fileTransferChunkCacheMaxBytes = Math.max(
+      fileTransferMaxFileBytes,
+      Math.min(8 * 1024 * 1024, fileTransferMaxFileBytes * 8)
+    );
+    const fileTransferMaterializedCacheMaxEntries = 8;
+    const fileTransferMaterializedCacheMaxBytes = Math.max(
+      fileTransferMaxFileBytes * 2,
+      Math.min(8 * 1024 * 1024, fileTransferMaxFileBytes * 8)
+    );
+    const fileTransferMaterializeFailureMaxEntries = 128;
+    const fileTransferInboundStateMaxEntries = 1200;
+    const fileTransferActiveInboundMaxEntries = fileTransferChunkCacheMaxEntries;
+    const fileTransferRuntimeStateMaxEntries = fileTransferActiveInboundMaxEntries;
+    const fileTransferAckObservedMaxIndexes = Math.max(
+      fileTransferMaxChunks,
+      Math.ceil(fileTransferChunkCacheMaxBytes / fileTransferChunkBytes)
+    );
+    const fileTransferMetaAdmissionMaxPeers = 128;
+    const fileTransferMetaAdmissionPeerCooldownMs = 2 * 1000;
+    const fileTransferMetaAdmissionGlobalCooldownMs = 250;
+    const fileTransferMetaAdmissionPeerTtlMs = 20 * 60 * 1000;
     const fileTransferCompressionCodecRaw = "raw";
     const fileTransferCompressionCodecLzss = "lzss";
     const fileTransferCompressionEnabled = true;
@@ -450,18 +473,6 @@
     const fileTransferFragileLowFrameGapMultiplier = 1.25;
     const fileTransferConsoleMaxEntries = 240;
     const fileTransferStalePendingClearSec = 15 * 60;
-    const bbsProtocolVersion = "bbs1";
-    const bbsMaxSeenNetworkMessages = 2200;
-    const bbsBoardMaxPosts = 260;
-    const bbsBoardDirectoryMaxRows = 32;
-    const bbsBoardStaleSeconds = 45 * 60;
-    const bbsHostAnnounceIntervalMs = 90 * 1000;
-    const bbsProfileRequestTimeoutMs = 15 * 1000;
-    const bbsHostSettingsSaveDebounceMs = 360;
-    const bbsStorageKey = "meshDashboardBbsV1";
-    const bbsMaxTitleChars = 42;
-    const bbsMaxMotdChars = 120;
-    const bbsMaxPostChars = chatMessageMaxBytes;
     const knownDeliveryStates = new Set(["pending", "sent", "acked", "nak", "timeout", "error"]);
     const botCityHintMaxDistanceKm = 120;
     const requesterPositionMaxAgeSeconds = 24 * 3600;

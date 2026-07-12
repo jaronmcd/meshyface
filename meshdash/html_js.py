@@ -184,7 +184,6 @@ def build_dashboard_js(
     node_history_max_points: int,
     reset_ticker_scale_on_restart: bool = True,
     debug_mode: bool = False,
-    bbs_enabled: bool = False,
     file_transfer_enabled: bool = False,
     file_transfer_auto_accept: bool = False,
     games_enabled: bool = False,
@@ -208,7 +207,6 @@ def build_dashboard_js(
             1 if bool(reset_ticker_scale_on_restart) else 0
         ),
         "debug_mode_enabled": 1 if bool(debug_mode) else 0,
-        "bbs_enabled": 1 if bool(bbs_enabled) else 0,
         "chat_max_bytes": normalized_chat_max_bytes,
         "file_transfer_enabled": 1 if bool(file_transfer_enabled) else 0,
         "file_transfer_auto_accept": 1 if bool(file_transfer_auto_accept) else 0,

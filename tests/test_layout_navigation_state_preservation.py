@@ -22,22 +22,24 @@ def test_dashboard_js_keeps_layout_switches_in_app() -> None:
     assert "window.requestAnimationFrame(() => {" in switcher_block
 
 
-def test_dashboard_js_keeps_bbs_hidden_by_default() -> None:
+def test_dashboard_js_omits_removed_bbs_view_and_keeps_games_gated_by_default() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert 'const bbsFeatureEnabled = !!Number(0);' in js
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+    assert "bbsFeatureEnabled" not in js
+    assert 'clean === "bbs"' not in js
+    assert '"bbs"' not in known_layout_views
     assert 'if (clean === "games") {' in js
     assert 'if (clean === "bots" && gamesFeatureEnabled) {' in js
-    assert 'if (clean === "bbs" && bbsFeatureEnabled) {' in js
-    assert 'return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);' in js
     assert '|| (resolved === "bots" && gamesFeatureEnabled)' in js
-    assert '|| (resolved === "bbs" && bbsFeatureEnabled)' in js
-    assert '"bbs"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
-    assert '"bots"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
+    assert '"bots"' in known_layout_views
+
 
 
 def test_dashboard_js_keeps_whois_quick_action_boot_helpers() -> None:
@@ -68,7 +70,7 @@ def test_dashboard_js_binds_games_picker_select() -> None:
     assert 'activeGameId = normalizeActiveGameId(gamesLibrarySelect.value);' in js
 
 
-def test_dashboard_js_keeps_gated_apps_out_of_app_channel_routing_by_default() -> None:
+def test_dashboard_js_keeps_supported_gated_apps_in_channel_routing() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -79,9 +81,7 @@ def test_dashboard_js_keeps_gated_apps_out_of_app_channel_routing_by_default() -
     end = js.index("function normalizeMeshChannelAppId", start)
     routing_block = js[start:end]
 
-    assert 'if (bbsFeatureEnabled) {' in routing_block
-    assert 'id: "bbs"' in routing_block
-    assert 'label: "BBS"' in routing_block
+    assert 'id: "bbs"' not in routing_block
     assert 'if (fileTransferFeatureEnabled) {' in routing_block
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
@@ -91,40 +91,6 @@ def test_dashboard_js_keeps_gated_apps_out_of_app_channel_routing_by_default() -
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
 
-
-def test_dashboard_js_exposes_bbs_when_enabled() -> None:
-    js = build_dashboard_js(
-        refresh_ms=1000,
-        node_history_hours=24,
-        node_history_max_points=240,
-        bbs_enabled=True,
-    )
-
-    assert 'const bbsFeatureEnabled = !!Number(1);' in js
-    assert 'if (clean === "bbs" && bbsFeatureEnabled) {' in js
-    assert 'return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);' in js
-    assert '|| (resolved === "bots" && gamesFeatureEnabled)' in js
-    assert '|| (resolved === "bbs" && bbsFeatureEnabled)' in js
-
-
-def test_dashboard_js_exposes_bbs_in_app_channel_routing_when_enabled() -> None:
-    js = build_dashboard_js(
-        refresh_ms=1000,
-        node_history_hours=24,
-        node_history_max_points=240,
-        bbs_enabled=True,
-    )
-
-    start = js.index("function meshChannelAppRoutingRows() {")
-    end = js.index("function normalizeMeshChannelAppId", start)
-    routing_block = js[start:end]
-
-    assert 'id: "bbs"' in routing_block
-    assert 'label: "BBS"' in routing_block
-    assert 'id: "bots"' in routing_block
-    assert 'label: "Bots"' in routing_block
-    assert 'id: "games"' in routing_block
-    assert 'label: "Games"' in routing_block
 
 
 def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> None:
@@ -218,3 +184,60 @@ def test_dashboard_js_uses_backend_file_transfer_runtime_for_rows_and_ack_suppre
     assert "backendAuthoritative: true" in js
     assert "Complete on receiver" in js
     assert "Backend receiver has the complete transfer; this browser does not have download bytes." in js
+
+
+def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+        file_transfer_max_bytes=1024,
+    )
+
+    assert "const fileTransferMaxChunks = Math.max(1, Math.ceil(fileTransferMaxFileBytes / fileTransferChunkBytes));" in js
+    assert "totalChunks > fileTransferMaxChunks" in js
+    assert "fileSize > fileTransferMaxFileBytes" in js
+    assert "const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));" in js
+    assert "if (totalChunks !== expectedChunks) return null;" in js
+    assert "chunkBytes.length > fileTransferChunkBytes" in js
+    assert "byteLen > fileTransferMaxAckBitmapBytes" in js
+    assert "bytes.length > fileTransferMaxAckBitmapBytes" in js
+    assert "const fileTransferChunkCacheMaxEntries = 96;" in js
+    assert "function enforceFileTransferChunkCacheLimits(nowMs = Date.now())" in js
+    assert "fileTransferChunkCacheByKey.size > fileTransferChunkCacheMaxEntries" in js
+    assert "totalBytes > fileTransferChunkCacheMaxBytes" in js
+    assert "const cacheMetadataMismatch = !!(" in js
+    assert "clearFileTransferMaterializedStateForKey(key);" in js
+    assert "if ((out.length + literalLen) > outputLimit) return null;" in js
+    assert "if ((out.length + matchLen) > outputLimit) return null;" in js
+    assert "function fileTransferKeyOf(fromId, toId, transferId, channelIndex)" in js
+    assert "const directInbound = toId === localNodeId && fromId !== localNodeId;" in js
+    assert "if (!directInbound && !directOutbound) continue;" in js
+    assert "knownTotalChunks == null || frame.chunkIndex >= knownTotalChunks" in js
+    assert "Final escape hatch" not in js
+    assert "Math.trunc(Number(ack.totalChunks)) !== expectedTotalChunks" in js
+    assert "fileTransferExplicitChannelIndex(ack.channelIndex) !== expectedChannel" in js
+    assert "findAckForOutgoingSession(outgoingSession, ackByTransferKey, localNodeId)" in js
+    assert "const fileTransferInboundStateMaxEntries = 1200;" in js
+    assert "const fileTransferActiveInboundMaxEntries = fileTransferChunkCacheMaxEntries;" in js
+    assert "function admitFileTransferAutoAcceptMetadata(senderIdRaw, nowMsRaw = Date.now())" in js
+    assert "fileTransferMetaAdmissionByPeer" in js
+    assert "fileTransferMetaAdmissionPeerCooldownMs" in js
+    assert "fileTransferMetaAdmissionGlobalCooldownMs" in js
+    assert "fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries" in js
+    assert "fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries" in js
+    assert "function setBoundedFileTransferMapEntry(targetMap, keyRaw, value, maxEntriesRaw)" in js
+    assert "function enforceFileTransferAckObservedLimits()" in js
+    assert "totalIndexes > fileTransferAckObservedMaxIndexes" in js
+    assert "fileTransferAckSentState, transferKey" in js
+    assert "const fileTransferMaterializedCacheMaxEntries = 8;" in js
+    assert "const fileTransferMaterializedCacheMaxBytes = Math.max(" in js
+    assert "function enforceFileTransferMaterializedCacheLimits(protectedKeyRaw = \"\")" in js
+    assert "function materializeFileTransferRowBytes(row)" in js
+    assert "merged.subarray(0, wireDeclaredBytes)" in js
+    assert "fileTransferMaterializeFailureByKey" in js
+    assert "const bytes = materializeFileTransferRowBytes(row);" in js
+    rows_start = js.index("function buildFileTransferRows(state = latestState)")
+    rows_end = js.index("function syncFileTransferBlobs(rows)", rows_start)
+    assert "decodeFileTransferPayloadBytes(" not in js[rows_start:rows_end]

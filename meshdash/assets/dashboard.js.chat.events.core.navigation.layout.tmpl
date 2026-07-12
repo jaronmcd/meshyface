@@ -627,9 +627,6 @@
       if (clean === "bots" && gamesFeatureEnabled) {{
         return clean;
       }}
-      if (clean === "bbs" && bbsFeatureEnabled) {{
-        return clean;
-      }}
       if (clean === "files" && fileTransferFeatureEnabled) {{
         return clean;
       }}
@@ -638,7 +635,7 @@
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
+      return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -679,14 +676,13 @@
         resolved = "games";
       }}
 
-      // Public v0 rail: expose only Chat/Network/Console/Games/BBS/Files/Settings.
+      // Public v0 rail: expose only Chat/Network/Console/Games/Files/Settings.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
         || (resolved === "bots" && gamesFeatureEnabled)
-        || (resolved === "bbs" && bbsFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
       )
@@ -10842,7 +10838,6 @@
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
       if (normalized === "bots") return "Bots";
-      if (normalized === "bbs") return "BBS";
       return "Games";
     }}
 
@@ -10858,23 +10853,11 @@
     }}
 
     function appsLauncherMenuMetaText() {{
-      if (!gamesFeatureEnabled && !bbsFeatureEnabled && !fileTransferFeatureEnabled) {{
+      if (!gamesFeatureEnabled && !fileTransferFeatureEnabled) {{
         return "Games";
-      }}
-      if (!gamesFeatureEnabled && bbsFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Boards and files";
-      }}
-      if (!gamesFeatureEnabled && bbsFeatureEnabled) {{
-        return "Boards";
       }}
       if (!gamesFeatureEnabled && fileTransferFeatureEnabled) {{
         return "Files";
-      }}
-      if (bbsFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Bots, boards, and files";
-      }}
-      if (bbsFeatureEnabled) {{
-        return "Bots and boards";
       }}
       if (fileTransferFeatureEnabled) {{
         return "Bots and files";
@@ -11064,21 +11047,6 @@
       if (filesCard instanceof HTMLElement) {{
         filesCard.hidden = !enabled;
         filesCard.setAttribute("aria-hidden", enabled ? "false" : "true");
-      }}
-    }}
-
-    function syncBbsFeatureVisibility() {{
-      const enabled = !!bbsFeatureEnabled;
-      const bbsTabBtn = document.querySelector('#layout-view-menu .topbar-view-submenu-item[data-app-view="bbs"]');
-      if (bbsTabBtn instanceof HTMLButtonElement) {{
-        bbsTabBtn.hidden = !enabled;
-        bbsTabBtn.disabled = !enabled;
-        bbsTabBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
-      }}
-      const bbsCard = document.querySelector("#dashboard-layout .card.bbs");
-      if (bbsCard instanceof HTMLElement) {{
-        bbsCard.hidden = !enabled;
-        bbsCard.setAttribute("aria-hidden", enabled ? "false" : "true");
       }}
     }}
 
@@ -11491,7 +11459,6 @@
 
       syncLayoutViewMenu(next);
       closeLayoutViewMenu();
-      syncBbsFeatureVisibility();
       syncFileTransferFeatureVisibility();
       syncAppsTabBarVisibility(next);
       syncAppsTabBar(next);
@@ -11705,9 +11672,6 @@
         if (next === "files") {{
           renderFilesView(latestState);
         }}
-        if (next === "bbs") {{
-          renderBbsView(latestState);
-        }}
         if (next === "bots") {{
           renderBotsView(latestState);
         }}
@@ -11756,8 +11720,6 @@
         renderChatLabsView(latestState);
       }} else if (next === "files") {{
         renderFilesView(latestState);
-      }} else if (next === "bbs") {{
-        renderBbsView(latestState);
       }} else if (next === "bots") {{
         renderBotsView(latestState);
       }} else if (next === "games") {{
@@ -11811,7 +11773,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

@@ -18,6 +18,7 @@ from .nodes import (
     parse_utc_text_to_unix as _parse_utc_text_to_unix,
     utc_now as _utc_now,
 )
+from .packet_replay_guard import PacketReplayGuard
 from .tracker_runtime_receive_bindings import (
     record_tracker_receive_unlocked_for_tracker as _record_tracker_receive_unlocked_for_tracker_helper,
 )
@@ -108,6 +109,8 @@ class DashboardTracker:
         self._zork_bot_service = None
         self._ping_bot_service = None
         self._ping_public_start_enabled = True
+        self._packet_replay_guard = PacketReplayGuard()
+        self.dropped_replay_packet_count = 0
 
     def _bump_state_revision_unlocked(self) -> None:
         self.state_revision = int(getattr(self, "state_revision", 0) or 0) + 1
@@ -148,10 +151,14 @@ class DashboardTracker:
 
     def disable_zork_bot(self) -> bool:
         with self._lock:
-            if self._zork_bot_service is None:
+            service = self._zork_bot_service
+            if service is None:
                 return True
             self._zork_bot_service = None
             self._bump_state_revision_unlocked()
+        close_fn = getattr(service, "close", None)
+        if callable(close_fn):
+            close_fn()
         return True
 
     def enable_ping_bot(
@@ -177,10 +184,14 @@ class DashboardTracker:
 
     def disable_ping_bot(self) -> bool:
         with self._lock:
-            if self._ping_bot_service is None:
+            service = self._ping_bot_service
+            if service is None:
                 return True
             self._ping_bot_service = None
             self._bump_state_revision_unlocked()
+        close_fn = getattr(service, "close", None)
+        if callable(close_fn):
+            close_fn()
         return True
 
     def set_zork_bot_enabled(
@@ -362,6 +373,9 @@ class DashboardTracker:
         bot_services: list[object] = []
         with self._lock:
             if not self._accept_packets:
+                return
+            if not self._packet_replay_guard.accept(packet):
+                self.dropped_replay_packet_count += 1
                 return
             self.live_packet_count += 1
             history_store = getattr(self, "_history_store", None)

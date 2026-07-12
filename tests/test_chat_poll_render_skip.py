@@ -46,7 +46,6 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             'window.addEventListener("pageshow", (event) => {',
             'event && event.persisted ? "pageshow-persisted" : "pageshow"',
             'networkGraphActive304 && latestStatePollProfile === "network-graph"',
-            'if (activeLayoutView === "bbs") {',
             'return "network-map";',
             'return "network-graph";',
             'if (activeLayoutView === "settings") {',

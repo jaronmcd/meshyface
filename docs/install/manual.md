@@ -20,6 +20,7 @@ Run with Wi-Fi/TCP radio:
 ```bash
 python mesh_dashboard.py \
   --mesh-host 192.168.1.42 \
+  --allow-insecure-mesh-tcp \
   --mesh-tcp-port 4403 \
   --http-host 0.0.0.0 \
   --http-port 8877 \
@@ -27,6 +28,8 @@ python mesh_dashboard.py \
 ```
 
 Replace `192.168.1.42` with the Wi-Fi IP address of your radio.
+Meshtastic TCP does not authenticate the remote endpoint, so keep this link on
+a trusted network or carry it through a VPN/SSH tunnel.
 
 Run with USB serial radio:
 

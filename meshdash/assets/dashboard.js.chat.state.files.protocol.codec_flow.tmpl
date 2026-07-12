@@ -105,9 +105,10 @@
     }}
 
     function buildFileTransferChunkBitmapBase64(totalChunks, chunkIndexes) {{
-      const total = Math.max(0, Math.trunc(Number(totalChunks) || 0));
-      if (total <= 0) return "";
+      const total = Math.trunc(Number(totalChunks));
+      if (!Number.isFinite(total) || total <= 0 || total > fileTransferMaxChunks) return "";
       const byteLen = Math.max(1, Math.ceil(total / 8));
+      if (byteLen > fileTransferMaxAckBitmapBytes) return "";
       const bitmap = new Uint8Array(byteLen);
       const indexes = Array.isArray(chunkIndexes)
         ? chunkIndexes
@@ -123,11 +124,17 @@
     }}
 
     function decodeFileTransferChunkBitmap(rawBase64, totalChunks) {{
-      const total = Math.max(0, Math.trunc(Number(totalChunks) || 0));
+      const total = Math.trunc(Number(totalChunks));
       const received = new Set();
-      if (total <= 0) return received;
+      if (!Number.isFinite(total) || total <= 0 || total > fileTransferMaxChunks) return received;
       const bytes = decodeBase64ToBytes(rawBase64);
-      if (!(bytes instanceof Uint8Array) || bytes.length <= 0) return received;
+      const expectedBitmapBytes = Math.max(1, Math.ceil(total / 8));
+      if (
+        !(bytes instanceof Uint8Array)
+        || bytes.length <= 0
+        || bytes.length > expectedBitmapBytes
+        || bytes.length > fileTransferMaxAckBitmapBytes
+      ) return received;
       for (let idx = 0; idx < total; idx += 1) {{
         const byteIdx = Math.floor(idx / 8);
         if (byteIdx >= bytes.length) break;
@@ -141,9 +148,12 @@
 
     function buildFileTransferAckFrame(transferId, receivedCount, totalChunks, bitmapBase64) {{
       const cleanId = String(transferId || "").trim().toLowerCase();
-      const total = Math.max(1, Math.trunc(Number(totalChunks) || 1));
+      const total = Math.trunc(Number(totalChunks));
+      if (!/^[a-z0-9]{4,24}$/.test(cleanId)) return "";
+      if (!Number.isFinite(total) || total <= 0 || total > fileTransferMaxChunks) return "";
       const received = Math.max(0, Math.min(total, Math.trunc(Number(receivedCount) || 0)));
       const bitmap = String(bitmapBase64 || "").trim();
+      if (!bitmap || !/^[A-Za-z0-9+/]+={0,2}$/.test(bitmap)) return "";
       return `${{fileTransferProtocolPrefix}}|A|${{cleanId}}|${{received}}|${{total}}|${{bitmap}}`;
     }}
 
@@ -175,23 +185,28 @@
       const text = String(rawText == null ? "" : rawText).trim();
       const prefix = `${{fileTransferProtocolPrefix}}|`;
       if (!text || !text.startsWith(prefix)) return null;
+      if (utf8ByteLength(text) > fileTransferChatMaxBytes) return null;
       const parts = text.split("|");
       if (parts.length < 4) return null;
       const frameType = String(parts[1] || "").trim().toUpperCase();
       const transferId = String(parts[2] || "").trim().toLowerCase();
       if (!/^[a-z0-9]{4,24}$/.test(transferId)) return null;
       if (frameType === "M") {{
-        if (parts.length < 6) return null;
+        if (parts.length < 6 || parts.length > 8) return null;
         const fileName = normalizeFileTransferName(safeDecodeUriComponent(parts[3] || ""));
         const fileSize = Math.trunc(Number(parts[4]));
         const totalChunks = Math.trunc(Number(parts[5]));
-        const codec = normalizeFileTransferCompressionCodec(parts.length >= 7 ? parts[6] : fileTransferCompressionCodecRaw);
+        const codecRaw = String(parts.length >= 7 ? parts[6] : fileTransferCompressionCodecRaw).trim().toLowerCase();
+        if (codecRaw !== fileTransferCompressionCodecRaw && codecRaw !== fileTransferCompressionCodecLzss) return null;
+        const codec = codecRaw;
         const parsedOriginalSize = Math.trunc(Number(parts.length >= 8 ? parts[7] : fileSize));
-        const originalFileSize = Number.isFinite(parsedOriginalSize) && parsedOriginalSize >= 0
-          ? parsedOriginalSize
-          : fileSize;
-        if (!Number.isFinite(fileSize) || fileSize < 0) return null;
-        if (!Number.isFinite(totalChunks) || totalChunks <= 0) return null;
+        if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > fileTransferMaxFileBytes) return null;
+        if (!Number.isFinite(totalChunks) || totalChunks <= 0 || totalChunks > fileTransferMaxChunks) return null;
+        if (!Number.isFinite(parsedOriginalSize) || parsedOriginalSize <= 0 || parsedOriginalSize > fileTransferMaxFileBytes) return null;
+        const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));
+        if (totalChunks !== expectedChunks) return null;
+        if (codec === fileTransferCompressionCodecRaw && parsedOriginalSize !== fileSize) return null;
+        if (codec === fileTransferCompressionCodecLzss && parsedOriginalSize < fileSize) return null;
         return {{
           kind: "meta",
           transferId,
@@ -199,15 +214,17 @@
           fileSize,
           totalChunks,
           codec,
-          originalFileSize,
+          originalFileSize: parsedOriginalSize,
         }};
       }}
       if (frameType === "C") {{
-        if (parts.length < 5) return null;
+        if (parts.length !== 5) return null;
         const chunkIndex = Math.trunc(Number(parts[3]));
         const chunkData = String(parts[4] || "").trim();
-        if (!Number.isFinite(chunkIndex) || chunkIndex < 0) return null;
-        if (!chunkData || !/^[A-Za-z0-9+/=]+$/.test(chunkData)) return null;
+        if (!Number.isFinite(chunkIndex) || chunkIndex < 0 || chunkIndex >= fileTransferMaxChunks) return null;
+        if (!chunkData || !/^[A-Za-z0-9+/]+={0,2}$/.test(chunkData)) return null;
+        const chunkBytes = decodeBase64ToBytes(chunkData);
+        if (!(chunkBytes instanceof Uint8Array) || chunkBytes.length <= 0 || chunkBytes.length > fileTransferChunkBytes) return null;
         return {{
           kind: "chunk",
           transferId,
@@ -216,23 +233,32 @@
         }};
       }}
       if (frameType === "A") {{
-        if (parts.length < 6) return null;
+        if (parts.length !== 6) return null;
         const receivedCount = Math.trunc(Number(parts[3]));
         const totalChunks = Math.trunc(Number(parts[4]));
         const bitmap = String(parts[5] || "").trim();
         if (!Number.isFinite(receivedCount) || receivedCount < 0) return null;
-        if (!Number.isFinite(totalChunks) || totalChunks <= 0) return null;
-        if (!bitmap || !/^[A-Za-z0-9+/=]+$/.test(bitmap)) return null;
+        if (!Number.isFinite(totalChunks) || totalChunks <= 0 || totalChunks > fileTransferMaxChunks) return null;
+        if (receivedCount > totalChunks) return null;
+        if (!bitmap || !/^[A-Za-z0-9+/]+={0,2}$/.test(bitmap)) return null;
+        const bitmapBytes = decodeBase64ToBytes(bitmap);
+        const expectedBitmapBytes = Math.max(1, Math.ceil(totalChunks / 8));
+        if (
+          !(bitmapBytes instanceof Uint8Array)
+          || bitmapBytes.length <= 0
+          || bitmapBytes.length > expectedBitmapBytes
+          || bitmapBytes.length > fileTransferMaxAckBitmapBytes
+        ) return null;
         return {{
           kind: "ack",
           transferId,
-          receivedCount: Math.min(receivedCount, totalChunks),
+          receivedCount,
           totalChunks,
           bitmap,
         }};
       }}
       if (frameType === "F") {{
-        if (parts.length < 4) return null;
+        if (parts.length !== 4) return null;
         const actionCode = String(parts[3] || "").trim().toUpperCase();
         const action = actionCode === "P"
           ? "pause"
@@ -347,6 +373,13 @@
     function fileTransferLzssDecompressBytes(inputBytes, expectedSize = null) {{
       const source = inputBytes instanceof Uint8Array ? inputBytes : new Uint8Array(inputBytes || []);
       if (!source.length) return new Uint8Array(0);
+      const expected = expectedSize == null
+        ? null
+        : Math.max(0, Math.trunc(Number(expectedSize) || 0));
+      const outputLimit = expected == null
+        ? fileTransferMaxFileBytes
+        : Math.min(fileTransferMaxFileBytes, expected);
+      if (outputLimit <= 0) return null;
       const out = [];
       let cursor = 0;
       while (cursor < source.length) {{
@@ -355,6 +388,7 @@
         if ((token & 0x80) === 0) {{
           const literalLen = (token & 0x7f) + 1;
           if ((cursor + literalLen) > source.length) return null;
+          if ((out.length + literalLen) > outputLimit) return null;
           for (let i = 0; i < literalLen; i += 1) {{
             out.push(source[cursor + i]);
           }}
@@ -366,6 +400,7 @@
         const offset = ((source[cursor] << 8) | source[cursor + 1]);
         cursor += 2;
         if (!Number.isFinite(offset) || offset <= 0 || offset > out.length) return null;
+        if ((out.length + matchLen) > outputLimit) return null;
         for (let i = 0; i < matchLen; i += 1) {{
           const srcIdx = out.length - offset;
           if (srcIdx < 0 || srcIdx >= out.length) return null;
@@ -373,7 +408,6 @@
         }}
       }}
       const decoded = new Uint8Array(out);
-      const expected = expectedSize == null ? null : Math.max(0, Math.trunc(Number(expectedSize) || 0));
       if (expected != null && decoded.length !== expected) return null;
       return decoded;
     }}

@@ -3894,7 +3894,6 @@
     }}
     .layout.view-bots .chat,
     .layout.view-bots .files,
-    .layout.view-bots .bbs,
     .layout.view-bots .settings,
     .layout.view-bots .games,
     .layout.view-bots .nodes,
@@ -3959,57 +3958,6 @@
     .layout.view-games .hsplitter[data-target="top"],
     .layout.view-games .hsplitter[data-target="mid"],
     .layout.view-games .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-bbs {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-bbs .bbs {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      max-height: 100%;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: hidden;
-    }}
-    .layout.view-bbs .bbs .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-bbs .chat,
-    .layout.view-bbs .files,
-    .layout.view-bbs .settings,
-    .layout.view-bbs .bots,
-    .layout.view-bbs .games,
-    .layout.view-bbs .nodes,
-    .layout.view-bbs .map,
-    .layout.view-bbs .map-data,
-    .layout.view-bbs .favorites,
-    .layout.view-bbs .history-chat,
-    .layout.view-bbs .channels-view,
-    .layout.view-bbs .packets,
-    .layout.view-bbs .encription,
-    .layout.view-bbs .raw,
-    .layout.view-bbs .console,
-    .layout.view-bbs .summary,
-    .layout.view-bbs .splitter,
-    .layout.view-bbs .hsplitter[data-target="top"],
-    .layout.view-bbs .hsplitter[data-target="mid"],
-    .layout.view-bbs .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 

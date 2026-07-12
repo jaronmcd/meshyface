@@ -89,6 +89,16 @@ def test_dashboard_tracker_answers_direct_ping_when_enabled() -> None:
     assert str(iface.sent[0]["text"]).strip() == "3 hops."
 
 
+def test_ping_bot_uses_numeric_sender_as_security_identity() -> None:
+    iface = _FakeInterface()
+    service = build_ping_bot_service(repeat_send_retry_limit=0)
+    packet = _text_packet("ping")
+    packet["fromId"] = "!deadbeef"
+
+    assert service.handle_packet(packet, iface) is True
+    assert iface.sent[0]["kwargs"]["destinationId"] == "!01020304"
+
+
 def test_dashboard_tracker_repeats_direct_ping_reply_when_count_is_requested() -> None:
     tracker = DashboardTracker(packet_limit=25)
     iface = _FakeInterface()
@@ -116,6 +126,7 @@ def test_dashboard_tracker_repeats_direct_ping_reply_when_count_is_requested() -
                     sent_message_id,
                     "ack",
                     ack_from_id="!01020304",
+                    ack_to_id="!12345678",
                 )
             )
             if not applied:
@@ -141,7 +152,7 @@ def test_dashboard_tracker_caps_direct_ping_repeat_count() -> None:
 
     tracker.on_receive(_text_packet("ping 100"), iface)
 
-    for index in range(1, 26):
+    for index in range(1, 9):
         deadline = time.monotonic() + 1.0
         while len(iface.sent) < index and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -156,15 +167,16 @@ def test_dashboard_tracker_caps_direct_ping_repeat_count() -> None:
                     sent_message_id,
                     "ack",
                     ack_from_id="!01020304",
+                    ack_to_id="!12345678",
                 )
             )
             if not applied:
                 time.sleep(0.01)
         assert applied is True
 
-    assert len(iface.sent) == 25
-    assert str(iface.sent[0]["text"]).strip() == "1/25"
-    assert str(iface.sent[-1]["text"]).strip() == "25/25"
+    assert len(iface.sent) == 8
+    assert str(iface.sent[0]["text"]).strip() == "1/8"
+    assert str(iface.sent[-1]["text"]).strip() == "8/8"
 
 
 def test_dashboard_tracker_answers_public_ping_with_direct_reply() -> None:
@@ -304,3 +316,42 @@ def test_ping_bot_retries_repeat_send_when_radio_send_fails_once() -> None:
     assert handled is True
     assert iface.call_count == 4
     assert [str(item["text"]).strip() for item in iface.sent] == ["1/3", "2/3", "3/3"]
+
+
+def test_ping_bot_drops_excess_async_repeat_work() -> None:
+    class _FullSlots:
+        @staticmethod
+        def acquire(*, blocking: bool) -> bool:
+            assert blocking is False
+            return False
+
+    iface = _FakeInterface()
+    service = build_ping_bot_service(
+        repeat_async=True,
+        get_delivery_state_fn=lambda _message_id: "pending",
+    )
+    service._async_reply_slots = _FullSlots()
+
+    assert service.handle_packet(_text_packet("ping 3"), iface) is True
+    assert iface.sent == []
+
+
+def test_ping_bot_rate_limits_requests_and_close_stops_processing() -> None:
+    iface = _FakeInterface()
+    monotonic = [100.0]
+    service = build_ping_bot_service(
+        repeat_send_retry_limit=0,
+        peer_request_cooldown_seconds=5,
+        global_request_cooldown_seconds=1,
+        monotonic_fn=lambda: monotonic[0],
+    )
+
+    assert service.handle_packet(_text_packet("ping"), iface) is True
+    assert service.handle_packet(_text_packet("ping"), iface) is True
+    assert len(iface.sent) == 1
+    monotonic[0] = 106.0
+    assert service.handle_packet(_text_packet("ping"), iface) is True
+    assert len(iface.sent) == 2
+    service.close()
+    assert service.handle_packet(_text_packet("ping"), iface) is False
+    assert len(iface.sent) == 2

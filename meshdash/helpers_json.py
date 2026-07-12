@@ -1,4 +1,5 @@
 import json
+import math
 from typing import TypeAlias, TypeVar
 
 try:
@@ -34,7 +35,9 @@ def message_to_dict(value: object) -> object | None:
 def to_jsonable(value: object, depth: int = 0) -> JsonValue:
     if depth > 12:
         return "<max-depth>"
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if value is None or isinstance(value, (str, int, bool)):
         return value
     if isinstance(value, bytes):
         return value.hex()

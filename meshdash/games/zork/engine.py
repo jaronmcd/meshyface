@@ -10,6 +10,7 @@ from .world import INITIAL_OBJECT_LOCATIONS, OBJECTS, ROOMS, START_ROOM, object_
 
 
 GAME_SESSION_TTL_SECONDS = 45 * 60
+MAX_GAME_SESSIONS = 128
 # Set to 0 to disable truncation and let transport-layer chunking handle limits.
 MAX_REPLY_CHARS = 0
 START_HELP_HINT = "Type 'help' for the command set."
@@ -393,8 +394,9 @@ class ZorkGame:
         kind="game",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_sessions: int = MAX_GAME_SESSIONS) -> None:
         self._sessions: dict[str, dict[str, object]] = {}
+        self._max_sessions = max(1, int(max_sessions))
 
     def active_session_count(self) -> int:
         return len(self._sessions)
@@ -474,6 +476,15 @@ class ZorkGame:
 
     def _start_session(self, from_id: str, now_unix: int) -> dict[str, object]:
         peer_id = str(from_id or "").strip().lower()
+        self._prune_sessions(now_unix)
+        if peer_id not in self._sessions and len(self._sessions) >= self._max_sessions:
+            oldest_peer_id = min(
+                self._sessions,
+                key=lambda candidate: int(
+                    self._sessions[candidate].get("updated_unix") or 0
+                ),
+            )
+            self._sessions.pop(oldest_peer_id, None)
         object_locations = dict(INITIAL_OBJECT_LOCATIONS)
         for hidden_code in ("CROWN", "CARD"):
             if object_locations.get(hidden_code) == "SAFE":

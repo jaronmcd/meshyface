@@ -72,6 +72,58 @@ def test_file_transfer_protocol_final_ack_stays_compact_for_large_transfers() ->
     assert parsed["total_chunks"] == 1024
 
 
+def test_file_transfer_protocol_rejects_unsafe_metadata_and_chunks() -> None:
+    assert (
+        parse_file_transfer_frame_text(
+            "MF_FILE_V1|M|abcd1234|sample.bin|1025|17|raw|1025",
+            max_file_bytes=1024,
+        )
+        is None
+    )
+    assert (
+        parse_file_transfer_frame_text(
+            "MF_FILE_V1|M|abcd1234|sample.bin|128|999999|raw|128"
+        )
+        is None
+    )
+    assert (
+        parse_file_transfer_frame_text(
+            "MF_FILE_V1|M|abcd1234|sample.bin|128|1|raw|128"
+        )
+        is None
+    )
+    assert (
+        parse_file_transfer_frame_text(
+            "MF_FILE_V1|C|abcd1234|0|" + ("AQ" * 65)
+        )
+        is None
+    )
+
+
+def test_file_transfer_ack_builder_rejects_oversized_work_before_iterating() -> None:
+    class _MustNotIterate:
+        def __iter__(self):
+            raise AssertionError("received indexes must not be inspected")
+
+    assert (
+        build_file_transfer_ack_frame(
+            transfer_id="abcd1234",
+            total_chunks=999999999,
+            received_indexes=_MustNotIterate(),
+        )
+        == ""
+    )
+    assert (
+        build_file_transfer_ack_frame(
+            transfer_id="abcd1234",
+            total_chunks=1024,
+            received_indexes={1023},
+            max_frame_bytes=200,
+        )
+        == ""
+    )
+
+
 def test_auto_accept_sends_initial_ack_for_direct_meta() -> None:
     sent_messages: list[dict[str, object]] = []
     service = build_file_transfer_auto_accept_service(
@@ -92,6 +144,89 @@ def test_auto_accept_sends_initial_ack_for_direct_meta() -> None:
             "channel_index": 2,
         }
     ]
+
+
+def test_auto_accept_uses_numeric_header_identity_over_display_aliases() -> None:
+    sent_messages: list[dict[str, object]] = []
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: 10.0,
+    )
+    packet = _packet("MF_FILE_V1|M|abcd1234|sample.bin|128|2|raw|128")
+    packet["fromId"] = "!99999999"
+    interface = _make_iface()
+    interface.nodesByNum[0x01020304]["user"]["id"] = "!88888888"
+
+    service.on_receive(packet, interface)
+
+    assert sent_messages[0]["destination"] == "!01020304"
+
+
+def test_auto_accept_rate_limits_unique_metadata_admission() -> None:
+    sent_messages: list[dict[str, object]] = []
+    monotonic = [10.0]
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: monotonic[0],
+        meta_peer_cooldown_seconds=2,
+        meta_global_cooldown_seconds=0.25,
+    )
+
+    service.on_receive(
+        _packet("MF_FILE_V1|M|abcd1234|first.bin|64|1|raw|64"),
+        _make_iface(),
+    )
+    service.on_receive(
+        _packet("MF_FILE_V1|M|abcd5678|second.bin|64|1|raw|64"),
+        _make_iface(),
+    )
+
+    assert len(sent_messages) == 1
+    assert service.get_runtime()["active_sessions"] == 1
+    monotonic[0] = 13.0
+    service.on_receive(
+        _packet("MF_FILE_V1|M|abcd9012|third.bin|64|1|raw|64"),
+        _make_iface(),
+    )
+    assert len(sent_messages) == 2
+    assert service.get_runtime()["active_sessions"] == 2
+
+
+def test_auto_accept_ignores_metadata_over_configured_limit() -> None:
+    sent_messages: list[dict[str, object]] = []
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        max_file_bytes=1024,
+    )
+
+    service.on_receive(
+        _packet("MF_FILE_V1|M|abcd1234|sample.bin|1025|17|raw|1025"),
+        _make_iface(),
+    )
+
+    assert sent_messages == []
+    assert service.get_runtime()["active_sessions"] == 0
+
+
+def test_auto_accept_close_disables_processing_and_clears_sessions() -> None:
+    sent_messages: list[dict[str, object]] = []
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+    )
+    packet = _packet("MF_FILE_V1|M|abcd1234|sample.bin|128|2|raw|128")
+
+    service.on_receive(packet, _make_iface())
+    assert service.get_runtime()["active_sessions"] == 1
+    service.close()
+    service.on_receive(packet, _make_iface())
+
+    assert service.get_runtime()["enabled"] is False
+    assert service.get_runtime()["active_sessions"] == 0
+    assert len(sent_messages) == 1
 
 
 def test_auto_accept_acks_chunk_progress_and_final_completion() -> None:
@@ -121,7 +256,7 @@ def test_auto_accept_acks_chunk_progress_and_final_completion() -> None:
     assert runtime["sent_ack_count"] == 3
     assert runtime["sessions"] == [
         {
-            "key": "!01020304|!12345678|abcd1234",
+            "key": "!01020304|!12345678|abcd1234|2",
             "source": "backend_auto_accept",
             "authoritative": True,
             "sender_id": "!01020304",
@@ -145,6 +280,178 @@ def test_auto_accept_acks_chunk_progress_and_final_completion() -> None:
             "last_ack_age_seconds": runtime["sessions"][0]["last_ack_age_seconds"],
         }
     ]
+
+
+def test_auto_accept_binds_sessions_and_chunks_to_channel() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=0,
+    )
+    iface = _make_iface()
+
+    service.on_receive(
+        _packet("MF_FILE_V1|M|abcd1234|sample.bin|64|1|raw|64", channel=2),
+        iface,
+    )
+    now["value"] = 10.1
+    service.on_receive(
+        _packet("MF_FILE_V1|C|abcd1234|0|AQID", channel=3),
+        iface,
+    )
+    now["value"] = 10.2
+    service.on_receive(
+        _packet("MF_FILE_V1|C|abcd1234|0|AQID", channel=2),
+        iface,
+    )
+
+    assert [row["channel_index"] for row in sent_messages] == [2, 2]
+    runtime = service.get_runtime()
+    assert runtime["active_sessions"] == 1
+    assert runtime["sessions"][0]["key"] == "!01020304|!12345678|abcd1234|2"
+    assert runtime["sessions"][0]["received_chunks"] == 1
+
+
+def test_auto_accept_suppresses_exact_packet_replays_with_fingerprint_fallback() -> None:
+    for packet_id in (None, 0, True, 77):
+        sent_messages: list[dict[str, object]] = []
+        now = {"value": 10.0}
+        service = build_file_transfer_auto_accept_service(
+            local_node_id_fn=lambda: "!12345678",
+            send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+            now_monotonic_fn=lambda: now["value"],
+            ack_cooldown_seconds=0,
+        )
+        iface = _make_iface()
+        meta = _packet("MF_FILE_V1|M|abcd1234|sample.bin|64|1|raw|64")
+        chunk = _packet("MF_FILE_V1|C|abcd1234|0|AQID")
+        if packet_id is not None:
+            meta["id"] = packet_id - 1 if packet_id > 1 else packet_id
+            chunk["id"] = packet_id
+
+        service.on_receive(meta, iface)
+        now["value"] = 10.1
+        service.on_receive(chunk, iface)
+        now["value"] = 10.2
+        service.on_receive(dict(chunk), iface)
+
+        assert len(sent_messages) == 2
+        assert service.get_runtime()["sent_ack_count"] == 2
+
+
+def test_auto_accept_allows_idless_retransmit_after_short_fallback_ttl() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=0,
+        replay_ttl_seconds=600,
+        replay_fallback_ttl_seconds=5,
+    )
+    iface = _make_iface()
+    meta = _packet("MF_FILE_V1|M|abcd1234|sample.bin|64|1|raw|64")
+    chunk = _packet("MF_FILE_V1|C|abcd1234|0|AQID")
+
+    service.on_receive(meta, iface)
+    now["value"] = 10.1
+    service.on_receive(chunk, iface)
+    now["value"] = 10.2
+    service.on_receive(dict(chunk), iface)
+    now["value"] = 16.0
+    service.on_receive(dict(chunk), iface)
+
+    assert len(sent_messages) == 3
+    assert service.get_runtime()["sent_ack_count"] == 3
+
+
+def test_auto_accept_keeps_stable_packet_ids_on_long_replay_ttl() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=0,
+        replay_ttl_seconds=600,
+        replay_fallback_ttl_seconds=5,
+    )
+    iface = _make_iface()
+    meta = _packet("MF_FILE_V1|M|abcd1234|sample.bin|64|1|raw|64")
+    meta["id"] = 41
+    chunk = _packet("MF_FILE_V1|C|abcd1234|0|AQID")
+    chunk["id"] = 42
+
+    service.on_receive(meta, iface)
+    now["value"] = 10.1
+    service.on_receive(chunk, iface)
+    now["value"] = 16.0
+    service.on_receive(dict(chunk), iface)
+
+    assert len(sent_messages) == 2
+    assert service.get_runtime()["sent_ack_count"] == 2
+
+
+def test_auto_accept_rate_limits_repeated_final_chunks_with_new_packet_ids() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=1.0,
+    )
+    iface = _make_iface()
+    meta = _packet("MF_FILE_V1|M|abcd1234|sample.bin|64|1|raw|64")
+    meta["id"] = 1
+    chunk = _packet("MF_FILE_V1|C|abcd1234|0|AQID")
+
+    service.on_receive(meta, iface)
+    now["value"] = 10.1
+    chunk["id"] = 2
+    service.on_receive(dict(chunk), iface)
+    now["value"] = 10.2
+    chunk["id"] = 3
+    service.on_receive(dict(chunk), iface)
+    now["value"] = 11.2
+    chunk["id"] = 4
+    service.on_receive(dict(chunk), iface)
+
+    assert len(sent_messages) == 3
+    assert service.get_runtime()["sent_ack_count"] == 3
+
+
+def test_auto_accept_enforces_exact_session_limit() -> None:
+    now = {"value": 10.0}
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        now_monotonic_fn=lambda: now["value"],
+        max_sessions=2,
+        meta_peer_cooldown_seconds=0.0,
+        meta_global_cooldown_seconds=0.0,
+    )
+    iface = _make_iface()
+
+    for index, transfer_id in enumerate(("abcd0001", "abcd0002", "abcd0003")):
+        now["value"] = 10.0 + index
+        service.on_receive(
+            _packet(
+                f"MF_FILE_V1|M|{transfer_id}|sample.bin|64|1|raw|64",
+                channel=2,
+            ),
+            iface,
+        )
+
+    runtime = service.get_runtime()
+    assert runtime["active_sessions"] == 2
+    assert {
+        row["transfer_id"] for row in runtime["sessions"]
+    } == {"abcd0002", "abcd0003"}
 
 
 def test_auto_accept_ignores_disabled_and_broadcast_transfers() -> None:
@@ -192,7 +499,7 @@ def test_dashboard_state_exposes_file_transfer_runtime_summary() -> None:
                 "active_sessions": 1,
                 "sessions": [
                     {
-                        "key": "!01020304|!12345678|abcd1234",
+                        "key": "!01020304|!12345678|abcd1234|2",
                         "transfer_id": "abcd1234",
                         "received_chunks": 1,
                         "total_chunks": 2,
@@ -228,7 +535,7 @@ def test_dashboard_state_exposes_file_transfer_runtime_summary() -> None:
         "active_sessions": 1,
         "sessions": [
             {
-                "key": "!01020304|!12345678|abcd1234",
+                "key": "!01020304|!12345678|abcd1234|2",
                 "transfer_id": "abcd1234",
                 "received_chunks": 1,
                 "total_chunks": 2,
@@ -276,9 +583,9 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
         http_host="127.0.0.1",
         http_port=0,
         games_enable=False,
-        bbs_enable=False,
         file_transfer_enable=True,
         file_transfer_auto_accept=True,
+        file_transfer_max_bytes=1024,
     )
 
     def _loaders(**_kwargs: object) -> DashboardRuntimeLoaders:
@@ -330,6 +637,10 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
 
     service_callbacks[0](
         _packet("MF_FILE_V1|M|abcd1234|sample.bin|128|2|raw|128"),
+        iface,
+    )
+    service_callbacks[0](
+        _packet("MF_FILE_V1|M|abcd5678|sample.bin|1025|17|raw|1025"),
         iface,
     )
 

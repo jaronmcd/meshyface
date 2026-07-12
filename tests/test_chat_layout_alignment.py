@@ -339,7 +339,6 @@ def test_chat_composer_uses_200_byte_mesh_limit(dashboard_html: str, dashboard_j
     assert 'maxlength="200"' in dashboard_html
     assert "const chatMessageMaxBytes = Math.max(1, Math.trunc(Number(200) || 0));" in dashboard_js
     assert "const fileTransferChatMaxBytes = chatMessageMaxBytes;" in dashboard_js
-    assert "const bbsMaxPostChars = chatMessageMaxBytes;" in dashboard_js
     assert "function chatComposerByteLength(value) {" in dashboard_js
     assert "Message is too long (${textBytes} bytes). Limit is ${chatComposerMaxBytes} bytes." in dashboard_js
 

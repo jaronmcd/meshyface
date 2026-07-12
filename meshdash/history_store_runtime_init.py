@@ -112,14 +112,6 @@ def initialize_history_store_runtime(
     )
     store._custom_telemetry_rules = custom_rules
     store._custom_telemetry_updated_unix = custom_rules_updated_unix
-    store._bbs_host_settings = {
-        "title": "Packet Exchange",
-        "board_id": "packet-exchange",
-        "motd": "2400 baud online.",
-    }
-    store._bbs_host_settings_updated_unix = 0
-    store._bbs_host_posts = []
-    store._bbs_host_posts_updated_unix = 0
     store._bot_runtime_settings = {
         "zork_enabled": False,
         "ping_enabled": False,

@@ -72,5 +72,5 @@ MESH_DASH_GIT_COMMIT="$(git rev-parse --short=12 HEAD)" \
 ```
 
 The Compose file publishes `8877`, uses the named volume `meshyface-data`, and
-keeps optional BBS, games, and file-transfer features disabled unless you enable
+keeps optional games and file-transfer features disabled unless you enable
 their documented environment variables.

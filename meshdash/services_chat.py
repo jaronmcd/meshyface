@@ -21,7 +21,9 @@ from .runtime_types import (
 _OUTGOING_RETRY_ACK_WAIT_SECONDS = 45.0
 _OUTGOING_RETRY_ACK_POLL_SECONDS = 1.0
 _OUTGOING_RETRY_LIMIT = 1
+_OUTGOING_RETRY_MAX_IN_FLIGHT = 32
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
+_OUTGOING_RETRY_SLOTS = threading.BoundedSemaphore(_OUTGOING_RETRY_MAX_IN_FLIGHT)
 
 
 def _sent_packet_id(sent_packet: object, *, to_int_fn: ToIntFn) -> Optional[int]:
@@ -121,6 +123,16 @@ def _retry_outgoing_chat_once_if_unacked(
     )
 
 
+def _retry_outgoing_chat_with_slot(
+    kwargs: dict[str, object],
+    retry_slots: threading.BoundedSemaphore,
+) -> None:
+    try:
+        _retry_outgoing_chat_once_if_unacked(**kwargs)  # type: ignore[arg-type]
+    finally:
+        retry_slots.release()
+
+
 def _start_outgoing_retry_if_needed(
     *,
     should_request_ack: bool,
@@ -169,11 +181,16 @@ def _start_outgoing_retry_if_needed(
         "sleep_fn": sleep_fn,
     }
     if outgoing_retry_async:
-        threading.Thread(
-            target=_retry_outgoing_chat_once_if_unacked,
-            kwargs=kwargs,
-            daemon=True,
-        ).start()
+        if not _OUTGOING_RETRY_SLOTS.acquire(blocking=False):
+            return
+        try:
+            threading.Thread(
+                target=_retry_outgoing_chat_with_slot,
+                args=(kwargs, _OUTGOING_RETRY_SLOTS),
+                daemon=True,
+            ).start()
+        except Exception:
+            _OUTGOING_RETRY_SLOTS.release()
         return
     _retry_outgoing_chat_once_if_unacked(**kwargs)
 

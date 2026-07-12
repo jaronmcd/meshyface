@@ -21,6 +21,16 @@ from meshdash.history_raw_packets import (
 from meshdash.history_store_runtime import HistoryStore
 
 
+def _read_download_payload(download: dict[str, object]) -> bytes:
+    path = Path(str(download.get("path") or ""))
+    cleanup_fn = download.get("cleanup_fn")
+    try:
+        return path.read_bytes()
+    finally:
+        if callable(cleanup_fn):
+            cleanup_fn()
+
+
 def test_raw_packet_db_path_derives_sidecar_sqlite_path() -> None:
     assert raw_packet_db_path_for_history_db_path("/tmp/history.sqlite3") == "/tmp/history.raw.sqlite3"
     assert raw_packet_db_path_for_history_db_path("/tmp/history") == "/tmp/history.raw.sqlite3"
@@ -95,8 +105,7 @@ def test_history_store_raw_packet_capture_toggle_and_stats(tmp_path: Path) -> No
         assert download["ok"] is True
         assert download["content_type"] == "application/vnd.sqlite3"
         assert str(download["filename"]).endswith(".sqlite3")
-        payload = download["bytes"]
-        assert isinstance(payload, bytes)
+        payload = _read_download_payload(download)
         assert payload.startswith(b"SQLite format 3\x00")
         snapshot_path = tmp_path / "raw_download.sqlite3"
         snapshot_path.write_bytes(payload)
@@ -300,9 +309,84 @@ def test_raw_packet_operations_without_lock_use_unlocked_paths() -> None:
 
         download = build_raw_packet_database_download(store)
         assert download["ok"] is True
-        assert download["bytes"].startswith(b"SQLite format 3\x00")
+        assert _read_download_payload(download).startswith(b"SQLite format 3\x00")
     finally:
         store._raw_packet_conn.close()
+
+
+def test_raw_packet_capture_enforces_packet_and_storage_quotas() -> None:
+    store = _memory_store()
+    store._raw_packet_max_single_bytes = 4
+    store._raw_packet_max_rows = 3
+    store._raw_packet_max_bytes = 8
+    store._raw_packet_retention_seconds = 3600
+    store._raw_packet_writes_since_prune = 0
+    try:
+        assert save_raw_packet_capture(store, b"12345") is False
+        for value in (b"aa", b"bb", b"cc", b"dd"):
+            assert save_raw_packet_capture(store, value) is True
+
+        history_raw_packets._prune_raw_packet_capture_unlocked(
+            store,
+            store._raw_packet_conn,
+            now_unix=int(history_raw_packets.time.time()),
+        )
+        store._raw_packet_conn.commit()
+        stats = load_raw_packet_stats(store)
+        assert stats["packet_rows"] == 3
+        assert stats["packet_bytes"] == 6
+        assert stats["policy"] == {
+            "max_rows": 3,
+            "retention_seconds": 3600,
+            "max_packet_bytes": 4,
+            "max_stored_bytes": 8,
+        }
+    finally:
+        store._raw_packet_conn.close()
+
+
+def test_raw_packet_capture_prunes_expired_and_oldest_payload_rows() -> None:
+    store = _memory_store()
+    store._raw_packet_max_single_bytes = 16
+    store._raw_packet_max_rows = 10
+    store._raw_packet_max_bytes = 5
+    store._raw_packet_retention_seconds = 10
+    now_unix = 1_800_000_000
+    conn = store._raw_packet_conn
+    try:
+        for created_unix, payload in (
+            (now_unix - 20, b"old"),
+            (now_unix - 2, b"abc"),
+            (now_unix - 1, b"de"),
+        ):
+            conn.execute(
+                "INSERT INTO raw_packets(created_unix, encoding, byte_length, packet_bytes) "
+                "VALUES(?, 'bytes', ?, ?)",
+                (created_unix, len(payload), sqlite3.Binary(payload)),
+            )
+        deleted = history_raw_packets._prune_raw_packet_capture_unlocked(
+            store,
+            conn,
+            now_unix=now_unix,
+        )
+        conn.commit()
+        assert deleted == 1
+        rows = conn.execute(
+            "SELECT packet_bytes FROM raw_packets ORDER BY id"
+        ).fetchall()
+        assert rows == [(b"abc",), (b"de",)]
+
+        store._raw_packet_max_bytes = 3
+        deleted = history_raw_packets._prune_raw_packet_capture_unlocked(
+            store,
+            conn,
+            now_unix=now_unix,
+        )
+        conn.commit()
+        assert deleted == 1
+        assert conn.execute("SELECT packet_bytes FROM raw_packets").fetchall() == [(b"de",)]
+    finally:
+        conn.close()
 
 
 def test_fetch_helpers_swallow_bad_rows_and_errors() -> None:
@@ -382,6 +466,55 @@ def test_build_download_reports_backup_failures() -> None:
     assert download["ok"] is False
     assert download["status_code"] == 500
     assert "backup interrupted" in str(download["error"])
+
+
+def test_raw_packet_download_rejects_concurrent_backup() -> None:
+    store = _memory_store()
+    try:
+        first = build_raw_packet_database_download(store)
+        assert first["ok"] is True
+        blocked = build_raw_packet_database_download(store)
+        assert blocked["ok"] is False
+        assert blocked["status_code"] == 429
+
+        cleanup_fn = first.get("cleanup_fn")
+        assert callable(cleanup_fn)
+        cleanup_fn()
+
+        next_download = build_raw_packet_database_download(store)
+        assert next_download["ok"] is True
+        next_cleanup = next_download.get("cleanup_fn")
+        assert callable(next_cleanup)
+        next_cleanup()
+    finally:
+        store._raw_packet_conn.close()
+
+
+def test_raw_packet_download_releases_lock_when_backup_size_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _memory_store()
+    real_getsize = history_raw_packets.os.path.getsize
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(
+                history_raw_packets.os.path,
+                "getsize",
+                lambda _path: (_ for _ in ()).throw(OSError("size unavailable")),
+            )
+            failed = build_raw_packet_database_download(store)
+
+        assert failed["ok"] is False
+        assert failed["status_code"] == 500
+
+        monkeypatch.setattr(history_raw_packets.os.path, "getsize", real_getsize)
+        recovered = build_raw_packet_database_download(store)
+        assert recovered["ok"] is True
+        cleanup_fn = recovered.get("cleanup_fn")
+        assert callable(cleanup_fn)
+        cleanup_fn()
+    finally:
+        store._raw_packet_conn.close()
 
 
 def test_save_raw_packet_capture_swallows_extract_failures(

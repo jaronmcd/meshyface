@@ -879,6 +879,27 @@ def run_dashboard_runtime(
                     close_receive_buffer()
                 except Exception:
                     pass
+            close_file_transfer = getattr(
+                getattr(context.tracker, "_file_transfer_auto_accept_service", None),
+                "close",
+                None,
+            )
+            if callable(close_file_transfer):
+                try:
+                    close_file_transfer()
+                except Exception:
+                    pass
+            for bot_service_name in ("_ping_bot_service", "_zork_bot_service"):
+                close_bot = getattr(
+                    getattr(context.tracker, bot_service_name, None),
+                    "close",
+                    None,
+                )
+                if callable(close_bot):
+                    try:
+                        close_bot()
+                    except Exception:
+                        pass
             close_runtime_resources(
                 server=server,
                 iface=context.iface,

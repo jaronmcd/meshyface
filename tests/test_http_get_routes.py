@@ -82,8 +82,6 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             (status_code, text, extra_headers or {})
         ),
         get_theme_settings_fn=lambda: {"ok": True, "theme": "dark"},
-        get_bbs_settings_fn=lambda: {"ok": True, "enabled": False},
-        get_bbs_host_runtime_fn=lambda: {"ok": True, "running": False},
         get_custom_telemetry_settings_fn=lambda: {"ok": True, "rules": []},
         private_mode=False,
         api_metrics=_Metrics(),

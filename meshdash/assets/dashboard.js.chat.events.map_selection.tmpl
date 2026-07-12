@@ -316,8 +316,6 @@
         renderGamesView(latestState);
       }} else if (activeLayoutView === "files") {{
         renderFilesView(latestState);
-      }} else if (activeLayoutView === "bbs" && typeof renderBbsView === "function") {{
-        renderBbsView(latestState);
       }}
       if (perfToken > 0) {{
         markNodeSelectionPerf(perfToken, "selection.ui_flush", flushStartedAtMs, {{

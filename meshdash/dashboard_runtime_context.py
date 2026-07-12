@@ -1,10 +1,12 @@
 import os
 import threading
 import time
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from .config import DEFAULT_FILE_TRANSFER_MAX_BYTES
 from .dashboard_args_contracts import DashboardArgs
 from .dashboard_runtime_loader_contracts import (
     BuildDashboardRuntimeLoaderDependenciesFromLegacyArgsFn,
@@ -89,9 +91,11 @@ class DashboardRuntimeContext:
 class StartupReceiveBuffer:
     """Buffer startup packets until runtime state is ready to ingest them."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_packets: int = 2048) -> None:
         self._lock = threading.Lock()
-        self._packets: list[tuple[object, object]] = []
+        self._max_packets = max(1, int(max_packets))
+        self._packets: deque[tuple[object, object]] = deque(maxlen=self._max_packets)
+        self._dropped_packets = 0
         self._callback: Optional[Callable[[object, object], object]] = None
         self._closed = False
 
@@ -102,6 +106,8 @@ class StartupReceiveBuffer:
                 return
             callback = self._callback
             if callback is None:
+                if len(self._packets) >= self._max_packets:
+                    self._dropped_packets += 1
                 self._packets.append((packet, interface))
                 return
         callback(packet, interface)
@@ -121,6 +127,11 @@ class StartupReceiveBuffer:
             self._closed = True
             self._packets.clear()
             self._callback = None
+
+    @property
+    def dropped_packets(self) -> int:
+        with self._lock:
+            return int(self._dropped_packets)
 
 
 def build_dashboard_runtime_context(
@@ -656,40 +667,6 @@ def build_dashboard_runtime_context(
                 except Exception:
                     pass
 
-        get_bbs_settings_fn = getattr(history_store, "get_bbs_settings", None)
-        set_bbs_settings_fn = getattr(history_store, "set_bbs_settings", None)
-        if callable(get_bbs_settings_fn):
-            try:
-                setattr(loaders.state_fn, "get_bbs_settings_fn", get_bbs_settings_fn)
-            except Exception:
-                pass
-            state_lite_fn = getattr(loaders.state_fn, "lite", None)
-            if callable(state_lite_fn):
-                try:
-                    setattr(state_lite_fn, "get_bbs_settings_fn", get_bbs_settings_fn)
-                except Exception:
-                    pass
-        if callable(set_bbs_settings_fn):
-            def _set_bbs_settings(request):
-                return set_bbs_settings_fn(
-                    {
-                        "title": getattr(request, "title", None),
-                        "board_id": getattr(request, "board_id", None),
-                        "motd": getattr(request, "motd", None),
-                    }
-                )
-
-            try:
-                setattr(loaders.state_fn, "set_bbs_settings_fn", _set_bbs_settings)
-            except Exception:
-                pass
-            state_lite_fn = getattr(loaders.state_fn, "lite", None)
-            if callable(state_lite_fn):
-                try:
-                    setattr(state_lite_fn, "set_bbs_settings_fn", _set_bbs_settings)
-                except Exception:
-                    pass
-
         get_custom_telemetry_settings_fn = getattr(history_store, "get_custom_telemetry_settings", None)
         set_custom_telemetry_settings_fn = getattr(history_store, "set_custom_telemetry_settings", None)
         if callable(get_custom_telemetry_settings_fn):
@@ -752,8 +729,21 @@ def build_dashboard_runtime_context(
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
                 send_chat_fn=loaders.send_chat_fn,
                 max_ack_frame_bytes=default_chat_max_bytes,
+                max_file_bytes=getattr(
+                    args,
+                    "file_transfer_max_bytes",
+                    DEFAULT_FILE_TRANSFER_MAX_BYTES,
+                ),
             )
             subscribe_fn(file_transfer_auto_accept_service.on_receive, "meshtastic.receive")
+            try:
+                setattr(
+                    tracker,
+                    "_file_transfer_auto_accept_service",
+                    file_transfer_auto_accept_service,
+                )
+            except Exception:
+                pass
             try:
                 setattr(
                     tracker,
@@ -778,95 +768,6 @@ def build_dashboard_runtime_context(
                         "get_file_transfer_auto_accept_runtime_fn",
                         file_transfer_auto_accept_service.get_runtime,
                     )
-                except Exception:
-                    pass
-
-    if bool(getattr(args, "bbs_enable", False)):
-        try:
-            from .services_bbs_host import build_bbs_host_service as _build_bbs_host_service
-        except Exception:
-            _build_bbs_host_service = None
-
-        if _build_bbs_host_service is not None:
-            get_bbs_settings_for_host = getattr(history_store, "get_bbs_settings", None)
-            set_bbs_settings_for_host = getattr(history_store, "set_bbs_settings", None)
-            get_bbs_posts_for_host = getattr(history_store, "get_bbs_posts", None)
-            append_bbs_post_for_host = getattr(history_store, "append_bbs_post", None)
-            def _get_chat_delivery_state(message_id: object):
-                clean_message_id = to_int_fn(message_id)
-                if clean_message_id is None or clean_message_id <= 0:
-                    return None
-                tracker_lock = getattr(tracker, "_lock", None)
-                recent_chat = getattr(tracker, "recent_chat", None)
-                if recent_chat is None:
-                    return None
-
-                def _scan_recent_chat():
-                    for entry in reversed(recent_chat):
-                        if not isinstance(entry, dict):
-                            continue
-                        if entry.get("local_echo") is not True:
-                            continue
-                        entry_message_id = to_int_fn(
-                            entry.get("message_id")
-                            or entry.get("messageId")
-                            or entry.get("packet_id")
-                            or entry.get("packetId")
-                        )
-                        if entry_message_id != clean_message_id:
-                            continue
-                        return {
-                            "delivery_state": str(entry.get("delivery_state") or "").strip().lower(),
-                            "delivery_updated_unix": to_int_fn(
-                                entry.get("delivery_updated_unix") or entry.get("deliveryUpdatedUnix")
-                            )
-                            or 0,
-                        }
-                    return None
-
-                if hasattr(tracker_lock, "__enter__") and hasattr(tracker_lock, "__exit__"):
-                    with tracker_lock:
-                        return _scan_recent_chat()
-                return _scan_recent_chat()
-
-            bbs_host_service = _build_bbs_host_service(
-                local_node_id_fn=lambda: get_local_node_id_fn(iface),
-                send_chat_fn=loaders.send_chat_fn,
-                get_bbs_settings_fn=(
-                    get_bbs_settings_for_host if callable(get_bbs_settings_for_host) else None
-                ),
-                set_bbs_settings_fn=(
-                    set_bbs_settings_for_host if callable(set_bbs_settings_for_host) else None
-                ),
-                get_bbs_posts_fn=(
-                    get_bbs_posts_for_host if callable(get_bbs_posts_for_host) else None
-                ),
-                append_bbs_post_fn=(
-                    append_bbs_post_for_host if callable(append_bbs_post_for_host) else None
-                ),
-                get_delivery_state_fn=_get_chat_delivery_state,
-            )
-            restore_bbs_host_runtime = getattr(bbs_host_service, "restore_persisted_runtime", None)
-            if callable(restore_bbs_host_runtime):
-                try:
-                    restore_bbs_host_runtime()
-                except Exception:
-                    pass
-            subscribe_fn(bbs_host_service.on_receive, "meshtastic.receive")
-            try:
-                setattr(loaders.state_fn, "get_bbs_host_runtime_fn", bbs_host_service.get_runtime)
-                setattr(loaders.state_fn, "start_bbs_host_fn", bbs_host_service.start)
-                setattr(loaders.state_fn, "stop_bbs_host_fn", bbs_host_service.stop)
-                setattr(loaders.state_fn, "append_bbs_host_post_fn", bbs_host_service.append_post)
-            except Exception:
-                pass
-            state_lite_fn = getattr(loaders.state_fn, "lite", None)
-            if callable(state_lite_fn):
-                try:
-                    setattr(state_lite_fn, "get_bbs_host_runtime_fn", bbs_host_service.get_runtime)
-                    setattr(state_lite_fn, "start_bbs_host_fn", bbs_host_service.start)
-                    setattr(state_lite_fn, "stop_bbs_host_fn", bbs_host_service.stop)
-                    setattr(state_lite_fn, "append_bbs_host_post_fn", bbs_host_service.append_post)
                 except Exception:
                     pass
 

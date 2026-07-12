@@ -1,43 +1,42 @@
+import math
+import time
 from collections.abc import Iterable
 
-from .runtime_types import GetNodeIdFromNumFn
+
+MAX_NEIGHBOR_INFO_EDGES_PER_PACKET = 64
+_BROADCAST_NODE_NUM = 0xFFFFFFFF
 
 
-def _normalize_packet_node_id(value: object) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    lowered = text.lower()
-    if lowered in ("^all", "all", "broadcast", "!ffffffff", "ffffffff", "0xffffffff", "4294967295"):
-        return "^all"
-    if text.startswith("!") and len(text) == 9:
-        raw = text[1:]
-        if all(ch in "0123456789abcdefABCDEF" for ch in raw):
-            return f"!{raw.lower()}"
-    if len(text) == 8 and all(ch in "0123456789abcdefABCDEF" for ch in text):
-        return f"!{text.lower()}"
-    return text
-
-
-def _resolve_node_id(value: object, interface: object, get_node_id_from_num_fn: GetNodeIdFromNumFn) -> str:
+def _canonical_node_id(value: object) -> str:
+    """Return a transport-derived Meshtastic node id, never a NodeDB alias."""
     if isinstance(value, bool):
         return ""
-    if isinstance(value, int):
-        return _normalize_packet_node_id(get_node_id_from_num_fn(interface, value))
-    if isinstance(value, float) and value.is_integer():
-        return _normalize_packet_node_id(get_node_id_from_num_fn(interface, int(value)))
     if isinstance(value, str):
         text = value.strip()
-        if text and text.isdigit():
-            return _normalize_packet_node_id(get_node_id_from_num_fn(interface, int(text)))
-    normalized = _normalize_packet_node_id(value)
-    if normalized:
-        return normalized
+        lowered = text.lower()
+        if lowered in ("^all", "all", "broadcast", "!ffffffff", "ffffffff", "0xffffffff"):
+            return "^all"
+        if text.startswith("!") and len(text) == 9:
+            raw = text[1:]
+            if all(ch in "0123456789abcdefABCDEF" for ch in raw):
+                return f"!{raw.lower()}"
+        if len(text) == 8 and all(ch in "0123456789abcdefABCDEF" for ch in text):
+            return f"!{text.lower()}"
+        if not text.isdigit():
+            return ""
+        value = text
+    if isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            return ""
     try:
-        numeric = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+        numeric = int(value)
+    except (TypeError, ValueError, OverflowError):
         return ""
-    return _normalize_packet_node_id(get_node_id_from_num_fn(interface, numeric))
+    if numeric < 0 or numeric > _BROADCAST_NODE_NUM:
+        return ""
+    if numeric == _BROADCAST_NODE_NUM:
+        return "^all"
+    return f"!{numeric:08x}"
 
 
 def _neighbor_payload(decoded: object) -> dict[str, object] | None:
@@ -57,39 +56,71 @@ def _neighbor_payload(decoded: object) -> dict[str, object] | None:
     return None
 
 
+def _first_present(mapping: dict[str, object], *keys: str) -> object | None:
+    for key in keys:
+        if key in mapping:
+            return mapping[key]
+    return None
+
+
 def extract_neighbor_info_edges(
     decoded: object,
     *,
-    interface: object,
-    get_node_id_from_num_fn: GetNodeIdFromNumFn,
+    outer_source_id: object,
 ) -> list[dict[str, object]]:
+    """Extract bounded NeighborInfo edges bound to the packet header sender."""
+    if not isinstance(decoded, dict):
+        return []
+    portnum = decoded.get("portnum")
+    if portnum is not None and str(portnum) != "NEIGHBORINFO_APP":
+        return []
+
     payload = _neighbor_payload(decoded)
     if not isinstance(payload, dict):
         return []
-    source_id = _resolve_node_id(payload.get("node_id") or payload.get("nodeId"), interface, get_node_id_from_num_fn)
+
+    source_id = _canonical_node_id(outer_source_id)
     if not source_id or source_id == "^all":
         return []
+
+    claimed_source = _first_present(payload, "node_id", "nodeId")
+    if claimed_source is not None:
+        claimed_source_id = _canonical_node_id(claimed_source)
+        if not claimed_source_id or claimed_source_id != source_id:
+            return []
+
     neighbors = payload.get("neighbors")
     if not isinstance(neighbors, Iterable) or isinstance(neighbors, (str, bytes, dict)):
         return []
+
     rows: list[dict[str, object]] = []
-    for entry in neighbors:
+    seen_neighbor_ids: set[str] = set()
+    for index, entry in enumerate(neighbors):
+        if index >= MAX_NEIGHBOR_INFO_EDGES_PER_PACKET:
+            break
         if not isinstance(entry, dict):
             continue
-        neighbor_id = _resolve_node_id(
-            entry.get("node_id") or entry.get("nodeId"),
-            interface,
-            get_node_id_from_num_fn,
-        )
-        if not neighbor_id or neighbor_id == "^all" or neighbor_id == source_id:
+        neighbor_id = _canonical_node_id(_first_present(entry, "node_id", "nodeId"))
+        if (
+            not neighbor_id
+            or neighbor_id == "^all"
+            or neighbor_id == source_id
+            or neighbor_id in seen_neighbor_ids
+        ):
             continue
+        seen_neighbor_ids.add(neighbor_id)
         try:
-            last_rx_time = int(entry.get("last_rx_time") or entry.get("lastRxTime") or 0)
-        except (TypeError, ValueError):
+            last_rx_time = int(_first_present(entry, "last_rx_time", "lastRxTime") or 0)
+        except (TypeError, ValueError, OverflowError):
             last_rx_time = 0
+        latest_plausible_time = int(time.time()) + 5 * 60
+        if last_rx_time > latest_plausible_time:
+            last_rx_time = latest_plausible_time
         try:
             snr = float(entry.get("snr"))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            snr = None
+        if snr is not None and not math.isfinite(snr):
             snr = None
         rows.append(
             {

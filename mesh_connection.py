@@ -1,4 +1,5 @@
 import argparse
+import ipaddress
 
 try:
     import meshtastic.serial_interface as _meshtastic_serial_interface
@@ -31,6 +32,26 @@ def add_mesh_connection_args(
         default=DEFAULT_MESH_TCP_PORT,
         help=f"TCP port for --mesh-host mode (default: {DEFAULT_MESH_TCP_PORT})",
     )
+    parser.add_argument(
+        "--allow-insecure-mesh-tcp",
+        action="store_true",
+        help=(
+            "Allow an unauthenticated Meshtastic TCP connection to a non-loopback host. "
+            "Use only through a trusted VPN or SSH tunnel."
+        ),
+    )
+
+
+def _is_loopback_host(value: object) -> bool:
+    host = str(value or "").strip().lower()
+    if host in {"localhost", "localhost.localdomain"}:
+        return True
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    try:
+        return bool(ipaddress.ip_address(host).is_loopback)
+    except ValueError:
+        return False
 
 
 def open_mesh_interface(args: argparse.Namespace):
@@ -39,6 +60,13 @@ def open_mesh_interface(args: argparse.Namespace):
             "meshtastic Python package is required. Install with: pip install meshtastic"
         )
     if getattr(args, "mesh_host", None):
+        if not _is_loopback_host(args.mesh_host) and not bool(
+            getattr(args, "allow_insecure_mesh_tcp", False)
+        ):
+            raise RuntimeError(
+                "Refusing unauthenticated Meshtastic TCP to a non-loopback host. "
+                "Use a trusted VPN/SSH tunnel or explicitly pass --allow-insecure-mesh-tcp."
+            )
         return _meshtastic_tcp_interface.TCPInterface(
             hostname=args.mesh_host,
             portNumber=args.mesh_tcp_port,

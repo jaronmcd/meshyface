@@ -810,18 +810,42 @@
       return settingsDatabaseInfoHydratePromise;
     }}
 
-    function downloadRawPacketDatabase() {{
+    async function downloadRawPacketDatabase() {{
       const button = document.getElementById("settings-raw-packet-download");
       if (button instanceof HTMLButtonElement && button.disabled) return;
-      const anchor = document.createElement("a");
-      anchor.href = `${{rawPacketDatabaseDownloadEndpoint}}?ts=${{Date.now()}}`;
-      anchor.rel = "noopener";
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setText("settings-raw-packet-status", "Raw packet database download requested.");
-      setSettingsStatusText("Raw packet database download requested.");
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+      setText("settings-raw-packet-status", "Preparing raw packet database download...");
+      try {{
+        const response = await fetch(
+          `${{rawPacketDatabaseDownloadEndpoint}}?ts=${{Date.now()}}`,
+          {{ cache: "no-store", credentials: "same-origin" }}
+        );
+        if (!response.ok) {{
+          if (response.status === 401) {{
+            throw new Error("Download authorization is required. Use an authenticated API client or trusted proxy.");
+          }}
+          throw new Error(`Download failed (HTTP ${{response.status}}).`);
+        }}
+        const payload = await response.blob();
+        const objectUrl = URL.createObjectURL(payload);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = "meshdash_raw_packets.sqlite3";
+        anchor.rel = "noopener";
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        setText("settings-raw-packet-status", "Raw packet database download ready.");
+        setSettingsStatusText("Raw packet database downloaded.");
+      }} catch (err) {{
+        const message = err && err.message ? err.message : String(err || "download failed");
+        setText("settings-raw-packet-status", message);
+        setSettingsStatusText(message, true);
+      }} finally {{
+        renderSettingsDatabaseInfo(settingsDatabaseInfoCache.payload);
+      }}
     }}
 
     async function setRawPacketCaptureEnabled(enabled) {{

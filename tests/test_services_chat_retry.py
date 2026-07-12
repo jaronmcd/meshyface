@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
+from meshdash import services_chat
 from meshdash.helpers import to_int
 from meshdash.services_chat import send_chat_message
 
@@ -81,3 +82,27 @@ def test_send_chat_message_does_not_retry_acked_direct_text() -> None:
     assert [row["id"] for row in iface.sent] == [1000]
     assert len(records) == 1
     assert records[0]["retry_of"] is None
+
+
+def test_send_chat_message_skips_async_retry_when_worker_limit_is_full(
+    monkeypatch,
+) -> None:
+    class _FullRetrySlots:
+        @staticmethod
+        def acquire(*, blocking: bool) -> bool:
+            assert blocking is False
+            return False
+
+    iface = _FakeIface()
+    records: list[dict[str, object]] = []
+    kwargs = _base_send_kwargs(iface, records)
+    kwargs["outgoing_retry_async"] = True
+    monkeypatch.setattr(services_chat, "_OUTGOING_RETRY_SLOTS", _FullRetrySlots())
+
+    send_chat_message(
+        **kwargs,
+        get_delivery_state_fn=lambda _message_id: {"delivery_state": "pending"},
+    )
+
+    assert [row["id"] for row in iface.sent] == [1000]
+    assert len(records) == 1

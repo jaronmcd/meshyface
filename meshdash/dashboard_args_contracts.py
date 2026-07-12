@@ -19,4 +19,5 @@ class DashboardArgs(Protocol):
     reset_ticker_scale_on_restart: bool
     http_host: str
     http_port: int
+    allow_tokenless_raw_packet_download: bool
     games_enable: bool

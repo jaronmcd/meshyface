@@ -163,12 +163,17 @@
     let peerDmPopoutStatusHideToken = "";
     let fileTransferRows = [];
     const fileTransferBlobByKey = new Map();
+    const fileTransferDecodedBytesByKey = new Map();
+    const fileTransferMaterializedLastUsedAtMsByKey = new Map();
+    const fileTransferMaterializeFailureByKey = new Map();
     const fileTransferDownloadUrlByKey = new Map();
     const fileTransferChunkCacheByKey = new Map();
     const fileTransferOutgoingByToken = new Map();
     const fileTransferInboundDecisionByKey = new Map();
     const fileTransferInboundFlowByKey = new Map();
     const fileTransferInboundDecisionPromptByKey = new Map();
+    const fileTransferMetaAdmissionByPeer = new Map();
+    let fileTransferLastMetaAdmissionAtMs = null;
     let fileTransferInboundDecisionLoaded = false;
     let fileTransferInboundFlowLoaded = false;
     const fileTransferAckSentState = new Map();
@@ -183,38 +188,6 @@
     const fileTransferConsoleLines = [];
     let fileTransferMaintenanceInFlight = false;
     let fileTransferMaintenanceQueued = false;
-    let bbsHostState = {{
-      enabled: false,
-      board_id: "",
-      title: "Packet Exchange",
-      motd: "2400 baud online.",
-      started_unix: 0,
-      channel_index: 0,
-      host_id: "",
-    }};
-    let bbsActiveBoardKey = "";
-    let bbsDiscoveredBoards = [];
-    let bbsForgottenBoardKeys = new Set();
-    const bbsBoardPostsByKey = new Map();
-    let bbsSeenMessageKeys = new Set();
-    let bbsSeenMessageOrder = [];
-    const bbsSnapshotTransferKeysImported = new Set();
-    let bbsHostAnnounceTimer = null;
-    let bbsPostStatusText = "";
-    let bbsPostStatusError = false;
-    let bbsHostSettingsLoadedOnce = false;
-    let bbsHostSettingsFetchInFlight = false;
-    let bbsHostSettingsSaveInFlight = false;
-    let bbsHostSettingsSaveQueued = false;
-    let bbsHostSettingsDirty = false;
-    let bbsHostSettingsSaveTimer = null;
-    let bbsHostSettingsRemoteAvailable = null;
-    let bbsHostRuntimeLoadedOnce = false;
-    let bbsHostRuntimeFetchInFlight = false;
-    let bbsHostRuntimeRemoteAvailable = null;
-    let bbsPendingProfileHostId = "";
-    let bbsPendingProfileRequestToken = "";
-    let bbsPendingProfileRequestTimer = null;
     let settingsApplyInFlight = false;
     let settingsFetchInFlight = false;
     let settingsAutoFetchAttempted = false;

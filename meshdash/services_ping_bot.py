@@ -8,7 +8,6 @@ from typing import Callable, Optional
 from .helpers import to_float as _to_float, to_int as _to_int
 from .nodes_identity import (
     get_local_node_id as _get_local_node_id,
-    get_node_id_from_num as _get_node_id_from_num,
 )
 from .runtime_types import RecordLocalChatFn
 from .tracker_ingest import _normalize_packet_node_id
@@ -16,7 +15,11 @@ from .tracker_ingest import _normalize_packet_node_id
 _BROADCAST_NUM = 0xFFFFFFFF
 _PING_HEADS = {"ping", "test"}
 _NATURAL_PING_TRIGGERS = {"can you see this", "can you see this?"}
-_MAX_DIRECT_PING_REPEAT_COUNT = 25
+_MAX_DIRECT_PING_REPEAT_COUNT = 8
+_MAX_ASYNC_PING_REPLIES = 8
+_PING_PEER_REQUEST_COOLDOWN_SECONDS = 5.0
+_PING_GLOBAL_REQUEST_COOLDOWN_SECONDS = 1.0
+_PING_MAX_RATE_TRACKED_PEERS = 128
 _LIVE_REPEAT_DELAY_SECONDS = 0.35
 _LIVE_REPEAT_MAX_PACED_COUNT = 8
 _LIVE_REPEAT_SEND_RETRY_LIMIT = 2
@@ -55,17 +58,20 @@ def _packet_node_id(
     text_key: str,
     number_key: str,
 ) -> str:
-    raw_text_id = packet.get(text_key)
-    if raw_text_id:
-        return _normalize_node_id(raw_text_id)
-    return _normalize_node_id(
-        _get_node_id_from_num(
-            iface,
-            packet.get(number_key),
-            broadcast_num=_BROADCAST_NUM,
-            to_int_fn=_to_int,
-        )
-    )
+    del iface
+    raw_node_num = packet.get(number_key)
+    if raw_node_num is None:
+        return _normalize_node_id(packet.get(text_key))
+    if isinstance(raw_node_num, bool) or (
+        isinstance(raw_node_num, float) and not raw_node_num.is_integer()
+    ):
+        return ""
+    node_num = _to_int(raw_node_num)
+    if node_num == _BROADCAST_NUM:
+        return "^all"
+    if node_num is not None and 0 <= node_num <= 0xFFFFFFFF:
+        return f"!{node_num:08x}"
+    return ""
 
 
 def _packet_text(packet: dict[str, object]) -> str:
@@ -359,6 +365,10 @@ class PingBotService:
         repeat_ack_poll_seconds: float = _LIVE_REPEAT_ACK_POLL_SECONDS,
         repeat_ack_retry_limit: int = _LIVE_REPEAT_ACK_RETRY_LIMIT,
         repeat_async: bool = _LIVE_REPEAT_ASYNC,
+        max_async_replies: int = _MAX_ASYNC_PING_REPLIES,
+        peer_request_cooldown_seconds: float = _PING_PEER_REQUEST_COOLDOWN_SECONDS,
+        global_request_cooldown_seconds: float = _PING_GLOBAL_REQUEST_COOLDOWN_SECONDS,
+        monotonic_fn: Callable[[], float] = time.monotonic,
         get_delivery_state_fn: Callable[[object], object] | None = None,
         sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -374,6 +384,13 @@ class PingBotService:
         self._repeat_ack_poll_seconds = max(0.05, float(repeat_ack_poll_seconds))
         self._repeat_ack_retry_limit = max(0, int(repeat_ack_retry_limit))
         self._repeat_async = bool(repeat_async)
+        self._async_reply_slots = threading.BoundedSemaphore(max(1, int(max_async_replies)))
+        self._peer_request_cooldown_seconds = max(0.0, float(peer_request_cooldown_seconds))
+        self._global_request_cooldown_seconds = max(0.0, float(global_request_cooldown_seconds))
+        self._monotonic_fn = monotonic_fn
+        self._request_monotonic_by_peer: dict[str, float] = {}
+        self._last_request_monotonic: float | None = None
+        self._closed = threading.Event()
         self._get_delivery_state_fn = get_delivery_state_fn
         self._sleep_fn = sleep_fn if callable(sleep_fn) else time.sleep
 
@@ -388,6 +405,49 @@ class PingBotService:
         with self._mode_lock:
             return bool(self._public_start_enabled)
 
+    def close(self) -> None:
+        self._closed.set()
+        with self._mode_lock:
+            self._request_monotonic_by_peer.clear()
+            self._last_request_monotonic = None
+
+    def _admit_request(self, peer_id: str) -> bool:
+        if self._closed.is_set():
+            return False
+        try:
+            now_monotonic = max(0.0, float(self._monotonic_fn()))
+        except Exception:
+            now_monotonic = time.monotonic()
+        with self._mode_lock:
+            previous = self._request_monotonic_by_peer.get(peer_id)
+            peer_ready = previous is None or (
+                now_monotonic - previous >= self._peer_request_cooldown_seconds
+            )
+            global_ready = self._last_request_monotonic is None or (
+                now_monotonic - self._last_request_monotonic
+                >= self._global_request_cooldown_seconds
+            )
+            if not peer_ready or not global_ready:
+                return False
+            self._request_monotonic_by_peer[peer_id] = now_monotonic
+            self._last_request_monotonic = now_monotonic
+            while len(self._request_monotonic_by_peer) > _PING_MAX_RATE_TRACKED_PEERS:
+                oldest_peer = min(
+                    self._request_monotonic_by_peer,
+                    key=self._request_monotonic_by_peer.get,
+                )
+                self._request_monotonic_by_peer.pop(oldest_peer, None)
+        return True
+
+    def _wait_or_running(self, seconds: float) -> bool:
+        delay = max(0.0, float(seconds))
+        if self._closed.is_set():
+            return False
+        if self._sleep_fn is time.sleep:
+            return not self._closed.wait(delay)
+        self._sleep_fn(delay)
+        return not self._closed.is_set()
+
     def handle_packet(
         self,
         packet: dict[str, object],
@@ -395,6 +455,8 @@ class PingBotService:
         *,
         record_local_chat_fn: RecordLocalChatFn | None = None,
     ) -> bool:
+        if self._closed.is_set():
+            return False
         text = _packet_text(packet)
         if not text:
             return False
@@ -443,6 +505,8 @@ class PingBotService:
                 target = first_arg
         if not _target_matches_local(target, local_node_id=local_node_id, local_aliases=local_aliases):
             return False
+        if not self._admit_request(from_id):
+            return True
 
         requester = _iter_nodes_by_id(iface).get(from_id.lower())
         response_texts: list[str] = []
@@ -489,9 +553,9 @@ class PingBotService:
             and self._should_wait_for_repeat_ack()
         )
         if should_async_repeat:
-            thread = threading.Thread(
-                target=self._send_repeat_responses,
-                kwargs={
+            if not self._async_reply_slots.acquire(blocking=False):
+                return True
+            kwargs = {
                     "iface": iface,
                     "responses": response_texts,
                     "destination_id": from_id,
@@ -499,10 +563,16 @@ class PingBotService:
                     "channel_index": channel_index,
                     "reply_id": reply_id,
                     "record_local_chat_fn": record_local_chat_fn,
-                },
-                daemon=True,
-            )
-            thread.start()
+                }
+            try:
+                thread = threading.Thread(
+                    target=self._send_repeat_responses_with_slot,
+                    kwargs=kwargs,
+                    daemon=True,
+                )
+                thread.start()
+            except Exception:
+                self._async_reply_slots.release()
             return True
 
         self._send_repeat_responses(
@@ -515,6 +585,12 @@ class PingBotService:
             record_local_chat_fn=record_local_chat_fn,
         )
         return True
+
+    def _send_repeat_responses_with_slot(self, **kwargs: object) -> None:
+        try:
+            self._send_repeat_responses(**kwargs)  # type: ignore[arg-type]
+        finally:
+            self._async_reply_slots.release()
 
     def handle_local_chat(
         self,
@@ -539,6 +615,8 @@ class PingBotService:
         channel_index: int,
         reply_id: Optional[int],
     ) -> object:
+        if self._closed.is_set():
+            raise RuntimeError("ping bot is closed")
         send_text_fn = getattr(iface, "sendText")
         with self._send_lock:
             try:
@@ -559,11 +637,11 @@ class PingBotService:
 
     def _sleep_between_repeat_messages(self) -> None:
         if self._repeat_delay_seconds > 0:
-            self._sleep_fn(self._repeat_delay_seconds)
+            self._wait_or_running(self._repeat_delay_seconds)
 
     def _sleep_between_repeat_retries(self) -> None:
         if self._repeat_send_retry_delay_seconds > 0:
-            self._sleep_fn(self._repeat_send_retry_delay_seconds)
+            self._wait_or_running(self._repeat_send_retry_delay_seconds)
 
     def _send_repeat_responses(
         self,
@@ -580,8 +658,12 @@ class PingBotService:
             len(responses) > 1 and len(responses) <= self._repeat_max_paced_count
         )
         for index, response_text in enumerate(responses):
+            if self._closed.is_set():
+                return
             if index > 0 and pace_repeat_messages:
                 self._sleep_between_repeat_messages()
+                if self._closed.is_set():
+                    return
             if not self._send_ping_reply_until_acked(
                 iface,
                 text=response_text,
@@ -607,6 +689,8 @@ class PingBotService:
         attempt_message_ids: list[int] = []
         original_message_id: Optional[int] = None
         for attempt_index in range(self._repeat_ack_retry_limit + 1):
+            if self._closed.is_set():
+                return False
             retry_of = original_message_id if attempt_index > 0 else None
             send_ok, sent_message_id = self._send_ping_reply_with_send_retries(
                 iface,
@@ -642,12 +726,15 @@ class PingBotService:
             return False
         deadline = time.monotonic() + self._repeat_ack_wait_seconds
         while time.monotonic() < deadline:
+            if self._closed.is_set():
+                return False
             if self._any_delivery_is_acked(message_ids):
                 return True
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return self._any_delivery_is_acked(message_ids)
-            self._sleep_fn(min(self._repeat_ack_poll_seconds, remaining))
+            if not self._wait_or_running(min(self._repeat_ack_poll_seconds, remaining)):
+                return False
         return self._any_delivery_is_acked(message_ids)
 
     def _any_delivery_is_acked(self, message_ids: list[int]) -> bool:
@@ -680,6 +767,8 @@ class PingBotService:
         record_local_chat_fn: RecordLocalChatFn | None = None,
     ) -> tuple[bool, Optional[int]]:
         for attempt_index in range(self._repeat_send_retry_limit + 1):
+            if self._closed.is_set():
+                return False, None
             try:
                 sent_message_id = self._send_ping_reply(
                     iface,
@@ -747,6 +836,9 @@ def build_ping_bot_service(
     repeat_ack_poll_seconds: float = _LIVE_REPEAT_ACK_POLL_SECONDS,
     repeat_ack_retry_limit: int = _LIVE_REPEAT_ACK_RETRY_LIMIT,
     repeat_async: bool = _LIVE_REPEAT_ASYNC,
+    peer_request_cooldown_seconds: float = _PING_PEER_REQUEST_COOLDOWN_SECONDS,
+    global_request_cooldown_seconds: float = _PING_GLOBAL_REQUEST_COOLDOWN_SECONDS,
+    monotonic_fn: Callable[[], float] = time.monotonic,
     get_delivery_state_fn: Callable[[object], object] | None = None,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> PingBotService:
@@ -762,6 +854,9 @@ def build_ping_bot_service(
         repeat_ack_poll_seconds=repeat_ack_poll_seconds,
         repeat_ack_retry_limit=repeat_ack_retry_limit,
         repeat_async=repeat_async,
+        peer_request_cooldown_seconds=peer_request_cooldown_seconds,
+        global_request_cooldown_seconds=global_request_cooldown_seconds,
+        monotonic_fn=monotonic_fn,
         get_delivery_state_fn=get_delivery_state_fn,
         sleep_fn=sleep_fn,
     )

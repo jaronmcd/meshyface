@@ -1,12 +1,6 @@
 import io
 from types import SimpleNamespace
 
-from meshdash.api_bbs import (
-    handle_bbs_host_get,
-    handle_bbs_host_post,
-    handle_bbs_settings_get,
-    handle_bbs_settings_post,
-)
 from meshdash.api_bots import handle_zork_bot_toggle_post
 from meshdash.api_channels import handle_channel_settings_post
 from meshdash.api_chat import handle_chat_send_post
@@ -14,7 +8,6 @@ from meshdash.api_custom_telemetry import (
     handle_custom_telemetry_settings_get,
     handle_custom_telemetry_settings_post,
 )
-from meshdash.api_input_bbs import parse_bbs_host_request, parse_bbs_settings_request
 from meshdash.api_input_bots import parse_zork_bot_toggle_request
 from meshdash.api_input_chat import (
     parse_chat_send_body,
@@ -58,232 +51,6 @@ def _writer(calls: list[dict[str, object]]):
         )
 
     return _write
-
-
-def test_bbs_settings_handlers_cover_read_write_and_validation_paths() -> None:
-    calls: list[dict[str, object]] = []
-    requests: list[object] = []
-
-    handle_bbs_settings_get(
-        _Handler(),
-        get_bbs_settings_fn=None,
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_get(
-        _Handler(),
-        get_bbs_settings_fn=lambda: {"ok": True, "settings": {"title": "Mesh BBS"}},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_get(
-        _Handler(),
-        get_bbs_settings_fn=lambda: (_ for _ in ()).throw(RuntimeError("read failed")),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=None,
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=lambda request: requests.append(request) or {"ok": True, "request": request},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=lambda request: {"ok": False, "error": "invalid bbs settings"},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=lambda request: (_ for _ in ()).throw(ValueError("bad board")),
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=lambda request: (_ for _ in ()).throw(RuntimeError("write failed")),
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_settings_post(
-        _Handler(b"bbs"),
-        set_bbs_settings_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad length")),
-        parse_bbs_settings_request_fn=lambda raw: {"title": raw.decode("utf-8")},
-        write_json_response_fn=_writer(calls),
-    )
-
-    assert [call["status"] for call in calls] == [503, 200, 500, 503, 200, 400, 400, 500, 400]
-    assert calls[1] == {
-        "status": 200,
-        "payload": {"ok": True, "settings": {"title": "Mesh BBS"}},
-        "no_store": True,
-    }
-    assert requests == [{"title": "bbs"}]
-    assert calls[2]["payload"]["error"] == "BBS settings failed: read failed"  # type: ignore[index]
-    assert calls[6]["payload"]["error"] == "bad board"  # type: ignore[index]
-    assert calls[7]["payload"]["error"] == "BBS settings update failed: write failed"  # type: ignore[index]
-
-
-def test_bbs_host_handlers_cover_runtime_actions_and_errors() -> None:
-    calls: list[dict[str, object]] = []
-    actions: list[object] = []
-
-    handle_bbs_host_get(
-        _Handler(),
-        get_bbs_host_runtime_fn=None,
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_get(
-        _Handler(),
-        get_bbs_host_runtime_fn=lambda: {"ok": True, "host": {"enabled": True}},
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_get(
-        _Handler(),
-        get_bbs_host_runtime_fn=lambda: (_ for _ in ()).throw(RuntimeError("host read failed")),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=None,
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=None,
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="start"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=None,
-        to_int_fn=to_int,
-        validate_content_length_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad length")),
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="start"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=None,
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="delete"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=None,
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="post"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: actions.append(("start", request)) or {"ok": True, "host": {"enabled": True}},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="start"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: actions.append("stop") or {"ok": True, "host": {"enabled": False}},
-        append_bbs_host_post_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="stop"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=lambda request: actions.append(("post", request)) or {"ok": True, "post": {"id": 1}},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="post"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": False, "error": "host denied"},
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="start"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: (_ for _ in ()).throw(ValueError("bad host")),
-        stop_bbs_host_fn=lambda: {"ok": True},
-        append_bbs_host_post_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="start"),
-        write_json_response_fn=_writer(calls),
-    )
-    handle_bbs_host_post(
-        _Handler(b"{}"),
-        start_bbs_host_fn=lambda request: {"ok": True},
-        stop_bbs_host_fn=lambda: (_ for _ in ()).throw(RuntimeError("stop failed")),
-        append_bbs_host_post_fn=lambda request: {"ok": True},
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_bbs_host_request_fn=lambda raw: SimpleNamespace(action="stop"),
-        write_json_response_fn=_writer(calls),
-    )
-
-    assert [call["status"] for call in calls] == [
-        503,
-        200,
-        500,
-        503,
-        400,
-        400,
-        503,
-        200,
-        200,
-        200,
-        400,
-        400,
-        500,
-    ]
-    assert calls[1] == {"status": 200, "payload": {"ok": True, "host": {"enabled": True}}, "no_store": True}
-    assert calls[2]["payload"]["error"] == "BBS host runtime failed: host read failed"  # type: ignore[index]
-    assert calls[5]["no_store"] is True
-    assert calls[6]["no_store"] is True
-    assert actions[0][0] == "start"  # type: ignore[index]
-    assert actions[1] == "stop"
-    assert actions[2][0] == "post"  # type: ignore[index]
-    assert calls[11]["payload"]["error"] == "bad host"  # type: ignore[index]
-    assert calls[12]["payload"]["error"] == "BBS host update failed: stop failed"  # type: ignore[index]
 
 
 def test_zork_bot_toggle_handler_covers_runtime_actions_and_response_shapes() -> None:
@@ -394,33 +161,16 @@ def test_zork_bot_toggle_handler_covers_runtime_actions_and_response_shapes() ->
     assert calls[14]["payload"]["error"] == "Zork bot update failed: runtime blew up"  # type: ignore[index]
 
 
-def test_bbs_and_bot_input_parsers_normalize_nested_payloads_and_bad_json() -> None:
-    settings = parse_bbs_settings_request(b'{"settings":{"title":"Mesh","boardId":"mesh-board","motd":"hello"}}')
-    host = parse_bbs_host_request(
-        b'{"action":" START ","channelIndex":2,"settings":{"title":"Mesh","board_id":"mesh-board"},'
-        b'"text":"post","authorName":"Node","entryId":"entry-1"}'
-    )
-    bad_settings = parse_bbs_settings_request(b"{bad json")
-    bad_host = parse_bbs_host_request(b"{bad json")
+def test_bot_input_parser_normalizes_nested_payloads_and_bad_json() -> None:
     enabled = parse_zork_bot_toggle_request(
         b'{"settings":{"enabled":"yes","command":"ping","messageOnly":"off","peerId":"!peer"}}'
     )
     disabled = parse_zork_bot_toggle_request(b'{"enabled":0,"message_only":1}')
-    text_disabled = parse_zork_bot_toggle_request(b'{"enabled":"disabled","messageOnly":"enabled"}')
+    text_disabled = parse_zork_bot_toggle_request(
+        b'{"enabled":"disabled","messageOnly":"enabled"}'
+    )
     bad_bot = parse_zork_bot_toggle_request(b"{bad json")
 
-    assert settings.title == "Mesh"
-    assert settings.board_id == "mesh-board"
-    assert settings.motd == "hello"
-    assert host.action == "start"
-    assert host.channel_index == 2
-    assert host.title == "Mesh"
-    assert host.board_id == "mesh-board"
-    assert host.text == "post"
-    assert host.author_name == "Node"
-    assert host.entry_id == "entry-1"
-    assert bad_settings.title is None
-    assert bad_host.action == ""
     assert enabled.enabled is True
     assert enabled.action == "enable"
     assert enabled.command == "ping"
@@ -433,6 +183,7 @@ def test_bbs_and_bot_input_parsers_normalize_nested_payloads_and_bad_json() -> N
     assert text_disabled.message_only is True
     assert bad_bot.enabled is None
     assert bad_bot.action == ""
+
 
 
 def test_zork_bot_input_parser_rejects_bad_boolean_values() -> None:

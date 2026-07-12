@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Mapping, Optional, Protocol
 
 if TYPE_CHECKING:
     from .api_input_bots import ZorkBotToggleRequest
-    from .api_input_bbs import BbsHostRequest, BbsSettingsRequest
     from .api_input_channels import ChannelSettingsRequest
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
@@ -15,8 +14,6 @@ if TYPE_CHECKING:
     from .api_input_theme import ThemeSettingsRequest
     from .api_input_zork import StandaloneZorkRequest
 else:
-    BbsHostRequest = object
-    BbsSettingsRequest = object
     ChannelSettingsRequest = object
     ChatSendRequest = object
     CustomTelemetrySettingsRequest = object
@@ -99,23 +96,8 @@ class GetThemeSettingsFn(Protocol):
         ...
 
 
-class GetBbsSettingsFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
-class GetBbsHostRuntimeFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
 class SetThemePresetFn(Protocol):
     def __call__(self, payload: object) -> dict[str, object]:
-        ...
-
-
-class SetBbsSettingsFn(Protocol):
-    def __call__(self, settings: object) -> dict[str, object]:
         ...
 
 
@@ -136,21 +118,6 @@ class SetPingBotMessageOnlyFn(Protocol):
 
 class ManageZorkBotFn(Protocol):
     def __call__(self, action: object, *, peer_id: object = None) -> dict[str, object]:
-        ...
-
-
-class StartBbsHostFn(Protocol):
-    def __call__(self, request: BbsHostRequest) -> dict[str, object]:
-        ...
-
-
-class StopBbsHostFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
-class AppendBbsHostPostFn(Protocol):
-    def __call__(self, request: BbsHostRequest) -> dict[str, object]:
         ...
 
 
@@ -242,16 +209,6 @@ class ParseMeshyfaceProfileThemeRequestFn(Protocol):
 
 class ParseThemeSettingsRequestFn(Protocol):
     def __call__(self, raw_body: bytes) -> ThemeSettingsRequest:
-        ...
-
-
-class ParseBbsSettingsRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> BbsSettingsRequest:
-        ...
-
-
-class ParseBbsHostRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> BbsHostRequest:
         ...
 
 
@@ -398,9 +355,9 @@ class DashboardGetRouteDependencies:
     write_json_response_fn: WriteJsonResponseFn
     write_text_response_fn: WriteTextResponseFn
     get_theme_settings_fn: Optional[GetThemeSettingsFn] = None
-    get_bbs_settings_fn: Optional[GetBbsSettingsFn] = None
-    get_bbs_host_runtime_fn: Optional[GetBbsHostRuntimeFn] = None
     get_custom_telemetry_settings_fn: Optional[GetCustomTelemetrySettingsFn] = None
+    api_token: Optional[str] = None
+    allow_tokenless_raw_packet_download: bool = False
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None
     dashboard_asset_map: Mapping[str, tuple[str, bytes]] | None = None
@@ -422,17 +379,11 @@ class DashboardPostRouteDependencies:
     ] = None
     set_theme_preset_fn: Optional[SetThemePresetFn] = None
     parse_theme_settings_request_fn: Optional[ParseThemeSettingsRequestFn] = None
-    set_bbs_settings_fn: Optional[SetBbsSettingsFn] = None
-    parse_bbs_settings_request_fn: Optional[ParseBbsSettingsRequestFn] = None
     set_zork_bot_enabled_fn: Optional[SetZorkBotEnabledFn] = None
     set_ping_bot_enabled_fn: Optional[SetPingBotEnabledFn] = None
     set_ping_bot_message_only_fn: Optional[SetPingBotMessageOnlyFn] = None
     manage_zork_bot_fn: Optional[ManageZorkBotFn] = None
     parse_zork_bot_toggle_request_fn: Optional[ParseZorkBotToggleRequestFn] = None
-    start_bbs_host_fn: Optional[StartBbsHostFn] = None
-    stop_bbs_host_fn: Optional[StopBbsHostFn] = None
-    append_bbs_host_post_fn: Optional[AppendBbsHostPostFn] = None
-    parse_bbs_host_request_fn: Optional[ParseBbsHostRequestFn] = None
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None

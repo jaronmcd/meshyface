@@ -47,7 +47,6 @@ def _args(history_db: str) -> SimpleNamespace:
         reset_ticker_scale_on_restart=False,
         http_host="127.0.0.1",
         http_port=0,
-        bbs_enable=False,
     )
 
 

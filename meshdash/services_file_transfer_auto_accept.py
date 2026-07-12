@@ -1,16 +1,19 @@
+import hashlib
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from .config import DEFAULT_CHAT_MAX_BYTES
+from .config import DEFAULT_CHAT_MAX_BYTES, DEFAULT_FILE_TRANSFER_MAX_BYTES
 from .file_transfer_protocol import (
+    FILE_TRANSFER_CHUNK_BYTES,
+    FILE_TRANSFER_MAX_FILE_BYTES,
     build_file_transfer_ack_frame,
     parse_file_transfer_frame_text,
 )
 from .helpers import to_int as _to_int
 from .helpers_node_names import normalize_node_id_text as _normalize_node_id_text
-from .nodes_identity import get_node_id_from_num as _get_node_id_from_num
 
 
 _BROADCAST_NODE_NUM = 0xFFFFFFFF
@@ -18,6 +21,12 @@ _ACK_COOLDOWN_SECONDS = 0.9
 _META_ACK_REFRESH_SECONDS = 2.5
 _SESSION_TTL_SECONDS = 20 * 60
 _MAX_SESSIONS = 96
+_REPLAY_TTL_SECONDS = 10 * 60
+_REPLAY_FALLBACK_TTL_SECONDS = 10.0
+_REPLAY_MAX_ENTRIES = 8192
+_META_PEER_COOLDOWN_SECONDS = 2.0
+_META_GLOBAL_COOLDOWN_SECONDS = 0.25
+_MAX_RATE_TRACKED_PEERS = 128
 
 
 @dataclass
@@ -52,6 +61,18 @@ def _normalize_channel_index(value: object, *, fallback: int = 0) -> int:
     return int(candidate)
 
 
+def _packet_channel_index(packet: Mapping[str, object]) -> int | None:
+    raw_value = packet.get("channel", 0)
+    if isinstance(raw_value, bool) or (
+        isinstance(raw_value, float) and not raw_value.is_integer()
+    ):
+        return None
+    candidate = _to_int(raw_value)
+    if candidate is None or candidate < 0 or candidate > 255:
+        return None
+    return int(candidate)
+
+
 def _extract_packet_text(packet: object) -> str:
     if not isinstance(packet, Mapping):
         return ""
@@ -67,37 +88,35 @@ def _extract_packet_text(packet: object) -> str:
 
 
 def _node_id_from_num(interface: object | None, node_num: object) -> str:
+    del interface
+    if isinstance(node_num, bool) or (
+        isinstance(node_num, float) and not node_num.is_integer()
+    ):
+        return ""
     numeric = _to_int(node_num)
-    if numeric is None:
+    if numeric is None or numeric < 0 or numeric > 0xFFFFFFFF:
         return ""
     if numeric == _BROADCAST_NODE_NUM:
         return "^all"
-    if interface is not None:
-        try:
-            node_id = _get_node_id_from_num(
-                interface,
-                numeric,
-                broadcast_num=_BROADCAST_NODE_NUM,
-            )
-        except Exception:
-            node_id = None
-        if node_id:
-            return _normalize_node_id_text(node_id)
     return f"!{int(numeric):08x}"
 
 
 def _packet_endpoint_id(packet: Mapping[str, object], endpoint: str, interface: object | None) -> str:
     if endpoint == "from":
+        if packet.get("from") is not None:
+            return _node_id_from_num(interface, packet.get("from"))
         for key in ("fromId", "from_id"):
             value = packet.get(key)
             if value:
                 return _normalize_node_id_text(value)
-        return _node_id_from_num(interface, packet.get("from"))
+        return ""
+    if packet.get("to") is not None:
+        return _node_id_from_num(interface, packet.get("to"))
     for key in ("toId", "to_id"):
         value = packet.get(key)
         if value:
             return _normalize_node_id_text(value)
-    return _node_id_from_num(interface, packet.get("to"))
+    return ""
 
 
 class FileTransferAutoAcceptService:
@@ -114,6 +133,12 @@ class FileTransferAutoAcceptService:
         session_ttl_seconds: int = _SESSION_TTL_SECONDS,
         max_sessions: int = _MAX_SESSIONS,
         max_ack_frame_bytes: int = DEFAULT_CHAT_MAX_BYTES,
+        max_file_bytes: int = DEFAULT_FILE_TRANSFER_MAX_BYTES,
+        replay_ttl_seconds: float = _REPLAY_TTL_SECONDS,
+        replay_fallback_ttl_seconds: float = _REPLAY_FALLBACK_TTL_SECONDS,
+        replay_max_entries: int = _REPLAY_MAX_ENTRIES,
+        meta_peer_cooldown_seconds: float = _META_PEER_COOLDOWN_SECONDS,
+        meta_global_cooldown_seconds: float = _META_GLOBAL_COOLDOWN_SECONDS,
     ) -> None:
         self._lock = threading.Lock()
         self._local_node_id_fn = local_node_id_fn
@@ -126,6 +151,35 @@ class FileTransferAutoAcceptService:
         self._session_ttl_seconds = max(60, int(session_ttl_seconds))
         self._max_sessions = max(1, int(max_sessions))
         self._max_ack_frame_bytes = max(1, int(max_ack_frame_bytes))
+        parsed_max_file_bytes = _to_int(max_file_bytes)
+        self._max_file_bytes = max(
+            1,
+            min(
+                FILE_TRANSFER_MAX_FILE_BYTES,
+                int(
+                    parsed_max_file_bytes
+                    if parsed_max_file_bytes is not None
+                    else DEFAULT_FILE_TRANSFER_MAX_BYTES
+                ),
+            ),
+        )
+        self._max_total_chunks = max(
+            1,
+            (self._max_file_bytes + FILE_TRANSFER_CHUNK_BYTES - 1)
+            // FILE_TRANSFER_CHUNK_BYTES,
+        )
+        self._replay_ttl_seconds = max(1.0, float(replay_ttl_seconds))
+        self._replay_fallback_ttl_seconds = max(
+            1.0,
+            min(self._replay_ttl_seconds, float(replay_fallback_ttl_seconds)),
+        )
+        self._replay_max_entries = max(1, int(replay_max_entries))
+        self._packet_replay_seen: OrderedDict[tuple[object, ...], float] = OrderedDict()
+        self._fingerprint_replay_seen: OrderedDict[tuple[object, ...], float] = OrderedDict()
+        self._meta_peer_cooldown_seconds = max(0.0, float(meta_peer_cooldown_seconds))
+        self._meta_global_cooldown_seconds = max(0.0, float(meta_global_cooldown_seconds))
+        self._meta_monotonic_by_peer: dict[str, float] = {}
+        self._last_meta_monotonic: float | None = None
         self._sessions_by_key: dict[str, _InboundTransferSession] = {}
         self._sent_ack_count = 0
         self._last_error = ""
@@ -153,6 +207,7 @@ class FileTransferAutoAcceptService:
             session.sender_id,
             session.receiver_id,
             session.transfer_id,
+            session.channel_index,
         )
         age_seconds = max(0.0, float(now_monotonic) - float(session.created_monotonic or now_monotonic))
         idle_seconds = max(0.0, float(now_monotonic) - float(session.updated_monotonic or now_monotonic))
@@ -214,8 +269,131 @@ class FileTransferAutoAcceptService:
         except Exception:
             return ""
 
-    def _session_key(self, sender_id: str, receiver_id: str, transfer_id: str) -> str:
-        return f"{sender_id}|{receiver_id}|{transfer_id}"
+    def close(self) -> None:
+        with self._lock:
+            self._enabled = False
+            self._sessions_by_key.clear()
+            self._packet_replay_seen.clear()
+            self._fingerprint_replay_seen.clear()
+            self._meta_monotonic_by_peer.clear()
+            self._last_meta_monotonic = None
+
+    def _admit_meta(self, sender_id: str, *, now_monotonic: float) -> bool:
+        with self._lock:
+            previous = self._meta_monotonic_by_peer.get(sender_id)
+            peer_ready = previous is None or (
+                now_monotonic - previous >= self._meta_peer_cooldown_seconds
+            )
+            global_ready = self._last_meta_monotonic is None or (
+                now_monotonic - self._last_meta_monotonic
+                >= self._meta_global_cooldown_seconds
+            )
+            if not peer_ready or not global_ready:
+                return False
+            self._meta_monotonic_by_peer[sender_id] = now_monotonic
+            self._last_meta_monotonic = now_monotonic
+            while len(self._meta_monotonic_by_peer) > _MAX_RATE_TRACKED_PEERS:
+                oldest_peer = min(
+                    self._meta_monotonic_by_peer,
+                    key=self._meta_monotonic_by_peer.get,
+                )
+                self._meta_monotonic_by_peer.pop(oldest_peer, None)
+        return True
+
+    def _accept_packet_once(
+        self,
+        *,
+        packet: Mapping[str, object],
+        sender_id: str,
+        receiver_id: str,
+        channel_index: int,
+        frame_text: str,
+        now_monotonic: float,
+    ) -> bool:
+        packet_id_raw = packet.get("id")
+        packet_id = None
+        if not isinstance(packet_id_raw, bool) and not (
+            isinstance(packet_id_raw, float) and not packet_id_raw.is_integer()
+        ):
+            packet_id = _to_int(packet_id_raw)
+        if packet_id is not None and 1 <= packet_id <= 0xFFFFFFFF:
+            replay_key: tuple[object, ...] = (
+                "packet",
+                sender_id,
+                receiver_id,
+                channel_index,
+                int(packet_id),
+            )
+            replay_ttl_seconds = self._replay_ttl_seconds
+            replay_seen = self._packet_replay_seen
+        else:
+            fingerprint = hashlib.blake2s(
+                frame_text.encode("utf-8", errors="replace"),
+                digest_size=16,
+            ).digest()
+            replay_key = (
+                "fingerprint",
+                sender_id,
+                receiver_id,
+                channel_index,
+                fingerprint,
+            )
+            replay_ttl_seconds = self._replay_fallback_ttl_seconds
+            replay_seen = self._fingerprint_replay_seen
+        with self._lock:
+            for seen, ttl_seconds in (
+                (self._packet_replay_seen, self._replay_ttl_seconds),
+                (self._fingerprint_replay_seen, self._replay_fallback_ttl_seconds),
+            ):
+                stale_before = now_monotonic - ttl_seconds
+                while seen:
+                    _, observed = next(iter(seen.items()))
+                    if observed >= stale_before:
+                        break
+                    seen.popitem(last=False)
+            observed = replay_seen.get(replay_key)
+            if observed is not None and observed >= now_monotonic - replay_ttl_seconds:
+                replay_seen[replay_key] = now_monotonic
+                replay_seen.move_to_end(replay_key)
+                return False
+            replay_seen[replay_key] = now_monotonic
+            replay_seen.move_to_end(replay_key)
+            while (
+                len(self._packet_replay_seen) + len(self._fingerprint_replay_seen)
+                > self._replay_max_entries
+            ):
+                packet_oldest = next(iter(self._packet_replay_seen.values()), None)
+                fingerprint_oldest = next(
+                    iter(self._fingerprint_replay_seen.values()),
+                    None,
+                )
+                if packet_oldest is None:
+                    self._fingerprint_replay_seen.popitem(last=False)
+                elif fingerprint_oldest is None or packet_oldest <= fingerprint_oldest:
+                    self._packet_replay_seen.popitem(last=False)
+                else:
+                    self._fingerprint_replay_seen.popitem(last=False)
+        return True
+
+    def _session_key(
+        self,
+        sender_id: str,
+        receiver_id: str,
+        transfer_id: str,
+        channel_index: int,
+    ) -> str:
+        return (
+            f"{sender_id}|{receiver_id}|{transfer_id}|"
+            f"{_normalize_channel_index(channel_index)}"
+        )
+
+    def _make_session_room_locked(self) -> None:
+        while len(self._sessions_by_key) >= self._max_sessions:
+            oldest_key = min(
+                self._sessions_by_key,
+                key=lambda key: self._sessions_by_key[key].updated_monotonic,
+            )
+            self._sessions_by_key.pop(oldest_key, None)
 
     def _prune_locked(self, now_monotonic: float) -> None:
         stale_before = now_monotonic - self._session_ttl_seconds
@@ -259,14 +437,19 @@ class FileTransferAutoAcceptService:
                 session.last_ack_monotonic <= 0
                 or (now_monotonic - session.last_ack_monotonic) >= self._meta_ack_refresh_seconds
             )
-        if final:
-            due = True
-        if not (final or (signature_changed and due) or force and due):
+        should_send = (
+            (signature_changed or due)
+            if final
+            else ((signature_changed and due) or (force and due))
+        )
+        if not should_send:
             return None
         frame = build_file_transfer_ack_frame(
             transfer_id=session.transfer_id,
             total_chunks=session.total_chunks,
             received_indexes=session.received_indexes,
+            max_total_chunks=self._max_total_chunks,
+            max_frame_bytes=self._max_ack_frame_bytes,
         )
         if not frame:
             return None
@@ -313,12 +496,18 @@ class FileTransferAutoAcceptService:
         file_size = max(0, int(frame.get("file_size") or 0))
         original_file_size = max(0, int(frame.get("original_file_size") or file_size or 0))
         codec = str(frame.get("codec") or "raw").strip().lower() or "raw"
-        key = self._session_key(sender_id, receiver_id, transfer_id)
+        key = self._session_key(
+            sender_id,
+            receiver_id,
+            transfer_id,
+            channel_index,
+        )
         now_unix = self._now_unix()
         with self._lock:
             self._prune_locked(now_monotonic)
             session = self._sessions_by_key.get(key)
             if session is None:
+                self._make_session_room_locked()
                 session = _InboundTransferSession(
                     sender_id=sender_id,
                     receiver_id=receiver_id,
@@ -362,7 +551,12 @@ class FileTransferAutoAcceptService:
         chunk_index = _to_int(frame.get("chunk_index"))
         if chunk_index is None or chunk_index < 0:
             return None
-        key = self._session_key(sender_id, receiver_id, transfer_id)
+        key = self._session_key(
+            sender_id,
+            receiver_id,
+            transfer_id,
+            channel_index,
+        )
         now_unix = self._now_unix()
         with self._lock:
             self._prune_locked(now_monotonic)
@@ -386,6 +580,7 @@ class FileTransferAutoAcceptService:
         *,
         sender_id: str,
         receiver_id: str,
+        channel_index: int,
         frame: Mapping[str, object],
         now_monotonic: float,
     ) -> None:
@@ -393,7 +588,12 @@ class FileTransferAutoAcceptService:
         if action != "cancel":
             return
         transfer_id = str(frame.get("transfer_id") or "").strip().lower()
-        key = self._session_key(sender_id, receiver_id, transfer_id)
+        key = self._session_key(
+            sender_id,
+            receiver_id,
+            transfer_id,
+            channel_index,
+        )
         with self._lock:
             self._prune_locked(now_monotonic)
             self._sessions_by_key.pop(key, None)
@@ -403,7 +603,13 @@ class FileTransferAutoAcceptService:
             return
         if not isinstance(packet, Mapping):
             return
-        frame = parse_file_transfer_frame_text(_extract_packet_text(packet))
+        frame_text = _extract_packet_text(packet)
+        frame = parse_file_transfer_frame_text(
+            frame_text,
+            max_file_bytes=self._max_file_bytes,
+            max_total_chunks=self._max_total_chunks,
+            max_frame_bytes=self._max_ack_frame_bytes,
+        )
         if frame is None:
             return
         kind = str(frame.get("kind") or "").strip().lower()
@@ -423,8 +629,21 @@ class FileTransferAutoAcceptService:
             return
 
         now_monotonic = float(self._now_monotonic_fn())
-        channel_index = _normalize_channel_index(packet.get("channel"))
+        channel_index = _packet_channel_index(packet)
+        if channel_index is None:
+            return
+        if not self._accept_packet_once(
+            packet=packet,
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            channel_index=channel_index,
+            frame_text=frame_text,
+            now_monotonic=now_monotonic,
+        ):
+            return
         if kind == "meta":
+            if not self._admit_meta(sender_id, now_monotonic=now_monotonic):
+                return
             payload = self._handle_meta(
                 sender_id=sender_id,
                 receiver_id=receiver_id,
@@ -447,6 +666,7 @@ class FileTransferAutoAcceptService:
         self._handle_flow(
             sender_id=sender_id,
             receiver_id=receiver_id,
+            channel_index=channel_index,
             frame=frame,
             now_monotonic=now_monotonic,
         )

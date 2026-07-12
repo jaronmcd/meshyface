@@ -565,6 +565,13 @@ def test_parse_requires_sender_and_rejects_mismatched_sender() -> None:
     )
 
 
+def test_parse_prefers_numeric_transport_sender_over_display_alias() -> None:
+    packet = _profile_packet(sender_id="!335d8354")
+    packet["from"] = 0x11111111
+
+    assert parse_meshyface_profile_packet(packet) is None
+
+
 def test_profile_validation_requires_theme_and_rejects_far_future_timestamp() -> None:
     with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
         build_meshyface_profile_payload(

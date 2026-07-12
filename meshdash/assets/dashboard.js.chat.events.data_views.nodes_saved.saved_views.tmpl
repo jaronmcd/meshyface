@@ -249,21 +249,6 @@
       }}
     }}
 
-    function bindSavedNodeBbsButtons(root = null) {{
-      if (!(root instanceof HTMLElement)) return;
-      for (const btn of root.querySelectorAll(".saved-node-inline-link[data-bbs-node-id]")) {{
-        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", (ev) => {{
-          ev.preventDefault();
-          ev.stopPropagation();
-          const nodeId = normalizeNodeId(btn.dataset.bbsNodeId || "");
-          if (!isSelectableNodeId(nodeId)) return;
-          void openBbsBoardForHost(nodeId);
-        }});
-      }}
-    }}
-
     function renderSavedNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
       const host = document.getElementById("saved-node-details");
       if (!(host instanceof HTMLElement)) return;
@@ -542,18 +527,6 @@
       const nodeDisplayName = node
         ? nodeLabel(node)
         : (nodeNameCache.get(nodeId) || nodeId || "n/a");
-      const bbsBoard = bbsFeatureEnabled ? bbsDirectoryRowForHost(nodeId) : null;
-      const bbsTitle = bbsBoard
-        ? (sanitizeBbsWireField(bbsBoard.title, bbsMaxTitleChars)
-          || sanitizeBbsWireField(bbsBoard.board_id, 24)
-          || "Space")
-        : "";
-      const bbsBoardId = bbsBoard ? sanitizeBbsWireField(bbsBoard.board_id, 24) : "";
-      const bbsLabel = bbsBoardId ? `${{bbsTitle}} (${{bbsBoardId}})` : bbsTitle;
-      const bbsButtonTitle = bbsBoard
-        ? `Open BBS space for ${{nodeDisplayName}}`
-        : `Request BBS space from ${{nodeDisplayName}} via direct message`;
-      const bbsButtonLabel = bbsBoard ? bbsTitle : "Request via PM";
       const nodeSectionRows = [
         ["Display Name", nodeDisplayName],
         ["Node ID", nodeId],
@@ -569,14 +542,6 @@
         ["GPS Capable", positionCapable],
         ["Last Position Ping", savedDetailText(latestPosTimeText)],
       ];
-      if (bbsFeatureEnabled) {{
-        const bbsValue = savedDetailHtmlValue(
-          `<button type="button" class="saved-node-inline-link" data-bbs-node-id="${{escAttr(nodeId)}}" title="${{escAttr(bbsButtonTitle)}}" aria-label="${{escAttr(bbsButtonTitle)}}">${{escAttr(bbsButtonLabel)}}</button>`,
-          bbsBoard ? bbsLabel : "Request via PM",
-        );
-        nodeSectionRows.push(["BBS Space", bbsValue]);
-      }}
-
       const nodeSection = savedDetailSectionHtml("Node", nodeSectionRows);
       const noteDraft = needsNotesSection && nodeNoteDraftById.has(nodeId)
         ? String(nodeNoteDraftById.get(nodeId) || "")
@@ -681,8 +646,6 @@
       bindSavedNodeDetailLinkButtons(linksHost);
       bindSavedNodeCoordinateLinks(host);
       bindSavedNodeCoordinateLinks(locationHost);
-      bindSavedNodeBbsButtons(host);
-      bindSavedNodeBbsButtons(linksHost);
       if (detailsMarkupChanged || notesMarkupChanged) {{
         bindSavedNodeNotesEditor(nodeId);
       }}

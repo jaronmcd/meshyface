@@ -2997,245 +2997,6 @@
       background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, black 22%);
       border-color: var(--workspace-shell-border-strong);
     }}
-    [data-theme="dark"] .card.bbs {{
-      border-color: var(--workspace-shell-border);
-      background:
-        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%, transparent 54%),
-        linear-gradient(180deg, color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, black 16%) 0%, var(--workspace-shell-bg) 100%);
-      color: var(--workspace-shell-text);
-      box-shadow: var(--workspace-shell-shadow);
-    }}
-    [data-theme="dark"] .card.bbs > h2 {{
-      border-bottom-color: var(--workspace-shell-border);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, white 12%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--ui-accent) 28%) 100%
-        );
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%);
-    }}
-    [data-theme="dark"] .bbs-sidebar {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, white 16%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 94%, black 6%) 100%
-        );
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 18px 34px rgba(0, 0, 0, 0.24);
-    }}
-    [data-theme="dark"] .bbs-panel {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, white 18%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 90%, black 10%) 100%
-        );
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 14px 28px rgba(0, 0, 0, 0.18);
-    }}
-    [data-theme="dark"] .bbs-panel-title,
-    [data-theme="dark"] .bbs-label {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-input {{
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, black 18%);
-      border-color: var(--workspace-shell-border-muted);
-      color: var(--workspace-shell-text);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }}
-    [data-theme="dark"] .bbs-input:focus {{
-      outline-color: var(--ui-accent);
-      border-color: var(--ui-accent);
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-    }}
-    [data-theme="dark"] .bbs-host-status,
-    [data-theme="dark"] .bbs-post-status,
-    [data-theme="dark"] .bbs-board-meta,
-    [data-theme="dark"] .bbs-board-motd,
-    [data-theme="dark"] .bbs-directory-target {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-directory-target.is-empty {{
-      color: color-mix(in srgb, var(--workspace-shell-text-soft) 72%, var(--workspace-shell-bg-alt) 28%);
-    }}
-    [data-theme="dark"] .bbs-host-status,
-    [data-theme="dark"] .bbs-post-status {{
-      border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 78%, var(--ui-accent) 22%);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 80%, white 20%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-    }}
-    [data-theme="dark"] .bbs-board-list {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 74%, white 26%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }}
-    [data-theme="dark"] .bbs-board-empty {{
-      border-color: var(--workspace-shell-border-muted);
-      background: color-mix(in srgb, var(--workspace-shell-bg) 96%, black 4%);
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-board-item {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 76%, white 24%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 88%, black 12%) 100%
-        );
-      color: var(--workspace-shell-text);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
-    }}
-    [data-theme="dark"] .bbs-board-item:hover {{
-      border-color: var(--workspace-shell-border-strong);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, white 18%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 84%, black 16%) 100%
-        );
-      box-shadow: 0 14px 24px rgba(0, 0, 0, 0.22);
-    }}
-    [data-theme="dark"] .bbs-board-item.is-active {{
-      border-color: var(--workspace-shell-border-strong);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-active-bg) 88%, white 12%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 70%, var(--workspace-shell-active-bg) 30%) 100%
-        );
-      color: var(--workspace-shell-active-text);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 26%, transparent),
-        0 16px 28px rgba(0, 0, 0, 0.24);
-    }}
-    [data-theme="dark"] .bbs-main {{
-      border-color: var(--workspace-shell-border);
-      background:
-        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%, transparent 42%),
-        linear-gradient(180deg, color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, black 28%) 0%, color-mix(in srgb, var(--workspace-shell-bg) 94%, black 6%) 100%);
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 80%, #d7ffe8 20%);
-      box-shadow:
-        inset 0 0 0 1px rgba(166, 231, 190, 0.08),
-        0 24px 44px rgba(0, 0, 0, 0.32);
-    }}
-    [data-theme="dark"] .bbs-main::before {{
-      background:
-        repeating-linear-gradient(180deg, rgba(154, 244, 192, 0.04) 0 1px, transparent 1px 4px),
-        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--ui-accent) 24%, transparent), transparent 40%),
-        radial-gradient(circle at 82% 120%, rgba(26, 68, 49, 0.28), transparent 44%);
-    }}
-    [data-theme="dark"] .bbs-terminal-head {{
-      border-bottom-color: color-mix(in srgb, var(--workspace-shell-border) 72%, rgba(146, 206, 165, 0.24));
-      background:
-        linear-gradient(180deg, rgba(12, 26, 18, 0.92) 0%, rgba(7, 16, 11, 0.72) 100%);
-    }}
-    [data-theme="dark"] .bbs-terminal-title {{
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 84%, white 16%);
-    }}
-    [data-theme="dark"] .bbs-terminal-meta {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-terminal-log {{
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 82%, #d3ffe4 18%);
-      text-shadow: 0 0 8px color-mix(in srgb, var(--ui-accent) 18%, transparent);
-      scrollbar-color: color-mix(in srgb, var(--workspace-shell-border-strong) 74%, transparent) rgba(5, 13, 9, 0.42);
-    }}
-    [data-theme="dark"] .bbs-compose-row {{
-      border-top-color: color-mix(in srgb, var(--workspace-shell-border) 76%, rgba(146, 206, 165, 0.18));
-      background:
-        linear-gradient(180deg, rgba(9, 20, 14, 0.84) 0%, rgba(5, 12, 8, 0.92) 100%);
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 76%, black 24%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-      color: var(--workspace-shell-text);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input::placeholder {{
-      color: var(--workspace-shell-text-soft);
-      opacity: 0.9;
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input:focus {{
-      outline-color: var(--ui-accent);
-      border-color: var(--ui-accent);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, black 16%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 88%, black 12%) 100%
-      );
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs {{
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-sidebar {{
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-main {{
-      background: transparent;
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-main::before,
-    [data-theme="dark"] .layout.view-bbs .bbs-main::after {{
-      content: none;
-      display: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-terminal-head {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-terminal-log {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
-      text-shadow: none;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row {{
-      border-color: color-mix(in srgb, var(--ui-border) 62%, transparent);
-      background: var(--ui-panel);
-      background-image: none;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row .bbs-post-input {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: var(--workspace-shell-border-strong);
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row .bbs-post-input:focus {{
-      border-color: var(--ui-accent);
-      background: var(--workspace-shell-bg-alt);
-      box-shadow: inset 0 0 0 1px var(--ui-accent);
-    }}
     [data-theme="dark"] .remote-sidebar {{
       border-color: var(--workspace-shell-border-muted);
       background: var(--workspace-shell-bg-alt);
@@ -5080,8 +4841,7 @@
     [data-theme="dark"] .remote-search-input,
     [data-theme="dark"] .settings-input,
     [data-theme="dark"] .settings-textarea,
-    [data-theme="dark"] .chat-input,
-    [data-theme="dark"] .bbs-post-input {{
+    [data-theme="dark"] .chat-input {{
       background: var(--ui-panel);
       border-color: var(--ui-border);
       color: var(--ui-text);
@@ -5138,8 +4898,7 @@
     [data-theme="dark"] .remote-search-input:focus,
     [data-theme="dark"] .settings-input:focus,
     [data-theme="dark"] .settings-textarea:focus,
-    [data-theme="dark"] .chat-input:focus,
-    [data-theme="dark"] .bbs-post-input:focus {{
+    [data-theme="dark"] .chat-input:focus {{
       outline-color: var(--ui-accent);
       border-color: var(--ui-accent);
       background: var(--ui-panel-alt);
@@ -5166,8 +4925,7 @@
     [data-theme="dark"] .remote-search-input::placeholder,
     [data-theme="dark"] .settings-input::placeholder,
     [data-theme="dark"] .settings-textarea::placeholder,
-    [data-theme="dark"] .chat-input::placeholder,
-    [data-theme="dark"] .bbs-post-input::placeholder {{
+    [data-theme="dark"] .chat-input::placeholder {{
       color: var(--workspace-shell-text-soft);
       opacity: 0.9;
     }}
@@ -8024,10 +7782,6 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-bbs {{
-        height: auto;
-        min-height: 0;
-      }}
       .layout.view-remote {{
         height: auto;
         min-height: 0;
@@ -8056,9 +7810,6 @@
       .games-shell-splitter {{
         display: none;
       }}
-      .bbs-shell {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
       .reversi-link-actions {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }}
@@ -8066,7 +7817,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .games, .bbs, .remote, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .games, .remote, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}

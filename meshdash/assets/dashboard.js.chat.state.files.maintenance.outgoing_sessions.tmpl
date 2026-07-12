@@ -200,29 +200,25 @@
         const ack = findAckForOutgoingSession(session, ackByTransferKey, localNodeId);
         const destinationId = normalizeNodeId(session.destination || "");
         const senderId = normalizeNodeId(session.senderId || localNodeId || "");
-        const transferKey = fileTransferKeyOf(senderId, destinationId, session.transferId);
+        const sessionChannelIndex = fileTransferExplicitChannelIndex(session.channelIndex);
+        const transferKey = fileTransferKeyOf(
+          senderId,
+          destinationId,
+          session.transferId,
+          sessionChannelIndex
+        );
         let flow = flowByTransferKey.get(transferKey) || null;
-        if (!(flow && typeof flow === "object")) {{
-          let latestFallbackFlow = null;
-          for (const candidate of flowByTransferKey.values()) {{
-            if (!(candidate && typeof candidate === "object")) continue;
-            if (String(candidate.transferId || "").trim().toLowerCase() !== String(session.transferId || "").trim().toLowerCase()) {{
-              continue;
-            }}
-            if (normalizeNodeId(candidate.senderId || "") !== destinationId) continue;
-            const candidateUnix = Math.max(0, Math.trunc(Number(candidate.latestUnix) || 0));
-            const latestUnix = Math.max(0, Math.trunc(Number(latestFallbackFlow && latestFallbackFlow.latestUnix) || 0));
-            if (!latestFallbackFlow || candidateUnix >= latestUnix) {{
-              latestFallbackFlow = candidate;
-            }}
-          }}
-          flow = latestFallbackFlow;
-        }}
+        if (
+          !(flow && typeof flow === "object")
+          || normalizeNodeId(flow.senderId || "") !== destinationId
+          || normalizeNodeId(flow.receiverId || "") !== senderId
+          || fileTransferExplicitChannelIndex(flow.channelIndex) !== sessionChannelIndex
+        ) flow = null;
         const flowAction = flow && typeof flow === "object"
           ? String(flow.action || "").trim().toLowerCase()
           : "";
         const flowUnix = Math.max(0, Math.trunc(Number(flow && flow.latestUnix) || 0));
-        if (flowAction && flowUnix > session.lastReceiverFlowUnix && normalizeNodeId(flow.senderId || "") === destinationId) {{
+        if (flowAction && flowUnix > session.lastReceiverFlowUnix) {{
           session.lastReceiverFlowUnix = flowUnix;
           if (flowAction === "pause") {{
             if (!session.pausedByReceiver) {{

@@ -36,7 +36,6 @@ def _args(tmp_path, *, no_history: bool = False):
         http_host="127.0.0.1",
         http_port=0,
         games_enable=False,
-        bbs_enable=False,
         file_transfer_enable=False,
         file_transfer_auto_accept=False,
     )
@@ -150,3 +149,19 @@ def test_startup_receive_buffer_preserves_order_during_activation() -> None:
         "live:start",
         "live:done",
     ]
+
+
+def test_startup_receive_buffer_is_bounded_and_keeps_latest_packets() -> None:
+    receive_buffer = StartupReceiveBuffer(max_packets=2)
+    iface = object()
+    delivered: list[int] = []
+
+    receive_buffer.on_receive({"id": 1}, iface)
+    receive_buffer.on_receive({"id": 2}, iface)
+    receive_buffer.on_receive({"id": 3}, iface)
+    receive_buffer.activate(
+        lambda packet, _interface: delivered.append(int(packet["id"]))
+    )
+
+    assert delivered == [2, 3]
+    assert receive_buffer.dropped_packets == 1

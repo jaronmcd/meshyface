@@ -10,7 +10,6 @@ from .games.zork import ZorkGame
 from .helpers import to_int as _to_int
 from .nodes_identity import (
     get_local_node_id as _get_local_node_id,
-    get_node_id_from_num as _get_node_id_from_num,
 )
 from .runtime_types import RecordLocalChatFn
 from .tracker_ingest import _normalize_packet_node_id
@@ -18,6 +17,10 @@ from .tracker_ingest import _normalize_packet_node_id
 _BROADCAST_NUM = 0xFFFFFFFF
 _REPLY_TEXT_RESERVE_BYTES = 36
 _MAX_REPLY_SEGMENTS = 8
+_MAX_ASYNC_ZORK_REPLIES = 8
+_ZORK_PEER_REQUEST_COOLDOWN_SECONDS = 2.0
+_ZORK_GLOBAL_REQUEST_COOLDOWN_SECONDS = 0.5
+_ZORK_MAX_RATE_TRACKED_PEERS = 128
 _LIVE_REPLY_SEGMENT_DELAY_SECONDS = 2.0
 _LIVE_REPLY_ACK_WAIT_SECONDS = 25.0
 _LIVE_REPLY_ACK_POLL_SECONDS = 0.5
@@ -38,17 +41,20 @@ def _packet_node_id(
     text_key: str,
     number_key: str,
 ) -> str:
-    raw_text_id = packet.get(text_key)
-    if raw_text_id:
-        return _normalize_node_id(raw_text_id)
-    return _normalize_node_id(
-        _get_node_id_from_num(
-            iface,
-            packet.get(number_key),
-            broadcast_num=_BROADCAST_NUM,
-            to_int_fn=_to_int,
-        )
-    )
+    del iface
+    raw_node_num = packet.get(number_key)
+    if raw_node_num is None:
+        return _normalize_node_id(packet.get(text_key))
+    if isinstance(raw_node_num, bool) or (
+        isinstance(raw_node_num, float) and not raw_node_num.is_integer()
+    ):
+        return ""
+    node_num = _to_int(raw_node_num)
+    if node_num == _BROADCAST_NUM:
+        return "^all"
+    if node_num is not None and 0 <= node_num <= 0xFFFFFFFF:
+        return f"!{node_num:08x}"
+    return ""
 
 
 def _packet_text(packet: dict[str, object]) -> str:
@@ -187,6 +193,10 @@ class ZorkBotService:
         reply_ack_poll_seconds: float = _LIVE_REPLY_ACK_POLL_SECONDS,
         reply_retry_limit: int = _LIVE_REPLY_RETRY_LIMIT,
         reply_async: bool = True,
+        max_async_replies: int = _MAX_ASYNC_ZORK_REPLIES,
+        peer_request_cooldown_seconds: float = _ZORK_PEER_REQUEST_COOLDOWN_SECONDS,
+        global_request_cooldown_seconds: float = _ZORK_GLOBAL_REQUEST_COOLDOWN_SECONDS,
+        monotonic_fn: Callable[[], float] = time.monotonic,
         sleep_fn: Callable[[float], None] = time.sleep,
         get_delivery_state_fn: Callable[[object], object] | None = None,
         public_start_triggers: Iterable[str] | None = None,
@@ -199,6 +209,13 @@ class ZorkBotService:
         self._reply_ack_poll_seconds = max(0.05, float(reply_ack_poll_seconds))
         self._reply_retry_limit = max(0, int(reply_retry_limit))
         self._reply_async = bool(reply_async)
+        self._async_reply_slots = threading.BoundedSemaphore(max(1, int(max_async_replies)))
+        self._peer_request_cooldown_seconds = max(0.0, float(peer_request_cooldown_seconds))
+        self._global_request_cooldown_seconds = max(0.0, float(global_request_cooldown_seconds))
+        self._monotonic_fn = monotonic_fn
+        self._request_monotonic_by_peer: dict[str, float] = {}
+        self._last_request_monotonic: float | None = None
+        self._closed = threading.Event()
         self._sleep_fn = sleep_fn
         self._get_delivery_state_fn = get_delivery_state_fn
         triggers = tuple(
@@ -209,6 +226,54 @@ class ZorkBotService:
         self._public_start_triggers = triggers or (_PUBLIC_START_TRIGGER,)
         self._lock = threading.Lock()
 
+    def close(self) -> None:
+        self._closed.set()
+        with self._lock:
+            self._request_monotonic_by_peer.clear()
+            self._last_request_monotonic = None
+            clear_fn = getattr(self._game, "clear_sessions", None)
+            if callable(clear_fn):
+                try:
+                    clear_fn()
+                except Exception:
+                    pass
+
+    def _admit_request_locked(self, peer_id: str) -> bool:
+        if self._closed.is_set():
+            return False
+        try:
+            now_monotonic = max(0.0, float(self._monotonic_fn()))
+        except Exception:
+            now_monotonic = time.monotonic()
+        previous = self._request_monotonic_by_peer.get(peer_id)
+        peer_ready = previous is None or (
+            now_monotonic - previous >= self._peer_request_cooldown_seconds
+        )
+        global_ready = self._last_request_monotonic is None or (
+            now_monotonic - self._last_request_monotonic
+            >= self._global_request_cooldown_seconds
+        )
+        if not peer_ready or not global_ready:
+            return False
+        self._request_monotonic_by_peer[peer_id] = now_monotonic
+        self._last_request_monotonic = now_monotonic
+        while len(self._request_monotonic_by_peer) > _ZORK_MAX_RATE_TRACKED_PEERS:
+            oldest_peer = min(
+                self._request_monotonic_by_peer,
+                key=self._request_monotonic_by_peer.get,
+            )
+            self._request_monotonic_by_peer.pop(oldest_peer, None)
+        return True
+
+    def _wait_or_running(self, seconds: float) -> bool:
+        delay = max(0.0, float(seconds))
+        if self._closed.is_set():
+            return False
+        if self._sleep_fn is time.sleep:
+            return not self._closed.wait(delay)
+        self._sleep_fn(delay)
+        return not self._closed.is_set()
+
     def handle_packet(
         self,
         packet: dict[str, object],
@@ -216,6 +281,8 @@ class ZorkBotService:
         *,
         record_local_chat_fn: RecordLocalChatFn | None = None,
     ) -> bool:
+        if self._closed.is_set():
+            return False
         text = _packet_text(packet)
         if not text:
             return False
@@ -244,6 +311,8 @@ class ZorkBotService:
         now_unix = int(self._now_unix_fn())
         game_to_id = local_node_id if public_start else to_id
         with self._lock:
+            if not self._admit_request_locked(from_id):
+                return True
             result = self._game.try_handle_message(
                 text=text,
                 from_id=from_id,
@@ -263,9 +332,9 @@ class ZorkBotService:
         channel_index = _packet_channel_index(packet)
         reply_id = _packet_id(packet)
         if self._reply_async:
-            thread = threading.Thread(
-                target=self._send_live_reply_segments,
-                kwargs={
+            if not self._async_reply_slots.acquire(blocking=False):
+                return True
+            kwargs = {
                     "iface": iface,
                     "segments": segments,
                     "destination_id": from_id,
@@ -274,10 +343,16 @@ class ZorkBotService:
                     "reply_id": reply_id,
                     "bot_command": bot_command,
                     "record_local_chat_fn": record_local_chat_fn,
-                },
-                daemon=True,
-            )
-            thread.start()
+                }
+            try:
+                thread = threading.Thread(
+                    target=self._send_live_reply_segments_with_slot,
+                    kwargs=kwargs,
+                    daemon=True,
+                )
+                thread.start()
+            except Exception:
+                self._async_reply_slots.release()
             return True
 
         self._send_live_reply_segments(
@@ -292,6 +367,12 @@ class ZorkBotService:
         )
         return True
 
+    def _send_live_reply_segments_with_slot(self, **kwargs: object) -> None:
+        try:
+            self._send_live_reply_segments(**kwargs)  # type: ignore[arg-type]
+        finally:
+            self._async_reply_slots.release()
+
     def _send_live_reply_segments(
         self,
         *,
@@ -305,8 +386,12 @@ class ZorkBotService:
         record_local_chat_fn: RecordLocalChatFn | None = None,
     ) -> None:
         for index, segment in enumerate(segments):
+            if self._closed.is_set():
+                return
             if index > 0:
                 self._sleep_between_live_segments()
+                if self._closed.is_set():
+                    return
             if not self._send_live_reply_segment_until_acked(
                 iface,
                 text=segment,
@@ -321,7 +406,7 @@ class ZorkBotService:
 
     def _sleep_between_live_segments(self) -> None:
         if self._reply_segment_delay_seconds > 0:
-            self._sleep_fn(self._reply_segment_delay_seconds)
+            self._wait_or_running(self._reply_segment_delay_seconds)
 
     def _send_live_reply_segment_until_acked(
         self,
@@ -338,17 +423,22 @@ class ZorkBotService:
         attempt_message_ids: list[int] = []
         original_message_id: Optional[int] = None
         for attempt_index in range(self._reply_retry_limit + 1):
-            sent_message_id = self._send_live_reply_segment(
-                iface,
-                text=text,
-                destination_id=destination_id,
-                local_node_id=local_node_id,
-                channel_index=channel_index,
-                reply_id=reply_id,
-                bot_command=bot_command,
-                record_local_chat_fn=record_local_chat_fn,
-                retry_of=original_message_id if attempt_index > 0 else None,
-            )
+            if self._closed.is_set():
+                return False
+            try:
+                sent_message_id = self._send_live_reply_segment(
+                    iface,
+                    text=text,
+                    destination_id=destination_id,
+                    local_node_id=local_node_id,
+                    channel_index=channel_index,
+                    reply_id=reply_id,
+                    bot_command=bot_command,
+                    record_local_chat_fn=record_local_chat_fn,
+                    retry_of=original_message_id if attempt_index > 0 else None,
+                )
+            except Exception:
+                return False
             if sent_message_id is None:
                 return True
             if original_message_id is None:
@@ -405,12 +495,15 @@ class ZorkBotService:
             return False
         deadline = time.monotonic() + self._reply_ack_wait_seconds
         while time.monotonic() < deadline:
+            if self._closed.is_set():
+                return False
             if self._any_delivery_is_acked(message_ids):
                 return True
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return self._any_delivery_is_acked(message_ids)
-            self._sleep_fn(min(self._reply_ack_poll_seconds, remaining))
+            if not self._wait_or_running(min(self._reply_ack_poll_seconds, remaining)):
+                return False
         return self._any_delivery_is_acked(message_ids)
 
     def _any_delivery_is_acked(self, message_ids: list[int]) -> bool:
@@ -441,6 +534,8 @@ class ZorkBotService:
         reply_id: Optional[int] = None,
         record_local_chat_fn: RecordLocalChatFn | None = None,
     ) -> bool:
+        if self._closed.is_set():
+            return False
         clean_text = str(text or "").strip()
         if not clean_text:
             return False
@@ -490,6 +585,8 @@ class ZorkBotService:
         channel_index: int,
         reply_id: Optional[int],
     ) -> object:
+        if self._closed.is_set():
+            raise RuntimeError("zork bot is closed")
         send_text_fn = getattr(iface, "sendText")
         with self._send_lock:
             try:
@@ -563,6 +660,9 @@ def build_zork_bot_service(
     reply_ack_poll_seconds: float = _LIVE_REPLY_ACK_POLL_SECONDS,
     reply_retry_limit: int = _LIVE_REPLY_RETRY_LIMIT,
     reply_async: bool = True,
+    peer_request_cooldown_seconds: float = _ZORK_PEER_REQUEST_COOLDOWN_SECONDS,
+    global_request_cooldown_seconds: float = _ZORK_GLOBAL_REQUEST_COOLDOWN_SECONDS,
+    monotonic_fn: Callable[[], float] = time.monotonic,
     sleep_fn: Callable[[float], None] = time.sleep,
     get_delivery_state_fn: Callable[[object], object] | None = None,
 ) -> ZorkBotService:
@@ -574,6 +674,9 @@ def build_zork_bot_service(
         reply_ack_poll_seconds=reply_ack_poll_seconds,
         reply_retry_limit=reply_retry_limit,
         reply_async=reply_async,
+        peer_request_cooldown_seconds=peer_request_cooldown_seconds,
+        global_request_cooldown_seconds=global_request_cooldown_seconds,
+        monotonic_fn=monotonic_fn,
         sleep_fn=sleep_fn,
         get_delivery_state_fn=get_delivery_state_fn,
     )

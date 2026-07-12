@@ -13,8 +13,8 @@ The current UI exposes:
 - Network workspace for map, topology, Top 10 rankings, node details, and
   on-demand history views
 - Console workspace for live packet/log output
-- Apps workspace with Games, plus BBS and Files tabs when those features are
-  enabled
+- Apps workspace with Games, optional Bots, and a Files tab when file transfer
+  is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
   tickers, lists, appearance, and about panes
 - SQLite-backed history, search, rollups, theme persistence, and custom
@@ -123,7 +123,7 @@ flowchart LR
   Server["ThreadingHTTPServer<br/>HTML shell + JSON API"]
   Assets["Python template assembly<br/>meshdash/html* + meshdash/assets/*"]
   State["State loaders<br/>live snapshot + history readers"]
-  Services["Write services<br/>chat, settings, tools, games, optional BBS/files"]
+  Services["Write services<br/>chat, settings, tools, games, optional files"]
   Tracker["DashboardTracker<br/>live receive path + in-memory buffers"]
   History["HistoryStore / SQLite (WAL)<br/>chat, packets, rollups, settings"]
   Radio["Meshtastic interface<br/>serial or TCP"]
@@ -188,8 +188,6 @@ contributes to the same persisted packet, chat, node, and rollup history.
   `mesh_dashboard_theme_settings.json` by default, or the file supplied via
   `--theme-settings-file`.
 - Custom telemetry rules are stored in the history SQLite database.
-- BBS host settings and local BBS posts are stored in the history SQLite
-  database when BBS is enabled.
 
 ### Maintenance commands
 
@@ -219,6 +217,9 @@ that node.
 
 - `--mesh-host <ip-or-dns>`: TCP radio host
 - `--mesh-tcp-port <port>`: TCP radio port, default `4403`
+- `--allow-insecure-mesh-tcp`: explicitly allow Meshtastic's unauthenticated
+  TCP transport to a non-loopback host; use only on a trusted VPN/LAN or
+  through an SSH tunnel
 - `--mesh-port <path>`: serial device path
 - `--default-gateway-host <host>`: fallback TCP host if `--mesh-host` is not
   provided and serial is still on the default path
@@ -249,8 +250,8 @@ Related environment variables:
   `Authorization: Bearer <token>` or `X-API-Token`; prefer
   `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
   in process listings and shell history
-- `--bbs-enable` / `--no-bbs-enable`: expose or hide the BBS/profile workspace
-  when `--accept-file-transfer-traffic-disclaimer` is also set
+- `--allow-tokenless-raw-packet-download`: explicitly permit raw-packet DB
+  downloads without a token for direct loopback clients; disabled by default
 - `--games-enable` / `--no-games-enable`: enable playable Zork console
   endpoints plus mesh bot replies
 
@@ -258,7 +259,6 @@ Related environment variables:
 
 - `MESH_DASH_PRIVATE_MODE`
 - `MESH_DASH_API_TOKEN`
-- `MESH_DASH_BBS_ENABLE`
 - `MESH_DASH_GAMES_ENABLE`
 - `MESH_DASH_VERSION`
 - `MESH_DASH_GIT_COMMIT`
@@ -335,8 +335,8 @@ Related environment variables:
   not use that public channel for private traffic.
 - `--show-secrets` exposes sensitive values in raw JSON panels; do not enable
   it casually on shared displays.
-- BBS and file transfer can consume significant mesh airtime. Keep them
-  disabled unless you have explicitly accepted that tradeoff.
+- File transfer can consume significant mesh airtime. Keep it disabled unless
+  you have explicitly accepted that tradeoff.
 
 
 ## Testing And Coverage

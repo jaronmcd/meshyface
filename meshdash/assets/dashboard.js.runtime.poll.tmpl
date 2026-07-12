@@ -326,9 +326,6 @@
         && typeof normalizeChatNodeDetailsDrawerTab === "function"
         && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "links"
       );
-      if (activeLayoutView === "bbs") {{
-        return "chat";
-      }}
       if (isChatWorkspaceLayoutView(activeLayoutView) && !drawerLinksActive) {{
         return "chat";
       }}
@@ -494,9 +491,6 @@
           if (activeLayoutView === "files") {{
             renderFilesView(latestState);
           }}
-          if (activeLayoutView === "bbs") {{
-            renderBbsView(latestState);
-          }}
           if (activeLayoutView === "history") {{
             renderHistoryChat(traffic304);
             renderEncription(traffic304);
@@ -652,7 +646,6 @@
         syncBoardGameNetworkState("checkers", state);
         syncBoardGameNetworkState("chess", state);
         syncBoardGameNetworkState("wallchess", state);
-        syncBbsNetworkState(state);
         syncAppsLauncherNotifications(state);
         renderSelfRadioPill(state);
         markPollPerfPhase(pollPerfRun, "state-sync");
@@ -863,8 +856,6 @@
           if (activeLayoutView === "chatlabs") {{
             runPollStep("renderChatLabsView", () => renderChatLabsView(state));
           }}
-        }} else if (activeLayoutView === "bbs") {{
-          runPollStep("renderBbsView", () => renderBbsView(state));
         }} else if (activeLayoutView === "bots") {{
           runPollStep("renderBotsView", () => renderBotsView(state));
         }} else if (activeLayoutView === "games") {{

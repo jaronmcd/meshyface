@@ -24,7 +24,6 @@ def add_http_runtime_args(
     default_reset_ticker_scale_on_restart: bool = True,
     default_private_mode: bool = False,
     default_api_token: str | None = None,
-    default_bbs_enable: bool = False,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
     default_games_enable: bool = False,
@@ -98,12 +97,12 @@ def add_http_runtime_args(
         ),
     )
     parser.add_argument(
-        "--bbs-enable",
+        "--allow-tokenless-raw-packet-download",
         action=argparse.BooleanOptionalAction,
-        default=default_bbs_enable,
+        default=False,
         help=(
-            "Enable the Meshyface BBS/profile workspace for MOTDs and shared spaces "
-            f"(default: {default_bbs_enable})"
+            "Allow the sensitive raw-packet database download without an API token "
+            "for direct loopback clients only (default: False)."
         ),
     )
     parser.add_argument(
@@ -148,7 +147,7 @@ def add_http_runtime_args(
         action=argparse.BooleanOptionalAction,
         default=default_accept_file_transfer_traffic_disclaimer,
         help=(
-            "Acknowledge that enabling BBS or file transfer can significantly "
+            "Acknowledge that enabling file transfer can significantly "
             "increase mesh airtime and congestion. "
             f"(default: {default_accept_file_transfer_traffic_disclaimer})"
         ),

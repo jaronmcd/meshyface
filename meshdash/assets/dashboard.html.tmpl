@@ -334,25 +334,6 @@
                   </button>
                   <button
                     class="topbar-view-submenu-item"
-                    data-view="bbs"
-                    data-app-view="bbs"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked="false"
-                    title="BBS workspace"
-                    {bbs_app_tab_hidden_attrs}
-                  >
-                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BB</span>
-                    <span class="topbar-view-submenu-item-copy">
-                      <span class="topbar-view-submenu-item-label-row">
-                        <span class="topbar-view-submenu-item-label">BBS</span>
-                        <span class="topbar-view-submenu-item-beta">BETA</span>
-                      </span>
-                      <span class="topbar-view-submenu-item-meta">Profiles and MOTDs</span>
-                    </span>
-                  </button>
-                  <button
-                    class="topbar-view-submenu-item"
                     data-view="files"
                     data-app-view="files"
                     type="button"
@@ -3047,92 +3028,6 @@
             </div>
             <pre id="files-console-log" class="files-console-log" aria-live="polite">No file transfer activity yet.</pre>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card bbs" aria-label="BBS"{bbs_section_hidden_attrs}>
-      <h2>BBS</h2>
-      <div class="body">
-        <div class="bbs-shell">
-          <section class="bbs-main" aria-label="BBS terminal">
-            <div class="bbs-config-strip" aria-label="BBS space controls">
-              <section class="bbs-panel bbs-host-panel" aria-label="Host your space">
-                <label class="bbs-field" for="bbs-host-title-input">
-                  <span class="bbs-label">Space Title</span>
-                  <input
-                    id="bbs-host-title-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="42"
-                    placeholder="Packet Exchange"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="bbs-field" for="bbs-host-id-input">
-                  <span class="bbs-label">Space ID</span>
-                  <input
-                    id="bbs-host-id-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="24"
-                    placeholder="packet-exchange"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="bbs-field" for="bbs-host-motd-input">
-                  <span class="bbs-label">Greeting / MOTD</span>
-                  <input
-                    id="bbs-host-motd-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="120"
-                    placeholder="2400 baud online."
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <div class="bbs-actions">
-                  <button id="bbs-host-start-btn" class="btn" type="button">Host Space</button>
-                  <button id="bbs-host-stop-btn" class="btn btn-secondary" type="button">Go Offline</button>
-                </div>
-                <div id="bbs-host-status" class="bbs-host-status" aria-live="polite"></div>
-              </section>
-            </div>
-            <section class="bbs-panel bbs-directory-panel" aria-label="Loaded spaces">
-              <div class="bbs-actions">
-                <div class="bbs-directory-heading">
-                  <div class="bbs-panel-title">Loaded Spaces</div>
-                  <div id="bbs-directory-target" class="bbs-directory-target">Request target: no node selected</div>
-                </div>
-                <button id="bbs-refresh-directory-btn" class="btn btn-secondary" type="button">Open Node</button>
-                <button id="bbs-forget-directory-btn" class="btn btn-secondary" type="button" disabled>Forget Selected</button>
-              </div>
-              <div id="bbs-board-list" class="bbs-board-list" role="listbox" aria-label="Discovered boards"></div>
-            </section>
-            <div class="bbs-terminal-head">
-              <div id="bbs-terminal-title" class="bbs-terminal-title">No board selected</div>
-              <div id="bbs-terminal-meta" class="bbs-terminal-meta">Select a node and request its space.</div>
-            </div>
-            <pre id="bbs-terminal-log" class="bbs-terminal-log" aria-live="polite">*** CONNECT 2400 ***
-Ready.
-</pre>
-            <div class="bbs-compose-row">
-              <input
-                id="bbs-post-input"
-                class="bbs-post-input"
-                type="text"
-                placeholder="Select a board before posting..."
-                autocomplete="off"
-                spellcheck="false"
-                disabled
-              />
-              <button id="bbs-post-send-btn" class="btn" type="button" disabled>Post</button>
-            </div>
-            <div id="bbs-post-status" class="bbs-post-status" aria-live="polite"></div>
-          </section>
         </div>
       </div>
     </section>

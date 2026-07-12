@@ -52,11 +52,221 @@
       return {{ label: clean, title: clean }};
     }}
 
-    function fileTransferKeyOf(fromId, toId, transferId) {{
+    function fileTransferKeyOf(fromId, toId, transferId, channelIndex) {{
       const from = normalizeNodeId(fromId || "");
       const to = normalizeNodeId(toId || "");
       const id = String(transferId || "").trim().toLowerCase();
-      return `${{from}}|${{to}}|${{id}}`;
+      const channel = fileTransferExplicitChannelIndex(channelIndex);
+      const channelToken = channel == null ? "unknown" : String(channel);
+      return `${{from}}|${{to}}|${{id}}|${{channelToken}}`;
+    }}
+
+    function fileTransferChunkCacheEntryBytes(cacheEntry) {{
+      if (!(cacheEntry && typeof cacheEntry === "object")) return 0;
+      const chunks = cacheEntry.chunks instanceof Map ? cacheEntry.chunks : new Map();
+      let totalBytes = 0;
+      for (const bytes of chunks.values()) {{
+        if (!(bytes instanceof Uint8Array)) continue;
+        totalBytes += bytes.length;
+        if (totalBytes > fileTransferChunkCacheMaxBytes) break;
+      }}
+      return Math.max(0, totalBytes);
+    }}
+
+    function deleteFileTransferChunkCacheEntry(transferKey) {{
+      const key = String(transferKey || "").trim();
+      if (!key) return false;
+      const removed = fileTransferChunkCacheByKey.delete(key);
+      fileTransferBlobByKey.delete(key);
+      fileTransferDecodedBytesByKey.delete(key);
+      fileTransferMaterializedLastUsedAtMsByKey.delete(key);
+      fileTransferMaterializeFailureByKey.delete(key);
+      const staleUrl = fileTransferDownloadUrlByKey.get(key);
+      if (staleUrl) {{
+        try {{
+          URL.revokeObjectURL(staleUrl);
+        }} catch (_err) {{
+        }}
+      }}
+      fileTransferDownloadUrlByKey.delete(key);
+      return removed;
+    }}
+
+    function clearFileTransferMaterializedStateForKey(transferKey, options = null) {{
+      const key = String(transferKey || "").trim();
+      if (!key) return false;
+      const opts = (options && typeof options === "object") ? options : {{}};
+      const had = fileTransferBlobByKey.delete(key) || fileTransferDecodedBytesByKey.delete(key);
+      fileTransferDecodedBytesByKey.delete(key);
+      fileTransferMaterializedLastUsedAtMsByKey.delete(key);
+      if (opts.keepFailure !== true) fileTransferMaterializeFailureByKey.delete(key);
+      const staleUrl = fileTransferDownloadUrlByKey.get(key);
+      if (staleUrl) {{
+        try {{
+          URL.revokeObjectURL(staleUrl);
+        }} catch (_err) {{
+        }}
+      }}
+      fileTransferDownloadUrlByKey.delete(key);
+      return had;
+    }}
+
+    function touchFileTransferMaterializedState(transferKey, nowMs = Date.now()) {{
+      const key = String(transferKey || "").trim();
+      if (!key) return;
+      fileTransferMaterializedLastUsedAtMsByKey.delete(key);
+      fileTransferMaterializedLastUsedAtMsByKey.set(
+        key,
+        Math.max(0, Math.trunc(Number(nowMs) || Date.now()))
+      );
+    }}
+
+    function enforceFileTransferMaterializedCacheLimits(protectedKeyRaw = "") {{
+      const protectedKey = String(protectedKeyRaw || "").trim();
+      const keys = new Set([
+        ...fileTransferDecodedBytesByKey.keys(),
+        ...fileTransferBlobByKey.keys(),
+      ]);
+      const entries = [];
+      let totalBytes = 0;
+      for (const key of keys) {{
+        const decoded = fileTransferDecodedBytesByKey.get(key);
+        const blob = fileTransferBlobByKey.get(key);
+        const entryBytes = (
+          (decoded instanceof Uint8Array ? decoded.length : 0)
+          + (blob instanceof Blob ? Math.max(0, Number(blob.size) || 0) : 0)
+        );
+        totalBytes += entryBytes;
+        entries.push({{
+          key,
+          entryBytes,
+          lastUsedAtMs: Math.max(
+            0,
+            Number(fileTransferMaterializedLastUsedAtMsByKey.get(key)) || 0
+          ),
+        }});
+      }}
+      entries.sort((left, right) => left.lastUsedAtMs - right.lastUsedAtMs);
+      let activeEntries = keys.size;
+      for (const entry of entries) {{
+        if (
+          activeEntries <= fileTransferMaterializedCacheMaxEntries
+          && totalBytes <= fileTransferMaterializedCacheMaxBytes
+        ) break;
+        if (entry.key === protectedKey) continue;
+        clearFileTransferMaterializedStateForKey(entry.key);
+        activeEntries = Math.max(0, activeEntries - 1);
+        totalBytes = Math.max(0, totalBytes - entry.entryBytes);
+      }}
+      return {{ entries: activeEntries, totalBytes }};
+    }}
+
+    function enforceFileTransferChunkCacheLimits(nowMs = Date.now()) {{
+      const staleBeforeMs = Math.max(0, Number(nowMs) || Date.now()) - (45 * 60 * 1000);
+      const entries = [];
+      let totalBytes = 0;
+      for (const [key, cacheEntry] of fileTransferChunkCacheByKey.entries()) {{
+        const lastSeenAtMs = Math.max(0, Number(cacheEntry && cacheEntry.lastSeenAtMs) || 0);
+        const entryBytes = fileTransferChunkCacheEntryBytes(cacheEntry);
+        if (lastSeenAtMs <= 0 || lastSeenAtMs < staleBeforeMs) {{
+          deleteFileTransferChunkCacheEntry(key);
+          continue;
+        }}
+        totalBytes += entryBytes;
+        entries.push({{ key, lastSeenAtMs, entryBytes }});
+      }}
+      entries.sort((left, right) => left.lastSeenAtMs - right.lastSeenAtMs);
+      let cursor = 0;
+      while (
+        cursor < entries.length
+        && (
+          fileTransferChunkCacheByKey.size > fileTransferChunkCacheMaxEntries
+          || totalBytes > fileTransferChunkCacheMaxBytes
+        )
+      ) {{
+        const entry = entries[cursor];
+        cursor += 1;
+        if (!fileTransferChunkCacheByKey.has(entry.key)) continue;
+        totalBytes = Math.max(0, totalBytes - entry.entryBytes);
+        deleteFileTransferChunkCacheEntry(entry.key);
+      }}
+      return {{ entries: fileTransferChunkCacheByKey.size, totalBytes }};
+    }}
+
+    function setBoundedFileTransferMapEntry(targetMap, keyRaw, value, maxEntriesRaw) {{
+      if (!(targetMap instanceof Map)) return false;
+      const key = String(keyRaw || "").trim();
+      const maxEntries = Math.max(1, Math.trunc(Number(maxEntriesRaw) || 1));
+      if (!key) return false;
+      if (targetMap.has(key)) targetMap.delete(key);
+      while (targetMap.size >= maxEntries) {{
+        const oldestKey = targetMap.keys().next().value;
+        if (oldestKey == null) break;
+        targetMap.delete(oldestKey);
+      }}
+      targetMap.set(key, value);
+      return true;
+    }}
+
+    function enforceFileTransferAckObservedLimits() {{
+      let totalIndexes = 0;
+      for (const value of fileTransferAckObservedChunksByKey.values()) {{
+        totalIndexes += value && value.indexes instanceof Set ? value.indexes.size : 0;
+      }}
+      while (
+        fileTransferAckObservedChunksByKey.size > fileTransferRuntimeStateMaxEntries
+        || totalIndexes > fileTransferAckObservedMaxIndexes
+      ) {{
+        const oldestKey = fileTransferAckObservedChunksByKey.keys().next().value;
+        if (oldestKey == null) break;
+        const oldest = fileTransferAckObservedChunksByKey.get(oldestKey);
+        totalIndexes = Math.max(
+          0,
+          totalIndexes - (oldest && oldest.indexes instanceof Set ? oldest.indexes.size : 0)
+        );
+        fileTransferAckObservedChunksByKey.delete(oldestKey);
+        fileTransferAckSentState.delete(oldestKey);
+      }}
+      return {{ entries: fileTransferAckObservedChunksByKey.size, totalIndexes }};
+    }}
+
+    function fileTransferAcceptedInboundDecisionCount() {{
+      let accepted = 0;
+      for (const entry of fileTransferInboundDecisionByKey.values()) {{
+        if (normalizeFileTransferInboundDecision(entry && entry.decision) !== "accepted") continue;
+        accepted += 1;
+        if (accepted >= fileTransferActiveInboundMaxEntries) break;
+      }}
+      return accepted;
+    }}
+
+    function admitFileTransferAutoAcceptMetadata(senderIdRaw, nowMsRaw = Date.now()) {{
+      const senderId = normalizeNodeId(senderIdRaw || "");
+      if (!isCanonicalNodeId(senderId)) return false;
+      const nowMs = Math.max(0, Math.trunc(Number(nowMsRaw) || Date.now()));
+      const staleBeforeMs = nowMs - fileTransferMetaAdmissionPeerTtlMs;
+      for (const [peerId, seenAtMsRaw] of fileTransferMetaAdmissionByPeer.entries()) {{
+        const seenAtMs = Math.max(0, Math.trunc(Number(seenAtMsRaw) || 0));
+        if (seenAtMs <= 0 || seenAtMs < staleBeforeMs) {{
+          fileTransferMetaAdmissionByPeer.delete(peerId);
+        }}
+      }}
+      const previousPeerAtMs = Number(fileTransferMetaAdmissionByPeer.get(senderId));
+      const peerReady = !Number.isFinite(previousPeerAtMs)
+        || (nowMs - previousPeerAtMs) >= fileTransferMetaAdmissionPeerCooldownMs;
+      const previousGlobalAtMs = Number(fileTransferLastMetaAdmissionAtMs);
+      const globalReady = fileTransferLastMetaAdmissionAtMs == null
+        || !Number.isFinite(previousGlobalAtMs)
+        || (nowMs - previousGlobalAtMs) >= fileTransferMetaAdmissionGlobalCooldownMs;
+      if (!peerReady || !globalReady) return false;
+      setBoundedFileTransferMapEntry(
+        fileTransferMetaAdmissionByPeer,
+        senderId,
+        nowMs,
+        fileTransferMetaAdmissionMaxPeers
+      );
+      fileTransferLastMetaAdmissionAtMs = nowMs;
+      return true;
     }}
 
     function fileTransferOutgoingTokenFor(transferId, destination, channelIndex) {{
@@ -340,6 +550,9 @@
       if (flowState === "canceled-by-sender" || flowState === "canceled-by-receiver") {{
         return false;
       }}
+      if (fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries) return false;
+      if (fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries) return false;
+      if (!admitFileTransferAutoAcceptMetadata(senderId)) return false;
       const entry = setFileTransferInboundDecisionByKey(key, "accepted", {{
         transferId: transfer && transfer.transferId,
         senderId,
@@ -376,6 +589,9 @@
       }}
       const ctx = (context && typeof context === "object") ? context : {{}};
       const prior = fileTransferInboundFlowByKey.get(key);
+      if (!prior && fileTransferInboundFlowByKey.size >= fileTransferInboundStateMaxEntries) {{
+        return null;
+      }}
       const nowMs = Date.now();
       const entry = {{
         transferKey: key,
@@ -385,6 +601,7 @@
         receiverId: normalizeNodeId(ctx.receiverId || (prior && prior.receiverId) || ""),
         updatedAtMs: nowMs,
       }};
+      fileTransferInboundFlowByKey.delete(key);
       fileTransferInboundFlowByKey.set(key, entry);
       persistFileTransferInboundFlowState();
       return entry;
@@ -430,6 +647,16 @@
       const nowMs = Date.now();
       const prior = fileTransferInboundDecisionByKey.get(key);
       const priorDecision = normalizeFileTransferInboundDecision(prior && prior.decision);
+      if (!prior && fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries) {{
+        return null;
+      }}
+      if (
+        decision === "accepted"
+        && priorDecision !== "accepted"
+        && fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries
+      ) {{
+        return null;
+      }}
       const entry = {{
         transferKey: key,
         decision,
@@ -470,6 +697,7 @@
         ) || nowMs,
         updatedAtMs: nowMs,
       }};
+      fileTransferInboundDecisionByKey.delete(key);
       fileTransferInboundDecisionByKey.set(key, entry);
       if (decision === "accepted") {{
         fileTransferInboundDecisionPromptByKey.delete(key);
@@ -548,6 +776,7 @@
         if (exactSession && typeof exactSession === "object") {{
           return exactSession;
         }}
+        return null;
       }}
       let fallback = null;
       for (const session of fileTransferOutgoingByToken.values()) {{

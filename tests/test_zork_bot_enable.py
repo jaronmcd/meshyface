@@ -80,6 +80,18 @@ def test_dashboard_tracker_answers_direct_zork_when_enabled() -> None:
     assert replies[0].get("ack_requested") is True
 
 
+def test_zork_bot_uses_numeric_sender_as_security_identity() -> None:
+    iface = _FakeInterface()
+    game = _FakeGame("hello")
+    service = ZorkBotService(game=game, reply_async=False, reply_retry_limit=0)
+    packet = _direct_text_packet("zork")
+    packet["fromId"] = "!deadbeef"
+
+    assert service.handle_packet(packet, iface) is True
+    assert game.calls[0]["from_id"] == "!01020304"
+    assert iface.sent[0]["kwargs"]["destinationId"] == "!01020304"
+
+
 def test_dashboard_tracker_lists_and_manages_zork_sessions() -> None:
     tracker = DashboardTracker(packet_limit=25)
     iface = _FakeInterface()
@@ -291,3 +303,44 @@ def test_zork_bot_default_retry_policy_sends_one_repeat_per_segment() -> None:
     assert len(iface.sent) == 2
     assert iface.sent[0]["text"] == iface.sent[1]["text"]
     assert str(iface.sent[0]["text"]).startswith("[1/2]")
+
+
+def test_zork_bot_drops_excess_async_reply_work() -> None:
+    class _FullSlots:
+        @staticmethod
+        def acquire(*, blocking: bool) -> bool:
+            assert blocking is False
+            return False
+
+    iface = _FakeInterface()
+    service = ZorkBotService(
+        game=_FakeGame("hello"),
+        reply_async=True,
+    )
+    service._async_reply_slots = _FullSlots()
+
+    assert service.handle_packet(_direct_text_packet("zork"), iface) is True
+    assert iface.sent == []
+
+
+def test_zork_bot_rate_limits_requests_and_close_stops_processing() -> None:
+    iface = _FakeInterface()
+    game = _FakeGame("hello")
+    monotonic = [100.0]
+    service = ZorkBotService(
+        game=game,
+        reply_async=False,
+        reply_retry_limit=0,
+        peer_request_cooldown_seconds=2,
+        global_request_cooldown_seconds=0.5,
+        monotonic_fn=lambda: monotonic[0],
+    )
+
+    assert service.handle_packet(_direct_text_packet("zork"), iface) is True
+    assert service.handle_packet(_direct_text_packet("look", packet_id=112), iface) is True
+    assert len(game.calls) == 1
+    monotonic[0] = 103.0
+    assert service.handle_packet(_direct_text_packet("look", packet_id=113), iface) is True
+    assert len(game.calls) == 2
+    service.close()
+    assert service.handle_packet(_direct_text_packet("look", packet_id=114), iface) is False

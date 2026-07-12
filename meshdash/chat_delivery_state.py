@@ -6,9 +6,6 @@ from .helpers import to_int
 from .nodes import utc_now
 
 
-_ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
-
-
 def _is_hex_text(value: str) -> bool:
     return bool(value) and all(ch in "0123456789abcdefABCDEF" for ch in value)
 
@@ -38,21 +35,25 @@ def _canonical_node_id(value: object) -> str:
     return text
 
 
-def _should_accept_success_ack(
+def _should_accept_delivery_update(
     target: dict[str, object],
     *,
-    state: str,
     ack_from_id: object = None,
+    ack_to_id: object = None,
 ) -> bool:
-    if str(state or "").strip().lower() not in _ACKED_DELIVERY_STATES:
-        return True
     ack_from = _canonical_node_id(ack_from_id)
-    if not ack_from:
-        return True
     expected_from = _canonical_node_id(target.get("to") or target.get("to_id") or target.get("destination"))
-    if not expected_from or expected_from == "^all":
-        return True
-    return ack_from == expected_from
+    if expected_from:
+        if not ack_from:
+            return False
+        if expected_from != "^all" and ack_from != expected_from:
+            return False
+    ack_to = _canonical_node_id(ack_to_id)
+    expected_to = _canonical_node_id(target.get("from") or target.get("from_id"))
+    if expected_to:
+        if not ack_to or ack_to != expected_to:
+            return False
+    return True
 
 
 def chat_message_id(
@@ -101,7 +102,11 @@ def set_delivery_state(
     if target is None:
         return False
 
-    if not _should_accept_success_ack(target, state=state, ack_from_id=ack_from_id):
+    if not _should_accept_delivery_update(
+        target,
+        ack_from_id=ack_from_id,
+        ack_to_id=ack_to_id,
+    ):
         return False
 
     target["delivery_state"] = str(state or "sent")

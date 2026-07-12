@@ -30,14 +30,7 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'data-app-view="bots"' in html
     assert 'class="card bots"' in html
-    assert 'data-app-view="bbs"' in html
-    assert 'class="bbs-config-strip"' in html
-    assert "Host Your Space" not in html
-    assert 'id="bbs-host-title-input"' in html
-    assert 'id="bbs-board-list"' in html
-    assert 'id="bbs-terminal-log"' in html
-    assert html.index('class="bbs-config-strip"') < html.index('id="bbs-terminal-title"')
-    assert html.index('class="bbs-config-strip"') < html.index('class="bbs-panel bbs-directory-panel"')
+    assert 'data-app-view="bbs"' not in html
     assert 'class="settings-chrome workspace-chrome-bar workspace-stack-head-shell"' in html
     assert 'class="settings-toolbar workspace-chrome-row"' in html
     assert 'class="settings-tabbar workspace-pillbar"' in html
@@ -186,7 +179,6 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
-        bbs_enabled=True,
     )
 
     assert 'data-submenu="apps"' in html
@@ -196,7 +188,7 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
     assert 'data-app-view="games"' in html
     assert 'data-app-view="bots"' in html
     assert 'data-app-view="files"' in html
-    assert 'data-app-view="bbs"' in html
+    assert 'data-app-view="bbs"' not in html
     assert 'id="apps-tabs-bar"' not in html
 
     assert ".topbar-view-menu-item-has-submenu {" in css
@@ -235,91 +227,6 @@ def test_workspace_main_gap_stays_uniform_and_lets_apps_views_use_full_width() -
     assert "grid-template-rows: minmax(0, 1fr);" in apps_workspace_main_section
     assert '.workspace-shell[data-layout-view="games"] .workspace-main::before,' not in css
     assert "grid-column: 1;" in apps_layout_section
-
-
-def test_bbs_terminal_uses_full_workspace_height(extract_css_block) -> None:
-    css = build_dashboard_css(theme_css="")
-
-    bbs_card_section = extract_css_block(css, ".layout.view-bbs .bbs")
-    bbs_body_section = extract_css_block(css, ".layout.view-bbs .bbs .body")
-    bbs_shell_section = extract_css_block(css, ".bbs-shell")
-    bbs_view_shell_section = extract_css_block(css, ".layout.view-bbs .bbs-shell")
-    bbs_config_section = extract_css_block(css, ".bbs-config-strip")
-    bbs_host_section = extract_css_block(css, ".bbs-panel.bbs-host-panel")
-    bbs_view_config_section = extract_css_block(css, ".layout.view-bbs .bbs-config-strip")
-    bbs_view_directory_section = extract_css_block(css, ".layout.view-bbs .bbs-directory-panel")
-    bbs_view_directory_list_section = extract_css_block(css, ".layout.view-bbs .bbs-directory-panel .bbs-board-list")
-    bbs_main_section = extract_css_block(css, ".layout.view-bbs .bbs-main")
-    bbs_main_status_section = extract_css_block(css, ".layout.view-bbs .bbs-main:has(.bbs-post-status:not(:empty))")
-    bbs_main_overlay_section = extract_css_block(css, ".layout.view-bbs .bbs-main::before")
-    bbs_head_section = extract_css_block(css, ".layout.view-bbs .bbs-terminal-head")
-    bbs_log_section = extract_css_block(css, ".layout.view-bbs .bbs-terminal-log")
-    bbs_compose_section = extract_css_block(css, ".layout.view-bbs .bbs-compose-row")
-    bbs_compose_button_section = extract_css_block(css, ".layout.view-bbs .bbs-compose-row .btn")
-    bbs_input_section = extract_css_block(css, ".layout.view-bbs .bbs-post-input")
-    dark_bbs_card_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs')
-    dark_bbs_log_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs-terminal-log')
-    dark_bbs_compose_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs-compose-row')
-
-    assert "flex-direction: column;" in bbs_card_section
-    assert "height: 100%;" in bbs_card_section
-    assert "overflow: hidden;" in bbs_card_section
-    assert ".layout.view-bbs .bbs > h2 {" in css
-    assert "display: none;" in css.split(".layout.view-bbs .bbs > h2 {", 1)[1].split("}", 1)[0]
-    assert "flex: 1 1 auto;" in bbs_body_section
-    assert "grid-template-columns: minmax(0, 1fr);" in bbs_config_section
-    assert "grid-template-columns: repeat(3, minmax(118px, 1fr)) auto;" in bbs_host_section
-    assert "grid-column: 1 / -1;" in bbs_view_config_section
-    assert "grid-row: 1;" in bbs_view_config_section
-    assert "grid-column: 2;" in bbs_view_directory_section
-    assert "grid-row: 2 / 4;" in bbs_view_directory_section
-    assert "align-self: stretch;" in bbs_view_directory_section
-    assert "justify-self: stretch;" in bbs_view_directory_section
-    assert "min-height: 0;" in bbs_view_directory_list_section
-    assert "max-height: none;" in bbs_view_directory_list_section
-    assert "flex: 1 1 auto;" in bbs_view_directory_list_section
-    assert "grid-template-columns: minmax(0, 1fr);" in bbs_shell_section
-    assert "align-items: stretch;" in bbs_shell_section
-    assert "flex: 1 1 auto;" in bbs_view_shell_section
-    assert "height: 100%;" in bbs_view_shell_section
-    assert "overflow: hidden;" in bbs_view_shell_section
-    assert "display: grid;" in bbs_main_section
-    assert "grid-template-columns: minmax(0, 1fr) clamp(320px, 28vw, 520px);" in bbs_main_section
-    assert "grid-template-rows: auto auto minmax(0, 1fr) auto;" in bbs_main_section
-    assert "grid-template-rows: auto auto minmax(0, 1fr) auto auto;" in bbs_main_status_section
-    assert "align-items: stretch;" in bbs_main_section
-    assert "min-height: 0;" in bbs_main_section
-    assert "height: 100%;" in bbs_main_section
-    assert "overflow: hidden;" in bbs_main_section
-    assert "gap: 8px;" in bbs_main_section
-    assert "border: 0;" in bbs_main_section
-    assert "background: transparent;" in bbs_main_section
-    assert "box-shadow: none;" in bbs_main_section
-    assert "content: none;" in bbs_main_overlay_section
-    assert "grid-column: 1;" in bbs_head_section
-    assert "grid-row: 2;" in bbs_head_section
-    assert "border-radius: 10px;" in bbs_head_section
-    assert "background: color-mix(in srgb, var(--panel) 88%, var(--bg) 12%)" in bbs_head_section
-    assert "grid-column: 1;" in bbs_log_section
-    assert "align-self: stretch;" in bbs_log_section
-    assert "justify-self: stretch;" in bbs_log_section
-    assert "min-height: 0;" in bbs_log_section
-    assert "height: auto;" in bbs_log_section
-    assert "max-height: none;" in bbs_log_section
-    assert "width: 100%;" in bbs_log_section
-    assert "box-sizing: border-box;" in bbs_log_section
-    assert "border-radius: 10px;" in bbs_log_section
-    assert "background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%)" in bbs_log_section
-    assert "grid-column: 1 / -1;" in bbs_compose_section
-    assert "align-self: end;" in bbs_compose_section
-    assert "border-radius: 10px;" in bbs_compose_section
-    assert "background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%)" in bbs_compose_section
-    assert "padding: 6px 8px;" in bbs_compose_section
-    assert "height: 28px;" in bbs_compose_button_section
-    assert 'font-family: "IBM Plex Sans", "Segoe UI", sans-serif;' in bbs_input_section
-    assert "background: transparent;" in dark_bbs_card_section
-    assert "background: var(--workspace-shell-bg);" in dark_bbs_log_section
-    assert "background: var(--ui-panel);" in dark_bbs_compose_section
 
 
 def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
@@ -833,7 +740,7 @@ def test_dark_chat_compose_controls_use_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-border-muted)" in chat_compose_input_section
     assert "var(--workspace-shell-text)" in chat_compose_input_section
     assert "[data-theme=\"dark\"] .settings-textarea," in css
-    assert "[data-theme=\"dark\"] .chat-input," in css
+    assert "[data-theme=\"dark\"] .chat-input {" in css
     assert "var(--ui-panel)" in shared_text_inputs_section
     assert "var(--ui-border)" in shared_text_inputs_section
     assert "var(--ui-text)" in shared_text_inputs_section
