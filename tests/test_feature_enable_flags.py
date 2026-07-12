@@ -73,7 +73,7 @@ def test_render_html_omits_removed_bbs_and_bots_workspaces() -> None:
     assert "/api/bbs/host" not in html
     assert 'const gamesFeatureEnabled = !!Number(0);' in html
     assert 'data-app-view="games"' in html
-    assert '<section class="card games" aria-label="Games">' in html
+    assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'data-app-view="bots"' not in html
     assert 'class="card bots"' not in html
     assert 'data-ticker-id="bots"' not in html
@@ -86,7 +86,7 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
     assert 'const gamesFeatureEnabled = !!Number(1);' in html
     assert "if (gamesFeatureEnabled) {" in html
     assert 'data-app-view="games"' in html
-    assert '<section class="card games" aria-label="Games">' in html
+    assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'id="games-library-select"' in html
     assert 'fetch("/api/games/zork"' in html
     assert 'name: "zork"' in html

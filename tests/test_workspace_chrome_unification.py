@@ -1375,7 +1375,7 @@ def test_games_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
     css = build_dashboard_css(theme_css="")
     games_section = css.split(".layout.view-games .games {", 1)[1].split("}", 1)[0]
     body_section = css.split(".layout.view-games .games .body {", 1)[1].split("}", 1)[0]
-    dark_games_section = css.rsplit('[data-theme="dark"] .layout.view-games .games,', 1)[1].split("}", 1)[0]
+    dark_games_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
 
     assert "background: transparent;" in games_section
     assert "border: 0;" in games_section
@@ -1393,7 +1393,7 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     css = build_dashboard_css(theme_css="")
     files_section = css.split(".layout.view-files .files {", 1)[1].split("}", 1)[0]
     files_body_section = css.split(".layout.view-files .files .body {", 1)[1].split("}", 1)[0]
-    dark_files_section = css.rsplit('[data-theme="dark"] .layout.view-files .files,', 1)[1].split("}", 1)[0]
+    dark_files_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
     files_console_section = css.split(".files-console {", 1)[1].split("}", 1)[0]
     files_console_log_section = css.split(".files-console-log {", 1)[1].split("}", 1)[0]
     files_transfers_section = css.split(".files-transfers-scroll {", 1)[1].split("}", 1)[0]
@@ -1417,6 +1417,60 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "height: var(--files-transfer-list-height);" in files_transfers_section
     assert "max-height: none;" in files_transfers_section
     assert "cursor: row-resize;" in files_splitter_section
+
+
+def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    app_shells = set(
+        re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
+    )
+    assert app_shells == {"chat", "settings", "files", "games", "remote", "environment"}
+    assert html.count("workspace-app-shell") == len(app_shells)
+
+    global_dark_selector = '[data-theme="dark"] .card:not(.workspace-app-shell)'
+    assert css.count(global_dark_selector) == 2
+    assert '[data-theme="dark"] .card.files {' not in css
+    assert '[data-theme="dark"] .card.games {' not in css
+    assert '[data-theme="dark"] .card.chat .body,' not in css
+
+    app_shell_rule = css.rsplit(
+        '[data-theme="dark"] .card.workspace-app-shell {', 1
+    )[1].split("}", 1)[0]
+    app_body_rule = css.rsplit(
+        '[data-theme="dark"] .card.workspace-app-shell > .body {', 1
+    )[1].split("}", 1)[0]
+    assert "background: transparent;" in app_shell_rule
+    assert "border-color: transparent;" in app_shell_rule
+    assert "box-shadow: none;" in app_shell_rule
+    assert "background: transparent;" in app_body_rule
+    assert "padding: 0;" in app_body_rule
+    assert css.rfind('[data-theme="dark"] .card.workspace-app-shell {') > css.rfind(global_dark_selector)
+
+    for view_name in ("remote", "environment"):
+        shell_rule = css.split(
+            f".layout.view-{view_name} .{view_name} {{", 1
+        )[1].split("}", 1)[0]
+        body_rule = css.split(
+            f".layout.view-{view_name} .{view_name} .body {{", 1
+        )[1].split("}", 1)[0]
+        assert "background: transparent;" in shell_rule
+        assert "border: 0;" in shell_rule
+        assert "box-shadow: none;" in shell_rule
+        assert "background: transparent;" in body_rule
+        assert "padding: 0;" in body_rule
 
 
 def test_files_view_shows_live_dynamic_hop_limit_preview() -> None:
@@ -1520,7 +1574,7 @@ def test_files_view_uses_theme_tokens_in_light_and_dark_modes() -> None:
     light_controls_section = css.split(".files-controls {", 1)[1].split("}", 1)[0]
     light_console_log_section = css.split(".files-console-log {", 1)[1].split("}", 1)[0]
     light_table_head_section = css.split("#files-transfer-table thead th {", 1)[1].split("}", 1)[0]
-    dark_card_section = css.split("[data-theme=\"dark\"] .card.files {", 1)[1].split("}", 1)[0]
+    dark_card_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
     dark_caption_section = css.split("[data-theme=\"dark\"] .files-caption,", 1)[1].split("}", 1)[0]
     dark_console_log_section = css.split("[data-theme=\"dark\"] .files-console-log {", 1)[1].split("}", 1)[0]
     dark_table_head_section = css.rsplit("[data-theme=\"dark\"] #files-transfer-table thead th {", 1)[1].split("}", 1)[0]
@@ -1538,8 +1592,8 @@ def test_files_view_uses_theme_tokens_in_light_and_dark_modes() -> None:
     assert "var(--surface-tint-text" in light_table_head_section
     assert "var(--surface-tint-border" in light_table_head_section
 
-    assert "var(--workspace-shell-bg)" in dark_card_section
-    assert "var(--workspace-shell-text)" in dark_card_section
+    assert "background: transparent;" in dark_card_section
+    assert "border-color: transparent;" in dark_card_section
     assert "#dbece3" not in dark_card_section
     assert "var(--workspace-shell-text-soft)" in dark_caption_section
     assert "#a8c6b7" not in dark_caption_section

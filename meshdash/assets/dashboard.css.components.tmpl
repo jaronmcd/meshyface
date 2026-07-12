@@ -2297,7 +2297,7 @@
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card {{
+    [data-theme="dark"] .card:not(.workspace-app-shell) {{
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
       color: var(--workspace-shell-text);
@@ -2764,16 +2764,6 @@
     }}
     [data-theme="dark"] .btn.btn-secondary {{
       background: transparent;
-    }}
-    [data-theme="dark"] .card.files {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .card.games {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .files-controls {{
       border-color: var(--workspace-shell-border);
@@ -3690,7 +3680,7 @@
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card,
+    [data-theme="dark"] .card:not(.workspace-app-shell),
     [data-theme="dark"] details,
     [data-theme="dark"] #live-console,
     [data-theme="dark"] pre {{
@@ -3887,10 +3877,6 @@
       border-color: #2b8a59;
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .card.chat {{
-      background: var(--ui-panel);
-      border-color: var(--ui-border);
-    }}
     [data-theme="dark"] .layout.view-chat .card.chat {{
       background: transparent;
       border-color: transparent;
@@ -3949,9 +3935,6 @@
       background: var(--workspace-shell-bg-alt);
       border-bottom: 1px solid var(--workspace-shell-border-muted);
       color: var(--ui-text-soft) !important;
-    }}
-    [data-theme="dark"] .card.chat .body {{
-      background: var(--workspace-shell-bg);
     }}
     [data-theme="dark"] .layout.view-chat .card.chat .body,
     [data-theme="dark"] .layout.view-chat .card.chat .chat-shell {{
@@ -6217,11 +6200,6 @@
       background: var(--workspace-shell-hover-bg) !important;
       border-color: var(--workspace-shell-border) !important;
     }}
-    [data-theme="dark"] .card.chat .body,
-    [data-theme="dark"] .card.chat .chat-shell {{
-      background: var(--workspace-shell-bg) !important;
-      background-image: none !important;
-    }}
     [data-theme="dark"] .chat-left-panel {{
       background: transparent !important;
       border-color: transparent !important;
@@ -6772,13 +6750,19 @@
       background: var(--workspace-shell-bg);
       border-color: var(--workspace-shell-border);
     }}
-    [data-theme="dark"] .layout.view-games .games,
-    [data-theme="dark"] .layout.view-games .games .body {{
+    .card.workspace-app-shell,
+    [data-theme="dark"] .card.workspace-app-shell {{
       background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }}
-    [data-theme="dark"] .layout.view-files .files,
-    [data-theme="dark"] .layout.view-files .files .body {{
+    .card.workspace-app-shell > .body,
+    [data-theme="dark"] .card.workspace-app-shell > .body {{
       background: transparent;
+      padding: 0;
+      box-shadow: none;
     }}
     [data-theme="dark"] .games-board-wrap {{
       --games-board-accent: var(--ui-accent-soft);

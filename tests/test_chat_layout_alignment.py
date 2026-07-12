@@ -232,8 +232,8 @@ def test_light_mode_chat_channel_controls_keep_dark_text_on_light_shells() -> No
     assert "rgba(242, 255, 247, 0.88)" not in channel_unread_section
     assert "color-mix(in srgb, var(--ink) 88%, var(--accent-2) 12%)" in channel_menu_btn_section
     assert "#f2fff7" not in channel_menu_btn_section
-    assert "[data-theme=\"dark\"] .card.chat .body," in css
-    assert "[data-theme=\"dark\"] .card.chat .chat-shell {" in css
+    assert "[data-theme=\"dark\"] .card.chat .body," not in css
+    assert '[data-theme="dark"] .card.workspace-app-shell {' in css
     assert "[data-theme=\"dark\"] .chat-left-bottom-bar:not(.workspace-stack-bottom-shell) {" in css
     assert "var(--workspace-shell-border-muted)" in dark_channel_badge_section
     assert "var(--workspace-shell-active-bg)" in dark_channel_badge_section
@@ -381,10 +381,8 @@ def test_dark_chat_palette_matches_workspace_theme() -> None:
     assert "[data-theme=\"dark\"] .workspace-stack-list-shell {" in css
     dark_roster_section = css.rsplit("[data-theme=\"dark\"] .workspace-stack-list-shell {", 1)[1].split("}", 1)[0]
     assert "box-shadow: inset 0 -1px 0 var(--workspace-shell-border);" in dark_roster_section
-    assert "[data-theme=\"dark\"] .card.chat .body {" in css
-    assert "[data-theme=\"dark\"] .card.chat .chat-shell {" in css
-    assert "background: var(--workspace-shell-bg);" in css
-    assert "background: var(--workspace-shell-bg) !important;" in css
+    assert "[data-theme=\"dark\"] .card.chat .body {" not in css
+    assert '[data-theme="dark"] .card.workspace-app-shell {' in css
     assert "[data-theme=\"dark\"] .layout.view-chat .card.chat .body," in css
     assert "[data-theme=\"dark\"] .layout.view-chat .card.chat .chat-shell {" in css
     assert "background: transparent !important;" in css
