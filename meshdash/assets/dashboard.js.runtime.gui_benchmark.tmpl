@@ -237,8 +237,6 @@
         selectors = [".card.settings"];
       }} else if (view === "console") {{
         selectors = [".card.console"];
-      }} else if (view === "environment") {{
-        selectors = [".card.environment"];
       }} else if (view === "saved") {{
         selectors = [".card.summary", ".card.favorites", ".card.map"];
       }} else {{
@@ -650,7 +648,6 @@
 
     function meshGuiBenchmarkViewUsesEnvironmentMetrics(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
-      if (view === "environment") return true;
       if (view !== "network") return false;
       return normalizeNetworkSubview(subviewName || activeNetworkSubview) === "sensors";
     }}

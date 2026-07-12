@@ -3441,7 +3441,28 @@
                 class="history-metric-controls network-sensors-primary-controls"
                 aria-hidden="true"
                 hidden
-              ></div>
+              >
+                <div class="env-metrics-controls">
+                  <div class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label">
+                    <label for="env-metric-select">Metric</label>
+                    <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
+                      <option value="">No environment metrics</option>
+                    </select>
+                  </div>
+                  <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label">
+                    <label for="env-window-select">Window</label>
+                    <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
+                      <option value="6">6h</option>
+                      <option value="12">12h</option>
+                      <option value="24">24h</option>
+                      <option value="72" selected>72h</option>
+                      <option value="168">7d</option>
+                      <option value="336">14d</option>
+                      <option value="720">30d</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               <div
                 id="network-routes-primary-controls"
                 class="history-metric-controls network-routes-primary-controls"
@@ -3597,7 +3618,18 @@
               hidden
             >
               <div class="network-overview-panel network-sensors-panel">
-                <div id="network-sensors-host" class="network-sensors-host"></div>
+                <div id="network-sensors-host" class="network-sensors-host">
+                  <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
+                    <div class="env-metrics-grid">
+                      <div id="env-metrics-chart-wrap">
+                        <svg id="env-metrics-chart" viewBox="0 0 900 320" preserveAspectRatio="none" aria-label="Sensor metrics over time chart"></svg>
+                        <div id="env-metrics-empty" class="signal-empty">No historical sensor metrics found yet.</div>
+                      </div>
+                    </div>
+                    <div id="env-metrics-timeline" class="signal-timeline" aria-label="Sensor metrics timeline"></div>
+                    <div id="env-metrics-available" class="env-metrics-available"></div>
+                  </section>
+                </div>
               </div>
             </div>
             <div
@@ -4157,44 +4189,6 @@
     <div class="hsplitter" data-target="mid" title="Drag to resize middle and lower panels"></div>
 
     <div class="splitter" data-row="8" title="Drag to resize side panels"></div>
-
-    <section class="card environment workspace-app-shell">
-      <h2>Sensors</h2>
-      <div class="body">
-        <div id="environment-metrics-home" class="environment-metrics-home">
-          <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
-            <div class="env-metrics-controls">
-              <div class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label">
-                <label for="env-metric-select">Metric</label>
-                <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
-                  <option value="">No environment metrics</option>
-                </select>
-              </div>
-              <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label">
-                <label for="env-window-select">Window</label>
-                <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
-                  <option value="6">6h</option>
-                  <option value="12">12h</option>
-                  <option value="24">24h</option>
-                  <option value="72" selected>72h</option>
-                  <option value="168">7d</option>
-                  <option value="336">14d</option>
-                  <option value="720">30d</option>
-                </select>
-              </div>
-            </div>
-            <div class="env-metrics-grid">
-              <div id="env-metrics-chart-wrap">
-                <svg id="env-metrics-chart" viewBox="0 0 900 320" preserveAspectRatio="none" aria-label="Sensor metrics over time chart"></svg>
-                <div id="env-metrics-empty" class="signal-empty">No historical sensor metrics found yet.</div>
-              </div>
-            </div>
-            <div id="env-metrics-timeline" class="signal-timeline" aria-label="Sensor metrics timeline"></div>
-            <div id="env-metrics-available" class="env-metrics-available"></div>
-          </section>
-        </div>
-      </div>
-    </section>
 
     <div class="hsplitter" data-target="low" title="Drag to resize lower panels and console"></div>
 

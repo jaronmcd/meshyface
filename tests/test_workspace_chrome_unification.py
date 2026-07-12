@@ -466,9 +466,9 @@ def test_network_overview_primary_controls_only_show_on_overview_subview() -> No
     assert 'syncNetworkTopNodesPrimaryControls(activeLayoutView, next);' in js
     assert 'syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);' in js
     assert 'const networkControlsHost = document.getElementById("network-sensors-primary-controls");' in js
-    assert 'const dockInNetworkSensors = normalizedView === "network" && normalizedSubview === "sensors";' in js
-    assert 'const controlsTarget = dockInNetworkSensors ? networkControlsHost : explorer;' in js
-    assert 'networkControlsHost.hidden = !dockInNetworkSensors;' in js
+    assert 'const sensorsActive = normalizedView === "network" && normalizedSubview === "sensors";' in js
+    assert 'networkControlsHost.hidden = !sensorsActive;' in js
+    assert "syncEnvironmentMetricsDock" not in js
 
 
 def test_history_window_controls_trail_and_stay_right_anchored() -> None:
@@ -1437,8 +1437,11 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     app_shells = set(
         re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
     )
-    assert app_shells == {"chat", "settings", "files", "games", "environment"}
+    assert app_shells == {"chat", "settings", "files", "games"}
     assert html.count("workspace-app-shell") == len(app_shells)
+    assert 'class="card environment' not in html
+    assert 'id="environment-metrics-home"' not in html
+    assert ".layout.view-environment" not in css
 
     global_dark_selector = '[data-theme="dark"] .card:not(.workspace-app-shell)'
     assert global_dark_selector not in css
@@ -1461,20 +1464,6 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     assert "background: var(--ui-panel);" in base_card_rule
     assert "border: 1px solid var(--ui-border);" in base_card_rule
     assert "box-shadow: var(--ui-shadow);" in base_card_rule
-
-    for view_name in ("environment",):
-        shell_rule = css.split(
-            f".layout.view-{view_name} .{view_name} {{", 1
-        )[1].split("}", 1)[0]
-        body_rule = css.split(
-            f".layout.view-{view_name} .{view_name} .body {{", 1
-        )[1].split("}", 1)[0]
-        assert "background: transparent;" in shell_rule
-        assert "border: 0;" in shell_rule
-        assert "box-shadow: none;" in shell_rule
-        assert "background: transparent;" in body_rule
-        assert "padding: 0;" in body_rule
-
 
 def test_files_view_shows_live_dynamic_hop_limit_preview() -> None:
     html = build_html_shell(

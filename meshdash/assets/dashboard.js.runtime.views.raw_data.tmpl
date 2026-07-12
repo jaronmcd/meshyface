@@ -1756,10 +1756,7 @@
         }}
       }}
 
-      if (
-        activeLayoutView === "environment"
-        || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-      ) {{
+      if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
         void renderEnvironmentMetricsView(false);
       }}
     }}

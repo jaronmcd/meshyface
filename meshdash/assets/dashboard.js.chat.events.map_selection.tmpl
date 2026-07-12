@@ -1001,10 +1001,8 @@
       }}
       if (
         typeof renderEnvironmentMetricsView === "function"
-        && (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubviewName === "sensors")
-        )
+        && activeLayoutView === "network"
+        && activeNetworkSubviewName === "sensors"
       ) {{
         void renderEnvironmentMetricsView(false);
       }}
@@ -1112,10 +1110,8 @@
         : String(activeNetworkSubview || "map").trim().toLowerCase();
       if (
         typeof renderEnvironmentMetricsView === "function"
-        && (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubviewName === "sensors")
-        )
+        && activeLayoutView === "network"
+        && activeNetworkSubviewName === "sensors"
       ) {{
         void renderEnvironmentMetricsView(false);
       }}

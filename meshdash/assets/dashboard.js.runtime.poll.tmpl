@@ -502,10 +502,7 @@
           if (activeLayoutView === "settings" && activeSettingsTab === "nodes") {{
             renderNodeVisibilityListsUi(latestRawState || latestState || {{}});
           }}
-          if (
-            activeLayoutView === "environment"
-            || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-          ) {{
+          if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
             void renderEnvironmentMetricsView(false);
           }}
           if (activeLayoutView === "games") {{
@@ -874,10 +871,7 @@
           renderFavorites(state, cachedHistory, loadingId);
         }}
 
-        if (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-        ) {{
+        if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
           void renderEnvironmentMetricsView(false);
         }}
 

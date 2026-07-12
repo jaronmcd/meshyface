@@ -28,11 +28,7 @@
               }} else if (target === "mid") {{
                 splitMidPx = clampMidSplitPx(startMid + deltaY);
               }} else if (target === "low") {{
-                if (activeLayoutView === "environment") {{
-                  splitTopPx = clampTopSplitPx(startTop + deltaY);
-                }} else {{
-                  splitLowPx = clampLowSplitPx(startLow + deltaY);
-                }}
+                splitLowPx = clampLowSplitPx(startLow + deltaY);
               }}
             }} else {{
               const pct = clampSplitPct(((moveEv.clientX - rect.left) / rect.width) * 100);

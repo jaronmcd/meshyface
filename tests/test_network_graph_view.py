@@ -173,9 +173,10 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'Enter full screen network view' in js
     assert 'function toggleNetworkMapFullscreen()' in js
     assert 'function bindMapFullscreenControl()' in js
-    assert 'const controls = document.querySelector(".env-metrics-controls");' in js
+    assert 'function syncNetworkSensorsPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview)' in js
     assert 'const networkControlsHost = document.getElementById("network-sensors-primary-controls");' in js
-    assert 'const controlsTarget = dockInNetworkSensors ? networkControlsHost : explorer;' in js
+    assert 'const sensorsActive = normalizedView === "network" && normalizedSubview === "sensors";' in js
+    assert 'networkControlsHost.hidden = !sensorsActive;' in js
     assert 'function syncNetworkRoutesPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview)' in js
     assert 'const controlsHost = document.getElementById("network-routes-primary-controls");' in js
     assert 'const dockInNetworkRoutes = normalizedView === "network" && normalizedSubview === "routes";' in js

@@ -621,39 +621,15 @@
       controlsHost.setAttribute("aria-hidden", dockInNetworkTopNodes ? "false" : "true");
     }}
 
-    function syncEnvironmentMetricsDock(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
-      const explorer = document.querySelector(".env-metrics-explorer");
-      const controls = document.querySelector(".env-metrics-controls");
-      const homeHost = document.getElementById("environment-metrics-home");
-      const networkHost = document.getElementById("network-sensors-host");
+    function syncNetworkSensorsPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
       const networkControlsHost = document.getElementById("network-sensors-primary-controls");
-      const envWindowWrap = document.getElementById("env-window-wrap");
-      if (!(explorer instanceof HTMLElement)) return;
-      if (!(controls instanceof HTMLElement)) return;
-      if (!(homeHost instanceof HTMLElement)) return;
-      if (!(networkHost instanceof HTMLElement)) return;
       if (!(networkControlsHost instanceof HTMLElement)) return;
 
       const normalizedView = normalizeLayoutView(viewName);
       const normalizedSubview = normalizeNetworkSubview(subviewName);
-      const dockInNetworkSensors = normalizedView === "network" && normalizedSubview === "sensors";
-      const targetHost = dockInNetworkSensors ? networkHost : homeHost;
-      const controlsTarget = dockInNetworkSensors ? networkControlsHost : explorer;
-      if (envWindowWrap instanceof HTMLElement) {{
-        envWindowWrap.hidden = false;
-      }}
-      if (explorer.parentElement !== targetHost) {{
-        targetHost.appendChild(explorer);
-      }}
-      if (controls.parentElement !== controlsTarget) {{
-        if (controlsTarget === explorer) {{
-          explorer.insertBefore(controls, explorer.firstChild || null);
-        }} else {{
-          controlsTarget.appendChild(controls);
-        }}
-      }}
-      networkControlsHost.hidden = !dockInNetworkSensors;
-      networkControlsHost.setAttribute("aria-hidden", dockInNetworkSensors ? "false" : "true");
+      const sensorsActive = normalizedView === "network" && normalizedSubview === "sensors";
+      networkControlsHost.hidden = !sensorsActive;
+      networkControlsHost.setAttribute("aria-hidden", sensorsActive ? "false" : "true");
     }}
 
     const networkTopNodesCategoryDefs = Object.freeze([
@@ -4437,7 +4413,7 @@
       syncNetworkOverviewPrimaryControls(activeLayoutView, next);
       syncNetworkRoutesPrimaryControls(activeLayoutView, next);
       syncNetworkTopNodesPrimaryControls(activeLayoutView, next);
-      syncEnvironmentMetricsDock(activeLayoutView, next);
+      syncNetworkSensorsPrimaryControls(activeLayoutView, next);
 
       try {{
         if (typeof setMapWheelZoomActive === "function") {{
@@ -10925,7 +10901,7 @@
       syncNetworkOverviewPrimaryControls(next, activeNetworkSubview);
       syncNetworkRoutesPrimaryControls(next, activeNetworkSubview);
       syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);
-      syncEnvironmentMetricsDock(next, activeNetworkSubview);
+      syncNetworkSensorsPrimaryControls(next, activeNetworkSubview);
       if (typeof updateConsoleFullscreenControl === "function") {{
         updateConsoleFullscreenControl(next);
       }}
@@ -11026,9 +11002,6 @@
             void ensureChannelsViewLocalStateHydrated(false);
           }}
         }}
-        if (next === "environment") {{
-          void renderEnvironmentMetricsView(false);
-        }}
         if (next === "console") {{
           renderConsole(latestState.traffic || {{}});
         }}
@@ -11043,8 +11016,6 @@
         renderFilesView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
-      }} else if (next === "environment") {{
-        void renderEnvironmentMetricsView(false);
       }}
       if (next === "console") {{
         window.requestAnimationFrame(() => {{
@@ -11090,7 +11061,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "history" || next === "network" || next === "saved") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

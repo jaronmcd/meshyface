@@ -1482,26 +1482,8 @@
       background: #faecec;
       color: #7a2f2f;
     }}
-    .environment {{
-      grid-column: 3;
-      grid-row: 8;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .environment .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
-    }}
     .raw {{ grid-column: 3; grid-row: 8; }}
     .console {{ grid-column: 1 / span 3; grid-row: 10; }}
-    .layout:not(.view-environment) .environment {{
-      display: none !important;
-    }}
     .splitter {{
       grid-column: 2;
       position: relative;
@@ -2398,47 +2380,6 @@
     .layout.view-data .hsplitter[data-target="top"],
     .layout.view-data .hsplitter[data-target="mid"],
     .layout.view-data .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-environment {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-environment .environment {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: visible;
-    }}
-    .layout.view-environment .environment .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-environment .chat,
-    .layout.view-environment .nodes,
-    .layout.view-environment .map,
-    .layout.view-environment .map-data,
-    .layout.view-environment .summary,
-    .layout.view-environment .packets,
-    .layout.view-environment .encription,
-    .layout.view-environment .raw,
-    .layout.view-environment .console,
-    .layout.view-environment .splitter,
-    .layout.view-environment .hsplitter[data-target="top"],
-    .layout.view-environment .hsplitter[data-target="mid"],
-    .layout.view-environment .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
