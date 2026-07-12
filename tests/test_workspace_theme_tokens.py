@@ -266,7 +266,11 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .card.games {" in css
     assert "[data-theme=\"dark\"] .card.files {" in css
     assert "[data-theme=\"dark\"] .games-sidebar," in css
-    assert "[data-theme=\"dark\"] .layout.view-games .games .body," in css
+    dark_games_canvas = css.rsplit(
+        '[data-theme="dark"] .layout.view-games .games,', 1
+    )[1].split("}", 1)[0]
+    assert '[data-theme="dark"] .layout.view-games .games .body {' in dark_games_canvas
+    assert "background: transparent;" in dark_games_canvas
     assert "[data-theme=\"dark\"] .reversi-status-text," in css
     assert "[data-theme=\"dark\"] .reversi-link-status," in css
     assert "[data-theme=\"dark\"] .reversi-invite-list {" in css
