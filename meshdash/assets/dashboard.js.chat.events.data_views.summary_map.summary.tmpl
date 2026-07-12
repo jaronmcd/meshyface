@@ -856,7 +856,8 @@
       const selfMetric = document.getElementById("m-self");
       const selfCard = document.getElementById("summary-ticker-self");
       if (selfCard instanceof HTMLElement) {{
-        selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark");
+        selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark", "has-fallback-node-watermark");
+        selfCard.classList.toggle("has-selected-node", hasSelectedTickerNode);
         if (typeof clearNodeAppearanceElementStyle === "function") {{
           clearNodeAppearanceElementStyle(selfCard);
         }}
@@ -887,43 +888,30 @@
           const selfCardGhost = typeof meshyfaceProfileGhostForAppearance === "function"
             ? meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)
             : null;
-          if (selfCardGhost && selfCardGhost.text) {{
+          if (selfCardGhost && selfCardGhost.text && !hasSelectedTickerNode) {{
             selfCard.classList.add("has-node-profile-watermark");
           }}
         }}
         const selfLabel = selfCard.querySelector("[data-ticker-label]");
         if (selfLabel instanceof HTMLElement) {{
-          selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);
+          selfLabel.hidden = hasSelectedTickerNode;
+          selfLabel.classList.remove("is-dual-node-label");
           selfLabel.replaceChildren();
-          const selfLabelText = document.createElement("span");
-          selfLabelText.className = "self-node-label-self";
-          selfLabelText.textContent = "Self";
-          if (isSelectableNodeId(localId)) {{
-            selfLabelText.dataset.summaryFocusNodeId = localId;
-            selfLabelText.dataset.summaryFocusKind = "self";
-            selfLabelText.tabIndex = 0;
-            selfLabelText.setAttribute("role", "button");
-            selfLabelText.setAttribute(
-              "aria-label",
-              `Focus self node ${{localNodeName || localId}}`
-            );
-          }}
-          selfLabel.appendChild(selfLabelText);
-          if (hasSelectedTickerNode) {{
-            const selectedLabelText = document.createElement("span");
-            selectedLabelText.className = "self-node-label-selected";
-            selectedLabelText.textContent = "Selected";
-            if (isSelectableNodeId(selectedTickerId)) {{
-              selectedLabelText.dataset.summaryFocusNodeId = selectedTickerId;
-              selectedLabelText.dataset.summaryFocusKind = "selected";
-              selectedLabelText.tabIndex = 0;
-              selectedLabelText.setAttribute("role", "button");
-              selectedLabelText.setAttribute(
+          if (!hasSelectedTickerNode) {{
+            const selfLabelText = document.createElement("span");
+            selfLabelText.className = "self-node-label-self";
+            selfLabelText.textContent = "Self";
+            if (isSelectableNodeId(localId)) {{
+              selfLabelText.dataset.summaryFocusNodeId = localId;
+              selfLabelText.dataset.summaryFocusKind = "self";
+              selfLabelText.tabIndex = 0;
+              selfLabelText.setAttribute("role", "button");
+              selfLabelText.setAttribute(
                 "aria-label",
-                `Focus selected node ${{selectedNodeName || selectedTickerId}}`
+                `Focus self node ${{localNodeName || localId}}`
               );
             }}
-            selfLabel.appendChild(selectedLabelText);
+            selfLabel.appendChild(selfLabelText);
           }}
         }}
         const cardLocalNodeId = isSelectableNodeId(localId) ? localId : "";
@@ -960,12 +948,25 @@
           selfMetric.classList.add("self-node-value", "node-ticker-value");
           selfMetric.classList.toggle("is-dual-node-context", hasSelectedTickerNode);
           if (selfCard instanceof HTMLElement) {{
-            selfCard.classList.remove("has-node-emoji");
-            selfCard.classList.toggle("has-dual-node-watermarks", hasSelectedTickerNode);
+            selfCard.classList.remove("has-node-emoji", "has-dual-node-watermarks", "has-fallback-node-watermark");
             delete selfCard.dataset.nodeEmoji;
             delete selfCard.dataset.localNodeEmoji;
             delete selfCard.dataset.selectedNodeEmoji;
           }}
+          const identityFallbackGlyph = (label, nodeId) => {{
+            const rawLabel = String(label || "").trim();
+            const words = rawLabel
+              .replace(/[^A-Za-z0-9 ]+/g, " ")
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean);
+            if (words.length >= 2) {{
+              return `${{words[0][0] || ""}}${{words[1][0] || ""}}`.toUpperCase();
+            }}
+            if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+            const idToken = String(nodeId || "").replace(/[^A-Fa-f0-9]/g, "");
+            return idToken.slice(-2).toUpperCase() || "?";
+          }};
           const addIdentitySlot = (kind, label, nodeId, node, owner, nodeName, fallbackName) => {{
             const emoji = (typeof nodeVisualEmojiForNode === "function")
               ? String(nodeVisualEmojiForNode(nodeId, null, node) || "").trim()
@@ -976,6 +977,9 @@
             const slot = document.createElement("div");
             slot.className = `self-node-identity-slot self-node-identity-${{kind}}`;
             const cleanNodeId = normalizeNodeId(nodeId || "");
+            const identityWatermark = emoji || identityFallbackGlyph(displayName, cleanNodeId);
+            slot.dataset.identityWatermark = identityWatermark;
+            slot.classList.toggle("has-fallback-watermark", !emoji);
             const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
               ? effectiveNodeAppearanceForNode(cleanNodeId, state)
               : null;
@@ -1005,18 +1009,10 @@
                   : `Focus self node ${{displayName}} (${{cleanNodeId}})`
               );
             }}
-            if (emoji) {{
-              if (hasSelectedTickerNode && selfCard instanceof HTMLElement) {{
-                selfCard.classList.add("has-dual-node-watermarks");
-                if (kind === "selected") {{
-                  selfCard.dataset.selectedNodeEmoji = emoji;
-                }} else {{
-                  selfCard.dataset.localNodeEmoji = emoji;
-                }}
-              }} else if (selfCard instanceof HTMLElement) {{
-                selfCard.classList.add("has-node-emoji");
-                selfCard.dataset.nodeEmoji = emoji;
-              }}
+            if (!hasSelectedTickerNode && selfCard instanceof HTMLElement && identityWatermark) {{
+              selfCard.classList.add("has-node-emoji");
+              selfCard.classList.toggle("has-fallback-node-watermark", !emoji);
+              selfCard.dataset.nodeEmoji = identityWatermark;
             }}
             if (label) {{
               const slotLabel = document.createElement("div");

@@ -8773,12 +8773,22 @@
       z-index: 1;
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node {{
-      background-image: var(--node-profile-theme-surface) !important;
-      box-shadow: inset 0 0 0 1px var(--node-profile-identity-edge);
+      background-image:
+        linear-gradient(
+          color-mix(in srgb, var(--panel) 46%, transparent),
+          color-mix(in srgb, var(--panel) 46%, transparent)
+        ),
+        var(--node-profile-theme-surface) !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%);
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node[role="button"]:hover {{
-      background-image: var(--node-profile-theme-surface-hover) !important;
-      box-shadow: inset 0 0 0 1px var(--node-profile-identity-edge);
+      background-image:
+        linear-gradient(
+          color-mix(in srgb, var(--panel) 34%, transparent),
+          color-mix(in srgb, var(--panel) 34%, transparent)
+        ),
+        var(--node-profile-theme-surface-hover) !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 86%, var(--line) 14%);
     }}
     /* Remote colors decorate the surface and border only. Text remains in the
      * receiver's theme so an arbitrary remote contrast color cannot reduce
@@ -8814,6 +8824,52 @@
     .topbar .summary-ticker-item-self.profiled-node:hover {{
       background: var(--self-node-channel-edge-bg), var(--node-profile-theme-surface-hover) !important;
     }}
+    .topbar .summary-ticker-item-self.has-selected-node {{
+      border-color: color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
+      background: linear-gradient(
+        112deg,
+        color-mix(in srgb, var(--panel) 92%, transparent),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)
+      ) !important;
+      color: var(--ticker-text-strong);
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--line) 68%, transparent),
+        0 5px 18px color-mix(in srgb, #000 13%, transparent);
+      font-family: inherit;
+    }}
+    .topbar .summary-ticker-item-self.has-selected-node:hover {{
+      background: linear-gradient(
+        112deg,
+        color-mix(in srgb, var(--panel) 88%, var(--accent) 12%),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 86%, var(--accent-2) 14%)
+      ) !important;
+    }}
+    .topbar .summary-ticker-item-self.has-selected-node > .label,
+    .topbar:not(.ticker-expanded) .summary-ticker-item-self.has-selected-node > .label,
+    .topbar .summary-ticker-item-self.profiled-node.has-selected-node > .label {{
+      color: color-mix(in srgb, var(--ticker-text-muted) 82%, var(--ticker-text-strong) 18%);
+    }}
+    .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot {{
+      background-color: color-mix(in srgb, var(--panel) 78%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 72%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node {{
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%),
+        0 4px 12px color-mix(in srgb, #000 12%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node[role="button"]:hover {{
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 88%, var(--line) 12%),
+        0 6px 16px color-mix(in srgb, #000 15%, transparent);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node.has-selected-node .self-node-name-text {{
+      color: var(--ticker-text-strong);
+    }}
+    .topbar .summary-ticker-item-self.profiled-node.has-selected-node .self-node-id,
+    .topbar .summary-ticker-item-self.profiled-node.has-selected-node .self-node-city {{
+      color: color-mix(in srgb, var(--ticker-text-muted) 84%, var(--ticker-text-strong) 16%);
+    }}
     .topbar .summary-ticker-item-self.profiled-node > .value {{
       color: var(--node-profile-self-text);
     }}
@@ -8830,12 +8886,12 @@
     .topbar .summary-ticker-item-self.profiled-node .self-node-city {{
       color: var(--node-profile-self-soft-text);
     }}
-    .topbar .summary-ticker-item-self.profiled-node .value.self-node-value .self-node-identity-local.profiled-node {{
+    .topbar .summary-ticker-item-self.profiled-node:not(.has-selected-node) .value.self-node-value .self-node-identity-local.profiled-node {{
       background: transparent !important;
       background-image: none !important;
       box-shadow: none;
     }}
-    .topbar .summary-ticker-item-self.profiled-node .value.self-node-value .self-node-identity-local.profiled-node[role="button"]:hover {{
+    .topbar .summary-ticker-item-self.profiled-node:not(.has-selected-node) .value.self-node-value .self-node-identity-local.profiled-node[role="button"]:hover {{
       background: color-mix(in srgb, var(--node-profile-identity-edge) 12%, transparent) !important;
       background-image: none !important;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 24%, transparent);
@@ -8870,12 +8926,6 @@
     }}
     .topbar .summary-ticker-item-self.profiled-node.has-node-profile-watermark.has-node-emoji:not(.has-dual-node-watermarks)::after {{
       content: none;
-    }}
-    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node {{
-      box-shadow: inset 0 0 0 1px var(--node-profile-identity-edge);
-    }}
-    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node[role="button"]:hover {{
-      box-shadow: inset 0 0 0 1px var(--node-profile-identity-edge);
     }}
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node),
     #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node) {{

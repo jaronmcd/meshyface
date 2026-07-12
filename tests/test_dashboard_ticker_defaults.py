@@ -546,7 +546,8 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "const hasSelectedTickerNode = isSelectableNodeId(selectedTickerId) && selectedTickerId !== localId;" in js
     assert "const selectedTickerNode = hasSelectedTickerNode" in js
     assert "const resolveTickerIdentityName = (nodeId, node, owner, fallbackName) => {" in js
-    assert 'selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark");' in js
+    assert 'selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark", "has-fallback-node-watermark");' in js
+    assert 'selfCard.classList.toggle("has-selected-node", hasSelectedTickerNode);' in js
     assert "clearNodeAppearanceElementStyle(selfCard);" in js
     assert "const selfCardAppearanceEntry = (" in js
     assert "effectiveNodeAppearanceForNode(localId, state)" in js
@@ -556,13 +557,13 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "selfCard.style.setProperty(\"--self-node-channel-edge-fill\", selfCardChannelMeta.fill);" in js
     assert "meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)" in js
     assert "selfCard.classList.add(\"has-node-profile-watermark\");" in js
-    assert 'selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);' in js
+    assert "selfLabel.hidden = hasSelectedTickerNode;" in js
+    assert 'selfLabel.classList.remove("is-dual-node-label");' in js
+    assert "if (!hasSelectedTickerNode) {" in js
     assert 'selfLabelText.className = "self-node-label-self";' in js
     assert 'selfLabelText.textContent = "Self";' in js
     assert 'selfLabelText.dataset.summaryFocusKind = "self";' in js
-    assert 'selectedLabelText.className = "self-node-label-selected";' in js
-    assert 'selectedLabelText.textContent = "Selected";' in js
-    assert 'selectedLabelText.dataset.summaryFocusKind = "selected";' in js
+    assert 'selectedLabelText.className = "self-node-label-selected";' not in js
     assert "const cardLocalNodeId = isSelectableNodeId(localId) ? localId : \"\";" in js
     assert "const cardSelectedNodeId = (" in js
     assert "selfCard.dataset.localNodeId = cardLocalNodeId;" in js
@@ -589,14 +590,18 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert "addIdentityCityRequest(selectedSlot, selectedTickerId, selectedTickerNode, null);" in js
     assert "const cityRequestKey = String(++selfNodeNearestCityRenderSeq);" in js
     assert 'selfMetric.classList.add("self-node-value", "node-ticker-value");' in js
+    assert "const identityFallbackGlyph = (label, nodeId) => {" in js
+    assert "const identityWatermark = emoji || identityFallbackGlyph(displayName, cleanNodeId);" in js
+    assert "slot.dataset.identityWatermark = identityWatermark;" in js
+    assert 'slot.classList.toggle("has-fallback-watermark", !emoji);' in js
+    assert 'selfCard.classList.remove("has-node-emoji", "has-dual-node-watermarks", "has-fallback-node-watermark");' in js
     assert 'nameRow.className = "self-node-name";' in js
     assert "nameRow.appendChild(statusText);" not in js
     assert 'statusGlyph.className = "chat-member-status-emoji-glyph";' not in js
-    assert "if (hasSelectedTickerNode) {" in js
-    assert 'selfCard.classList.add("has-dual-node-watermarks");' in js
-    assert "selfCard.dataset.selectedNodeEmoji = emoji;" in js
-    assert "selfCard.dataset.localNodeEmoji = emoji;" in js
+    assert "if (!hasSelectedTickerNode && selfCard instanceof HTMLElement && identityWatermark) {" in js
     assert 'selfCard.classList.add("has-node-emoji");' in js
+    assert 'selfCard.classList.toggle("has-fallback-node-watermark", !emoji);' in js
+    assert "selfCard.dataset.nodeEmoji = identityWatermark;" in js
     assert 'nameText.className = "self-node-name-text";' in js
     assert 'statusText.className = "target-node-status status-unknown";' not in js
     assert 'statusText.id = "m-target-status-inline";' not in js
@@ -641,6 +646,7 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".topbar .summary-ticker-item-bots.has-pending-bot-activity::before {" in html
     assert '[data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions,' in html
     assert ".topbar .summary-ticker-item-self.has-node-emoji::after" in html
+    assert ".topbar .summary-ticker-item-self.has-node-emoji.has-fallback-node-watermark::after" in html
     assert "content: attr(data-node-emoji);" in html
     assert "--self-node-watermark-size: 82px;" in html
     assert "--self-node-watermark-local-x: calc((var(--self-node-watermark-size) / 2) + var(--self-node-watermark-edge-inset));" in html
@@ -651,12 +657,12 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".summary-ticker-item-self.has-dual-node-watermarks::after" in html
     assert "content: attr(data-selected-node-emoji);" in html
     assert "content: attr(data-local-node-emoji);" in html
-    assert ".summary-ticker-item-self > .label.is-dual-node-label" in html
+    assert ".summary-ticker-item-self > .label.is-dual-node-label" not in html
     assert "justify-content: space-between;" in html
-    assert ".self-node-label-selected" in html
     assert ".self-node-identity-slot {" in html
     assert ".self-node-slot-label {" in html
     assert ".value.self-node-value.is-dual-node-context" in html
+    assert ".value.self-node-value.is-dual-node-context::after" in html
     assert "#m-self.self-node-value.is-dual-node-context" in html
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);" in html
     assert "grid-template-columns: minmax(0, 1fr);" in html
@@ -668,6 +674,11 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".self-node-identity-slot .self-node-city[hidden]" in html
     assert ".self-node-identity-slot.profiled-node" in html
     assert ".summary-ticker-item-self.profiled-node" in html
+    assert ".summary-ticker-item-self.has-selected-node" in html
+    assert ".summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot" in html
+    assert ".summary-ticker-item-self.profiled-node:not(.has-selected-node) .value.self-node-value .self-node-identity-local.profiled-node" in html
+    assert "color-mix(in srgb, var(--panel) 46%, transparent)" in html
+    assert "color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)" in html
     assert ".self-node-identity-local.profiled-node" in html
     assert "background: transparent !important;" in html
     assert ".summary-ticker-item-self.profiled-node.has-node-profile-watermark::before" in html
@@ -688,6 +699,9 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".self-node-name {" in html
     assert ".self-node-status.chat-member-status {" in html
     assert ".self-node-name-text {" in html
+    assert ".self-node-identity-slot::before" in html
+    assert "content: attr(data-identity-watermark);" in html
+    assert ".self-node-identity-slot.has-fallback-watermark::before" in html
     assert ".self-node-id {" in html
     assert ".self-node-city {" in html
     assert ".value.self-node-value.has-self-node-city" in html
