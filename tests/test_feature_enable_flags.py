@@ -106,12 +106,22 @@ def test_render_html_exposes_file_transfer_auto_accept_default() -> None:
     assert "function autoAcceptInboundFileTransferIfEnabled(" in html
 
 
-def test_dashboard_parser_rejects_removed_bbs_and_bot_flags() -> None:
+def test_dashboard_parser_swallows_removed_bbs_flags_without_restoring_bbs() -> None:
+    parser = _build_parser()
+
+    for flag in ("--bbs-enable", "--no-bbs-enable"):
+        args = parser.parse_args([flag])
+        assert not hasattr(args, "bbs_enable")
+
+    args = parser.parse_args(["--bbs-enable", "--no-bbs-enable"])
+    assert not hasattr(args, "bbs_enable")
+    assert "bbs" not in parser.format_help().lower()
+
+
+def test_dashboard_parser_rejects_removed_bot_flags() -> None:
     parser = _build_parser()
 
     for flag in (
-        "--bbs-enable",
-        "--no-bbs-enable",
         "--bots-enable",
         "--ping-bot-enable",
         "--zork-bot-enable",

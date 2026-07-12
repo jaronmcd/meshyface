@@ -14,6 +14,20 @@ class _ApiTokenAction(argparse.Action):
         setattr(namespace, "api_token_supplied_via_cli", True)
 
 
+class _IgnoredCompatibilityFlag(argparse.Action):
+    def __init__(self, option_strings: list[str], dest: str, **kwargs: object) -> None:
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, namespace, values, option_string
+
+
 def add_http_runtime_args(
     parser: argparse.ArgumentParser,
     *,
@@ -104,6 +118,15 @@ def add_http_runtime_args(
             "Allow the sensitive raw-packet database download without an API token "
             "for loopback and private-LAN clients (default: True)."
         ),
+    )
+    # Keep existing service definitions restartable after BBS removal. These
+    # switches intentionally create no Namespace value and enable nothing.
+    parser.add_argument(
+        "--bbs-enable",
+        "--no-bbs-enable",
+        action=_IgnoredCompatibilityFlag,
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--file-transfer-enable",
