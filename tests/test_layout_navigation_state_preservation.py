@@ -40,6 +40,34 @@ def test_dashboard_js_omits_removed_bbs_and_bots_views() -> None:
     assert 'if (clean === "games") {' in js
 
 
+def test_dashboard_js_omits_obsolete_data_packets_and_channels_layout_migrations() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    html = (Path(__file__).resolve().parents[1] / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+    assert '"packets"' not in known_layout_views
+    assert '"channels"' not in known_layout_views
+    assert 'clean === "data"' not in js
+    assert 'clean === "channels"' not in js
+    assert 'requested === "data"' not in js
+    assert 'requested === "packets"' not in js
+    assert 'requested === "channels"' not in js
+    assert 'activeLayoutView === "data"' not in js
+    assert 'activeLayoutView === "packets"' not in js
+    assert "migratedDataView" not in js
+    assert "migratedChannelsView" not in js
+    assert 'data-settings-tab="channels"' in html
+    assert 'data-settings-tab-panel="channels"' in html
+    assert 'data-settings-tab="database"' in html
+    assert 'data-settings-tab-panel="database"' in html
+
+
 
 def test_dashboard_js_keeps_whois_builder_and_remote_stage_without_bot_bindings() -> None:
     js = build_dashboard_js(
