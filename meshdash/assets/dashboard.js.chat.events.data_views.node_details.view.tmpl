@@ -24,14 +24,14 @@
       const statusText = hasUnsavedDraft
         ? "Unsaved draft. Save Note to persist."
         : (noteText
-        ? (updatedUnix > 0 ? `Saved ${{savedDetailAge(updatedUnix)}}` : "Saved locally")
+        ? (updatedUnix > 0 ? `Saved ${{nodeDetailsAge(updatedUnix)}}` : "Saved locally")
         : "No note saved for this node yet.");
-      return `<section class="saved-node-section">
-        <h3 class="saved-node-section-title">Notes + Tags</h3>
-        <label class="saved-node-note-label" for="saved-node-note-input">Personal notes for ${{escAttr(normalizedNodeId)}} (saved only in this browser).</label>
+      return `<section class="node-details-section">
+        <h3 class="node-details-section-title">Notes + Tags</h3>
+        <label class="node-details-note-label" for="node-details-note-input">Personal notes for ${{escAttr(normalizedNodeId)}} (saved only in this browser).</label>
         <textarea
-          id="saved-node-note-input"
-          class="saved-node-note-input"
+          id="node-details-note-input"
+          class="node-details-note-input"
           rows="4"
           maxlength="1200"
           placeholder="Add tags, context, or reminders for this node..."
@@ -40,21 +40,21 @@
           data-saved-updated-unix="${{escAttr(updatedUnix)}}"
           data-updated-unix="${{escAttr(updatedUnix)}}"
         >${{escAttr(displayNoteText)}}</textarea>
-        <div class="saved-node-note-actions">
-          <button id="saved-node-note-save-btn" class="btn btn-secondary" type="button">Save Note</button>
-          <button id="saved-node-note-clear-btn" class="btn btn-secondary" type="button">Clear</button>
+        <div class="node-details-note-actions">
+          <button id="node-details-note-save-btn" class="btn btn-secondary" type="button">Save Note</button>
+          <button id="node-details-note-clear-btn" class="btn btn-secondary" type="button">Clear</button>
         </div>
-        <div id="saved-node-note-status" class="saved-node-note">${{escAttr(statusText)}}</div>
+        <div id="node-details-note-status" class="node-details-note">${{escAttr(statusText)}}</div>
       </section>`;
     }}
 
-    function bindSavedNodeNotesEditor(nodeId) {{
+    function bindNodeDetailsNotesEditor(nodeId) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!isSelectableNodeId(cleanNodeId)) return;
-      const noteInput = document.getElementById("saved-node-note-input");
-      const saveBtn = document.getElementById("saved-node-note-save-btn");
-      const clearBtn = document.getElementById("saved-node-note-clear-btn");
-      const statusEl = document.getElementById("saved-node-note-status");
+      const noteInput = document.getElementById("node-details-note-input");
+      const saveBtn = document.getElementById("node-details-note-save-btn");
+      const clearBtn = document.getElementById("node-details-note-clear-btn");
+      const statusEl = document.getElementById("node-details-note-status");
       if (!(noteInput instanceof HTMLTextAreaElement)) return;
       if (!(saveBtn instanceof HTMLButtonElement)) return;
       if (!(clearBtn instanceof HTMLButtonElement)) return;
@@ -80,7 +80,7 @@
         }}
         if (currentText) {{
           statusEl.textContent = baselineUpdatedUnix > 0
-            ? `Saved ${{savedDetailAge(baselineUpdatedUnix)}}`
+            ? `Saved ${{nodeDetailsAge(baselineUpdatedUnix)}}`
             : "Saved locally";
           return;
         }}
@@ -132,9 +132,9 @@
       applyEditorState();
     }}
 
-    function bindSavedNodeDetailLinkButtons(root = null) {{
+    function bindNodeDetailsLinkButtons(root = null) {{
       if (!(root instanceof HTMLElement)) return;
-      for (const btn of root.querySelectorAll(".saved-node-inline-link[data-node-id]")) {{
+      for (const btn of root.querySelectorAll(".node-details-inline-link[data-node-id]")) {{
         if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
         btn.dataset.bound = "1";
         btn.addEventListener("click", (ev) => {{
@@ -147,7 +147,7 @@
       }}
     }}
 
-    function focusSavedNodeCoordinateOnMap(nodeId, latRaw, lonRaw) {{
+    function focusNodeDetailsCoordinateOnMap(nodeId, latRaw, lonRaw) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       const lat = Number(latRaw);
       const lon = Number(lonRaw);
@@ -232,9 +232,9 @@
       return true;
     }}
 
-    function bindSavedNodeCoordinateLinks(root = null) {{
+    function bindNodeDetailsCoordinateLinks(root = null) {{
       if (!(root instanceof HTMLElement)) return;
-      for (const link of root.querySelectorAll(".saved-node-coordinate-link[data-map-node-id]")) {{
+      for (const link of root.querySelectorAll(".node-details-coordinate-link[data-map-node-id]")) {{
         if (!(link instanceof HTMLAnchorElement) || link.dataset.bound === "1") continue;
         link.dataset.bound = "1";
         link.addEventListener("click", (ev) => {{
@@ -244,13 +244,13 @@
           if (!isSelectableNodeId(nodeId) || !isValidMapCoord(lat, lon)) return;
           ev.preventDefault();
           ev.stopPropagation();
-          focusSavedNodeCoordinateOnMap(nodeId, lat, lon);
+          focusNodeDetailsCoordinateOnMap(nodeId, lat, lon);
         }});
       }}
     }}
 
     function renderNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
-      const host = document.getElementById("saved-node-details");
+      const host = document.getElementById("node-details");
       if (!(host instanceof HTMLElement)) return;
       const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
         if (!(element instanceof HTMLElement)) return false;
@@ -262,12 +262,12 @@
         element[propName] = nextMarkup;
         return true;
       }};
-      const previousMainScroll = host.querySelector(".saved-node-main-scroll");
+      const previousMainScroll = host.querySelector(".node-details-main-scroll");
       const locationHost = document.getElementById("chat-node-details-location-host");
       const chatHost = document.getElementById("chat-node-details-chat-host");
       const linksHost = document.getElementById("chat-node-details-links-host");
       const notesHost = document.getElementById("chat-node-details-notes-host");
-      const previousNoteInput = document.getElementById("saved-node-note-input");
+      const previousNoteInput = document.getElementById("node-details-note-input");
       const previousNoteFocused = (
         previousNoteInput instanceof HTMLTextAreaElement
         && document.activeElement === previousNoteInput
@@ -333,10 +333,10 @@
         }}
         const visibleFavoriteCount = visibleFavoriteNodeIds().length;
         const emptyDetailsHtml = visibleFavoriteCount === 0
-          ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
-          : '<div class="saved-node-details-empty">Select any node to view history and summary, or pick one from tagged nodes.</div>';
+          ? '<div class="node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
+          : '<div class="node-details-empty">Select any node to view history and summary, or pick one from tagged nodes.</div>';
         detachDockedHistoryPanel();
-        setElementHtmlIfChanged(host, emptyDetailsHtml, "saved-node-details");
+        setElementHtmlIfChanged(host, emptyDetailsHtml, "node-details");
         setElementHtmlIfChanged(locationHost, "", "chat-node-details-location");
         setElementHtmlIfChanged(chatHost, "", "chat-node-details-chat");
         setElementHtmlIfChanged(linksHost, "", "chat-node-details-links");
@@ -434,7 +434,7 @@
         && Number.isFinite(Number(node.lat))
         && Number.isFinite(Number(node.lon))
       )
-        ? savedDetailMapCoordLink(nodeId, node.lat, node.lon, "Focus live GPS position on map")
+        ? nodeDetailsMapCoordLink(nodeId, node.lat, node.lon, "Focus live GPS position on map")
         : "n/a";
       const voltageValue = (
         node
@@ -465,7 +465,7 @@
         && Number.isFinite(Number(latestTrail.sats_in_view))
       ) ? Number(latestTrail.sats_in_view) : null;
       const latestTrailPos = latestTrail
-        ? savedDetailMapCoordLink(nodeId, latestTrail.lat, latestTrail.lon, "Focus latest trail position on map")
+        ? nodeDetailsMapCoordLink(nodeId, latestTrail.lat, latestTrail.lon, "Focus latest trail position on map")
         : "n/a";
       const livePositionAvailable = livePosText !== "n/a";
       const historyPositionAvailable = latestTrailPos !== "n/a";
@@ -483,13 +483,13 @@
         ? (Number.isFinite(capsPosUnix) ? capsPosUnix : trailPosUnix)
         : trailPosUnix;
       const latestPosTimeText = livePositionAvailable
-        ? savedDetailText(
+        ? nodeDetailsText(
             Number.isFinite(capsPosUnix)
               ? formatLocalChatTime(capsPosUnix, (latestTrail && latestTrail.time) || "n/a", nowUnix)
               : ((latestTrail && latestTrail.time) || "n/a")
           )
-        : savedDetailText(latestTrail && latestTrail.time);
-      const latestPosAgeText = savedDetailAge(latestPosTimeUnix, nowUnix);
+        : nodeDetailsText(latestTrail && latestTrail.time);
+      const latestPosAgeText = nodeDetailsAge(latestPosTimeUnix, nowUnix);
       const positionSource = livePositionAvailable
         ? ((Number.isFinite(capsPosUnix) && (nowUnix - capsPosUnix) <= 300)
           ? "Live (recent)"
@@ -506,10 +506,10 @@
       const topPeerName = topPeerId
         ? resolveNodeDisplayName(safeState, topPeerId)
         : "";
-      const topPeerLabel = savedDetailText(topPeerName || topPeerId, topPeerId || "n/a");
+      const topPeerLabel = nodeDetailsText(topPeerName || topPeerId, topPeerId || "n/a");
       const topPeerValue = isSelectableNodeId(topPeerId)
-        ? savedDetailHtmlValue(
-            `<button type="button" class="saved-node-inline-link" data-node-id="${{escAttr(topPeerId)}}" title="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}" aria-label="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}">${{escAttr(topPeerLabel)}}</button>`,
+        ? nodeDetailsHtmlValue(
+            `<button type="button" class="node-details-inline-link" data-node-id="${{escAttr(topPeerId)}}" title="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}" aria-label="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}">${{escAttr(topPeerLabel)}}</button>`,
             topPeerLabel,
           )
         : "n/a";
@@ -526,12 +526,12 @@
         ["Battery", batteryText],
         ["Hops Away", hopsText],
         ["Voltage", Number.isFinite(voltageValue) ? `${{voltageValue.toFixed(2)}}V` : "n/a"],
-        ["Channel Util", Number.isFinite(channelUtilValue) ? savedDetailPercent(channelUtilValue) : "n/a"],
-        ["Air Util TX", Number.isFinite(airUtilTxValue) ? savedDetailPercent(airUtilTxValue) : "n/a"],
+        ["Channel Util", Number.isFinite(channelUtilValue) ? nodeDetailsPercent(channelUtilValue) : "n/a"],
+        ["Air Util TX", Number.isFinite(airUtilTxValue) ? nodeDetailsPercent(airUtilTxValue) : "n/a"],
         ["GPS Capable", positionCapable],
-        ["Last Position Ping", savedDetailText(latestPosTimeText)],
+        ["Last Position Ping", nodeDetailsText(latestPosTimeText)],
       ];
-      const nodeSection = savedDetailSectionHtml("Node", nodeSectionRows);
+      const nodeSection = nodeDetailsSectionHtml("Node", nodeSectionRows);
       const noteDraft = needsNotesSection && nodeNoteDraftById.has(nodeId)
         ? String(nodeNoteDraftById.get(nodeId) || "")
         : null;
@@ -540,15 +540,15 @@
         : "";
 
       const locationSection = needsLocationSection
-        ? savedDetailSectionHtml("Location", [
+        ? nodeDetailsSectionHtml("Location", [
             ["Last Broadcast Position", latestPosText],
             ["Position Source", positionSource],
             ["Position Age", latestPosAgeText],
             ["Latest Position Time", latestPosTimeText],
             ["Altitude", Number.isFinite(latestTrailAltitude) ? `${{formatMetricValue(latestTrailAltitude, 0)}} m` : "n/a"],
             ["Satellites", Number.isFinite(latestTrailSats) ? String(Math.round(latestTrailSats)) : "n/a"],
-            ["Trail Start", savedDetailText(historySummary.trail_start)],
-            ["Trail End", savedDetailText(historySummary.trail_end)],
+            ["Trail Start", nodeDetailsText(historySummary.trail_start)],
+            ["Trail End", nodeDetailsText(historySummary.trail_end)],
           ], "Radio screens can show a newer local GPS fix before that fix is broadcast to this dashboard.")
         : "";
 
@@ -562,12 +562,12 @@
           ["Direct Sent", String(chatStats.directSent)],
           ["Reactions Sent", String(chatStats.reactionsSent)],
           ["Active Peers", String(chatStats.peers.size)],
-          ["Last Chat", savedDetailText(chatStats.lastChatText)],
+          ["Last Chat", nodeDetailsText(chatStats.lastChatText)],
         ];
         if (malformedTextCount > 0) {{
           const malformedTextLatestText = (
             Number.isFinite(malformedTextLatestUnix) && malformedTextLatestUnix > 0
-              ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{savedDetailAge(malformedTextLatestUnix, nowUnix)}})`
+              ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{nodeDetailsAge(malformedTextLatestUnix, nowUnix)}})`
               : "n/a"
           );
           chatSectionRows.push(
@@ -579,17 +579,17 @@
         const chatSectionNote = malformedTextCount > 0
           ? `Based on current in-memory packet/chat buffers. Warning: this node recently sent non-UTF-8 bytes on TEXT_MESSAGE_APP, which usually means a buggy or experimental sender rather than normal chat traffic.`
           : `Based on current in-memory chat buffer (${{chatMessages.length}} messages).`;
-        chatSection = savedDetailSectionHtml("Chat (Recent Buffer)", chatSectionRows, chatSectionNote);
+        chatSection = nodeDetailsSectionHtml("Chat (Recent Buffer)", chatSectionRows, chatSectionNote);
       }}
 
       const linksSection = needsLinksSection && linkStats
-        ? savedDetailSectionHtml("Links", [
+        ? nodeDetailsSectionHtml("Links", [
             ["Directed Links", String(linkStats.links)],
             ["Linked Peers", String(linkStats.peers.size)],
             ["Lifetime Packets", String(Math.round(linkStats.lifetimePackets))],
             ["Session Packets", String(Math.round(linkStats.sessionPackets))],
             ["Avg Link Hops", linkAvgHops],
-            ["Last Link Activity", savedDetailText(linkStats.lastSeenText)],
+            ["Last Link Activity", nodeDetailsText(linkStats.lastSeenText)],
             ["Top Peer", topPeerValue],
             ["Top Peer Packets", linkStats.topPeer ? String(Math.round(linkStats.topPeerPackets)) : "n/a"],
             ["Seen Ports", linkStats.ports.size > 0 ? Array.from(linkStats.ports).slice(0, 10).join(", ") : "n/a"],
@@ -603,21 +603,21 @@
         ${{renderChatInDrawer ? "" : chatSection}}
         ${{renderLinksInDrawer ? "" : linksSection}}
       `;
-      let sectionsHost = host.querySelector(".saved-node-sections");
+      let sectionsHost = host.querySelector(".node-details-sections");
       let detailsMarkupChanged = false;
       if (!(sectionsHost instanceof HTMLElement)) {{
         const nextDetailsShellHtml = `
-          <div class="saved-node-stack">
-            <div class="saved-node-main-scroll">
-              <div class="saved-node-sections"></div>
+          <div class="node-details-stack">
+            <div class="node-details-main-scroll">
+              <div class="node-details-sections"></div>
             </div>
           </div>
         `;
-        detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "saved-node-details-shell");
-        sectionsHost = host.querySelector(".saved-node-sections");
+        detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "node-details-shell");
+        sectionsHost = host.querySelector(".node-details-sections");
       }}
       if (sectionsHost instanceof HTMLElement) {{
-        detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "saved-node-sections") || detailsMarkupChanged;
+        detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "node-details-sections") || detailsMarkupChanged;
       }}
       host.dataset.nodeId = nodeId;
       const nextLocationHtml = renderLocationInDrawer ? locationSection : "";
@@ -628,18 +628,18 @@
       setElementHtmlIfChanged(chatHost, nextChatHtml, "chat-node-details-chat");
       setElementHtmlIfChanged(linksHost, nextLinksHtml, "chat-node-details-links");
       const notesMarkupChanged = setElementHtmlIfChanged(notesHost, nextNotesHtml, "chat-node-details-notes");
-      bindSavedNodeDetailLinkButtons(host);
-      bindSavedNodeDetailLinkButtons(linksHost);
-      bindSavedNodeCoordinateLinks(host);
-      bindSavedNodeCoordinateLinks(locationHost);
+      bindNodeDetailsLinkButtons(host);
+      bindNodeDetailsLinkButtons(linksHost);
+      bindNodeDetailsCoordinateLinks(host);
+      bindNodeDetailsCoordinateLinks(locationHost);
       if (detailsMarkupChanged || notesMarkupChanged) {{
-        bindSavedNodeNotesEditor(nodeId);
+        bindNodeDetailsNotesEditor(nodeId);
       }}
       syncNodeHistoryDock();
       if ((detailsMarkupChanged || notesMarkupChanged) && previousNodeId === nodeId) {{
         const restoreNoteFocus = () => {{
           if (!previousNoteFocused) return;
-          const nextNoteInput = document.getElementById("saved-node-note-input");
+          const nextNoteInput = document.getElementById("node-details-note-input");
           if (!(nextNoteInput instanceof HTMLTextAreaElement)) return;
           if (normalizeNodeId(nextNoteInput.dataset.nodeId || "") !== nodeId) return;
           if (nextNoteInput.closest("[hidden]")) return;
@@ -660,7 +660,7 @@
           }}
         }};
         const restoreMainScroll = () => {{
-          const nextMainScroll = host.querySelector(".saved-node-main-scroll");
+          const nextMainScroll = host.querySelector(".node-details-main-scroll");
           if (!(nextMainScroll instanceof HTMLElement)) return;
           const prevMax = Math.max(0, previousScrollHeight - previousClientHeight);
           const nextMax = Math.max(0, nextMainScroll.scrollHeight - nextMainScroll.clientHeight);

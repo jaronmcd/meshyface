@@ -483,7 +483,7 @@
           ? formatEnvHistoryTime(sampleUnix)
           : (Number.isFinite(sampleUnix) && sampleUnix > 0 ? new Date(sampleUnix * 1000).toLocaleString() : "n/a");
         const ageText = Number.isFinite(ageSeconds)
-          ? (typeof savedDetailAge === "function" ? savedDetailAge(sampleUnix, nowUnix) : `${{ageSeconds}}s ago`)
+          ? (typeof nodeDetailsAge === "function" ? nodeDetailsAge(sampleUnix, nowUnix) : `${{ageSeconds}}s ago`)
           : "n/a";
         valueEl.title = `${{def.label}} robust mesh aggregate. Last sample: ${{sampleTimeText}} (${{ageText}}). Latest-minute nodes: ${{sampleCount}} | Consensus nodes: ${{nodeConsensusNodes}} (${{envAggregateTickerNodeConsensusLookbackMinutes}}m) | Smoothed buckets: ${{smoothedBuckets}} (${{envAggregateTickerSnapshotLookbackMinutes}}m) | Buckets: ${{points}} | Window: ${{envAggregateTickerWindowHours}}h`;
       }}

@@ -178,9 +178,12 @@ def test_dashboard_omits_saved_workspace_but_keeps_drawer_node_details() -> None
     assert 'id="saved-node-history-host"' not in js
     assert ".layout.view-saved" not in css
     assert ".saved-map-splitter" not in css
+    assert "saved-node-" not in html
+    assert "saved-node-" not in css
+    assert "saved-node-" not in js
 
     assert "function renderNodeDetails" in js
-    assert '<div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>' in js
+    assert '<div id="node-details" class="node-details" aria-live="polite"></div>' in js
     assert 'id="chat-node-details-history-host"' in js
     assert "function syncNodeHistoryDock" in js
 

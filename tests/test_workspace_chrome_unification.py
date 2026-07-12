@@ -858,9 +858,9 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn {", 1)[1].split("}", 1)[0]
     active_tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn.is-active {", 1)[1].split("}", 1)[0]
     action_section = css.split("[data-theme=\"dark\"] .chat-node-details-action-btn {", 1)[1].split("}", 1)[0]
-    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .saved-node-details {", 1)[1].split("}", 1)[0]
-    saved_section = css.split("[data-theme=\"dark\"] .saved-node-section {", 1)[1].split("}", 1)[0]
-    saved_stat_section = css.split("[data-theme=\"dark\"] .saved-node-stat {", 1)[1].split("}", 1)[0]
+    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .node-details {", 1)[1].split("}", 1)[0]
+    saved_section = css.split("[data-theme=\"dark\"] .node-details-section {", 1)[1].split("}", 1)[0]
+    saved_stat_section = css.split("[data-theme=\"dark\"] .node-details-stat {", 1)[1].split("}", 1)[0]
     splitter_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter {", 1)[1].split("}", 1)[0]
     splitter_handle_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter::before {", 1)[1].split("}", 1)[0]
 
@@ -1049,8 +1049,8 @@ def test_dark_row_packet_sparklines_reuse_network_compare_blue() -> None:
 def test_saved_node_notes_and_tag_editor_follow_theme_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
-    note_section = css.split("[data-theme=\"dark\"] .saved-node-note-input {", 1)[1].split("}", 1)[0]
-    note_focus_section = css.split("[data-theme=\"dark\"] .saved-node-note-input:focus {", 1)[1].split("}", 1)[0]
+    note_section = css.split("[data-theme=\"dark\"] .node-details-note-input {", 1)[1].split("}", 1)[0]
+    note_focus_section = css.split("[data-theme=\"dark\"] .node-details-note-input:focus {", 1)[1].split("}", 1)[0]
     tag_editor_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-editor {", 1)[1].split("}", 1)[0]
     tag_input_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-preset-select,", 1)[1].split("}", 1)[0]
     tag_focus_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-preset-select:focus,", 1)[1].split("}", 1)[0]

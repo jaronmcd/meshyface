@@ -91,7 +91,7 @@ def test_dashboard_js_renders_name_history_and_overview_under_history_tab() -> N
     assert 'const host = document.getElementById("node-history-overview-host");' in js
     assert 'renderNodeHistoryOverviewPanel(history, {' in js
     assert 'savedNodeHistoryOverviewSectionHtml(history, {' in js
-    assert 'const historySection = savedDetailSectionHtml("History",' not in js
+    assert 'const historySection = nodeDetailsSectionHtml("History",' not in js
 
 
 def test_render_html_hides_history_caption_inside_drawer_history_view() -> None:
@@ -208,10 +208,10 @@ def test_drawer_history_charts_expand_for_node_detail_views() -> None:
 def test_name_history_empty_state_uses_workspace_theme_tokens_in_dark_mode() -> None:
     css = build_dashboard_css(theme_css="")
 
-    assert '[data-theme="dark"] .saved-node-name-history-empty {' in css
+    assert '[data-theme="dark"] .node-details-name-history-empty {' in css
     assert 'border-color: var(--workspace-shell-border-muted);' in css
     assert 'background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);' in css
     assert 'color: var(--workspace-shell-text-soft);' in css
-    block = re.search(r'\[data-theme="dark"\] \.saved-node-name-history-empty \{[\s\S]*?\n    \}', css)
+    block = re.search(r'\[data-theme="dark"\] \.node-details-name-history-empty \{[\s\S]*?\n    \}', css)
     assert block
     assert 'background: #121b24;' not in block.group(0)

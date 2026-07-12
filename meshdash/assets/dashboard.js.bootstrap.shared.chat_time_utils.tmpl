@@ -344,8 +344,8 @@
       const ts = Number(unixTs);
       if (!Number.isFinite(ts) || ts <= 0) return "n/a";
       const now = Number.isFinite(nowUnix) ? Math.floor(nowUnix) : Math.floor(Date.now() / 1000);
-      if (typeof savedDetailAge === "function") {{
-        return savedDetailAge(ts, now);
+      if (typeof nodeDetailsAge === "function") {{
+        return nodeDetailsAge(ts, now);
       }}
       const ageSec = Math.max(0, now - Math.floor(ts));
       if (ageSec < 90) return `${{ageSec}}s ago`;

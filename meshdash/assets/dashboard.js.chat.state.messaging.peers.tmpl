@@ -3571,7 +3571,7 @@
         '<button id="chat-node-details-tab-links" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="links">Links</button>',
         '<button id="chat-node-details-tab-notes" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="notes">Notes</button>',
         '</div>',
-        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"><div id="saved-node-details" class="saved-node-details" aria-live="polite"></div></div></div>',
+        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"><div id="node-details" class="node-details" aria-live="polite"></div></div></div>',
         '<div id="chat-node-details-panel-notes" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-notes" hidden><div id="chat-node-details-notes-host" class="chat-node-details-notes-host"></div></div>',
         '<div id="chat-node-details-panel-messages" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-messages" hidden><div id="chat-node-details-messages-host" class="chat-node-details-messages-host"></div></div>',
         '<div id="chat-node-details-panel-history" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-history" hidden><div id="chat-node-details-history-host" class="chat-node-details-history-host"></div></div>',
@@ -4171,7 +4171,7 @@
 
       const cachedHistory = cachedNodeHistory(selectedId);
       renderNodeDetails(safeState, cachedHistory);
-      if (notesHost instanceof HTMLElement && !notesHost.querySelector("#saved-node-note-input")) {{
+      if (notesHost instanceof HTMLElement && !notesHost.querySelector("#node-details-note-input")) {{
         notesHost.innerHTML = "";
       }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")

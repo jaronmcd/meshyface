@@ -4064,7 +4064,7 @@
       --telemetry-running-accent: color-mix(in srgb, var(--ui-accent) 26%, #7ea0d8 74%);
       --telemetry-error-accent: color-mix(in srgb, var(--ui-accent) 20%, #da7c7c 80%);
     }}
-    [data-theme="dark"] .chat-node-details-drawer .saved-node-details {{
+    [data-theme="dark"] .chat-node-details-drawer .node-details {{
       border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg);
     }}
@@ -4202,7 +4202,7 @@
     [data-theme="dark"] .signal-timeline-label-major {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .saved-node-details {{
+    [data-theme="dark"] .node-details {{
       border-color: var(--ui-border);
       background: var(--ui-panel-alt);
     }}
@@ -4230,62 +4230,62 @@
     [data-theme="dark"] .node-search-empty {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-details-empty {{
+    [data-theme="dark"] .node-details-empty {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-section-title,
-    [data-theme="dark"] .saved-node-stat-k,
-    [data-theme="dark"] .saved-node-note {{
+    [data-theme="dark"] .node-details-section-title,
+    [data-theme="dark"] .node-details-stat-k,
+    [data-theme="dark"] .node-details-note {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-label {{
+    [data-theme="dark"] .node-details-note-label {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-section {{
+    [data-theme="dark"] .node-details-section {{
       border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
     }}
-    [data-theme="dark"] .saved-node-stat {{
+    [data-theme="dark"] .node-details-stat {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
     }}
-    [data-theme="dark"] .saved-node-stat-v {{
+    [data-theme="dark"] .node-details-stat-v {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .saved-node-inline-link:hover {{
+    [data-theme="dark"] .node-details-inline-link:hover {{
       color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .saved-node-inline-link:focus-visible {{
+    [data-theme="dark"] .node-details-inline-link:focus-visible {{
       outline-color: var(--workspace-shell-border-strong);
     }}
-    [data-theme="dark"] .saved-node-name-history-item {{
+    [data-theme="dark"] .node-details-name-history-item {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
     }}
-    [data-theme="dark"] .saved-node-name-history-short {{
+    [data-theme="dark"] .node-details-name-history-short {{
       color: #e6eef8;
     }}
-    [data-theme="dark"] .saved-node-name-history-long,
-    [data-theme="dark"] .saved-node-name-history-meta {{
+    [data-theme="dark"] .node-details-name-history-long,
+    [data-theme="dark"] .node-details-name-history-meta {{
       color: #9db3c8;
     }}
-    [data-theme="dark"] .saved-node-name-history-empty {{
+    [data-theme="dark"] .node-details-name-history-empty {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-input {{
+    [data-theme="dark"] .node-details-note-input {{
       border-color: var(--workspace-shell-border);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
       color: var(--workspace-shell-text);
       caret-color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .saved-node-note-input::placeholder {{
+    [data-theme="dark"] .node-details-note-input::placeholder {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-input:focus {{
+    [data-theme="dark"] .node-details-note-input:focus {{
       border-color: var(--workspace-shell-border-strong);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-shell-border-strong) 24%, transparent);
     }}
@@ -7570,7 +7570,7 @@
       background: var(--node-profile-theme-base, var(--node-profile-border, rgba(28, 50, 61, 0.94)));
       color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff));
     }}
-    .saved-node-details.has-node-appearance {{
+    .node-details.has-node-appearance {{
       border-color: color-mix(
         in srgb,
         var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 64%,
@@ -7583,7 +7583,7 @@
         ),
         var(--surface-tint-bg-soft);
     }}
-    .saved-node-details.has-node-appearance .saved-node-section:first-child {{
+    .node-details.has-node-appearance .node-details-section:first-child {{
       border-color: color-mix(
         in srgb,
         var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 56%,
@@ -7596,14 +7596,14 @@
         ),
         var(--surface-tint-bg-alt);
     }}
-    .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+    .node-details.has-node-appearance .node-details-section:first-child .node-details-section-title {{
       color: color-mix(
         in srgb,
         var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 48%,
         var(--surface-tint-text-soft) 52%
       );
     }}
-    [data-theme="dark"] .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+    [data-theme="dark"] .node-details.has-node-appearance .node-details-section:first-child .node-details-section-title {{
       color: color-mix(
         in srgb,
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 48%,
@@ -7641,8 +7641,8 @@
     .peer-dm-popout-msg.profiled-node,
     .map-node-info-card.profiled-node,
     .chat-node-details-drawer.profiled-node .chat-node-details-head,
-    .saved-node-details.profiled-node,
-    .saved-node-details.profiled-node .saved-node-section:first-child {{
+    .node-details.profiled-node,
+    .node-details.profiled-node .node-details-section:first-child {{
       position: relative;
       overflow: hidden;
       isolation: isolate;
@@ -7653,8 +7653,8 @@
     .peer-dm-popout-msg.profiled-node::after,
     .map-node-info-card.profiled-node::after,
     .chat-node-details-drawer.profiled-node .chat-node-details-head::after,
-    .saved-node-details.profiled-node::after,
-    .saved-node-details.profiled-node .saved-node-section:first-child::after {{
+    .node-details.profiled-node::after,
+    .node-details.profiled-node .node-details-section:first-child::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
       top: 50%;
@@ -7681,8 +7681,8 @@
     .peer-dm-popout-msg.profiled-node > *,
     .map-node-info-card.profiled-node > *,
     .chat-node-details-drawer.profiled-node .chat-node-details-head > *,
-    .saved-node-details.profiled-node > *,
-    .saved-node-details.profiled-node .saved-node-section:first-child > * {{
+    .node-details.profiled-node > *,
+    .node-details.profiled-node .node-details-section:first-child > * {{
       position: relative;
       z-index: 1;
     }}
@@ -7934,14 +7934,14 @@
     .chat-node-details-drawer.profiled-node .chat-node-details-title {{
       color: var(--surface-tint-text) !important;
     }}
-    .saved-node-details.profiled-node {{
+    .node-details.profiled-node {{
       border-color: var(--node-profile-identity-edge);
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .saved-node-details.profiled-node .saved-node-section:first-child {{
+    .node-details.profiled-node .node-details-section:first-child {{
       border-color: var(--node-profile-identity-edge);
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .saved-node-details.profiled-node .saved-node-section:first-child .saved-node-section-title {{
+    .node-details.profiled-node .node-details-section:first-child .node-details-section-title {{
       color: var(--surface-tint-text-soft) !important;
     }}

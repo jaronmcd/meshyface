@@ -208,7 +208,7 @@
         lastPacketUnix: trafficSnap.lastPacketUnix,
       }};
       const lastActivityText = Number.isFinite(trafficSnap.lastPacketUnix)
-        ? savedDetailAge(trafficSnap.lastPacketUnix, nowUnix)
+        ? nodeDetailsAge(trafficSnap.lastPacketUnix, nowUnix)
         : "n/a";
       const lastActivityCompact = String(lastActivityText).replace(/\s+ago$/, "");
       const activityText = `last activity ${{lastActivityText}}`;
@@ -313,7 +313,7 @@
         && Math.trunc(statusFreshnessUnix) === Math.trunc(trafficFreshnessUnix)
         && (!Number.isFinite(liveFreshnessUnix) || trafficFreshnessUnix >= liveFreshnessUnix);
       const lastSeenTitle = Number.isFinite(statusFreshnessUnix)
-        ? `last seen ${{savedDetailAge(statusFreshnessUnix, nowUnix)}}${{statusUsesTraffic ? " (packet activity)" : ""}}`
+        ? `last seen ${{nodeDetailsAge(statusFreshnessUnix, nowUnix)}}${{statusUsesTraffic ? " (packet activity)" : ""}}`
         : "last seen n/a";
       return {{
         ...trafficMetricPayload,
@@ -494,7 +494,7 @@
         }}
         const displayName = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
         const whenText = Number.isFinite(lastSeenUnix)
-          ? savedDetailAge(lastSeenUnix, nowUnix)
+          ? nodeDetailsAge(lastSeenUnix, nowUnix)
           : "just now";
         const noticeKeyUnix = Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : Math.trunc(nowUnix);
         trackChatChangeNotice({{

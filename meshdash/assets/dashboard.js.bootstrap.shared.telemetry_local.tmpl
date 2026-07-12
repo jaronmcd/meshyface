@@ -112,7 +112,7 @@
       const nowUnix = Math.floor(Date.now() / 1000);
       const lastSeenUnix = nodeLastHeardUnix(localNode);
       const lastSeenText = Number.isFinite(lastSeenUnix)
-        ? savedDetailAge(lastSeenUnix, nowUnix)
+        ? nodeDetailsAge(lastSeenUnix, nowUnix)
         : "n/a";
       const presetText = formatModemPresetLabel(summary.modem_preset, "n/a");
       const nodeName = preferredNodeName(localNode) || nodeNameCache.get(localId) || "Local node";

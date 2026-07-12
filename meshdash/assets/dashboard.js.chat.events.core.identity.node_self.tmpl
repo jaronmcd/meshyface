@@ -1034,7 +1034,7 @@
       const status = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, nowUnix));
       setProfileFullId(selfId);
       const statusDetail = Number.isFinite(lastSeenUnix)
-        ? `${{freshnessLabel(status)}} (seen ${{savedDetailAge(lastSeenUnix, nowUnix)}})`
+        ? `${{freshnessLabel(status)}} (seen ${{nodeDetailsAge(lastSeenUnix, nowUnix)}})`
         : freshnessLabel(status);
       const selfName = preferredNodeName(selfNode) || nodeNameCache.get(selfId) || "";
       const profileLabel = selfName || selfId;
