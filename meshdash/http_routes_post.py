@@ -24,6 +24,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/theme",
     "/api/settings/custom_telemetry",
     "/api/settings/raw_packets",
+    "/api/settings/file_transfer",
     "/api/system/update",
     "/api/system/update/rollback-cleanup",
     "/api/system/update/sync",
@@ -132,6 +133,25 @@ def _read_system_update_request(handler: DashboardHttpHandler) -> dict[str, obje
         raise ValueError("invalid JSON request body") from exc
     if not isinstance(parsed, dict):
         raise ValueError("system update request body must be an object")
+    return parsed
+
+
+def _read_file_transfer_settings_request(
+    handler: DashboardHttpHandler,
+) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length <= 0 or length > 2048:
+        raise ValueError("invalid request size")
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("enabled"), bool):
+        raise ValueError("enabled must be a boolean")
     return parsed
 
 
@@ -396,6 +416,45 @@ def handle_dashboard_post(
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/settings/file_transfer":
+        setter = deps.set_file_transfer_auto_accept_enabled_fn
+        if not callable(setter):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "error": "File transfer settings are not enabled on this dashboard instance",
+                },
+            )
+            return
+        try:
+            request = _read_file_transfer_settings_request(handler)
+            response_obj = setter(bool(request["enabled"]))
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={"ok": False, "error": str(exc)},
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={"ok": False, "error": f"File transfer settings update failed: {exc}"},
+                no_store=True,
+            )
+            return
+        deps.write_json_response_fn(
+            handler,
+            status_code=200,
+            payload_obj=response_obj,
+            no_store=True,
         )
         return
 

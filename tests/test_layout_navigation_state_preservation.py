@@ -353,8 +353,9 @@ def test_dashboard_js_uses_backend_file_transfer_runtime_for_rows_and_ack_suppre
     assert "function mergeBackendFileTransferRuntimeRows(rows, state, context = null)" in js
     assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(state);" in js
     assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(latestState);" in js
-    assert "toggle.disabled = !fileTransferFeatureEnabled || backendAutoAcceptEnabled;" in js
-    assert "Backend auto accept is enabled for direct inbound file transfers." in js
+    assert "toggle.disabled = !fileTransferFeatureEnabled || fileTransferAutoAcceptUpdateInFlight;" in js
+    assert 'fetch("/api/settings/file_transfer"' in js
+    assert "body: JSON.stringify({ enabled })" in js
     assert "if (backendAutoAcceptEnabled) {" in js
     assert "source: \"backend_auto_accept\"" in js
     assert "backendAuthoritative: true" in js

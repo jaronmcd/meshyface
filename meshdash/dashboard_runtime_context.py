@@ -528,9 +528,7 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
-    if bool(getattr(args, "file_transfer_enable", False)) and bool(
-        getattr(args, "file_transfer_auto_accept", False)
-    ):
+    if bool(getattr(args, "file_transfer_enable", False)):
         try:
             from .services_file_transfer_auto_accept import (
                 build_file_transfer_auto_accept_service as _build_file_transfer_auto_accept_service,
@@ -542,6 +540,7 @@ def build_dashboard_runtime_context(
             file_transfer_auto_accept_service = _build_file_transfer_auto_accept_service(
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
                 send_chat_fn=loaders.send_chat_fn,
+                enabled=bool(getattr(args, "file_transfer_auto_accept", False)),
                 max_ack_frame_bytes=1024,
                 max_file_bytes=getattr(
                     args,
@@ -572,6 +571,11 @@ def build_dashboard_runtime_context(
                     "get_file_transfer_auto_accept_runtime_fn",
                     file_transfer_auto_accept_service.get_runtime,
                 )
+                setattr(
+                    loaders.state_fn,
+                    "set_file_transfer_auto_accept_enabled_fn",
+                    file_transfer_auto_accept_service.set_enabled,
+                )
             except Exception:
                 pass
             state_lite_fn = getattr(loaders.state_fn, "lite", None)
@@ -581,6 +585,11 @@ def build_dashboard_runtime_context(
                         state_lite_fn,
                         "get_file_transfer_auto_accept_runtime_fn",
                         file_transfer_auto_accept_service.get_runtime,
+                    )
+                    setattr(
+                        state_lite_fn,
+                        "set_file_transfer_auto_accept_enabled_fn",
+                        file_transfer_auto_accept_service.set_enabled,
                     )
                 except Exception:
                     pass

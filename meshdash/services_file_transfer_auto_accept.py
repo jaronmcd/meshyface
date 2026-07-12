@@ -271,13 +271,22 @@ class FileTransferAutoAcceptService:
             return ""
 
     def close(self) -> None:
+        self.set_enabled(False)
+
+    def set_enabled(self, enabled: bool) -> dict[str, object]:
         with self._lock:
-            self._enabled = False
-            self._sessions_by_key.clear()
-            self._packet_replay_seen.clear()
-            self._fingerprint_replay_seen.clear()
-            self._meta_monotonic_by_peer.clear()
-            self._last_meta_monotonic = None
+            self._enabled = bool(enabled)
+            if not self._enabled:
+                self._sessions_by_key.clear()
+                self._packet_replay_seen.clear()
+                self._fingerprint_replay_seen.clear()
+                self._meta_monotonic_by_peer.clear()
+                self._last_meta_monotonic = None
+            return {
+                "ok": True,
+                "enabled": bool(self._enabled),
+                "active_sessions": len(self._sessions_by_key),
+            }
 
     def _admit_meta(self, sender_id: str, *, now_monotonic: float) -> bool:
         with self._lock:
@@ -463,6 +472,9 @@ class FileTransferAutoAcceptService:
     def _send_ack(self, payload: tuple[str, str, int] | None) -> None:
         if payload is None:
             return
+        with self._lock:
+            if not self._enabled:
+                return
         frame, destination, channel_index = payload
         try:
             response = self._send_chat_fn(
@@ -600,8 +612,9 @@ class FileTransferAutoAcceptService:
             self._sessions_by_key.pop(key, None)
 
     def on_receive(self, packet: object, interface: object | None = None) -> None:
-        if not self._enabled:
-            return
+        with self._lock:
+            if not self._enabled:
+                return
         if not isinstance(packet, Mapping):
             return
         frame = decode_file_transfer_packet(

@@ -488,6 +488,35 @@ def test_auto_accept_ignores_disabled_and_broadcast_transfers() -> None:
     assert sent_messages == []
 
 
+def test_auto_accept_can_be_toggled_at_runtime() -> None:
+    sent_messages: list[dict[str, object]] = []
+    service = build_file_transfer_auto_accept_service(
+        local_node_id_fn=lambda: "!12345678",
+        send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
+        enabled=False,
+    )
+    packet = _packet("MF_FILE_V2|M|abcd1234|sample.bin|320|2|raw|320")
+
+    service.on_receive(packet, _make_iface())
+    assert sent_messages == []
+    assert service.set_enabled(True) == {
+        "ok": True,
+        "enabled": True,
+        "active_sessions": 0,
+    }
+
+    service.on_receive(packet, _make_iface())
+    assert len(sent_messages) == 1
+    assert service.get_runtime()["active_sessions"] == 1
+
+    assert service.set_enabled(False) == {
+        "ok": True,
+        "enabled": False,
+        "active_sessions": 0,
+    }
+    assert service.get_runtime()["sessions"] == []
+
+
 def test_dashboard_state_exposes_file_transfer_runtime_summary() -> None:
     class _TrackerWithFileTransferRuntime:
         def snapshot(self, by_id: dict[str, dict[str, object]]) -> object:
