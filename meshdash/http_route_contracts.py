@@ -330,7 +330,7 @@ class DashboardGetRouteDependencies:
     get_theme_settings_fn: Optional[GetThemeSettingsFn] = None
     get_custom_telemetry_settings_fn: Optional[GetCustomTelemetrySettingsFn] = None
     api_token: Optional[str] = None
-    allow_tokenless_raw_packet_download: bool = False
+    allow_tokenless_raw_packet_download: bool = True
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None
     dashboard_asset_map: Mapping[str, tuple[str, bytes]] | None = None

@@ -312,7 +312,7 @@ def test_raw_packet_database_download_requires_configured_api_token() -> None:
     assert handler.sent_status == 200
 
 
-def test_raw_packet_database_download_without_token_is_loopback_only() -> None:
+def test_raw_packet_database_download_without_token_allows_private_lan() -> None:
     called = False
 
     def state_fn() -> dict[str, object]:
@@ -334,7 +334,43 @@ def test_raw_packet_database_download_without_token_is_loopback_only() -> None:
         ),
     )
     handler = _DownloadHandler()
-    handler.client_address = ("192.0.2.10", 12345)
+    handler.client_address = ("192.168.1.110", 12345)
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert called is True
+    assert handler.sent_status == 200
+    assert written == []
+
+
+def test_raw_packet_database_download_without_token_rejects_public_client() -> None:
+    called = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _download() -> dict[str, object]:
+        nonlocal called
+        called = True
+        return {"ok": True, "bytes": b"SQLite format 3\x00"}
+
+    setattr(state_fn, "raw_packet_database_download_fn", _download)
+    written: list[int] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        api_token=None,
+        allow_tokenless_raw_packet_download=True,
+        write_json_response_fn=lambda _handler, *, status_code, **_kwargs: written.append(
+            status_code
+        ),
+    )
+    handler = _DownloadHandler()
+    handler.client_address = ("8.8.8.8", 12345)
 
     handle_dashboard_get(
         handler,
@@ -344,12 +380,10 @@ def test_raw_packet_database_download_without_token_is_loopback_only() -> None:
     )
 
     assert called is False
-    assert written == [
-        (401, {"ok": False, "error": "API token required for raw packet download"})
-    ]
+    assert written == [401]
 
 
-def test_raw_packet_database_download_tokenless_mode_is_explicit_opt_in() -> None:
+def test_raw_packet_database_download_tokenless_mode_can_be_disabled() -> None:
     called = False
 
     def state_fn() -> dict[str, object]:

@@ -37,7 +37,7 @@ def build_get_route_dependencies(
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
     get_custom_telemetry_settings_fn: GetCustomTelemetrySettingsFn | None = None,
     api_token: str | None = None,
-    allow_tokenless_raw_packet_download: bool = False,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
     api_metrics: ApiMetricsRecorder | None = None,
     to_int_fn: ToIntFn = to_int,

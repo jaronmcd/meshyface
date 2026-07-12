@@ -31,7 +31,7 @@ def make_http_handler(
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
     api_token: str | None = None,
-    allow_tokenless_raw_packet_download: bool = False,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
     default_node_history_hours: int = 72,
     to_int_fn: ToIntFn = to_int,

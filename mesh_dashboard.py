@@ -519,7 +519,7 @@ def _build_make_http_handler_with_theme_settings(
     theme_settings: _ThemePresetSettings,
     *,
     api_token: object = None,
-    allow_tokenless_raw_packet_download: bool = False,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
 ):
     clean_api_token = str(api_token or "").strip() or None
@@ -648,7 +648,7 @@ def run_dashboard(args: argparse.Namespace) -> None:
             theme_preset_settings,
             api_token=getattr(args, "api_token", None),
             allow_tokenless_raw_packet_download=bool(
-                getattr(args, "allow_tokenless_raw_packet_download", False)
+                getattr(args, "allow_tokenless_raw_packet_download", True)
             ),
             private_mode=bool(getattr(args, "private_mode", False)),
         ),

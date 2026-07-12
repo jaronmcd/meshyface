@@ -99,10 +99,10 @@ def add_http_runtime_args(
     parser.add_argument(
         "--allow-tokenless-raw-packet-download",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Allow the sensitive raw-packet database download without an API token "
-            "for direct loopback clients only (default: False)."
+            "for loopback and private-LAN clients (default: True)."
         ),
     )
     parser.add_argument(

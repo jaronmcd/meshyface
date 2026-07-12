@@ -114,7 +114,8 @@ def _sensitive_download_is_authorized(
         client_address = getattr(handler, "client_address", None)
         client_host = client_address[0] if isinstance(client_address, tuple) and client_address else ""
         try:
-            return bool(ipaddress.ip_address(str(client_host)).is_loopback)
+            address = ipaddress.ip_address(str(client_host))
+            return bool(address.is_loopback or address.is_private or address.is_link_local)
         except ValueError:
             return False
     authorization = _request_header_value(handler, "Authorization").strip()
@@ -590,7 +591,7 @@ def handle_dashboard_get(
             handler,
             required_token=getattr(deps, "api_token", None),
             allow_tokenless=bool(
-                getattr(deps, "allow_tokenless_raw_packet_download", False)
+                getattr(deps, "allow_tokenless_raw_packet_download", True)
             ),
         ):
             deps.write_json_response_fn(

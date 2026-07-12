@@ -28,7 +28,6 @@ From this repo:
   --target pi@meshyface.local \
   --bootstrap \
   --mesh-host meshtastic-radio.local \
-  --allow-insecure-mesh-tcp \
   --mesh-port 4403 \
   --clean-app-dir
 ```
@@ -61,7 +60,6 @@ Important naming note:
 ./scripts/deploy_meshyface.sh \
   --target pi@meshyface.local \
   --mesh-host meshtastic-radio.local \
-  --allow-insecure-mesh-tcp \
   --mesh-port 4403 \
   --clean-app-dir
 ```
@@ -126,7 +124,6 @@ bootstrap flow works as long as the SSH user has `sudo` access:
   --target pi@raspberrypi.local \
   --bootstrap \
   --mesh-host meshtastic-radio.local \
-  --allow-insecure-mesh-tcp \
   --mesh-port 4403 \
   --clean-app-dir
 ```

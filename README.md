@@ -216,9 +216,6 @@ that node.
 
 - `--mesh-host <ip-or-dns>`: TCP radio host
 - `--mesh-tcp-port <port>`: TCP radio port, default `4403`
-- `--allow-insecure-mesh-tcp`: explicitly allow Meshtastic's unauthenticated
-  TCP transport to a non-loopback host; use only on a trusted VPN/LAN or
-  through an SSH tunnel
 - `--mesh-port <path>`: serial device path
 - `--default-gateway-host <host>`: fallback TCP host if `--mesh-host` is not
   provided and serial is still on the default path
@@ -249,8 +246,9 @@ Related environment variables:
   `Authorization: Bearer <token>` or `X-API-Token`; prefer
   `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
   in process listings and shell history
-- `--allow-tokenless-raw-packet-download`: explicitly permit raw-packet DB
-  downloads without a token for direct loopback clients; disabled by default
+- `--allow-tokenless-raw-packet-download` /
+  `--no-allow-tokenless-raw-packet-download`: permit raw-packet DB downloads
+  without a token for loopback/private-LAN clients; enabled by default
 - `--games-enable` / `--no-games-enable`: enable playable standalone Zork
   console endpoints
 
