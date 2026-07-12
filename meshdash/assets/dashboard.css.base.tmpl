@@ -4246,6 +4246,37 @@
     #files-transfer-table tbody tr:nth-child(even) {{
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 44%, white 56%);
     }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row {{
+      font-family: var(--node-profile-theme-font-family, inherit);
+      background-color: var(--node-profile-theme-base, transparent);
+      background-image: var(--node-profile-theme-surface) !important;
+    }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row td {{
+      border-top-color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border))) 58%,
+        transparent
+      );
+      color: var(--workspace-shell-text, var(--ui-text, var(--ink)));
+    }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row td:first-child {{
+      box-shadow: inset 3px 0 0 var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong)));
+    }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row .files-transfer-name-main,
+    #files-transfer-table tbody tr.files-transfer-profiled-row .files-transfer-progress-pct {{
+      color: var(--workspace-shell-text, var(--ui-text, var(--ink)));
+    }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row .files-transfer-name-sub,
+    #files-transfer-table tbody tr.files-transfer-profiled-row .files-transfer-progress-text {{
+      color: color-mix(
+        in srgb,
+        var(--workspace-shell-text-soft, var(--ui-text-soft, var(--muted))) 86%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border))) 14%
+      );
+    }}
+    #files-transfer-table tbody tr.files-transfer-profiled-row .files-transfer-progress-meter > span {{
+      background: var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong)));
+    }}
     .files-transfer-action {{
       border: 1px solid color-mix(in srgb, var(--surface-tint-border) 76%, var(--ui-border, var(--surface-tint-border)) 24%);
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 72%, white 28%);

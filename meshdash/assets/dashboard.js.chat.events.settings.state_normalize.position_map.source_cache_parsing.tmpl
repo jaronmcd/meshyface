@@ -389,6 +389,9 @@
       if (activeLayoutView === "saved" && typeof renderFavorites === "function") {{
         renderFavorites(latestState, null);
       }}
+      if (activeLayoutView === "files" && typeof renderFilesView === "function") {{
+        renderFilesView(latestState);
+      }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
         ? normalizeNetworkSubview(activeNetworkSubview)
         : String(activeNetworkSubview || "map").trim().toLowerCase();

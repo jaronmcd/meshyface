@@ -1448,6 +1448,30 @@ def test_files_view_shows_live_dynamic_hop_limit_preview() -> None:
     assert "configured fallback" in js
 
 
+def test_files_transfer_rows_reuse_peer_profile_theme_surface() -> None:
+    css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+    )
+
+    assert "files-transfer-profiled-row" in js
+    assert "effectiveNodeAppearanceForNode(peerNodeId, state)" in js
+    assert "appearanceEntry.profileAppearance" in js
+    assert "nodeAppearanceStyleVars(appearanceEntry)" in js
+    assert "data-peer-node-id=" in js
+    assert "#files-transfer-table tbody tr.files-transfer-profiled-row {" in css
+    assert "background-image: var(--node-profile-theme-surface) !important;" in css
+    profiled_cells_section = css.split(
+        "#files-transfer-table tbody tr.files-transfer-profiled-row td {", 1
+    )[1].split("}", 1)[0]
+    assert "var(--workspace-shell-text" in profiled_cells_section
+    assert "var(--node-profile-theme-contrast" not in profiled_cells_section
+    assert "var(--node-profile-theme-line" in css
+
+
 def test_files_view_uses_persistent_transfer_console_splitter() -> None:
     html = build_html_shell(
         app_title="Meshyface",

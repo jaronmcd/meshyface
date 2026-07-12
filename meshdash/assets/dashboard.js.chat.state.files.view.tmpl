@@ -1008,7 +1008,23 @@
             aria-label="${{escAttr(closeTitle)}}"
           >&times;</button>`;
         actionHtml = `<span class="files-transfer-action-group files-transfer-row-actions">${{actionHtml}}${{closeButton}}</span>`;
-        return `<tr>
+        const peerNodeId = normalizeNodeId(row && row.peerId || "");
+        const appearanceEntry = peerNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(peerNodeId, state)
+          : null;
+        const hasProfileTheme = !!(
+          appearanceEntry
+          && appearanceEntry.profileAppearance
+          && appearanceEntry.preset
+        );
+        const appearanceStyleVars = hasProfileTheme && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(appearanceEntry)
+          : "";
+        const appearanceStyleAttr = appearanceStyleVars
+          ? ` style="${{escAttr(appearanceStyleVars)}}"`
+          : "";
+        const appearanceClass = hasProfileTheme ? " profiled-node files-transfer-profiled-row" : "";
+        return `<tr class="files-transfer-row${{appearanceClass}}" data-peer-node-id="${{escAttr(peerNodeId)}}"${{appearanceStyleAttr}}>
           <td data-sort="${{escAttr(unix)}}">${{escAttr(when)}}</td>
           <td data-sort="${{escAttr(directionLabel)}}"><span class="files-transfer-dir ${{escAttr(directionClass)}}">${{escAttr(directionLabel)}}</span></td>
           <td data-sort="${{escAttr(peerText)}}" title="${{escAttr(peerTitle)}}">${{escAttr(peerText)}}</td>
