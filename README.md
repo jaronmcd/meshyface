@@ -3,15 +3,13 @@
 Meshyface is a chat-first Meshtastic dashboard that runs as a single Python
 service and serves a single-page web UI over HTTP.
 
-
-
 ## Current App Surface
 
 The current UI exposes:
 
 - Chat plus direct-peer conversations
-- Network workspace for map, topology, Top 10 rankings, node details, and
-  on-demand history views
+- Network workspace for map, overview, links, routes, sensors, Top 10 rankings,
+  node details, and on-demand history
 - Console workspace for live packet/log output
 - Apps workspace with Games and a Files tab when file transfer is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
@@ -274,6 +272,28 @@ endpoint, and its `version` field retains release/package metadata.
 `MESH_DASH_VERSION` is likewise reserved for explicit release packaging and is
 not shown in the dashboard.
 
+### File transfer
+
+- `--file-transfer-enable`: enable the Files app; requires
+  `--accept-file-transfer-traffic-disclaimer`
+- `--file-transfer-auto-accept`: accept direct inbound transfers without a
+  browser confirmation
+- `--file-transfer-max-bytes <bytes>`: per-file limit, default `65536` and
+  constrained to `1024`-`524288`
+
+Transfers use the beta `MF_FILE_V2` protocol on private port `258` and are not
+compatible with the former text-message transport. When a destination has a
+usable detected hop count, Meshyface uses that count plus one, capped by the
+configured radio hop limit. Hop data older than one hour falls back to the
+configured limit. The Files app displays the selected limit and its source.
+
+Related environment variables:
+
+- `MESH_DASH_FILE_TRANSFER_ENABLE`
+- `MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT`
+- `MESH_DASH_FILE_TRANSFER_MAX_BYTES`
+- `MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER`
+
 ### History and analytics
 
 - `--history-db <path>`: base SQLite DB path
@@ -332,11 +352,11 @@ Related environment variables:
   not use that public channel for private traffic.
 - `--show-secrets` exposes sensitive values in raw JSON panels; do not enable
   it casually on shared displays.
+- Raw-packet database downloads can expose message and telemetry contents. On
+  shared hosts, require an API token and use
+  `--no-allow-tokenless-raw-packet-download`.
 - File transfer can consume significant mesh airtime. Keep it disabled unless
   you have explicitly accepted that tradeoff.
-- File transfer uses the beta `MF_FILE_V2` binary protocol on dedicated private
-  port `258`. It is intentionally incompatible with the former text-message
-  transport.
 
 
 ## Testing And Coverage
