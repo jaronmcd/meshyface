@@ -2294,7 +2294,6 @@
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel {{
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
@@ -3648,9 +3647,6 @@
     [data-theme="dark"] .topbar .summary-ticker-item .radio-ticker-status.status-lost::before {{
       background: #ff9e9e;
     }}
-    [data-theme="dark"] .teams-rail {{
-      border-color: transparent !important;
-    }}
     [data-theme="dark"] .summary-freshness {{
       border-color: rgba(124, 161, 190, 0.36);
       background: rgba(121, 192, 255, 0.08);
@@ -3676,7 +3672,6 @@
       background: rgba(121, 192, 255, 0.08);
       color: #cfe4f8;
     }}
-    [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
     [data-theme="dark"] details,
@@ -3811,7 +3806,6 @@
     [data-theme="dark"] .starred-node-wrap,
     [data-theme="dark"] .theme-btn,
     [data-theme="dark"] .disk-meter,
-    [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .chat-channel-item,
     [data-theme="dark"] .metric,
     [data-theme="dark"] .chat-endpoint .chat-id-bg,
@@ -3832,7 +3826,6 @@
       box-shadow: none;
     }}
     [data-theme="dark"] .history-caption,
-    [data-theme="dark"] .teams-rail-title,
     [data-theme="dark"] .chat-left-title,
     [data-theme="dark"] .chat-left-label,
     [data-theme="dark"] .chat-left-sub,
@@ -4574,7 +4567,6 @@
     [data-theme="dark"] .theme-btn:hover,
     [data-theme="dark"] .selection-btn:hover,
     [data-theme="dark"] .starred-node-wrap:hover,
-    [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
     [data-theme="dark"] .metric:hover,
     [data-theme="dark"] .chat-reaction-chip:hover,
@@ -4590,16 +4582,6 @@
       color: var(--surface-tint-text);
       transform: none;
       box-shadow: none;
-    }}
-    [data-theme="dark"] .rail-btn.active {{
-      background: #1e3342;
-      border-color: #3f5b73;
-      color: #eef6ff;
-      box-shadow: inset 0 0 0 1px rgba(121, 192, 255, 0.15);
-    }}
-    [data-theme="dark"] .rail-btn.has-unread {{
-      border-color: #3fb950 !important;
-      box-shadow: inset 0 0 0 1px rgba(63, 185, 80, 0.3);
     }}
     [data-theme="dark"] .chat-feed-item.selected-node {{
       box-shadow:
@@ -4706,7 +4688,6 @@
     [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-channel-item,
     [data-theme="dark"] .chat-member-item,
-    [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .metric,
     [data-theme="dark"] .card {{
       transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
@@ -7285,24 +7266,6 @@
         grid-column: 1;
         grid-row: 2;
       }}
-      .teams-rail {{
-        grid-column: 1;
-        grid-row: 1;
-        position: static;
-        height: auto;
-        min-height: 0;
-        flex-direction: row;
-        align-items: center;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 6px;
-      }}
-      .teams-rail-title {{
-        display: none;
-      }}
-      .rail-btn {{
-        min-width: 74px;
-      }}
       .workspace-shell.chat-panel-open {{
         grid-template-columns: 1fr;
         grid-template-rows: auto auto minmax(0, 1fr);
@@ -7360,9 +7323,6 @@
         border-bottom: 1px solid var(--surface-tint-border);
         background: var(--surface-tint-bg-alt);
         padding: 8px 10px 7px 10px;
-      }}
-      .layout.view-saved .map-card-head::before {{
-        content: none;
       }}
       .layout.view-saved .map-card-head .pane-head-title,
       .layout.view-saved .map-card-head .pane-head-actions {{
@@ -7615,10 +7575,6 @@
       }}
       .reversi-link-actions {{
         grid-template-columns: minmax(0, 1fr);
-      }}
-      .rail-btn {{
-        min-width: 68px;
-        font-size: 9px;
       }}
       .topbar .sub .summary-ticker-row {{
         grid-template-columns: var(--topbar-corner-reserve, 30px) repeat(var(--summary-visible-ticker-count, 10), minmax(168px, 82vw));

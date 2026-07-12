@@ -4102,7 +4102,7 @@
       return `<button type="button" class="mute-toggle-btn ${{extraClass}}${{active ? " active" : ""}}" data-node-id="${{escAttr(normalized)}}" title="${{title}}" aria-label="${{title}}" aria-pressed="${{active ? "true" : "false"}}"><span class="mute-toggle-icon">${{active ? "🔇" : "🔊"}}</span></button>`;
     }}
 
-    function renderSavedRailStatus() {{
+    function renderSavedSelectionStatus() {{
       const count = Math.max(0, visibleFavoriteNodeIds().length);
       const explicitSelectedId = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
       const selectedId = activeLayoutView === "saved"
@@ -4116,25 +4116,6 @@
               : (resolveSelectedNodeName() || selectedId)
           )
         : "";
-      const btn = document.querySelector('.teams-rail .rail-btn[data-view="saved"]');
-      if (btn instanceof HTMLButtonElement) {{
-        if (!btn.dataset.baseTitle) {{
-          btn.dataset.baseTitle = btn.getAttribute("title") || "Node details and tagged nodes";
-        }}
-        btn.textContent = "Node";
-        const baseTitle = btn.dataset.baseTitle || "Node details and tagged nodes";
-        if (selectedId) {{
-          btn.title = usingLocalFallback
-            ? `${{baseTitle}}. Showing local node: ${{selectedName}}.`
-            : `${{baseTitle}}. Selected: ${{selectedName}}.`;
-        }} else {{
-          btn.title = count > 0
-            ? `${{baseTitle}}. ${{count}} tagged node${{count === 1 ? "" : "s"}}.`
-            : `${{baseTitle}}. No tagged nodes yet.`;
-        }}
-        btn.setAttribute("aria-label", btn.title);
-      }}
-
       const favMenuBtn = document.getElementById("favorite-menu-toggle-btn");
       if (favMenuBtn instanceof HTMLButtonElement) {{
         favMenuBtn.classList.toggle("has-saved", count > 0);

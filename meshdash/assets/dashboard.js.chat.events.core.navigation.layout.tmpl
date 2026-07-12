@@ -1283,7 +1283,6 @@
         const cityText = cityTextRaw && citySource === "estimated"
           ? `~ ${{cityTextRaw}}`
           : cityTextRaw;
-        // Legacy guard for compatibility tests: class="network-top-node-city"
         const cityHtml = cityKey
           ? `<span class="network-top-node-city${{citySource === "estimated" ? " is-estimated" : ""}}" data-top-node-city-key="${{escAttr(cityKey)}}" data-top-node-city-lat="${{escAttr(location.lat.toFixed(6))}}" data-top-node-city-lon="${{escAttr(location.lon.toFixed(6))}}" data-top-node-city-source="${{escAttr(citySource)}}"${{cityText ? "" : " hidden"}}>${{escAttr(cityText)}}</span>`
           : "";
@@ -2665,12 +2664,8 @@
       const scopedPathNodeIds = new Set(path.concat(returnPath));
       const routeEdgeKeys = new Set();
       const routeEdges = [];
-      // Legacy baseline retained for compatibility checks:
-      // const maxSideLinks = Math.max(10, Math.min(22, path.length * 4));
       const maxSideLinks = Math.max(6, Math.min(14, path.length * 2));
       const maxSideLinksPerRouteNode = 2;
-      // Legacy baseline retained for compatibility checks:
-      // const maxClusterLinks = 14;
       const maxClusterLinks = 8;
       const maxClusterNewNodes = 5;
       const appendPathEdges = (pathNodes, rawEdges, kind = "route") => {{
@@ -3471,8 +3466,6 @@
       const routeLocationEstimates = opts.routeLocationEstimates instanceof Map
         ? opts.routeLocationEstimates
         : new Map();
-      // Legacy guard string for compatibility tests:
-      // ${{isRoute && !nodeEmoji ? `<text class="network-route-scope-node-index"`
       const scoped = buildNetworkRoutesScopedLinks(route, data);
       if (!scoped.path.length) return "";
       const nodeMap = data && data.nodeMap instanceof Map ? data.nodeMap : new Map();
@@ -3645,13 +3638,9 @@
         const cityKey = networkTopNodesCityCacheKey(location);
         const cityTextRaw = String(networkTopNodesCityText(location) || "").trim();
         const cityMaxChars = Math.max(0, Math.trunc(Number(labelPlan && labelPlan.cityMaxChars) || 0));
-        // Legacy token retained for compatibility checks:
-        // const cityText = truncateNetworkGraphLabel(networkTopNodesCityText(location), 20);
         const cityText = cityMaxChars > 0
           ? truncateNetworkGraphLabel(cityTextRaw, Math.max(6, cityMaxChars))
           : cityTextRaw;
-        // Legacy token retained for compatibility checks:
-        // const cityLabel = cityText && citySource === "estimated" ? `~ ${cityText}` : cityText;
         const cityLabel = (labelPlan && showCity && labelPlan.cityLabel)
           ? String(labelPlan.cityLabel || "")
           : (cityText && citySource === "estimated" ? `~ ${{cityText}}` : cityText);
@@ -3659,7 +3648,6 @@
         const classes = [
           "network-route-scope-node",
           isRoute ? "is-route" : "is-context",
-          // Legacy token retained for compatibility checks: nodeEmoji ? "has-emoji-glyph" : ""
           resolvedNodeEmoji ? "has-emoji-glyph" : "",
           isFrom ? "is-from" : "",
           isTo ? "is-to" : "",
@@ -3669,7 +3657,6 @@
         const title = `${{name}} (${{clean}})`;
         const emojiBoxSize = Math.max(22, Math.round(radius * 2.15));
         const emojiBoxOffset = -(emojiBoxSize / 2);
-        // Legacy token retained for compatibility checks: class="network-route-scope-node-id"
         return `<g class="${{escAttr(classes)}}"
           data-route-node-id="${{escAttr(clean)}}"
           tabindex="0"
@@ -3715,8 +3702,6 @@
       if (!(el instanceof Element)) return;
       const raw = String(text || "").trim();
       const maxChars = Math.max(0, Math.trunc(Number(el.getAttribute("data-route-node-city-max-chars")) || 0));
-      // Legacy token retained for compatibility checks:
-      // const clean = truncateNetworkGraphLabel(String(text || "").trim(), 20);
       const clean = maxChars > 0
         ? truncateNetworkGraphLabel(raw, Math.max(6, maxChars))
         : raw;
@@ -4027,7 +4012,6 @@
 
       const toName = networkGraphNodeDisplayName(networkRoutesToNodeId, data.nodeMap);
       if (mode === "live") {{
-        // Legacy copy retained for compatibility checks: "Live trace is not wired yet."
         if (!endpointsReady) {{
           summary.innerHTML = `<span><strong>Live trace</strong> - choose a destination</span><span>source: self</span>`;
           result.innerHTML = `<div class="network-routes-empty">Choose a destination node, then run a live traceroute.</div>`;
@@ -10856,10 +10840,6 @@
       }}
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
-      if (typeof updateNetworkLegacyExplorerControl === "function") {{
-        updateNetworkLegacyExplorerControl();
-      }}
-
       const mapNodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
       try {{
         syncSignalHeatmapLayer(mapNodes, next === "saved");

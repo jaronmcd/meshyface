@@ -199,7 +199,7 @@ def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
     assert "chatNodeNavigatorShowCity = nextShowCity;" in js
     assert "function chatNodeNavigatorNodeLocation(nodeId, nodesById = null, item = null) {" in js
     assert "function hydrateChatNodeNavigatorCities(root) {" in js
-    assert 'class="chat-member-city"' in js
+    assert 'class="chat-member-city${memberCitySource === "estimated" ? " is-estimated" : ""}"' in js
     assert "if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);" in js
     assert js.index("if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);") < js.index(
         "if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);"

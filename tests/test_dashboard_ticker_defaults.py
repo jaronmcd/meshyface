@@ -550,7 +550,7 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert 'selectedSlot = addIdentitySlot("selected", "", selectedTickerId, selectedTickerNode, null, selectedNodeName, "Selected node");' in js
     assert '? `${metricBaseTitle} • Click self or selected side to focus that node`' in js
     assert "nearestOfflineCityHintFromCoords(" in js
-    assert 'source: "linked",' in js
+    assert 'source: "estimated",' in js
     assert "const cityRequests = [];" in js
     assert "addIdentityCityRequest(localSlot, localId, localNode, localOwner);" in js
     assert "addIdentityCityRequest(selectedSlot, selectedTickerId, selectedTickerNode, null);" in js

@@ -2023,7 +2023,6 @@
             ? `~ ${{memberCityTextRaw}}`
             : memberCityTextRaw
         );
-        // Legacy guard for compatibility tests: class="chat-member-city"
         const memberCityHtml = memberCityKey
           ? `<span class="chat-member-city${{memberCitySource === "estimated" ? " is-estimated" : ""}}" data-chat-member-city-key="${{escAttr(memberCityKey)}}" data-chat-member-city-lat="${{escAttr(memberLocation.lat.toFixed(6))}}" data-chat-member-city-lon="${{escAttr(memberLocation.lon.toFixed(6))}}" data-chat-member-city-source="${{escAttr(memberCitySource)}}"${{memberCityText ? "" : " hidden"}}>${{escAttr(memberCityText)}}</span>`
           : "";

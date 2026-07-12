@@ -127,7 +127,8 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'marker-end="${markerEnd}"' in js
     assert 'const cityKey = networkTopNodesCityCacheKey(location);' in js
     assert 'const citySource = locationMeta ? String(locationMeta.source || "gps") : "";' in js
-    assert 'const cityLabel = cityText && citySource === "estimated" ? `~ ${cityText}` : cityText;' in js
+    assert 'const cityLabel = (labelPlan && showCity && labelPlan.cityLabel)' in js
+    assert ': (cityText && citySource === "estimated" ? `~ ${cityText}` : cityText);' in js
     assert 'data-route-node-city-source="${escAttr(citySource || "gps")}"' in js
     assert 'class="network-route-scope-node-city${citySource === "estimated" ? " is-estimated" : ""}"' in js
     assert 'function hydrateNetworkRoutesScopeNodeCities(root)' in js
@@ -138,10 +139,10 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'const display = clean && source === "estimated" ? `~ ${clean}` : clean;' in js
     assert 'hopNodeId === "!local"' in js
     assert 'const nodeEmoji = networkRoutesScopeNodeEmoji(clean, node);' in js
-    assert 'nodeEmoji ? "has-emoji-glyph" : ""' in js
+    assert 'resolvedNodeEmoji ? "has-emoji-glyph" : ""' in js
     assert 'class="network-route-scope-node-emoji-fo"' in js
     assert 'class="network-route-scope-node-emoji"' in js
-    assert '${isRoute && !nodeEmoji ? `<text class="network-route-scope-node-index"' in js
+    assert '${isRoute && !resolvedNodeEmoji ? `<text class="network-route-scope-node-index"' in js
     assert 'function bindNetworkRoutesScopeInteractions(root = document)' in js
     assert 'function syncNetworkRoutesFromSelectedNode()' in js
     assert 'const selectedId = normalizeNodeId(selectedNodeId || "");' in js
@@ -154,15 +155,15 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'data-route-edge-a="${escAttr(sourceId)}"' in js
     assert 'data-route-scope-reset="1"' in js
     assert 'zoomNetworkRoutesScopeView(svg, event);' in js
-    assert 'const maxSideLinks = Math.max(10, Math.min(22, path.length * 4));' in js
-    assert 'const maxClusterLinks = 14;' in js
+    assert 'const maxSideLinks = Math.max(6, Math.min(14, path.length * 2));' in js
+    assert 'const maxClusterLinks = 8;' in js
     assert 'const isBidirectionalOverlap = (isPrimaryRoute || isReturnRoute) && bidirectionalEdgeKeys.has(edgeKey);' in js
     assert 'const offsetPx = isBidirectionalOverlap ? 7 : 0;' in js
     assert 'if (keyAlreadyPresent && kind !== "return") continue;' in js
     assert 'const routeLocationEstimates = networkRoutesBuildLocationEstimates(data);' in js
     assert 'returnPath: backRoute.path,' in js
     assert 'returnEdges: backRoute.edges,' in js
-    assert 'Live trace is not wired yet.' in js
+    assert 'Run trace to capture the live hop path from self to' in js
     assert 'function refreshNetworkDiagnosticsPanel(force = false)' in js
     assert 'fetch(`/api/history/malformed?${params.toString()}`' in js
     assert 'name: "maltext"' in js
