@@ -12,7 +12,8 @@ from meshdash.file_transfer_protocol import (
     file_transfer_frame_text,
     parse_file_transfer_frame_text,
 )
-from meshdash.services_chat import send_chat_message
+from meshdash.html_js import build_dashboard_js
+from meshdash.services_chat import _file_transfer_hop_limit, send_chat_message
 from meshdash.tracker_entries import build_packet_summary
 
 
@@ -25,9 +26,19 @@ class _Lock:
 
 
 class _Iface:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        hop_limit: int | None = None,
+        nodes_by_num: dict[int, dict[str, object]] | None = None,
+    ) -> None:
         self.data_calls: list[tuple[bytes, dict[str, object]]] = []
         self.text_calls: list[tuple[str, dict[str, object]]] = []
+        self.nodesByNum = nodes_by_num or {}
+        if hop_limit is not None:
+            lora = type("_LoraConfig", (), {"hop_limit": hop_limit})()
+            local_config = type("_LocalConfig", (), {"lora": lora})()
+            self.localNode = type("_LocalNode", (), {"localConfig": local_config})()
 
     def sendData(self, payload: bytes, **kwargs: object) -> dict[str, int]:
         self.data_calls.append((bytes(payload), dict(kwargs)))
@@ -166,10 +177,111 @@ def test_file_frame_uses_send_data_on_dedicated_port() -> None:
         "wantAck": False,
         "wantResponse": False,
         "channelIndex": 2,
+        "hopLimit": 3,
     }
     assert decode_file_transfer_payload(payload)["chunk_bytes"] == b"\x01\x02\x03"
     assert response["protocol"] == "MF_FILE_V2"
     assert response["packet_id"] == 1234
+    assert response["hop_limit"] == 3
+    assert response["hop_limit_source"] == "configured"
+
+
+def test_file_frame_sends_with_detected_destination_hop_limit() -> None:
+    iface = _Iface(
+        hop_limit=5,
+        nodes_by_num={
+            0x01020304: {
+                "user": {"id": "!01020304"},
+                "hopsAway": 1,
+            }
+        },
+    )
+
+    response = send_chat_message(
+        text="MF_FILE_V2|F|abcd1234|P",
+        destination="!01020304",
+        channel_index=2,
+        iface=iface,
+        send_lock=_Lock(),
+        send_reaction_packet_fn=lambda **_kwargs: None,
+        local_node_id_fn=lambda: "!12345678",
+        record_local_chat_fn=lambda **_kwargs: None,
+        chat_max_bytes=200,
+        normalize_single_emoji_fn=lambda _value: (None, None),
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        now_text_fn=lambda: "now",
+    )
+
+    assert iface.data_calls[0][1]["hopLimit"] == 2
+    assert response["hop_limit"] == 2
+    assert response["hop_limit_source"] == "detected"
+    assert response["detected_hops"] == 1
+
+
+@pytest.mark.parametrize(
+    ("hops_away", "configured", "expected"),
+    [
+        (0, 4, 1),
+        (1, 4, 2),
+        (2, 4, 3),
+        (6, 3, 3),
+    ],
+)
+def test_file_transfer_hop_limit_tracks_fresh_destination_route(
+    hops_away: int,
+    configured: int,
+    expected: int,
+) -> None:
+    iface = _Iface(
+        hop_limit=configured,
+        nodes_by_num={
+            0x01020304: {
+                "user": {"id": "!01020304"},
+                "hopsAway": hops_away,
+                "lastHeard": 9_900,
+            }
+        },
+    )
+
+    assert _file_transfer_hop_limit(
+        iface,
+        "!01020304",
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        now_unix=10_000,
+    ) == (expected, hops_away)
+
+
+@pytest.mark.parametrize(
+    "node_info",
+    [
+        {"user": {"id": "!01020304"}},
+        {"user": {"id": "!01020304"}, "hopsAway": 1, "lastHeard": 1_000},
+    ],
+)
+def test_file_transfer_hop_limit_falls_back_for_missing_or_stale_route(
+    node_info: dict[str, object],
+) -> None:
+    iface = _Iface(hop_limit=5, nodes_by_num={0x01020304: node_info})
+
+    assert _file_transfer_hop_limit(
+        iface,
+        "!01020304",
+        to_int_fn=lambda value: int(value) if value is not None else None,
+        now_unix=10_000,
+    ) == (5, None)
+
+
+def test_file_transfer_console_reports_dynamic_hop_limit_source() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+    )
+
+    assert "metaSendResult && metaSendResult.hop_limit_source" in js
+    assert "detected hop" in js
+    assert "from the configured fallback" in js
 
 
 def test_v2_packet_is_exposed_as_protocol_text_in_packet_summary() -> None:

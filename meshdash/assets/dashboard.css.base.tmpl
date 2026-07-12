@@ -3960,6 +3960,35 @@
       flex-direction: column;
       gap: 5px;
     }}
+    .files-field-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .files-hop-limit-preview {{
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 100%;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 999px;
+      background: var(--surface-tint-bg-soft);
+      color: var(--surface-tint-text-soft);
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .files-hop-limit-preview[data-source="detected"] {{
+      border-color: var(--surface-tint-border-strong);
+      background: color-mix(in srgb, var(--surface-tint-bg-alt) 82%, transparent);
+      color: var(--surface-tint-text);
+    }}
     .files-option {{
       display: inline-flex;
       align-items: center;

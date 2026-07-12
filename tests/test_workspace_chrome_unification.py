@@ -1417,6 +1417,37 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "cursor: row-resize;" in files_splitter_section
 
 
+def test_files_view_shows_live_dynamic_hop_limit_preview() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+    )
+
+    assert 'id="files-hop-limit-preview"' in html
+    assert "Dynamic hops · select destination" in html
+    assert ".files-hop-limit-preview {" in css
+    assert '.files-hop-limit-preview[data-source="detected"] {' in css
+    assert "function fileTransferHopLimitPreview(" in js
+    assert "function renderFileTransferHopLimitPreview(" in js
+    assert "detected + safety" in js
+    assert "configured fallback" in js
+
+
 def test_files_view_uses_persistent_transfer_console_splitter() -> None:
     html = build_html_shell(
         app_title="Meshyface",

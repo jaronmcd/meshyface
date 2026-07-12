@@ -572,6 +572,78 @@
       return preferred ? `${{preferred}} (${{clean}})` : clean;
     }}
 
+    function fileTransferHopLimitPreview(destination, state = latestState, nowUnix = Math.floor(Date.now() / 1000)) {{
+      const safeState = state && typeof state === "object" ? state : latestState;
+      const localState = safeState && safeState.local_state && typeof safeState.local_state === "object"
+        ? safeState.local_state
+        : null;
+      const localConfig = localState && localState.local_config && typeof localState.local_config === "object"
+        ? localState.local_config
+        : null;
+      const lora = localConfig && localConfig.lora && typeof localConfig.lora === "object"
+        ? localConfig.lora
+        : null;
+      const configuredRaw = Number(lora && (lora.hop_limit ?? lora.hopLimit));
+      const configured = Number.isFinite(configuredRaw) && configuredRaw >= 1
+        ? Math.min(7, Math.trunc(configuredRaw))
+        : 3;
+      const clean = normalizeNodeId(destination || "");
+      if (!isCanonicalNodeId(clean)) {{
+        return {{ hopLimit: configured, detectedHops: null, source: "none", reason: "Select a destination to estimate its hop limit." }};
+      }}
+
+      const nodes = Array.isArray(safeState && safeState.nodes) ? safeState.nodes : [];
+      const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === clean) || null;
+      const hopsRaw = node && (node.hops_away ?? node.hopsAway);
+      const detectedHops = Number(hopsRaw);
+      if (hopsRaw == null || !Number.isFinite(detectedHops) || detectedHops < 0) {{
+        return {{ hopLimit: configured, detectedHops: null, source: "configured", reason: "No detected route is available; the configured radio limit will be used." }};
+      }}
+
+      const lastHeardRaw = node && (node.last_heard_unix ?? node.lastHeard);
+      const lastHeard = Number(lastHeardRaw);
+      if (
+        lastHeardRaw != null
+        && Number.isFinite(lastHeard)
+        && lastHeard > 0
+        && Number(nowUnix) - lastHeard > 3600
+      ) {{
+        return {{ hopLimit: configured, detectedHops: null, source: "configured", reason: "The detected route is stale; the configured radio limit will be used." }};
+      }}
+
+      const normalizedHops = Math.max(0, Math.trunc(detectedHops));
+      const requestedHopLimit = Math.max(1, normalizedHops + 1);
+      return {{
+        hopLimit: Math.min(configured, requestedHopLimit),
+        detectedHops: normalizedHops,
+        source: "detected",
+        capped: requestedHopLimit > configured,
+        reason: "A fresh detected route plus one safety hop will be used.",
+      }};
+    }}
+
+    function renderFileTransferHopLimitPreview(state = latestState) {{
+      const previewEl = document.getElementById("files-hop-limit-preview");
+      if (!(previewEl instanceof HTMLElement)) return;
+      const destination = resolveFileTransferDestination();
+      const preview = fileTransferHopLimitPreview(destination, state);
+      previewEl.dataset.source = preview.source;
+      previewEl.title = preview.reason;
+      if (preview.source === "none") {{
+        previewEl.textContent = "Dynamic hops · select destination";
+        return;
+      }}
+      if (preview.source === "detected") {{
+        const hops = Math.max(0, Math.trunc(Number(preview.detectedHops) || 0));
+        const detail = preview.capped
+          ? `${{hops}} detected · configured cap`
+          : `${{hops}} detected + safety`;
+        previewEl.textContent = `Hop limit ${{preview.hopLimit}} · ${{detail}}`;
+        return;
+      }}
+      previewEl.textContent = `Hop limit ${{preview.hopLimit}} · configured fallback`;
+    }}
+
     function syncFileTransferDestinationInput(state = latestState) {{
       const input = document.getElementById("files-destination-input");
       if (!(input instanceof HTMLInputElement)) return;
@@ -594,6 +666,7 @@
       if (!clean) {{
         input.title = "";
       }}
+      renderFileTransferHopLimitPreview(latestState);
     }}
 
     function fileTransferInviteSeedPeerId(state = latestState) {{
@@ -623,6 +696,7 @@
       const persist = !(options && options.persist === false);
       fileTransferDestinationId = extractFileTransferDestinationId(rawDestination || "");
       syncFileTransferDestinationInput();
+      renderFileTransferHopLimitPreview(latestState);
       if (persist) {{
         persistFileTransferDestinationPreference();
       }}
@@ -920,8 +994,17 @@
         const sessionChannelIndex = confirmedChannelIndex == null
           ? normalizeMeshChannelIndex(sendCtx.sendIndex)
           : confirmedChannelIndex;
+        const selectedHopLimit = Number(metaSendResult && metaSendResult.hop_limit);
+        const detectedHops = Number(metaSendResult && metaSendResult.detected_hops);
+        const hopLimitDetail = Number.isFinite(selectedHopLimit) && selectedHopLimit > 0
+          ? (
+              metaSendResult && metaSendResult.hop_limit_source === "detected" && Number.isFinite(detectedHops)
+                ? ` Hop limit ${{Math.trunc(selectedHopLimit)}} from ${{Math.max(0, Math.trunc(detectedHops))}} detected hop${{Math.trunc(detectedHops) === 1 ? "" : "s"}} plus safety.`
+                : ` Hop limit ${{Math.trunc(selectedHopLimit)}} from the configured fallback.`
+            )
+          : "";
         appendFileTransferConsole(
-          `Metadata sent for ${{fileTransferShortTransferId(transferId)}} (${{chunkFrames.length}} chunk${{chunkFrames.length === 1 ? "" : "s"}}).`
+          `Metadata sent for ${{fileTransferShortTransferId(transferId)}} (${{chunkFrames.length}} chunk${{chunkFrames.length === 1 ? "" : "s"}}).${{hopLimitDetail}}`
         );
         registerOutgoingFileTransferSession({{
           transferId,

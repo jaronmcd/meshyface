@@ -2838,10 +2838,20 @@
     [data-theme="dark"] .files-caption,
     [data-theme="dark"] .files-send-status,
     [data-theme="dark"] .files-channel-hint,
+    [data-theme="dark"] .files-hop-limit-preview,
     [data-theme="dark"] .files-option,
     [data-theme="dark"] .files-transfer-name-sub,
     [data-theme="dark"] .files-transfer-progress-text {{
       color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .files-hop-limit-preview {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 74%, transparent);
+    }}
+    [data-theme="dark"] .files-hop-limit-preview[data-source="detected"] {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, transparent);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .files-label,
     [data-theme="dark"] .files-console-title,

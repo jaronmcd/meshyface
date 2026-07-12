@@ -666,6 +666,7 @@
 
     function renderFilesView(state = latestState) {{
       const selectedSeed = syncFileTransferDestinationFromSelectedNode(state, {{ persist: true }});
+      renderFileTransferHopLimitPreview(state);
 
       const useSelectedBtn = document.getElementById("files-use-selected-btn");
       if (useSelectedBtn instanceof HTMLButtonElement) {{
