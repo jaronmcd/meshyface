@@ -891,6 +891,13 @@
       white-space: nowrap;
       z-index: 0;
     }}
+    .topbar .summary-ticker-item-self.has-node-emoji.has-fallback-node-watermark::after {{
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: calc(var(--self-node-single-watermark-size) * 0.66);
+      font-weight: 900;
+      letter-spacing: -0.06em;
+      opacity: 0.06;
+    }}
     .topbar .summary-ticker-item-self.has-dual-node-watermarks::before,
     .topbar .summary-ticker-item-self.has-dual-node-watermarks::after {{
       position: absolute;
@@ -986,6 +993,31 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-slot::before {{
+      content: attr(data-identity-watermark);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--node-profile-theme-contrast, var(--ticker-text-strong));
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+      font-size: clamp(25px, 2.15vw, 38px);
+      font-weight: 850;
+      line-height: 1;
+      opacity: 0.09;
+      filter: grayscale(0.12) saturate(0.8) blur(0.45px);
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+      z-index: 0;
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-slot.has-fallback-watermark::before {{
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: clamp(21px, 1.8vw, 31px);
+      letter-spacing: -0.06em;
+      opacity: 0.075;
     }}
     .topbar .summary-ticker-item-radio .value.radio-ticker-value .radio-ticker-status {{
       flex: 0 0 auto;
@@ -1093,6 +1125,7 @@
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot {{
       min-width: 0;
+      box-sizing: border-box;
       position: relative;
       isolation: isolate;
       overflow: hidden;
@@ -1154,14 +1187,34 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       align-items: stretch;
-      column-gap: 8px;
+      column-gap: 10px;
       position: relative;
       padding-right: 0;
       white-space: nowrap;
     }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context::after {{
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 14px;
+      bottom: 4px;
+      width: 1px;
+      transform: translateX(-0.5px);
+      background: linear-gradient(
+        180deg,
+        transparent,
+        color-mix(in srgb, var(--ticker-text-muted) 34%, var(--line) 66%) 22%,
+        color-mix(in srgb, var(--ticker-text-muted) 34%, var(--line) 66%) 78%,
+        transparent
+      );
+      pointer-events: none;
+      z-index: 2;
+    }}
     .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-slot {{
       width: 100%;
       max-width: 100%;
+      padding: 5px 7px 4px;
+      border-radius: 9px;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(14px, auto) 10px 11px;
@@ -1248,32 +1301,6 @@
       text-overflow: ellipsis;
       max-width: 84px;
     }}
-    .topbar .summary-ticker-item-self > .label.is-dual-node-label {{
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      align-items: center;
-      column-gap: 8px;
-      width: 100%;
-      max-width: 100%;
-      text-align: left;
-    }}
-    .topbar .summary-ticker-item-self > .label.is-dual-node-label .self-node-label-self,
-    .topbar .summary-ticker-item-self > .label.is-dual-node-label .self-node-label-selected {{
-      min-width: 0;
-      font: inherit;
-      line-height: inherit;
-      letter-spacing: inherit;
-      text-transform: inherit;
-      color: inherit;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }}
-    .topbar .summary-ticker-item-self > .label.is-dual-node-label .self-node-label-selected {{
-      justify-self: end;
-      text-align: right;
-    }}
     .topbar .summary-ticker-item-self .self-node-label-self[role="button"],
     .topbar .summary-ticker-item-self .self-node-label-selected[role="button"] {{
       cursor: pointer;
@@ -1305,13 +1332,6 @@
       text-align: right;
       pointer-events: none;
       user-select: none;
-    }}
-    .topbar:not(.ticker-expanded) .summary-ticker-item-self > .label.is-dual-node-label {{
-      left: 7px;
-      right: 7px;
-      top: 5px;
-      bottom: auto;
-      max-width: none;
     }}
     .topbar:not(.ticker-expanded) .summary-ticker-item > .value,
     .topbar:not(.ticker-expanded) .summary-ticker-item > .metric-ticker,
@@ -1685,15 +1705,6 @@
       letter-spacing: 0.5px;
       white-space: normal;
     }}
-    .topbar.ticker-expanded .summary-ticker-item-self > .label.is-dual-node-label {{
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      column-gap: 12px;
-      width: 100%;
-      max-width: 100%;
-      white-space: nowrap;
-    }}
     .topbar.ticker-expanded .summary-ticker-item .value {{
       grid-column: 1;
       grid-row: 2;
@@ -1791,7 +1802,7 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       align-items: stretch;
-      column-gap: 12px;
+      column-gap: 14px;
       position: relative;
       padding-right: 0;
       white-space: nowrap;
@@ -1800,6 +1811,7 @@
     .topbar.ticker-expanded .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-slot {{
       width: 100%;
       max-width: 100%;
+      padding: 8px 10px 7px;
       grid-template-rows: minmax(20px, auto) 13px 13px;
       row-gap: 2px;
     }}
