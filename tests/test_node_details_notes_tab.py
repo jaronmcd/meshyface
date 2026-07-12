@@ -374,8 +374,7 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert ".chat-node-details-promoted-host .chat-node-details-head-actions {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
     assert "padding-right: 38px;" in css
-    assert ".chat-node-details-promoted-host .node-details.profiled-node::after," in css
-    assert "content: none;" in css
+    assert ".chat-node-details-promoted-host .node-details.profiled-node::after," not in css
     assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
     assert "height: 100%;" in css
@@ -564,3 +563,6 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
     assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-icon-btn {" in css
     assert ".node-details.has-node-appearance {" in css
     assert ".node-details.has-node-appearance .node-details-section:first-child {" in css
+    assert "\n    .node-details.profiled-node {\n" not in css
+    assert "\n    .node-details.profiled-node::after,\n" not in css
+    assert "\n    .node-details.profiled-node .node-details-section:first-child::after {\n" not in css

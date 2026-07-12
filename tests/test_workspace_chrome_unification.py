@@ -1409,6 +1409,8 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "height: var(--files-transfer-list-height);" in files_transfers_section
     assert "max-height: none;" in files_transfers_section
     assert "cursor: row-resize;" in files_splitter_section
+    assert "border: 0;" in files_splitter_section
+    assert "background: transparent;" in files_splitter_section
 
 
 def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
@@ -1501,6 +1503,8 @@ def test_files_transfer_rows_reuse_peer_profile_theme_surface() -> None:
     assert "effectiveNodeAppearanceForNode(peerNodeId, state)" in js
     assert "appearanceEntry.profileAppearance" in js
     assert "nodeAppearanceStyleVars(appearanceEntry)" in js
+    assert "meshyfaceProfileThemeClientTheme(profileTheme)" in js
+    assert "meshyfaceProfileThemeClientRender(profileTheme, rawProfileRender)" in js
     assert "data-peer-node-id=" in js
     assert "#files-transfer-table tbody tr.files-transfer-profiled-row {" in css
     assert "background-image: var(--node-profile-theme-surface) !important;" in css
@@ -1538,7 +1542,9 @@ def test_files_view_uses_persistent_transfer_console_splitter() -> None:
     assert 'id="files-transfer-console-splitter"' in html
     assert 'aria-orientation="horizontal"' in html
     assert ".files-transfer-console-splitter::before {" in css
-    assert "var(--workspace-shell-border-muted)" in dark_splitter_section
+    assert "border-color: transparent;" in dark_splitter_section
+    assert "background: transparent;" in dark_splitter_section
+    assert "height: 1px;" in css.split(".files-transfer-console-splitter::before {", 1)[1].split("}", 1)[0]
     assert 'const filesTransferListSplitStorageKey = "meshDashboardFilesTransferListHeightPxV1";' in js
     assert "let filesTransferListHeightPx = 96;" in js
     assert "function clampFilesTransferListHeightPx(value) {" in js

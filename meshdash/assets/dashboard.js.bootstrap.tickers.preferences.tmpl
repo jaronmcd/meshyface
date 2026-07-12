@@ -1104,6 +1104,11 @@
       applyMapTiles(resolvedTheme);
       applySettingsFixedMapTiles(resolvedTheme);
       updateThemeToggleLabel(resolvedTheme);
+      // Profile theme colors are adapted into inline variables when summary
+      // cards render. Refresh them now instead of waiting for the next poll.
+      if (latestState && typeof renderSummary === "function") {{
+        renderSummary(latestState);
+      }}
       if (typeof renderMeshyfaceNodeThemePreview === "function") {{
         renderMeshyfaceNodeThemePreview();
       }}

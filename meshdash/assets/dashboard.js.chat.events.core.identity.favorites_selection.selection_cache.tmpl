@@ -545,15 +545,21 @@
         const profileTheme = typeof normalizeMeshyfaceProfileTheme === "function"
           ? normalizeMeshyfaceProfileTheme(entry.theme)
           : null;
-        const profileRender = typeof normalizeMeshyfaceProfileThemeRender === "function"
+        const rawProfileRender = typeof normalizeMeshyfaceProfileThemeRender === "function"
           ? normalizeMeshyfaceProfileThemeRender(entry.render)
           : null;
+        const displayTheme = profileTheme && typeof meshyfaceProfileThemeClientTheme === "function"
+          ? meshyfaceProfileThemeClientTheme(profileTheme)
+          : profileTheme;
+        const profileRender = profileTheme && typeof meshyfaceProfileThemeClientRender === "function"
+          ? meshyfaceProfileThemeClientRender(profileTheme, rawProfileRender)
+          : rawProfileRender;
         const color = profileRender
           ? profileRender.border_color
-          : profileTheme
-            ? profileTheme.line_color
+          : displayTheme
+            ? displayTheme.line_color
           : normalizeNodeTagColor(entry.preset.color, "#2aa85a");
-        const surfaceColor = profileTheme ? profileTheme.base_color : color;
+        const surfaceColor = displayTheme ? displayTheme.base_color : color;
         const surfaceBackground = entry.profileAppearance && profileTheme
           ? `var(--node-profile-theme-surface, var(--node-profile-theme-background, ${{surfaceColor}}))`
           : `color-mix(in srgb, ${{surfaceColor}} 15%, var(--surface-tint-bg-soft) 85%)`;

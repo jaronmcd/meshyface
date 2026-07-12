@@ -716,6 +716,100 @@
       return documentMode === "dark" ? "dark" : "light";
     }}
 
+    function meshyfaceProfileThemeRgb(value) {{
+      const cleanHex = normalizeMeshyfaceProfileColor(value, "");
+      if (cleanHex) {{
+        return [1, 3, 5].map((offset) => Number.parseInt(cleanHex.slice(offset, offset + 2), 16));
+      }}
+      const match = /^rgba?\(\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})(?:\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?))?\s*\)$/i.exec(
+        String(value || "").trim()
+      );
+      if (!match) return null;
+      const channels = match.slice(1, 4).map((part) => Number.parseInt(part, 10));
+      return channels.every((part) => Number.isFinite(part) && part >= 0 && part <= 255)
+        ? channels
+        : null;
+    }}
+
+    function meshyfaceProfileThemeRgbHex(rgb, fallback = "") {{
+      if (!Array.isArray(rgb) || rgb.length !== 3) return fallback;
+      return `#${{rgb.map((part) => Math.max(0, Math.min(255, Math.round(part))).toString(16).padStart(2, "0")).join("")}}`;
+    }}
+
+    function meshyfaceProfileThemeClientPaletteColor(property, fallback) {{
+      try {{
+        const value = window.getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+        if (meshyfaceProfileThemeRgb(value)) return value;
+      }} catch (_err) {{}}
+      return fallback;
+    }}
+
+    function meshyfaceProfileThemeMixColor(first, second, firstWeight) {{
+      const firstRgb = meshyfaceProfileThemeRgb(first);
+      const secondRgb = meshyfaceProfileThemeRgb(second);
+      if (!firstRgb || !secondRgb) return normalizeMeshyfaceProfileColor(first, "");
+      const weight = Math.max(0, Math.min(1, Number(firstWeight) || 0));
+      return meshyfaceProfileThemeRgbHex(firstRgb.map((part, index) => (
+        (part * weight) + (secondRgb[index] * (1 - weight))
+      )));
+    }}
+
+    function meshyfaceProfileThemeClientColor(color, sourceMode, role = "surface") {{
+      const cleanColor = normalizeMeshyfaceProfileColor(color, "");
+      const cleanSourceMode = normalizeMeshyfaceProfileThemeEnum(sourceMode, meshyfaceProfileThemeModes);
+      const clientMode = resolvedMeshyfaceProfileThemeMode();
+      if (!cleanColor || !cleanSourceMode || cleanSourceMode === clientMode) return cleanColor;
+      let property = "--workspace-shell-bg";
+      let fallback = clientMode === "dark" ? "#101826" : "#f8fafc";
+      let remoteWeight = clientMode === "dark" ? 0.18 : 0.24;
+      if (role === "surface-hover") {{
+        property = "--workspace-shell-hover-bg";
+        fallback = clientMode === "dark" ? "#1a2638" : "#eef3f9";
+        remoteWeight = clientMode === "dark" ? 0.22 : 0.28;
+      }} else if (role === "line" || role === "border") {{
+        property = "--workspace-shell-border-strong";
+        fallback = clientMode === "dark" ? "#58709b" : "#6984b5";
+        remoteWeight = 0.68;
+      }} else if (role === "contrast") {{
+        property = "--workspace-shell-text";
+        fallback = clientMode === "dark" ? "#e6edf3" : "#172033";
+        remoteWeight = 0.12;
+      }}
+      return meshyfaceProfileThemeMixColor(
+        cleanColor,
+        meshyfaceProfileThemeClientPaletteColor(property, fallback),
+        remoteWeight
+      );
+    }}
+
+    function meshyfaceProfileThemeClientTheme(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme || theme.mode === resolvedMeshyfaceProfileThemeMode()) return theme;
+      return {{
+        ...theme,
+        base_color: meshyfaceProfileThemeClientColor(theme.base_color, theme.mode, "surface"),
+        line_color: meshyfaceProfileThemeClientColor(theme.line_color, theme.mode, "line"),
+        line_contrast_color: meshyfaceProfileThemeClientColor(theme.line_contrast_color, theme.mode, "contrast"),
+        gradient_primary_start_color: meshyfaceProfileThemeClientColor(theme.gradient_primary_start_color, theme.mode, "surface"),
+        gradient_primary_end_color: meshyfaceProfileThemeClientColor(theme.gradient_primary_end_color, theme.mode, "surface"),
+      }};
+    }}
+
+    function meshyfaceProfileThemeClientRender(rawTheme, rawRender) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      if (!theme || !render || theme.mode === resolvedMeshyfaceProfileThemeMode()) return render;
+      return normalizeMeshyfaceProfileThemeRender({{
+        ...render,
+        background_start_color: meshyfaceProfileThemeClientColor(render.background_start_color, theme.mode, "surface"),
+        background_end_color: meshyfaceProfileThemeClientColor(render.background_end_color, theme.mode, "surface"),
+        surface_color: meshyfaceProfileThemeClientColor(render.surface_color, theme.mode, "surface"),
+        surface_hover_color: meshyfaceProfileThemeClientColor(render.surface_hover_color, theme.mode, "surface-hover"),
+        border_color: meshyfaceProfileThemeClientColor(render.border_color, theme.mode, "border"),
+        border_muted_color: meshyfaceProfileThemeClientColor(render.border_muted_color, theme.mode, "border"),
+      }});
+    }}
+
     const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);
 
     function normalizeMeshyfaceNodeThemeMode(rawMode, fallback = "current") {{
@@ -1122,9 +1216,10 @@
     }}
 
     function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return "";
-      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      const sourceTheme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!sourceTheme) return "";
+      const theme = meshyfaceProfileThemeClientTheme(sourceTheme);
+      const render = meshyfaceProfileThemeClientRender(sourceTheme, rawRender);
       const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
       const kind = theme.gradient_primary_type;
       const directionCss = direction && direction[kind];
@@ -1397,10 +1492,11 @@
     ];
 
     function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return [];
-      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
-      const backgroundGradient = meshyfaceProfileThemeBackgroundGradient(theme, render);
+      const sourceTheme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!sourceTheme) return [];
+      const theme = meshyfaceProfileThemeClientTheme(sourceTheme);
+      const render = meshyfaceProfileThemeClientRender(sourceTheme, rawRender);
+      const backgroundGradient = meshyfaceProfileThemeBackgroundGradient(sourceTheme, rawRender);
       if (!backgroundGradient) return [];
       const entries = [
         ["--node-profile-theme-background", backgroundGradient],
