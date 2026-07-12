@@ -161,6 +161,15 @@ def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers
     assert "function renderEnvironmentMetricsView" in js
     assert 'fetchRawJson("/api/raw/local_state"' in js
 
+    assert '"encription"' not in js
+    assert ".encription" not in css
+    assert "function buildHistoryNodeIdentityResolver" not in js
+    assert "function isLikelyEncryptedPacketEntry" not in js
+    assert "function encryptedPacketPayloadPreview" not in js
+    assert ".history-node-cell" not in css
+    assert 'id="settings-mqtt-encryption-enabled"' in html
+    assert "encryption_enabled" in js
+
     for element_id in (
         "network-node-history-host",
         "map-data-node",

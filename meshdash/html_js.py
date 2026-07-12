@@ -142,7 +142,6 @@ _DASHBOARD_JS_TEMPLATE_PARTS = (
     "dashboard.js.chat.render.feed_items.tmpl",
     "dashboard.js.chat.render.roster_finalize.tmpl",
     "dashboard.js.runtime.views.packet_channels.channels_view.tmpl",
-    "dashboard.js.runtime.views.packet_channels.encryption_rows.tmpl",
     "dashboard.js.runtime.views.raw_data.tmpl",
     "dashboard.js.runtime.poll.tmpl",
     "dashboard.js.runtime.boot.tmpl",

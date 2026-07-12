@@ -34,7 +34,7 @@
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       let resolved = clean;
-      if (clean === "encription" || clean === "saved") {{
+      if (clean === "saved") {{
         resolved = "network";
       }} else if (clean === "apps") {{
         resolved = loadPreferredAppsLayoutView();
