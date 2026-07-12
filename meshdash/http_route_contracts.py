@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from .api_input_channels import ChannelSettingsRequest
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
-    from .api_input_history import NodeHistoryQuery, OnlineActivityQuery
+    from .api_input_history import HistoryWindowQuery, NodeHistoryQuery
     from .api_input_meshyface_profile import MeshyfaceProfileThemeRequest
     from .api_input_network_tools import NetworkToolRequest
     from .api_input_radio import RadioSettingsRequest
@@ -19,7 +19,7 @@ else:
     MeshyfaceProfileThemeRequest = object
     NodeHistoryQuery = object
     NetworkToolRequest = object
-    OnlineActivityQuery = object
+    HistoryWindowQuery = object
     RadioSettingsRequest = object
     RawPacketCaptureSettingsRequest = object
     ThemeSettingsRequest = object
@@ -42,11 +42,6 @@ class NodeHistoryFn(Protocol):
         hours_override: Optional[int],
         points_override: Optional[int],
     ) -> dict[str, object]:
-        ...
-
-
-class OnlineActivityFn(Protocol):
-    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
         ...
 
 
@@ -129,23 +124,18 @@ class ParseNodeHistoryRequestFn(Protocol):
         ...
 
 
-class ParseOnlineActivityRequestFn(Protocol):
+class ParseHistoryWindowRequestFn(Protocol):
     def __call__(
         self,
         raw_query: str,
         *,
         to_int_fn: ToIntFn,
-    ) -> OnlineActivityQuery:
+    ) -> HistoryWindowQuery:
         ...
 
 
 class EmptyNodeHistoryFn(Protocol):
     def __call__(self, node_id: str) -> dict[str, object]:
-        ...
-
-
-class EmptyOnlineActivityFn(Protocol):
-    def __call__(self, hours: int) -> dict[str, object]:
         ...
 
 
@@ -315,14 +305,12 @@ class DashboardGetRouteDependencies:
     html_text: str
     state_fn: StateFn
     node_history_fn: Optional[NodeHistoryFn]
-    online_activity_fn: Optional[OnlineActivityFn]
     summary_metrics_fn: Optional[SummaryMetricsHistoryFn]
     default_node_history_hours: int
     to_int_fn: ToIntFn
     parse_node_history_request_fn: ParseNodeHistoryRequestFn
-    parse_online_activity_request_fn: ParseOnlineActivityRequestFn
+    parse_history_window_request_fn: ParseHistoryWindowRequestFn
     empty_node_history_fn: EmptyNodeHistoryFn
-    empty_online_activity_fn: EmptyOnlineActivityFn
     empty_summary_metrics_fn: EmptySummaryMetricsFn
     write_html_response_fn: WriteHtmlResponseFn
     write_json_response_fn: WriteJsonResponseFn

@@ -2,7 +2,6 @@ import time
 
 from .history_analytics import (
     build_node_history_payload as _build_node_history_payload_helper,
-    build_online_activity_payload as _build_online_activity_payload_helper,
 )
 from .history_capabilities import (
     decode_node_capabilities_rows as _decode_node_capabilities_rows_helper,
@@ -15,7 +14,6 @@ from .history_queries import (
     fetch_node_history_rows as _fetch_node_history_rows_helper,
     fetch_node_position_count_rows as _fetch_node_position_count_rows_helper,
     fetch_node_saved_count_rows as _fetch_node_saved_count_rows_helper,
-    fetch_online_activity_rows as _fetch_online_activity_rows_helper,
 )
 from .history_node_metrics import (
     build_metric_history_points as _build_metric_history_points_helper,
@@ -27,7 +25,6 @@ from .history_read_api import (
 )
 from .history_read_history import (
     load_node_history_data as _load_node_history_data_helper,
-    load_online_activity_data as _load_online_activity_data_helper,
 )
 from .history_store_runtime_contracts import HistoryStoreReadState
 
@@ -72,23 +69,6 @@ def load_node_history(
         history_payload["signal_points"] = signal_points
         history_payload["signal_source"] = signal_source
         return history_payload
-
-
-def load_online_activity(store: HistoryStoreReadState, window_hours: int) -> dict[str, object]:
-    read_conn = getattr(store, "_read_conn", None)
-    if read_conn is None or read_conn is store._conn:
-        read_conn = store._conn
-        read_lock = store._lock
-    else:
-        read_lock = getattr(store, "_read_lock", None) or store._lock
-    with read_lock:
-        return _load_online_activity_data_helper(
-            read_conn,
-            window_hours=window_hours,
-            fetch_online_activity_rows_fn=_fetch_online_activity_rows_helper,
-            build_online_activity_payload_fn=_build_online_activity_payload_helper,
-            now_unix_fn=time.time,
-        )
 
 
 def load_node_saved_counts(store: HistoryStoreReadState) -> dict[str, dict[str, object]]:

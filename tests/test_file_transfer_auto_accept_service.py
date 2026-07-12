@@ -602,7 +602,6 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
         return DashboardRuntimeLoaders(
             state_fn=_state,
             node_history_fn=lambda *_args, **_kwargs: {},
-            online_activity_fn=lambda *_args, **_kwargs: {},
             summary_metrics_fn=lambda *_args, **_kwargs: {},
             send_chat_fn=lambda **kwargs: sent_messages.append(dict(kwargs)) or {"ok": True},
         )
@@ -625,7 +624,6 @@ def test_runtime_wires_backend_auto_accept_when_enabled(tmp_path) -> None:
         build_state_fn=lambda **_kwargs: {},
         build_state_snapshot_loader_fn=lambda *_args, **_kwargs: lambda: {},
         build_node_history_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
-        build_online_activity_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         build_summary_metrics_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         build_send_chat_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         default_chat_max_bytes=200,

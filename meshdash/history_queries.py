@@ -465,30 +465,6 @@ def fetch_local_signal_history_rows(
     ).fetchall()
 
 
-def fetch_online_activity_rows(conn: SqlConnection, cutoff: int) -> tuple[SqlRows, int]:
-    # node_hour_seen is a compact per-node-per-hour presence table maintained
-    # via triggers on node_metrics_1m. It's dramatically smaller than the
-    # 1-minute rollup, so these queries stay snappy even with large histories.
-    cutoff_hour = int(cutoff) - (int(cutoff) % 3600)
-    hour_rows = conn.execute(
-        """
-        SELECT hour_bucket,
-               COUNT(*) AS online_nodes
-        FROM node_hour_seen
-        WHERE hour_bucket >= ?
-        GROUP BY hour_bucket
-        ORDER BY hour_bucket ASC
-        """,
-        (cutoff_hour,),
-    ).fetchall()
-    distinct_row = conn.execute(
-        "SELECT COUNT(DISTINCT node_id) FROM node_hour_seen WHERE hour_bucket >= ?",
-        (cutoff_hour,),
-    ).fetchone()
-    distinct_nodes = int((distinct_row[0] if distinct_row else 0) or 0)
-    return hour_rows, distinct_nodes
-
-
 def fetch_summary_metrics_rows(
     conn: SqlConnection,
     *,

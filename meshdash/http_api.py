@@ -6,7 +6,6 @@ from .helpers import to_int
 from .http_route_contracts import (
     GetThemeSettingsFn,
     NodeHistoryFn,
-    OnlineActivityFn,
     SummaryMetricsHistoryFn,
     SendChatFn,
     SendMeshyfaceProfileFn,
@@ -21,7 +20,6 @@ def make_http_handler(
     html_text: str,
     state_fn: StateFn,
     node_history_fn: NodeHistoryFn | None = None,
-    online_activity_fn: OnlineActivityFn | None = None,
     summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
     send_chat_fn: SendChatFn | None = None,
     send_meshyface_profile_fn: SendMeshyfaceProfileFn | None = None,
@@ -56,7 +54,6 @@ def make_http_handler(
         html_text=html_text,
         state_fn=state_fn,
         node_history_fn=node_history_fn,
-        online_activity_fn=online_activity_fn,
         summary_metrics_fn=summary_metrics_fn,
         get_theme_settings_fn=get_theme_settings_fn,
         get_custom_telemetry_settings_fn=get_custom_telemetry_settings_fn,

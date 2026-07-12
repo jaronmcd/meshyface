@@ -6,7 +6,7 @@ from urllib.parse import parse_qs
 from .helpers import format_epoch
 from .http_route_contracts import (
     EmptySummaryMetricsFn,
-    ParseOnlineActivityRequestFn,
+    ParseHistoryWindowRequestFn,
     SummaryMetricsHistoryFn,
     ToIntFn,
 )
@@ -267,10 +267,10 @@ def build_summary_metrics_response(
     summary_metrics_fn: SummaryMetricsHistoryFn | None,
     default_node_history_hours: int,
     to_int_fn: ToIntFn,
-    parse_online_activity_request_fn: ParseOnlineActivityRequestFn,
+    parse_history_window_request_fn: ParseHistoryWindowRequestFn,
     empty_summary_metrics_fn: EmptySummaryMetricsFn,
 ) -> dict:
-    query_obj = parse_online_activity_request_fn(
+    query_obj = parse_history_window_request_fn(
         query,
         to_int_fn=to_int_fn,
     )

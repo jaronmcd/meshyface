@@ -15,13 +15,6 @@ class HistoryViewStore(Protocol):
     ) -> dict[str, object]:
         ...
 
-    def load_online_activity(
-        self,
-        *,
-        window_hours: int,
-    ) -> dict[str, object]:
-        ...
-
     def load_summary_metrics(
         self,
         *,
@@ -57,37 +50,6 @@ def empty_node_history(node_id: str) -> dict[str, object]:
             },
         },
         "summary": {},
-    }
-
-
-def empty_online_activity(window_hours: int) -> dict[str, object]:
-    clean_hours = int(window_hours) if isinstance(window_hours, int) and window_hours > 0 else 72
-    return {
-        "window_hours": clean_hours,
-        "timezone": "local",
-        "timezone_label": "local",
-        "points": [],
-        "hourly_profile": [
-            {
-                "hour": hour,
-                "label": f"{hour:02d}:00",
-                "avg_online_nodes": None,
-                "sample_hours": 0,
-                "peak_online_nodes": 0,
-            }
-            for hour in range(24)
-        ],
-        "summary": {
-            "sample_hours": 0,
-            "distinct_nodes": 0,
-            "max_online_nodes": 0,
-            "avg_online_nodes": None,
-            "best_hour": None,
-            "best_hour_label": None,
-            "best_hour_avg_online_nodes": None,
-            "window_start": None,
-            "window_end": None,
-        },
     }
 
 
@@ -156,27 +118,6 @@ def build_node_history_loader(
             return empty_node_history(clean_node_id)
 
     return node_history_loader
-
-
-def build_online_activity_loader(
-    history_store: HistoryViewStore | None,
-    *,
-    default_hours: int,
-) -> Callable[[Optional[int]], dict[str, object]]:
-    def online_activity_loader(hours_override: Optional[int] = None) -> dict[str, object]:
-        hours = (
-            hours_override
-            if isinstance(hours_override, int) and hours_override > 0
-            else int(default_hours)
-        )
-        if history_store is None:
-            return empty_online_activity(hours)
-        try:
-            return history_store.load_online_activity(window_hours=hours)
-        except Exception:
-            return empty_online_activity(hours)
-
-    return online_activity_loader
 
 
 def build_summary_metrics_loader(

@@ -63,7 +63,6 @@ def test_get_route_dependencies_externalize_generated_dashboard_css_and_js() -> 
         html_text=html,
         state_fn=lambda: {},
         node_history_fn=None,
-        online_activity_fn=None,
         default_node_history_hours=24,
     )
 
@@ -85,7 +84,6 @@ def test_dashboard_asset_route_serves_fingerprinted_asset_with_cache_headers() -
         html_text=_dashboard_html(css=css),
         state_fn=lambda: {},
         node_history_fn=None,
-        online_activity_fn=None,
         default_node_history_hours=24,
     )
     css_path = next(path for path in (deps.dashboard_asset_map or {}) if path.endswith(".css"))
@@ -110,7 +108,6 @@ def test_vendor_particles_asset_route_serves_bundled_script() -> None:
         html_text=_dashboard_html(),
         state_fn=lambda: {},
         node_history_fn=None,
-        online_activity_fn=None,
         default_node_history_hours=24,
     )
     handler = _Handler()

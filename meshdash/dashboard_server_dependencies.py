@@ -4,7 +4,6 @@ from .revision import RevisionInfo
 from .runtime_types import (
     MakeHttpHandlerFn,
     NodeHistoryFn,
-    OnlineActivityFn,
     SummaryMetricsHistoryFn,
     RenderHtmlFn,
     SendChatFn,
@@ -20,7 +19,6 @@ def build_dashboard_server_dependencies_from_legacy_args(
     history_enabled: bool,
     state_fn: StateFn,
     node_history_fn: NodeHistoryFn,
-    online_activity_fn: OnlineActivityFn,
     summary_metrics_fn: SummaryMetricsHistoryFn,
     send_chat_fn: SendChatFn,
     render_html_fn: RenderHtmlFn,
@@ -33,7 +31,6 @@ def build_dashboard_server_dependencies_from_legacy_args(
         history_enabled=history_enabled,
         state_fn=state_fn,
         node_history_fn=node_history_fn,
-        online_activity_fn=online_activity_fn,
         summary_metrics_fn=summary_metrics_fn,
         send_chat_fn=send_chat_fn,
         render_html_fn=render_html_fn,

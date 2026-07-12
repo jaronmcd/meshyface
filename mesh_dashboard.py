@@ -58,7 +58,6 @@ from meshdash.state_service import (
 )
 from meshdash.history_views import (
     build_node_history_loader as _build_node_history_loader,
-    build_online_activity_loader as _build_online_activity_loader,
     build_summary_metrics_loader as _build_summary_metrics_loader,
 )
 from meshdash.services_chat import send_chat_message as _send_chat_message_helper
@@ -528,7 +527,6 @@ def _build_make_http_handler_with_theme_settings(
         html_text: str,
         state_fn,
         node_history_fn=None,
-        online_activity_fn=None,
         summary_metrics_fn=None,
         send_chat_fn=None,
         default_node_history_hours: int = 72,
@@ -538,7 +536,6 @@ def _build_make_http_handler_with_theme_settings(
             html_text=html_text,
             state_fn=state_fn,
             node_history_fn=node_history_fn,
-            online_activity_fn=online_activity_fn,
             summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             get_theme_settings_fn=theme_settings.get_settings_payload,
@@ -632,7 +629,6 @@ def run_dashboard(args: argparse.Namespace) -> None:
         build_state_lite_console_fn=_build_state_lite_console_helper,
         sensitive_field_names=SENSITIVE_FIELD_NAMES,
         build_node_history_loader_fn=_build_node_history_loader,
-        build_online_activity_loader_fn=_build_online_activity_loader,
         build_summary_metrics_loader_fn=_build_summary_metrics_loader,
         send_chat_message_fn=_send_chat_message_helper,
         send_reaction_packet_fn=_send_reaction_packet,
@@ -667,7 +663,6 @@ def run_dashboard(args: argparse.Namespace) -> None:
         revision_info_fn=runtime_dependencies.revision_info_fn,
         build_state_fn=runtime_dependencies.build_state_fn,
         build_node_history_loader_fn=runtime_dependencies.build_node_history_loader_fn,
-        build_online_activity_loader_fn=runtime_dependencies.build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=runtime_dependencies.build_summary_metrics_loader_fn,
         send_chat_message_fn=runtime_dependencies.send_chat_message_fn,
         send_reaction_packet_fn=runtime_dependencies.send_reaction_packet_fn,

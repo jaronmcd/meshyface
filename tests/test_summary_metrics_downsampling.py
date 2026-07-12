@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.api_history_summary import build_summary_metrics_response
-from meshdash.api_input_history import parse_online_activity_request
+from meshdash.api_input_history import parse_history_window_request
 from meshdash.helpers import to_int
 from meshdash.history_views import empty_summary_metrics
 
@@ -58,7 +58,7 @@ def _build_response(query: str, payload: dict[str, object]) -> dict:
         summary_metrics_fn=lambda _hours_override: payload,
         default_node_history_hours=24,
         to_int_fn=to_int,
-        parse_online_activity_request_fn=parse_online_activity_request,
+        parse_history_window_request_fn=parse_history_window_request,
         empty_summary_metrics_fn=empty_summary_metrics,
     )
 
@@ -120,7 +120,7 @@ def test_summary_metrics_response_can_skip_packet_series() -> None:
         summary_metrics_fn=summary_metrics_fn,
         default_node_history_hours=24,
         to_int_fn=to_int,
-        parse_online_activity_request_fn=parse_online_activity_request,
+        parse_history_window_request_fn=parse_history_window_request,
         empty_summary_metrics_fn=empty_summary_metrics,
     )
 

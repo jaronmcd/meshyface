@@ -12,7 +12,7 @@ class NodeHistoryQuery:
 
 
 @dataclass(frozen=True)
-class OnlineActivityQuery:
+class HistoryWindowQuery:
     hours_override: Optional[int]
 
 
@@ -29,13 +29,13 @@ def parse_node_history_request(
     )
 
 
-def parse_online_activity_request(
+def parse_history_window_request(
     raw_query: str,
     *,
     to_int_fn: ToIntFn,
-) -> OnlineActivityQuery:
+) -> HistoryWindowQuery:
     query = parse_qs(raw_query)
-    return OnlineActivityQuery(hours_override=to_int_fn(query.get("hours", [""])[0]))
+    return HistoryWindowQuery(hours_override=to_int_fn(query.get("hours", [""])[0]))
 
 
 def parse_node_history_query(
@@ -45,12 +45,3 @@ def parse_node_history_query(
 ) -> tuple[str, Optional[int], Optional[int]]:
     request = parse_node_history_request(raw_query, to_int_fn=to_int_fn)
     return request.node_id, request.hours_override, request.points_override
-
-
-def parse_online_activity_query(
-    raw_query: str,
-    *,
-    to_int_fn: ToIntFn,
-) -> Optional[int]:
-    request = parse_online_activity_request(raw_query, to_int_fn=to_int_fn)
-    return request.hours_override

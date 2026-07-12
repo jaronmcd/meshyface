@@ -273,7 +273,6 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_load_connections_helper", lambda store: _record("connections"))
     monkeypatch.setattr(runtime_impl, "_load_link_edges_helper", lambda store, **kwargs: _record("links", kwargs))
     monkeypatch.setattr(runtime_impl, "_load_node_history_helper", lambda store, node_id, hours, points: _record("node_history", (node_id, hours, points)))
-    monkeypatch.setattr(runtime_impl, "_load_online_activity_helper", lambda store, hours: _record("online", hours))
     monkeypatch.setattr(runtime_impl, "_load_node_saved_counts_helper", lambda store: _record("saved_counts"))
     monkeypatch.setattr(runtime_impl, "_load_node_position_counts_helper", lambda store: _record("position_counts"))
     monkeypatch.setattr(runtime_impl, "_load_node_capabilities_helper", lambda store: _record("capabilities"))
@@ -327,7 +326,6 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     assert store.load_connections()["helper"] == "connections"
     assert store.load_link_edges(window="1d", limit=10)["helper"] == "links"
     assert store.load_node_history("!node", 24, 100)["helper"] == "node_history"
-    assert store.load_online_activity(24)["helper"] == "online"
     assert store.load_node_saved_counts()["helper"] == "saved_counts"
     assert store.load_node_position_counts()["helper"] == "position_counts"
     assert store.load_node_capabilities()["helper"] == "capabilities"

@@ -30,7 +30,6 @@ from .history_store_nodes import (
     load_node_history as _load_node_history_helper,
     load_node_position_counts as _load_node_position_counts_helper,
     load_node_saved_counts as _load_node_saved_counts_helper,
-    load_online_activity as _load_online_activity_helper,
 )
 from .history_node_packet_trends import (
     load_node_packet_trends as _load_node_packet_trends_helper,
@@ -225,9 +224,6 @@ class HistoryStore:
 
     def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> dict[str, object]:
         return _load_node_history_helper(self, node_id, window_hours, max_points)
-
-    def load_online_activity(self, window_hours: int) -> dict[str, object]:
-        return _load_online_activity_helper(self, window_hours)
 
     def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
         return _load_node_saved_counts_helper(self)

@@ -22,10 +22,8 @@ from meshdash.history_read_api import (
 from meshdash.history_read_history import load_summary_metrics_history_data
 from meshdash.history_views import (
     build_node_history_loader,
-    build_online_activity_loader,
     build_summary_metrics_loader,
     empty_node_history,
-    empty_online_activity,
     empty_summary_metrics,
 )
 
@@ -98,26 +96,20 @@ def test_history_read_api_delegates_fetch_and_decode_functions() -> None:
 
 def test_history_view_loaders_return_empty_payloads_on_missing_store_and_errors() -> None:
     node_empty = empty_node_history(" !node ")
-    online_empty = empty_online_activity(-1)
     summary_empty = empty_summary_metrics(0)
 
     assert node_empty["node_id"] == " !node "
-    assert online_empty["window_hours"] == 72
-    assert len(online_empty["hourly_profile"]) == 24
     assert summary_empty["window_hours"] == 72
     assert summary_empty["packet_series"]["available"] is False  # type: ignore[index]
 
     assert build_node_history_loader(None, default_hours=12, default_points=50)(" !node ", None, None)["node_id"] == "!node"
-    assert build_online_activity_loader(None, default_hours=12)(None)["window_hours"] == 12
     assert build_summary_metrics_loader(None, default_hours=12)(None)["window_hours"] == 12
 
     broken = SimpleNamespace(
         load_node_history=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("node failed")),
-        load_online_activity=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("online failed")),
         load_summary_metrics=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("summary failed")),
     )
     assert build_node_history_loader(broken, default_hours=6, default_points=10)("!node", 1, 2)["points"] == []
-    assert build_online_activity_loader(broken, default_hours=6)(1)["points"] == []
     assert build_summary_metrics_loader(broken, default_hours=6)(1)["points"] == []
     assert build_summary_metrics_loader(object(), default_hours=6)(1)["points"] == []
 
@@ -130,10 +122,6 @@ def test_history_view_loaders_pass_clean_overrides_to_store() -> None:
             calls.append({"node": kwargs})
             return {"ok": True, "kind": "node", **kwargs}
 
-        def load_online_activity(self, **kwargs):
-            calls.append({"online": kwargs})
-            return {"ok": True, "kind": "online", **kwargs}
-
         def load_summary_metrics(self, **kwargs):
             calls.append({"summary": kwargs})
             return {"ok": True, "kind": "summary", **kwargs}
@@ -141,7 +129,6 @@ def test_history_view_loaders_pass_clean_overrides_to_store() -> None:
     store = Store()
 
     node = build_node_history_loader(store, default_hours=6, default_points=10)(" !node ", 24, 100)
-    online = build_online_activity_loader(store, default_hours=6)(24)
     summary = build_summary_metrics_loader(store, default_hours=6)(24)
     summary_without_packets = build_summary_metrics_loader(store, default_hours=6)(
         24,
@@ -151,11 +138,10 @@ def test_history_view_loaders_pass_clean_overrides_to_store() -> None:
     assert node["node_id"] == "!node"
     assert node["window_hours"] == 24
     assert node["max_points"] == 100
-    assert online["window_hours"] == 24
     assert summary["window_hours"] == 24
     assert summary["include_packet_series"] is True
     assert summary_without_packets["include_packet_series"] is False
-    assert len(calls) == 4
+    assert len(calls) == 3
 
 
 def test_summary_metrics_history_data_skips_packet_type_rows_when_disabled() -> None:

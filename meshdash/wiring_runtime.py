@@ -4,7 +4,6 @@ from typing import Protocol
 from .dashboard_setup_contracts import DashboardTrackerFactory, HistoryStoreFactory
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
-    BuildOnlineActivityLoaderFn,
     BuildSummaryMetricsLoaderFn,
     BuildStateFn,
     BuildStateWithSensitiveFn,
@@ -14,7 +13,6 @@ from .runtime_types import (
     MeshTargetLabelFn,
     NodeHistoryFn,
     NormalizeSingleEmojiFn,
-    OnlineActivityFn,
     OpenMeshInterfaceFn,
     RevisionInfoFn,
     RenderHtmlFn,
@@ -59,7 +57,6 @@ def _build_http_handler_factory(
         html_text: str,
         state_fn: StateFn,
         node_history_fn: NodeHistoryFn | None = None,
-        online_activity_fn: OnlineActivityFn | None = None,
         summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
         send_chat_fn: SendChatFn | None = None,
     ) -> object:
@@ -67,7 +64,6 @@ def _build_http_handler_factory(
             html_text=html_text,
             state_fn=state_fn,
             node_history_fn=node_history_fn,
-            online_activity_fn=online_activity_fn,
             summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             default_node_history_hours=default_node_history_hours,
@@ -88,7 +84,6 @@ class DashboardRuntimeDependencies:
     revision_info_fn: RevisionInfoFn
     build_state_fn: BuildStateFn
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn
     send_chat_message_fn: SendChatMessageFn
     send_reaction_packet_fn: SendReactionPacketFn
@@ -137,7 +132,6 @@ def build_dashboard_runtime_dependencies(
     build_state_lite_console_fn: BuildStateWithSensitiveFn | None = None,
     sensitive_field_names: set[str],
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
@@ -240,7 +234,6 @@ def build_dashboard_runtime_dependencies(
         revision_info_fn=revision_info_fn,
         build_state_fn=build_state_with_sensitive_fields,
         build_node_history_loader_fn=build_node_history_loader_fn,
-        build_online_activity_loader_fn=build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         send_chat_message_fn=send_chat_message_fn,
         send_reaction_packet_fn=send_reaction_packet_fn,

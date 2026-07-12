@@ -196,11 +196,10 @@ TABLE_SCHEMA_STATEMENTS = [
     )
     """,
 
-    # Per-node-per-hour presence table for fast "online activity" charts.
+    # Per-node-per-hour presence table for fast Top 10 presence queries.
     #
-    # The UI's online-activity view needs "how many distinct nodes were seen per hour"
-    # over a window. Computing this from node_metrics_1m requires scanning and
-    # COUNT(DISTINCT node_id) across potentially large history.
+    # Top 10 activity rankings need compact per-hour node presence over a window.
+    # Computing this from node_metrics_1m requires scanning potentially large history.
     #
     # node_hour_seen is maintained incrementally via triggers on node_metrics_1m
     # and stays ~60x smaller than the 1-minute rollup.

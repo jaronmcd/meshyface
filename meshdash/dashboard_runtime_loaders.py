@@ -10,7 +10,6 @@ from .dashboard_setup_contracts import HistoryStoreLike
 from .revision import RevisionInfo
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
-    BuildOnlineActivityLoaderFn,
     BuildSummaryMetricsLoaderFn,
     BuildSendChatLoaderFn,
     BuildStateFn,
@@ -18,7 +17,6 @@ from .runtime_types import (
     GetLocalNodeIdFn,
     NodeHistoryFn,
     NormalizeSingleEmojiFn,
-    OnlineActivityFn,
     SummaryMetricsHistoryFn,
     SendChatFn,
     SendChatMessageFn,
@@ -36,7 +34,6 @@ _SUMMARY_PERSIST_STARTUP_GRACE_SECONDS = 90
 class DashboardRuntimeLoaders:
     state_fn: StateFn
     node_history_fn: NodeHistoryFn
-    online_activity_fn: OnlineActivityFn
     summary_metrics_fn: SummaryMetricsHistoryFn
     send_chat_fn: SendChatFn
 
@@ -231,7 +228,6 @@ def build_dashboard_runtime_loaders(
     build_state_fn: BuildStateFn,
     build_state_snapshot_loader_fn: BuildStateSnapshotLoaderFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     build_send_chat_loader_fn: BuildSendChatLoaderFn,
 ) -> DashboardRuntimeLoaders:
@@ -257,7 +253,6 @@ def build_dashboard_runtime_loaders(
         build_state_fn=build_state_fn,
         build_state_snapshot_loader_fn=build_state_snapshot_loader_fn,
         build_node_history_loader_fn=build_node_history_loader_fn,
-        build_online_activity_loader_fn=build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader_fn,
     )
@@ -283,10 +278,6 @@ def build_dashboard_runtime_loaders_with_dependencies(
         history_store=dependencies.history_store,
         default_hours=dependencies.default_node_history_hours,
         default_points=dependencies.default_node_history_points,
-    )
-    online_activity_fn = dependencies.build_online_activity_loader_fn(
-        history_store=dependencies.history_store,
-        default_hours=dependencies.default_node_history_hours,
     )
     summary_metrics_fn = dependencies.build_summary_metrics_loader_fn(
         history_store=dependencies.history_store,
@@ -333,7 +324,6 @@ def build_dashboard_runtime_loaders_with_dependencies(
     return DashboardRuntimeLoaders(
         state_fn=state_fn,
         node_history_fn=node_history_fn,
-        online_activity_fn=online_activity_fn,
         summary_metrics_fn=summary_metrics_fn,
         send_chat_fn=send_chat_fn,
     )

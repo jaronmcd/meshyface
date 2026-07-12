@@ -257,7 +257,7 @@ def backfill_node_hour_seen(conn: SqlConnection) -> None:
     """Populate node_hour_seen from node_metrics_1m if it's empty.
 
     node_hour_seen is maintained incrementally via triggers going forward, but
-    existing databases need an initial fill so /api/history/online can render
+    existing databases need an initial fill so Top 10 presence queries can run
     quickly without scanning the 1-minute rollup.
     """
     try:
