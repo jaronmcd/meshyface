@@ -3,9 +3,6 @@ from typing import Optional
 
 from .revision import RevisionInfo
 from .runtime_state_contracts import StateSnapshotRuntimeDependencies
-from .runtime_state_dependencies import (
-    build_state_snapshot_runtime_dependencies_from_legacy_args,
-)
 from .runtime_types import BuildStateFn, StateFn
 from .state_service_contracts import StateTracker
 
@@ -25,7 +22,7 @@ def build_state_snapshot_loader(
     revision_info: RevisionInfo,
     build_state_fn: BuildStateFn,
 ) -> StateFn:
-    dependencies = build_state_snapshot_runtime_dependencies_from_legacy_args(
+    dependencies = StateSnapshotRuntimeDependencies(
         iface=iface,
         tracker=tracker,
         started_at=started_at,
