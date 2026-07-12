@@ -1437,7 +1437,7 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     app_shells = set(
         re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
     )
-    assert app_shells == {"chat", "settings", "files", "games", "remote", "environment"}
+    assert app_shells == {"chat", "settings", "files", "games", "environment"}
     assert html.count("workspace-app-shell") == len(app_shells)
 
     global_dark_selector = '[data-theme="dark"] .card:not(.workspace-app-shell)'
@@ -1462,7 +1462,7 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     assert "border: 1px solid var(--ui-border);" in base_card_rule
     assert "box-shadow: var(--ui-shadow);" in base_card_rule
 
-    for view_name in ("remote", "environment"):
+    for view_name in ("environment",):
         shell_rule = css.split(
             f".layout.view-{view_name} .{view_name} {{", 1
         )[1].split("}", 1)[0]

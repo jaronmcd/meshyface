@@ -511,9 +511,6 @@
           if (activeLayoutView === "games") {{
             renderGamesView(latestState);
           }}
-          if (activeLayoutView === "remote") {{
-            renderRemoteView(latestState);
-          }}
           if (activeLayoutView === "saved") {{
             const loadingId304 = (activeLayoutView === "saved" && historyRelevant304 && !cachedHistory304)
               ? historyTargetId304
@@ -846,13 +843,6 @@
           }}
         }} else if (activeLayoutView === "games") {{
           runPollStep("renderGamesView", () => renderGamesView(state));
-        }} else if (activeLayoutView === "remote") {{
-          runPollStep("renderRemoteView", () => renderRemoteView(state));
-          if (!chatRenderedThisPoll) {{
-            runPollStep("syncChatUnreadFromState.remote", () => syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }}));
-          }}
-          runPollStep("renderChatChangeSummary.remote", () => renderChatChangeSummary());
-          runPollStep("bindChatChangeSummaryControls.remote", () => bindChatChangeSummaryControls());
         }} else {{
           if (!chatRenderedThisPoll) {{
             runPollStep("syncChatUnreadFromState.default", () => syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }}));

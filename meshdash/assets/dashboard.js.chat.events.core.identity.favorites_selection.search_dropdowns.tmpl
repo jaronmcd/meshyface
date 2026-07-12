@@ -17,7 +17,6 @@
         "favorites-search-input",
         "saved-node-search-input",
         "favorite-menu-node-search-input",
-        "remote-node-search-input",
       ];
       for (const inputId of inputIds) {{
         if (!inputId) continue;
@@ -42,7 +41,6 @@
       favoritesSearchQuery = query;
       savedNodeSearchQuery = query;
       favoriteMenuNodeSearchQuery = query;
-      remoteNodeSearchTerm = query;
       if (opts.syncInputs !== false) {{
         syncGlobalNodeSearchInputs(query, opts);
       }}

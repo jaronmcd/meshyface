@@ -11004,9 +11004,6 @@
         if (next === "games") {{
           renderGamesView(latestState);
         }}
-        if (next === "remote") {{
-          renderRemoteView(latestState);
-        }}
         if (next === "history") {{
           renderHistoryChat(latestState.traffic || {{}});
           renderEncription(latestState.traffic || {{}});
@@ -11046,8 +11043,6 @@
         renderFilesView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
-      }} else if (next === "remote") {{
-        renderRemoteView(latestState);
       }} else if (next === "environment") {{
         void renderEnvironmentMetricsView(false);
       }}
@@ -11095,7 +11090,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

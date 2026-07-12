@@ -69,12 +69,15 @@ def test_dashboard_js_omits_obsolete_data_packets_and_channels_layout_migrations
 
 
 
-def test_dashboard_js_keeps_whois_builder_and_remote_stage_without_bot_bindings() -> None:
+def test_dashboard_js_keeps_whois_builder_without_removed_remote_workspace() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
 
     assert "function normalizeWhoisCommandPrefix(value)" in js
     assert "function nodeIdSuffixForWhois(nodeId)" in js
@@ -82,8 +85,10 @@ def test_dashboard_js_keeps_whois_builder_and_remote_stage_without_bot_bindings(
     assert "function loadChatWhoisQuickActionConfig()" in js
     assert "function bindChatWhoisQuickActionControls()" not in js
     assert "chat-bot-" not in js
-    assert 'const stageWhoisBtn = document.getElementById("remote-stage-whois-btn");' in js
-    assert "stageRemoteChatCommand(nodeId, `whois ${nodeId}`, {" in js
+    assert '"remote"' not in known_layout_views
+    assert "renderRemoteView" not in js
+    assert "stageRemoteChatCommand" not in js
+    assert "remote-stage-whois-btn" not in js
 
 
 def test_dashboard_js_binds_games_picker_select() -> None:
