@@ -362,7 +362,7 @@
     }}
     #chat-input:hover {{
       border-color: #b7cfbe;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     #chat-input:focus {{
       outline: 2px solid var(--surface-tint-border-strong);
@@ -441,14 +441,14 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 76%, #07121f 24%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 88%, #050b13 12%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 76%, #07121f 24%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 88%, #050b13 12%)
         ),
         #0b1930;
       backdrop-filter: blur(14px) saturate(138%);
       -webkit-backdrop-filter: blur(14px) saturate(138%);
       box-shadow: 0 18px 38px rgba(0, 0, 0, 0.48);
-      color: var(--workspace-shell-text, var(--ink));
+      color: var(--workspace-shell-text, var(--ui-text));
       padding: 8px;
       z-index: 80;
       display: flex;
@@ -471,7 +471,7 @@
       width: min(360px, 96vw);
       border: 1px solid #c9dbcc;
       border-radius: 8px;
-      background: var(--panel);
+      background: var(--ui-panel);
       box-shadow: 0 8px 20px rgba(16, 36, 24, 0.18);
       padding: 6px;
       z-index: 82;
@@ -493,7 +493,7 @@
       top: 0;
       z-index: 1;
       padding-bottom: 1px;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     .chat-unicode-menu-btn {{
       border: 1px solid #c9dbcc;
@@ -1184,7 +1184,7 @@
       background: #eaf4eb;
     }}
     .env-node-legend-toggle:focus-visible {{
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--ui-accent);
       outline-offset: 1px;
     }}
     .env-node-legend-toggle.is-hidden {{
@@ -1199,7 +1199,7 @@
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: var(--node-color, var(--accent));
+      background: var(--node-color, var(--ui-accent));
       transform: translateY(-50%);
       box-shadow: 0 0 0 1px rgba(15, 35, 25, 0.15);
     }}
@@ -1371,7 +1371,7 @@
     .disk-fill.danger {{
       background: #ff7676;
     }}
-    .warn {{ color: var(--danger); font-weight: 600; }}
+    .warn {{ color: var(--ui-danger); font-weight: 600; }}
     .console {{
       display: flex;
       flex-direction: column;
@@ -1540,7 +1540,7 @@
       padding: 4px;
       opacity: 0;
       transform: scale(0.92);
-      box-shadow: var(--shadow);
+      box-shadow: var(--ui-shadow);
       backdrop-filter: blur(10px);
       pointer-events: auto;
       transition:
@@ -1608,7 +1608,7 @@
       border: 1px solid transparent;
       border-radius: 6px;
       background: transparent;
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
       text-align: left;
       font: inherit;
       cursor: pointer;
@@ -1617,7 +1617,7 @@
     .console-autocomplete-item.is-selected {{
       border-color: color-mix(in srgb, var(--surface-tint-border-strong) 64%, transparent);
       background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, white 14%);
-      color: color-mix(in srgb, var(--surface-tint-text) 94%, var(--ink) 6%);
+      color: color-mix(in srgb, var(--surface-tint-text) 94%, var(--ui-text) 6%);
     }}
     .console-autocomplete-item-name,
     .console-autocomplete-item-meta {{
@@ -1646,7 +1646,7 @@
       justify-content: center;
       border-radius: 50%;
       background: color-mix(in srgb, var(--surface-tint-color) 14%, transparent);
-      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ink) 12%);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ui-text) 12%);
       font-size: 15px;
       line-height: 1;
       overflow: hidden;
@@ -1689,7 +1689,7 @@
       font-size: 10px;
     }}
     .console-autocomplete-node-meta {{
-      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ink) 30%);
+      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ui-text) 30%);
       font-size: 10px;
     }}
     .console-context-menu {{
@@ -1732,7 +1732,7 @@
     .console-context-menu-item:hover {{
       border-color: color-mix(in srgb, var(--surface-tint-border-strong) 68%, transparent);
       background: color-mix(in srgb, var(--surface-tint-bg-alt) 96%, white 4%);
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
     }}
     .console-context-menu-item:focus-visible {{
       outline: 2px solid var(--surface-tint-border-strong);
@@ -1805,7 +1805,7 @@
     .console-command-palette-title {{
       font-size: 12px;
       font-weight: 800;
-      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ink) 10%);
+      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ui-text) 10%);
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }}
@@ -1826,7 +1826,7 @@
       border: 1px solid color-mix(in srgb, var(--surface-tint-border-strong) 58%, transparent);
       border-radius: 9px;
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 95%, white 5%);
-      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ink) 12%);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ui-text) 12%);
       font-size: 12px;
       font-weight: 600;
       padding: 0 10px;
@@ -1862,7 +1862,7 @@
       border-radius: 9px;
       padding: 7px 9px;
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 90%, white 10%);
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
       cursor: pointer;
       text-align: left;
     }}
@@ -1971,7 +1971,7 @@
       margin: 0;
       background: transparent;
       border: none;
-      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ink) 10%);
+      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ui-text) 10%);
       border-radius: 0;
       padding: var(--console-pad-top, 12px) 12px var(--console-pad-bottom, 10px) 12px;
       box-sizing: border-box;
@@ -2071,8 +2071,8 @@
       text-decoration-color: rgba(219, 39, 119, 0.62);
     }}
     #live-console .console-syntax-node.console-syntax-node-tagged {{
-      color: var(--node-tag-color, var(--accent));
-      text-decoration-color: color-mix(in srgb, var(--node-tag-color, var(--accent)) 70%, transparent);
+      color: var(--node-tag-color, var(--ui-accent));
+      text-decoration-color: color-mix(in srgb, var(--node-tag-color, var(--ui-accent)) 70%, transparent);
     }}
     #live-console .console-syntax-broadcast {{
       color: #0f766e;
@@ -2296,8 +2296,7 @@
     }}
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
-    [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card:not(.workspace-app-shell) {{
+    [data-theme="dark"] .chat-left-panel {{
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
       color: var(--workspace-shell-text);
@@ -3659,7 +3658,7 @@
     }}
     [data-theme="dark"] .summary-freshness.status-online {{
       border-color: rgba(63, 185, 80, 0.7);
-      background: color-mix(in srgb, var(--accent) 30%, transparent);
+      background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
       color: #cbf7d8;
     }}
     [data-theme="dark"] .summary-freshness.status-warn {{
@@ -3680,7 +3679,6 @@
     [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card:not(.workspace-app-shell),
     [data-theme="dark"] details,
     [data-theme="dark"] #live-console,
     [data-theme="dark"] pre {{
@@ -6626,14 +6624,14 @@
       outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .peer-dm-popout-send-btn {{
-      border-color: color-mix(in srgb, var(--ui-accent, var(--accent)) 68%, white 32%);
-      background: color-mix(in srgb, var(--ui-accent, var(--accent)) 78%, white 22%);
+      border-color: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 68%, white 32%);
+      background: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 78%, white 22%);
       color: color-mix(in srgb, black 76%, var(--workspace-shell-bg) 24%);
       font-weight: 700;
     }}
     [data-theme="dark"] .peer-dm-popout-send-btn:hover {{
-      background: color-mix(in srgb, var(--ui-accent, var(--accent)) 84%, white 16%);
-      border-color: color-mix(in srgb, var(--ui-accent, var(--accent)) 72%, white 28%);
+      background: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 84%, white 16%);
+      border-color: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 72%, white 28%);
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress {{
       border-color: var(--workspace-shell-border-muted);
@@ -6647,7 +6645,7 @@
       background: color-mix(in srgb, var(--workspace-shell-border-muted) 64%, transparent);
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress-meter > span {{
-      background: var(--ui-accent, var(--accent));
+      background: var(--ui-accent, var(--ui-accent));
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress.is-error {{
       border-color: #734545;
@@ -6945,7 +6943,7 @@
       box-shadow: 0 0 0 2px rgba(250, 230, 139, 0.55), 0 0 0 3px rgba(4, 13, 10, 0.55);
     }}
     [data-theme="dark"] .reversi-player-pill.is-over {{
-      border-color: var(--accent);
+      border-color: var(--ui-accent);
       box-shadow: inset 0 0 0 1px rgba(76, 168, 118, 0.36);
     }}
     [data-theme="dark"] .reversi-board {{
@@ -7862,8 +7860,8 @@
       );
       background: var(--node-profile-theme-wash, var(--chat-member-node-gradient)), var(--chat-member-node-bg);
       box-shadow:
-        inset 2px 0 0 var(--node-profile-border, var(--accent)),
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 16%, transparent);
+        inset 2px 0 0 var(--node-profile-border, var(--ui-accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 16%, transparent);
     }}
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover,
     #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
@@ -7874,7 +7872,7 @@
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--chat-member-node-fg, var(--workspace-shell-text)) 62%
       );
     }}
@@ -7898,8 +7896,8 @@
     .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
-        var(--theme-text-color, var(--ink)) 62%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--theme-text-color, var(--ui-text)) 62%
       );
     }}
     [data-theme="dark"] #nodes-table tbody tr.profiled-node .node-name-label {{
@@ -7924,19 +7922,19 @@
       );
     }}
     .chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {{
-      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) !important;
-      background: var(--node-profile-theme-base, var(--node-profile-border, var(--accent))) !important;
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) !important;
+      background: var(--node-profile-theme-base, var(--node-profile-border, var(--ui-accent))) !important;
       color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff)) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
-      border-left-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent)));
+      border-left-color: var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent)));
       background: var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
-        var(--theme-text-color, var(--ink)) 46%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--ui-text)) 46%
       ) !important;
     }}
     [data-theme="dark"] .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
@@ -7953,8 +7951,8 @@
     .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
-        var(--theme-text-color, var(--ink)) 46%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--ui-text)) 46%
       );
     }}
     [data-theme="dark"] .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
@@ -7971,14 +7969,14 @@
     .peer-dm-popout-msg.profiled-node:not(.is-alert) .peer-dm-popout-msg-meta {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 44%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 44%,
         var(--theme-text-color-soft, var(--workspace-shell-text-soft, #5c7868)) 56%
       );
     }}
     .network-graph-node.has-theme-identity .network-graph-node-label {{
       fill: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--surface-tint-text) 62%
       );
     }}
@@ -7998,8 +7996,8 @@
     .map-node-info-card.has-node-appearance:not(.is-estimated) {{
       border-color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 72%,
-        var(--line) 28%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 72%,
+        var(--ui-border) 28%
       );
       background:
         var(
@@ -8008,12 +8006,12 @@
             --node-profile-color-wash,
             linear-gradient(
               180deg,
-              color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, var(--panel) 82%) 0%,
-              color-mix(in srgb, var(--node-profile-border, var(--accent)) 7%, var(--panel) 93%) 100%
+              color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 18%, var(--ui-panel) 82%) 0%,
+              color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 7%, var(--ui-panel) 93%) 100%
             )
           )
         ),
-        linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%) 0%, color-mix(in srgb, var(--panel) 96%, black 4%) 100%);
+        linear-gradient(180deg, color-mix(in srgb, var(--ui-panel) 92%, var(--ui-accent) 8%) 0%, color-mix(in srgb, var(--ui-panel) 96%, black 4%) 100%);
     }}
     .map-node-info-card.has-node-appearance .map-node-info-emoji {{
       border-color: var(--node-profile-theme-line, var(--node-profile-border, #9fb5ff));
@@ -8022,21 +8020,21 @@
         var(--node-profile-theme-base, var(--node-profile-border, #31457f))
       );
       box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 24%, transparent),
+        0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 24%, transparent),
         0 4px 14px color-mix(in srgb, var(--node-profile-border, #0a1224) 30%, transparent);
     }}
     .map-node-info-card.has-node-appearance .map-node-info-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 42%,
-        var(--ink) 58%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 42%,
+        var(--ui-text) 58%
       );
     }}
     [data-theme="dark"] .map-node-info-card.has-node-appearance .map-node-info-title {{
       color: color-mix(
         in srgb,
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 42%,
-        var(--ink) 58%
+        var(--ui-text) 58%
       );
     }}
     .chat-node-details-drawer.has-node-appearance .chat-node-details-head {{
@@ -8055,7 +8053,7 @@
     .chat-node-details-drawer.has-node-appearance .chat-node-details-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 46%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 46%,
         var(--surface-tint-text) 54%
       );
     }}
@@ -8100,7 +8098,7 @@
     .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 48%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 48%,
         var(--surface-tint-text-soft) 52%
       );
     }}
@@ -8120,7 +8118,7 @@
       font-family: var(--node-profile-theme-font-family, inherit);
       --node-profile-identity-color: var(
         --node-profile-theme-border,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent)))
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent)))
       );
       --node-profile-identity-edge: var(--node-profile-identity-color);
       --node-profile-theme-surface:
@@ -8190,20 +8188,20 @@
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node {{
       background-image:
         linear-gradient(
-          color-mix(in srgb, var(--panel) 46%, transparent),
-          color-mix(in srgb, var(--panel) 46%, transparent)
+          color-mix(in srgb, var(--ui-panel) 46%, transparent),
+          color-mix(in srgb, var(--ui-panel) 46%, transparent)
         ),
         var(--node-profile-theme-surface) !important;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--ui-border) 24%);
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node[role="button"]:hover {{
       background-image:
         linear-gradient(
-          color-mix(in srgb, var(--panel) 34%, transparent),
-          color-mix(in srgb, var(--panel) 34%, transparent)
+          color-mix(in srgb, var(--ui-panel) 34%, transparent),
+          color-mix(in srgb, var(--ui-panel) 34%, transparent)
         ),
         var(--node-profile-theme-surface-hover) !important;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 86%, var(--line) 14%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 86%, var(--ui-border) 14%);
     }}
     /* Remote colors decorate the surface and border only. Text remains in the
      * receiver's theme so an arbitrary remote contrast color cannot reduce
@@ -8240,23 +8238,23 @@
       background: var(--self-node-channel-edge-bg), var(--node-profile-theme-surface-hover) !important;
     }}
     .topbar .summary-ticker-item-self.has-selected-node {{
-      border-color: color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
+      border-color: color-mix(in srgb, var(--ui-border) 72%, var(--ui-accent) 28%);
       background: linear-gradient(
         112deg,
-        color-mix(in srgb, var(--panel) 92%, transparent),
-        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)
+        color-mix(in srgb, var(--ui-panel) 92%, transparent),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 88%, transparent)
       ) !important;
       color: var(--ticker-text-strong);
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--line) 68%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--ui-border) 68%, transparent),
         0 5px 18px color-mix(in srgb, #000 13%, transparent);
       font-family: inherit;
     }}
     .topbar .summary-ticker-item-self.has-selected-node:hover {{
       background: linear-gradient(
         112deg,
-        color-mix(in srgb, var(--panel) 88%, var(--accent) 12%),
-        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 86%, var(--accent-2) 14%)
+        color-mix(in srgb, var(--ui-panel) 88%, var(--ui-accent) 12%),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 86%, var(--ui-accent-soft) 14%)
       ) !important;
     }}
     .topbar .summary-ticker-item-self.has-selected-node > .label,
@@ -8265,17 +8263,17 @@
       color: color-mix(in srgb, var(--ticker-text-muted) 82%, var(--ticker-text-strong) 18%);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot {{
-      background-color: color-mix(in srgb, var(--panel) 78%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 72%, transparent);
+      background-color: color-mix(in srgb, var(--ui-panel) 78%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-border) 72%, transparent);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node {{
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--ui-border) 24%),
         0 4px 12px color-mix(in srgb, #000 12%, transparent);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node[role="button"]:hover {{
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 88%, var(--line) 12%),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 88%, var(--ui-border) 12%),
         0 6px 16px color-mix(in srgb, #000 15%, transparent);
     }}
     .topbar .summary-ticker-item-self.profiled-node.has-selected-node .self-node-name-text {{
@@ -8380,12 +8378,12 @@
       background-image: var(--chat-feed-channel-edge-bg), var(--node-profile-theme-surface-hover) !important;
     }}
     .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {{
       border-color: var(--node-profile-identity-edge) !important;
       background-image: var(--node-profile-theme-surface) !important;
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
       border-left-width: 1px;
@@ -8393,7 +8391,7 @@
       background-image: var(--node-profile-theme-surface) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .peer-dm-popout-head.profiled-node {{
       border-color: var(--node-profile-identity-edge);
@@ -8404,7 +8402,7 @@
       background-image: var(--node-profile-theme-surface) !important;
     }}
     .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
-      color: var(--theme-text-color, var(--ink));
+      color: var(--theme-text-color, var(--ui-text));
     }}
     .peer-dm-popout-msg.profiled-node:not(.is-alert) .peer-dm-popout-msg-meta {{
       color: var(--theme-text-color-soft, var(--workspace-shell-text-soft, #5c7868));
@@ -8415,8 +8413,8 @@
     .map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result) {{
       border-color: var(--node-profile-identity-edge);
       box-shadow:
-        0 0 0 calc(2px + (2px * var(--map-node-flash, 0))) color-mix(in srgb, var(--node-profile-border, var(--accent)) 38%, transparent),
-        0 0 14px color-mix(in srgb, var(--node-profile-border, var(--accent)) 46%, transparent),
+        0 0 0 calc(2px + (2px * var(--map-node-flash, 0))) color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 38%, transparent),
+        0 0 14px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 46%, transparent),
         0 3px 8px rgba(10, 18, 36, 0.28);
     }}
     .map-node-info-card.profiled-node:not(.is-estimated) {{
@@ -8426,7 +8424,7 @@
         0 10px 30px color-mix(in srgb, var(--node-profile-border, #061012) 26%, transparent);
     }}
     .map-node-info-card.profiled-node .map-node-info-title {{
-      color: var(--ink) !important;
+      color: var(--ui-text) !important;
     }}
     .chat-node-details-drawer.profiled-node .chat-node-details-head {{
       border-bottom-color: var(--node-profile-identity-edge);

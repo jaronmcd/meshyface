@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -17,6 +18,34 @@ def _last_css_rule(css: str, selector: str) -> str:
     marker = f"{selector} {{"
     assert marker in css
     return css.rsplit(marker, 1)[1].split("}", 1)[0]
+
+
+def test_production_theme_sources_do_not_reintroduce_legacy_tokens() -> None:
+    legacy_names = (
+        "bg",
+        "panel",
+        "line",
+        "ink",
+        "accent",
+        "accent-2",
+        "muted",
+        "danger",
+        "shadow",
+    )
+    legacy_pattern = re.compile(
+        r"--(?:" + "|".join(re.escape(name) for name in legacy_names) + r")(?![-\w])"
+    )
+    source_root = Path(__file__).resolve().parents[1] / "meshdash"
+    source_paths = sorted(source_root.rglob("*.py")) + sorted(source_root.rglob("*.tmpl"))
+    violations = {}
+    for source_path in source_paths:
+        matches = sorted(set(legacy_pattern.findall(source_path.read_text(encoding="utf-8"))))
+        if matches:
+            violations[str(source_path.relative_to(source_root.parent))] = matches
+
+    assert violations == {}
+    assert not legacy_pattern.search("\n".join(LIGHT_THEME_VARS))
+    assert not legacy_pattern.search("\n".join(DARK_THEME_VARS))
 
 
 def test_theme_exposes_shared_workspace_shell_tokens() -> None:
@@ -184,19 +213,19 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "--panel: #040704;" not in css
     assert "--accent: #33ff8f;" not in css
     settings_panel = _css_rule(css, ".settings-panel")
-    assert "--settings-bg: var(--workspace-shell-bg, var(--panel));" in settings_panel
-    assert "--settings-bg-soft: var(--workspace-shell-bg-alt, color-mix(in srgb, var(--panel) 88%, var(--bg) 12%));" in settings_panel
-    assert "--settings-bg-muted: color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 70%, transparent);" in settings_panel
-    assert "--settings-bg-strong: color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 84%, transparent);" in settings_panel
+    assert "--settings-bg: var(--workspace-shell-bg, var(--ui-panel));" in settings_panel
+    assert "--settings-bg-soft: var(--workspace-shell-bg-alt, color-mix(in srgb, var(--ui-panel) 88%, var(--ui-bg) 12%));" in settings_panel
+    assert "--settings-bg-muted: color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 70%, transparent);" in settings_panel
+    assert "--settings-bg-strong: color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 84%, transparent);" in settings_panel
     assert "--settings-font-family: var(--theme-font-family, \"IBM Plex Sans\", \"Segoe UI\", sans-serif);" in settings_panel
-    assert "--settings-text: var(--theme-text-color, var(--workspace-shell-text, var(--ink)));" in settings_panel
+    assert "--settings-text: var(--theme-text-color, var(--workspace-shell-text, var(--ui-text)));" in settings_panel
     assert "--settings-text-strong: var(--theme-text-color-strong, var(--settings-text));" in settings_panel
-    assert "--settings-text-soft: var(--theme-text-color-soft, var(--workspace-shell-text-soft, var(--muted)));" in settings_panel
+    assert "--settings-text-soft: var(--theme-text-color-soft, var(--workspace-shell-text-soft, var(--ui-text-soft)));" in settings_panel
     assert "--settings-text-muted: var(--theme-text-color-muted, var(--settings-text-soft));" in settings_panel
-    assert "--settings-text-accent: var(--theme-text-color-accent, var(--workspace-shell-active-text, var(--accent-2)));" in settings_panel
+    assert "--settings-text-accent: var(--theme-text-color-accent, var(--workspace-shell-active-text, var(--ui-accent-soft)));" in settings_panel
     assert "--settings-text-on-fill: var(--theme-text-color-on-fill, var(--settings-text));" in settings_panel
     assert "--settings-text-code: var(--theme-text-color-code, var(--settings-text));" in settings_panel
-    assert "--settings-line: var(--workspace-shell-border, var(--line));" in css
+    assert "--settings-line: var(--workspace-shell-border, var(--ui-border));" in css
     assert "--settings-line-soft: var(--workspace-shell-border-muted, color-mix(in srgb, var(--settings-line) 72%, transparent));" in css
     assert "--settings-line-strong: var(--workspace-shell-border-strong, color-mix(in srgb, var(--settings-line) 82%, var(--settings-text) 18%));" in css
     assert "--settings-control-bg: color-mix(in srgb, var(--settings-bg-soft) 86%, transparent);" in css
@@ -208,7 +237,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "color: var(--settings-control-text);" in css
     assert "border: 1px solid var(--settings-line-soft);" in css
     assert "--floating-stage-bg: var(--theme-background-gradient" in css
-    assert "background: var(--theme-background-gradient, var(--theme-gradient-primary, var(--bg)));" in css
+    assert "background: var(--theme-background-gradient, var(--theme-gradient-primary, var(--ui-bg)));" in css
     control_section_rule = _css_rule(css, ".settings-control-section + .settings-control-section")
     assert "border-top: 1px solid color-mix(in srgb, var(--settings-line-soft) 42%, transparent);" in control_section_rule
     assert "theme-live-preview" not in css
@@ -257,7 +286,7 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "--chat-member-node-sat-mult: 0;" in css
     assert "--chat-member-node-fg: var(--workspace-shell-text);" in css
     assert ".chat-feed-item {" in css
-    assert "--chat-feed-node-bg: color-mix(in srgb, var(--panel) 94%, var(--bg) 6%);" in css
+    assert "--chat-feed-node-bg: color-mix(in srgb, var(--ui-panel) 94%, var(--ui-bg) 6%);" in css
     assert "--chat-feed-node-sat-mult: 0;" in css
     assert ".chat-inline-emoji {" in css
     assert "background: var(--workspace-shell-bg);" in css
@@ -358,7 +387,7 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "--node-profile-identity-edge" in profile_tokens
     assert "--node-profile-identity-color: var(" in profile_tokens
     assert "--node-profile-theme-line," in profile_tokens
-    assert "var(--node-profile-border, var(--accent))" in profile_tokens
+    assert "var(--node-profile-border, var(--ui-accent))" in profile_tokens
     assert "--node-profile-identity-edge: var(--node-profile-identity-color);" in profile_tokens
     assert "--node-profile-theme-surface:" in profile_tokens
     assert "--node-profile-theme-surface-hover:" in profile_tokens
@@ -375,7 +404,7 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "box-shadow:" not in feed
     assert "color: var(--chat-member-node-fg, var(--workspace-shell-text)) !important;" in roster_name
     assert "color: var(--surface-tint-text) !important;" in table_name
-    assert "color: var(--theme-text-color, var(--ink)) !important;" in feed_author
+    assert "color: var(--theme-text-color, var(--ui-text)) !important;" in feed_author
     assert "color: var(--ticker-text-strong);" in ticker_name
     assert "--self-node-channel-edge-bg:" in self_ticker_card
     assert "var(--self-node-channel-edge-fill, transparent) 0 4px" in self_ticker_card

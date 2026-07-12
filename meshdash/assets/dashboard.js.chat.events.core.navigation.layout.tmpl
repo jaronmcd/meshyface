@@ -5581,7 +5581,7 @@
           const title = selfPathInfo.available
             ? "Toggle self to selected node path"
             : "No current path from self to selected node";
-          return `<label class="network-graph-tag-filter network-graph-self-path-filter${{selfPathInfo.visible ? "" : " is-muted"}}${{selfPathInfo.available ? "" : " is-empty"}}" style="--network-graph-tag-route-color:var(--network-graph-self-path-color, var(--theme-base-color, var(--accent, #2f855a)));" title="${{escAttr(title)}}">
+          return `<label class="network-graph-tag-filter network-graph-self-path-filter${{selfPathInfo.visible ? "" : " is-muted"}}${{selfPathInfo.available ? "" : " is-empty"}}" style="--network-graph-tag-route-color:var(--network-graph-self-path-color, var(--theme-base-color, var(--ui-accent, #2f855a)));" title="${{escAttr(title)}}">
             <input
               class="network-graph-tag-filter-input"
               type="checkbox"

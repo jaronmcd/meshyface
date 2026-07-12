@@ -6,12 +6,6 @@ from typing import Dict, Optional
 # Single source of truth for dashboard theme tokens.
 # Keep palette changes here so CSS values stay centralized.
 LIGHT_THEME_VARS: Dict[str, str] = {
-    "--bg": "#d4e1f9",
-    "--ink": "#1d2a46",
-    "--panel": "#f4f8fe",
-    "--line": "#4266d0",
-    "--accent": "#5b8def",
-    "--accent-2": "#4870bd",
     "--ui-bg": "#d4e1f9",
     "--ui-bg-elev": "#eef4fd",
     "--ui-panel": "#f4f8fe",
@@ -21,6 +15,7 @@ LIGHT_THEME_VARS: Dict[str, str] = {
     "--ui-text-soft": "#636c7f",
     "--ui-accent": "#5b8def",
     "--ui-accent-soft": "#4870bd",
+    "--ui-danger": "#c53030",
     "--theme-font-family": "\"IBM Plex Sans\", \"Segoe UI\", sans-serif",
     "--theme-text-color": "#111827",
     "--theme-text-color-strong": "#0e1421",
@@ -57,9 +52,6 @@ LIGHT_THEME_VARS: Dict[str, str] = {
     "--workspace-shell-divider-line": "#748fdd",
     "--workspace-shell-divider-line-active": "#4266d0",
     "--workspace-shell-shadow": "0 12px 28px rgba(24, 37, 62, 0.168)",
-    "--danger": "#c53030",
-    "--muted": "#5f7397",
-    "--shadow": "0 10px 24px rgba(24, 37, 62, 0.116)",
     "--surface-tint-color": "#4270f0",
     "--surface-tint-bg-soft": "#ffffff",
     "--surface-tint-bg": "#ffffff",
@@ -87,6 +79,7 @@ DARK_THEME_VARS: Dict[str, str] = {
     "--ui-text-soft": "#a9bbd5",
     "--ui-accent": "#83aaf3",
     "--ui-accent-soft": "#5b8def",
+    "--ui-danger": "#ff9a9a",
     "--theme-font-family": "\"IBM Plex Sans\", \"Segoe UI\", sans-serif",
     "--theme-text-color": "#e6edf3",
     "--theme-text-color-strong": "#eaf0f5",
@@ -880,16 +873,16 @@ def build_palette_theme_preset(
         0.4,
     )
 
-    light_bg_rgb = _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--bg"]), base_surface_rgb, _depth_curve_mix(depth, 0.04, 0.2))
+    light_bg_rgb = _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--ui-bg"]), base_surface_rgb, _depth_curve_mix(depth, 0.04, 0.2))
     light_panel_rgb = _mix_rgb(
-        _hex_to_rgb(LIGHT_THEME_VARS["--panel"]),
+        _hex_to_rgb(LIGHT_THEME_VARS["--ui-panel"]),
         base_surface_alt_rgb,
         _depth_curve_mix(depth, 0.0, 0.08),
     )
-    light_line_source_rgb = _mix_rgb(line_surface_rgb, _hex_to_rgb(LIGHT_THEME_VARS["--ink"]), 0.18)
+    light_line_source_rgb = _mix_rgb(line_surface_rgb, _hex_to_rgb(LIGHT_THEME_VARS["--ui-text"]), 0.18)
     light_line_rgb = _ensure_max_luminance(
         _mix_rgb(
-            _hex_to_rgb(LIGHT_THEME_VARS["--line"]),
+            _hex_to_rgb(LIGHT_THEME_VARS["--ui-border"]),
             light_line_source_rgb,
             _depth_mix(depth, 0.62, 0.82),
         ),
@@ -922,11 +915,11 @@ def build_palette_theme_preset(
         )
     else:
         light_ink_rgb = _ensure_max_luminance(
-            _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--ink"]), light_accent_strong_rgb, _depth_mix(depth, 0.08, 0.14)),
+            _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--ui-text"]), light_accent_strong_rgb, _depth_mix(depth, 0.08, 0.14)),
             0.06,
         )
         light_muted_rgb = _ensure_max_luminance(
-            _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--muted"]), light_accent_strong_rgb, _depth_mix(depth, 0.08, 0.16)),
+            _mix_rgb(_hex_to_rgb(LIGHT_THEME_VARS["--ui-text-soft"]), light_accent_strong_rgb, _depth_mix(depth, 0.08, 0.16)),
             0.2,
         )
 
@@ -1043,7 +1036,7 @@ def build_palette_theme_preset(
     light_surface_vignette_rgb = _mix_rgb(tint_rgb, (15, 23, 42), 0.62)
     light_surface_vignette_alpha = 0.0
     light_surface_border_rgb = _ensure_max_luminance(
-        _hex_to_rgb(LIGHT_THEME_VARS["--line"]),
+        _hex_to_rgb(LIGHT_THEME_VARS["--ui-border"]),
         0.34,
     )
     light_surface_border_strong_rgb = _ensure_max_luminance(
@@ -1243,12 +1236,6 @@ def build_palette_theme_preset(
         return _rgba(rgb, foreground_alpha)
 
     light_tokens = {
-        "--bg": _foreground_fill(light_bg_rgb),
-        "--ink": _rgb_to_hex(light_ink_rgb),
-        "--panel": _foreground_fill(light_panel_rgb),
-        "--line": _rgb_to_hex(light_line_rgb),
-        "--accent": _rgb_to_hex(light_accent_rgb),
-        "--accent-2": _rgb_to_hex(light_accent_strong_rgb),
         "--ui-bg": _foreground_fill(light_ui_bg_rgb),
         "--ui-bg-elev": _foreground_fill(light_ui_bg_elev_rgb),
         "--ui-panel": _foreground_fill(light_ui_panel_rgb),
@@ -1258,6 +1245,7 @@ def build_palette_theme_preset(
         "--ui-text-soft": _rgb_to_hex(light_theme_text_muted_rgb),
         "--ui-accent": _rgb_to_hex(light_accent_rgb),
         "--ui-accent-soft": _rgb_to_hex(light_accent_strong_rgb),
+        "--ui-danger": LIGHT_THEME_VARS["--ui-danger"],
         "--theme-font-family": text_font_stack,
         "--theme-text-color": _rgb_to_hex(light_theme_text_rgb),
         "--theme-text-color-strong": _rgb_to_hex(light_theme_text_strong_rgb),
@@ -1294,9 +1282,6 @@ def build_palette_theme_preset(
         "--workspace-shell-divider-line": _rgb_to_hex(light_workspace_border_muted_rgb),
         "--workspace-shell-divider-line-active": _rgb_to_hex(light_workspace_border_rgb),
         "--workspace-shell-shadow": f"0 12px 28px {_rgba(_mix_rgb(base_rgb, (0, 0, 0), 0.74), _depth_mix(depth, 0.12, 0.2))}",
-        "--danger": LIGHT_THEME_VARS["--danger"],
-        "--muted": _rgb_to_hex(light_muted_rgb),
-        "--shadow": f"0 10px 24px {_rgba(_mix_rgb(base_rgb, (0, 0, 0), 0.74), _depth_mix(depth, 0.08, 0.14))}",
         "--surface-tint-color": tint_hex,
         "--surface-tint-bg-soft": _foreground_fill(light_surface_soft_rgb),
         "--surface-tint-bg": _foreground_fill(light_surface_bg_rgb),
@@ -1326,6 +1311,7 @@ def build_palette_theme_preset(
         "--ui-text-soft": _rgb_to_hex(dark_ui_text_soft_rgb),
         "--ui-accent": _rgb_to_hex(dark_accent_rgb),
         "--ui-accent-soft": _rgb_to_hex(dark_accent_soft_rgb),
+        "--ui-danger": DARK_THEME_VARS["--ui-danger"],
         "--theme-font-family": text_font_stack,
         "--theme-text-color": _rgb_to_hex(dark_theme_text_rgb),
         "--theme-text-color-strong": _rgb_to_hex(dark_theme_text_strong_rgb),

@@ -415,13 +415,13 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     assert ".topbar.ticker-expanded.ticker-wrap-balanced .summary-ticker-item {" in html
     assert "flex-basis: min(300px, 100%);" in html
     ticker_item_section = html.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
-    assert "--ticker-text: var(--theme-text-color, var(--ink));" in ticker_item_section
+    assert "--ticker-text: var(--theme-text-color, var(--ui-text));" in ticker_item_section
     assert "--ticker-text-strong: var(--theme-text-color-strong, var(--ticker-text));" in ticker_item_section
-    assert "--ticker-text-soft: var(--theme-text-color-soft, var(--muted));" in ticker_item_section
+    assert "--ticker-text-soft: var(--theme-text-color-soft, var(--ui-text-soft));" in ticker_item_section
     assert "--ticker-text-muted: var(--theme-text-color-muted, var(--ticker-text-soft));" in ticker_item_section
     assert "color: var(--ticker-text);" in ticker_item_section
     assert re.search(
-        r"\.topbar \.summary-ticker-item \{\s*--ticker-text: var\(--theme-text-color, var\(--ink\)\);\s*--ticker-text-strong: var\(--theme-text-color-strong, var\(--ticker-text\)\);\s*--ticker-text-soft: var\(--theme-text-color-soft, var\(--muted\)\);\s*--ticker-text-muted: var\(--theme-text-color-muted, var\(--ticker-text-soft\)\);\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ticker-text\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
+        r"\.topbar \.summary-ticker-item \{\s*--ticker-text: var\(--theme-text-color, var\(--ui-text\)\);\s*--ticker-text-strong: var\(--theme-text-color-strong, var\(--ticker-text\)\);\s*--ticker-text-soft: var\(--theme-text-color-soft, var\(--ui-text-soft\)\);\s*--ticker-text-muted: var\(--theme-text-color-muted, var\(--ticker-text-soft\)\);\s*border: 1px solid .*?\s*background: var\(--ui-panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ticker-text\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
         html,
     )
     assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .label {" in html
@@ -638,8 +638,8 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".summary-ticker-item-self.has-selected-node" in html
     assert ".summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot" in html
     assert ".summary-ticker-item-self.profiled-node:not(.has-selected-node) .value.self-node-value .self-node-identity-local.profiled-node" in html
-    assert "color-mix(in srgb, var(--panel) 46%, transparent)" in html
-    assert "color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)" in html
+    assert "color-mix(in srgb, var(--ui-panel) 46%, transparent)" in html
+    assert "color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 88%, transparent)" in html
     assert ".self-node-identity-local.profiled-node" in html
     assert "background: transparent !important;" in html
     assert ".summary-ticker-item-self.profiled-node.has-node-profile-watermark::before" in html

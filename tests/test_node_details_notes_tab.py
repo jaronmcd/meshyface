@@ -349,7 +349,7 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "padding-right: 38px;" in css
     assert ".chat-node-details-promoted-host .saved-node-details.profiled-node::after," in css
     assert "content: none;" in css
-    assert "var(--workspace-shell-bg, var(--panel))" in promoted_host_section
+    assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
     assert "height: 100%;" in css
     assert ".chat-node-details-head {" in css

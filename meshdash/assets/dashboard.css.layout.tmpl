@@ -141,7 +141,7 @@
     }}
     .history-activity-splitter:hover::before,
     .history-activity-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .history-activity-weekly-panel {{
       display: flex;
@@ -216,7 +216,7 @@
       height: 220px;
       border: 1px solid var(--surface-tint-border);
       border-radius: 8px;
-      background: linear-gradient(180deg, var(--panel) 0%, var(--surface-tint-bg-soft) 100%);
+      background: linear-gradient(180deg, var(--ui-panel) 0%, var(--surface-tint-bg-soft) 100%);
       overflow: hidden;
     }}
     #signal-chart,
@@ -358,15 +358,15 @@
       position: relative;
       min-height: 27px;
       height: 27px;
-      border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent));
+      border: 1px solid color-mix(in srgb, var(--ui-border) 74%, var(--ui-accent));
       border-radius: 999px;
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--panel) 94%, var(--accent) 6%),
-          color-mix(in srgb, var(--panel) 84%, var(--accent) 16%)
+          color-mix(in srgb, var(--ui-panel) 94%, var(--ui-accent) 6%),
+          color-mix(in srgb, var(--ui-panel) 84%, var(--ui-accent) 16%)
         );
-      color: color-mix(in srgb, var(--ink) 86%, var(--accent-2));
+      color: color-mix(in srgb, var(--ui-text) 86%, var(--ui-accent-soft));
       padding: 0 23px 0 7px;
       box-shadow: none;
     }}
@@ -380,7 +380,7 @@
       height: 0;
       border-left: 3px solid transparent;
       border-right: 3px solid transparent;
-      border-top: 5px solid color-mix(in srgb, var(--accent-2) 64%, var(--ink));
+      border-top: 5px solid color-mix(in srgb, var(--ui-accent-soft) 64%, var(--ui-text));
       pointer-events: none;
       transform: translateY(-35%);
     }}
@@ -402,14 +402,14 @@
     .layout.view-network .history-select-chip-hide-label .history-metric-select option,
     .layout.view-network .history-select-chip-hide-label .env-metric-select option,
     .layout.view-network .map-heatmap-mode option {{
-      color: var(--ink);
-      background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%);
+      color: var(--ui-text);
+      background: color-mix(in srgb, var(--ui-panel) 92%, var(--ui-bg) 8%);
     }}
     .layout.view-network .history-select-chip-hide-label .history-metric-select option:checked,
     .layout.view-network .history-select-chip-hide-label .env-metric-select option:checked,
     .layout.view-network .map-heatmap-mode option:checked {{
-      color: color-mix(in srgb, var(--ink) 86%, var(--accent-2) 14%);
-      background: color-mix(in srgb, var(--panel) 76%, var(--accent) 24%);
+      color: color-mix(in srgb, var(--ui-text) 86%, var(--ui-accent-soft) 14%);
+      background: color-mix(in srgb, var(--ui-panel) 76%, var(--ui-accent) 24%);
     }}
     [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .history-metric-select option,
     [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .env-metric-select option,
@@ -426,7 +426,7 @@
     .history-metric-toggle {{
       width: 14px;
       height: 14px;
-      accent-color: var(--accent-2);
+      accent-color: var(--ui-accent-soft);
       cursor: pointer;
     }}
     #signal-chart,
@@ -742,7 +742,7 @@
     }}
     .history-chat-splitter:hover::before,
     .history-chat-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .history-notification-section {{
       display: flex;
@@ -791,11 +791,11 @@
       font-size: 11px;
       line-height: 1.35;
       text-align: center;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     .history-notification-item {{
       border: 1px solid #d3e3d6;
-      background: var(--panel);
+      background: var(--ui-panel);
       color: #214836;
       border-radius: 8px;
       padding: 6px 8px;
@@ -805,7 +805,7 @@
       line-height: 1.3;
     }}
     .history-notification-item.is-new {{
-      box-shadow: inset 2px 0 0 var(--accent);
+      box-shadow: inset 2px 0 0 var(--ui-accent);
     }}
     .history-notification-meta {{
       display: flex;
@@ -1060,7 +1060,7 @@
     }}
     .network-node-splitter:hover::before,
     .network-node-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .network-node-history-host {{
       display: none;
@@ -1526,7 +1526,7 @@
       border-radius: 1px;
     }}
     .splitter:hover::before, .splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .hsplitter {{
       grid-column: 1 / span 3;
@@ -1554,7 +1554,7 @@
       border-radius: 1px;
     }}
     .hsplitter:hover::before, .hsplitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     body.resizing-panels-x, body.resizing-panels-x * {{
       cursor: col-resize !important;
@@ -1635,16 +1635,16 @@
     }}
     .workspace-shell[data-layout-view="chat"] .chat-users-head-launcher-shell .topbar-view-menu-btn:hover,
     .workspace-shell[data-layout-view="chat"] .chat-users-head-launcher-shell .topbar-view-menu-btn[aria-expanded="true"] {{
-      border-color: color-mix(in srgb, var(--line) 74%, var(--accent));
+      border-color: color-mix(in srgb, var(--ui-border) 74%, var(--ui-accent));
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--panel) 94%, var(--accent) 6%),
-          color-mix(in srgb, var(--panel) 84%, var(--accent) 16%)
+          color-mix(in srgb, var(--ui-panel) 94%, var(--ui-accent) 6%),
+          color-mix(in srgb, var(--ui-panel) 84%, var(--ui-accent) 16%)
         );
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        0 8px 18px color-mix(in srgb, var(--accent-2) 14%, transparent);
+        0 8px 18px color-mix(in srgb, var(--ui-accent-soft) 14%, transparent);
     }}
     .workspace-shell[data-layout-view="chat"] .chat-users-head-action-btn {{
       min-width: 28px;
@@ -1894,7 +1894,7 @@
       --network-pane-divider-bg: transparent;
       --network-pane-divider-border: var(--surface-tint-border);
       --network-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --network-pane-divider-line-active: var(--accent);
+      --network-pane-divider-line-active: var(--ui-accent);
       height: var(--layout-available-height, 100%);
       max-height: 100%;
       min-height: 0;
@@ -2132,7 +2132,7 @@
       --history-pane-divider-bg: var(--surface-tint-divider-bg);
       --history-pane-divider-border: var(--surface-tint-border);
       --history-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --history-pane-divider-line-active: var(--accent);
+      --history-pane-divider-line-active: var(--ui-accent);
       height: 100%;
       max-height: 100%;
       min-height: 0;
@@ -2637,7 +2637,7 @@
       --saved-pane-divider-bg: var(--surface-tint-divider-bg);
       --saved-pane-divider-border: var(--surface-tint-border);
       --saved-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --saved-pane-divider-line-active: var(--accent);
+      --saved-pane-divider-line-active: var(--ui-accent);
       display: flex;
       grid-column: 1 / span 3;
       grid-row: 2;
@@ -3144,7 +3144,7 @@
     }}
     .chat-node-details-splitter:hover::before,
     .chat-node-details-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .chat-left-section.chat-users-section.has-node-details .chat-member-pinned-shell,
     .chat-left-section.chat-users-section.has-node-details .chat-member-list {{
@@ -3236,10 +3236,10 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 78%, #07121f 22%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 90%, #050b13 10%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 78%, #07121f 22%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 90%, #050b13 10%)
         ),
-        var(--workspace-shell-bg, var(--panel));
+        var(--workspace-shell-bg, var(--ui-panel));
       border-radius: 8px;
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer {{
@@ -3253,10 +3253,10 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 78%, #07121f 22%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 90%, #050b13 10%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 78%, #07121f 22%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 90%, #050b13 10%)
         ),
-        var(--workspace-shell-bg, var(--panel));
+        var(--workspace-shell-bg, var(--ui-panel));
       box-shadow:
         0 18px 48px color-mix(in srgb, var(--shadow-color, #0d1c16) 24%, transparent),
         0 0 0 1px color-mix(in srgb, var(--surface-tint-border-strong) 46%, transparent);
@@ -3294,7 +3294,7 @@
     .chat-node-details-promoted-host .chat-node-details-tag-host {{
       padding: 9px 10px 10px 10px;
       gap: 8px;
-      background: var(--workspace-shell-bg, var(--panel));
+      background: var(--workspace-shell-bg, var(--ui-panel));
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer .saved-node-details {{
       padding: 10px;
@@ -3566,15 +3566,15 @@
       overflow: auto;
     }}
     .chat-node-details-telemetry-host {{
-      --telemetry-surface-bg: var(--surface-tint-bg-soft, color-mix(in srgb, var(--panel, #ffffff) 84%, var(--bg, var(--surface-tint-bg-soft)) 16%));
-      --telemetry-surface-bg-alt: var(--surface-tint-bg-alt, color-mix(in srgb, var(--panel, #ffffff) 72%, var(--surface-tint-bg-soft) 28%));
-      --telemetry-surface-border: var(--surface-tint-border, color-mix(in srgb, var(--ui-border, var(--surface-tint-border)) 78%, var(--ui-accent, var(--accent)) 22%));
-      --telemetry-surface-border-strong: var(--surface-tint-border-strong, color-mix(in srgb, var(--telemetry-surface-border) 68%, var(--ui-accent, var(--accent)) 32%));
+      --telemetry-surface-bg: var(--surface-tint-bg-soft, color-mix(in srgb, var(--ui-panel, #ffffff) 84%, var(--ui-bg, var(--surface-tint-bg-soft)) 16%));
+      --telemetry-surface-bg-alt: var(--surface-tint-bg-alt, color-mix(in srgb, var(--ui-panel, #ffffff) 72%, var(--surface-tint-bg-soft) 28%));
+      --telemetry-surface-border: var(--surface-tint-border, color-mix(in srgb, var(--ui-border, var(--surface-tint-border)) 78%, var(--ui-accent, var(--ui-accent)) 22%));
+      --telemetry-surface-border-strong: var(--surface-tint-border-strong, color-mix(in srgb, var(--telemetry-surface-border) 68%, var(--ui-accent, var(--ui-accent)) 32%));
       --telemetry-surface-text: var(--surface-tint-text, var(--ui-text, var(--surface-tint-text)));
       --telemetry-surface-text-soft: var(--surface-tint-text-soft, var(--ui-text-soft, var(--surface-tint-text-soft)));
-      --telemetry-success-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 72%, #7ac99e 28%);
-      --telemetry-running-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 28%, #5a7fb8 72%);
-      --telemetry-error-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 24%, #c25656 76%);
+      --telemetry-success-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 72%, #7ac99e 28%);
+      --telemetry-running-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 28%, #5a7fb8 72%);
+      --telemetry-error-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 24%, #c25656 76%);
     }}
     .chat-node-telemetry-empty {{
       border: 1px dashed var(--telemetry-surface-border);
@@ -3998,12 +3998,12 @@
     }}
     .chat-member-item.tagged-node {{
       box-shadow:
-        inset 2px 0 0 var(--node-tag-color, var(--accent)),
-        inset 0 0 0 1px color-mix(in srgb, var(--node-tag-color, var(--accent)) 18%, transparent);
+        inset 2px 0 0 var(--node-tag-color, var(--ui-accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-tag-color, var(--ui-accent)) 18%, transparent);
     }}
     .chat-member-item.tagged-node.selected-node {{
       box-shadow:
-        inset 2px 0 0 var(--node-tag-color, var(--accent)),
+        inset 2px 0 0 var(--node-tag-color, var(--ui-accent)),
         inset 0 0 0 1px hsl(var(--chat-member-node-outline-hue) calc(34% * var(--chat-member-node-outline-sat-mult, 1)) calc(63% + var(--chat-member-node-outline-light-shift, 0%)) / 0.26);
     }}
     #chat-room-pinned-shell {{
@@ -4038,7 +4038,7 @@
       font-size: 11px;
       font-weight: 700;
       line-height: 1;
-      color: var(--accent);
+      color: var(--ui-accent);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -4055,10 +4055,10 @@
       font-weight: 900;
       border: 1.5px solid currentColor;
       border-radius: 3px;
-      background: color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 88%, transparent);
+      background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);
       box-sizing: border-box;
       text-shadow:
-        0 0 2px color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 86%, #000000 14%),
+        0 0 2px color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 86%, #000000 14%),
         0 0 3px color-mix(in srgb, currentColor 38%, transparent);
       transform: translateY(-0.2px);
     }}
@@ -4085,7 +4085,7 @@
       inset: 0;
       border-radius: 999px;
       border: 1.5px solid currentColor;
-      background: color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 88%, transparent);
+      background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);
       box-sizing: border-box;
       opacity: 0.96;
       z-index: 0;
@@ -4189,7 +4189,7 @@
       transition: color 120ms ease, border-color 120ms ease, background 120ms ease, opacity 120ms ease;
     }}
     .favorite-toggle-btn {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       padding: 0 4px;
     }}
@@ -4221,7 +4221,7 @@
       height: 8px;
       border-radius: 999px;
       border: 1px solid color-mix(in srgb, var(--surface-tint-text-soft) 36%, transparent);
-      background: var(--node-tag-color, var(--accent));
+      background: var(--node-tag-color, var(--ui-accent));
       filter: saturate(calc(0.4 + (var(--node-tag-vibrance, 0.7) * 1.7)));
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
       display: inline-block;
@@ -4365,11 +4365,11 @@
       display: none;
     }}
     .chat-member-tag-chip {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       flex: 0 0 auto;
-      border: 1px solid var(--node-tag-color, var(--accent));
-      color: var(--node-tag-color, var(--accent));
+      border: 1px solid var(--node-tag-color, var(--ui-accent));
+      color: var(--node-tag-color, var(--ui-accent));
       background: color-mix(in srgb, var(--surface-tint-bg-alt) 74%, transparent);
       border-radius: 999px;
       padding: 0 5px;
@@ -5026,7 +5026,7 @@
       gap: 6px;
     }}
     .favorite-menu-tag-chip {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       width: 10px;
       height: 10px;
@@ -5042,7 +5042,7 @@
     .favorite-menu-tag-chip.is-tagged {{
       border-style: solid;
       border-color: rgba(62, 104, 81, 0.55);
-      background: var(--node-tag-color, var(--accent));
+      background: var(--node-tag-color, var(--ui-accent));
       filter: saturate(calc(0.4 + (var(--node-tag-vibrance, 0.7) * 1.7)));
     }}
     .favorite-menu-tag-chip.has-emoji {{
@@ -5126,7 +5126,7 @@
       width: 100%;
       min-width: 0;
       margin: 0;
-      accent-color: var(--ui-accent, var(--accent));
+      accent-color: var(--ui-accent, var(--ui-accent));
     }}
     .favorite-menu-tag-vibrance-value {{
       font-size: 10px;
@@ -5224,11 +5224,11 @@
       font-size: 11px;
       line-height: 1.35;
       text-align: center;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     .chat-change-item {{
       border: 1px solid #d3e3d6;
-      background: var(--panel);
+      background: var(--ui-panel);
       color: #214836;
       border-radius: 8px;
       padding: 4px 6px;
@@ -5421,7 +5421,7 @@
           rgba(var(--peer-dm-channel-rgb), 0.03) 46%,
           rgba(var(--peer-dm-channel-rgb), 0.01) 100%
         ),
-        var(--panel);
+        var(--ui-panel);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -5739,9 +5739,9 @@
       --chat-feed-node-outline-dark-light-shift: 4%;
       --chat-feed-node-dark-sat-mult: 0;
       --chat-feed-node-dark-light-shift: 0%;
-      --chat-feed-node-bg: color-mix(in srgb, var(--panel) 94%, var(--bg) 6%);
-      --chat-feed-node-bg-hover: color-mix(in srgb, var(--panel) 84%, var(--bg) 16%);
-      --chat-feed-border-color: color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
+      --chat-feed-node-bg: color-mix(in srgb, var(--ui-panel) 94%, var(--ui-bg) 6%);
+      --chat-feed-node-bg-hover: color-mix(in srgb, var(--ui-panel) 84%, var(--ui-bg) 16%);
+      --chat-feed-border-color: color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);
       --chat-feed-channel-edge-bg: linear-gradient(90deg, transparent 0, transparent 100%);
       --chat-feed-node-gradient: linear-gradient(90deg, transparent 0, transparent 100%);
       --chat-feed-node-gradient-hover: linear-gradient(90deg, transparent 0, transparent 100%);
@@ -5761,7 +5761,7 @@
       background: var(--chat-feed-channel-edge-bg), var(--chat-feed-node-gradient), var(--chat-feed-node-bg);
       background-origin: border-box;
       background-clip: border-box;
-      color: color-mix(in srgb, var(--ink) 90%, var(--muted) 10%);
+      color: color-mix(in srgb, var(--ui-text) 90%, var(--ui-text-soft) 10%);
     }}
     .chat-feed-item.has-channel-tab {{
       --chat-feed-channel-edge-bg: linear-gradient(
@@ -5838,9 +5838,9 @@
         var(--chat-feed-channel-edge-bg),
         linear-gradient(
           90deg,
-          color-mix(in srgb, var(--accent) 4%, transparent),
-          color-mix(in srgb, var(--accent) 2%, transparent) 28%,
-          color-mix(in srgb, var(--accent) 1%, transparent) 52%
+          color-mix(in srgb, var(--ui-accent) 4%, transparent),
+          color-mix(in srgb, var(--ui-accent) 2%, transparent) 28%,
+          color-mix(in srgb, var(--ui-accent) 1%, transparent) 52%
         ),
         linear-gradient(
           90deg,
@@ -6831,5 +6831,5 @@
       --chat-send-channel-fill: #0072b2;
       --chat-send-channel-rgb: 0, 114, 178;
       margin-top: 6px;
-      border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
-      background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);
+      border: 1px solid color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);
+      background: color-mix(in srgb, var(--ui-panel) 78%, var(--ui-bg) 22%);

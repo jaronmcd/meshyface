@@ -10,6 +10,21 @@ ThemePreset = dict[str, ThemeTokens]
 ThemePresetMap = dict[str, ThemePreset]
 ThemePresetCustomSettingsMap = dict[str, dict[str, object]]
 
+_DEPRECATED_THEME_TOKENS = frozenset(
+    "--" + name
+    for name in (
+        "bg",
+        "panel",
+        "line",
+        "ink",
+        "accent",
+        "accent-2",
+        "muted",
+        "danger",
+        "shadow",
+    )
+)
+
 _DEFAULT_THEME_SETTINGS: dict[str, object] = {
     "base_color": "#003a73",
     "line_color": "#2f8cff",
@@ -84,7 +99,11 @@ def _normalize_theme_tokens(
 ) -> Optional[ThemeTokens]:
     if not isinstance(raw_tokens, dict):
         return None
-    normalized = {str(key): str(value) for key, value in raw_tokens.items()}
+    normalized = {
+        str(key): str(value)
+        for key, value in raw_tokens.items()
+        if str(key) not in _DEPRECATED_THEME_TOKENS
+    }
     if not required_keys.issubset(set(normalized.keys())):
         return None
     return normalized
