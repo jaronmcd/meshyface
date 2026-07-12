@@ -343,11 +343,17 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "width: 100%;" in promoted_host_section
     assert "max-width: none;" in promoted_host_section
     assert "min-width: 0;" in promoted_host_section
+    assert ".chat-node-details-promoted-host .chat-node-details-head-main," in css
+    assert ".chat-node-details-promoted-host .chat-node-details-head-actions {" in css
+    assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
+    assert "padding-right: 38px;" in css
+    assert ".chat-node-details-promoted-host .saved-node-details.profiled-node::after," in css
+    assert "content: none;" in css
     assert "var(--workspace-shell-bg, var(--panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
     assert "height: 100%;" in css
     assert ".chat-node-details-head {" in css
-    head_section = css.split(".chat-node-details-head {", 1)[1].split("}", 1)[0]
+    head_section = css.split("\n    .chat-node-details-head {", 1)[1].split("}", 1)[0]
     assert "grid-template-columns: minmax(0, 1fr) auto auto;" in head_section
     assert ".chat-node-details-head-main {" in css
     head_main_section = css.split(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]

@@ -4065,6 +4065,7 @@
       border-radius: 8px;
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer {{
+      position: relative;
       flex: 1 1 auto;
       width: 100%;
       min-height: 0;
@@ -4081,6 +4082,28 @@
       box-shadow:
         0 18px 48px color-mix(in srgb, var(--shadow-color, #0d1c16) 24%, transparent),
         0 0 0 1px color-mix(in srgb, var(--surface-tint-border-strong) 46%, transparent);
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head {{
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      z-index: 4;
+      display: block;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      overflow: visible;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head-main,
+    .chat-node-details-promoted-host .chat-node-details-head-actions {{
+      display: none;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-tabs {{
+      padding-right: 38px;
+    }}
+    .chat-node-details-promoted-host .saved-node-details.profiled-node::after,
+    .chat-node-details-promoted-host .saved-node-details.profiled-node .saved-node-section:first-child::after {{
+      content: none;
     }}
     .chat-node-details-promoted-host .chat-node-details-content-host,
     .chat-node-details-promoted-host .chat-node-details-location-host,
