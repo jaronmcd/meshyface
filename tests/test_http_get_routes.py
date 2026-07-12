@@ -212,7 +212,6 @@ def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:
             "my_info": {"id": "!fallback"},
             "metadata": {"firmware": "x"},
             "local_state": {"foo": "bar"},
-            "nodes_full": [{"id": "!node"}],
         }
     )
     state_fn.raw_my_info = lambda: {"id": "!raw"}  # type: ignore[attr-defined]
@@ -227,8 +226,8 @@ def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:
         (200, {"id": "!raw"}, True),
         (200, {"firmware": "x"}, True),
         (200, {"foo": "bar"}, True),
-        (200, [{"id": "!node"}], True),
     ]
+    assert deps.recorder.text[-1][:2] == (404, "Not Found")
 
 
 def test_dashboard_get_dispatches_history_summary_routes() -> None:

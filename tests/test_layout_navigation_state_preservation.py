@@ -144,6 +144,23 @@ def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers
     assert "function renderNetworkOverviewSummary" in js
     assert "function networkOverviewSummaryNeedsPacketSeries" in js
 
+    for removed_view in ("packets", "channels", "data"):
+        assert f".layout.view-{removed_view}" not in css
+    for removed_runtime_name in (
+        "function renderPackets",
+        '"packets-table"',
+        "function bindRawDataFetch",
+        '"/api/raw/nodes_full"',
+        '"raw-nodes-full"',
+    ):
+        assert removed_runtime_name not in js
+
+    assert 'id="settings-channels-table"' in html
+    assert 'id="network-map-panel-sensors"' in html
+    assert "function renderChannelsView" in js
+    assert "function renderEnvironmentMetricsView" in js
+    assert 'fetchRawJson("/api/raw/local_state"' in js
+
     for element_id in (
         "network-node-history-host",
         "map-data-node",

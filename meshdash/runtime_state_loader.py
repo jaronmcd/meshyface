@@ -11,7 +11,6 @@ from .state_service_contracts import StateTracker
 
 from .helpers import to_jsonable as _to_jsonable
 from .helpers_security import redact_secrets as _redact_secrets
-from .state_node_rows import collect_nodes_typed as _collect_nodes_typed
 from .state_nodes import collect_local_state as _collect_local_state
 
 
@@ -404,15 +403,10 @@ def build_state_snapshot_loader_with_dependencies(
     def raw_local_state() -> dict[str, object]:
         return _maybe_redact(_collect_local_state(dependencies.iface))  # type: ignore[return-value]
 
-    def raw_nodes_full() -> list[dict[str, object]]:
-        nodes = _collect_nodes_typed(dependencies.iface)
-        return _maybe_redact(nodes.full)  # type: ignore[return-value]
-
     try:
         setattr(state_fn, "raw_my_info", raw_my_info)
         setattr(state_fn, "raw_metadata", raw_metadata)
         setattr(state_fn, "raw_local_state", raw_local_state)
-        setattr(state_fn, "raw_nodes_full", raw_nodes_full)
     except Exception:
         pass
 

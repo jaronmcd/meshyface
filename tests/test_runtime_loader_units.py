@@ -177,12 +177,6 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
         "_collect_local_state",
         lambda iface: {"token": "local-secret", "state": "ok"},
     )
-    monkeypatch.setattr(
-        runtime_state_loader,
-        "_collect_nodes_typed",
-        lambda iface: SimpleNamespace(full=[{"id": "!node", "token": "node-secret"}]),
-    )
-
     def build_state_fn(**kwargs):
         calls.append("full")
         return {"variant": "full", "target": kwargs["target"]}
@@ -255,4 +249,3 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
     assert state_fn.raw_my_info()["token"] == "<redacted>"  # type: ignore[attr-defined]
     assert state_fn.raw_metadata()["token"] == "<redacted>"  # type: ignore[attr-defined]
     assert state_fn.raw_local_state()["token"] == "<redacted>"  # type: ignore[attr-defined]
-    assert state_fn.raw_nodes_full()[0]["token"] == "<redacted>"  # type: ignore[attr-defined]

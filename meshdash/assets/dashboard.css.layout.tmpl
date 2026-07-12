@@ -703,19 +703,6 @@
       line-height: 1.3;
       padding: 8px 10px;
     }}
-    .packets {{ grid-column: 1; grid-row: 8; }}
-    .channels-view {{
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .channels-view .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      overflow: hidden;
-    }}
     .channels-dashboard-grid {{
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -1101,7 +1088,6 @@
       background: #faecec;
       color: #7a2f2f;
     }}
-    .raw {{ grid-column: 3; grid-row: 8; }}
     .console {{ grid-column: 1 / span 3; grid-row: 10; }}
     .splitter {{
       grid-column: 2;
@@ -1430,8 +1416,6 @@
     .layout.view-chat .map-data,
     .layout.view-chat .summary,
     .layout.view-chat .nodes,
-    .layout.view-chat .packets,
-    .layout.view-chat .raw,
     .layout.view-chat .console,
     .layout.view-chat .splitter,
     .layout.view-chat .hsplitter {{
@@ -1474,10 +1458,7 @@
     .layout.view-files .map,
     .layout.view-files .map-data,
     .layout.view-files .favorites,
-    .layout.view-files .channels-view,
-    .layout.view-files .packets,
     .layout.view-files .encription,
-    .layout.view-files .raw,
     .layout.view-files .console,
     .layout.view-files .summary,
     .layout.view-files .splitter,
@@ -1706,8 +1687,6 @@
     }}
     .layout.view-network .map-data,
     .layout.view-network .chat,
-    .layout.view-network .packets,
-    .layout.view-network .raw,
     .layout.view-network .console,
     .layout.view-network .hsplitter[data-target="top"],
     .layout.view-network .hsplitter[data-target="mid"],
@@ -1725,109 +1704,6 @@
       background: var(--network-pane-divider-line-active);
     }}
 
-    .layout.view-packets {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-packets .packets {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .layout.view-packets .packets .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-packets .packets .body.scroll {{
-      max-height: none;
-      height: 100%;
-    }}
-    .layout.view-packets .chat,
-    .layout.view-packets .nodes,
-    .layout.view-packets .map,
-    .layout.view-packets .map-data,
-    .layout.view-packets .summary,
-    .layout.view-packets .raw,
-    .layout.view-packets .console,
-    .layout.view-packets .splitter,
-    .layout.view-packets .hsplitter[data-target="top"],
-    .layout.view-packets .hsplitter[data-target="mid"],
-    .layout.view-packets .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-channels {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-channels .channels-view {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-view .body {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-dashboard-grid {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-dashboard-panel-activity {{
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-activity-table-wrap {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .chat,
-    .layout.view-channels .nodes,
-    .layout.view-channels .map,
-    .layout.view-channels .map-data,
-    .layout.view-channels .summary,
-    .layout.view-channels .favorites,
-    .layout.view-channels .packets,
-    .layout.view-channels .encription,
-    .layout.view-channels .raw,
-    .layout.view-channels .console,
-    .layout.view-channels .splitter,
-    .layout.view-channels .hsplitter[data-target="top"],
-    .layout.view-channels .hsplitter[data-target="mid"],
-    .layout.view-channels .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-data {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-data .raw {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .layout.view-data .raw .body {{
-      display: block;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
     .layout.view-console {{
       height: 100%;
       max-height: 100%;
@@ -1877,26 +1753,10 @@
       min-height: 0;
       max-height: none;
     }}
-    .layout.view-data .chat,
-    .layout.view-data .nodes,
-    .layout.view-data .map,
-    .layout.view-data .map-data,
-    .layout.view-data .summary,
-    .layout.view-data .packets,
-    .layout.view-data .console,
-    .layout.view-data .splitter,
-    .layout.view-data .hsplitter[data-target="top"],
-    .layout.view-data .hsplitter[data-target="mid"],
-    .layout.view-data .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
     .layout.view-console .chat,
     .layout.view-console .nodes,
     .layout.view-console .map,
     .layout.view-console .map-data,
-    .layout.view-console .packets,
-    .layout.view-console .raw,
     .layout.view-console .splitter,
     .layout.view-console .hsplitter[data-target="top"],
     .layout.view-console .hsplitter[data-target="mid"],
@@ -1961,8 +1821,6 @@
     .layout.view-settings .map,
     .layout.view-settings .map-data,
     .layout.view-settings .favorites,
-    .layout.view-settings .packets,
-    .layout.view-settings .raw,
     .layout.view-settings .splitter,
     .layout.view-settings .hsplitter[data-target="top"],
     .layout.view-settings .hsplitter[data-target="mid"],
@@ -2004,10 +1862,7 @@
     .layout.view-games .map,
     .layout.view-games .map-data,
     .layout.view-games .favorites,
-    .layout.view-games .channels-view,
-    .layout.view-games .packets,
     .layout.view-games .encription,
-    .layout.view-games .raw,
     .layout.view-games .console,
     .layout.view-games .summary,
     .layout.view-games .splitter,
@@ -2242,8 +2097,6 @@
     .layout.view-saved .map-data,
     .layout.view-saved .chat,
     .layout.view-saved .nodes,
-    .layout.view-saved .packets,
-    .layout.view-saved .raw,
     .layout.view-saved .console,
     .layout.view-saved .hsplitter[data-target="top"],
     .layout.view-saved .hsplitter[data-target="mid"],

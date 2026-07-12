@@ -68,7 +68,6 @@ def _copy_state_fn_attrs(target_fn: object, source_fn: object) -> None:
         "raw_my_info",
         "raw_metadata",
         "raw_local_state",
-        "raw_nodes_full",
         "top_nodes_fn",
         "link_edges_fn",
         "location_estimates_fn",
