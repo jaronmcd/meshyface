@@ -63,9 +63,6 @@
       renderHistoryNotificationLog();
       if (latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
         renderChat(latestState);
-        if (activeLayoutView === "chatlabs") {{
-          renderChatLabsView(latestState);
-        }}
       }} else {{
         syncChatChangeAutoDismiss();
       }}

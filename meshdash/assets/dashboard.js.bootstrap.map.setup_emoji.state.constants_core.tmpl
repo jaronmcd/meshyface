@@ -256,7 +256,7 @@
     const wheelActivationLeaseMs = 1400;
     function isChatWorkspaceLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "chat" || clean === "macros" || clean === "chatlabs";
+      return clean === "chat";
     }}
     function isChannelsViewActive(viewName = activeLayoutView, settingsTab = activeSettingsTab) {{
       const cleanView = String(viewName || "").trim().toLowerCase();
@@ -265,7 +265,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "files", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([

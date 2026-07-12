@@ -69,14 +69,6 @@
       if (feed) {{
         feed.classList.toggle("chat-feed-view-monitor", chatViewMode === "monitor");
         feed.dataset.chatViewMode = chatViewMode === "monitor" ? "monitor" : "default";
-        const macrosViewMode = String(macrosLeftViewMode || "preview").trim().toLowerCase() === "live"
-          ? "live"
-          : "preview";
-        if (activeLayoutView === "macros") {{
-          feed.dataset.macrosFeedMode = macrosViewMode;
-        }} else {{
-          delete feed.dataset.macrosFeedMode;
-        }}
         const meshFilterIndex = (typeof activeMeshChannelFilterIndex === "function")
           ? activeMeshChannelFilterIndex()
           : meshChannelAllIndex;
@@ -90,22 +82,12 @@
         if (activeChatChannel !== "direct" && hasMeshFilter) {{
           emptyText += ` Filtered to ${{String(meshFilterLabel || "").trim() || "selected channel"}}; switch to All channels to see everything.`;
         }}
-        const showMacroPreview = activeLayoutView === "macros" && macrosViewMode === "preview";
-        const macroPreviewRows = showMacroPreview
-          ? buildMacrosPreviewFeedItems(macrosPreviewLines)
-          : [];
         closeReactionPopover(true);
         let nextFeedHtml = "";
-        if (showMacroPreview) {{
-          nextFeedHtml = macroPreviewRows.length > 0
-            ? macroPreviewRows.join("")
-            : '<div class="chat-feed-empty">Generate ASCII in MACROS Studio on the right to preview line-by-line output here.</div>';
-        }} else {{
-          const historyControlHtml = chatHistoryLoadControlHtml || "";
-          nextFeedHtml = feedItems.length > 0
-            ? `${{historyControlHtml}}${{feedItems.join("")}}`
-            : `<div class="chat-feed-empty">${{emptyText}}</div>`;
-        }}
+        const historyControlHtml = chatHistoryLoadControlHtml || "";
+        nextFeedHtml = feedItems.length > 0
+          ? `${{historyControlHtml}}${{feedItems.join("")}}`
+          : `<div class="chat-feed-empty">${{emptyText}}</div>`;
         feedMarkupChanged = setElementHtmlIfChanged(feed, nextFeedHtml, "chat-feed");
         if (feedMarkupChanged) {{
           feed.__meshChatFeedSearchRows = [];
@@ -403,9 +385,6 @@
               if (!changed) return;
               if (latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
                 renderChat(latestState);
-                if (activeLayoutView === "chatlabs") {{
-                  renderChatLabsView(latestState);
-                }}
               }} else {{
                 syncChatChangeAutoDismiss();
               }}
@@ -529,9 +508,6 @@
             if (!changed) return;
             if (latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
               renderChat(latestState);
-              if (activeLayoutView === "chatlabs") {{
-                renderChatLabsView(latestState);
-              }}
             }} else {{
               syncChatChangeAutoDismiss();
             }}

@@ -2757,7 +2757,7 @@
                     class="list-search-input"
                     type="search"
                     maxlength="{chat_max_bytes}"
-                    placeholder="Message the room (^all)... (/search, /macros, /help)"
+                    placeholder="Message the room (^all)... (/search, /help)"
                     autocomplete="off"
                   />
                   <span id="chat-input-inline-ghost" class="chat-input-inline-ghost" hidden aria-hidden="true">
@@ -2767,162 +2767,12 @@
                   <button id="chat-unicode-btn" type="button" title="Unicode text styles" aria-label="Unicode text styles" aria-haspopup="dialog" aria-expanded="false">Aa</button>
                   <button id="chat-emoji-btn" type="button" title="Insert emoji" aria-label="Insert emoji" aria-expanded="false">🙂</button>
                 </div>
-                <div id="chat-macro-preview" class="chat-macro-preview" hidden aria-live="polite"></div>
                 <div id="chat-emoji-panel" class="chat-emoji-panel" hidden></div>
                 <div id="chat-unicode-panel" class="chat-unicode-panel" hidden></div>
               </div>
             </div>
             <div id="chat-reaction-popover" class="chat-reaction-popover" hidden></div>
           </div>
-        </div>
-        <div
-          id="macros-panel-splitter"
-          class="macros-panel-splitter"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize macros log panel"
-        ></div>
-        <div id="macros-right-pane" class="macros-right-pane" aria-label="Macros controls workspace">
-          <div class="macros-right-pane-inner">
-            <div class="macros-studio-head">
-              <h3>MACROS Studio</h3>
-              <p>Build tiny ASCII macros from images or text. Left panel can show emulated send preview or live chat.</p>
-              <div class="macros-left-view-toggle" role="group" aria-label="Macros left panel mode">
-                <button id="macros-left-view-preview-btn" class="btn btn-secondary is-active" type="button">Macro Preview</button>
-                <button id="macros-left-view-live-btn" class="btn btn-secondary" type="button">Live Chat</button>
-              </div>
-              <div class="macros-send-strip">
-                <button id="macros-send-lines-btn" class="btn btn-danger macros-send-primary" type="button">Send Macro</button>
-                <span class="macros-send-strip-note">Transmits current ASCII output to mesh as multiple lines.</span>
-              </div>
-              <div class="macros-mini-meta">Switch the left panel between macro preview and live channel chat.</div>
-            </div>
-            <div class="macros-studio-grid">
-              <section class="macros-tool-card" aria-label="ASCII settings">
-                <h4>ASCII Settings</h4>
-                <div class="macros-tool-row">
-                  <label class="macros-tool-field">
-                    <span>Width</span>
-                    <input id="macros-ascii-width" type="number" min="8" max="96" step="1" value="16" />
-                  </label>
-                  <label class="macros-tool-field">
-                    <span>Height</span>
-                    <input id="macros-ascii-height" type="number" min="8" max="96" step="1" value="16" />
-                  </label>
-                </div>
-                <label class="macros-tool-field">
-                  <span>Palette Preset</span>
-                  <select id="macros-ascii-palette" aria-label="ASCII palette preset"></select>
-                </label>
-                <label class="macros-tool-field">
-                  <span>Ramp (dark to light)</span>
-                  <input id="macros-ascii-ramp" type="text" value="@%#*+=-:. " maxlength="128" autocomplete="off" spellcheck="false" />
-                </label>
-                <div id="macros-ascii-palette-note" class="macros-mini-meta">Classic 10-level ramp (dark -> light), used widely since the 1990s.</div>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-invert" type="checkbox" />
-                  <span>Invert luminance</span>
-                </label>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-crop-whitespace" type="checkbox" checked />
-                  <span>Crop blank margins (top/bottom/left/right)</span>
-                </label>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-space-replace-enabled" type="checkbox" />
-                  <span>MSP-safe: replace spaces on send</span>
-                </label>
-                <label class="macros-tool-field">
-                  <span>Replacement char</span>
-                  <input id="macros-ascii-space-replace-char" type="text" value="·" maxlength="8" autocomplete="off" spellcheck="false" />
-                </label>
-                <div class="macros-mini-meta">When enabled, spaces are sent as this visible character.</div>
-              </section>
-
-              <section class="macros-tool-card" aria-label="Image to ASCII">
-                <h4>Image to ASCII</h4>
-                <label class="macros-tool-field">
-                  <span>Import image</span>
-                  <input id="macros-image-input" type="file" accept="image/*" />
-                </label>
-                <div id="macros-image-meta" class="macros-mini-meta">No image loaded.</div>
-                <button id="macros-image-generate-btn" class="btn" type="button">Generate From Image</button>
-              </section>
-
-              <section class="macros-tool-card" aria-label="Text to ASCII">
-                <h4>Text to ASCII</h4>
-                <label class="macros-tool-field">
-                  <span>Text</span>
-                  <input id="macros-text-input" type="text" maxlength="120" placeholder="TYPE SOMETHING" autocomplete="off" />
-                </label>
-                <div class="macros-tool-row">
-                  <label class="macros-tool-field">
-                    <span>Font</span>
-                    <select id="macros-text-font">
-                      <option value="monospace">Monospace</option>
-                      <option value="sans-serif">Sans Serif</option>
-                      <option value="serif">Serif</option>
-                      <option value="fantasy">Fantasy</option>
-                    </select>
-                  </label>
-                  <label class="macros-tool-field">
-                    <span>Weight</span>
-                    <select id="macros-text-weight">
-                      <option value="700">Bold</option>
-                      <option value="600">Semi</option>
-                      <option value="500">Medium</option>
-                      <option value="400">Normal</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="macros-tool-actions">
-                  <button id="macros-text-generate-btn" class="btn" type="button">Generate From Text</button>
-                </div>
-              </section>
-            </div>
-
-            <section class="macros-output-card" aria-label="ASCII output">
-              <div class="macros-output-head">
-                <h4>ASCII Output</h4>
-                <span id="macros-line-count" class="macros-mini-meta">0 lines</span>
-              </div>
-              <textarea
-                id="macros-ascii-output"
-                class="macros-ascii-output"
-                rows="10"
-                placeholder="ASCII output appears here..."
-                spellcheck="false"
-              ></textarea>
-              <div class="macros-output-actions">
-                <button id="macros-preview-apply-btn" class="btn btn-secondary" type="button">Refresh Preview</button>
-                <button id="macros-copy-btn" class="btn btn-secondary" type="button">Copy</button>
-                <button id="macros-clear-btn" class="btn btn-secondary" type="button">Clear</button>
-              </div>
-              <div id="macros-status" class="macros-status" aria-live="polite"></div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card chatlabs" aria-label="Experimental console-style chat">
-      <div class="chatlabs-head">
-        <h2>Labs</h2>
-        <div class="chatlabs-caption">
-          Experimental console-rendered chat stream.
-          <span id="chat-labs-count" class="chatlabs-count">0 lines</span>
-        </div>
-        <div class="chatlabs-filter-row">
-          <div
-            id="chat-labs-channel-pill-strip"
-            class="mesh-channel-pill-strip chatlabs-channel-pill-strip"
-            role="tablist"
-            aria-label="Labs channel filter"
-          ></div>
-        </div>
-      </div>
-      <div class="body">
-        <div id="chat-labs-terminal" class="chatlabs-terminal">
-          <div id="chat-labs-feed" class="chatlabs-feed"></div>
         </div>
       </div>
     </section>

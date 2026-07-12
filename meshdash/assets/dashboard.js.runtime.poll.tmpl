@@ -525,9 +525,6 @@
           if (isChatWorkspaceLayoutView(activeLayoutView)) {{
             refreshUnchangedChatWorkspace(latestState, Math.floor(Date.now() / 1000));
             chatMaintainedThisPoll304 = true;
-            if (activeLayoutView === "chatlabs") {{
-              renderChatLabsView(latestState);
-            }}
           }} else if (shouldHydrateNodeNavigatorRoster(latestState)) {{
             renderChat(latestState);
             chatRenderedThisPoll304 = true;
@@ -846,9 +843,6 @@
           if (!chatRenderedThisPoll) {{
             runPollStep("renderChat.workspace", () => renderChat(state, {{ allowPollSkip: true }}));
             chatRenderedThisPoll = true;
-          }}
-          if (activeLayoutView === "chatlabs") {{
-            runPollStep("renderChatLabsView", () => renderChatLabsView(state));
           }}
         }} else if (activeLayoutView === "games") {{
           runPollStep("renderGamesView", () => renderGamesView(state));

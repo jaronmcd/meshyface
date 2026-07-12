@@ -551,6 +551,12 @@ def test_chat_unicode_generator_wires_composer_styles() -> None:
     assert 'id: "modifiers", label: "Modifiers"' in js
     assert 'id: "boxed", label: "Boxed"' in js
     assert 'id: "marks", label: "Marks"' in js
+    assert "function toLeetSpeak(rawText) {" in js
+    assert "function toBackwards(rawText) {" in js
+    assert "function toScrambled(rawText) {" in js
+    assert "function toUpsideDown(rawText) {" in js
+    assert "function toDisemvowel(rawText) {" in js
+    assert "function toSpecialChars(rawText) {" in js
     assert "transformText: toLeetSpeak" in js
     assert "transformText: toBackwards" in js
     assert "transformText: toScrambled" in js
@@ -829,7 +835,7 @@ def test_chat_reaction_anchor_reuses_same_button_for_more_and_less_states() -> N
     assert 'const reactionAnchorGap = reactionAnchorOwnsToggle ? 0 : 6;' in emoji_src
     assert 'const availableAbove = Math.max(220, Math.round(anchorRect.top - minTop + 2));' in emoji_src
     assert 'if (target.closest(".chat-reaction-summary") || target.closest(".chat-react-btn")) return;' in emoji_src
-    assert 'const owner = anchor.closest(".chat-feed-item[title], .chatlabs-message-row[title], [data-message-id][title]");' in emoji_src
+    assert 'const owner = anchor.closest(".chat-feed-item[title], [data-message-id][title]");' in emoji_src
     assert 'owner.removeAttribute("title");' in emoji_src
     assert 'animateChatEmojiPanelTransition(previousRect, {{' in emoji_src
     assert 'animateChatEmojiPanelClose({{' in emoji_src
@@ -1588,43 +1594,38 @@ def test_chat_feed_search_is_reapplied_after_feed_render() -> None:
     assert "applyChatFeedSearchFilter();" in js
 
 
-def test_chat_macro_menu_removes_novelty_face_shortcuts_only() -> None:
+def test_legacy_chat_macro_and_labs_workspaces_are_removed() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert "function renderChatMacroHelpPreview" in js
-    assert "Macro Menu - click a command to insert" in js
-    assert "Macro Help (${sourceLabel}) - click a command to insert" in js
-    assert '"/shrug"' not in js
-    assert '"/tableflip"' not in js
-    assert '"/flip"' not in js
-    assert '"/unflip"' not in js
-    assert '"/give"' not in js
-    assert '"/lenny"' not in js
-    assert '"/cheer"' not in js
-    assert '"/search <text>"' not in js
-    assert '"/1337 <text>"' not in js
-    assert '"/glyph <text>"' not in js
-    assert '"//search <text>"' in js
-    assert '"//1337 <text>"' not in js
-    assert '"//backwards <text>"' not in js
-    assert '"//scrambled <text>"' not in js
-    assert '"//upsidedown <text>"' not in js
-    assert '"//disemvowel <text>"' not in js
-    assert '"/special <text>"' not in js
-    assert '"//special <text>"' not in js
-    assert '"//glyph <text>"' not in js
-    assert "text.match(/^\\/\\/(1337|backwards|scrambled|upsidedown|disemvowel|glyph)" in js
+    for artifact in (html, css, js):
+        lowered = artifact.lower()
+        assert "chatlabs" not in lowered
+        assert "chat-labs" not in lowered
+        assert "chat-macro" not in lowered
+        assert "view-macros" not in lowered
+        assert "macros-panel" not in lowered
+    assert "function parseChatFeedSearchCommand(rawText)" in js
     assert "function chatTextStartsWithLocalCommandPrefix(rawText)" in js
-    assert 'trimmed.startsWith("//")' in js
+    assert '.trimStart().startsWith("//")' in js
     assert "Unknown local command" in js
-    assert "Messages starting with // are local commands and were not sent." in js
     assert 'trimmed.startsWith("/")' not in js
-    assert "Chat search mode: type text after //search" in js
-    assert "Chat search mode: type text after /search" not in js
 
 
 def test_launcher_menu_omits_header_block() -> None:
