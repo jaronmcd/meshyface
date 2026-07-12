@@ -136,6 +136,9 @@ def test_dashboard_html_orders_files_controls_table_and_console() -> None:
     assert channel_idx < destination_idx
     assert file_row_idx < file_input_idx < send_btn_idx
     assert table_idx < splitter_idx < console_idx
+    assert 'id="files-transfers-cancel-all-btn"' in html_template
+    assert 'id="files-transfers-clear-all-btn"' in html_template
+    assert '>Clear console</button>' in html_template
 
 
 def test_dashboard_js_syncs_files_destination_from_node_selection() -> None:
@@ -211,6 +214,11 @@ def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> No
     assert "const matchesSession = (ack, requireChannel = true)" in js
     assert "if (!matchesSession(candidate, false)) continue;" in js
     assert "session.channelIndex = confirmedAckChannel;" in js
+    assert "function cancelAllFileTransfersAction()" in js
+    assert "function clearAllFileTransferRowsAction()" in js
+    assert 'document.getElementById("files-transfers-cancel-all-btn")' in js
+    assert 'document.getElementById("files-transfers-clear-all-btn")' in js
+    assert 'class="files-transfer-action decline files-transfer-row-close"' in js
     assert "totalChunks > fileTransferMaxChunks" in js
     assert "fileSize > fileTransferMaxFileBytes" in js
     assert "const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));" in js

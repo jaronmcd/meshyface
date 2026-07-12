@@ -447,6 +447,102 @@
       void poll();
     }}
 
+    function cancelAllFileTransfersAction() {{
+      const activeOutgoing = Array.from(fileTransferOutgoingByToken.values()).filter((session) => (
+        session && typeof session === "object" && !session.delivered && !session.failed && !session.canceled
+      ));
+      const activeInbound = (Array.isArray(fileTransferRows) ? fileTransferRows : []).filter((row) => (
+        row
+        && typeof row === "object"
+        && String(row.directionClass || "").trim().toLowerCase() === "inbound"
+        && !row.delivered
+        && !row.inboundDeclined
+        && !row.inboundCanceled
+      ));
+      const total = activeOutgoing.length + activeInbound.length;
+      if (total <= 0) {{
+        setFileTransferStatus("No active file transfers to cancel.");
+        return 0;
+      }}
+      const confirmText = `Cancel all ${{total}} active file transfer${{total === 1 ? "" : "s"}}?\n\nThis stops retries, declines inbound transfers, and queues cancel signals to peers.`;
+      if (typeof window.confirm === "function" && !window.confirm(confirmText)) return 0;
+      let canceled = 0;
+      for (const session of activeOutgoing) {{
+        if (cancelOutgoingFileTransferSession(session, {{ clearAckState: false }})) canceled += 1;
+      }}
+      for (const row of activeInbound) {{
+        const key = String(row.key || "").trim();
+        if (!key) continue;
+        setFileTransferInboundDecisionByKey(key, "declined", {{
+          transferId: row.transferId,
+          senderId: row.fromId,
+          receiverId: row.toId,
+          fileName: row.fileName,
+        }});
+        setFileTransferInboundFlowStateByKey(key, "canceled-by-receiver", {{
+          transferId: row.transferId,
+          senderId: row.fromId,
+          receiverId: row.toId,
+        }});
+        deleteFileTransferChunkCacheEntry(key);
+        clearFileTransferBlobStateForKey(key);
+        fileTransferAckSentState.delete(key);
+        fileTransferAckObservedChunksByKey.delete(key);
+        fileTransferAckProbeCursorByKey.delete(key);
+        fileTransferAckProbeStateByKey.delete(key);
+        fileTransferAckMissingChannelWarnByKey.delete(key);
+        fileTransferFlowSignalSentByKey.delete(key);
+        canceled += 1;
+      }}
+      const suffix = canceled === 1 ? "" : "s";
+      setFileTransferStatus(`Canceled ${{canceled}} active file transfer${{suffix}}.`);
+      appendFileTransferConsole(
+        `Canceled all ${{canceled}} active file transfer${{suffix}}. Cancel signals queued for peers.`,
+        {{ level: "warn" }}
+      );
+      renderFilesView(latestState);
+      scheduleFileTransferMaintenance(latestState);
+      requestImmediatePoll(40);
+      void poll();
+      return canceled;
+    }}
+
+    function clearAllFileTransferRowsAction() {{
+      const activeOutgoing = Array.from(fileTransferOutgoingByToken.values()).some((session) => (
+        session && typeof session === "object" && !session.delivered && !session.failed && !session.canceled
+      ));
+      const activeInbound = (Array.isArray(fileTransferRows) ? fileTransferRows : []).some((row) => (
+        row
+        && typeof row === "object"
+        && String(row.directionClass || "").trim().toLowerCase() === "inbound"
+        && !row.delivered
+        && !row.inboundDeclined
+        && !row.inboundCanceled
+      ));
+      if (activeOutgoing || activeInbound) {{
+        setFileTransferStatus("Cancel active transfers before clearing the list.", true);
+        return 0;
+      }}
+      const keys = (Array.isArray(fileTransferRows) ? fileTransferRows : [])
+        .map((row) => String(row && row.key || "").trim())
+        .filter((key, index, list) => !!key && list.indexOf(key) === index);
+      if (!keys.length) {{
+        setFileTransferStatus("The transfer list is already empty.");
+        return 0;
+      }}
+      const confirmText = `Clear all ${{keys.length}} transfer row${{keys.length === 1 ? "" : "s"}} and cached received files from this browser?`;
+      if (typeof window.confirm === "function" && !window.confirm(confirmText)) return 0;
+      let cleared = 0;
+      for (const key of keys) {{
+        if (dismissFileTransferRowByKey(key)) cleared += 1;
+      }}
+      renderFilesView(latestState);
+      const suffix = cleared === 1 ? "" : "s";
+      setFileTransferStatus(`Cleared ${{cleared}} transfer row${{suffix}}.`);
+      appendFileTransferConsole(`Cleared the Files list (${{cleared}} row${{suffix}}).`);
+      return cleared;
+    }}
+
     function restartOutgoingFileTransferAction(transferKey) {{
       const key = String(transferKey || "").trim();
       if (!key) return;
@@ -878,6 +974,39 @@
               >${{escAttr(actionLabel)}}</button>`;
           }}
         }}
+        const rowDirection = String(row && row.directionClass || "").trim().toLowerCase();
+        const activeInboundRow = !!(
+          rowDirection === "inbound"
+          && !row.delivered
+          && !row.inboundDeclined
+          && !row.inboundCanceled
+        );
+        const activeOutboundRow = !!(
+          rowDirection === "outbound"
+          && !row.delivered
+          && !row.outgoingFailed
+          && !row.outgoingCanceled
+          && !row.outgoingSessionMissing
+        );
+        const closeAction = activeInboundRow
+          ? "cancel-inbound"
+          : (activeOutboundRow ? "cancel" : "clear");
+        const closeTitle = activeInboundRow
+          ? "Cancel this inbound transfer and stop receiving."
+          : (
+            activeOutboundRow
+              ? "Cancel this outbound transfer and stop retries."
+              : "Remove this transfer row and cached file data."
+          );
+        const closeButton = `<button
+            type="button"
+            class="files-transfer-action decline files-transfer-row-close"
+            data-action="${{escAttr(closeAction)}}"
+            data-transfer-key="${{escAttr(row.key || "")}}"
+            title="${{escAttr(closeTitle)}}"
+            aria-label="${{escAttr(closeTitle)}}"
+          >&times;</button>`;
+        actionHtml = `<span class="files-transfer-action-group files-transfer-row-actions">${{actionHtml}}${{closeButton}}</span>`;
         return `<tr>
           <td data-sort="${{escAttr(unix)}}">${{escAttr(when)}}</td>
           <td data-sort="${{escAttr(directionLabel)}}"><span class="files-transfer-dir ${{escAttr(directionClass)}}">${{escAttr(directionLabel)}}</span></td>

@@ -419,6 +419,20 @@
     }}
 
     function bindFilesConsoleControls() {{
+      const cancelAllBtn = document.getElementById("files-transfers-cancel-all-btn");
+      if (cancelAllBtn instanceof HTMLButtonElement && cancelAllBtn.dataset.bound !== "1") {{
+        cancelAllBtn.dataset.bound = "1";
+        cancelAllBtn.addEventListener("click", () => {{
+          cancelAllFileTransfersAction();
+        }});
+      }}
+      const clearAllBtn = document.getElementById("files-transfers-clear-all-btn");
+      if (clearAllBtn instanceof HTMLButtonElement && clearAllBtn.dataset.bound !== "1") {{
+        clearAllBtn.dataset.bound = "1";
+        clearAllBtn.addEventListener("click", () => {{
+          clearAllFileTransferRowsAction();
+        }});
+      }}
       const copyBtn = document.getElementById("files-console-copy-btn");
       if (copyBtn instanceof HTMLButtonElement && copyBtn.dataset.bound !== "1") {{
         copyBtn.dataset.bound = "1";
