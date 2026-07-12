@@ -2108,6 +2108,60 @@
     .chat-node-details-promoted-host .chat-node-details-tabs {{
       padding-right: 38px;
     }}
+    .chat-node-context-bridge {{
+      position: absolute;
+      inset: 0;
+      z-index: 2100;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 140ms ease;
+    }}
+    .chat-node-context-bridge[hidden] {{
+      display: none !important;
+    }}
+    .chat-node-context-bridge-svg {{
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }}
+    .chat-node-context-bridge-glow {{
+      fill: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+      stroke: none;
+      filter: blur(12px);
+    }}
+    .chat-node-context-bridge-wash {{
+      fill: color-mix(in srgb, var(--ui-accent) 5.5%, transparent);
+      stroke: none;
+    }}
+    .chat-node-context-bridge-edge {{
+      fill: none;
+      stroke: color-mix(in srgb, var(--ui-accent) 42%, transparent);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }}
+    .chat-node-context-bridge-edge-bottom {{
+      opacity: 0.58;
+    }}
+    .chat-node-context-bridge-offscreen-boundary {{
+      fill: none;
+      stroke: color-mix(in srgb, var(--ui-accent) 82%, white 18%);
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
+      filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ui-accent) 62%, transparent));
+    }}
+    .chat-member-item.chat-node-context-bridge-source {{
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
+        inset 0 0 0 999px color-mix(in srgb, var(--ui-accent) 5.5%, transparent) !important;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .chat-node-context-bridge {{
+        transition: none;
+      }}
+    }}
     .chat-node-details-promoted-host .chat-node-details-content-host,
     .chat-node-details-promoted-host .chat-node-details-location-host,
     .chat-node-details-promoted-host .chat-node-details-chat-host,

@@ -1366,6 +1366,9 @@
       if (!(targetList instanceof HTMLElement) || targetList.dataset.memberClickBound === "1") return;
       targetList.dataset.memberClickBound = "1";
       targetList.addEventListener("scroll", () => {{
+        if (typeof scheduleChatNodeContextBridgeSync === "function") {{
+          scheduleChatNodeContextBridgeSync();
+        }}
         const nowMs = Date.now();
         if (
           nowMs > Number(chatNodeNavigatorProgrammaticScrollResetUntilMs || 0)
@@ -1423,9 +1426,24 @@
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
+        const selectedBeforeClick = normalizeNodeId(selectedNodeId || "");
+        const collapseSelectedNodeDetails = !!(
+          selectedBeforeClick === nodeId
+          && typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        );
+        if (collapseSelectedNodeDetails && typeof setChatNodeDetailsDrawerExpanded === "function") {{
+          setChatNodeDetailsDrawerExpanded(false, {{
+            fetchHistory: false,
+            rerender: false,
+          }});
+        }} else {{
+          selectNode(nodeId, true, false);
+        }}
         const selectedAfterClick = normalizeNodeId(selectedNodeId || "");
         if (
+          !collapseSelectedNodeDetails
+          &&
           unreadDirectCount > 0
           && selectedAfterClick === nodeId
           && typeof setChatNodeDetailsDrawerTab === "function"
@@ -2199,6 +2217,150 @@
     }}
 
     let chatNodeNavigatorSearchBoundsResizeBound = false;
+    let chatNodeContextBridgeFrame = null;
+    let chatNodeContextBridgeResizeBound = false;
+
+    function selectedChatNodeNavigatorRows(nodeId = selectedNodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(cleanNodeId)) return [];
+      const escapedId = (typeof cssEscapeAttrValue === "function")
+        ? cssEscapeAttrValue(cleanNodeId)
+        : cleanNodeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return Array.from(document.querySelectorAll(
+        `#chat-room-unread-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-meshtastic-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-pinned-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-list .chat-member-item[data-node-id="${{escapedId}}"]`
+      )).filter((row) => row instanceof HTMLElement);
+    }}
+
+    function chatNodeContextBridgeRowGeometry(nodeId = selectedNodeId) {{
+      let best = null;
+      for (const row of selectedChatNodeNavigatorRows(nodeId)) {{
+        const list = row.closest(".chat-member-list, .chat-member-pinned-list");
+        if (!(list instanceof HTMLElement)) continue;
+        const rowRect = row.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const visibleTop = Math.max(rowRect.top, listRect.top);
+        const visibleBottom = Math.min(rowRect.bottom, listRect.bottom);
+        const visiblePixels = Math.max(0, visibleBottom - visibleTop);
+        const position = rowRect.bottom <= listRect.top + 1
+          ? "above"
+          : (rowRect.top >= listRect.bottom - 1 ? "below" : "visible");
+        const candidate = {{ row, rowRect, listRect, visiblePixels, position }};
+        if (!best || candidate.visiblePixels > best.visiblePixels) best = candidate;
+      }}
+      return best;
+    }}
+
+    function syncChatNodeContextBridge() {{
+      const bridge = document.getElementById("chat-node-context-bridge");
+      const workspace = document.querySelector(".workspace-shell");
+      const promotedHost = document.getElementById("chat-node-details-promoted-host");
+      const drawer = document.getElementById("chat-node-details-drawer");
+      document.querySelectorAll(".chat-member-item.chat-node-context-bridge-source").forEach((row) => {{
+        row.classList.remove("chat-node-context-bridge-source");
+      }});
+      const promoted = !!(
+        drawer instanceof HTMLElement
+        && drawer.dataset.promoted === "true"
+        && !drawer.hidden
+      );
+      if (
+        !(bridge instanceof HTMLElement)
+        || !(workspace instanceof HTMLElement)
+        || !(promotedHost instanceof HTMLElement)
+        || !promoted
+      ) {{
+        if (bridge instanceof HTMLElement) {{
+          bridge.hidden = true;
+          bridge.dataset.position = "hidden";
+        }}
+        return;
+      }}
+
+      const geometry = chatNodeContextBridgeRowGeometry(selectedNodeId);
+      const workspaceRect = workspace.getBoundingClientRect();
+      const hostRect = promotedHost.getBoundingClientRect();
+      const panelRect = document.getElementById("chat-left-panel")?.getBoundingClientRect?.();
+      if (!geometry || !(panelRect && Number.isFinite(panelRect.right))) {{
+        bridge.hidden = true;
+        bridge.dataset.position = "hidden";
+        return;
+      }}
+
+      const {{ rowRect, listRect, position }} = geometry;
+      geometry.row.classList.add("chat-node-context-bridge-source");
+      const inset = 7;
+      let anchorTopViewportY;
+      let anchorBottomViewportY;
+      if (position === "above") {{
+        anchorTopViewportY = listRect.top + 1;
+        anchorBottomViewportY = anchorTopViewportY;
+      }} else if (position === "below") {{
+        anchorBottomViewportY = listRect.bottom - 1;
+        anchorTopViewportY = anchorBottomViewportY;
+      }} else {{
+        anchorTopViewportY = Math.max(
+          listRect.top + inset,
+          Math.min(listRect.bottom - inset, rowRect.top + 1)
+        );
+        anchorBottomViewportY = Math.max(
+          anchorTopViewportY,
+          Math.max(listRect.top + inset, Math.min(listRect.bottom - inset, rowRect.bottom - 1))
+        );
+      }}
+      const anchorX = Math.max(
+        0,
+        Math.min(workspaceRect.width, ((rowRect.left + rowRect.right) / 2) - workspaceRect.left)
+      );
+      const anchorTopY = Math.max(0, Math.min(workspaceRect.height, anchorTopViewportY - workspaceRect.top));
+      const anchorBottomY = Math.max(0, Math.min(workspaceRect.height, anchorBottomViewportY - workspaceRect.top));
+      const targetX = Math.max(anchorX + 1, Math.min(workspaceRect.width, hostRect.left - workspaceRect.left));
+      const targetTop = Math.max(0, Math.min(workspaceRect.height, hostRect.top - workspaceRect.top + 7));
+      const targetBottom = Math.max(targetTop, Math.min(workspaceRect.height, hostRect.bottom - workspaceRect.top - 7));
+      const bridgeShape = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} L ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} Z`;
+      const topEdge = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}}`;
+      const bottomEdge = `M ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}}`;
+      const boundaryLeft = Math.max(0, Math.min(workspaceRect.width, listRect.left - workspaceRect.left));
+      const boundaryRight = Math.max(boundaryLeft, Math.min(workspaceRect.width, listRect.right - workspaceRect.left));
+      const offscreenBoundary = position === "visible"
+        ? ""
+        : `M ${{boundaryLeft.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{boundaryRight.toFixed(1)}} ${{anchorTopY.toFixed(1)}}`;
+      const svg = bridge.querySelector(".chat-node-context-bridge-svg");
+      const glow = bridge.querySelector(".chat-node-context-bridge-glow");
+      const wash = bridge.querySelector(".chat-node-context-bridge-wash");
+      const boundary = bridge.querySelector(".chat-node-context-bridge-offscreen-boundary");
+      const top = bridge.querySelector(".chat-node-context-bridge-edge-top");
+      const bottom = bridge.querySelector(".chat-node-context-bridge-edge-bottom");
+      if (svg instanceof SVGElement) {{
+        svg.setAttribute("viewBox", `0 0 ${{Math.max(1, workspaceRect.width).toFixed(1)}} ${{Math.max(1, workspaceRect.height).toFixed(1)}}`);
+      }}
+      if (glow instanceof SVGPathElement) glow.setAttribute("d", bridgeShape);
+      if (wash instanceof SVGPathElement) wash.setAttribute("d", bridgeShape);
+      if (boundary instanceof SVGPathElement) boundary.setAttribute("d", offscreenBoundary);
+      if (top instanceof SVGPathElement) top.setAttribute("d", topEdge);
+      if (bottom instanceof SVGPathElement) bottom.setAttribute("d", bottomEdge);
+      bridge.dataset.position = position;
+      bridge.hidden = false;
+    }}
+
+    function scheduleChatNodeContextBridgeSync() {{
+      if (!chatNodeContextBridgeResizeBound && typeof window !== "undefined") {{
+        chatNodeContextBridgeResizeBound = true;
+        window.addEventListener("resize", scheduleChatNodeContextBridgeSync, {{ passive: true }});
+      }}
+      if (chatNodeContextBridgeFrame !== null) return;
+      const run = () => {{
+        chatNodeContextBridgeFrame = null;
+        syncChatNodeContextBridge();
+      }};
+      if (typeof requestAnimationFrame === "function") {{
+        chatNodeContextBridgeFrame = requestAnimationFrame(run);
+      }} else {{
+        run();
+      }}
+    }}
 
     function syncChatNodeNavigatorSearchBounds() {{
       const panel = document.getElementById("chat-left-panel");
@@ -2589,6 +2751,7 @@
       bindChatNodeNavigatorListInteractions(meshtasticList);
       bindChatNodeNavigatorListInteractions(pinnedList);
       scheduleChatNodeNavigatorSearchBoundsSync();
+      scheduleChatNodeContextBridgeSync();
       if (chatNodeNavigatorSelectionScrollLocked) {{
         resetChatNodeNavigatorViewport();
       }}
@@ -3698,6 +3861,7 @@
             lazyMounted: false,
           }});
         }}
+        scheduleChatNodeContextBridgeSync();
         return;
       }}
       const titleEl = document.getElementById("chat-node-details-title");
@@ -3850,6 +4014,7 @@
           resetChatNodeDetailsInlineHost(inlineHost);
         }}
         drawer.remove();
+        scheduleChatNodeContextBridgeSync();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.drawer_sync", perfStartMs, {{
             visibleExpanded: false,
@@ -4089,6 +4254,7 @@
       if (titleEl instanceof HTMLElement) {{
         setDrawerElementTextIfChanged(titleEl, `${{titleName}} (${selectedId})`);
       }}
+      scheduleChatNodeContextBridgeSync();
       const sharedProfileTheme = (
         profileAppearance
         && appearanceEntry
