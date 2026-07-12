@@ -205,6 +205,12 @@ def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> No
     assert "const fileTransferFinalAckDuplicateSends = 3;" in js
     assert "const finalAckCopies = signatureChanged && receivedCount >= totalChunks" in js
     assert "sendAttempts.push(...sendChannels);" in js
+    assert "const metaSendResult = await sendFileTransferFrameText(metaFrame, destination, sendCtx.sendIndex);" in js
+    assert "metaSendResult && metaSendResult.channel_index" in js
+    assert "channelIndex: sessionChannelIndex," in js
+    assert "const matchesSession = (ack, requireChannel = true)" in js
+    assert "if (!matchesSession(candidate, false)) continue;" in js
+    assert "session.channelIndex = confirmedAckChannel;" in js
     assert "totalChunks > fileTransferMaxChunks" in js
     assert "fileSize > fileTransferMaxFileBytes" in js
     assert "const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));" in js

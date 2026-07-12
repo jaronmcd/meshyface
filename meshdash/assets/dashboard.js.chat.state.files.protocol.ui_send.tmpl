@@ -899,7 +899,13 @@
           totalChunks: chunkFrames.length,
         }});
 
-        await sendFileTransferFrameText(metaFrame, destination, sendCtx.sendIndex);
+        const metaSendResult = await sendFileTransferFrameText(metaFrame, destination, sendCtx.sendIndex);
+        const confirmedChannelIndex = fileTransferExplicitChannelIndex(
+          metaSendResult && metaSendResult.channel_index
+        );
+        const sessionChannelIndex = confirmedChannelIndex == null
+          ? normalizeMeshChannelIndex(sendCtx.sendIndex)
+          : confirmedChannelIndex;
         appendFileTransferConsole(
           `Metadata sent for ${{fileTransferShortTransferId(transferId)}} (${{chunkFrames.length}} chunk${{chunkFrames.length === 1 ? "" : "s"}}).`
         );
@@ -907,7 +913,7 @@
           transferId,
           senderId: normalizeNodeId(resolveLocalNodeId(latestState) || ""),
           destination,
-          channelIndex: sendCtx.sendIndex,
+          channelIndex: sessionChannelIndex,
           fileName,
           metaFrame,
           chunkFrames,
@@ -948,7 +954,7 @@
           sizeBytes: bytes.length,
           destination,
           totalChunks: chunkFrames.length,
-          channelIndex: sendCtx.sendIndex,
+          channelIndex: sessionChannelIndex,
           sendLabel: sendCtx.sendLabel,
         }};
       }} catch (err) {{

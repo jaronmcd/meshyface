@@ -31,16 +31,31 @@
         session.transferId,
         expectedChannel
       );
-      const ack = ackByTransferKey.get(directKey) || null;
-      if (!(ack && typeof ack === "object")) return null;
-      if (String(ack.transferId || "") !== String(session.transferId || "")) return null;
-      if (normalizeNodeId(ack.originalSenderId || "") !== senderId) return null;
-      if (normalizeNodeId(ack.originalReceiverId || "") !== expectedReceiver) return null;
-      if (fileTransferExplicitChannelIndex(ack.channelIndex) !== expectedChannel) return null;
-      if (Math.trunc(Number(ack.totalChunks)) !== expectedTotalChunks) return null;
-      if (ackWatermarkUnix > 0) {{
-        const ackUnix = Math.max(0, Math.trunc(Number(ack.latestUnix) || 0));
-        if (ackUnix < ackWatermarkUnix) return null;
+      const matchesSession = (ack, requireChannel = true) => {{
+        if (!(ack && typeof ack === "object")) return false;
+        if (String(ack.transferId || "") !== String(session.transferId || "")) return false;
+        if (normalizeNodeId(ack.originalSenderId || "") !== senderId) return false;
+        if (normalizeNodeId(ack.originalReceiverId || "") !== expectedReceiver) return false;
+        if (Math.trunc(Number(ack.totalChunks)) !== expectedTotalChunks) return false;
+        if (requireChannel && fileTransferExplicitChannelIndex(ack.channelIndex) !== expectedChannel) return false;
+        if (ackWatermarkUnix > 0) {{
+          const ackUnix = Math.max(0, Math.trunc(Number(ack.latestUnix) || 0));
+          if (ackUnix < ackWatermarkUnix) return false;
+        }}
+        return true;
+      }};
+      const directAck = ackByTransferKey.get(directKey) || null;
+      if (matchesSession(directAck, true)) return directAck;
+      // The backend is authoritative about the physical channel used. A UI
+      // preference can be normalized (for example global -> Ch 0) while the
+      // in-memory session still carries the pre-normalized value. Endpoints,
+      // transfer ID, chunk count, and watermark make this fallback unambiguous.
+      let fallbackAck = null;
+      for (const candidate of ackByTransferKey.values()) {{
+        if (!matchesSession(candidate, false)) continue;
+        if (!fallbackAck || Number(candidate.latestUnix || 0) > Number(fallbackAck.latestUnix || 0)) {{
+          fallbackAck = candidate;
+        }}
       }}
-      return ack;
+      return fallbackAck;
     }}

@@ -198,6 +198,10 @@
         }}
         let ackProgressThisTick = false;
         const ack = findAckForOutgoingSession(session, ackByTransferKey, localNodeId);
+        const confirmedAckChannel = fileTransferExplicitChannelIndex(ack && ack.channelIndex);
+        if (confirmedAckChannel != null && confirmedAckChannel !== fileTransferExplicitChannelIndex(session.channelIndex)) {{
+          session.channelIndex = confirmedAckChannel;
+        }}
         const destinationId = normalizeNodeId(session.destination || "");
         const senderId = normalizeNodeId(session.senderId || localNodeId || "");
         const sessionChannelIndex = fileTransferExplicitChannelIndex(session.channelIndex);
