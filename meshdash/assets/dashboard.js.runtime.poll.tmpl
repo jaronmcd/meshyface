@@ -431,7 +431,6 @@
             : normalizeNodeId(selectedNodeId || "");
           const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
           const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)
-            && (mapDataFocus !== "activity" || drawerHistoryVisible304)
             && isSelectableNodeId(historyTargetId304);
           const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
           const nodes304 = Array.isArray(latestState.nodes) ? latestState.nodes : [];
@@ -454,7 +453,7 @@
           }}
           renderSummary(latestState);
           const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
-          const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
+          const trafficVisible304 = mapVisible304;
           markPollPerfPhase(pollPerfRun, "not-modified-context", {{
             hidden: hidden304,
             mapVisible: mapVisible304,
@@ -490,11 +489,6 @@
           }}
           if (activeLayoutView === "files") {{
             renderFilesView(latestState);
-          }}
-          if (activeLayoutView === "history") {{
-            renderHistoryChat(traffic304);
-            renderEncription(traffic304);
-            void refreshHistoryPanels(false);
           }}
           if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
             renderChannelsView(latestState);
@@ -663,7 +657,7 @@
 
         const networkMapActive = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
         const mapVisible = activeLayoutView === "saved" || networkMapActive;
-        const trafficVisible = mapVisible || activeLayoutView === "history";
+        const trafficVisible = mapVisible;
         const drawerHistoryVisible = (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
@@ -672,7 +666,6 @@
           ? resolveSavedViewNodeId(state)
           : normalizeNodeId(selectedNodeId || "");
         const historyRelevant = (activeLayoutView === "saved" || networkMapActive || drawerHistoryVisible)
-          && (mapDataFocus !== "activity" || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
         const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
@@ -696,18 +689,9 @@
         }}
         markPollPerfPhase(pollPerfRun, "map-bootstrap");
 
-        const activeSummaryWindowHours = activeLayoutView === "network"
-          ? networkOverviewWindowHours
-          : weeklySummaryWindowHours;
-        const activeSummaryIncludePacketSeries = activeLayoutView === "history"
-          ? historySummaryNeedsPacketSeries()
-          : networkOverviewSummaryNeedsPacketSeries();
-        const weeklySummaryPromise = (
-          activeLayoutView === "history"
-          || networkOverviewActive
-        )
-          ? fetchSummaryMetrics(activeSummaryWindowHours, {{
-              includePacketSeries: activeSummaryIncludePacketSeries,
+        const weeklySummaryPromise = networkOverviewActive
+          ? fetchSummaryMetrics(networkOverviewWindowHours, {{
+              includePacketSeries: networkOverviewSummaryNeedsPacketSeries(),
             }}).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
@@ -768,17 +752,6 @@
         }}
         if (activeLayoutView === "files") {{
           renderFilesView(state);
-        }}
-        if (activeLayoutView === "history") {{
-          renderHistoryChat(state.traffic || {{}});
-          renderEncription(state.traffic || {{}});
-          if (weeklySummary && !weeklySummary.error) {{
-            renderWeeklySummary(weeklySummary);
-          }} else if (weeklySummary && weeklySummary.error) {{
-            renderWeeklySummaryError(weeklySummary.error);
-          }} else {{
-            renderWeeklySummaryLoading();
-          }}
         }}
         if (networkOverviewActive) {{
           if (weeklySummary && !weeklySummary.error) {{

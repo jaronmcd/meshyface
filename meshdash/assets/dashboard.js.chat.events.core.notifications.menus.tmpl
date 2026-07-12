@@ -254,21 +254,10 @@
             }}
           }}
           if (!focusChatNoticeByMessageKey(focusKey)) {{
-            // Older notices may no longer exist in the live chat feed buffer.
-            // Fall back to History so click always lands somewhere meaningful.
             setChatSendStatus(
-              "Change is older than the visible chat window. Opened History notifications.",
+              "Change is older than the visible chat window.",
               true
             );
-            applyLayoutView("history", true);
-            if (typeof setHistoryChatTab === "function") {{
-              setHistoryChatTab("activity");
-            }}
-            if (typeof renderHistoryNotificationLog === "function") {{
-              window.requestAnimationFrame(() => {{
-                renderHistoryNotificationLog();
-              }});
-            }}
           }}
           return;
         }}

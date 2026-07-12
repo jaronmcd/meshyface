@@ -29,14 +29,6 @@
       return Math.max(28, Math.min(78, value));
     }}
 
-    function clampHistoryActivityTopPct(value) {{
-      return Math.max(30, Math.min(76, value));
-    }}
-
-    function clampHistoryChatMainPct(value) {{
-      return Math.max(42, Math.min(86, value));
-    }}
-
     function resolveGamesShellMetrics(containerWidth = window.innerWidth) {{
       const width = Number(containerWidth);
       const safeWidth = Number.isFinite(width) && width > 0 ? width : window.innerWidth;
@@ -157,18 +149,6 @@
       const layout = document.getElementById("dashboard-layout");
       if (!(layout instanceof HTMLElement)) return;
       layout.style.setProperty("--saved-node-main-pct", `${{savedNodeMainPct}}%`);
-    }}
-
-    function applyHistoryActivitySplitState() {{
-      const layout = document.getElementById("dashboard-layout");
-      if (!(layout instanceof HTMLElement)) return;
-      layout.style.setProperty("--history-activity-top-pct", `${{historyActivityTopPct}}%`);
-    }}
-
-    function applyHistoryChatSplitState() {{
-      const layout = document.getElementById("dashboard-layout");
-      if (!(layout instanceof HTMLElement)) return;
-      layout.style.setProperty("--history-chat-main-pct", `${{historyChatMainPct}}%`);
     }}
 
     function applyGamesSplitState() {{
@@ -326,34 +306,6 @@
       }} catch (_err) {{
       }}
       applySavedNodeHistorySplitState();
-    }}
-
-    function loadHistoryActivitySplitState() {{
-      try {{
-        const raw = window.localStorage.getItem(historyActivitySplitStorageKey) || "";
-        if (raw) {{
-          const parsed = Number(raw);
-          if (Number.isFinite(parsed)) {{
-            historyActivityTopPct = clampHistoryActivityTopPct(parsed);
-          }}
-        }}
-      }} catch (_err) {{
-      }}
-      applyHistoryActivitySplitState();
-    }}
-
-    function loadHistoryChatSplitState() {{
-      try {{
-        const raw = window.localStorage.getItem(historyChatSplitStorageKey) || "";
-        if (raw) {{
-          const parsed = Number(raw);
-          if (Number.isFinite(parsed)) {{
-            historyChatMainPct = clampHistoryChatMainPct(parsed);
-          }}
-        }}
-      }} catch (_err) {{
-      }}
-      applyHistoryChatSplitState();
     }}
 
     function loadGamesSidebarSplitState() {{

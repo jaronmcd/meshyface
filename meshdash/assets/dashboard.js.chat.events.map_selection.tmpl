@@ -128,25 +128,6 @@
       }}
     }}
 
-    function refreshNodeSelectionCrossReferenceRows(nodeId, isSelected) {{
-      const cleanNodeId = normalizeNodeId(nodeId || "");
-      if (!isSelectableNodeId(cleanNodeId)) return;
-      const rowMatchers = [
-        "#encription-packets-table tbody tr",
-        "#encription-traffic-table tbody tr",
-        "#history-chat-table tbody tr",
-      ];
-      for (const selector of rowMatchers) {{
-        for (const row of document.querySelectorAll(selector)) {{
-          if (!(row instanceof HTMLTableRowElement)) continue;
-          const fromNodeId = normalizeNodeId(row.dataset.fromNodeId || "");
-          const toNodeId = normalizeNodeId(row.dataset.toNodeId || "");
-          if (fromNodeId !== cleanNodeId && toNodeId !== cleanNodeId) continue;
-          row.classList.toggle("selected-node", !!isSelected);
-        }}
-      }}
-    }}
-
     function highlightNodeSelection(previousNodeId = "", nextNodeId = selectedNodeId) {{
       const previousId = normalizeNodeId(previousNodeId || "");
       const nextId = normalizeNodeId(nextNodeId || "");
@@ -166,7 +147,6 @@
         for (const pattern of directSelectors) {{
           applySelectedNodeClassToSelector(pattern.replace("%ID%", escapedId), isSelected);
         }}
-        refreshNodeSelectionCrossReferenceRows(cleanNodeId, isSelected);
       }};
 
       if (previousId && previousId !== nextId) {{
@@ -232,7 +212,7 @@
         const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
         if (networkMapVisible) {{
           renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
-          setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+          setMapDataMode("live");
         }}
         if (perfToken > 0) {{
           markNodeSelectionPerf(perfToken, "selection.network_view", phaseStartMs, {{
@@ -240,8 +220,6 @@
             subview: activeNetworkSubviewName,
           }});
         }}
-      }} else if (activeLayoutView === "history") {{
-        setMapDataMode("activity");
       }} else {{
         setMapDataMode("live");
       }}
@@ -792,23 +770,19 @@
     }}
 
     function setMapDataMode(mode) {{
-      const normalized = mode === "node" || mode === "activity" ? mode : "live";
+      const normalized = mode === "node" ? "node" : "live";
       activeMapDataMode = normalized;
       const live = document.getElementById("map-data-live");
       const node = document.getElementById("map-data-node");
-      const activity = document.getElementById("map-data-activity");
       const title = document.getElementById("map-data-title");
       const networkHost = document.getElementById("network-node-history-host");
       if (live) live.hidden = normalized !== "live";
       if (node) node.hidden = normalized !== "node";
-      if (activity) activity.hidden = normalized !== "activity";
       if (networkHost instanceof HTMLElement) {{
         networkHost.classList.toggle("empty", normalized !== "node");
       }}
       if (title) {{
-        title.textContent = normalized === "node"
-          ? "Node History"
-          : (normalized === "activity" ? "History Trends" : "Map Data");
+        title.textContent = normalized === "node" ? "Node History" : "Map Data";
       }}
     }}
 
@@ -988,9 +962,6 @@
       if (typeof clearChatNodeNavigatorSelectionScrollLock === "function") {{
         clearChatNodeNavigatorSelectionScrollLock();
       }}
-      // Keep History view pinned to trend mode; node selection should not yank
-      // the left pane into live Map Data tables.
-      mapDataFocus = activeLayoutView === "history" ? "activity" : "auto";
       pendingSelectionScroll = true;
       persistSelection();
       renderSelectionStatus();
@@ -1135,7 +1106,7 @@
       }}
       updateMapSelection(false);
       map.closePopup();
-      setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      setMapDataMode("live");
       applyChatChannel(activeChatChannel, false);
       if (typeof syncChatNodeDetailsDrawer === "function") {{
         syncChatNodeDetailsDrawer(latestState, {{
@@ -1351,53 +1322,4 @@
       if (fromSelectable) return fromNodeId;
       if (toSelectable) return toNodeId;
       return "";
-    }}
-
-    function bindEncriptionRowClicks() {{
-      const bindTable = (tableId, fromColIndex, toColIndex) => {{
-        const tbody = document.querySelector(`#${{tableId}} tbody`);
-        if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
-        tbody.dataset.bound = "1";
-        tbody.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (!(target instanceof Element)) return;
-          const row = target.closest("tr");
-          if (!(row instanceof HTMLTableRowElement)) return;
-          const cell = target.closest("td");
-          const nodeId = selectNodeFromDirectionalRow(
-            row,
-            cell instanceof HTMLTableCellElement ? cell : null,
-            fromColIndex,
-            toColIndex
-          );
-          if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
-        }});
-      }};
-      bindTable("encription-packets-table", 1, 2);
-      bindTable("encription-traffic-table", 0, 1);
-    }}
-
-    function bindHistoryChatRowClicks() {{
-      const tbody = document.querySelector("#history-chat-table tbody");
-      if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
-      tbody.dataset.bound = "1";
-      tbody.addEventListener("click", (ev) => {{
-        const target = ev.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest("a.chat-link")) {{
-          return;
-        }}
-        const row = target.closest("tr");
-        if (!(row instanceof HTMLTableRowElement)) return;
-        const cell = target.closest("td");
-        const nodeId = selectNodeFromDirectionalRow(
-          row,
-          cell instanceof HTMLTableCellElement ? cell : null,
-          1,
-          2
-        );
-        if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
-      }});
     }}

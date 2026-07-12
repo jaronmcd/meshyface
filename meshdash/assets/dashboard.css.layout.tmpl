@@ -76,98 +76,14 @@
       flex-direction: column;
       gap: 8px;
     }}
-    .map-data-live, .map-data-node, .map-data-activity {{
+    .map-data-live, .map-data-node {{
       min-height: 0;
       display: flex;
       flex-direction: column;
       gap: 8px;
       flex: 1 1 auto;
     }}
-    .history-activity-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-      overflow: hidden;
-    }}
-    .history-activity-tabbar {{
-      margin-bottom: 2px;
-    }}
-    .history-activity-panel {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 10px;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-panel[hidden] {{
-      display: none !important;
-    }}
-    .history-activity-main-scroll {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(90deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .history-activity-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .history-activity-splitter:hover::before,
-    .history-activity-splitter.active::before {{
-      background: var(--ui-accent);
-    }}
-    .history-activity-weekly-panel {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-encryption-trend {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .history-activity-chat-trend,
-    .history-activity-encryption-routes {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 220px;
-    }}
-    .map-data-live[hidden], .map-data-node[hidden], .map-data-activity[hidden] {{
+    .map-data-live[hidden], .map-data-node[hidden] {{
       display: none !important;
     }}
     .history-caption {{
@@ -206,10 +122,7 @@
     #node-packets-chart-wrap,
     #online-activity-chart-wrap,
     #weekly-summary-chart-wrap,
-    #network-overview-chart-wrap,
-    #history-chat-trend-chart-wrap,
-    #encription-trend-chart-wrap,
-    #encription-route-chart-wrap {{
+    #network-overview-chart-wrap {{
       position: relative;
       width: 100%;
       min-height: 220px;
@@ -225,52 +138,10 @@
     #node-packets-chart,
     #online-activity-chart,
     #weekly-summary-chart,
-    #network-overview-chart,
-    #history-chat-trend-chart,
-    #encription-trend-chart,
-    #encription-route-chart {{
+    #network-overview-chart {{
       width: 100%;
       height: 100%;
       display: block;
-    }}
-    .layout.view-history #map-data-activity .history-activity-stack {{
-      min-height: 0;
-      height: 100%;
-      overflow: hidden;
-    }}
-    .layout.view-history #map-data-activity .history-activity-panel {{
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history #map-data-activity .history-activity-weekly-panel {{
-      flex: 0 0 auto;
-      min-height: 0;
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history #map-data-activity .history-activity-chat-trend,
-    .layout.view-history #map-data-activity .history-activity-encryption-trend,
-    .layout.view-history #map-data-activity .history-activity-encryption-routes {{
-      flex: 0 0 auto;
-      min-height: 0;
-    }}
-    .layout.view-history #map-data-activity #weekly-summary-chart-wrap {{
-      flex: 0 0 auto;
-      min-height: clamp(170px, 30vh, 260px);
-      height: clamp(170px, 30vh, 260px);
-    }}
-    .layout.view-history #map-data-activity #history-chat-trend-chart-wrap,
-    .layout.view-history #map-data-activity #encription-trend-chart-wrap {{
-      min-height: clamp(140px, 24vh, 220px);
-      height: clamp(140px, 24vh, 220px);
-    }}
-    .layout.view-history #map-data-activity #encription-route-chart-wrap {{
-      min-height: clamp(140px, 24vh, 220px);
-      height: clamp(140px, 24vh, 220px);
-    }}
-    .layout.view-history #map-data-activity #weekly-summary-overview {{
-      flex: 0 0 auto;
-      margin-top: auto;
     }}
     .history-metric-wrap {{
       display: inline-flex;
@@ -467,9 +338,6 @@
     #online-activity-chart text,
     #weekly-summary-chart text,
     #network-overview-chart text,
-    #history-chat-trend-chart text,
-    #encription-trend-chart text,
-    #encription-route-chart text,
     #env-metrics-chart text {{
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       font-variant-numeric: tabular-nums;
@@ -655,243 +523,6 @@
       font-weight: 600;
       color: #193a28;
       line-height: 1.2;
-    }}
-    .history-chat {{
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .history-chat .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 0;
-    }}
-    .history-chat-tabbar {{
-      display: flex;
-      gap: 6px;
-      border-bottom: 1px solid var(--surface-tint-border);
-      padding-bottom: 6px;
-    }}
-    .history-chat-tab-btn {{
-      border: 1px solid var(--surface-tint-border);
-      background: #f3faf5;
-      color: #1f5d40;
-      border-radius: 999px;
-      font-size: 11px;
-      padding: 4px 10px;
-      cursor: pointer;
-    }}
-    .history-chat-tab-btn.is-active,
-    .history-chat-tab-btn[aria-selected="true"] {{
-      background: #dff1e6;
-      border-color: #87b99a;
-      color: #14442d;
-      font-weight: 600;
-    }}
-    .history-chat-panel {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .history-chat-panel[hidden] {{
-      display: none !important;
-    }}
-    .history-chat .scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-    }}
-    .history-chat-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .history-chat-main-scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .history-chat-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(90deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .history-chat-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .history-chat-splitter:hover::before,
-    .history-chat-splitter.active::before {{
-      background: var(--ui-accent);
-    }}
-    .history-notification-section {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .history-notification-head {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .history-notification-clear-btn {{
-      border: 1px solid #b8d0bf;
-      background: #ffffff;
-      color: #28533c;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      line-height: 1.3;
-      cursor: pointer;
-      white-space: nowrap;
-      flex: 0 0 auto;
-    }}
-    .history-notification-clear-btn:hover {{
-      background: #eaf5ed;
-      border-color: #94b7a0;
-    }}
-    .history-notification-list {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-notification-empty {{
-      border: 1px dashed #c5d7ca;
-      border-radius: 8px;
-      padding: 10px 9px;
-      color: #4f6a5b;
-      font-size: 11px;
-      line-height: 1.35;
-      text-align: center;
-      background: var(--ui-panel);
-    }}
-    .history-notification-item {{
-      border: 1px solid #d3e3d6;
-      background: var(--ui-panel);
-      color: #214836;
-      border-radius: 8px;
-      padding: 6px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      line-height: 1.3;
-    }}
-    .history-notification-item.is-new {{
-      box-shadow: inset 2px 0 0 var(--ui-accent);
-    }}
-    .history-notification-meta {{
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 4px;
-      font-size: 10px;
-      color: #5e7a69;
-      line-height: 1.2;
-    }}
-    .history-notification-pill {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      border: 1px solid #afc9b7;
-      background: #e6f3ea;
-      color: #2f6448;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.32px;
-      padding: 1px 6px;
-      line-height: 1.2;
-    }}
-    .history-notification-pill.status-new {{
-      background: #d7f0de;
-      border-color: #84b696;
-      color: #205238;
-    }}
-    .history-notification-pill.kind-reaction {{
-      background: #f4e8cb;
-      border-color: #c2a46b;
-      color: #6a4e14;
-    }}
-    .history-notification-pill.kind-status {{
-      background: #dceaf6;
-      border-color: #90b6d8;
-      color: #244f73;
-    }}
-    .history-notification-text {{
-      font-size: 11px;
-      color: #244734;
-      line-height: 1.35;
-      word-break: break-word;
-    }}
-    .history-notification-time {{
-      font-size: 10px;
-      color: #5d7666;
-      line-height: 1.25;
-    }}
-    .history-encription-section {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      border-top: 1px solid var(--surface-tint-border);
-      padding-top: 8px;
-    }}
-    .history-encription-panels {{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .history-encription-panel {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .history-encription-panel h3 {{
-      margin: 0 0 6px 0;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      opacity: 0.82;
-    }}
-    .history-encription-panel .scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
     }}
     .nodes {{
       grid-column: 1 / span 3;
@@ -1855,7 +1486,6 @@
     .layout.view-files .map,
     .layout.view-files .map-data,
     .layout.view-files .favorites,
-    .layout.view-files .history-chat,
     .layout.view-files .channels-view,
     .layout.view-files .packets,
     .layout.view-files .encription,
@@ -2105,116 +1735,6 @@
     .layout.view-network .splitter:hover::before,
     .layout.view-network .splitter.active::before {{
       background: var(--network-pane-divider-line-active);
-    }}
-
-    .layout.view-history {{
-      --history-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);
-      --history-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);
-      --history-pane-head-border: var(--surface-tint-border);
-      --history-pane-divider-bg: var(--surface-tint-divider-bg);
-      --history-pane-divider-border: var(--surface-tint-border);
-      --history-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --history-pane-divider-line-active: var(--ui-accent);
-      height: 100%;
-      max-height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(320px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
-      overflow: hidden;
-    }}
-    .layout.view-history .summary {{
-      display: block;
-      grid-column: 1 / span 3;
-      grid-row: 1;
-    }}
-    .layout.view-history .map-data {{
-      grid-column: 1;
-      grid-row: 2;
-      min-height: 0;
-      border-color: var(--history-pane-head-border);
-    }}
-    .layout.view-history .map-data > h2 {{
-      border-bottom-color: var(--history-pane-head-border);
-      background: var(--history-pane-head-bg);
-    }}
-    .layout.view-history .map-data .body {{
-      min-height: 0;
-      background: var(--history-pane-body-bg);
-      overflow-y: auto;
-      overflow-x: hidden;
-    }}
-    .layout.view-history .history-activity-splitter {{
-      display: block;
-    }}
-    .layout.view-history .history-activity-main-scroll {{
-      flex: 0 0 var(--history-activity-top-pct);
-    }}
-    .layout.view-history .history-chat-splitter {{
-      display: none;
-    }}
-    .layout.view-history .history-chat-main-scroll {{
-      flex: 0 0 auto;
-      overflow: visible;
-    }}
-    .layout.view-history .history-notification-section {{
-      flex: 0 0 auto;
-      min-height: 0;
-    }}
-    .layout.view-history .history-chat {{
-      display: flex;
-      grid-column: 3;
-      grid-row: 2;
-      min-height: 0;
-      max-height: 100%;
-      overflow: hidden;
-      border-color: var(--history-pane-head-border);
-    }}
-    .layout.view-history .history-chat > h2 {{
-      border-bottom-color: var(--history-pane-head-border);
-      background: var(--history-pane-head-bg);
-    }}
-    .layout.view-history .history-chat .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      background: var(--history-pane-body-bg);
-      overflow: hidden;
-    }}
-    .layout.view-history .history-chat-stack {{
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-right: 2px;
-    }}
-    .layout.view-history .history-notification-list {{
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history .splitter {{
-      display: block;
-      grid-row: 2;
-      border-color: var(--history-pane-divider-border);
-      background: var(--history-pane-divider-bg);
-    }}
-    .layout.view-history .splitter::before {{
-      background: var(--history-pane-divider-line);
-    }}
-    .layout.view-history .splitter:hover::before,
-    .layout.view-history .splitter.active::before {{
-      background: var(--history-pane-divider-line-active);
-    }}
-    .layout.view-history .chat,
-    .layout.view-history .settings,
-    .layout.view-history .nodes,
-    .layout.view-history .map,
-    .layout.view-history .favorites,
-    .layout.view-history .packets,
-    .layout.view-history .raw,
-    .layout.view-history .console,
-    .layout.view-history .hsplitter[data-target="top"],
-    .layout.view-history .hsplitter[data-target="mid"],
-    .layout.view-history .hsplitter[data-target="low"] {{
-      display: none !important;
     }}
 
     .layout.view-packets {{
@@ -2496,7 +2016,6 @@
     .layout.view-games .map,
     .layout.view-games .map-data,
     .layout.view-games .favorites,
-    .layout.view-games .history-chat,
     .layout.view-games .channels-view,
     .layout.view-games .packets,
     .layout.view-games .encription,
@@ -2795,21 +2314,6 @@
     #nodes-table tbody tr.node-selectable:hover {{
       background: var(--surface-tint-bg-soft);
     }}
-    #encription-packets-table tbody tr.node-selectable,
-    #encription-traffic-table tbody tr.node-selectable {{
-      cursor: pointer;
-    }}
-    #encription-packets-table tbody tr.node-selectable:hover,
-    #encription-traffic-table tbody tr.node-selectable:hover {{
-      background: var(--surface-tint-bg-soft);
-    }}
-    #history-chat-table tbody tr.history-node-selectable.selected-node td {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
-    }}
-    #history-chat-table tbody tr.history-node-selectable.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
-    }}
     .node-status-dot {{
       display: inline-block;
       width: 10px;
@@ -2833,15 +2337,6 @@
     #nodes-table tbody tr.selected-node td:first-child {{
       box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
     }}
-    #encription-packets-table tbody tr.selected-node td,
-    #encription-traffic-table tbody tr.selected-node td {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
-    }}
-    #encription-packets-table tbody tr.selected-node td:first-child,
-    #encription-traffic-table tbody tr.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
-    }}
     .mono {{ font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace; }}
     #nodes-table th:nth-child(10), #nodes-table td:nth-child(10) {{
       text-align: right;
@@ -2851,23 +2346,12 @@
       overflow: visible;
       text-overflow: clip;
     }}
-    #encription-packets-table td:nth-child(7) {{
-      font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace;
-      letter-spacing: 0.01em;
-    }}
     .history-node-cell {{
       display: flex;
       flex-direction: column;
       gap: 1px;
       min-width: 0;
       line-height: 1.2;
-    }}
-    #history-chat-table td.history-node-clickable {{
-      cursor: pointer;
-    }}
-    #history-chat-table td.history-node-clickable:hover .history-node-primary {{
-      text-decoration: underline;
-      text-underline-offset: 1px;
     }}
     .history-node-primary {{
       color: inherit;
@@ -2883,36 +2367,6 @@
       white-space: normal;
       overflow-wrap: anywhere;
       word-break: break-word;
-    }}
-    .history-message-cell {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .history-message-pill {{
-      display: inline-flex;
-      align-items: center;
-      align-self: flex-start;
-      border: 1px solid #bdd0dd;
-      background: #eef5f9;
-      color: #35576f;
-      border-radius: 999px;
-      padding: 1px 7px;
-      font-size: 9px;
-      line-height: 1.35;
-      letter-spacing: 0.22px;
-      font-weight: 700;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }}
-    .history-message-pill.history-message-pill-name-change {{
-      border-color: #b8d5c2;
-      background: #edf7ef;
-      color: #2d6143;
-    }}
-    .history-message-body {{
-      min-width: 0;
     }}
     #nodes-table th:nth-child(10) {{
       color: #6a856f;
@@ -6288,15 +5742,13 @@
       display: inline;
       margin: 0;
     }}
-    .chat-feed-text .chat-link,
-    #history-chat-table .chat-link {{
+    .chat-feed-text .chat-link {{
       color: #1b6bc9;
       text-decoration: underline;
       text-underline-offset: 1px;
       word-break: break-all;
     }}
-    .chat-feed-text .chat-link:hover,
-    #history-chat-table .chat-link:hover {{
+    .chat-feed-text .chat-link:hover {{
       color: #144f93;
     }}
     .chat-reply-inline {{

@@ -7,10 +7,7 @@
       "nodes-table": {{ index: 0, dir: "desc" }},
       "links-table": {{ index: 2, dir: "desc" }},
       "ports-table": {{ index: 1, dir: "desc" }},
-      "history-chat-table": {{ index: 0, dir: "desc" }},
       "packets-table": {{ index: 0, dir: "desc" }},
-      "encription-packets-table": {{ index: 0, dir: "desc" }},
-      "encription-traffic-table": {{ index: 2, dir: "desc" }},
     }};
     const nodeExplorerFieldDefs = Object.freeze([
       Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false }}),
@@ -265,7 +262,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "files", "games", "history", "network", "saved", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "files", "games", "network", "saved", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([

@@ -107,8 +107,6 @@
           renderChat(safeState);
         }} else if (activeLayoutView === "files") {{
           renderFilesView(safeState);
-        }} else if (activeLayoutView === "history") {{
-          renderHistoryChat((safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}});
         }} else if (isChannelsViewActive()) {{
           renderChannelsView(safeState);
         }} else if (activeLayoutView === "network") {{

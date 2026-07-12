@@ -1,0 +1,88 @@
+    function resolveTrafficRenderContext(source, fallbackState = latestState) {{
+      const safeFallback = (fallbackState && typeof fallbackState === "object") ? fallbackState : {{}};
+      const safeSource = (source && typeof source === "object") ? source : {{}};
+      const sourceHasTraffic = !!(safeSource.traffic && typeof safeSource.traffic === "object");
+      const traffic = sourceHasTraffic
+        ? safeSource.traffic
+        : safeSource;
+      const nodes = sourceHasTraffic
+        ? (Array.isArray(safeSource.nodes) ? safeSource.nodes : [])
+        : (Array.isArray(safeFallback.nodes) ? safeFallback.nodes : []);
+      return {{
+        traffic: (traffic && typeof traffic === "object") ? traffic : {{}},
+        nodes,
+      }};
+    }}
+
+    function buildHistoryNodeIdentityResolver(nodes) {{
+      const rows = Array.isArray(nodes) ? nodes : [];
+      const nodesById = new Map(
+        rows
+          .map((node) => [normalizeNodeId(node && node.id ? node.id : ""), node])
+          .filter(([nodeId]) => !!nodeId)
+      );
+      return (rawNodeId) => {{
+        const clean = normalizeNodeId(rawNodeId);
+        if (!clean) {{
+          return {{
+            sort: "n/a",
+            title: "n/a",
+            html: '<div class="history-node-cell"><span class="history-node-primary">n/a</span></div>',
+            primary: "n/a",
+            secondary: "",
+            nodeId: "",
+          }};
+        }}
+        if (clean === "^all") {{
+          return {{
+            sort: "^all",
+            title: "Broadcast / all nodes",
+            html: '<div class="history-node-cell"><span class="history-node-primary">All</span><span class="history-node-secondary">broadcast</span></div>',
+            primary: "All",
+            secondary: "broadcast",
+            nodeId: "^all",
+          }};
+        }}
+        if (clean === "local") {{
+          return {{
+            sort: "local",
+            title: "Local node",
+            html: '<div class="history-node-cell"><span class="history-node-primary">Local</span><span class="history-node-secondary">this node</span></div>',
+            primary: "Local",
+            secondary: "this node",
+            nodeId: "local",
+          }};
+        }}
+
+        const node = nodesById.get(clean);
+        const longName = String(node && node.long_name ? node.long_name : "").trim();
+        const shortName = String(node && node.short_name ? node.short_name : "").trim();
+        const cachedName = String(nodeNameCache.get(clean) || "").trim();
+        const primary = longName || cachedName || shortName || clean;
+        const secondaryParts = [];
+        if (shortName && shortName !== primary) {{
+          secondaryParts.push(shortName);
+        }}
+        if (clean && clean !== primary) {{
+          secondaryParts.push(clean);
+        }} else if (!secondaryParts.length && clean) {{
+          secondaryParts.push(clean);
+        }}
+        const secondary = secondaryParts.join(" • ");
+        const titleParts = [];
+        if (longName) titleParts.push(`Long: ${{longName}}`);
+        if (shortName) titleParts.push(`Short: ${{shortName}}`);
+        if (!longName && !shortName && cachedName && cachedName !== clean) {{
+          titleParts.push(`Name: ${{cachedName}}`);
+        }}
+        titleParts.push(`ID: ${{clean}}`);
+        return {{
+          sort: `${{primary}} ${{shortName}} ${{clean}}`.trim(),
+          title: titleParts.join(" | "),
+          html: `<div class="history-node-cell"><span class="history-node-primary">${{escAttr(primary)}}</span>${{secondary ? `<span class="history-node-secondary">${{escAttr(secondary)}}</span>` : ""}}</div>`,
+          primary,
+          secondary,
+          nodeId: clean,
+        }};
+      }};
+    }}

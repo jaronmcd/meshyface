@@ -10803,7 +10803,7 @@
       refreshMapCardTitle();
       const mapResetBtn = document.getElementById("map-reset-view-btn");
       if (mapResetBtn instanceof HTMLButtonElement) {{
-        mapResetBtn.hidden = next === "saved" || next === "history";
+        mapResetBtn.hidden = next === "saved";
       }}
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
@@ -10856,12 +10856,6 @@
         applyFilesTransferListSplitState();
       }}
 
-      if (next === "history") {{
-        mapDataFocus = "activity";
-      }}
-      if (next === "network" && mapDataFocus === "activity") {{
-        mapDataFocus = "auto";
-      }}
       if (next === "network") {{
         if (!networkMapInitialAutoResetDone) {{
           fitDone = false;
@@ -10980,12 +10974,6 @@
         if (next === "games") {{
           renderGamesView(latestState);
         }}
-        if (next === "history") {{
-          renderHistoryChat(latestState.traffic || {{}});
-          renderEncription(latestState.traffic || {{}});
-          setMapDataMode("activity");
-          void refreshHistoryPanels(false);
-        }}
         if (next === "saved") {{
           renderFavorites(latestState, cachedNodeHistory);
         }} else {{
@@ -11007,11 +10995,6 @@
         }}
       }} else if (next === "network") {{
         renderNodesPlaceholder("Syncing nodes...");
-      }} else if (next === "history") {{
-        setMapDataMode("activity");
-        renderWeeklySummaryLoading();
-        renderHistoryChat({{}});
-        renderEncription({{}});
       }} else if (next === "files") {{
         renderFilesView(latestState);
       }} else if (next === "games") {{
@@ -11061,7 +11044,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "history" || next === "network" || next === "saved") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "network" || next === "saved") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

@@ -40,8 +40,6 @@
     runBootStep("loadNetworkNodesSplitState", () => loadNetworkNodesSplitState());
     runBootStep("loadSavedNodeSplitState", () => loadSavedNodeSplitState());
     runBootStep("loadSavedNodeHistorySplitState", () => loadSavedNodeHistorySplitState());
-    runBootStep("loadHistoryActivitySplitState", () => loadHistoryActivitySplitState());
-    runBootStep("loadHistoryChatSplitState", () => loadHistoryChatSplitState());
     runBootStep("loadGamesSidebarSplitState", () => loadGamesSidebarSplitState());
     runBootStep("loadGamesStatusSplitState", () => loadGamesStatusSplitState());
     runBootStep("loadChatPanelSplitState", () => loadChatPanelSplitState());
@@ -110,8 +108,6 @@
     runBootStep("bindNetworkNodeSplitter", () => bindNetworkNodeSplitter());
     runBootStep("bindSavedNodeSplitter", () => bindSavedNodeSplitter());
     runBootStep("bindSavedNodeHistorySplitter", () => bindSavedNodeHistorySplitter());
-    runBootStep("bindHistoryActivitySplitter", () => bindHistoryActivitySplitter());
-    runBootStep("bindHistoryChatSplitter", () => bindHistoryChatSplitter());
     runBootStep("bindGamesSplitters", () => bindGamesSplitters());
     runBootStep("bindChatPanelSplitter", () => bindChatPanelSplitter());
     runBootStep("bindChatPanelCollapseToggle", () => bindChatPanelCollapseToggle());
@@ -127,8 +123,6 @@
     runBootStep("bindNodeListSearchControls", () => bindNodeListSearchControls());
     runBootStep("bindNodeRowClicks", () => bindNodeRowClicks());
     runBootStep("bindNodeDirectionalKeys", () => bindNodeDirectionalKeys());
-    runBootStep("bindEncriptionRowClicks", () => bindEncriptionRowClicks());
-    runBootStep("bindHistoryChatRowClicks", () => bindHistoryChatRowClicks());
     runBootStep("bindNodesTableColResizers", () => bindNodesTableColResizers());
     runBootStep("bindMapResetControl", () => bindMapResetControl());
     runBootStep("bindMapFullscreenControl", () => bindMapFullscreenControl());
@@ -144,15 +138,10 @@
     runBootStep("bindChatNotificationScopeControl", () => bindChatNotificationScopeControl());
     runBootStep("bindGamesControls", () => bindGamesControls());
     runBootStep("bindChatChangeSummaryControls", () => bindChatChangeSummaryControls());
-    runBootStep("bindHistoryChatTabs", () => bindHistoryChatTabs());
-    runBootStep("bindHistoryNotificationControls", () => bindHistoryNotificationControls());
     runBootStep("bindLocalNodeSummaryCard", () => bindLocalNodeSummaryCard());
     runBootStep("renderChatChangeSummary", () => renderChatChangeSummary());
     runBootStep("bindThemeToggle", () => bindThemeToggle());
     runBootStep("bindSummaryTickerExpandControl", () => bindSummaryTickerExpandControl());
-    runBootStep("bindWeeklySummaryWindowControl", () => bindWeeklySummaryWindowControl());
-    runBootStep("bindWeeklySummaryMetricControl", () => bindWeeklySummaryMetricControl());
-    runBootStep("bindWeeklySummaryNodeSeriesControls", () => bindWeeklySummaryNodeSeriesControls());
     runBootStep("bindNetworkOverviewWindowControl", () => bindNetworkOverviewWindowControl());
     runBootStep("bindNetworkOverviewMetricControl", () => bindNetworkOverviewMetricControl());
     runBootStep("bindNetworkOverviewLinkModeControl", () => bindNetworkOverviewLinkModeControl());
@@ -184,7 +173,7 @@
       if (activeLayoutView === "saved" && isSelectableNodeId(initialSavedNodeId)) {{
         renderNodeHistoryLoading(initialSavedNodeId);
       }} else {{
-        setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+        setMapDataMode("live");
       }}
     }});
     runBootStep("renderFavorites", () => renderFavorites({{}}));

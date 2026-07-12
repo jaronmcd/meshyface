@@ -210,32 +210,6 @@
       }}
     }}
 
-    async function refreshHistoryPanels(force = false) {{
-      if (activeLayoutView !== "history") return;
-      setMapDataMode("activity");
-      const includePacketSeries = historySummaryNeedsPacketSeries();
-      const weeklyKey = summaryMetricsCacheKey(weeklySummaryWindowHours, includePacketSeries);
-      if (force) {{
-        summaryMetricsCache.delete(weeklyKey);
-      }}
-      const cachedWeekly = summaryMetricsCache.get(weeklyKey);
-      if (cachedWeekly && cachedWeekly.data) {{
-        renderWeeklySummary(cachedWeekly.data);
-      }} else {{
-        renderWeeklySummaryLoading();
-      }}
-
-      try {{
-        const weekly = await fetchSummaryMetrics(weeklySummaryWindowHours, {{ includePacketSeries }});
-        if (activeLayoutView !== "history") return;
-        renderWeeklySummary(weekly);
-      }} catch (reason) {{
-        if (activeLayoutView !== "history") return;
-        const message = reason instanceof Error ? reason.message : String(reason || "unknown error");
-        renderWeeklySummaryError(message);
-      }}
-    }}
-
     async function refreshNetworkOverviewPanels(force = false) {{
       if (activeLayoutView !== "network") return;
       if (activeNetworkSubview !== "overview") return;

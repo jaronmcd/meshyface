@@ -494,10 +494,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
         '</div>',
         1,
     )[0]
-    weekly_controls_section = html.split('<div class="history-metric-controls">', 1)[1].split(
-        '<div id="weekly-summary-chart-wrap">',
-        1,
-    )[0]
     env_controls_section = html.split('<div class="env-metrics-controls">', 1)[1].split(
         '<div class="env-metrics-grid">',
         1,
@@ -543,9 +539,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     assert overview_controls_section.index('for="network-overview-metric"') < overview_controls_section.index(
         'for="network-overview-window"'
     )
-    assert weekly_controls_section.index('for="weekly-summary-metric"') < weekly_controls_section.index(
-        'for="weekly-summary-window"'
-    )
     assert env_controls_section.index('for="env-metric-select"') < env_controls_section.index('for="env-window-select"')
     assert 'class="history-metric-wrap history-window-wrap history-select-chip-hide-label" for="network-routes-window"' in routes_toolbar_section
     assert diagnostics_actions_section.index('network-diagnostics-refresh-btn') < diagnostics_actions_section.index(
@@ -567,7 +560,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     assert 'id="network-overview-packet-lines-wrap"' in overview_controls_section
     assert '<option value="links">Links</option>' not in overview_controls_section
     assert '<option value="sensors">Sensors</option>' not in overview_controls_section
-    assert '<option value="links">Links</option>' in weekly_controls_section
     assert 'data-network-subview="sensors"' in network_tabs_section
     assert 'id="network-routes-primary-controls"' in html
     assert 'id="network-top-nodes-primary-controls"' in html

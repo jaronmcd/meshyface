@@ -3018,12 +3018,10 @@
     [data-theme="dark"] .chat-feed-item.chat-selectable.self-authored:hover {{
       background: var(--chat-feed-channel-edge-bg), #274133;
     }}
-    [data-theme="dark"] .chat-feed-text .chat-link,
-    [data-theme="dark"] #history-chat-table .chat-link {{
+    [data-theme="dark"] .chat-feed-text .chat-link {{
       color: #8bc3ff;
     }}
-    [data-theme="dark"] .chat-feed-text .chat-link:hover,
-    [data-theme="dark"] #history-chat-table .chat-link:hover {{
+    [data-theme="dark"] .chat-feed-text .chat-link:hover {{
       color: #b8dcff;
     }}
     [data-theme="dark"] .chat-inline-emoji {{
@@ -4136,20 +4134,6 @@
     [data-theme="dark"] .history-tabs {{
       border-bottom-color: var(--ui-border);
     }}
-    [data-theme="dark"] .history-chat-tabbar {{
-      border-bottom-color: var(--ui-border);
-    }}
-    [data-theme="dark"] .history-chat-tab-btn {{
-      background: var(--ui-panel-alt);
-      border-color: var(--ui-border);
-      color: var(--ui-text-soft);
-    }}
-    [data-theme="dark"] .history-chat-tab-btn.is-active,
-    [data-theme="dark"] .history-chat-tab-btn[aria-selected="true"] {{
-      background: #223447;
-      border-color: #3d5973;
-      color: #ebf3ff;
-    }}
     [data-theme="dark"] .history-metric-wrap {{
       border-color: var(--ui-border);
       background: var(--ui-panel-alt);
@@ -4168,22 +4152,13 @@
     [data-theme="dark"] .history-metric-toggle {{
       accent-color: var(--ui-accent);
     }}
-    [data-theme="dark"] .history-encription-section {{
-      border-top-color: var(--ui-border);
-    }}
-    [data-theme="dark"] .history-encription-panel h3 {{
-      color: var(--ui-text-soft);
-    }}
     [data-theme="dark"] #signal-chart-wrap,
     [data-theme="dark"] #node-link-quality-chart-wrap,
     [data-theme="dark"] #node-online-chart-wrap,
     [data-theme="dark"] #node-packets-chart-wrap,
     [data-theme="dark"] #online-activity-chart-wrap,
     [data-theme="dark"] #weekly-summary-chart-wrap,
-    [data-theme="dark"] #network-overview-chart-wrap,
-    [data-theme="dark"] #history-chat-trend-chart-wrap,
-    [data-theme="dark"] #encription-route-chart-wrap,
-    [data-theme="dark"] #encription-trend-chart-wrap {{
+    [data-theme="dark"] #network-overview-chart-wrap {{
       background:
         linear-gradient(
           180deg,
@@ -4353,33 +4328,11 @@
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
     }}
-    [data-theme="dark"] .history-activity-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .history-chat-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
     [data-theme="dark"] .saved-node-history-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .history-activity-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .history-chat-splitter::before {{
       background: #44566a;
     }}
     [data-theme="dark"] .saved-node-history-splitter:hover::before,
     [data-theme="dark"] .saved-node-history-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .history-activity-splitter:hover::before,
-    [data-theme="dark"] .history-activity-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .history-chat-splitter:hover::before,
-    [data-theme="dark"] .history-chat-splitter.active::before {{
       background: #79c0ff;
     }}
     [data-theme="dark"] .saved-map-splitter {{
@@ -4492,40 +4445,8 @@
     [data-theme="dark"] #nodes-table tbody tr.selected-node td:first-child {{
       box-shadow: inset 3px 0 0 #79c0ff;
     }}
-    [data-theme="dark"] #encription-packets-table tbody tr.node-selectable:hover,
-    [data-theme="dark"] #encription-traffic-table tbody tr.node-selectable:hover {{
-      background: #122031;
-    }}
-    [data-theme="dark"] #history-chat-table tbody tr.history-node-selectable.selected-node td {{
-      background: #243646 !important;
-      border-color: #4a617a !important;
-      color: #ecf5ff !important;
-    }}
-    [data-theme="dark"] #history-chat-table tbody tr.history-node-selectable.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 #79c0ff;
-    }}
-    [data-theme="dark"] #encription-packets-table tbody tr.selected-node td,
-    [data-theme="dark"] #encription-traffic-table tbody tr.selected-node td {{
-      background: #243646 !important;
-      border-color: #4a617a !important;
-      color: #ecf5ff !important;
-    }}
-    [data-theme="dark"] #encription-packets-table tbody tr.selected-node td:first-child,
-    [data-theme="dark"] #encription-traffic-table tbody tr.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 #79c0ff;
-    }}
     [data-theme="dark"] .history-node-secondary {{
       opacity: 0.76;
-    }}
-    [data-theme="dark"] .history-message-pill {{
-      border-color: #3d647c;
-      background: #173247;
-      color: #c4dbeb;
-    }}
-    [data-theme="dark"] .history-message-pill.history-message-pill-name-change {{
-      border-color: #3f7255;
-      background: #153223;
-      color: #b5e0c3;
     }}
     [data-theme="dark"] .channels-evidence-pill {{
       border-color: #355145;
@@ -6968,60 +6889,6 @@
       color: #8aa598;
       background: #122117;
     }}
-    [data-theme="dark"] .history-notification-section {{
-      border-top-color: #2a4638;
-    }}
-    [data-theme="dark"] .history-notification-clear-btn {{
-      background: #162820;
-      border-color: #3a5a49;
-      color: #c6e8d5;
-    }}
-    [data-theme="dark"] .history-notification-clear-btn:hover {{
-      background: #1d3228;
-      border-color: #4e7962;
-    }}
-    [data-theme="dark"] .history-notification-empty {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-      color: #b8d9c8;
-    }}
-    [data-theme="dark"] .history-notification-item {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .history-notification-item.is-new {{
-      box-shadow: inset 2px 0 0 #79c0ff;
-    }}
-    [data-theme="dark"] .history-notification-meta {{
-      color: #9ab7a7;
-    }}
-    [data-theme="dark"] .history-notification-pill {{
-      background: #183126;
-      border-color: #3d6a56;
-      color: #a6d4be;
-    }}
-    [data-theme="dark"] .history-notification-pill.status-new {{
-      background: #173228;
-      border-color: #3f7a60;
-      color: #8cd7b2;
-    }}
-    [data-theme="dark"] .history-notification-pill.kind-reaction {{
-      background: #352c16;
-      border-color: #776033;
-      color: #e7cf93;
-    }}
-    [data-theme="dark"] .history-notification-pill.kind-status {{
-      background: #162734;
-      border-color: #355970;
-      color: #9ac7e6;
-    }}
-    [data-theme="dark"] .history-notification-text {{
-      color: #d7ece0;
-    }}
-    [data-theme="dark"] .history-notification-time {{
-      color: #9ab7a7;
-    }}
     [data-theme="dark"] .chat-feed-item.has-change-marker {{
       background: var(--chat-feed-channel-edge-bg), rgba(201, 150, 44, 0.08);
     }}
@@ -7171,10 +7038,6 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-history {{
-        height: auto;
-        min-height: 0;
-      }}
       .layout.view-saved {{
         height: auto;
         min-height: 0;
@@ -7247,18 +7110,6 @@
       .saved-node-history-splitter {{
         display: none !important;
       }}
-      .history-activity-splitter {{
-        display: none !important;
-      }}
-      .history-chat-splitter {{
-        display: none !important;
-      }}
-      .layout.view-history .history-activity-main-scroll {{
-        flex: 1 1 auto;
-      }}
-      .layout.view-history .history-chat-main-scroll {{
-        flex: 1 1 auto;
-      }}
       .layout.view-saved .saved-node-main-scroll {{
         flex: 1 1 auto;
       }}
@@ -7295,7 +7146,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .games, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .favorites, .chat, .games, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}

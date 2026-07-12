@@ -91,6 +91,53 @@ def test_dashboard_js_keeps_whois_builder_without_removed_remote_workspace() -> 
     assert "remote-stage-whois-btn" not in js
 
 
+def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+    css = "\n".join(
+        (root / f"meshdash/assets/{name}").read_text(encoding="utf-8")
+        for name in (
+            "dashboard.css.base.tmpl",
+            "dashboard.css.layout.tmpl",
+            "dashboard.css.components.tmpl",
+        )
+    )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+
+    assert '"history"' not in known_layout_views
+    assert 'activeLayoutView === "history"' not in js
+    assert 'next === "history"' not in js
+    assert "renderHistoryChat" not in js
+    assert "renderEncription" not in js
+    assert "refreshHistoryPanels" not in js
+    assert 'id="map-data-activity"' not in html
+    assert 'class="card history-chat"' not in html
+    assert ".layout.view-history" not in css
+
+    for element_id in (
+        "network-node-history-host",
+        "map-data-node",
+        "tab-panel-overview",
+        "tab-panel-signal",
+        "tab-panel-link",
+        "tab-panel-packets",
+        "tab-panel-online",
+        "tab-panel-names",
+    ):
+        assert html.count(f'id="{element_id}"') == 1
+    assert 'id="chat-node-details-history-host"' in js
+    assert "function fetchNodeHistory" in js
+    assert "function renderNodeHistory" in js
+    assert "function syncNodeHistoryDock" in js
+
+
 def test_dashboard_js_binds_games_picker_select() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

@@ -379,18 +379,6 @@
         }}
         return null;
       }}
-      if (mapDataFocus === "activity" && !drawerExpanded) {{
-        // When showing online activity, keep node history idle.
-        abortNodeHistoryFetch();
-        if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
-          markNodeSelectionPerf(perfToken, "selection.history_refresh", perfStartMs, {{
-            skipped: true,
-            reason: "activity-mode",
-          }});
-        }}
-        return null;
-      }}
-
       const nowMs = Date.now();
       const ttlMs = Math.max(refreshMs * 2, 8000);
       const cached = nodeHistoryCache.get(nodeId);
@@ -443,7 +431,6 @@
           && isChatNodeDetailsDrawerExpanded()
         );
         if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpandedNow)) return null;
-        if (mapDataFocus === "activity" && !drawerExpandedNow) return null;
         applyNodeHistoryToView(data);
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.history_refresh", perfStartMs, {{
