@@ -6842,9 +6842,12 @@
       background: var(--workspace-shell-bg);
       border-color: var(--workspace-shell-border);
     }}
-    [data-theme="dark"] .layout.view-games .games .body,
-    [data-theme="dark"] .layout.view-files .files .body {{
+    [data-theme="dark"] .layout.view-games .games .body {{
       background: var(--workspace-shell-bg);
+    }}
+    [data-theme="dark"] .layout.view-files .files,
+    [data-theme="dark"] .layout.view-files .files .body {{
+      background: transparent;
     }}
     [data-theme="dark"] .games-board-wrap {{
       --games-board-accent: var(--ui-accent-soft);
