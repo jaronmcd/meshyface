@@ -16,9 +16,7 @@
         && topbarElement.classList.contains("ticker-expanded");
     }}
 
-    function tickerNavigationTarget(tickerId) {{
-      const id = normalizeTickerId(tickerId);
-      if (id === "bots") return "bots";
+    function tickerNavigationTarget(_tickerId) {{
       return "";
     }}
 
@@ -1009,11 +1007,6 @@
     function tickerAvailable(tickerId, state = latestState) {{
       const id = normalizeTickerId(tickerId);
       if (!id) return false;
-      if (id === "bots") {{
-        return typeof botTickerAvailableForState === "function"
-          ? botTickerAvailableForState(state)
-          : false;
-      }}
       return true;
     }}
 

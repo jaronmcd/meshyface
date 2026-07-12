@@ -508,9 +508,6 @@
           ) {{
             void renderEnvironmentMetricsView(false);
           }}
-          if (activeLayoutView === "bots") {{
-            renderBotsView(latestState);
-          }}
           if (activeLayoutView === "games") {{
             renderGamesView(latestState);
           }}
@@ -634,14 +631,11 @@
         lastPollSuccessUnix = Math.floor(Date.now() / 1000);
         lastPollError = "";
         lastPollErrorUnix = 0;
-        applyServerBotSettingsFromState(state);
-        syncBackendBotRequestHistory(state);
         const nextLocalNodeId = resolveLocalNodeId(state);
         if (isCanonicalNodeId(nextLocalNodeId)) {{
           resolvedLocalNodeId = nextLocalNodeId;
         }}
         pruneSelfFromManualDirectPeers(state);
-        syncBotRequestHistoryWithMessages((state.traffic || {{}}).recent_chat || [], state);
         syncReversiNetworkState(state);
         syncBoardGameNetworkState("checkers", state);
         syncBoardGameNetworkState("chess", state);
@@ -856,8 +850,6 @@
           if (activeLayoutView === "chatlabs") {{
             runPollStep("renderChatLabsView", () => renderChatLabsView(state));
           }}
-        }} else if (activeLayoutView === "bots") {{
-          runPollStep("renderBotsView", () => renderBotsView(state));
         }} else if (activeLayoutView === "games") {{
           runPollStep("renderGamesView", () => renderGamesView(state));
         }} else if (activeLayoutView === "remote") {{

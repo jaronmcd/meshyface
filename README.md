@@ -13,8 +13,7 @@ The current UI exposes:
 - Network workspace for map, topology, Top 10 rankings, node details, and
   on-demand history views
 - Console workspace for live packet/log output
-- Apps workspace with Games, optional Bots, and a Files tab when file transfer
-  is enabled
+- Apps workspace with Games and a Files tab when file transfer is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
   tickers, lists, appearance, and about panes
 - SQLite-backed history, search, rollups, theme persistence, and custom
@@ -252,8 +251,8 @@ Related environment variables:
   in process listings and shell history
 - `--allow-tokenless-raw-packet-download`: explicitly permit raw-packet DB
   downloads without a token for direct loopback clients; disabled by default
-- `--games-enable` / `--no-games-enable`: enable playable Zork console
-  endpoints plus mesh bot replies
+- `--games-enable` / `--no-games-enable`: enable playable standalone Zork
+  console endpoints
 
 Related environment variables:
 
@@ -376,6 +375,6 @@ scripts/run_gui_responsiveness_local.sh
 ```
 
 Coverage intentionally excludes the ported Zork engine package from scoring,
-but Zork bot and routing tests still run. GitHub Actions publishes the same
-coverage report as an advisory PR comment and artifact, and fails below 80%.
+but standalone Zork and routing tests still run. GitHub Actions publishes the
+same coverage report as an advisory PR comment and artifact. CI fails below 80%.
 The local gate stays 5 percentage points higher than CI.

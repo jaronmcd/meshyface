@@ -1,511 +1,10 @@
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
-    .bots .chat-bot-cheatsheet {{
-      border: 1px solid #ccddcf;
-      background: #ffffff;
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .bots-command-shell {{
-      display: grid;
-      grid-template-columns: minmax(130px, var(--bots-command-list-pct)) var(--splitter-size) minmax(130px, 1fr);
-      gap: 0;
-      min-height: 0;
-      flex: 1 1 auto;
-    }}
-    .bots-command-list-wrap {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-height: 0;
-      padding-right: 8px;
-    }}
-    .bots-command-splitter {{
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(180deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      min-width: 6px;
-    }}
-    .bots-command-splitter::before {{
-      content: "";
-      position: absolute;
-      top: 8px;
-      bottom: 8px;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .bots-command-splitter:hover::before,
-    .bots-command-splitter.active::before {{
-      background: var(--accent);
-    }}
-    .bots .chat-bot-cheatsheet-title {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots .chat-bot-cheatsheet-row {{
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 7px;
-      align-items: baseline;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #2f4f3f;
-    }}
-    .bots .chat-bot-cheatsheet-row code {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
-    .bots-command-list {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding: 8px;
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      background: #f8fbf7;
-    }}
-    .bots-command-config {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fdfefd;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-left: 12px;
-    }}
-    .bots-command-config-head {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .bots-command-config-title-row {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      min-width: 0;
-    }}
-    .bots-command-config-usage {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 12px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-command-config-name {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-command-config-description {{
-      font-size: 11px;
-      line-height: 1.35;
-      color: var(--surface-tint-text-soft);
-    }}
-    .bots-command-config-toggle {{
-      margin-top: 2px;
-    }}
-    .bots-command-config-section {{
-      margin-top: 4px;
-      padding-top: 8px;
-      border-top: 1px solid var(--surface-tint-border);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-command-config-section[hidden] {{
-      display: none !important;
-    }}
-    .bots-command-config-label {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-command-config-textarea {{
-      width: 100%;
-      min-height: 52px;
-      border: 1px solid #c8d7c4;
-      border-radius: 8px;
-      padding: 6px 8px;
-      background: #ffffff;
-      color: #1e3a2b;
-      font: 11px/1.35 "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      resize: vertical;
-    }}
-    .bots-command-config-input {{
-      width: 100%;
-      font: 11px/1.35 "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-    }}
-    .bots-command-config-actions {{
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .bots-zork-actions .bots-setting-note {{
-      min-height: 22px;
-      display: inline-flex;
-      align-items: center;
-    }}
-    .bots-history-panel .bots-command-config {{
-      flex: 1 1 auto;
-      overflow: hidden;
-    }}
-    .bots-zork-activity-section {{
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .bots-session-list {{
-      border: 1px solid #ccddcf;
-      border-radius: 8px;
-      background: #ffffff;
-      max-height: 180px;
-      overflow: auto;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-session-item {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 8px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      background: var(--surface-tint-bg-soft);
-    }}
-    .bots-session-main {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .bots-session-peer {{
-      font-size: 12px;
-      color: #1f4e35;
-      font-weight: 700;
-      word-break: break-word;
-    }}
-    .bots-session-meta {{
-      font-size: 10px;
-      color: #5b7565;
-      display: flex;
-      gap: 7px;
-      flex-wrap: wrap;
-    }}
-    .bots-command-item {{
-      width: 100%;
-      border: 1px solid #c8d7c4;
-      border-radius: 10px;
-      background: #ffffff;
-      padding: 7px 8px;
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      color: #1e3a2b;
-      text-align: left;
-      font: inherit;
-      cursor: pointer;
-      transition: border-color 0.16s ease, background 0.16s ease;
-    }}
-    .bots-command-item:hover {{
-      border-color: #8daf99;
-      background: #eef6f1;
-    }}
-    .bots-command-item:focus-visible {{
-      outline: 2px solid #5ba67a;
-      outline-offset: 1px;
-    }}
-    .bots-command-item.is-active {{
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
-      background: #e9f5ee;
-      color: #1f5d3d;
-    }}
-    .bots-command-item.is-disabled {{
-      opacity: 0.62;
-    }}
-    .bots-command-item-order {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      min-width: 18px;
-      white-space: nowrap;
-    }}
-    .bots-command-copy {{
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }}
-    .bots-command-heading {{
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .bots-command-usage {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 11px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-command-description {{
-      font-size: 11px;
-      line-height: 1.35;
-      color: var(--surface-tint-text-soft);
-    }}
-    .bots-command-kind {{
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      text-transform: uppercase;
-      color: #315844;
-      border: 1px solid #c7d9cb;
-      border-radius: 999px;
-      background: #edf6ef;
-      padding: 2px 6px;
-      white-space: nowrap;
-    }}
-    .bots-command-state {{
-      font-size: 10px;
-      color: #355b44;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-      white-space: nowrap;
-      min-width: 24px;
-      text-align: right;
-    }}
-    .bots-command-state.is-enabled {{
-      color: #1f6e42;
-      font-weight: 700;
-    }}
-    .bots-command-state.is-disabled {{
-      color: #8f4234;
-      font-weight: 700;
-    }}
-    .bots-history-panel {{
-      min-height: 0;
-      overflow: visible;
-    }}
-    .bots-history-head {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .bots-review-head-copy {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 0;
-    }}
-    .bots-review-tabs {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .bots-review-tab {{
-      border: 1px solid #c8d9cc;
-      border-radius: 999px;
-      background: #edf6ef;
-      color: #365846;
-      font-size: 11px;
-      line-height: 1;
-      padding: 6px 10px;
-      cursor: pointer;
-    }}
-    .bots-review-tab.is-active {{
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #ffffff;
-    }}
-    .bots-history-clear-btn {{
-      padding: 4px 10px;
-      font-size: 11px;
-    }}
-    .bots-tab-panel {{
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      flex: 1 1 auto;
-    }}
-    .bots-tab-panel[hidden] {{
-      display: none !important;
-    }}
-    .bots-history-stats {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 10px;
-      font-size: 11px;
-      color: #355b44;
-    }}
-    .bots-history-list {{
-      border: 1px solid #ccddcf;
-      border-radius: 8px;
-      background: #ffffff;
-      flex: 1 1 auto;
-      max-height: none;
-      min-height: 120px;
-      overflow: auto;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-sniffer-controls {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: end;
-    }}
-    .bots-sniffer-filter-wrap {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 260px;
-      min-width: 220px;
-    }}
-    .bots-sniffer-filter-label {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-sniffer-command-input {{
-      width: 100%;
-      min-width: 0;
-      border-radius: 8px;
-      border: 1px solid #c8d9cc;
-      background: #ffffff;
-      color: #204231;
-      font-size: 12px;
-      padding: 8px 10px;
-    }}
-    .bots-sniffer-actions {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex: 0 0 auto;
-    }}
-    .bots-sniffer-btn {{
-      padding: 6px 10px;
-      font-size: 11px;
-    }}
-    .bots-history-empty {{
-      border: 1px dashed #cfe0d2;
-      border-radius: 8px;
-      color: var(--surface-tint-text-soft);
-      background: #f7fbf7;
-      font-size: 12px;
-      line-height: 1.35;
-      padding: 10px;
-      text-align: center;
-    }}
-    .bots-history-item {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: var(--surface-tint-bg-soft);
-    }}
-    .bots-history-item-head {{
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-    }}
-    .bots-history-command {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 11px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-history-meta {{
+    .response-telemetry-meta {{
       font-size: 10px;
       color: #5b7565;
       display: inline-flex;
       align-items: center;
       gap: 7px;
       flex-wrap: wrap;
-    }}
-    .bots-history-status-pill {{
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      border: 1px solid #bfd4c3;
-      background: #edf6ef;
-      color: #204231;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      text-transform: uppercase;
-      line-height: 1.2;
-      padding: 2px 7px;
-    }}
-    .bots-history-status-pill.pending {{
-      border-color: #d3a856;
-      background: #fff8e8;
-      color: #7a5a1f;
-    }}
-    .bots-history-status-pill.responded {{
-      border-color: var(--accent);
-      background: #e9f8ee;
-      color: #1d5a3b;
-    }}
-    .bots-history-response {{
-      border-left: 2px solid #bfd4c3;
-      padding-left: 7px;
-      font-size: 11px;
-      color: #274935;
-      line-height: 1.3;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }}
-    .bots-history-response strong {{
-      color: #1f4e35;
     }}
 
     .settings-channels-table {{
@@ -2703,7 +2202,6 @@
     .layout.view-chat .map-data,
     .layout.view-chat .summary,
     .layout.view-chat .nodes,
-    .layout.view-chat .bots,
     .layout.view-chat .packets,
     .layout.view-chat .raw,
     .layout.view-chat .console,
@@ -2725,7 +2223,6 @@
     .layout.view-macros .map-data,
     .layout.view-macros .summary,
     .layout.view-macros .nodes,
-    .layout.view-macros .bots,
     .layout.view-macros .packets,
     .layout.view-macros .raw,
     .layout.view-macros .console,
@@ -3205,7 +2702,6 @@
     }}
     .layout.view-files .chat,
     .layout.view-files .settings,
-    .layout.view-files .bots,
     .layout.view-files .games,
     .layout.view-files .nodes,
     .layout.view-files .map,
@@ -3444,7 +2940,6 @@
     }}
     .layout.view-network .map-data,
     .layout.view-network .chat,
-    .layout.view-network .bots,
     .layout.view-network .packets,
     .layout.view-network .raw,
     .layout.view-network .console,
@@ -3561,7 +3056,6 @@
       background: var(--history-pane-divider-line-active);
     }}
     .layout.view-history .chat,
-    .layout.view-history .bots,
     .layout.view-history .settings,
     .layout.view-history .nodes,
     .layout.view-history .map,
@@ -3598,7 +3092,6 @@
       height: 100%;
     }}
     .layout.view-packets .chat,
-    .layout.view-packets .bots,
     .layout.view-packets .nodes,
     .layout.view-packets .map,
     .layout.view-packets .map-data,
@@ -3645,7 +3138,6 @@
       min-height: 0;
     }}
     .layout.view-channels .chat,
-    .layout.view-channels .bots,
     .layout.view-channels .nodes,
     .layout.view-channels .map,
     .layout.view-channels .map-data,
@@ -3730,7 +3222,6 @@
       max-height: none;
     }}
     .layout.view-data .chat,
-    .layout.view-data .bots,
     .layout.view-data .nodes,
     .layout.view-data .map,
     .layout.view-data .map-data,
@@ -3764,7 +3255,6 @@
       overflow: auto;
     }}
     .layout.view-environment .chat,
-    .layout.view-environment .bots,
     .layout.view-environment .nodes,
     .layout.view-environment .map,
     .layout.view-environment .map-data,
@@ -3781,7 +3271,6 @@
     }}
 
     .layout.view-console .chat,
-    .layout.view-console .bots,
     .layout.view-console .nodes,
     .layout.view-console .map,
     .layout.view-console .map-data,
@@ -3847,7 +3336,6 @@
       flex: 0 0 auto;
     }}
     .layout.view-settings .chat,
-    .layout.view-settings .bots,
     .layout.view-settings .nodes,
     .layout.view-settings .map,
     .layout.view-settings .map-data,
@@ -3861,57 +3349,6 @@
       display: none !important;
     }}
     .layout.view-settings .console {{
-      display: none !important;
-    }}
-
-    .layout.view-bots {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-bots .bots {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      max-height: 100%;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: hidden;
-    }}
-    .layout.view-bots .bots .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-bots .chat,
-    .layout.view-bots .files,
-    .layout.view-bots .settings,
-    .layout.view-bots .games,
-    .layout.view-bots .nodes,
-    .layout.view-bots .map,
-    .layout.view-bots .map-data,
-    .layout.view-bots .favorites,
-    .layout.view-bots .history-chat,
-    .layout.view-bots .channels-view,
-    .layout.view-bots .packets,
-    .layout.view-bots .encription,
-    .layout.view-bots .raw,
-    .layout.view-bots .console,
-    .layout.view-bots .remote,
-    .layout.view-bots .summary,
-    .layout.view-bots .splitter,
-    .layout.view-bots .hsplitter[data-target="top"],
-    .layout.view-bots .hsplitter[data-target="mid"],
-    .layout.view-bots .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
@@ -3942,7 +3379,6 @@
     }}
     .layout.view-games .chat,
     .layout.view-games .settings,
-    .layout.view-games .bots,
     .layout.view-games .nodes,
     .layout.view-games .map,
     .layout.view-games .map-data,
@@ -3983,7 +3419,6 @@
     .layout.view-remote .chat,
     .layout.view-remote .files,
     .layout.view-remote .settings,
-    .layout.view-remote .bots,
     .layout.view-remote .games,
     .layout.view-remote .nodes,
     .layout.view-remote .map,
@@ -4227,7 +3662,6 @@
     }}
     .layout.view-saved .map-data,
     .layout.view-saved .chat,
-    .layout.view-saved .bots,
     .layout.view-saved .nodes,
     .layout.view-saved .packets,
     .layout.view-saved .raw,
@@ -6278,59 +5712,6 @@
     .chat-settings-menu .chat-change-scope-select {{
       width: 100%;
     }}
-    .chat-settings-menu .chat-bot-toggle-wrap {{
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      line-height: 1.25;
-      color: #274935;
-      cursor: pointer;
-      user-select: none;
-    }}
-    .chat-settings-menu .chat-bot-toggle-wrap input[type="checkbox"] {{
-      width: 14px;
-      height: 14px;
-      margin: 0;
-      accent-color: var(--accent);
-      cursor: pointer;
-      flex: 0 0 auto;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet {{
-      border: 1px solid #ccddcf;
-      background: #ffffff;
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-title {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-row {{
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 7px;
-      align-items: baseline;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #2f4f3f;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-row code {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
     .favorite-menu {{
       position: absolute;
       top: calc(100% + 8px);
@@ -7519,9 +6900,6 @@
       background: var(--mesh-channel-badge-fill);
       border: 1px solid rgba(19, 36, 26, 0.28);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-    }}
-    .bots-history-channel {{
-      margin-right: 1px;
     }}
     .chat-feed-actions {{
       display: inline-flex;

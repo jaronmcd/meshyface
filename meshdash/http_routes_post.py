@@ -18,8 +18,6 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
-    "/api/bots/zork",
-    "/api/bots/ping",
     "/api/settings/radio",
     "/api/settings/channels",
     "/api/settings/theme",
@@ -35,8 +33,6 @@ _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
-    "/api/bots/zork",
-    "/api/bots/ping",
 }
 
 
@@ -85,12 +81,6 @@ _handle_meshyface_profile_settings_post_helper = _load_optional_handler(
     ".api_meshyface_profile",
     "handle_meshyface_profile_settings_post",
 )
-_handle_zork_bot_toggle_post_helper = _load_optional_handler(
-    ".api_bots",
-    "handle_zork_bot_toggle_post",
-)
-
-
 def _header_value(headers: object, name: str) -> str:
     if headers is None:
         return ""
@@ -295,30 +285,6 @@ def handle_dashboard_post(
             to_int_fn=deps.to_int_fn,
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_network_tool_request_fn=parse_network_tool_request_fn,
-            write_json_response_fn=deps.write_json_response_fn,
-        )
-        return
-
-    if path in {"/api/bots/zork", "/api/bots/ping"}:
-        parse_zork_bot_toggle_request_fn = deps.parse_zork_bot_toggle_request_fn
-        if parse_zork_bot_toggle_request_fn is None or not callable(_handle_zork_bot_toggle_post_helper):
-            error_label = "Ping" if path == "/api/bots/ping" else "Zork"
-            deps.write_json_response_fn(
-                handler,
-                status_code=503,
-                payload_obj={"ok": False, "error": f"{error_label} bot runtime is not enabled on this dashboard instance"},
-            )
-            return
-        _handle_zork_bot_toggle_post_helper(
-            handler,
-            set_zork_bot_enabled_fn=deps.set_zork_bot_enabled_fn,
-            set_ping_bot_enabled_fn=deps.set_ping_bot_enabled_fn,
-            set_ping_bot_message_only_fn=deps.set_ping_bot_message_only_fn,
-            manage_zork_bot_fn=deps.manage_zork_bot_fn,
-            default_command="ping" if path == "/api/bots/ping" else "zork",
-            to_int_fn=deps.to_int_fn,
-            validate_content_length_fn=deps.validate_content_length_fn,
-            parse_zork_bot_toggle_request_fn=parse_zork_bot_toggle_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
         )
         return

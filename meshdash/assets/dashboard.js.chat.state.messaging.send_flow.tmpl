@@ -1763,7 +1763,6 @@
         null
       );
       if (payload && payload.ok) {{
-        recordBotRequestHistoryFromSend(requestBody, payload);
         input.value = "";
         renderChatTextMacroPreview("");
         const replied = Number.isInteger(replyId) && replyId > 0;

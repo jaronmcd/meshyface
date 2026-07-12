@@ -58,10 +58,8 @@ from .history_top_nodes import (
     load_top_nodes as _load_top_nodes_helper,
 )
 from .history_store_settings import (
-    load_bot_runtime_settings as _load_bot_runtime_settings_helper,
     load_custom_telemetry_settings as _load_custom_telemetry_settings_helper,
     load_meshyface_profile_processing_settings as _load_meshyface_profile_processing_settings_helper,
-    save_bot_runtime_settings as _save_bot_runtime_settings_helper,
     save_custom_telemetry_settings as _save_custom_telemetry_settings_helper,
     save_meshyface_profile_processing_settings as _save_meshyface_profile_processing_settings_helper,
 )
@@ -336,14 +334,8 @@ class HistoryStore:
     def set_custom_telemetry_settings(self, rules: object) -> dict[str, object]:
         return _save_custom_telemetry_settings_helper(self, rules=rules)
 
-    def get_bot_runtime_settings(self) -> dict[str, object]:
-        return _load_bot_runtime_settings_helper(self)
-
     def get_meshyface_profile_processing_settings(self) -> dict[str, object]:
         return _load_meshyface_profile_processing_settings_helper(self)
-
-    def set_bot_runtime_settings(self, settings: object) -> dict[str, object]:
-        return _save_bot_runtime_settings_helper(self, settings=settings)
 
     def set_meshyface_profile_processing_settings(self, enabled: object) -> dict[str, object]:
         return _save_meshyface_profile_processing_settings_helper(self, enabled=enabled)

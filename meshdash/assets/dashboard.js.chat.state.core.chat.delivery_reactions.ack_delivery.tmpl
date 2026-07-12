@@ -1,41 +1,3 @@
-    const pingReplyTemplateTokenRe = /\$(?:\{([a-zA-Z_][a-zA-Z0-9_]*)\}|([a-zA-Z_][a-zA-Z0-9_]*))/g;
-
-    function normalizePingReplyTemplate(value) {{
-      if (value == null) return "";
-      let clean = String(value).trim();
-      if (clean.length > 240) {{
-        clean = clean.slice(0, 240).trimEnd();
-      }}
-      clean = clean.replace(/\(\s*\$(?:\{distance\}|distance)\s*\)/gi, "");
-      clean = clean.replace(/\$(?:\{distance\}|distance)\b/gi, "");
-      clean = clean.replace(/\s{2,}/g, " ");
-      clean = clean.replace(/\s+([,.;:!?])/g, "$1");
-      clean = clean.trim();
-      return clean;
-    }}
-
-    function pingReplyFallbackNodeLabel(nodeId) {{
-      const cleanId = normalizeNodeId(nodeId || "");
-      if (!cleanId) return "unknown";
-      if (isCanonicalNodeId(cleanId)) {{
-        const suffix = cleanId.slice(-4);
-        return suffix || cleanId;
-      }}
-      return cleanId;
-    }}
-
-    function pingReplyNodeLabel(node, nodeId) {{
-      if (node && typeof node === "object") {{
-        const preferred = (typeof preferredNodeName === "function")
-          ? String(preferredNodeName(node) || "").trim()
-          : "";
-        if (preferred) {{
-          return preferred;
-        }}
-      }}
-      return pingReplyFallbackNodeLabel(nodeId);
-    }}
-
     function pingReplyNodeHops(node) {{
       if (!node || typeof node !== "object") return null;
       const hopKeys = ["hops_away", "hopsAway", "hops", "last_hops", "lastHops"];
@@ -58,54 +20,6 @@
       return pingReplyNodeHops(sourceNode);
     }}
 
-    function renderPingReplyTemplate(template, tokens = {{}}) {{
-      const cleanTemplate = normalizePingReplyTemplate(template);
-      if (!cleanTemplate) return "";
-      const hops = nonNegativeIntegerOrNull(tokens.hops);
-      const rawLocation = String(tokens.location || "").trim();
-      const locationParts = rawLocation
-        ? rawLocation.split(",").map((part) => String(part || "").trim()).filter(Boolean)
-        : [];
-      const cityValue = String(tokens.city || "").trim() || (locationParts[0] || "");
-      const stateValue = String(tokens.state || "").trim() || (locationParts[1] || "");
-      const tokenValues = {{
-        sender: String(tokens.sender || "").trim() || "unknown",
-        sender_id: String(tokens.sender_id || "").trim() || "unknown",
-        bot: String(tokens.bot || "").trim() || "unknown",
-        bot_id: String(tokens.bot_id || "").trim() || "unknown",
-        hops: hops == null ? "n/a" : String(hops),
-        hop_count: hops == null ? "n/a" : String(hops),
-        hop_label: String(tokens.hop_label || "").trim() || "hop count n/a",
-        location: rawLocation || "n/a",
-        city: cityValue || "n/a",
-        state: stateValue || "n/a",
-        distance: "",
-      }};
-      const protectedTemplate = cleanTemplate.replace(/\$\$/g, "\0");
-      const rendered = protectedTemplate.replace(
-        pingReplyTemplateTokenRe,
-        (match, bracedKey, plainKey) => {{
-          const key = String(bracedKey || plainKey || "").trim().toLowerCase();
-          if (Object.prototype.hasOwnProperty.call(tokenValues, key)) {{
-            return String(tokenValues[key] || "");
-          }}
-          return match;
-        }}
-      );
-      return rendered.replace(/\0/g, "$").trim();
-    }}
-
-    function locationPartsFromCityHint(value) {{
-      const clean = String(value || "").trim();
-      if (!clean) {{
-        return {{ city: "", state: "" }};
-      }}
-      const parts = clean.split(",").map((part) => String(part || "").trim()).filter(Boolean);
-      return {{
-        city: String(parts[0] || ""),
-        state: String(parts[1] || ""),
-      }};
-    }}
 
     async function buildPongStyleAckReplyText(options = null, state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
@@ -118,38 +32,17 @@
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
       const localNode = nodes.find((node) => normalizeNodeId(node && node.id) === localNodeId) || null;
       const localCoords = nodeCoordsFromStateEntry(localNode);
-      let botCityHint = "";
+      let cityHint = "";
       if (localCoords) {{
-        botCityHint = await nearestOfflineCityHintFromCoords(
+        cityHint = await nearestOfflineCityHintFromCoords(
           localCoords.lat,
           localCoords.lon,
-          botCityHintMaxDistanceKm
+          offlineCityHintMaxDistanceKm
         );
       }}
 
-      const pingResponseTemplate = normalizePingReplyTemplate(
-        serverBotSettings && serverBotSettings.ping_response_template
-      );
-      if (pingResponseTemplate) {{
-        const locationParts = locationPartsFromCityHint(botCityHint);
-        const rendered = renderPingReplyTemplate(pingResponseTemplate, {{
-          sender: pingReplyNodeLabel(sourceNode, sourceId),
-          sender_id: sourceId || "unknown",
-          bot: pingReplyNodeLabel(localNode, localNodeId),
-          bot_id: localNodeId || "unknown",
-          hops,
-          hop_label: hopText,
-          location: botCityHint,
-          city: locationParts.city,
-          state: locationParts.state,
-        }});
-        if (rendered) {{
-          return rendered;
-        }}
-      }}
-
-      if (botCityHint) {{
-        return `${{hopText}}, bot near ${{botCityHint}}.`;
+      if (cityHint) {{
+        return `${{hopText}}, near ${{cityHint}}.`;
       }}
       return `${{hopText}}.`;
     }}

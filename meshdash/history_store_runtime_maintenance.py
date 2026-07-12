@@ -96,17 +96,6 @@ def reset_history_store(store: HistoryStoreRuntimeState) -> int:
         setattr(store, "_last_local_telemetry_sample_unix", 0)
         setattr(store, "_custom_telemetry_rules", [])
         setattr(store, "_custom_telemetry_updated_unix", 0)
-        setattr(
-            store,
-            "_bot_runtime_settings",
-            {
-                "zork_enabled": False,
-                "ping_enabled": False,
-                "ping_message_only": False,
-            },
-        )
-        setattr(store, "_bot_runtime_settings_updated_unix", 0)
-
     # Refresh read connection snapshots to avoid stale WAL readers.
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is getattr(store, "_conn", None):

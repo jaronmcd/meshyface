@@ -196,25 +196,6 @@ def test_node_identity_helpers_cover_local_fallbacks() -> None:
     ) == "!0000007b"
 
 
-def test_bot_registry_deduplicates_normalized_app_names(monkeypatch) -> None:
-    import meshdash.bot_apps.registry as registry
-    from meshdash.bot_commands import BotCommandSpec
-
-    class App:
-        def __init__(self, name: str) -> None:
-            self.SPEC = BotCommandSpec(name=name, usage=name, description=name)
-
-    first = App("!Dup")
-    second = App("dup")
-    unnamed = App("")
-    external = App("DUP")
-
-    monkeypatch.setattr(registry, "build_internal_bot_apps", lambda: [first, second, unnamed])
-    monkeypatch.setattr(registry, "load_external_bot_apps", lambda *, env=None: [external])
-
-    assert registry.build_builtin_bot_apps(env={}) == [first]
-
-
 def test_tracker_helpers_cover_nan_hex_neighbor_and_storage_paths() -> None:
     from meshdash.tracker_edges import _to_metric_value
     from meshdash.tracker_ingest import _normalize_packet_node_id
@@ -266,7 +247,6 @@ def test_tracker_helpers_cover_nan_hex_neighbor_and_storage_paths() -> None:
         is_reaction=False,
         ack_requested=False,
         retry_of=None,
-        bot_command=None,
         recent_chat=[],
         history_store=None,
         build_tracker_local_entry_fn=lambda **kwargs: None,

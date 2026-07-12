@@ -22,7 +22,7 @@ def test_dashboard_js_keeps_layout_switches_in_app() -> None:
     assert "window.requestAnimationFrame(() => {" in switcher_block
 
 
-def test_dashboard_js_omits_removed_bbs_view_and_keeps_games_gated_by_default() -> None:
+def test_dashboard_js_omits_removed_bbs_and_bots_views() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -35,14 +35,13 @@ def test_dashboard_js_omits_removed_bbs_view_and_keeps_games_gated_by_default() 
     assert "bbsFeatureEnabled" not in js
     assert 'clean === "bbs"' not in js
     assert '"bbs"' not in known_layout_views
+    assert 'clean === "bots"' not in js
+    assert '"bots"' not in known_layout_views
     assert 'if (clean === "games") {' in js
-    assert 'if (clean === "bots" && gamesFeatureEnabled) {' in js
-    assert '|| (resolved === "bots" && gamesFeatureEnabled)' in js
-    assert '"bots"' in known_layout_views
 
 
 
-def test_dashboard_js_keeps_whois_quick_action_boot_helpers() -> None:
+def test_dashboard_js_keeps_whois_builder_and_remote_stage_without_bot_bindings() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -53,7 +52,10 @@ def test_dashboard_js_keeps_whois_quick_action_boot_helpers() -> None:
     assert "function nodeIdSuffixForWhois(nodeId)" in js
     assert "function buildWhoisCommandForNode(nodeId, prefixValue = chatWhoisQuickActionPrefix)" in js
     assert "function loadChatWhoisQuickActionConfig()" in js
-    assert "function bindChatWhoisQuickActionControls()" in js
+    assert "function bindChatWhoisQuickActionControls()" not in js
+    assert "chat-bot-" not in js
+    assert 'const stageWhoisBtn = document.getElementById("remote-stage-whois-btn");' in js
+    assert "stageRemoteChatCommand(nodeId, `whois ${nodeId}`, {" in js
 
 
 def test_dashboard_js_binds_games_picker_select() -> None:
@@ -85,9 +87,8 @@ def test_dashboard_js_keeps_supported_gated_apps_in_channel_routing() -> None:
     assert 'if (fileTransferFeatureEnabled) {' in routing_block
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
-    assert 'if (gamesFeatureEnabled) {' in routing_block
-    assert 'id: "bots"' in routing_block
-    assert 'label: "Bots"' in routing_block
+    assert 'id: "bots"' not in routing_block
+    assert 'label: "Bots"' not in routing_block
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
 
@@ -108,7 +109,7 @@ def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> Non
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
     assert 'if (token === "files" && fileTransferFeatureEnabled) return "files";' in js
-    assert 'if (token === "bots" && gamesFeatureEnabled) return "bots";' in js
+    assert 'if (token === "bots"' not in js
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
 

@@ -45,10 +45,6 @@ def make_http_handler(
         "set_meshyface_profile_processing_enabled_fn",
         None,
     )
-    set_zork_bot_enabled_fn = getattr(state_fn, "set_zork_bot_enabled_fn", None)
-    set_ping_bot_enabled_fn = getattr(state_fn, "set_ping_bot_enabled_fn", None)
-    set_ping_bot_message_only_fn = getattr(state_fn, "set_ping_bot_message_only_fn", None)
-    manage_zork_bot_fn = getattr(state_fn, "manage_zork_bot_fn", None)
     get_custom_telemetry_settings_fn = getattr(state_fn, "get_custom_telemetry_settings_fn", None)
     set_custom_telemetry_settings_fn = getattr(state_fn, "set_custom_telemetry_settings_fn", None)
     set_raw_packet_capture_settings_fn = getattr(state_fn, "set_raw_packet_capture_settings_fn", None)
@@ -92,10 +88,6 @@ def make_http_handler(
             )
         ),
         set_theme_preset_fn=set_theme_preset_fn,
-        set_zork_bot_enabled_fn=set_zork_bot_enabled_fn,
-        set_ping_bot_enabled_fn=set_ping_bot_enabled_fn,
-        set_ping_bot_message_only_fn=set_ping_bot_message_only_fn,
-        manage_zork_bot_fn=manage_zork_bot_fn,
         apply_radio_settings_fn=apply_radio_settings_fn,
         apply_channel_settings_fn=apply_channel_settings_fn,
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,

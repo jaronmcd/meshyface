@@ -265,7 +265,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "bots", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "macros", "chatlabs", "files", "games", "history", "network", "saved", "remote", "packets", "channels", "environment", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([
@@ -329,43 +329,6 @@
     const knownChatNotificationScopes = new Set(["all", "self"]);
     const knownWhoisCommandPrefixes = new Set(["whois", "!whois", "#whois"]);
     const gamesFeatureEnabled = !!Number({games_enabled});
-    const knownBotSingleWordCommands = new Set([
-      "cmd", "!cmd", "#cmd",
-      "help", "!help", "#help",
-      "whoami", "!whoami", "#whoami",
-      "lheard", "!lheard", "#lheard",
-      "joke", "!joke", "#joke",
-      "pull", "!pull", "#pull",
-      "zork", "!zork", "#zork",
-    ]);
-    const knownBotArgumentCommands = new Set([
-      "whois", "!whois", "#whois",
-      "whohas", "!whohas", "#whohas",
-      "ping", "!ping", "#ping",
-      "wx", "!wx", "#wx",
-    ]);
-    const botCommandAliasByName = new Map([
-      ["test", "ping"],
-    ]);
-    let defaultBotTrafficSnifferCommandHeads = [
-      "cmd",
-      "help",
-      "whoami",
-      "whois",
-      "whohas",
-      "ping",
-      "joke",
-      "pull",
-      "wx",
-      "lheard",
-      "zork",
-    ];
-    if (!gamesFeatureEnabled) {{
-      knownBotSingleWordCommands.delete("zork");
-      knownBotSingleWordCommands.delete("!zork");
-      knownBotSingleWordCommands.delete("#zork");
-      defaultBotTrafficSnifferCommandHeads = defaultBotTrafficSnifferCommandHeads.filter((head) => head !== "zork");
-    }}
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
@@ -474,7 +437,7 @@
     const fileTransferConsoleMaxEntries = 240;
     const fileTransferStalePendingClearSec = 15 * 60;
     const knownDeliveryStates = new Set(["pending", "sent", "acked", "nak", "timeout", "error"]);
-    const botCityHintMaxDistanceKm = 120;
+    const offlineCityHintMaxDistanceKm = 120;
     const requesterPositionMaxAgeSeconds = 24 * 3600;
     const reactionPopoverMaxNames = 12;
     const sortableTables = new Set(Object.keys(tableSortState));

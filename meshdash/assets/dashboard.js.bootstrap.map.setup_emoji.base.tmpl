@@ -381,8 +381,6 @@
     const savedNodeHistorySplitStorageKey = "meshDashboardSavedNodeMainPct";
     const historyActivitySplitStorageKey = "meshDashboardHistoryActivityTopPct";
     const historyChatSplitStorageKey = "meshDashboardHistoryChatMainPct";
-    const botsMainSplitStorageKey = "meshDashboardBotsMainPanePct";
-    const botsCommandSplitStorageKey = "meshDashboardBotsCommandListPct";
     const gamesSidebarSplitStorageKey = "meshDashboardGamesSidebarWidthPx";
     const gamesStatusSplitStorageKey = "meshDashboardGamesStatusWidthPx";
     const chatPanelSplitStorageKey = "meshDashboardChatPanelWidthPx";
@@ -398,10 +396,6 @@
     const chatWhoisQuickActionEnabledStorageKey = "meshDashboardWhoisQuickActionEnabledV1";
     const chatWhoisQuickActionPrefixStorageKey = "meshDashboardWhoisQuickActionPrefixV1";
     const chatWhoisQuickActionThreadReplyStorageKey = "meshDashboardWhoisQuickActionThreadReplyV1";
-    const chatBotCommandsEnabledStorageKey = "meshDashboardBotCommandsEnabledV1";
-    const chatBotHistoryEnabledStorageKey = "meshDashboardBotHistoryEnabledV1";
-    const botRequestLogStorageKey = "meshDashboardBotRequestLogV1";
-    const botTrafficSnifferCommandsStorageKey = "meshDashboardBotTrafficSnifferCommandsV1";
     const reversiStateStorageKey = "meshDashboardReversiStateV1";
     const chatChangeLogStorageKey = "meshDashboardChatChangeLogV1";
     const meshChannelIndexStorageKey = "meshDashboardMeshChannelIndexV1";
@@ -537,8 +531,6 @@
     const chatChangeNoticeMaxEntries = 120;
     const chatChangeNoticeMaxAgeSeconds = 6 * 60 * 60;
     const chatChangeSummaryMaxRows = 8;
-    const botRequestLogMaxEntries = 320;
-    const botRequestLogMaxAgeSeconds = 14 * 24 * 60 * 60;
     const chatChangeAutoDismissVisibleMs = 2200;
     const chatChangeAutoDismissFadeMs = 480;
     const chatChangeAutoDismissMinVisibleRatio = 0.68;
@@ -559,7 +551,6 @@
       {{ id: "wifi", defaultLabel: "Wi-Fi", metric: true }},
       {{ id: "node", defaultLabel: "Signal", metric: true }},
       {{ id: "links", defaultLabel: "Links", metric: true }},
-      {{ id: "bots", defaultLabel: "Bots", metric: false }},
       {{ id: "chat_channels", defaultLabel: "Chat Channels", metric: false }},
       {{ id: "chat_roster", defaultLabel: "Roster Health", metric: false }},
       {{ id: "gps", defaultLabel: "GPS", metric: false }},
@@ -578,7 +569,6 @@
       "channel_util",
       "node",
       "links",
-      "bots",
       "battery",
       "wifi",
       "gps",
@@ -604,7 +594,6 @@
       "channel_util",
       "node",
       "links",
-      "bots",
     ]) {{
       if (!tickerCatalogById.has(id)) continue;
       tickerDefaultEnabled[id] = true;

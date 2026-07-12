@@ -384,7 +384,7 @@ class ZorkGame:
 
     The transport shell remains generic, but the Zork game logic lives here.
     This implementation keeps the game isolated to the `meshdash/games/zork/`
-    folder and drives the live bot from the archived upstream map + object data.
+    folder and drives the live game from the archived upstream map + object data.
     """
 
     SPEC = BotCommandSpec(

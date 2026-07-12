@@ -324,18 +324,6 @@
         }});
       }}
 
-      const stagePingBtn = document.getElementById("remote-stage-ping-btn");
-      if (stagePingBtn instanceof HTMLButtonElement && stagePingBtn.dataset.bound !== "1") {{
-        stagePingBtn.dataset.bound = "1";
-        stagePingBtn.addEventListener("click", () => {{
-          const nodeId = remoteViewSelectedNodeId();
-          stageRemoteChatCommand(nodeId, "ping", {{
-            direct: true,
-            statusText: "Staged direct ping in the message popup. Press Enter to send.",
-          }});
-        }});
-      }}
-
       const stageWhoisBtn = document.getElementById("remote-stage-whois-btn");
       if (stageWhoisBtn instanceof HTMLButtonElement && stageWhoisBtn.dataset.bound !== "1") {{
         stageWhoisBtn.dataset.bound = "1";
@@ -469,7 +457,6 @@
       for (const buttonId of [
         "remote-open-node-btn",
         "remote-open-direct-chat-btn",
-        "remote-stage-ping-btn",
         "remote-stage-whois-btn",
       ]) {{
         const button = document.getElementById(buttonId);

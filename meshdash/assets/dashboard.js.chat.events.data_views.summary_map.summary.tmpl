@@ -735,7 +735,7 @@
           const place = await nearestOfflineCityHintFromCoords(
             Number(location.lat),
             Number(location.lon),
-            botCityHintMaxDistanceKm
+            offlineCityHintMaxDistanceKm
           );
           label = formatSelfNodeNearestCityLabel(place, location);
         }} catch (_err) {{
@@ -1377,9 +1377,6 @@
         if (linksMetricTicker instanceof HTMLElement) {{
           linksMetricTicker.hidden = true;
         }}
-      }}
-      if (typeof renderBotTickerSummary === "function") {{
-        renderBotTickerSummary(state);
       }}
       const chatChannelsTickerEl = document.getElementById("m-chat-channels");
       if (chatChannelsTickerEl instanceof HTMLElement) {{

@@ -274,13 +274,6 @@
           description: "Chunked direct-message file transfer traffic",
         }});
       }}
-      if (gamesFeatureEnabled) {{
-        rows.push({{
-          id: "bots",
-          label: "Bots",
-          description: "Managed bot command and reply traffic",
-        }});
-      }}
       rows.push({{
         id: "games",
         label: "Games",
@@ -293,7 +286,6 @@
       const token = String(rawAppId == null ? "" : rawAppId).trim().toLowerCase();
       if (token === "profiles") return "profiles";
       if (token === "files" && fileTransferFeatureEnabled) return "files";
-      if (token === "bots" && gamesFeatureEnabled) return "bots";
       if (token === "games") return "games";
       return "";
     }}
@@ -310,9 +302,6 @@
         profiles: {{ mode: "global", channel_index: sendIndex }},
         games: {{ mode: "global", channel_index: sendIndex }},
       }};
-      if (gamesFeatureEnabled) {{
-        defaults.bots = {{ mode: "global", channel_index: sendIndex }};
-      }}
       if (fileTransferFeatureEnabled) {{
         defaults.files = {{ mode: "global", channel_index: sendIndex }};
       }}

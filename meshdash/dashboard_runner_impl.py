@@ -889,17 +889,6 @@ def run_dashboard_runtime(
                     close_file_transfer()
                 except Exception:
                     pass
-            for bot_service_name in ("_ping_bot_service", "_zork_bot_service"):
-                close_bot = getattr(
-                    getattr(context.tracker, bot_service_name, None),
-                    "close",
-                    None,
-                )
-                if callable(close_bot):
-                    try:
-                        close_bot()
-                    except Exception:
-                        pass
             close_runtime_resources(
                 server=server,
                 iface=context.iface,

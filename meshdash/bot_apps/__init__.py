@@ -1,3 +1,3 @@
-from .base import BotApp, BotAppResult
+from .base import BotAppResult
 
-__all__ = ["BotApp", "BotAppResult"]
+__all__ = ["BotAppResult"]

@@ -1,14 +1,12 @@
 import io
 from types import SimpleNamespace
 
-from meshdash.api_bots import handle_zork_bot_toggle_post
 from meshdash.api_channels import handle_channel_settings_post
 from meshdash.api_chat import handle_chat_send_post
 from meshdash.api_custom_telemetry import (
     handle_custom_telemetry_settings_get,
     handle_custom_telemetry_settings_post,
 )
-from meshdash.api_input_bots import parse_zork_bot_toggle_request
 from meshdash.api_input_chat import (
     parse_chat_send_body,
     parse_chat_send_request,
@@ -51,153 +49,6 @@ def _writer(calls: list[dict[str, object]]):
         )
 
     return _write
-
-
-def test_zork_bot_toggle_handler_covers_runtime_actions_and_response_shapes() -> None:
-    calls: list[dict[str, object]] = []
-    actions: list[object] = []
-
-    def _call(
-        request: object | None,
-        *,
-        default_command: str = "zork",
-        set_zork_bot_enabled_fn=lambda enabled: actions.append(("zork", enabled)) or True,
-        set_ping_bot_enabled_fn=lambda enabled: actions.append(("ping", enabled)) or {"changed": enabled},
-        set_ping_bot_message_only_fn=lambda message_only: actions.append(("mode", message_only)) or {"ok": True},
-        manage_zork_bot_fn=lambda action, *, peer_id=None: actions.append((action, peer_id)) or {"ok": True},
-        validate_content_length_fn=_validate_content_length,
-    ) -> None:
-        parse_fn = None if request is None else lambda raw: request
-        handle_zork_bot_toggle_post(
-            _Handler(b"bot"),
-            set_zork_bot_enabled_fn=set_zork_bot_enabled_fn,
-            set_ping_bot_enabled_fn=set_ping_bot_enabled_fn,
-            set_ping_bot_message_only_fn=set_ping_bot_message_only_fn,
-            manage_zork_bot_fn=manage_zork_bot_fn,
-            default_command=default_command,
-            to_int_fn=to_int,
-            validate_content_length_fn=validate_content_length_fn,
-            parse_zork_bot_toggle_request_fn=parse_fn,
-            write_json_response_fn=_writer(calls),
-        )
-
-    _call(None)
-    _call(
-        SimpleNamespace(action="enable"),
-        validate_content_length_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad length")),
-    )
-    handle_zork_bot_toggle_post(
-        _Handler(b"bot"),
-        set_zork_bot_enabled_fn=lambda enabled: {"ok": True},
-        set_ping_bot_enabled_fn=lambda enabled: {"ok": True},
-        set_ping_bot_message_only_fn=lambda message_only: {"ok": True},
-        manage_zork_bot_fn=lambda action, *, peer_id=None: {"ok": True},
-        default_command="zork",
-        to_int_fn=to_int,
-        validate_content_length_fn=_validate_content_length,
-        parse_zork_bot_toggle_request_fn=lambda raw: (_ for _ in ()).throw(ValueError("bad bot json")),
-        write_json_response_fn=_writer(calls),
-    )
-    _call(SimpleNamespace(action="", command="ping", message_only=True))
-    _call(SimpleNamespace(action="enable", command="", message_only=None), default_command="ping")
-    _call(SimpleNamespace(action="disable", command="zork", message_only=None))
-    _call(
-        SimpleNamespace(action="enable", command="ping", message_only=False),
-        set_ping_bot_message_only_fn=lambda message_only: actions.append(("mode-denied", message_only))
-        or {"ok": False, "error": "mode denied"},
-    )
-    _call(SimpleNamespace(action="clear_sessions", command="zork", peer_id="!node"))
-    _call(SimpleNamespace(action="end_session", command="ping", peer_id="!node"))
-    _call(
-        SimpleNamespace(action="end_session", command="zork", peer_id="!node"),
-        manage_zork_bot_fn=None,
-    )
-    _call(
-        SimpleNamespace(action="enable", command="ping"),
-        set_ping_bot_enabled_fn=None,
-    )
-    _call(
-        SimpleNamespace(action="configure", command="ping", message_only=True),
-        set_ping_bot_message_only_fn=None,
-    )
-    _call(
-        SimpleNamespace(action="enable", command="ping", message_only=True),
-        set_ping_bot_message_only_fn=None,
-    )
-    _call(SimpleNamespace(action="dance", command="zork"))
-    _call(
-        SimpleNamespace(action="enable", command="zork"),
-        set_zork_bot_enabled_fn=lambda enabled: (_ for _ in ()).throw(RuntimeError("runtime blew up")),
-    )
-
-    assert [call["status"] for call in calls] == [
-        503,
-        400,
-        400,
-        200,
-        200,
-        200,
-        400,
-        200,
-        400,
-        400,
-        400,
-        400,
-        400,
-        400,
-        500,
-    ]
-    assert actions[:6] == [
-        ("mode", True),
-        ("ping", True),
-        ("zork", False),
-        ("ping", True),
-        ("mode-denied", False),
-        ("clear_sessions", "!node"),
-    ]
-    assert calls[4]["payload"] == {"changed": True, "ok": True}
-    assert calls[5]["payload"] == {"ok": True}
-    assert calls[8]["payload"]["error"] == "Session management is only available for zork"  # type: ignore[index]
-    assert calls[14]["payload"]["error"] == "Zork bot update failed: runtime blew up"  # type: ignore[index]
-
-
-def test_bot_input_parser_normalizes_nested_payloads_and_bad_json() -> None:
-    enabled = parse_zork_bot_toggle_request(
-        b'{"settings":{"enabled":"yes","command":"ping","messageOnly":"off","peerId":"!peer"}}'
-    )
-    disabled = parse_zork_bot_toggle_request(b'{"enabled":0,"message_only":1}')
-    text_disabled = parse_zork_bot_toggle_request(
-        b'{"enabled":"disabled","messageOnly":"enabled"}'
-    )
-    bad_bot = parse_zork_bot_toggle_request(b"{bad json")
-
-    assert enabled.enabled is True
-    assert enabled.action == "enable"
-    assert enabled.command == "ping"
-    assert enabled.message_only is False
-    assert enabled.peer_id == "!peer"
-    assert disabled.enabled is False
-    assert disabled.action == "disable"
-    assert disabled.message_only is True
-    assert text_disabled.enabled is False
-    assert text_disabled.message_only is True
-    assert bad_bot.enabled is None
-    assert bad_bot.action == ""
-
-
-
-def test_zork_bot_input_parser_rejects_bad_boolean_values() -> None:
-    for raw_body, expected in [
-        (b'{"enabled":null}', "enabled is required"),
-        (b'{"enabled":"maybe"}', "enabled must be boolean"),
-        (b'{"message_only":"maybe"}', "message_only must be boolean"),
-    ]:
-        try:
-            parse_zork_bot_toggle_request(raw_body)
-        except ValueError as exc:
-            assert str(exc) == expected
-        else:
-            raise AssertionError(f"{raw_body!r} should have failed")
 
 
 def test_chat_custom_telemetry_and_standalone_zork_input_parsers() -> None:

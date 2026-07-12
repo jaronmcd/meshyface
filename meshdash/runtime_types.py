@@ -148,7 +148,6 @@ class RecordLocalChatFn(Protocol):
         is_reaction: bool = False,
         ack_requested: bool = False,
         retry_of: Optional[int] = None,
-        bot_command: Optional[str] = None,
     ) -> None:
         ...
 

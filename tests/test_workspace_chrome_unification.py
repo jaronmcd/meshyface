@@ -28,8 +28,8 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'class="topbar-view-menu-item topbar-view-menu-item-has-submenu"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
-    assert 'data-app-view="bots"' in html
-    assert 'class="card bots"' in html
+    assert 'data-app-view="bots"' not in html
+    assert 'class="card bots"' not in html
     assert 'data-app-view="bbs"' not in html
     assert 'class="settings-chrome workspace-chrome-bar workspace-stack-head-shell"' in html
     assert 'class="settings-toolbar workspace-chrome-row"' in html
@@ -186,7 +186,7 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'data-app-view="games"' in html
-    assert 'data-app-view="bots"' in html
+    assert 'data-app-view="bots"' not in html
     assert 'data-app-view="files"' in html
     assert 'data-app-view="bbs"' not in html
     assert 'id="apps-tabs-bar"' not in html

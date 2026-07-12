@@ -846,35 +846,6 @@
       --self-node-single-watermark-size: var(--self-node-watermark-size);
       --self-node-watermark-single-x: var(--self-node-watermark-local-x);
     }}
-    .topbar .summary-ticker-item-bots.has-active-bot-sessions,
-    .topbar .summary-ticker-item-bots.has-pending-bot-activity {{
-      border-color: transparent;
-      background:
-        linear-gradient(var(--panel), var(--panel)) padding-box,
-        conic-gradient(
-          from 150deg,
-          color-mix(in srgb, var(--accent) 78%, white 22%),
-          color-mix(in srgb, var(--accent-2) 72%, white 28%),
-          color-mix(in srgb, #73b7ff 78%, white 22%),
-          color-mix(in srgb, var(--accent) 78%, white 22%)
-        ) border-box;
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
-        0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
-    }}
-    .topbar .summary-ticker-item-bots.has-active-bot-sessions::before,
-    .topbar .summary-ticker-item-bots.has-pending-bot-activity::before {{
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background:
-        radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 24%, transparent) 0, transparent 46%),
-        linear-gradient(105deg, transparent 0, color-mix(in srgb, var(--accent-2) 12%, transparent) 42%, transparent 78%);
-      opacity: 0.82;
-      pointer-events: none;
-      z-index: 0;
-    }}
     .topbar .summary-ticker-item-self.has-node-emoji::after {{
       content: attr(data-node-emoji);
       position: absolute;
@@ -928,9 +899,7 @@
       left: var(--self-node-watermark-selected-x);
     }}
     .topbar .summary-ticker-item-self > .label,
-    .topbar .summary-ticker-item-self > .value,
-    .topbar .summary-ticker-item-bots > .label,
-    .topbar .summary-ticker-item-bots > .value {{
+    .topbar .summary-ticker-item-self > .value {{
       position: relative;
       z-index: 1;
     }}
@@ -1642,10 +1611,6 @@
     .topbar.ticker-expanded.ticker-wrap-balanced .summary-ticker-item.is-expanded-plot-zoom {{
       flex-basis: min(480px, 100%);
     }}
-    .topbar.ticker-expanded .summary-ticker-item-bots {{
-      flex-grow: 0;
-      flex-basis: min(300px, 100%);
-    }}
     .topbar.ticker-expanded .summary-ticker-item-self,
     .topbar.ticker-expanded .summary-ticker-item-radio {{
       grid-column: span 1;
@@ -1733,25 +1698,6 @@
     }}
     .topbar.ticker-expanded .summary-ticker-item .value.node-ticker-value .node-ticker-val {{
       font-size: 14px;
-    }}
-    .topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value {{
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      column-gap: 12px;
-      row-gap: 2px;
-      align-items: start;
-      font-size: 12px;
-      line-height: 1.15;
-    }}
-    .topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value .bot-ticker-row {{
-      min-width: 0;
-      gap: 4px;
-    }}
-    .topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value .node-ticker-key {{
-      font-size: 9px;
-    }}
-    .topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value .node-ticker-val {{
-      font-size: 12px;
     }}
     .topbar.ticker-expanded .summary-ticker-item-self .value.self-node-value,
     .topbar.ticker-expanded .summary-ticker-item-radio .value.radio-ticker-value {{
@@ -2388,7 +2334,6 @@
       grid-row: 2;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main,
-    .workspace-shell[data-layout-view="bots"] .workspace-main,
     .workspace-shell[data-layout-view="files"] .workspace-main {{
       gap: 8px;
       grid-template-columns: minmax(0, 1fr);
@@ -2396,7 +2341,6 @@
       align-items: stretch;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
-    .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
     .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files {{
       grid-column: 1;
       grid-row: 1;
@@ -2408,12 +2352,10 @@
     }}
     @media (max-width: 1180px) {{
       .workspace-shell[data-layout-view="games"] .workspace-main,
-      .workspace-shell[data-layout-view="bots"] .workspace-main,
       .workspace-shell[data-layout-view="files"] .workspace-main {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
-      .workspace-shell[data-layout-view="bots"] .workspace-main > .layout.view-bots,
       .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files {{
         grid-column: 1;
       }}
@@ -3283,8 +3225,6 @@
       --saved-node-main-pct: 56%;
       --history-activity-top-pct: 50%;
       --history-chat-main-pct: 72%;
-      --bots-pane-left-pct: 50%;
-      --bots-command-list-pct: 50%;
       display: grid;
       gap: 8px;
       padding: 0;
@@ -8437,13 +8377,6 @@
       flex-direction: column;
       min-height: 0;
     }}
-    .bots {{
-      grid-column: 1 / span 3;
-      grid-row: 2 / 9;
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
     .games {{
       grid-column: 1 / span 3;
       grid-row: 2 / 9;
@@ -10712,13 +10645,6 @@
         grid-template-columns: 1fr;
       }}
     }}
-    .bots .body {{
-      flex: 1 1 auto;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      padding: 10px;
-    }}
     .games .body {{
       flex: 1 1 auto;
       min-height: 0;
@@ -11682,123 +11608,3 @@
         font-size: clamp(10px, 2.8cqi, 16px);
       }}
     }}
-    .bots-grid {{
-      display: grid;
-      grid-template-columns: minmax(260px, var(--bots-pane-left-pct)) var(--splitter-size) minmax(0, 1fr);
-      gap: 0;
-      height: 100%;
-      min-height: 0;
-      flex: 1 1 auto;
-      align-items: stretch;
-      overflow: hidden;
-    }}
-    .bots-main-splitter {{
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(180deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      min-width: 6px;
-      margin: 0 8px;
-    }}
-    .bots-main-splitter::before {{
-      content: "";
-      position: absolute;
-      top: 8px;
-      bottom: 8px;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .bots-main-splitter:hover::before,
-    .bots-main-splitter.active::before {{
-      background: var(--accent);
-    }}
-    .bots-sidebar-stack {{
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .bots-panel {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      background: var(--surface-tint-bg-soft);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      padding: 10px;
-    }}
-    .bots-commands-panel {{
-      flex: 1 1 auto;
-      overflow: hidden;
-    }}
-    .bots-assistant-panel {{
-      flex: 0 0 auto;
-    }}
-    .bots-panel h3 {{
-      margin: 0;
-      font-size: 12px;
-      color: #204231;
-      letter-spacing: 0.35px;
-      text-transform: uppercase;
-    }}
-    .bots .chat-change-scope-wrap {{
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 6px;
-      color: var(--surface-tint-text-soft);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.2px;
-      text-transform: uppercase;
-    }}
-    .bots .chat-change-scope-select {{
-      width: 100%;
-      min-width: 0;
-    }}
-    .bots .chat-bot-toggle-wrap {{
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 12px;
-      line-height: 1.25;
-      color: #274935;
-      cursor: pointer;
-      user-select: none;
-    }}
-    .bots .chat-bot-toggle-wrap[hidden] {{
-      display: none !important;
-    }}
-    .bots .chat-bot-toggle-wrap.bots-master-toggle {{
-      border: 1px solid #c98d8d;
-      border-radius: 8px;
-      background: #fff3f3;
-      color: #742727;
-      padding: 7px 8px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots .chat-bot-toggle-wrap input[type="checkbox"] {{
-      width: 14px;
-      height: 14px;
-      margin: 0;
-      accent-color: var(--accent);
-      cursor: pointer;
-      flex: 0 0 auto;
-    }}
-    .bots-setting-note {{
-      font-size: 10px;
-      line-height: 1.35;
-      color: var(--surface-tint-text-soft);
-    }}
-    .bots-setting-note code {{

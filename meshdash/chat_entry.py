@@ -18,7 +18,6 @@ def build_local_chat_entry(
     is_reaction: bool = False,
     ack_requested: bool = False,
     retry_of: object = None,
-    bot_command: object = None,
     now_text: str,
     now_unix: int,
     to_int_fn: ToIntFn = to_int,
@@ -79,7 +78,4 @@ def build_local_chat_entry(
     clean_retry_of = to_int_fn(retry_of)
     if clean_retry_of is not None and clean_retry_of > 0:
         entry["retry_of"] = clean_retry_of
-    clean_bot_command = str(bot_command or "").strip().lower()
-    if clean_bot_command:
-        entry["bot_command"] = clean_bot_command
     return entry

@@ -7,7 +7,6 @@ from .history_env_metrics import (
 from .history_store_runtime_contracts import HistoryStoreReadState, HistoryStoreWriteState
 
 _CUSTOM_TELEMETRY_RULES_KEY = "custom_telemetry_rules_v1"
-_BOT_RUNTIME_SETTINGS_KEY = "bot_runtime_settings_v1"
 _MESHYFACE_PROFILE_PROCESSING_SETTINGS_KEY = "meshyface_profile_processing_settings_v1"
 
 
@@ -24,43 +23,6 @@ def _coerce_bool(value: object, *, fallback: bool = False) -> bool:
     if text in {"0", "false", "no", "off", "disabled", "offline"}:
         return False
     return bool(fallback)
-
-
-def _default_bot_runtime_settings() -> dict[str, object]:
-    return {
-        "zork_enabled": False,
-        "ping_enabled": False,
-        "ping_message_only": False,
-    }
-
-
-def _normalize_bot_runtime_settings(
-    payload: object,
-    *,
-    previous: object = None,
-) -> dict[str, object]:
-    source = payload if isinstance(payload, dict) else {}
-    previous_source = previous if isinstance(previous, dict) else {}
-    zork_enabled_raw = source.get("zork_enabled", source.get("zorkEnabled"))
-    ping_enabled_raw = source.get("ping_enabled", source.get("pingEnabled"))
-    ping_message_only_raw = source.get(
-        "ping_message_only",
-        source.get("pingMessageOnly"),
-    )
-    return {
-        "zork_enabled": _coerce_bool(
-            zork_enabled_raw,
-            fallback=_coerce_bool(previous_source.get("zork_enabled"), fallback=False),
-        ),
-        "ping_enabled": _coerce_bool(
-            ping_enabled_raw,
-            fallback=_coerce_bool(previous_source.get("ping_enabled"), fallback=False),
-        ),
-        "ping_message_only": _coerce_bool(
-            ping_message_only_raw,
-            fallback=_coerce_bool(previous_source.get("ping_message_only"), fallback=False),
-        ),
-    }
 
 
 def _load_custom_telemetry_rules_unlocked(
@@ -96,39 +58,6 @@ def load_custom_telemetry_settings(
     return {
         "ok": True,
         "rules": rules,
-        "updated_unix": int(updated_unix),
-    }
-
-
-def load_bot_runtime_settings(
-    store: HistoryStoreReadState,
-) -> dict[str, object]:
-    default_settings = _default_bot_runtime_settings()
-    with store._lock:
-        row = store._conn.execute(
-            """
-            SELECT value_json, updated_unix
-            FROM dashboard_settings
-            WHERE key = ?
-            """,
-            (_BOT_RUNTIME_SETTINGS_KEY,),
-        ).fetchone()
-        if not row:
-            settings = default_settings
-            updated_unix = 0
-        else:
-            value_json = row[0] if len(row) > 0 else "{}"
-            updated_unix = int(row[1] if len(row) > 1 and row[1] is not None else 0)
-            try:
-                parsed = json.loads(str(value_json or "{}"))
-            except Exception:
-                parsed = {}
-            settings = _normalize_bot_runtime_settings(parsed)
-        setattr(store, "_bot_runtime_settings", dict(settings))
-        setattr(store, "_bot_runtime_settings_updated_unix", int(updated_unix))
-    return {
-        "ok": True,
-        "settings": settings,
         "updated_unix": int(updated_unix),
     }
 
@@ -199,64 +128,6 @@ def save_custom_telemetry_settings(
     return {
         "ok": True,
         "rules": normalized_rules,
-        "updated_unix": int(updated_unix),
-    }
-
-
-def save_bot_runtime_settings(
-    store: HistoryStoreWriteState,
-    *,
-    settings: object,
-) -> dict[str, object]:
-    payload = settings
-    if (
-        hasattr(payload, "zork_enabled")
-        or hasattr(payload, "ping_enabled")
-        or hasattr(payload, "ping_message_only")
-    ):
-        payload = {
-            "zork_enabled": getattr(payload, "zork_enabled", None),
-            "ping_enabled": getattr(payload, "ping_enabled", None),
-            "ping_message_only": getattr(payload, "ping_message_only", None),
-        }
-    if isinstance(payload, dict) and "settings" in payload and isinstance(payload.get("settings"), dict):
-        payload = payload.get("settings")
-    updated_unix = int(time.time())
-    with store._lock:
-        existing_row = store._conn.execute(
-            """
-            SELECT value_json
-            FROM dashboard_settings
-            WHERE key = ?
-            """,
-            (_BOT_RUNTIME_SETTINGS_KEY,),
-        ).fetchone()
-        try:
-            existing_parsed = json.loads(str(existing_row[0] or "{}")) if existing_row else {}
-        except Exception:
-            existing_parsed = {}
-        previous_settings = _normalize_bot_runtime_settings(existing_parsed)
-        normalized_settings = _normalize_bot_runtime_settings(
-            payload,
-            previous=previous_settings,
-        )
-        value_json = json.dumps(normalized_settings, separators=(",", ":"))
-        store._conn.execute(
-            """
-            INSERT INTO dashboard_settings(key, value_json, updated_unix)
-            VALUES(?, ?, ?)
-            ON CONFLICT(key) DO UPDATE
-            SET value_json = excluded.value_json,
-                updated_unix = excluded.updated_unix
-            """,
-            (_BOT_RUNTIME_SETTINGS_KEY, value_json, updated_unix),
-        )
-        setattr(store, "_bot_runtime_settings", dict(normalized_settings))
-        setattr(store, "_bot_runtime_settings_updated_unix", int(updated_unix))
-        store._conn.commit()
-    return {
-        "ok": True,
-        "settings": normalized_settings,
         "updated_unix": int(updated_unix),
     }
 

@@ -44,8 +44,8 @@ Options:
   --dash-port <port>       Dashboard bind port (default: 8877).
   --refresh-ms <ms>        Poll interval in ms (default: 3000).
   --history-db <path>      History DB path on target host.
-  --games-enable           Enable playable game bots and console support in dashboard.env.
-  --no-games-enable        Disable playable game bots and console support in dashboard.env.
+  --games-enable           Enable local games and standalone console support in dashboard.env.
+  --no-games-enable        Disable local games and standalone console support in dashboard.env.
   --file-transfer-enable   Enable file transfer in dashboard.env (requires disclaimer).
   --no-file-transfer-enable Disable file transfer in dashboard.env.
   --file-transfer-auto-accept

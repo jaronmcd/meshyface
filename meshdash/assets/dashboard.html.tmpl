@@ -155,10 +155,6 @@
             <svg class="metric-ticker-chart" id="ticker-chart-links" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
         </div>
-        <div class="summary-ticker-item summary-ticker-item-bots" id="summary-ticker-bots" data-ticker-id="bots">
-          <div class="label" data-ticker-label>Bots</div>
-          <div class="value node-ticker-value bot-ticker-value" id="m-bots-ticker">n/a</div>
-        </div>
         <div class="summary-ticker-item" id="summary-ticker-chat-channels" data-ticker-id="chat_channels">
           <div class="label" data-ticker-label>Chat Channels</div>
           <div class="value node-ticker-value" id="m-chat-channels">n/a</div>
@@ -311,25 +307,6 @@
                     <span class="topbar-view-submenu-item-copy">
                       <span class="topbar-view-submenu-item-label">Games</span>
                       <span class="topbar-view-submenu-item-meta">Boards and matches</span>
-                    </span>
-                  </button>
-                  <button
-                    class="topbar-view-submenu-item"
-                    data-view="bots"
-                    data-app-view="bots"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked="false"
-                    title="Bots workspace"
-                    {bots_app_tab_hidden_attrs}
-                  >
-                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BT</span>
-                    <span class="topbar-view-submenu-item-copy">
-                      <span class="topbar-view-submenu-item-label-row">
-                        <span class="topbar-view-submenu-item-label">Bots</span>
-                        <span class="topbar-view-submenu-item-beta">BETA</span>
-                      </span>
-                      <span class="topbar-view-submenu-item-meta">Automation and commands</span>
                     </span>
                   </button>
                   <button
@@ -3032,98 +3009,6 @@
       </div>
     </section>
 
-    <section class="card bots" aria-label="Bots"{bots_section_hidden_attrs}>
-      <div class="body">
-        <div class="bots-grid">
-          <div class="bots-sidebar-stack">
-            <div class="bots-panel bots-commands-panel">
-              <h3>Bot Catalog</h3>
-              <div class="bots-setting-note">Available bot apps are shown here. Runtime replies only run while a bot is enabled.</div>
-              <div class="bots-command-list" role="listbox" aria-label="Bot catalog">
-                <button id="bots-zork-command-item" class="bots-command-item is-active {bots_zork_state_class}" type="button" role="option" aria-selected="true" data-bot-command="zork">
-                  <span class="bots-command-item-order">01</span>
-                  <span class="bots-command-copy">
-                    <span class="bots-command-heading">
-                      <span class="bots-command-usage">zork</span>
-                      <span class="bots-command-kind">game</span>
-                    </span>
-                    <span class="bots-command-description">Playable direct-message Zork bot.</span>
-                  </span>
-                  <span id="bots-zork-list-state" class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
-                </button>
-                <button id="bots-ping-command-item" class="bots-command-item {bots_ping_state_class}" type="button" role="option" aria-selected="false" data-bot-command="ping">
-                  <span class="bots-command-item-order">02</span>
-                  <span class="bots-command-copy">
-                    <span class="bots-command-heading">
-                      <span class="bots-command-usage">ping</span>
-                      <span class="bots-command-kind">utility</span>
-                    </span>
-                    <span class="bots-command-description">Mesh ping/test auto-reply with hop count.</span>
-                  </span>
-                  <span id="bots-ping-list-state" class="bots-command-state {bots_ping_state_class}">{bots_ping_state_label}</span>
-                </button>
-              </div>
-            </div>
-            <div class="bots-panel bots-assistant-panel">
-              <h3>Expansion</h3>
-              <div class="bots-setting-note">New internal or plugin bot apps can join this catalog without becoming top-level app tabs.</div>
-            </div>
-          </div>
-          <div id="bots-main-splitter" class="bots-main-splitter" title="Drag to resize bot list and bot details"></div>
-          <div class="bots-panel bots-history-panel">
-            <div class="bots-history-head">
-              <div class="bots-review-head-copy">
-                <h3 id="bots-detail-title">Zork</h3>
-                <div id="bots-detail-command-note" class="bots-setting-note">Command: <code>zork</code></div>
-              </div>
-            </div>
-            <div class="bots-command-config">
-              <div class="bots-command-config-head">
-                <div class="bots-command-config-title-row">
-                  <span id="bots-detail-usage" class="bots-command-config-usage">zork</span>
-                  <span class="bots-command-kind">game</span>
-                  <span id="bots-zork-detail-state" class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
-                </div>
-                <div id="bots-detail-name" class="bots-command-config-name">Playable Zork Bot</div>
-                <div id="bots-zork-description" class="bots-command-config-description">{bots_zork_hint}</div>
-              </div>
-              <div id="bots-zork-routing-note" class="bots-setting-note">Public chat <code>zork</code> starts a private session. Gameplay commands stay in direct messages.</div>
-              <div class="bots-command-config-actions bots-zork-actions">
-                <button id="bots-zork-enable-btn" class="btn btn-secondary" type="button">Enable</button>
-                <button id="bots-zork-disable-btn" class="btn btn-secondary" type="button">Disable</button>
-                <span id="bots-zork-toggle-status" class="bots-setting-note" aria-live="polite"></span>
-              </div>
-              <div id="bots-ping-mode-row" class="bots-setting-note" hidden>
-                <label class="chat-bot-toggle-wrap">
-                  <input id="bots-ping-message-only-checkbox" type="checkbox" />
-                  <span>Message only (direct chats)</span>
-                </label>
-              </div>
-              <div class="bots-command-config-section bots-zork-sessions-section">
-                <div class="bots-command-config-title-row">
-                  <div class="bots-command-config-label">Sessions</div>
-                  <button id="bots-zork-clear-sessions-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Clear All</button>
-                </div>
-                <div id="bots-zork-session-list" class="bots-session-list" aria-live="polite">
-                  <div class="bots-history-empty">No active Zork sessions.</div>
-                </div>
-              </div>
-              <div class="bots-command-config-section bots-zork-activity-section">
-                <div class="bots-command-config-title-row">
-                  <div class="bots-command-config-label">Activity</div>
-                  <button id="bots-zork-reset-activity-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Reset</button>
-                </div>
-                <div id="bots-zork-activity-stats" class="bots-history-stats"></div>
-                <div id="bots-zork-activity-list" class="bots-history-list" aria-live="polite">
-                  <div class="bots-history-empty">No Zork activity in the current chat window yet.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="card remote" aria-label="Remote node operations">
       <h2>Remote</h2>
       <div class="body">
@@ -3157,7 +3042,6 @@
               <div class="remote-action-row">
                 <button id="remote-open-node-btn" class="btn btn-secondary" type="button">Open Node Details</button>
                 <button id="remote-open-direct-chat-btn" class="btn btn-secondary" type="button">Open Message Popup</button>
-                <button id="remote-stage-ping-btn" class="btn" type="button">Stage Ping</button>
                 <button id="remote-stage-whois-btn" class="btn btn-secondary" type="button">Stage Whois</button>
               </div>
               <div id="remote-action-status" class="remote-action-status">Select a node to start exploring remote actions.</div>

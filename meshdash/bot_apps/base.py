@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Protocol
-
-from ..bot_commands import BotCommandSpec
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -12,29 +10,4 @@ class BotAppResult:
     command_args: tuple[str, ...] = field(default_factory=tuple)
 
 
-class BotApp(Protocol):
-    SPEC: BotCommandSpec
-
-    def active_session_count(self) -> int: ...
-
-    def session_summaries(self, now_unix: int | None = None) -> list[dict[str, object]]: ...
-
-    def has_active_session(self, from_id: str) -> bool: ...
-
-    def end_session(self, from_id: str) -> bool: ...
-
-    def clear_sessions(self) -> None: ...
-
-    def try_handle_message(
-        self,
-        *,
-        text: str,
-        from_id: str,
-        to_id: str,
-        local_node_id: str,
-        now_unix: int,
-        enabled: bool,
-    ) -> BotAppResult: ...
-
-
-__all__ = ["BotApp", "BotAppResult"]
+__all__ = ["BotAppResult"]

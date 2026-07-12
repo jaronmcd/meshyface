@@ -63,7 +63,7 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
     return build_dashboard_parser(**kwargs)
 
 
-def test_render_html_omits_bbs_workspace_and_hides_games_by_default() -> None:
+def test_render_html_omits_removed_bbs_and_bots_workspaces() -> None:
     html = _render_html()
 
     assert "bbsFeatureEnabled" not in html
@@ -72,12 +72,12 @@ def test_render_html_omits_bbs_workspace_and_hides_games_by_default() -> None:
     assert "/api/settings/bbs" not in html
     assert "/api/bbs/host" not in html
     assert 'const gamesFeatureEnabled = !!Number(0);' in html
-    assert re_search(
-        html,
-        r'<button[\s\S]*data-app-view="bots"[\s\S]*hidden disabled aria-hidden="true"',
-    )
-    assert '<section class="card bots" aria-label="Bots" hidden aria-hidden="true">' in html
-    assert ".topbar-view-submenu-item[hidden]" in html
+    assert 'data-app-view="games"' in html
+    assert '<section class="card games" aria-label="Games">' in html
+    assert 'data-app-view="bots"' not in html
+    assert 'class="card bots"' not in html
+    assert 'data-ticker-id="bots"' not in html
+    assert "/api/bots/" not in html
 
 
 def test_render_html_exposes_games_flag_when_enabled() -> None:
@@ -85,8 +85,12 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
 
     assert 'const gamesFeatureEnabled = !!Number(1);' in html
     assert "if (gamesFeatureEnabled) {" in html
-    assert 'data-app-view="bots"' in html
-    assert '<section class="card bots" aria-label="Bots">' in html
+    assert 'data-app-view="games"' in html
+    assert '<section class="card games" aria-label="Games">' in html
+    assert 'id="games-library-select"' in html
+    assert 'fetch("/api/games/zork"' in html
+    assert 'name: "zork"' in html
+    assert 'data-app-view="bots"' not in html
 
 
 def test_render_html_exposes_file_transfer_auto_accept_default() -> None:
@@ -102,13 +106,20 @@ def test_render_html_exposes_file_transfer_auto_accept_default() -> None:
     assert "function autoAcceptInboundFileTransferIfEnabled(" in html
 
 
-def test_dashboard_parser_rejects_removed_bbs_flags() -> None:
+def test_dashboard_parser_rejects_removed_bbs_and_bot_flags() -> None:
     parser = _build_parser()
 
-    for flag in ("--bbs-enable", "--no-bbs-enable"):
+    for flag in (
+        "--bbs-enable",
+        "--no-bbs-enable",
+        "--bots-enable",
+        "--ping-bot-enable",
+        "--zork-bot-enable",
+    ):
         with pytest.raises(SystemExit) as exc:
             parser.parse_args([flag])
         assert exc.value.code == 2
+    assert "bot" not in parser.format_help().lower()
 
 
 def test_dashboard_parser_supports_games_enable_flag_and_env_default() -> None:
@@ -175,9 +186,3 @@ def _add_mesh_connection_args(
     default_mesh_port: str,
 ) -> None:
     parser.add_argument("--mesh-port", default=default_mesh_port)
-
-
-def re_search(text: str, pattern: str) -> bool:
-    import re
-
-    return re.search(pattern, text) is not None

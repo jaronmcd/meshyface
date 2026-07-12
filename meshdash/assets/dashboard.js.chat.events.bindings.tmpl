@@ -92,7 +92,7 @@
         if (chatHopReplyLocationIsValid(lat, lon)) {{
           try {{
             cityText = String(
-              await nearestOfflineCityHintFromCoords(lat, lon, botCityHintMaxDistanceKm)
+              await nearestOfflineCityHintFromCoords(lat, lon, offlineCityHintMaxDistanceKm)
             ).trim();
             const key = chatHopReplyCityCacheKey(location);
             if (key && nodeCityHintCache instanceof Map) {{
@@ -300,10 +300,6 @@
         if (whoisBtn) {{
           ev.preventDefault();
           ev.stopPropagation();
-          if (!chatBotCommandsEnabled) {{
-            setChatSendStatus("Whois quick action is unavailable.", true);
-            return;
-          }}
           const whoisTargetId = normalizeNodeId(
             whoisBtn instanceof HTMLElement
               ? (whoisBtn.dataset.whoisTargetId || item.dataset.fromNodeId || "")

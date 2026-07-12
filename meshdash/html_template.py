@@ -52,16 +52,11 @@ def render_html(
     )
     file_transfer_files_tab_hidden_attrs = ""
     file_transfer_section_hidden_attrs = ""
-    bots_app_tab_hidden_attrs = ""
-    bots_section_hidden_attrs = ""
     network_diagnostics_tab_hidden_attrs = ""
     network_diagnostics_panel_hidden_attrs = ""
     if not file_transfer_enabled:
         file_transfer_files_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
         file_transfer_section_hidden_attrs = ' hidden aria-hidden="true"'
-    if not games_enabled:
-        bots_app_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
-        bots_section_hidden_attrs = ' hidden aria-hidden="true"'
     if not debug_mode:
         network_diagnostics_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
         network_diagnostics_panel_hidden_attrs = ' hidden aria-hidden="true"'
@@ -78,9 +73,6 @@ def render_html(
         refresh_ms=refresh_ms,
         file_transfer_files_tab_hidden_attrs=file_transfer_files_tab_hidden_attrs,
         file_transfer_section_hidden_attrs=file_transfer_section_hidden_attrs,
-        bots_app_tab_hidden_attrs=bots_app_tab_hidden_attrs,
-        bots_section_hidden_attrs=bots_section_hidden_attrs,
-        games_enabled=games_enabled,
         network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
         network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
         initial_background_settings=initial_background_settings,

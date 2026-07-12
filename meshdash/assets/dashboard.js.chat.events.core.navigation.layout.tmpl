@@ -624,9 +624,6 @@
       if (clean === "games") {{
         return clean;
       }}
-      if (clean === "bots" && gamesFeatureEnabled) {{
-        return clean;
-      }}
       if (clean === "files" && fileTransferFeatureEnabled) {{
         return clean;
       }}
@@ -635,7 +632,7 @@
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
+      return clean === "games" || (clean === "files" && fileTransferFeatureEnabled);
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -672,17 +669,12 @@
       if (resolved === "files" && !fileTransferFeatureEnabled) {{
         resolved = "games";
       }}
-      if (resolved === "bots" && !gamesFeatureEnabled) {{
-        resolved = "games";
-      }}
-
       // Public v0 rail: expose only Chat/Network/Console/Games/Files/Settings.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
-        || (resolved === "bots" && gamesFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
       )
@@ -10837,7 +10829,6 @@
     function appsLayoutViewLabel(viewName = "") {{
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
-      if (normalized === "bots") return "Bots";
       return "Games";
     }}
 
@@ -10853,16 +10844,10 @@
     }}
 
     function appsLauncherMenuMetaText() {{
-      if (!gamesFeatureEnabled && !fileTransferFeatureEnabled) {{
-        return "Games";
-      }}
-      if (!gamesFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Files";
-      }}
       if (fileTransferFeatureEnabled) {{
-        return "Bots and files";
+        return "Games and files";
       }}
-      return "Bots and games";
+      return "Games";
     }}
 
     function closeLayoutViewSubmenus() {{
@@ -11672,9 +11657,6 @@
         if (next === "files") {{
           renderFilesView(latestState);
         }}
-        if (next === "bots") {{
-          renderBotsView(latestState);
-        }}
         if (next === "games") {{
           renderGamesView(latestState);
         }}
@@ -11720,8 +11702,6 @@
         renderChatLabsView(latestState);
       }} else if (next === "files") {{
         renderFilesView(latestState);
-      }} else if (next === "bots") {{
-        renderBotsView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
       }} else if (next === "remote") {{
@@ -11773,7 +11753,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

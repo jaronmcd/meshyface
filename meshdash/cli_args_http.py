@@ -129,7 +129,7 @@ def add_http_runtime_args(
         action=argparse.BooleanOptionalAction,
         default=default_games_enable,
         help=(
-            "Enable the playable Zork bot plus standalone console endpoints "
+            "Enable local games and standalone Zork console endpoints "
             f"(default: {default_games_enable})"
         ),
     )

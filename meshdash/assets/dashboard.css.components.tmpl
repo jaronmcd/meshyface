@@ -3634,28 +3634,6 @@
       color: var(--workspace-shell-text);
       box-shadow: none;
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions,
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-pending-bot-activity {{
-      border-color: transparent;
-      background:
-        linear-gradient(var(--workspace-shell-bg), var(--workspace-shell-bg)) padding-box,
-        conic-gradient(
-          from 150deg,
-          color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%),
-          color-mix(in srgb, #75d7ff 70%, var(--workspace-shell-active-text) 30%),
-          color-mix(in srgb, #f2d072 70%, var(--workspace-shell-active-text) 30%),
-          color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%)
-        ) border-box;
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--workspace-shell-active-text) 18%, transparent),
-        0 0 18px color-mix(in srgb, var(--workspace-shell-active-text) 20%, transparent);
-    }}
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions::before,
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-pending-bot-activity::before {{
-      background:
-        radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--workspace-shell-active-text) 22%, transparent) 0, transparent 46%),
-        linear-gradient(105deg, transparent 0, color-mix(in srgb, #75d7ff 12%, transparent) 42%, transparent 78%);
-    }}
     [data-theme="dark"] .topbar .summary-ticker-item.metric-state-neutral {{
       --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--workspace-shell-text-soft) 18%);
       --ticker-card-accent-soft: var(--workspace-shell-text-soft);
@@ -3920,6 +3898,7 @@
     [data-theme="dark"] .metric .label,
     [data-theme="dark"] .chat-feed-meta,
     [data-theme="dark"] .chat-feed-time,
+    [data-theme="dark"] .response-telemetry-meta,
     [data-theme="dark"] .chat-feed-arrow,
     [data-theme="dark"] .chat-reply-inline,
     [data-theme="dark"] .chat-reply-inline .chat-reply-inline-text,
@@ -4567,17 +4546,6 @@
     [data-theme="dark"] .network-node-splitter {{
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .bots-main-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .bots-main-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .bots-main-splitter:hover::before,
-    [data-theme="dark"] .bots-main-splitter.active::before {{
-      background: #79c0ff;
     }}
     [data-theme="dark"] .layout.view-network .splitter {{
       border-color: var(--ui-border);
@@ -6858,29 +6826,6 @@
     [data-theme="dark"] .settings-system-disk-meter .disk-track {{
       background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
     }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-toggle-wrap {{
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-title {{
-      color: #93b8a6;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-row {{
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-row code {{
-      background: #1b2f3e;
-      border-color: #35556d;
-      color: #dbeeff;
-    }}
-    [data-theme="dark"] .bots .chat-bot-toggle-wrap.bots-master-toggle {{
-      border-color: #8f4d4d;
-      background: #2a1616;
-      color: #f2b7b7;
-    }}
     [data-theme="dark"] .games-shell-splitter {{
       border-color: var(--ui-border);
       background: linear-gradient(180deg, #1a2430, #16202c);
@@ -7194,183 +7139,6 @@
       background: var(--classic-board-target);
       border-color: color-mix(in srgb, var(--classic-board-accent) 72%, #f4fffa);
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-shell-bg) 58%, transparent);
-    }}
-    .bots {{
-      --bots-panel-bg: var(--surface-tint-bg);
-      --bots-panel-bg-alt: var(--surface-tint-bg-soft);
-      --bots-panel-bg-strong: color-mix(in srgb, var(--surface-tint-bg) 72%, #ffffff);
-      --bots-panel-hover-bg: var(--surface-tint-bg-hover);
-      --bots-panel-active-bg: color-mix(in srgb, var(--surface-tint-bg-hover) 72%, #ffffff);
-      --bots-divider-bg: var(--surface-tint-divider-bg);
-      --bots-border: var(--surface-tint-border);
-      --bots-border-strong: var(--surface-tint-border-strong);
-      --bots-text: var(--surface-tint-text);
-      --bots-text-strong: color-mix(in srgb, var(--ink) 72%, var(--accent) 28%);
-      --bots-text-soft: var(--surface-tint-text-soft);
-      --bots-active: var(--accent);
-      --bots-active-text: var(--accent-2);
-      --bots-active-bg: color-mix(in srgb, var(--accent) 13%, var(--surface-tint-bg));
-      --bots-code-bg: var(--surface-tint-bg-alt);
-      --bots-danger-text: #8f4234;
-      --bots-warning-bg: #fff8e8;
-      --bots-warning-border: #d3a856;
-      --bots-warning-text: #7a5a1f;
-    }}
-    [data-theme="dark"] .bots {{
-      --bots-panel-bg: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
-      --bots-panel-bg-alt: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, var(--ui-panel));
-      --bots-panel-bg-strong: color-mix(in srgb, var(--workspace-shell-bg-alt) 70%, var(--ui-panel-alt));
-      --bots-panel-hover-bg: color-mix(in srgb, var(--workspace-shell-hover-bg) 80%, var(--ui-panel-alt));
-      --bots-panel-active-bg: color-mix(in srgb, var(--workspace-shell-active-bg) 88%, transparent);
-      --bots-divider-bg: linear-gradient(180deg, var(--workspace-shell-bg-alt), var(--workspace-shell-bg));
-      --bots-border: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
-      --bots-border-strong: color-mix(in srgb, var(--workspace-shell-border-strong) 82%, var(--ui-border));
-      --bots-text: var(--workspace-shell-text);
-      --bots-text-strong: color-mix(in srgb, var(--workspace-shell-text) 88%, white 12%);
-      --bots-text-soft: var(--workspace-shell-text-soft);
-      --bots-active: var(--ui-accent);
-      --bots-active-text: var(--workspace-shell-active-text);
-      --bots-active-bg: color-mix(in srgb, var(--workspace-shell-active-bg) 86%, transparent);
-      --bots-code-bg: color-mix(in srgb, var(--workspace-shell-bg-alt) 80%, var(--ui-panel-alt));
-      --bots-danger-text: #e3aa9f;
-      --bots-warning-bg: #2d2715;
-      --bots-warning-border: #8d7232;
-      --bots-warning-text: #f3dfad;
-    }}
-    .bots-panel {{
-      background: var(--bots-panel-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-panel h3 {{
-      color: var(--bots-text-strong);
-    }}
-    .bots-main-splitter,
-    .bots-command-splitter {{
-      border-color: var(--bots-border);
-      background: var(--bots-divider-bg);
-    }}
-    .bots-main-splitter::before,
-    .bots-command-splitter::before {{
-      background: var(--bots-border-strong);
-    }}
-    .bots-main-splitter:hover::before,
-    .bots-main-splitter.active::before,
-    .bots-command-splitter:hover::before,
-    .bots-command-splitter.active::before {{
-      background: var(--bots-active);
-    }}
-    .bots-setting-note,
-    .bots-command-config-name,
-    .bots-command-config-description,
-    .bots-command-config-label,
-    .bots-command-item-order,
-    .bots-command-description,
-    .bots-history-stats,
-    .bots-history-meta,
-    .bots-session-meta,
-    .bots-sniffer-filter-label,
-    .bots .chat-bot-toggle-wrap,
-    .bots .chat-bot-cheatsheet-title,
-    .bots .chat-bot-cheatsheet-row {{
-      color: var(--bots-text-soft);
-    }}
-    .bots-setting-note code,
-    .bots .chat-bot-cheatsheet-row code {{
-      background: var(--bots-code-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text-strong);
-    }}
-    .bots-command-list,
-    .bots-command-config,
-    .bots-session-list,
-    .bots-history-list,
-    .bots .chat-bot-cheatsheet {{
-      background: var(--bots-panel-bg-alt);
-      border-color: var(--bots-border);
-    }}
-    .bots-command-config-section {{
-      border-top-color: var(--bots-border);
-    }}
-    .bots-command-item,
-    .bots-session-item,
-    .bots-history-empty,
-    .bots-history-item {{
-      background: var(--bots-panel-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-item:hover {{
-      background: var(--bots-panel-hover-bg);
-      border-color: var(--bots-border-strong);
-    }}
-    .bots-command-item:focus-visible {{
-      outline-color: var(--bots-active);
-    }}
-    .bots-command-item.is-active {{
-      background: var(--bots-panel-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bots-active) 32%, transparent);
-    }}
-    .bots-command-config-usage,
-    .bots-command-usage,
-    .bots-session-peer,
-    .bots-history-command,
-    .bots-history-response strong {{
-      color: var(--bots-text-strong);
-    }}
-    .bots-command-kind,
-    .bots-history-status-pill {{
-      background: var(--bots-active-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-state {{
-      color: var(--bots-text-soft);
-    }}
-    .bots-command-state.is-enabled,
-    .bots .chat-bot-toggle-wrap input[type="checkbox"] {{
-      color: var(--bots-active-text);
-      accent-color: var(--bots-active);
-    }}
-    .bots-history-status-pill.responded {{
-      background: var(--bots-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-    }}
-    .bots-command-state.is-disabled {{
-      color: var(--bots-danger-text);
-    }}
-    .bots-review-tab {{
-      background: var(--bots-panel-bg-alt);
-      border-color: var(--bots-border);
-      color: var(--bots-text-soft);
-    }}
-    .bots-review-tab.is-active {{
-      background: var(--bots-panel-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-    }}
-    .bots-history-status-pill.pending {{
-      border-color: var(--bots-warning-border);
-      background: var(--bots-warning-bg);
-      color: var(--bots-warning-text);
-    }}
-    .bots-history-response {{
-      border-left-color: var(--bots-border-strong);
-      color: var(--bots-text);
-    }}
-    .bots-command-config-textarea,
-    .bots-sniffer-command-input {{
-      background: var(--bots-panel-bg-strong);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-config-textarea:focus,
-    .bots-sniffer-command-input:focus {{
-      border-color: var(--bots-border-strong);
-      outline-color: var(--bots-border-strong);
     }}
     [data-theme="dark"] .chat-change-title {{
       color: #c7e8d6;
@@ -7774,10 +7542,6 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-bots {{
-        height: auto;
-        min-height: 0;
-      }}
       .layout.view-games {{
         height: auto;
         min-height: 0;
@@ -7785,24 +7549,6 @@
       .layout.view-remote {{
         height: auto;
         min-height: 0;
-      }}
-      .bots-grid {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
-      .bots-main-splitter {{
-        display: none;
-      }}
-      .bots-command-shell {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
-      .bots-command-splitter {{
-        display: none;
-      }}
-      .bots-command-list-wrap {{
-        padding-right: 0;
-      }}
-      .bots-command-config {{
-        padding-left: 10px;
       }}
       .games-shell {{
         grid-template-columns: minmax(0, 1fr);
@@ -7817,7 +7563,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .games, .remote, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .favorites, .chat, .games, .remote, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}

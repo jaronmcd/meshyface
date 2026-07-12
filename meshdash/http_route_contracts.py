@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping, Optional, Protocol
 
 if TYPE_CHECKING:
-    from .api_input_bots import ZorkBotToggleRequest
     from .api_input_channels import ChannelSettingsRequest
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
@@ -25,7 +24,6 @@ else:
     RawPacketCaptureSettingsRequest = object
     ThemeSettingsRequest = object
     StandaloneZorkRequest = object
-    ZorkBotToggleRequest = object
 from .http_handler_contracts import DashboardHttpHandler
 from .state_payload_contracts import DashboardStatePayload
 
@@ -98,26 +96,6 @@ class GetThemeSettingsFn(Protocol):
 
 class SetThemePresetFn(Protocol):
     def __call__(self, payload: object) -> dict[str, object]:
-        ...
-
-
-class SetZorkBotEnabledFn(Protocol):
-    def __call__(self, enabled: bool) -> dict[str, object]:
-        ...
-
-
-class SetPingBotEnabledFn(Protocol):
-    def __call__(self, enabled: bool) -> dict[str, object]:
-        ...
-
-
-class SetPingBotMessageOnlyFn(Protocol):
-    def __call__(self, message_only: bool) -> dict[str, object]:
-        ...
-
-
-class ManageZorkBotFn(Protocol):
-    def __call__(self, action: object, *, peer_id: object = None) -> dict[str, object]:
         ...
 
 
@@ -239,11 +217,6 @@ class ParseNetworkToolRequestFn(Protocol):
         *,
         to_int_fn: ToIntFn,
     ) -> NetworkToolRequest:
-        ...
-
-
-class ParseZorkBotToggleRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> ZorkBotToggleRequest:
         ...
 
 
@@ -379,11 +352,6 @@ class DashboardPostRouteDependencies:
     ] = None
     set_theme_preset_fn: Optional[SetThemePresetFn] = None
     parse_theme_settings_request_fn: Optional[ParseThemeSettingsRequestFn] = None
-    set_zork_bot_enabled_fn: Optional[SetZorkBotEnabledFn] = None
-    set_ping_bot_enabled_fn: Optional[SetPingBotEnabledFn] = None
-    set_ping_bot_message_only_fn: Optional[SetPingBotMessageOnlyFn] = None
-    manage_zork_bot_fn: Optional[ManageZorkBotFn] = None
-    parse_zork_bot_toggle_request_fn: Optional[ParseZorkBotToggleRequestFn] = None
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None

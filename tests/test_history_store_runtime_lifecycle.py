@@ -116,11 +116,6 @@ def test_initialize_history_store_runtime_uses_legacy_open_and_preloads_settings
             "offset": 0.0,
         }
     ]
-    assert store._bot_runtime_settings == {
-        "zork_enabled": False,
-        "ping_enabled": False,
-        "ping_message_only": False,
-    }
 
 
 def test_initialize_history_store_runtime_uses_policy_open_when_injected() -> None:
@@ -241,17 +236,11 @@ def test_history_store_maintenance_close_prune_maybe_and_reset_paths() -> None:
         _read_lock=_Lock(),
         _last_local_telemetry_sample_unix=99,
         _custom_telemetry_rules=[{"metric_key": "old"}],
-        _bot_runtime_settings={"zork_enabled": True},
     )
 
     assert reset_history_store(reset_store) == 1
     assert reset_store._last_local_telemetry_sample_unix == 0
     assert reset_store._custom_telemetry_rules == []
-    assert reset_store._bot_runtime_settings == {
-        "zork_enabled": False,
-        "ping_enabled": False,
-        "ping_message_only": False,
-    }
     assert any("wal_checkpoint" in sql for sql in read_conn.executed)
 
 
@@ -299,13 +288,11 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_save_summary_metrics_helper", lambda store, summary: _record("save_summary", summary))
     monkeypatch.setattr(runtime_impl, "_load_custom_telemetry_settings_helper", lambda store: _record("get_custom"))
     monkeypatch.setattr(runtime_impl, "_save_custom_telemetry_settings_helper", lambda store, *, rules: _record("set_custom", rules))
-    monkeypatch.setattr(runtime_impl, "_load_bot_runtime_settings_helper", lambda store: _record("get_bot"))
     monkeypatch.setattr(
         runtime_impl,
         "_load_meshyface_profile_processing_settings_helper",
         lambda store: _record("get_profile_processing"),
     )
-    monkeypatch.setattr(runtime_impl, "_save_bot_runtime_settings_helper", lambda store, *, settings: _record("set_bot", settings))
     monkeypatch.setattr(
         runtime_impl,
         "_save_meshyface_profile_processing_settings_helper",
@@ -365,9 +352,7 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     store.save_summary_metrics({"node_count": 1})
     assert store.get_custom_telemetry_settings()["helper"] == "get_custom"
     assert store.set_custom_telemetry_settings([{"metric_key": "temp"}])["helper"] == "set_custom"
-    assert store.get_bot_runtime_settings()["helper"] == "get_bot"
     assert store.get_meshyface_profile_processing_settings()["helper"] == "get_profile_processing"
-    assert store.set_bot_runtime_settings({"ping_enabled": True})["helper"] == "set_bot"
     assert store.set_meshyface_profile_processing_settings(True)["helper"] == "set_profile_processing"
 
     assert calls[0][0] == "init"
